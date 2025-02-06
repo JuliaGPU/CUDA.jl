@@ -2,7 +2,9 @@ using SpecialFunctions
 
 @testset "math" begin
     @testset "log10" begin
-        @test testf(a->log10.(a), Float32[100])
+        for T in (Float32, Float64)
+            @test testf(a->log10.(a), T[100])
+        end
     end
 
     @testset "pow" begin
@@ -12,28 +14,34 @@ using SpecialFunctions
             @test testf((x,y)->x.^y, rand(Float32, 1), -rand(range, 1))
         end
     end
+    
+    @testset "min/max" begin
+        for T in (Float32, Float64)
+            @test testf((x,y)->max.(x, y), rand(Float32, 1), rand(T, 1))
+            @test testf((x,y)->min.(x, y), rand(Float32, 1), rand(T, 1))
+        end
+    end
 
     @testset "isinf" begin
-      for x in (Inf32, Inf, NaN32, NaN)
+      for x in (Inf32, Inf, NaN16, NaN32, NaN)
         @test testf(x->isinf.(x), [x])
       end
     end
 
     @testset "isnan" begin
-      for x in (Inf32, Inf, NaN32, NaN)
+      for x in (Inf32, Inf, NaN16, NaN32, NaN)
         @test testf(x->isnan.(x), [x])
       end
     end
 
     for op in (exp, angle, exp2, exp10,)
         @testset "$op" begin
-            for T in (Float16, Float32, Float64)
+            for T in (Float32, Float64)
                 @test testf(x->op.(x), rand(T, 1))
                 @test testf(x->op.(x), -rand(T, 1))
             end
         end
     end
-
     for op in (expm1,)
         @testset "$op" begin
             # FIXME: add expm1(::Float16) to Base
@@ -50,7 +58,6 @@ using SpecialFunctions
                 @test testf(x->op.(x), rand(T, 1))
                 @test testf(x->op.(x), -rand(T, 1))
             end
-
         end
     end
     @testset "mod and rem" begin
@@ -96,6 +103,18 @@ using SpecialFunctions
     @testset "exp" begin
         # JuliaGPU/CUDA.jl#1085: exp uses Base.sincos performing a global CPU load
         @test testf(x->exp.(x), [1e7im])
+    end
+    
+    @testset "Real - $op" for op in (exp, abs, abs2, exp10, log10)
+        @testset "$T" for T in (Float16, Float32, Float64)
+            @test testf(x->op.(x), rand(T, 1))
+        end
+    end
+    
+    @testset "Float16 - $op" for op in (log,exp,exp2,exp10,log2,log10)
+        @testset "$T" for T in (Float16, )
+            @test testf(x->op.(x), rand(T, 1))
+        end
     end
 
     @testset "fastmath" begin

@@ -2,7 +2,6 @@
 
 using Base: FastMath
 
-
 ## helpers
 
 within(lower, upper) = (val) -> lower <= val <= upper
@@ -103,10 +102,71 @@ end
 
 @device_override Base.log(x::Float64) = ccall("extern __nv_log", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log(x::Float32) = ccall("extern __nv_logf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.log(x::Float16)
+    log_x = @asmcall("""{.reg.b32        f, C;
+                  .reg.b16        r,h;
+                  mov.b16         h,\$1;
+                  cvt.f32.f16     f,h;
+                  lg2.approx.ftz.f32  f,f;
+                  mov.b32         C, 0x3f317218U;
+                  mul.f32         f,f,C;
+                  cvt.rn.f16.f32  r,f;
+                  .reg.b16 spc, ulp, p;
+                  mov.b16 spc, 0X160DU;
+                  mov.b16 ulp, 0x9C00U;
+                  set.eq.f16.f16 p, h, spc;
+                  fma.rn.f16 r,p,ulp,r;
+                  mov.b16 spc, 0X3BFEU;
+                  mov.b16 ulp, 0x8010U;
+                  set.eq.f16.f16 p, h, spc;
+                  fma.rn.f16 r,p,ulp,r;
+                  mov.b16 spc, 0X3C0BU;
+                  mov.b16 ulp, 0x8080U;
+                  set.eq.f16.f16 p, h, spc;
+                  fma.rn.f16 r,p,ulp,r;
+                  mov.b16 spc, 0X6051U;
+                  mov.b16 ulp, 0x1C00U;
+                  set.eq.f16.f16 p, h, spc;
+                  fma.rn.f16 r,p,ulp,r;
+                  mov.b16         \$0,r;
+                 }""", "=h,h", Float16, Tuple{Float16}, x)
+    return log_x
+end
+
 @device_override FastMath.log_fast(x::Float32) = ccall("extern __nv_fast_logf", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.log10(x::Float64) = ccall("extern __nv_log10", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log10(x::Float32) = ccall("extern __nv_log10f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.log10(x::Float16)
+    log_x = @asmcall("""{.reg.b16         h, r;
+                         .reg.b32         f, C;
+                          mov.b16         h, \$1;
+                          cvt.f32.f16     f, h;
+                          lg2.approx.ftz.f32  f, f;
+                          mov.b32         C, 0x3E9A209BU;
+                          mul.f32         f,f,C;
+                          cvt.rn.f16.f32      r, f;
+                          .reg.b16 spc, ulp, p;
+                          mov.b16 spc, 0x338FU;
+                          mov.b16 ulp, 0x1000U;
+                          set.eq.f16.f16 p, h, spc;
+                          fma.rn.f16 r,p,ulp,r;
+                          mov.b16 spc, 0x33F8U;
+                          mov.b16 ulp, 0x9000U;
+                          set.eq.f16.f16 p, h, spc;
+                          fma.rn.f16 r,p,ulp,r;
+                          mov.b16 spc, 0x57E1U;
+                          mov.b16 ulp, 0x9800U;
+                          set.eq.f16.f16 p, h, spc;
+                          fma.rn.f16 r,p,ulp,r;
+                          mov.b16 spc, 0x719DU;
+                          mov.b16 ulp, 0x9C00U;
+                          set.eq.f16.f16 p, h, spc;
+                          fma.rn.f16 r,p,ulp,r;
+                          mov.b16         \$0, r;
+                         }""", "=h,h", Float16, Tuple{Float16}, x)
+    return log_x
+end
 @device_override FastMath.log10_fast(x::Float32) = ccall("extern __nv_fast_log10f", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.log1p(x::Float64) = ccall("extern __nv_log1p", llvmcall, Cdouble, (Cdouble,), x)
@@ -114,6 +174,26 @@ end
 
 @device_override Base.log2(x::Float64) = ccall("extern __nv_log2", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log2(x::Float32) = ccall("extern __nv_log2f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.log2(x::Float16)
+    log_x = @asmcall("""{.reg.b16         h, r;
+                         .reg.b32         f;
+                         mov.b16         h, \$1;
+                         cvt.f32.f16     f, h;
+                         lg2.approx.ftz.f32  f, f;
+                         cvt.rn.f16.f32      r, f;
+                         .reg.b16 spc, ulp, p;
+                         mov.b16 spc, 0xA2E2U;
+                         mov.b16 ulp, 0x8080U;
+                         set.eq.f16.f16 p, r, spc;
+                         fma.rn.f16 r,p,ulp,r;
+                         mov.b16 spc, 0xBF46U;
+                         mov.b16 ulp, 0x9400U;
+                         set.eq.f16.f16 p, r, spc;
+                         fma.rn.f16 r,p,ulp,r;
+                         mov.b16         \$0, r;
+                       }""", "=h,h", Float16, Tuple{Float16}, x)
+    return log_x
+end
 @device_override FastMath.log2_fast(x::Float32) = ccall("extern __nv_fast_log2f", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_function logb(x::Float64) = ccall("extern __nv_logb", llvmcall, Cdouble, (Cdouble,), x)
@@ -127,16 +207,95 @@ end
 
 @device_override Base.exp(x::Float64) = ccall("extern __nv_exp", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp(x::Float32) = ccall("extern __nv_expf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.exp(x::Float16)
+    exp_x = @asmcall("""{
+                         .reg.b32         f, C, nZ;
+                         .reg.b16         h,r;
+                         mov.b16         h,\$1;
+                         cvt.f32.f16     f,h;
+                         mov.b32         C, 0x3fb8aa3bU;
+                         mov.b32         nZ, 0x80000000U;
+                         fma.rn.f32      f,f,C,nZ;
+                         ex2.approx.ftz.f32  f,f;
+                         cvt.rn.f16.f32      r,f;
+                         .reg.b16 spc, ulp, p;
+                         mov.b16 spc,0X1F79U;
+                         mov.b16 ulp,0x9400U;
+                         set.eq.f16.f16 p, h, spc;
+                         fma.rn.f16 r,p,ulp,r;
+                         mov.b16 spc,0X25CFU;
+                         mov.b16 ulp,0x9400U;
+                         set.eq.f16.f16 p, h, spc;
+                         fma.rn.f16 r,p,ulp,r;
+                         mov.b16 spc,0XC13BU;
+                         mov.b16 ulp,0x0400U;
+                         set.eq.f16.f16 p, h, spc;
+                         fma.rn.f16 r,p,ulp,r;
+                         mov.b16 spc,0XC1EFU;
+                         mov.b16 ulp,0x0200U;
+                         set.eq.f16.f16 p, h, spc;
+                         fma.rn.f16 r,p,ulp,r;
+                         mov.b16         \$0,r;
+                 }""", "=h,h", Float16, Tuple{Float16}, x)
+    return exp_x
+end
 @device_override FastMath.exp_fast(x::Float32) = ccall("extern __nv_fast_expf", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.exp2(x::Float64) = ccall("extern __nv_exp2", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp2(x::Float32) = ccall("extern __nv_exp2f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.exp2(x::Float16)
+    exp_x = @asmcall("""{.reg.b32         f, ULP;
+                         .reg.b16         r;
+                         mov.b16         r,\$1;
+                         cvt.f32.f16     f,r;
+                         ex2.approx.ftz.f32      f,f;
+                         mov.b32         ULP, 0x33800000U;
+                         fma.rn.f32      f,f,ULP,f;
+                         cvt.rn.f16.f32      r,f;
+                         mov.b16         \$0,r;
+                        }""", "=h,h", Float16, Tuple{Float16}, x)
+    return exp_x
+end
 @device_override FastMath.exp2_fast(x::Union{Float32, Float64}) = exp2(x)
-# TODO: enable once PTX > 7.0 is supported
-# @device_override Base.exp2(x::Float16) = @asmcall("ex2.approx.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
 
 @device_override Base.exp10(x::Float64) = ccall("extern __nv_exp10", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp10(x::Float32) = ccall("extern __nv_exp10f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.exp10(x::Float16)
+
+    exp_x = @asmcall("""{.reg.b16         h,r;
+        .reg.b32         f, C, nZ;
+        mov.b16         h, \$1;
+        cvt.f32.f16     f, h;
+        mov.b32         C, 0x40549A78U;
+        mov.b32         nZ, 0x80000000U;
+        fma.rn.f32      f,f,C,nZ;
+        ex2.approx.ftz.f32  f, f;
+        cvt.rn.f16.f32      r, f;
+        .reg.b16 spc, ulp, p;
+        mov.b16 spc,0x34DEU;
+        mov.b16 ulp,0x9800U;
+        set.eq.f16.f16 p, h, spc;
+        fma.rn.f16 r,p,ulp,r;
+        mov.b16 spc,0x9766U;
+        mov.b16 ulp,0x9000U;
+        set.eq.f16.f16 p, h, spc;
+        fma.rn.f16 r,p,ulp,r;
+        mov.b16 spc,0x9972U;
+        mov.b16 ulp,0x1000U;
+        set.eq.f16.f16 p, h, spc;
+        fma.rn.f16 r,p,ulp,r;
+        mov.b16 spc,0xA5C4U;
+        mov.b16 ulp,0x1000U;
+        set.eq.f16.f16 p, h, spc;
+        fma.rn.f16 r,p,ulp,r;
+        mov.b16 spc,0xBF0AU;
+        mov.b16 ulp,0x8100U;
+        set.eq.f16.f16 p, h, spc;
+        fma.rn.f16 r,p,ulp,r;
+        mov.b16         \$0, r;
+        }""", "=h,h", Float16, Tuple{Float16}, x)
+    return exp_x
+end
 @device_override FastMath.exp10_fast(x::Float32) = ccall("extern __nv_fast_exp10f", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.expm1(x::Float64) = ccall("extern __nv_expm1", llvmcall, Cdouble, (Cdouble,), x)
@@ -204,6 +363,13 @@ end
 
 @device_override Base.isnan(x::Float64) = (ccall("extern __nv_isnand", llvmcall, Int32, (Cdouble,), x)) != 0
 @device_override Base.isnan(x::Float32) = (ccall("extern __nv_isnanf", llvmcall, Int32, (Cfloat,), x)) != 0
+@device_override function Base.isnan(x::Float16)
+    if compute_capability() >= sv"8.0"
+        return (ccall("extern __nv_hisnan", llvmcall, Int32, (Float16,), x)) != 0
+    else
+        return isnan(Float32(x))
+    end
+end
 
 @device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
 @device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
@@ -223,14 +389,20 @@ end
 @device_override Base.abs(x::Int32) =   ccall("extern __nv_abs", llvmcall, Int32, (Int32,), x)
 @device_override Base.abs(f::Float64) = ccall("extern __nv_fabs", llvmcall, Cdouble, (Cdouble,), f)
 @device_override Base.abs(f::Float32) = ccall("extern __nv_fabsf", llvmcall, Cfloat, (Cfloat,), f)
-# TODO: enable once PTX > 7.0 is supported
-# @device_override Base.abs(x::Float16) = @asmcall("abs.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
+@device_override Base.abs(f::Float16) = Float16(abs(Float32(f)))
 @device_override Base.abs(x::Int64) =   ccall("extern __nv_llabs", llvmcall, Int64, (Int64,), x)
 
 ## roots and powers
 
 @device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.sqrt(x::Float16)
+    if compute_capability() >= sv"8.0"
+        ccall("extern __nv_hsqrt", llvmcall, Float16, (Float16,), x)
+    else
+        return Float16(sqrt(Float32(x)))
+    end
+end
 @device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
 
 @device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
