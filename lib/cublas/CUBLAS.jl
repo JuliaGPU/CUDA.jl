@@ -106,6 +106,9 @@ function handle()
         cublasSetStream_v2(new_handle, cuda.stream)
         math_mode!(new_handle, cuda.math_mode)
 
+        # default to device pointers everywhere
+        cublasSetPointerMode_v2(state.handle, CUBLAS_POINTER_MODE_DEVICE)
+
         (; handle=new_handle, cuda.stream, cuda.math_mode)
     end
     state = get!(states, cuda.context) do
@@ -129,9 +132,6 @@ function handle()
     if state.math_mode != cuda.math_mode
         states[cuda.context] = state = update_math_mode(cuda, state)
     end
-
-    # set pointer mode to device
-    cublasSetPointerMode_v2(state.handle, CUBLAS_POINTER_MODE_DEVICE)
 
     return state.handle
 end

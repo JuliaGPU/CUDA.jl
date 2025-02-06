@@ -1401,8 +1401,7 @@ end
 end
 
 ## (GE) general matrix-matrix multiplication grouped batched
-# does NOT work with device side scalar pointers
-#= for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGroupedBatched_64, :Float32),
+for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGroupedBatched_64, :Float32),
                                 (:cublasDgemmGroupedBatched, :cublasDgemmGroupedBatched_64, :Float64))
     @eval begin
         function gemm_grouped_batched!(transA::Vector{Char},
@@ -1445,12 +1444,23 @@ end
             Bptrs = unsafe_batch(reduce(vcat, B))
             Cptrs = unsafe_batch(reduce(vcat, C))
 
-            if CUBLAS.version() >= v"12.0"
-                $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
-                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
-            else
-                $fname(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
-                          Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+            try
+                ## XXX: does not seem to support device pointers
+                cublasSetPointerMode_v2(handle(), CUBLAS_POINTER_MODE_HOST)
+
+                mode = Ref{cublasPointerMode_t}()
+                cublasGetPointerMode_v2(handle(), mode)
+                @show mode[]
+
+                if CUBLAS.version() >= v"12.0"
+                    $fname_64(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                              Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+                else
+                    $fname(handle(), transa, transb, m, n, k, alpha, Aptrs, lda,
+                              Bptrs, ldb, beta, Cptrs, ldc, group_count, group_size)
+                end
+            finally
+                cublasSetPointerMode_v2(handle(), CUBLAS_POINTER_MODE_DEVICE)
             end
             unsafe_free!(Cptrs)
             unsafe_free!(Bptrs)
@@ -1540,7 +1550,8 @@ function gemm_grouped_batched(transA::Vector{Char}, transB::Vector{Char},
 alpha = [one(T) for i = 1:length(transA)]
 gemm_grouped_batched(transA, transB, alpha, A, B)
 end
-=#
+
+
 ## (GE) general matrix-matrix multiplication batched
 for (fname, fname_64, elty) in ((:cublasDgemmBatched, :cublasDgemmBatched_64, :Float64),
                                 (:cublasSgemmBatched, :cublasSgemmBatched_64, :Float32),

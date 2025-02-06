@@ -291,8 +291,6 @@ k = 13
         end
     end
 
-    # TODO does not work with device side pointers
-    #=
     if CUDA.CUBLAS.version() >= v"12.4.2"
         @testset "elty = $elty" for elty in [Float32, Float64]
             num_groups = 10
@@ -372,7 +370,6 @@ k = 13
             end
         end
     end
-    =#
 
     @testset "mixed-precision matmul" begin
         m,k,n = 4,4,4
