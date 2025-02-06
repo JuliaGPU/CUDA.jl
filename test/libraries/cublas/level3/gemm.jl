@@ -373,7 +373,8 @@ k = 13
         end
     end
     =#
-    #=@testset "mixed-precision matmul" begin
+
+    @testset "mixed-precision matmul" begin
         m,k,n = 4,4,4
         cudaTypes = (Float16, Complex{Float16}, BFloat16, Complex{BFloat16}, Float32, Complex{Float32},
                     Float64, Complex{Float64}, Int8, Complex{Int8}, UInt8, Complex{UInt8},
@@ -424,7 +425,6 @@ k = 13
             @test C ≈ Array(dC) rtol=rtol
         end
     end
-    =#
 
     @testset "gemm! with strided inputs" begin # JuliaGPU/CUDA.jl#78
         inn = 784; out = 32
