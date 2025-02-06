@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
-using ..CUDA: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context, CuRefArray, AbstractMemory
+using ..CUDA: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context, CuRefArray
 
 using ..CUDA: CUDA_Runtime
 using ..CUDA_Runtime
