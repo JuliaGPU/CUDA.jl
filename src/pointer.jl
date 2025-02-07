@@ -207,7 +207,7 @@ Base.:(+)(x::Integer, y::CuArrayPtr) = y + x
 
 
 #
-# CUDA reference objects
+# CUDA reference objects (forward declaration)
 #
 
 if sizeof(Ptr{Cvoid}) == 8
@@ -215,60 +215,3 @@ if sizeof(Ptr{Cvoid}) == 8
 else
     primitive type CuRef{T} 32 end
 end
-
-# general methods for CuRef{T} type
-Base.eltype(x::Type{<:CuRef{T}}) where {T} = @isdefined(T) ? T : Any
-
-Base.convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = x
-
-# conversion or the actual ccall
-Base.unsafe_convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
-Base.unsafe_convert(::Type{CuRef{T}}, x) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
-## `@gcsafe_ccall` results in "double conversions" (remove this once `ccall` does `gcsafe`)
-Base.unsafe_convert(::Type{CuPtr{T}}, x::CuRef{T}) where {T} = x
-
-# CuRef from literal pointer
-Base.convert(::Type{CuRef{T}}, x::CuPtr{T}) where {T} = x
-
-# indirect constructors using CuRef
-CuRef(x::Any) = CuRefArray(CuArray([x]))
-CuRef{T}(x) where {T} = CuRefArray{T}(CuArray(T[x]))
-CuRef{T}() where {T} = CuRefArray(CuArray{T}(undef, 1))
-Base.convert(::Type{CuRef{T}}, x) where {T} = CuRef{T}(x)
-
-
-## CuRef object backed by a CUDA array at index i
-
-struct CuRefArray{T,A<:AbstractArray{T}} <: Ref{T}
-    x::A
-    i::Int
-    CuRefArray{T,A}(x,i) where {T,A<:AbstractArray{T}} = new(x,i)
-end
-CuRefArray{T}(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T,typeof(x)}(x, i)
-CuRefArray(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T}(x, i)
-Base.convert(::Type{CuRef{T}}, x::AbstractArray{T}) where {T} = CuRefArray(x, 1)
-Base.convert(::Type{CuRef{T}}, x::CuRefArray{T}) where {T} = x
-
-function Base.unsafe_convert(P::Type{CuPtr{T}}, b::CuRefArray{T}) where T
-    return pointer(b.x, b.i)
-end
-function Base.unsafe_convert(P::Type{CuPtr{Any}}, b::CuRefArray{Any})
-    return convert(P, pointer(b.x, b.i))
-end
-Base.unsafe_convert(::Type{CuPtr{Cvoid}}, b::CuRefArray{T}) where {T} =
-    convert(CuPtr{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
-
-function Base.getindex(gpu::CuRefArray{T}) where {T}
-    cpu = Ref{T}()
-    GC.@preserve cpu begin
-        cpu_ptr = Base.unsafe_convert(Ptr{T}, cpu)
-        gpu_ptr = pointer(gpu.x, gpu.i)
-        unsafe_copyto!(cpu_ptr, gpu_ptr, 1)
-    end
-    cpu[]
-end
-
-
-## Union with all CuRef 'subtypes'
-
-const CuRefs{T} = Union{CuPtr{T}, CuRefArray{T}}
