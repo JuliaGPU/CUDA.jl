@@ -20,15 +20,15 @@ k = 13
         CUBLAS.copy!(m,A,B)
         @test Array(A) == Array(B)
 
-        @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))
+        @test testf(rmul!, rand(T, 6, 9, 3), rand())
         @test testf(dot, rand(T, m), rand(T, m))
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
-        @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(LinearAlgebra.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
+        @test testf(axpy!, rand(), rand(T, m), rand(T, m))
+        @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
             x = rand(T, m)
@@ -48,7 +48,7 @@ k = 13
             @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
             @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
         end
-        
+
         @testset "rotg!" begin
             a = rand(T)
             b = rand(T)
@@ -62,7 +62,7 @@ k = 13
             end
             @test c^2 + abs2(s) ≈ one(T)
         end
-        
+
         if T <: Real
             H = rand(T, 2, 2)
             @testset "flag $flag" for (flag, flag_H) in ((T(-2), [one(T) zero(T); zero(T) one(T)]),
@@ -76,7 +76,7 @@ k = 13
                     y = rand(T, rot_n)
                     dx = CuArray(x)
                     dy = CuArray(y)
-                    dx, dy = CUBLAS.rotm!(rot_n, dx, dy, vcat(flag, H...))
+                    dx, dy = CUBLAS.rotm!(rot_n, dx, dy, CuArray(vcat(flag, H...)))
                     h_x = collect(dx)
                     h_y = collect(dy)
                     @test h_x ≈ [x[1] * flag_H[1,1] + y[1] * flag_H[1,2]; x[2] * flag_H[1, 1] + y[2] * flag_H[1, 2]]
@@ -84,36 +84,37 @@ k = 13
                 end
             end
             @testset "rotmg!" begin
-                param = zeros(T, 5)
+                gpu_param = CuArray{T}(undef, 5)
                 x1 = rand(T)
                 y1 = rand(T)
                 d1 = zero(T)
                 d2 = zero(T)
                 x1_copy = copy(x1)
                 y1_copy = copy(y1)
-                d1, d2, x1, y1, param = CUBLAS.rotmg!(d1, d2, x1, y1, param)
-                flag = param[1]
+                d1, d2, x1, y1 = CUBLAS.rotmg!(d1, d2, x1, y1, gpu_param)
+                cpu_param = Array(gpu_param)
+                flag = cpu_param[1]
                 H = zeros(T, 2, 2)
                 if flag == -2
-                    H[1, 1] = one(T) 
+                    H[1, 1] = one(T)
                     H[1, 2] = zero(T)
-                    H[2, 1] = zero(T) 
+                    H[2, 1] = zero(T)
                     H[2, 2] = one(T)
                 elseif flag == -1
-                    H[1, 1] = param[2]
-                    H[1, 2] = param[3]
-                    H[2, 1] = param[4]
-                    H[2, 2] = param[5]
+                    H[1, 1] = cpu_param[2]
+                    H[1, 2] = cpu_param[3]
+                    H[2, 1] = cpu_param[4]
+                    H[2, 2] = cpu_param[5]
                 elseif iszero(flag)
-                    H[1, 1] = one(T) 
-                    H[1, 2] = param[3]
-                    H[2, 1] = param[4]
+                    H[1, 1] = one(T)
+                    H[1, 2] = cpu_param[3]
+                    H[2, 1] = cpu_param[4]
                     H[2, 2] = one(T)
                 elseif flag == 1
-                    H[1, 1] = param[2]
+                    H[1, 1] = cpu_param[2]
                     H[1, 2] = one(T)
                     H[2, 1] = -one(T)
-                    H[2, 2] = param[5]
+                    H[2, 2] = cpu_param[5]
                 end
                 out = H * [(√d1) * x1_copy; (√d2) * y1_copy]
                 @test out[2] ≈ zero(T)
@@ -138,6 +139,17 @@ k = 13
             ca = CuArray(a)
             @test BLAS.iamax(a) == CUBLAS.iamax(ca)
             @test CUBLAS.iamin(ca) == 3
+            result_type = CUBLAS.version() >= v"12.0" ? Int64 : Cint
+            result = CuRef{result_type}(0)
+            result = CUBLAS.iamax(ca, result)
+            @test BLAS.iamax(a) == only(Array(result.x))
+        end
+        @testset "nrm2 with result" begin
+            x = rand(T, m)
+            dx = CuArray(x)
+            result = CuRef{real(T)}(zero(real(T)))
+            result = CUBLAS.nrm2(dx, result)
+            @test norm(x) ≈ only(Array(result.x))
         end
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]
@@ -146,12 +158,13 @@ k = 13
         CUBLAS.copy!(m,A,B)
         @test Array(A) == Array(B)
 
+        @test testf(rmul!, rand(T, 6, 9, 3), rand())
         @test testf(dot, rand(T, m), rand(T, m))
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
-        @test testf(axpy!, Ref(rand()), rand(T, m), rand(T, m))
-        @test testf(LinearAlgebra.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+        @test testf(axpy!, rand(), rand(T, m), rand(T, m))
+        @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
 
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
@@ -163,5 +176,5 @@ k = 13
             z = dot(x, y)
             @test dz ≈ z
         end
-    end # level 1 testset
-end
+    end
+end # level 1 testset

@@ -1,6 +1,6 @@
 # CUDA pointer types
 
-export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CuRef, RefOrCuRef
+export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CuRef
 
 
 #
@@ -224,6 +224,8 @@ Base.convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = x
 # conversion or the actual ccall
 Base.unsafe_convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
 Base.unsafe_convert(::Type{CuRef{T}}, x) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
+## `@gcsafe_ccall` results in "double conversions" (remove this once `ccall` does `gcsafe`)
+Base.unsafe_convert(::Type{CuPtr{T}}, x::CuRef{T}) where {T} = x
 
 # CuRef from literal pointer
 Base.convert(::Type{CuRef{T}}, x::CuPtr{T}) where {T} = x
@@ -245,6 +247,7 @@ end
 CuRefArray{T}(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T,typeof(x)}(x, i)
 CuRefArray(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T}(x, i)
 Base.convert(::Type{CuRef{T}}, x::AbstractArray{T}) where {T} = CuRefArray(x, 1)
+Base.convert(::Type{CuRef{T}}, x::CuRefArray{T}) where {T} = x
 
 function Base.unsafe_convert(P::Type{CuPtr{T}}, b::CuRefArray{T}) where T
     return pointer(b.x, b.i)
@@ -255,39 +258,17 @@ end
 Base.unsafe_convert(::Type{CuPtr{Cvoid}}, b::CuRefArray{T}) where {T} =
     convert(CuPtr{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
 
+function Base.getindex(gpu::CuRefArray{T}) where {T}
+    cpu = Ref{T}()
+    GC.@preserve cpu begin
+        cpu_ptr = Base.unsafe_convert(Ptr{T}, cpu)
+        gpu_ptr = pointer(gpu.x, gpu.i)
+        unsafe_copyto!(cpu_ptr, gpu_ptr, 1)
+    end
+    cpu[]
+end
+
 
 ## Union with all CuRef 'subtypes'
 
 const CuRefs{T} = Union{CuPtr{T}, CuRefArray{T}}
-
-
-## RefOrCuRef
-
-if sizeof(Ptr{Cvoid}) == 8
-    primitive type RefOrCuRef{T} 64 end
-else
-    primitive type RefOrCuRef{T} 32 end
-end
-
-Base.convert(::Type{RefOrCuRef{T}}, x::Union{RefOrCuRef{T}, Ref{T}, CuRef{T}, CuRefs{T}}) where {T} = x
-
-# prefer conversion to CPU ref: this is generally cheaper
-Base.convert(::Type{RefOrCuRef{T}}, x) where {T} = Ref{T}(x)
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::Ref{T}) where {T} =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(Ptr{T}, x))
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x) where {T} =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(Ptr{T}, x))
-
-# support conversion from GPU ref
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRefs{T}) where {T} =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
-
-# support conversion from arrays
-Base.convert(::Type{RefOrCuRef{T}}, x::Array{T}) where {T} = convert(Ref{T}, x)
-Base.convert(::Type{RefOrCuRef{T}}, x::AbstractArray{T}) where {T} = convert(CuRef{T}, x)
-Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CuRefArray{T}) where T =
-    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuRef{T}, b))
-
-# avoid ambiguities when passing RefOrCuRef instances
-# NOTE: this happens now with `@gcsafe_ccall` due to the double `ccall`
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::RefOrCuRef{T}) where {T} = x

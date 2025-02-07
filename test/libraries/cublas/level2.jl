@@ -39,10 +39,10 @@ k = 13
             dA = CuArray(A)
             alpha = rand(elty)
             dy = CUBLAS.gemv('N', alpha, dA, dx)
-            hy = collect(dy)
+            hy = Array(dy)
             @test hy ≈ alpha * A * x
             dy = CUBLAS.gemv('N', dA, dx)
-            hy = collect(dy)
+            hy = Array(dy)
             @test hy ≈ A * x
             dy = CuArray(y)
             dx = CUBLAS.gemv(elty <: Real ? 'T' : 'C', alpha, dA, dy)

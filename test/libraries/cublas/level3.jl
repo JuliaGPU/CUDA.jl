@@ -17,6 +17,103 @@ k = 13
 
 @testset "level 3" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "trmm!" begin
+            alpha = rand(elty)
+            A = triu(rand(elty, m, m))
+            B = rand(elty,m,n)
+            C = zeros(elty,m,n)
+            dA = CuArray(A)
+            dB = CuArray(B)
+            dC = CuArray(C)
+            C = alpha*A*B
+            CUBLAS.trmm!('L','U','N','N',alpha,dA,dB,dC)
+            # move to host and compare
+            h_C = Array(dC)
+            @test C ≈ h_C
+        end
+        @testset "trmm" begin
+            alpha = rand(elty)
+            A = triu(rand(elty, m, m))
+            B = rand(elty,m,n)
+            C = zeros(elty,m,n)
+            dA = CuArray(A)
+            dB = CuArray(B)
+            C = alpha*A*B
+            d_C = CUBLAS.trmm('L','U','N','N',alpha,dA,dB)
+            # move to host and compare
+            h_C = Array(d_C)
+            @test C ≈ h_C
+        end
+        @testset "triangular-dense mul!" begin
+            A = triu(rand(elty, m, m))
+            B = rand(elty,m,n)
+            C = zeros(elty,m,n)
+
+            sA = rand(elty,m,m)
+            sA = sA + transpose(sA)
+
+            for t in (identity, transpose, adjoint), TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
+                A = copy(sA) |> TR
+                B_L = copy(B)
+                B_R = copy(B')
+                C_L = copy(C)
+                C_R = copy(C')
+                dA = CuArray(parent(A)) |> TR
+                dB_L = CuArray(parent(B_L))
+                dB_R = CuArray(parent(B_R))
+                dC_L = CuArray(C_L)
+                dC_R = CuArray(C_R)
+
+                D_L = mul!(C_L, t(A), B_L)
+                dD_L = mul!(dC_L, t(dA), dB_L)
+
+                D_R = mul!(C_R, B_R, t(A))
+                dD_R = mul!(dC_R, dB_R, t(dA))
+
+                @test C_L ≈ Array(dC_L)
+                @test D_L ≈ Array(dD_L)
+                @test C_R ≈ Array(dC_R)
+                @test D_R ≈ Array(dD_R)
+            end
+        end
+
+        @testset "triangular-triangular mul!" begin
+            A  = triu(rand(elty, m, m))
+            B  = triu(rand(elty, m, m))
+            C0 = zeros(elty,m,m)
+
+            sA = rand(elty,m,m)
+            sA = sA + transpose(sA)
+            sB = rand(elty,m,m)
+            sB = sB + transpose(sB)
+
+            for (TRa, ta, TRb, tb, TRc, a_func, b_func) in (
+                (UpperTriangular, identity,  LowerTriangular, identity,  Matrix, triu, tril),
+                (LowerTriangular, identity,  UpperTriangular, identity,  Matrix, tril, triu),
+                (UpperTriangular, identity,  UpperTriangular, transpose, Matrix, triu, triu),
+                (UpperTriangular, transpose, UpperTriangular, identity,  Matrix, triu, triu),
+                (LowerTriangular, identity,  LowerTriangular, transpose, Matrix, tril, tril),
+                (LowerTriangular, transpose, LowerTriangular, identity,  Matrix, tril, tril),
+                )
+
+                A = copy(sA) |> TRa
+                B = copy(sB) |> TRb
+                C = copy(C0) |> TRc
+                dA = CuArray(a_func(parent(sA))) |> TRa
+                dB = CuArray(b_func(parent(sB))) |> TRb
+                dC = if TRc == Matrix
+                    CuArray(C0) |> DenseCuMatrix
+                else
+                    CuArray(C0) |> TRc
+                end
+
+                D = mul!(C, ta(A), tb(B))
+                dD = mul!(dC, ta(dA), tb(dB))
+
+                @test C ≈ Array(dC)
+                @test D ≈ Array(dD)
+            end
+        end
         @testset "trsm" begin
             # compute
             @testset "adjtype=$adjtype, uplotype=$uplotype" for
@@ -310,34 +407,6 @@ k = 13
             h_C = triu(C)
             @test C ≈ h_C
         end
-        if elty <: Complex
-            @testset "herk!" begin
-                alpha = rand(elty)
-                beta = rand(elty)
-                A = rand(elty,m,m)
-                hA = A + A'
-                d_A = CuArray(A)
-                d_C = CuArray(hA)
-                CUBLAS.herk!('U','N',real(alpha),d_A,real(beta),d_C)
-                C = real(alpha)*(A*A') + real(beta)*hA
-                C = triu(C)
-                # move to host and compare
-                h_C = Array(d_C)
-                h_C = triu(C)
-                @test C ≈ h_C
-            end
-            @testset "herk" begin
-                A = rand(elty,m,m)
-                d_A = CuArray(A)
-                d_C = CUBLAS.herk('U','N',d_A)
-                C = A*A'
-                C = triu(C)
-                # move to host and compare
-                h_C = Array(d_C)
-                h_C = triu(C)
-                @test C ≈ h_C
-            end
-        end
         @testset "syr2k!" begin
             alpha = rand(elty)
             beta = rand(elty)
@@ -375,8 +444,40 @@ k = 13
             h_C = Array(d_C)
             h_C = triu(h_C)
             @test C ≈ h_C
+            C = (A*transpose(B) + B*transpose(A))
+            d_C = CUBLAS.syr2k('U','N',d_A,d_B)
+            C = triu(C)
+            h_C = Array(d_C)
+            h_C = triu(h_C)
+            @test C ≈ h_C
         end
         if elty <: Complex
+            @testset "herk!" begin
+                alpha = rand(real(elty))
+                beta = rand(real(elty))
+                A = rand(elty,m,m)
+                hA = A + A'
+                d_A = CuArray(A)
+                d_C = CuArray(hA)
+                CUBLAS.herk!('U','N',alpha,d_A,beta,d_C)
+                C = real(alpha)*(A*A') + real(beta)*hA
+                C = triu(C)
+                # move to host and compare
+                h_C = Array(d_C)
+                h_C = triu(C)
+                @test C ≈ h_C
+            end
+            @testset "herk" begin
+                A = rand(elty,m,m)
+                d_A = CuArray(A)
+                d_C = CUBLAS.herk('U','N',d_A)
+                C = A*A'
+                C = triu(C)
+                # move to host and compare
+                h_C = Array(d_C)
+                h_C = triu(C)
+                @test C ≈ h_C
+            end
             @testset "her2k!" begin
                 elty1 = elty
                 elty2 = real(elty)
@@ -403,11 +504,19 @@ k = 13
                 @test_throws DimensionMismatch CUBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
             end
             @testset "her2k" begin
+                α = rand(elty)
                 A = rand(elty,m,k)
                 B = rand(elty,m,k)
                 d_A = CuArray(A)
                 d_B = CuArray(B)
-                C = A*B' + B*A'
+                C = (α*A*B' + conj(α)*B*A')
+                d_C = CUBLAS.her2k('U','N',α,d_A,d_B)
+                # move back to host and compare
+                C = triu(C)
+                h_C = Array(d_C)
+                h_C = triu(h_C)
+                @test C ≈ h_C
+                C = (A*B' + B*A')
                 d_C = CUBLAS.her2k('U','N',d_A,d_B)
                 # move back to host and compare
                 C = triu(C)
