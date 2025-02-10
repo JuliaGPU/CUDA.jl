@@ -363,13 +363,7 @@ end
 
 @device_override Base.isnan(x::Float64) = (ccall("extern __nv_isnand", llvmcall, Int32, (Cdouble,), x)) != 0
 @device_override Base.isnan(x::Float32) = (ccall("extern __nv_isnanf", llvmcall, Int32, (Cfloat,), x)) != 0
-@device_override function Base.isnan(x::Float16)
-    if compute_capability() >= sv"8.0"
-        return (ccall("extern __nv_hisnan", llvmcall, Int32, (Float16,), x)) != 0
-    else
-        return isnan(Float32(x))
-    end
-end
+@device_override Base.isnan(x::Float16) = isnan(Float32(x))
 
 @device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
 @device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
@@ -396,7 +390,7 @@ end
 
 @device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.sqrt(x::Float16) = Float16(sqrt(Float32(x)))
+@device_override Base.sqrt(x::Float16) = Float16(sqrt(Float32(x)))
 @device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
 
 @device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
