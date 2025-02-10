@@ -35,6 +35,8 @@ Base.convert(::Type{CuRef{T}}, x::AbstractCuRef{T}) where {T} = x
 
 ## reference backed by a single allocation
 
+# TODO: maintain a small global cache of reference boxes
+
 mutable struct CuRefValue{T} <: AbstractCuRef{T}
     buf::Managed{DeviceMemory}
 
