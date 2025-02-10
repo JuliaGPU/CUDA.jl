@@ -72,11 +72,14 @@ function Base.setindex!(gpu::CuRefValue{T}, x::T) where {T}
 end
 
 function Base.getindex(gpu::CuRefValue{T}) where {T}
+    # synchronize first to maximize time spent executing Julia code
+    synchronize(gpu.buf)
+
     cpu = Ref{T}()
     GC.@preserve cpu begin
         cpu_ptr = Base.unsafe_convert(Ptr{T}, cpu)
         gpu_ptr = Base.unsafe_convert(CuPtr{T}, gpu)
-        unsafe_copyto!(cpu_ptr, gpu_ptr, 1)
+        unsafe_copyto!(cpu_ptr, gpu_ptr, 1; async=false)
     end
     cpu[]
 end
@@ -117,11 +120,14 @@ function Base.setindex!(gpu::CuRefArray{T}, x::T) where {T}
 end
 
 function Base.getindex(gpu::CuRefArray{T}) where {T}
+    # synchronize first to maximize time spent executing Julia code
+    synchronize(gpu.x)
+
     cpu = Ref{T}()
     GC.@preserve cpu begin
         cpu_ptr = Base.unsafe_convert(Ptr{T}, cpu)
         gpu_ptr = pointer(gpu.x, gpu.i)
-        unsafe_copyto!(cpu_ptr, gpu_ptr, 1)
+        unsafe_copyto!(cpu_ptr, gpu_ptr, 1; async=false)
     end
     cpu[]
 end
