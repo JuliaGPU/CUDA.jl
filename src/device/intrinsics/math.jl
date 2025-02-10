@@ -396,13 +396,7 @@ end
 
 @device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.sqrt(x::Float16)
-    if compute_capability() >= sv"8.0"
-        ccall("extern __nv_hsqrt", llvmcall, Float16, (Float16,), x)
-    else
-        return Float16(sqrt(Float32(x)))
-    end
-end
+@device_override function Base.sqrt(x::Float16) = Float16(sqrt(Float32(x)))
 @device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
 
 @device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
