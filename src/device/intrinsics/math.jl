@@ -82,9 +82,13 @@ end
 @device_override Base.tanh(x::Float64) = ccall("extern __nv_tanh", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.tanh(x::Float32) = ccall("extern __nv_tanhf", llvmcall, Cfloat, (Cfloat,), x)
 
-# TODO: enable once PTX > 7.0 is supported
-# @device_override Base.tanh(x::Float16) = @asmcall("tanh.approx.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
-
+@device_override function Base.tanh(x::Float16)
+    if compute_capability() >= sv"7.5"
+        @asmcall("tanh.approx.f16 \$0, \$1;", "=r,r", Float16, Tuple{Float16}, x)
+    else
+        Float16(tanh(Float32(x)))
+    end
+end
 
 ## inverse hyperbolic
 
@@ -197,7 +201,16 @@ end
 
     return r
 end
-@device_override FastMath.exp2_fast(x::Union{Float32, Float64}) = exp2(x)
+@device_override FastMath.exp2_fast(x::Float64) = exp2(x)
+@device_override FastMath.exp2_fast(x::Float32) =
+    @asmcall("ex2.approx.f32 \$0, \$1;", "=r,r", Float32, Tuple{Float32}, x)
+@device_override function FastMath.exp2_fast(x::Float16)
+    if compute_capability() >= sv"7.5"
+        ccall("llvm.nvvm.ex2.approx.f16", llvmcall, Float16, (Float16,), x)
+    else
+        exp2(x)
+    end
+end
 
 @device_override Base.exp10(x::Float64) = ccall("extern __nv_exp10", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp10(x::Float32) = ccall("extern __nv_exp10f", llvmcall, Cfloat, (Cfloat,), x)
