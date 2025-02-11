@@ -531,6 +531,10 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
     # synchronization here, but the exact cases are hard to know and detect (e.g., unpinned
     # memory normally blocks, but not for all sizes, and not on all memory architectures).
     GC.@preserve src dest begin
+      # semantically, it is not safe for this operation to execute asynchronously, because
+      # the Array may be collected before the copy starts executing. However, when using
+      # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
+      # the source array, making this operation safe.
       unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
       if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
@@ -543,20 +547,18 @@ end
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   context!(context(src)) do
-    # the copy below may block in `libcuda`; see the note above.
+    # see comment above; this copy may also block in `libcuda` when dealing with e.g.
+    # unpinned memory, but even more likely because we need to wait for the GPU to finish
+    # so that the expected data is available. because of that, eagerly perform a nonblocking
+    # synchronization first as to maximize the time spent executing Julia code.
+    synchronize(src)
+
     GC.@preserve src dest begin
-      # semantically, it is not safe for this operation to execute asynchronously, because
-      # the Array may be collected before the copy starts executing. However, when using
-      # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
-      # the source array, making this operation safe.
-      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=false)
       if Base.isbitsunion(T)
-        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=false)
       end
     end
-
-    # users expect values to be available after this call
-    synchronize(src)
   end
   return dest
 end
