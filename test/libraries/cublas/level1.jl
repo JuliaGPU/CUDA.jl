@@ -141,15 +141,15 @@ k = 13
             @test CUBLAS.iamin(ca) == 3
             result_type = CUBLAS.version() >= v"12.0" ? Int64 : Cint
             result = CuRef{result_type}(0)
-            result = CUBLAS.iamax(ca, result)
-            @test BLAS.iamax(a) == only(Array(result.x))
+            CUBLAS.iamax(ca, result)
+            @test BLAS.iamax(a) == result[]
         end
         @testset "nrm2 with result" begin
             x = rand(T, m)
             dx = CuArray(x)
             result = CuRef{real(T)}(zero(real(T)))
-            result = CUBLAS.nrm2(dx, result)
-            @test norm(x) ≈ only(Array(result.x))
+            CUBLAS.nrm2(dx, result)
+            @test norm(x) ≈ result[]
         end
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]

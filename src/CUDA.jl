@@ -72,6 +72,7 @@ include("device/quirks.jl")
 # array essentials
 include("memory.jl")
 include("array.jl")
+include("refpointer.jl")
 
 # compiler libraries
 include("../lib/cupti/CUPTI.jl")

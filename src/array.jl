@@ -45,11 +45,11 @@ end
 #    these are stored with a selector at the end (handled by Julia).
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
 #    these are stored contiguously and require a selector array (handled by us)
-function check_eltype(T)
+@inline function check_eltype(name, T)
   if !Base.allocatedinline(T)
     explanation = explain_eltype(T)
     error("""
-      CuArray only supports element types that are allocated inline.
+      $name only supports element types that are allocated inline.
       $explanation""")
   end
 end
@@ -63,7 +63,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
   dims::Dims{N}
 
   function CuArray{T,N,M}(::UndefInitializer, dims::Dims{N}) where {T,N,M}
-    check_eltype(T)
+    check_eltype("CuArray", T)
     maxsize = prod(dims) * sizeof(T)
     bufsize = if Base.isbitsunion(T)
       # type tag array past the data
@@ -82,7 +82,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
 
   function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
                         maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,M}
-    check_eltype(T)
+    check_eltype("CuArray", T)
     obj = new{T,N,M}(data, maxsize, offset, dims)
     finalizer(unsafe_free!, obj)
     return obj

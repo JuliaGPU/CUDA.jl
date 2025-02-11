@@ -168,12 +168,12 @@ end
 # Note that it isn't safe to use unified or heterogeneous memory to support a
 # mutable Ref, because there's no guarantee that the memory would be kept alive
 # long enough (especially with broadcast using ephemeral Refs for scalar args).
-struct CuRefValue{T} <: Ref{T}
+struct KernelRefValue{T} <: Ref{T}
     val::T
 end
-Base.getindex(r::CuRefValue{T}) where T = r.val
+Base.getindex(r::KernelRefValue{T}) where T = r.val
 Adapt.adapt_structure(to::KernelAdaptor, ref::Base.RefValue) =
-    CuRefValue(adapt(to, ref[]))
+    KernelRefValue(adapt(to, ref[]))
 
 # broadcast sometimes passes a ref(type), resulting in a GPU-incompatible DataType box.
 # avoid that by using a special kind of ref that knows about the boxed type.
