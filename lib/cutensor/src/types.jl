@@ -194,13 +194,15 @@ function CUDA.unsafe_free!(plan::CuTensorPlan)
 end
 
 
+const CUTENSOR_ALIGNMENT = UInt32(128)
+
 ## descriptor
 
 mutable struct CuTensorDescriptor
     handle::cutensorTensorDescriptor_t
     # inner constructor handles creation and finalizer of the descriptor
     function CuTensorDescriptor(sz::Vector{Int64}, st::Vector{Int64}, eltype::DataType,
-                                alignmentRequirement::UInt32=UInt32(128))
+                                alignmentRequirement::UInt32=CUTENSOR_ALIGNMENT)
         desc = Ref{cutensorTensorDescriptor_t}()
         length(st) == (N = length(sz)) || throw(ArgumentError("size and stride vectors must have the same length"))
         cutensorCreateTensorDescriptor(handle(), desc, N, sz, st, eltype, alignmentRequirement)
@@ -236,7 +238,12 @@ mutable struct CuTensor{T, N}
     inds::Vector{Int32}
 
     function CuTensor{T, N}(data::CuArray{T,N}, inds::Vector) where {T<:Number, N}
-        new(data, inds)
+        if !iszero(UInt(pointer(data)) % CUTENSOR_ALIGNMENT)
+            @warn "The data for this CuTensor does not obey the CUTENSOR alignment requirement of $CUTENSOR_ALIGNMENT. An explicit copy will be made to ensure the requirement is met."
+            return new(copy(data), inds)
+        else
+            return new(data, inds)
+        end
     end
 end
 

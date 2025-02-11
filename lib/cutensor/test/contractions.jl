@@ -164,4 +164,33 @@ eltypes = [(Float32, Float32, Float32, Float32),
     end
 end
 
+# https://github.com/JuliaGPU/CUDA.jl/issues/2407
+@testset "contractions of views" begin
+    @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes
+        dimsA = (16,)
+        dimsB = (4,)
+        dimsC = (8,)
+        A = rand(eltyA, dimsA)
+        B = rand(eltyB, dimsB)
+        C = rand(eltyC, dimsC)
+        dA = CuArray(A)
+        dB = CuArray(B)
+        dC = CuArray(C)
+        dD = CuArray(C)
+        vA = @view dA[1:4]
+        vB = @view dB[4:4]
+        vC = @view dC[3:6]
+        vD = @view dD[3:6]
+        tA = CuTensor(reshape(vA, (4, 1)), [1, 2])
+        tB = CuTensor(reshape(vB, (1, 1)), [3, 2])
+        tC = CuTensor(reshape(vC, (1, 4)), [3, 1])
+        mul!(tC, tA, tB)
+        tA2 = CuTensor(copy(vA), [1, 2])
+        tB2 = CuTensor(copy(vB), [3, 2])
+        tD = CuTensor(copy(vD), [3, 1])
+        mul!(tD, tA2, tB2)
+        @test tD.data ≈ tD.data
+    end
+end
+
 end
