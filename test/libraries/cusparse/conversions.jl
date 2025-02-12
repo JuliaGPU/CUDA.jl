@@ -53,6 +53,14 @@ end
     end
 end
 
+@testset "CuSparseMatrix(::Adjoint/::Transpose)" begin
+    A = sprand(5, 5, 0.2)
+    for T in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO), f in (transpose, adjoint)
+        dA = T(f(A))
+        @test Array(dA) == f(A)
+    end
+end
+
 @testset "CuSparseMatrix(::Diagonal)" begin
     X = Diagonal(rand(10))
     dX = cu(X)
