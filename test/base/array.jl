@@ -397,6 +397,8 @@ end
   # specialized
   @test testf(cumsum, rand(2))
   @test testf(cumprod, rand(2))
+
+  @test_throws ArgumentError("accumulate does not support the keyword arguments [:bad_kwarg]") accumulate(+, CUDA.rand(1024); bad_kwarg="bad")
 end
 
 @testset "logical indexing" begin
