@@ -78,9 +78,5 @@ end
 
 export unsafe_cached_load
 
-unsafe_cached_load(p::LLVMPtr{<:Union{LDGTypes...},AS.Global}, i::Integer=1, align::Val=Val(1)) =
-    pointerref_ldg(p, i, align)
-# NOTE: fall back to normal unsafe_load for unsupported types. we could be smarter here,
-#       e.g. destruct/load/reconstruct, but that's too complicated for what it's worth.
 unsafe_cached_load(p::LLVMPtr, i::Integer=1, align::Val=Val(1)) =
-    unsafe_load(p, i, align)
+    pointerref_ldg(p, i, align)
