@@ -128,6 +128,25 @@ using LinearAlgebra, SparseArrays
         end
     end
 
+    @testset "CuSparseMatrix * CuVector -- mul!(c, A, b) mixed $eltys" for eltys in ((Float32, ComplexF32), (Float64, ComplexF64))
+        eltya, eltyb = eltys
+        for opa in (identity, transpose, adjoint)
+            n = 10
+            m = 20
+            A = opa == identity ? sprand(eltya, n, m, 0.5) : sprand(eltya, m, n, 0.5)
+            b = rand(eltyb, m)
+            c = rand(eltyb, n)
+
+            dA = CuSparseMatrixCSR(A)
+            db = CuArray(b)
+            dc = CuArray(c)
+
+            mul!(c, opa(A), b)
+            mul!(dc, opa(dA), db)
+            @test c ≈ collect(dc)
+        end
+    end
+
     for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
 
         if CUSPARSE.version() >= v"11.7.4"
