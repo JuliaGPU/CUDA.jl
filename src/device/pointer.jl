@@ -15,29 +15,41 @@ const Local    = 5
 end
 
 
-## ldg
+@inline @generated function pointerref_ldg(ptr::LLVMPtr{T,A}, i::I, ::Val{align}) where {T,A,I,align}
+    sizeof(T) == 0 && return T.instance
+    LLVM.@dispose ctx=LLVM.Context() begin
+        eltyp = convert(LLVM.LLVMType, T)
 
-const LDGTypes = (UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64,
-                  Float32, Float64)
+        T_idx = convert(LLVM.LLVMType, I)
+        T_ptr = convert(LLVM.LLVMType, ptr)
 
-# TODO: this functionality should throw <sm_32
-# NOTE: CUDA 8.0 supports more caching modifiers, but those aren't supported by LLVM yet
-for T in LDGTypes
-    class = if T <: Integer
-        :i
-    elseif T <: AbstractFloat
-        :f
-    end
-    # TODO: p class
-    width = sizeof(T)*8 # in bits
-    typ = Symbol(class, width)
+        T_typed_ptr = LLVM.PointerType(eltyp, A)
 
-    intr = "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
-    @eval @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Integer,
-                                          ::Val{align}) where align
-        offset = i-one(i) # in elements
-        ptr = base_ptr + offset*sizeof($T)
-        @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr, Val(align))
+        # create a function
+        param_types = [T_ptr, T_idx]
+        llvm_f, _ = LLVM.Interop.create_function(eltyp, param_types)
+
+        # generate IR
+        LLVM.@dispose builder=LLVM.IRBuilder() begin
+            entry = LLVM.BasicBlock(llvm_f, "entry")
+            LLVM.position!(builder, entry)
+            ptr = if LLVM.supports_typed_pointers(ctx)
+                typed_ptr = LLVM.bitcast!(builder, LLVM.parameters(llvm_f)[1], T_typed_ptr)
+                LLVM.inbounds_gep!(builder, eltyp, typed_ptr, [LLVM.parameters(llvm_f)[2]])
+            else
+                LLVM.inbounds_gep!(builder, eltyp, LLVM.parameters(llvm_f)[1], [LLVM.parameters(llvm_f)[2]])
+            end
+            ld = LLVM.load!(builder, eltyp, ptr)
+            if A != 0
+                LLVM.metadata(ld)[LLVM.MD_tbaa] = LLVM.Interop.tbaa_addrspace(A)
+            end
+            LLVM.alignment!(ld, align)
+            LLVM.metadata(ld)[LLVM.MD_invariant_load] = LLVM.MDNode(LLVM.Metadata[nothing])
+
+            LLVM.ret!(builder, ld)
+        end
+
+        LLVM.Interop.call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, I}, :ptr, :(i-one(I)))
     end
 end
 
