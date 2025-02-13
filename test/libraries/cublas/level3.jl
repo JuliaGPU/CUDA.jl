@@ -343,6 +343,10 @@ k = 13
             # move to host and compare
             h_C = Array(d_C)
             @test D ≈ h_C
+            d_C = CUBLAS.geam('N','N',d_A,d_B)
+            h_C = Array(d_C)
+            D = A + B
+            @test D ≈ h_C
         end
         @testset "CuMatrix -- A ± B -- $elty" begin
             for opa in (identity, transpose, adjoint)
@@ -501,6 +505,9 @@ k = 13
                 h_C = Array(d_C)
                 h_C = triu(h_C)
                 @test C ≈ h_C
+                @test_throws DimensionMismatch CUBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
+                Bbad = rand(elty,m,k+1)
+                d_Bbad = CuArray(Bbad)
                 @test_throws DimensionMismatch CUBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
             end
             @testset "her2k" begin

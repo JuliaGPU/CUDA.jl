@@ -61,15 +61,24 @@ k = 13
                 dA = CuArray{elty, 2}[]
                 dy = CuArray{elty, 1}[]
                 dbad = CuArray{elty, 1}[]
+                dx_bad = CuArray{elty, 1}[]
+                dA_bad = CuArray{elty, 2}[]
                 for i=1:length(A)
                     push!(dA, CuArray(A[i]))
                     push!(dx, CuArray(x[i]))
                     push!(dy, CuArray(y[i]))
                     if i < length(A) - 2
                         push!(dbad,CuArray(dx[i]))
+                        push!(dx_bad,CuArray(dx[i]))
+                        push!(dA_bad,CuArray(A[i]))
+                    else
+                        push!(dx_bad,CUDA.rand(elty, m+1))
+                        push!(dA_bad,CUDA.rand(elty, n+1, m+1))
                     end
                 end
                 @test_throws DimensionMismatch CUBLAS.gemv_batched!('N', alpha, dA, dx, beta, dbad)
+                @test_throws DimensionMismatch CUBLAS.gemv_batched!('N', alpha, dA, dx_bad, beta, dy)
+                @test_throws DimensionMismatch CUBLAS.gemv_batched!('N', alpha, dA_bad, dx, beta, dy)
                 CUBLAS.gemv_batched!('N', alpha, dA, dx, beta, dy)
                 for i=1:length(A)
                     hy = collect(dy[i])
@@ -304,6 +313,7 @@ k = 13
         dx = CuArray(x)
 
         function pack(A, uplo)
+            n = size(A, 1)
             AP = Vector{elty}(undef, (n*(n+1))>>1)
             k = 1
             for j in 1:n
@@ -315,7 +325,7 @@ k = 13
             return AP
         end
 
-        if elty in ["Float32", "Float64"]
+        if elty <: Real 
             # pack matrices
             sAPU = pack(sA, :U)
             dsAPU = CuVector(sAPU)
@@ -337,9 +347,9 @@ k = 13
                 hy = Array(dy)
                 @test y ≈ hy
                 # execute on host
-                BLAS.spmv!('U',alpha,sAPL,x,beta,y)
+                BLAS.spmv!('L',alpha,sAPL,x,beta,y)
                 # execute on device
-                CUBLAS.spmv!('U',alpha,dsAPL,dx,beta,dy)
+                CUBLAS.spmv!('L',alpha,dsAPL,dx,beta,dy)
                 # compare results
                 hy = Array(dy)
                 @test y ≈ hy
@@ -356,11 +366,11 @@ k = 13
                 hsAPU = Array(dsAPU)
                 @test sAPU ≈ hsAPU
                 # execute on host
-                BLAS.spr!('U',alpha,x,sAPL)
+                BLAS.spr!('L',alpha,x,sAPL)
                 # execute on device
-                CUBLAS.spr!('U',alpha,dx,dsAPL)
+                CUBLAS.spr!('L',alpha,dx,dsAPL)
                 # compare results
-                hAPL = Array(dAPL)
+                hAPL = Array(dsAPL)
                 @test sAPL ≈ hAPL
             end
         end
