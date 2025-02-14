@@ -62,6 +62,7 @@ k = 13
             @test C1 ≈ h_C1
             @test C2 ≈ h_C2
             @test_throws ArgumentError mul!(dhA, dhA, dsA)
+            @test_throws DimensionMismatch CUBLAS.gemm!('N','N',one(elty),d_A,dsA,one(elty),d_C1)
             @test_throws DimensionMismatch mul!(d_C1, d_A, dsA)
         end
         @testset "strided gemm!" begin
@@ -95,6 +96,8 @@ k = 13
                 C1 = (α*A)*B + β*C1
                 # compare
                 @test C1 ≈ h_C1
+                d_Cbad = CUDA.zeros(elty, m+1, n-1) 
+                @test_throws DimensionMismatch CUBLAS.gemmEx!('N','N',α,d_A,d_B,β,d_Cbad)
             end
         end
         @testset "gemm" begin
@@ -194,6 +197,7 @@ k = 13
         bd_A = CuArray{elty, 2}[]
         bd_B = CuArray{elty, 2}[]
         bd_C = CuArray{elty, 2}[]
+        bd_A_bad = CuArray{elty, 2}[]
         bd_bad = CuArray{elty, 2}[]
         for i in 1:length(bA)
             push!(bd_A,CuArray(bA[i]))
@@ -201,6 +205,9 @@ k = 13
             push!(bd_C,CuArray(bC[i]))
             if i < length(bA) - 2
                 push!(bd_bad,CuArray(bC[i]))
+                push!(bd_A_bad,CuArray(bA[i]))
+            else
+                push!(bd_A_bad,CUDA.rand(elty, m+1, k-1))
             end
         end
 
@@ -214,6 +221,7 @@ k = 13
                 @test bC[i] ≈ h_C
             end
             @test_throws DimensionMismatch CUBLAS.gemm_batched!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
+            @test_throws DimensionMismatch CUBLAS.gemm_batched!('N','N',alpha,bd_A_bad,bd_B,beta,bd_C)
         end
 
         @testset "gemm_batched" begin
@@ -224,6 +232,7 @@ k = 13
                 @test bC[i] ≈ h_C
             end
             @test_throws DimensionMismatch CUBLAS.gemm_batched('N','N',alpha,bd_A,bd_bad)
+            @test_throws DimensionMismatch CUBLAS.gemm_batched('N','N',alpha,bd_A_bad,bd_B)
         end
 
         @testset "gemmBatchedEx!" begin
@@ -236,6 +245,7 @@ k = 13
                 @test bC[i] ≈ h_C
             end
             @test_throws DimensionMismatch CUBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
+            @test_throws DimensionMismatch CUBLAS.gemmBatchedEx!('N','N',alpha,bd_A_bad,bd_B,beta,bd_C)
         end
 
         nbatch = 10
@@ -311,6 +321,9 @@ k = 13
             bd_A = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
             bd_B = [[CuArray(bB[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
             bd_C = [[CuArray(bC[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            bd_A_bad1 = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups-1]
+            bd_A_bad2 = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]-1] for i in 1:num_groups]
+            bd_A_bad3 = [[CUDA.rand(elty, 3*i+1,2*i - 1) for j in 1:group_sizes[i]] for i in 1:num_groups]
             @testset "gemm_grouped_batched!" begin
                 # C = (alpha*A)*B + beta*C
                 CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
@@ -319,6 +332,9 @@ k = 13
                     h_C = Array(bd_C[i][j])
                     @test bC[i][j] ≈ h_C
                 end
+                @test_throws DimensionMismatch CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad1,bd_B,beta,bd_C)
+                @test_throws DimensionMismatch CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad2,bd_B,beta,bd_C)
+                @test_throws DimensionMismatch CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad3,bd_B,beta,bd_C)
             end
 
             @testset "gemm_grouped_batched" begin
