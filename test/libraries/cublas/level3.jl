@@ -16,6 +16,12 @@ n = 35
 k = 13
 
 @testset "level 3" begin
+    @testset "conversion argument errors" begin
+        @test_throws ArgumentError("Unknown operation D") convert(CUBLAS.cublasOperation_t, 'D')
+        @test_throws ArgumentError("Unknown fill mode D") convert(CUBLAS.cublasFillMode_t, 'D')
+        @test_throws ArgumentError("Unknown diag mode D") convert(CUBLAS.cublasDiagType_t, 'D')
+        @test_throws ArgumentError("Unknown side mode D") convert(CUBLAS.cublasSideMode_t, 'D')
+    end
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "trmm!" begin
             alpha = rand(elty)

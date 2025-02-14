@@ -54,6 +54,14 @@ k = 13
                 end
                 @test inv(P)*dL*dU ≈ inv(C.P) * C.L * C.U
             end
+            # generate bad matrices
+            A_bad = vcat([rand(elty,m,m) for i in 1:9], [rand(elty, m, m+1)])
+            # move to device
+            d_A_bad = CuArray{elty, 2}[]
+            for i in 1:length(A)
+                push!(d_A_bad,CuArray(A_bad[i]))
+            end
+            @test_throws DimensionMismatch CUBLAS.getrf_batched!(d_A_bad, true)
         end
 
         @testset "getrf_batched" begin
@@ -128,6 +136,11 @@ k = 13
                 end
                 @test inv(P)*dL*dU ≈ inv(C.P) * C.L * C.U
             end
+            # generate bad strided matrix
+            A = rand(elty,m,m+1,10)
+            # move to device
+            d_A = CuArray(A)
+            @test_throws DimensionMismatch CUBLAS.getrf_strided_batched!(d_A, true)
         end
 
         @testset "getrf_strided_batched" begin
@@ -168,24 +181,41 @@ k = 13
         for (opchar,opfun) in (('N',identity), ('T',transpose), ('C',adjoint))
 
             @testset "getrs_batched!" begin
-                A                   = [rand(elty,n,n) for _ in 1:k];
-                d_A                 = [CuArray(a) for a in A];
-                d_A2                = deepcopy(d_A);
-                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched!(d_A, true);
+                A                   = [rand(elty,n,n) for _ in 1:k]
+                d_A                 = [CuArray(a) for a in A]
+                d_A2                = deepcopy(d_A)
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_batched!(d_A, true)
                 @test d_LU == d_A
-                d_pivot2            = similar(d_pivot);
-                info2               = similar(info);
-                CUDA.CUBLAS.getrf_batched!(d_A2, d_pivot2, info2);
+                d_pivot2            = similar(d_pivot)
+                info2               = similar(info)
+                CUDA.CUBLAS.getrf_batched!(d_A2, d_pivot2, info2)
                 @test isapprox(d_pivot, d_pivot2)
                 @test isapprox(info, info2)
-                B                   = [rand(elty,n,m) for _ in 1:k];
-                d_B                 = [CuArray(b) for b in B];
-                info2, d_Bhat       = CUDA.CUBLAS.getrs_batched!(opchar, d_LU, d_B, d_pivot);
+                B                   = [rand(elty,n,m) for _ in 1:k]
+                d_B                 = [CuArray(b) for b in B]
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_batched!(opchar, d_LU, d_B, d_pivot)
                 @test d_Bhat == d_B
-                h_Bhat              = [collect(bh) for bh in d_Bhat];
+                h_Bhat              = [collect(bh) for bh in d_Bhat]
                 for i in 1:k
                     @test h_Bhat[i] ≈ opfun(A[i]) \ B[i]
                 end
+                
+                # generate bad matrices
+                A_bad = vcat([rand(elty,m,m) for i in 1:9], [rand(elty, m, m+1)])
+                # move to device
+                d_A_bad = CuArray{elty, 2}[]
+                for i in 1:length(A_bad)
+                    push!(d_A_bad,CuArray(A_bad[i]))
+                end
+                @test_throws DimensionMismatch CUBLAS.getrs_batched!(opchar, d_A_bad, d_B, d_pivot)
+                # generate bad matrices
+                A_bad = [rand(elty,m+1,m+1) for i in 1:10]
+                # move to device
+                d_A_bad = CuArray{elty, 2}[]
+                for i in 1:length(A_bad)
+                    push!(d_A_bad,CuArray(A_bad[i]))
+                end
+                @test_throws DimensionMismatch CUBLAS.getrs_batched!(opchar, d_A_bad, d_B, d_pivot)
             end
 
             @testset "getrs_batched" begin
@@ -210,24 +240,31 @@ k = 13
             end
 
             @testset "getrs_strided_batched!" begin
-                A                   = rand(elty,n,n,k);
-                d_A                 = CuArray(A);
-                d_A2                = copy(d_A);
-                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched!(d_A, true);
+                A                   = rand(elty,n,n,k)
+                d_A                 = CuArray(A)
+                d_A2                = copy(d_A)
+                d_pivot, info, d_LU = CUDA.CUBLAS.getrf_strided_batched!(d_A, true)
                 @test d_LU == d_A
-                d_pivot2            = similar(d_pivot);
-                info2               = similar(info);
-                CUDA.CUBLAS.getrf_strided_batched!(d_A2, d_pivot2, info2);
+                d_pivot2            = similar(d_pivot)
+                info2               = similar(info)
+                CUDA.CUBLAS.getrf_strided_batched!(d_A2, d_pivot2, info2)
                 @test isapprox(d_pivot, d_pivot2)
                 @test isapprox(info, info2)
-                B                   = rand(elty,n,m,k);
-                d_B                 = CuArray(B);
-                info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched!(opchar, d_LU, d_B, d_pivot);
+                B                   = rand(elty,n,m,k)
+                d_B                 = CuArray(B)
+                info2, d_Bhat       = CUDA.CUBLAS.getrs_strided_batched!(opchar, d_LU, d_B, d_pivot)
                 @test d_Bhat == d_B
-                h_Bhat              = collect(d_Bhat);
+                h_Bhat              = collect(d_Bhat)
                 for i in 1:k
                     @test h_Bhat[:,:,i] ≈ opfun(A[:,:,i]) \ B[:,:,i]
                 end
+
+                A_bad               = rand(elty,n+1,n,k)
+                d_A_bad             = CuArray(A_bad)
+                @test_throws DimensionMismatch CUDA.CUBLAS.getrs_strided_batched!(opchar, d_A_bad, d_B, d_pivot)
+                A_bad               = rand(elty,n+1,n+1,k)
+                d_A_bad             = CuArray(A_bad)
+                @test_throws DimensionMismatch CUDA.CUBLAS.getrs_strided_batched!(opchar, d_A_bad, d_B, d_pivot)
             end
 
             @testset "getrs_strided_batched" begin
@@ -267,6 +304,12 @@ k = 13
                 @test h_info[Cs] == 0
                 @test B ≈ Array(d_B[:,:,Cs]) rtol=1e-3
             end
+
+            A_bad = rand(elty,m+1,m,10)
+            d_A_bad = CuArray(A_bad)
+            d_B = similar(d_A)
+            pivot, info = CUBLAS.getrf_strided_batched!(d_A, true)
+            @test_throws DimensionMismatch CUBLAS.getri_strided_batched!(d_A_bad, d_B, pivot)
         end
 
         @testset "getri_batched" begin
@@ -290,6 +333,32 @@ k = 13
                 @test h_info[Cs] == 0
                 @test C ≈ h_C rtol=1e-2
             end
+
+            d_A = CuArray{elty, 2}[]
+            for i in 1:length(A)
+                push!(d_A,CuArray(A[i]))
+            end
+            pivot, info = CUBLAS.getrf_batched!(d_A, true)
+            h_info = Array(info)
+            for Cs in 1:length(h_info)
+                @test h_info[Cs] == 0
+            end
+            d_C = CuMatrix{elty}[similar(d_A[1]) for i in 1:length(d_A)]
+            info = CUBLAS.getri_batched!(d_A, d_C, pivot)
+            h_info = Array(info)
+            for Cs in 1:length(d_C)
+                C   = inv(A[Cs])
+                h_C = Array(d_C[Cs])
+                @test h_info[Cs] == 0
+                @test C ≈ h_C rtol=1e-2
+            end
+
+            A_bad = [rand(elty,m+1,m) for i in 1:10]
+            d_A_bad = CuArray{elty, 2}[]
+            for i in 1:length(A)
+                push!(d_A_bad,CuArray(A_bad[i]))
+            end
+            @test_throws DimensionMismatch CUBLAS.getri_batched(d_A_bad, pivot)
         end
 
         @testset "matinv_batched" begin
@@ -308,6 +377,15 @@ k = 13
             end
             push!(d_A, CUDA.rand(elty, m, m+1))
             @test_throws DimensionMismatch CUBLAS.matinv_batched(d_A)
+
+            # matinv_batched only supports matrices smaller than 32x32
+            A = [rand(elty,64,64) for i in 1:10]
+            # move to device
+            d_A_too_big = CuArray{elty, 2}[]
+            for i in 1:length(A)
+                push!(d_A_too_big,CuArray(A[i]))
+            end
+            @test_throws ArgumentError("matinv requires all matrices be smaller than 32 x 32") CUBLAS.matinv_batched(d_A_too_big)
         end
 
         @testset "geqrf_batched!" begin
@@ -343,7 +421,7 @@ k = 13
             for i in 1:length(A)
                 push!(d_A,CuArray(A[i]))
             end
-            tau, d_B = CUBLAS.geqrf_batched!(d_A)
+            tau, d_B = CUBLAS.geqrf_batched(d_A)
             for Bs in 1:length(d_B)
                 C   = qr(A[Bs])
                 h_B = Array(d_B[Bs])
@@ -392,6 +470,18 @@ k = 13
             end
             # system is now not overdetermined
             @test_throws ArgumentError CUBLAS.gels_batched!('N',d_A, d_C)
+
+            # generate bad matrices
+            A = [rand(elty,n,k) for i in 1:10]
+            C = [rand(elty,n+1,k) for i in 1:10]
+            # move to device
+            d_A = CuArray{elty, 2}[]
+            d_C = CuArray{elty, 2}[]
+            for i in 1:length(A)
+                push!(d_A,CuArray(A[i]))
+                push!(d_C,CuArray(C[i]))
+            end
+            @test_throws DimensionMismatch CUBLAS.gels_batched!('N',d_A, d_C)
         end
 
         @testset "gels_batched" begin

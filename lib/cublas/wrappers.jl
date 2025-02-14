@@ -70,8 +70,6 @@ function juliaStorageType(T::Type{<:Complex}, ct::cublasComputeType_t)
         return Complex{Float32}
     elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC
         return Complex{Float64}
-    elseif ct == CUBLAS_COMPUTE_32I || ct == CUBLAS_COMPUTE_32I_PEDANTIC
-        return Complex{Int32}
     else
         throw(ArgumentError("Julia type equivalent for compute type $ct does not exist!"))
     end
@@ -1174,14 +1172,10 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
 
     # gemmEx requires sm_50 or higher
     cap = capability(device())
-    if cap < v"5"
-        return nothing
-    end
+    cap < v"5" && return nothing
 
     # source: CUBLAS Features and Technical Specifications
-    if Float16 in sig && cap < v"5.3"
-        return nothing
-    end
+    Float16 in sig && cap < v"5.3" && return nothing
 
     math_mode = CUDA.math_mode()
     reduced_precision = CUDA.math_precision()
@@ -1192,15 +1186,10 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
     end
 
     if sig === (Int8, Int32)
-        # starting with CUDA 11.2, this is unsupported (NVIDIA bug #3221266)
-        # TODO: might be fixed in a later version?
-        version() >= v"11.3.1" && return nothing
-
         # Int32=Int8*Int8 requires m,n,k to be multiples of 4
         # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
-        if m%4 == 0 && n%4 == 0 && k%4 == 0
-            return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
-        end
+        all_mod_4 = (m%4 == 0 && n%4 == 0 && k%4 == 0)
+        all_mod_4 && return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
     end
 
     if math_mode == CUDA.FAST_MATH
@@ -1231,13 +1220,8 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
        sig === (Complex{Float64}, Complex{Float64})
         return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
     end
-
-    # BFloat16 support was added in CUDA 11
-    if version() >= v"11"
-        if sig === (BFloat16, BFloat16) ||
-           sig === (BFloat16, Float32)
-            return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
-        end
+    if sig === (BFloat16, BFloat16) || sig === (BFloat16, Float32)
+        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
     end
 
     return nothing
@@ -1263,20 +1247,11 @@ function gemmEx!(transA::Char, transB::Char,
     isnothing(computeType) &&
         throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
     computeT = juliaStorageType(eltype(C), computeType)
-    if version() >= v"11.0"
-        # with CUDA 11, the compute type encodes the math mode.
-        cublasGemmEx(
-            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, B,
-            eltype(B), ldb, CuRef{computeT}(beta), C, eltype(C), ldc, computeType, algo
-        )
-    else
-        # before CUDA 11, it was a plain cudaDataType.
-        computeType = convert(cudaDataType, computeT)
-        cublasGemmEx_old(
-            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, B,
-            eltype(B), ldb, CuRef{computeT}(beta), C, eltype(C), ldc, computeType, algo
-        )
-    end
+    
+    cublasGemmEx(
+        handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, B,
+        eltype(B), ldb, CuRef{computeT}(beta), C, eltype(C), ldc, computeType, algo
+    )
     C
 end
 
@@ -1311,15 +1286,11 @@ function gemmBatchedEx!(transA::Char, transB::Char,
     Aptrs = unsafe_batch(A)
     Bptrs = unsafe_batch(B)
     Cptrs = unsafe_batch(C)
-    if version() >= v"11.0"
-        # with CUDA 11, the compute type encodes the math mode.
-        cublasGemmBatchedEx(
-            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
-            eltype(B[1]), ldb, CuRef{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo
-        )
-    else
-        error("Not implemented for CUDA 11 and below.")
-    end
+
+    cublasGemmBatchedEx(
+        handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
+        eltype(B[1]), ldb, CuRef{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo
+    )
     unsafe_free!(Cptrs)
     unsafe_free!(Bptrs)
     unsafe_free!(Aptrs)
@@ -1357,15 +1328,10 @@ function gemmStridedBatchedEx!(
     isnothing(computeType) &&
     throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
     computeT = juliaStorageType(eltype(C), computeType)
-    if version() >= v"11.0"
-        # with CUDA 11, the compute type encodes the math mode.
-        cublasGemmStridedBatchedEx(
-            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, strideA,
-            B, eltype(B), ldb, strideB, CuRef{computeT}(beta), C, eltype(C), ldc, strideC,
-                                   batchCount, computeType, algo)
-    else
-        error("Not implemented for CUDA 11 and below.")
-    end
+    cublasGemmStridedBatchedEx(
+        handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, strideA,
+        B, eltype(B), ldb, strideB, CuRef{computeT}(beta), C, eltype(C), ldc, strideC,
+        batchCount, computeType, algo)
     C
 end
 
@@ -1382,6 +1348,8 @@ end
     #ptrs = [pointer(strided, (i-1)*batch_stride + 1) for i in 1:batch_size]
     # fill the array on the GPU to avoid synchronous copies and support larger batch sizes
     ptrs = CuArray{CuPtr{T}}(undef, batch_size)
+    # device-side code
+    ## COV_EXCL_START
     function compute_pointers()
         i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
         grid_stride = gridDim().x * blockDim().x
@@ -1392,6 +1360,7 @@ end
         end
         return
     end
+    ## COV_EXCL_STOP
     kernel = @cuda launch = false compute_pointers()
     config = launch_configuration(kernel.fun)
     threads = min(config.threads, batch_size)
@@ -2337,7 +2306,7 @@ for (fname, elty) in ((:cublasDgetriBatched, :Float64),
             ldc = max(1, stride(C[1], 2))
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
-            info = CuArrays.zeros(Cint, length(A))
+            info = CUDA.zeros(Cint, length(A))
             $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)

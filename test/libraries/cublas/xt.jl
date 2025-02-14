@@ -108,6 +108,10 @@ k = 13
             C = (alpha*sA)*B + beta*C
             # compare
             @test C ≈ h_C
+
+            B = rand(elty,m,n)
+            C = rand(elty,m+1,n)
+            @test_throws DimensionMismatch CUBLAS.xt_symm!('L','U',alpha,copy(sA),copy(B),beta,C)
         end
 
         @testset "xt_symm gpu" begin
@@ -465,6 +469,11 @@ k = 13
                 C = triu(C)
                 h_C = triu(h_C)
                 @test C ≈ h_C
+
+                A = rand(elty,m,k)
+                B = rand(elty,m,k+1)
+                C = rand(elty,m,m)
+                @test_throws DimensionMismatch CUBLAS.xt_her2k!('U','N',α,A,B,β,h_C)
             end
             @testset "xt_her2k gpu" begin
                 # generate parameters
