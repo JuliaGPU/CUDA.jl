@@ -355,6 +355,19 @@ k = 13
                 @test y ≈ hy
             end
 
+            @testset "spmv" begin
+                y = zeros(elty, m)
+                BLAS.spmv!('U',one(elty),sAPU,x,zero(elty),y)
+                dy = CUBLAS.spmv('U',dsAPU,dx)
+                hy = Array(dy)
+                @test y ≈ hy
+                y = zeros(elty, m)
+                BLAS.spmv!('L',one(elty),sAPL,x,zero(elty),y)
+                d_y = CUBLAS.spmv('L',dsAPL,dx)
+                hy = Array(dy)
+                @test y ≈ hy
+            end
+
             @testset "spr!" begin
                 alpha = rand(elty)
                 beta = rand(elty)

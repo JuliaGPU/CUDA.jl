@@ -166,6 +166,17 @@ k = 13
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
         @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
 
+        @testset "scal!" begin
+            x = rand(T, m)
+            d_x = CuArray(x)
+            α = rand(Float32)
+            d_α = CuArray([α])
+            y = α * x
+            d_x = CUBLAS.scal!(m, d_α, d_x)
+            h_y = Array(d_x)
+            @test h_y ≈ y
+        end
+
         if T <: Complex
             @test testf(dot, rand(T, m), rand(T, m))
             x = rand(T, m)

@@ -364,10 +364,18 @@ k = 13
             bd_A = CuArray{elty, 2}[]
             bd_B = CuArray{elty, 2}[]
             bd_C = CuArray{elty, 2}[]
+            bd_A_bad1 = CuArray{elty, 2}[]
+            bd_A_bad2 = CuArray{elty, 2}[]
             for i in 1:length(bA)
                 push!(bd_A,CuArray(bA[i]))
                 push!(bd_B,CuArray(bB[i]))
                 push!(bd_C,CuArray(bC[i]))
+                if i < length(bA) - 1
+                    push!(bd_A_bad1,CuArray(bA[i]))
+                    push!(bd_A_bad2,CuArray(bA[i]))
+                else
+                    push!(bd_A_bad2,CUDA.rand(elty, 3*i+1, 2*i-1))
+                end
             end
 
             @testset "gemm_grouped_batched!" begin
@@ -378,6 +386,8 @@ k = 13
                     h_C = Array(bd_C[i])
                     @test bC[i] ≈ h_C
                 end
+                @test_throws DimensionMismatch CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad1,bd_B,beta,bd_C)
+                @test_throws DimensionMismatch CUBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad2,bd_B,beta,bd_C)
             end
 
             @testset "gemm_grouped_batched" begin
