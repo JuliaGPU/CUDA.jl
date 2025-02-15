@@ -401,6 +401,8 @@ k = 13
         end
     end
 
+    starting_mode = CUDA.math_mode()
+    starting_precision = CUDA.math_precision()
     @testset "mixed-precision matmul" begin
         m,k,n = 4,4,4
         cudaTypes = (Float16, Complex{Float16}, BFloat16, Complex{BFloat16}, Float32, Complex{Float32},
@@ -432,6 +434,35 @@ k = 13
                 @test C ≈ Array(dC) rtol=rtol
             end
         end
+        # test in fast math mode too
+        for precision in (:Float16, :BFloat16, :TensorFloat32), (AT, CT) in ((Float32, Float32), (ComplexF32, ComplexF32)) 
+            CUDA.math_mode!(CUDA.FAST_MATH; precision=precision)
+            BT = AT # gemmEx requires identical A and B types
+
+            # we only test combinations of types that are supported by gemmEx
+            if CUBLAS.gemmExComputeType(AT, BT, CT, m,k,n) !== nothing
+                A = AT <: BFloat16 ? AT.(rand(m,k)) : rand(AT, m,k)
+                B = BT <: BFloat16 ? BT.(rand(k,n)) : rand(BT, k,n)
+                C = similar(B, CT)
+                mul!(C, A, B)
+
+                # Base can't do Int8*Int8 without losing accuracy
+                if (AT == Int8 && BT == Int8) || (AT == Complex{Int8} && BT == Complex{Int8})
+                    C = CT.(A) * CT.(B)
+                end
+
+                dA = CuArray(A)
+                dB = CuArray(B)
+                dC = similar(dB, CT)
+                mul!(dC, dA, dB)
+
+                rtol = Base.rtoldefault(AT, BT, 0)
+                @test C ≈ Array(dC) rtol=rtol
+            end
+        end
+        CUDA.math_mode!(CUDA.FAST_MATH; precision = :Bad)
+        @test_throws ArgumentError("Unknown reduced precision type Bad") CUBLAS.gemmExComputeType(Float32, Float32, Float32, m, k, n)
+        CUDA.math_mode!(starting_mode; precision = starting_precision)
 
         # also test an unsupported combination (falling back to GPUArrays)
         if VERSION < v"1.11-"   # JuliaGPU/CUDA.jl#2441
