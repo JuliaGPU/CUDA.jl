@@ -89,44 +89,44 @@ fill!(y_d, 2)
         @cuda gpu_add1!(y, x)
     end
 end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">bench_gpu1! (generic function with 1 method)</code></pre><pre><code class="language-julia hljs">@btime bench_gpu1!($y_d, $x_d)</code></pre><pre><code class="nohighlight hljs">  119.783 ms (47 allocations: 1.23 KiB)</code></pre><p>That&#39;s a <em>lot</em> slower than the version above based on broadcasting. What happened?</p><h3 id="Profiling"><a class="docs-heading-anchor" href="#Profiling">Profiling</a><a id="Profiling-1"></a><a class="docs-heading-anchor-permalink" href="#Profiling" title="Permalink"></a></h3><p>When you don&#39;t get the performance you expect, usually your first step should be to profile the code and see where it&#39;s spending its time:</p><pre><code class="language-julia hljs">bench_gpu1!(y_d, x_d)  # run it once to force compilation
-CUDA.@profile bench_gpu1!(y_d, x_d)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Profiler ran for 108.01 ms, capturing 796 events.
+CUDA.@profile bench_gpu1!(y_d, x_d)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Profiler ran for 106.59 ms, capturing 796 events.
 
-Host-side activity: calling CUDA APIs took 107.1 ms (99.15% of the trace)
+Host-side activity: calling CUDA APIs took 105.65 ms (99.11% of the trace)
 ┌──────────┬────────────┬───────┬─────────────────────┐
 │<span class="sgr1"> Time (%) </span>│<span class="sgr1"> Total time </span>│<span class="sgr1"> Calls </span>│<span class="sgr1"> Name                </span>│
 ├──────────┼────────────┼───────┼─────────────────────┤
-│   99.11% │<span class="sgr31">  107.05 ms </span>│     1 │<span class="sgr1"> cuStreamSynchronize </span>│
-│    0.04% │<span class="sgr33">    42.2 µs </span>│     1 │<span class="sgr1"> cuCtxSetCurrent     </span>│
-│    0.03% │   31.47 µs │     1 │ cuLaunchKernel      │
-│    0.00% │  953.67 ns │     1 │ cuCtxGetDevice      │
-│    0.00% │  238.42 ns │     1 │ cuDeviceGetCount    │
+│   99.06% │<span class="sgr31">  105.59 ms </span>│     1 │<span class="sgr1"> cuStreamSynchronize </span>│
+│    0.05% │<span class="sgr33">   56.03 µs </span>│     1 │<span class="sgr1"> cuCtxSetCurrent     </span>│
+│    0.04% │   39.58 µs │     1 │ cuLaunchKernel      │
+│    0.00% │  715.26 ns │     1 │ cuCtxGetDevice      │
+│    0.00% │  715.26 ns │     1 │ cuDeviceGetCount    │
 └──────────┴────────────┴───────┴─────────────────────┘
 
-Device-side activity: GPU was busy for 107.91 ms (99.90% of the trace)
+Device-side activity: GPU was busy for 106.48 ms (99.89% of the trace)
 ┌──────────┬────────────┬───────┬───────────────────────────────────────────────
 │<span class="sgr1"> Time (%) </span>│<span class="sgr1"> Total time </span>│<span class="sgr1"> Calls </span>│<span class="sgr1"> Name                                        </span> ⋯
 ├──────────┼────────────┼───────┼───────────────────────────────────────────────
-│   99.90% │<span class="sgr31">  107.91 ms </span>│     1 │<span class="sgr1"> gpu_add1_(CuDeviceArray&lt;Float32, 1, 1&gt;, CuDe</span> ⋯
+│   99.89% │<span class="sgr31">  106.48 ms </span>│     1 │<span class="sgr1"> gpu_add1_(CuDeviceArray&lt;Float32, 1, 1&gt;, CuDe</span> ⋯
 └──────────┴────────────┴───────┴───────────────────────────────────────────────
 <span class="sgr36">                                                                1 column omitted</span>
-</code></pre><p>You can see that almost all of the time was spent in <code>ptxcall_gpu_add1__1</code>, the name of the kernel that CUDA.jl assigned when compiling <code>gpu_add1!</code> for these inputs. (Had you created arrays of multiple data types, e.g., <code>xu_d = CUDA.fill(0x01, N)</code>, you might have also seen <code>ptxcall_gpu_add1__2</code> and so on. Like the rest of Julia, you can define a single method and it will be specialized at compile time for the particular data types you&#39;re using.)</p><p>For further insight, run the profiling with the option <code>trace=true</code></p><pre><code class="language-julia hljs">CUDA.@profile trace=true bench_gpu1!(y_d, x_d)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Profiler ran for 108.03 ms, capturing 796 events.
+</code></pre><p>You can see that almost all of the time was spent in <code>ptxcall_gpu_add1__1</code>, the name of the kernel that CUDA.jl assigned when compiling <code>gpu_add1!</code> for these inputs. (Had you created arrays of multiple data types, e.g., <code>xu_d = CUDA.fill(0x01, N)</code>, you might have also seen <code>ptxcall_gpu_add1__2</code> and so on. Like the rest of Julia, you can define a single method and it will be specialized at compile time for the particular data types you&#39;re using.)</p><p>For further insight, run the profiling with the option <code>trace=true</code></p><pre><code class="language-julia hljs">CUDA.@profile trace=true bench_gpu1!(y_d, x_d)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Profiler ran for 109.2 ms, capturing 796 events.
 
-Host-side activity: calling CUDA APIs took 107.13 ms (99.17% of the trace)
+Host-side activity: calling CUDA APIs took 108.25 ms (99.13% of the trace)
 ┌─────┬───────────┬───────────┬────────┬─────────────────────┐
 │<span class="sgr1">  ID </span>│<span class="sgr1">     Start </span>│<span class="sgr1">      Time </span>│<span class="sgr1"> Thread </span>│<span class="sgr1"> Name                </span>│
 ├─────┼───────────┼───────────┼────────┼─────────────────────┤
-│  13 │  52.69 µs │<span class="sgr33">  28.61 µs </span>│      1 │<span class="sgr1"> cuLaunchKernel      </span>│
-│ 787 │  850.2 µs │   2.38 µs │      2 │ cuCtxSetCurrent     │
-│ 788 │ 856.16 µs │ 476.84 ns │      2 │ cuCtxGetDevice      │
-│ 789 │ 863.79 µs │ 238.42 ns │      2 │ cuDeviceGetCount    │
-│ 792 │  871.9 µs │<span class="sgr31"> 107.12 ms </span>│      2 │<span class="sgr1"> cuStreamSynchronize </span>│
+│  13 │  51.26 µs │<span class="sgr33">  38.39 µs </span>│      1 │<span class="sgr1"> cuLaunchKernel      </span>│
+│ 787 │ 890.25 µs │   2.15 µs │      2 │ cuCtxSetCurrent     │
+│ 788 │  898.6 µs │ 715.26 ns │      2 │ cuCtxGetDevice      │
+│ 789 │ 907.66 µs │ 476.84 ns │      2 │ cuDeviceGetCount    │
+│ 792 │  916.0 µs │<span class="sgr31"> 108.24 ms </span>│      2 │<span class="sgr1"> cuStreamSynchronize </span>│
 └─────┴───────────┴───────────┴────────┴─────────────────────┘
 
-Device-side activity: GPU was busy for 107.91 ms (99.89% of the trace)
+Device-side activity: GPU was busy for 109.06 ms (99.88% of the trace)
 ┌────┬──────────┬───────────┬─────────┬────────┬──────┬─────────────────────────
 │<span class="sgr1"> ID </span>│<span class="sgr1">    Start </span>│<span class="sgr1">      Time </span>│<span class="sgr1"> Threads </span>│<span class="sgr1"> Blocks </span>│<span class="sgr1"> Regs </span>│<span class="sgr1"> Name                  </span> ⋯
 ├────┼──────────┼───────────┼─────────┼────────┼──────┼─────────────────────────
-│ 13 │ 81.78 µs │<span class="sgr31"> 107.91 ms </span>│       1 │      1 │   19 │<span class="sgr1"> gpu_add1_(CuDeviceArra</span> ⋯
+│ 13 │ 89.17 µs │<span class="sgr31"> 109.06 ms </span>│       1 │      1 │   19 │<span class="sgr1"> gpu_add1_(CuDeviceArra</span> ⋯
 └────┴──────────┴───────────┴─────────┴────────┴──────┴─────────────────────────
 <span class="sgr36">                                                                1 column omitted</span>
 </code></pre><p>The key thing to note here is that we are only using a single block with a single thread. These terms will be explained shortly, but for now, suffice it to say that this is an indication that this computation ran sequentially. Of note, sequential processing with GPUs is much slower than with CPUs; where GPUs shine is with large-scale parallelism.</p><h3 id="Writing-a-parallel-GPU-kernel"><a class="docs-heading-anchor" href="#Writing-a-parallel-GPU-kernel">Writing a parallel GPU kernel</a><a id="Writing-a-parallel-GPU-kernel-1"></a><a class="docs-heading-anchor-permalink" href="#Writing-a-parallel-GPU-kernel" title="Permalink"></a></h3><p>To speed up the kernel, we want to parallelize it, which means assigning different tasks to different threads.  To facilitate the assignment of work, each CUDA thread gets access to variables that indicate its own unique identity, much as <a href="https://docs.julialang.org/en/latest/manual/parallel-computing/#Multi-Threading-(Experimental)-1"><code>Threads.threadid()</code></a> does for CPU threads. The CUDA analogs of <code>threadid</code> and <code>nthreads</code> are called <code>threadIdx</code> and <code>blockDim</code>, respectively; one difference is that these return a 3-dimensional structure with fields <code>x</code>, <code>y</code>, and <code>z</code> to simplify cartesian indexing for up to 3-dimensional arrays. Consequently we can assign unique work in the following way:</p><pre><code class="language-julia hljs">function gpu_add2!(y, x)
@@ -162,21 +162,21 @@ fill!(y_d, 2)
     CUDA.@sync begin
         @cuda threads=256 blocks=numblocks gpu_add3!(y, x)
     end
-end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">bench_gpu3! (generic function with 1 method)</code></pre><pre><code class="language-julia hljs">@btime bench_gpu3!($y_d, $x_d)</code></pre><pre><code class="nohighlight hljs">  67.268 μs (52 allocations: 1.31 KiB)</code></pre><p>Finally, we&#39;ve achieved the similar performance to what we got with the broadcasted version. Let&#39;s profile again to confirm this launch configuration:</p><pre><code class="language-julia hljs">CUDA.@profile trace=true bench_gpu3!(y_d, x_d)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Profiler ran for 26.81 ms, capturing 270 events.
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">bench_gpu3! (generic function with 1 method)</code></pre><pre><code class="language-julia hljs">@btime bench_gpu3!($y_d, $x_d)</code></pre><pre><code class="nohighlight hljs">  67.268 μs (52 allocations: 1.31 KiB)</code></pre><p>Finally, we&#39;ve achieved the similar performance to what we got with the broadcasted version. Let&#39;s profile again to confirm this launch configuration:</p><pre><code class="language-julia hljs">CUDA.@profile trace=true bench_gpu3!(y_d, x_d)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">Profiler ran for 26.83 ms, capturing 258 events.
 
-Host-side activity: calling CUDA APIs took 94.65 µs (0.35% of the trace)
+Host-side activity: calling CUDA APIs took 97.27 µs (0.36% of the trace)
 ┌─────┬──────────┬──────────┬─────────────────────┐
 │<span class="sgr1">  ID </span>│<span class="sgr1">    Start </span>│<span class="sgr1">     Time </span>│<span class="sgr1"> Name                </span>│
 ├─────┼──────────┼──────────┼─────────────────────┤
-│  13 │ 26.61 ms │<span class="sgr31"> 40.05 µs </span>│<span class="sgr1"> cuLaunchKernel      </span>│
-│ 266 │ 26.79 ms │  4.29 µs │ cuStreamSynchronize │
+│  13 │ 26.63 ms │<span class="sgr31"> 46.25 µs </span>│<span class="sgr1"> cuLaunchKernel      </span>│
+│ 254 │ 26.81 ms │  5.25 µs │ cuStreamSynchronize │
 └─────┴──────────┴──────────┴─────────────────────┘
 
-Device-side activity: GPU was busy for 129.94 µs (0.48% of the trace)
+Device-side activity: GPU was busy for 128.75 µs (0.48% of the trace)
 ┌────┬──────────┬───────────┬─────────┬────────┬──────┬─────────────────────────
 │<span class="sgr1"> ID </span>│<span class="sgr1">    Start </span>│<span class="sgr1">      Time </span>│<span class="sgr1"> Threads </span>│<span class="sgr1"> Blocks </span>│<span class="sgr1"> Regs </span>│<span class="sgr1"> Name                  </span> ⋯
 ├────┼──────────┼───────────┼─────────┼────────┼──────┼─────────────────────────
-│ 13 │ 26.65 ms │<span class="sgr31"> 129.94 µs </span>│     256 │   4096 │   40 │<span class="sgr1"> gpu_add3_(CuDeviceArra</span> ⋯
+│ 13 │ 26.67 ms │<span class="sgr31"> 128.75 µs </span>│     256 │   4096 │   40 │<span class="sgr1"> gpu_add3_(CuDeviceArra</span> ⋯
 └────┴──────────┴───────────┴─────────┴────────┴──────┴─────────────────────────
 <span class="sgr36">                                                                1 column omitted</span>
 </code></pre><p>In the previous example, the number of threads was hard-coded to 256. This is not ideal, as using more threads generally improves performance, but the maximum number of allowed threads to launch depends on your GPU as well as on the kernel. To automatically select an appropriate number of threads, it is recommended to use the launch configuration API. This API takes a compiled (but not launched) kernel, returns a tuple with an upper bound on the number of threads, and the minimum number of blocks that are required to fully saturate the GPU:</p><pre><code class="language-julia hljs">kernel = @cuda launch=false gpu_add3!(y_d, x_d)
@@ -227,4 +227,4 @@ Stacktrace:
  [1] throw_boundserror at abstractarray.jl:484
  [2] checkbounds at abstractarray.jl:449
  [3] setindex! at /home/tbesard/Julia/CUDA/src/device/array.jl:79
- [4] some_kernel at /tmp/tmpIMYANH:6</code></pre><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>On older GPUs (with a compute capability below <code>sm_70</code>) these errors are fatal, and effectively kill the CUDA environment. On such GPUs, it&#39;s often a good idea to perform your &quot;sanity checks&quot; using code that runs on the CPU and only turn over the computation to the GPU once you&#39;ve deemed it to be safe.</p></div></div><h2 id="Summary"><a class="docs-heading-anchor" href="#Summary">Summary</a><a id="Summary-1"></a><a class="docs-heading-anchor-permalink" href="#Summary" title="Permalink"></a></h2><p>Keep in mind that the high-level functionality of CUDA often means that you don&#39;t need to worry about writing kernels at such a low level. However, there are many cases where computations can be optimized using clever low-level manipulations. Hopefully, you now feel comfortable taking the plunge.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><a class="docs-footer-nextpage" href="../custom_structs/">Using custom structs »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Friday 14 February 2025 17:42">Friday 14 February 2025</span>. Using Julia version 1.11.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+ [4] some_kernel at /tmp/tmpIMYANH:6</code></pre><div class="admonition is-warning"><header class="admonition-header">Warning</header><div class="admonition-body"><p>On older GPUs (with a compute capability below <code>sm_70</code>) these errors are fatal, and effectively kill the CUDA environment. On such GPUs, it&#39;s often a good idea to perform your &quot;sanity checks&quot; using code that runs on the CPU and only turn over the computation to the GPU once you&#39;ve deemed it to be safe.</p></div></div><h2 id="Summary"><a class="docs-heading-anchor" href="#Summary">Summary</a><a id="Summary-1"></a><a class="docs-heading-anchor-permalink" href="#Summary" title="Permalink"></a></h2><p>Keep in mind that the high-level functionality of CUDA often means that you don&#39;t need to worry about writing kernels at such a low level. However, there are many cases where computations can be optimized using clever low-level manipulations. Hopefully, you now feel comfortable taking the plunge.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../">« Home</a><a class="docs-footer-nextpage" href="../custom_structs/">Using custom structs »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Saturday 15 February 2025 19:34">Saturday 15 February 2025</span>. Using Julia version 1.11.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
