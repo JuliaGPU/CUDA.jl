@@ -6,7 +6,9 @@ using LLVM
 using LLVM.Interop
 
 # helpers that facilitate working with CUDA APIs
-include("call.jl")
+using GPUToolbox: @checked, @debug_ccall, @gcsafe_ccall
+export @checked, @debug_ccall, @gcsafe_ccall
+
 include("enum.jl")
 include("threading.jl")
 include("cache.jl")

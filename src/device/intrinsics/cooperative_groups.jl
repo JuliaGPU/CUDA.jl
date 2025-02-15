@@ -32,6 +32,8 @@ using ..LLVMLoopInfo
 
 using Core: LLVMPtr
 
+using GPUToolbox: @sv_str
+
 const cg_debug = false
 if cg_debug
     cg_assert(x) = @cuassert x
