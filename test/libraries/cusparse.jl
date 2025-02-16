@@ -49,7 +49,7 @@ blockdim = 5
         @test d_x[firstindex(d_x), firstindex(d_x)] == x[firstindex(x), firstindex(x)]
         @test d_x[div(end, 2), div(end, 2)]         == x[div(end, 2), div(end, 2)]
         @test d_x[end, end]        == x[end, end]
-        @test Array(d_x[firstindex(d_x):end, firstindex(d_x):end]) == x[:, :]
+        @test Array(d_x[firstindex(d_x):end]) == x[:]
         for i in 1:size(x, 2)
             @test Array(d_x[:, i]) == x[:, i]
         end
@@ -139,6 +139,8 @@ end
             d_x = CuSparseMatrixCSC(x)
             @test collect(d_x) == collect(x)
             @test similar(d_x) isa CuSparseMatrixCSC{elty}
+            @test similar(d_x, (3, 4)) isa CuSparseMatrixCSC{elty}
+            @test size(similar(d_x, (3, 4))) == (3, 4)
             @test similar(d_x, Float32) isa CuSparseMatrixCSC{Float32}
         end
 
@@ -147,7 +149,19 @@ end
             d_x  = CuSparseMatrixCSR(x)
             @test collect(d_x) == collect(x)
             @test similar(d_x) isa CuSparseMatrixCSR{elty}
+            @test similar(d_x, (3, 4)) isa CuSparseMatrixCSR{elty}
+            @test size(similar(d_x, (3, 4))) == (3, 4)
             @test similar(d_x, Float32) isa CuSparseMatrixCSR{Float32}
+        end
+        
+        @testset "COO" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x  = CuSparseMatrixCOO(x)
+            @test collect(d_x) == collect(x)
+            @test similar(d_x) isa CuSparseMatrixCOO{elty}
+            @test similar(d_x, (3, 4)) isa CuSparseMatrixCOO{elty}
+            @test size(similar(d_x, (3, 4))) == (3, 4)
+            @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
         end
 
         @testset "BSR" begin
