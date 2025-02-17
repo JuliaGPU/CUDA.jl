@@ -35,9 +35,6 @@ Adapt.adapt_storage(::KA.CPU, a::CuArray) = convert(Array, a)
 ## memory operations
 
 function KA.copyto!(::CUDABackend, A, B)
-    A isa Array && CUDA.pin(A)
-    B isa Array && CUDA.pin(B)
-
     GC.@preserve A B begin
         destptr = pointer(A)
         srcptr  = pointer(B)
@@ -45,6 +42,25 @@ function KA.copyto!(::CUDABackend, A, B)
         unsafe_copyto!(destptr, srcptr, N, async=true)
     end
     return A
+end
+
+function KA.pagelock!(::CUDABackend, A::Array)
+    CUDA.pin(A)
+    return nothing
+end
+
+## device operations
+
+function KA.ndevices(::CUDABackend)
+    return ndevices()
+end
+
+function KA.device(::CUDABackend)
+    deviceid(active_state().device)+1
+end
+
+function KA.device!(::CUDABackend, id)
+    device!(id-1)
 end
 
 ## kernel launch
