@@ -4,6 +4,8 @@ using GPUCompiler
 
 using GPUArrays
 
+using GPUToolbox: SimpleVersion, @sv_str
+
 using LLVM
 using LLVM.Interop
 using Core: LLVMPtr
