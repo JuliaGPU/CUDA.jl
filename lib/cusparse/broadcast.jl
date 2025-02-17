@@ -300,7 +300,7 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 ## sparse broadcast implementation
 
 # TODO: unify CSC/CSR kernels
-
+## COV_EXCL_START
 # kernel to count the number of non-zeros in a row, to determine the row offsets
 function compute_offsets_kernel(::Type{<:CuSparseMatrixCSR}, offsets::AbstractVector{Ti},
                                 args...) where Ti
@@ -458,6 +458,7 @@ function sparse_to_dense_broadcast_kernel(::Type{<:CuSparseMatrixCSC}, f,
 
     return
 end
+## COV_EXCL_STOP
 
 function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyle}})
     # find the sparse inputs
