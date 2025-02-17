@@ -509,10 +509,13 @@ mutable struct Managed{M}
   # whether the memory has been captured in a way that would make the dirty bit unreliable
   captured::Bool
 
-  function Managed(mem::AbstractMemory; stream=CUDA.stream(), dirty=true, captured=false)
+  # whether memory accessed from another task causes implicit syncrhonization
+  task_sync::Bool
+
+  function Managed(mem::AbstractMemory; stream = CUDA.stream(), dirty = true, captured = false, task_sync = true)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, stream, dirty, captured)
+    return new{typeof(mem)}(mem, stream, dirty, captured, task_sync)
   end
 end
 
@@ -566,7 +569,13 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
 
   # accessing memory on another stream: ensure the data is ready and take ownership
   if managed.stream != state.stream
-    maybe_synchronize(managed)
+    # Synchronize the array if task_sync is enabled
+    managed.task_sync && maybe_synchronize(managed)
+    # We must still switch the stream, since we are about to set ".dirty=true"
+    # and otherwise subsequent operations will synchronize against the wrong stream.
+    # XXX: What to do when an array is used on multiple tasks concurrently?
+    #      We could have the situation that we will synchronize against the "wrong" stream
+    #      But that would mean that we need a mapping from task to stream per Managed object...
     managed.stream = state.stream
   end
 

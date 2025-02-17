@@ -471,6 +471,23 @@ function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArr
                                a.maxsize - a.offset*Base.elsize(a))
 end
 
+## synchronization behavior
+
+"""
+    unsafe_disable_task_sync!(arr::CuArray)
+
+By default `CuArray`s are implicitly synchronized when they are used on different CUDA streams.
+A `CuArray` that is used on multiple Julia tasks will be used by different streams
+and thus will cause a synchronization between multiple Julia tasks.
+
+This `unsafe_disable_task_sync` disables synchronization when stream are being switched.
+"""
+function unsafe_disable_task_sync!(arr::CuArray)
+    return arr.data[].task_sync = false
+end
+function unsafe_enable_task_sync!(arr::CuArray)
+    return arr.data[].task_sync = true
+end
 
 ## memory copying
 
