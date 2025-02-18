@@ -67,13 +67,14 @@ mutable struct CuStateVec{T}
     data::CuVector{T}
     nbits::UInt32
 end
-function CuStateVec(T, n_qubits::Int)
+function CuStateVec(T, n_qubits::Int; sv_type::custatevecStateVectorType_t=CUSTATEVEC_STATE_VECTOR_TYPE_ZERO)
     data = CUDA.zeros(T, 2^n_qubits)
     # in most cases, taking the hit here for setting one element
     # is cheaper than building the entire thing on the CPU and
     # copying it over
-    CUDA.@allowscalar data[1] = one(T)
-    CuStateVec{T}(data, n_qubits)
+    sv = CuStateVec{T}(data, n_qubits)
+    initialize!(sv, sv_type)
+    return sv
 end
 CuStateVec(v::CuVector{T}) where {T} = CuStateVec{T}(v, UInt32(log2(length(v))))
 CuStateVec(v::Vector{T}) where {T}   = CuStateVec(CuVector{T}(v))
@@ -102,9 +103,13 @@ mutable struct CuStateVecAccessor
     function CuStateVecAccessor(sv::CuStateVec, bit_ordering::Vector{Int}, mask_bit_string::Vector{Int}, mask_ordering::Vector{Int})
         desc_ref   = Ref{custatevecAccessorDescriptor_t}()
         extra_size = Ref{Csize_t}(0)
-        custatevecAccessorCreate(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, bit_ordering, length(bit_ordering), mask_bit_string, mark_ordering, length(mask_bit_string), extra_size)
+        mask_string = isempty(mask_bit_string) ? C_NULL : mask_bit_string
+        mask_order  = isempty(mask_ordering)   ? C_NULL : mask_ordering
+        custatevecAccessorCreate(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, bit_ordering, length(bit_ordering), mask_string, mask_order, length(mask_bit_string), extra_size)
         obj = new(desc_ref[], extra_size[])
         finalizer(custatevecAccessorDestroy, obj)
         obj
     end
 end
+
+Base.unsafe_convert(::Type{custatevecAccessorDescriptor_t}, desc::CuStateVecAccessor) = desc.handle

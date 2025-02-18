@@ -600,7 +600,7 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecAccessorGet(handle::custatevecHandle_t,
                                                       accessor::custatevecAccessorDescriptor_t,
-                                                      externalBuffer::Ptr{Cvoid},
+                                                      externalBuffer::PtrOrCuPtr{Cvoid},
                                                       _begin::custatevecIndex_t,
                                                       _end::custatevecIndex_t)::custatevecStatus_t
 end
@@ -609,7 +609,7 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecAccessorSet(handle::custatevecHandle_t,
                                                       accessor::custatevecAccessorDescriptor_t,
-                                                      externalBuffer::Ptr{Cvoid},
+                                                      externalBuffer::PtrOrCuPtr{Cvoid},
                                                       _begin::custatevecIndex_t,
                                                       _end::custatevecIndex_t)::custatevecStatus_t
 end
@@ -665,7 +665,7 @@ end
                                                   svType)
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecInitializeStateVector(handle::custatevecHandle_t,
-                                                                sv::Ptr{Cvoid},
+                                                                sv::PtrOrCuPtr{Cvoid},
                                                                 svDataType::cudaDataType_t,
                                                                 nIndexBits::UInt32,
                                                                 svType::custatevecStateVectorType_t)::custatevecStatus_t

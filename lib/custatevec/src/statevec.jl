@@ -1,3 +1,8 @@
+function initialize!(sv::CuStateVec, sv_type::custatevecStateVectorType_t)
+    custatevecInitializeStateVector(handle(), sv.data, eltype(sv), sv.nbits, sv_type)
+    sv
+end
+
 function applyPauliExp!(sv::CuStateVec, theta::Float64, paulis::Vector{<:Pauli}, targets::Vector{Int32}, controls::Vector{Int32}, controlValues::Vector{Int32}=fill(one(Int32), length(controls)))
     cupaulis = CuStateVecPauli.(paulis)
     custatevecApplyPauliRotation(handle(), sv.data, eltype(sv), sv.nbits, theta, cupaulis, targets, length(targets), controls, controlValues, length(controls))
@@ -178,10 +183,11 @@ function testMatrixType(matrix::Union{Matrix, CuMatrix}, adjoint::Bool, matrix_t
     return residualNorm[]
 end
 
-function accessorSet(a::CuStateVecAccessor, external_buf::Union{Vector, CuVector}, i_begin::Int, i_end::Int)
-    custatevecAccessorSet(handle(), a, external_buf, i_begin, i_end)
+# TODO attach this to the Julia indexing API
+function accessorSet!(a::CuStateVecAccessor, external_buf::Union{Vector, CuVector}, i_begin::Int, i_end::Int)
+    custatevecAccessorSet(handle(), a.handle, pointer(external_buf), i_begin, i_end)
 end
 
 function accessorGet(a::CuStateVecAccessor, external_buf::Union{Vector, CuVector}, i_begin::Int, i_end::Int)
-    custatevecAccessorGet(handle(), a, external_buf, i_begin, i_end)
+    custatevecAccessorGet(handle(), a.handle, pointer(external_buf), i_begin, i_end)
 end
