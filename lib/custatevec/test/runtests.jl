@@ -43,14 +43,22 @@ using cuStateVec
         n_q = 2
         @testset for elty in [ComplexF32, ComplexF64]
             H = convert(Matrix{elty}, (1/√2).*[1 1; 1 -1])
-            X = convert(Matrix{elty}, [0 1; 1 0])
-            Z = convert(Matrix{elty}, [1 0; 0 -1])
             sv = CuStateVec(elty, n_q)
             sv = applyMatrix!(sv, H, false, Int32[0], Int32[])
             sv = applyMatrix!(sv, H, false, Int32[1], Int32[])
             pauli_ops = [cuStateVec.Pauli[cuStateVec.PauliX()], cuStateVec.Pauli[cuStateVec.PauliX()]]
             exp_vals = expectationsOnPauliBasis(sv, pauli_ops, [[0], [1]])
             @test exp_vals[1] ≈ 1.0 atol=1e-6
+            @test exp_vals[2] ≈ 1.0 atol=1e-6
+
+
+            H = convert(Matrix{elty}, (1/√2).*[1 1; 1 -1])
+            sv = CuStateVec(elty, n_q)
+            sv = applyMatrix!(sv, H, false, Int32[0], Int32[])
+            sv = applyMatrix!(sv, H, false, Int32[1], Int32[])
+            pauli_ops = [cuStateVec.Pauli[cuStateVec.PauliY()], cuStateVec.Pauli[cuStateVec.PauliI()]]
+            exp_vals = expectationsOnPauliBasis(sv, pauli_ops, [[0], [1]])
+            @test exp_vals[1] ≈ 0.0 atol=1e-6
             @test exp_vals[2] ≈ 1.0 atol=1e-6
         end
     end

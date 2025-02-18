@@ -185,9 +185,9 @@ end
 
 # TODO attach this to the Julia indexing API
 function accessorSet!(a::CuStateVecAccessor, external_buf::Union{Vector, CuVector}, i_begin::Int, i_end::Int)
-    custatevecAccessorSet(handle(), a.handle, pointer(external_buf), i_begin, i_end)
+    custatevecAccessorSet(handle(), a, pointer(external_buf), i_begin, i_end)
 end
 
 function accessorGet(a::CuStateVecAccessor, external_buf::Union{Vector, CuVector}, i_begin::Int, i_end::Int)
-    custatevecAccessorGet(handle(), a.handle, pointer(external_buf), i_begin, i_end)
+    custatevecAccessorGet(handle(), a, pointer(external_buf), i_begin, i_end)
 end

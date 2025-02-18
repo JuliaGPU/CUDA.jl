@@ -3,40 +3,20 @@
 ## custatevec compute type
 
 function Base.convert(::Type{custatevecComputeType_t}, T::DataType)
-    if T == Float16
-        return CUSTATEVEC_COMPUTE_16F
-    elseif T == Float32
+    if T == Float32
         return CUSTATEVEC_COMPUTE_32F
     elseif T == Float64
         return CUSTATEVEC_COMPUTE_64F
-    elseif T == UInt8
-        return CUSTATEVEC_COMPUTE_8U
-    elseif T == Int8
-        return CUSTATEVEC_COMPUTE_8I
-    elseif T == UInt32
-        return CUSTATEVEC_COMPUTE_32U
-    elseif T == Int32
-        return CUSTATEVEC_COMPUTE_32I
     else
         throw(ArgumentError("cuStateVec type equivalent for compute type $T does not exist!"))
     end
 end
 
 function Base.convert(::Type{Type}, T::custatevecComputeType_t)
-    if T == CUSTATEVEC_COMPUTE_16F
-        return Float16
-    elseif T == CUSTATEVEC_COMPUTE_32F
+    if T == CUSTATEVEC_COMPUTE_32F || T == CUSTATEVEC_COMPUTE_TF32
         return Float32
     elseif T == CUSTATEVEC_COMPUTE_64F
         return Float64
-    elseif T == CUSTATEVEC_COMPUTE_8U
-        return UInt8
-    elseif T == CUSTATEVEC_COMPUTE_32U
-        return UInt32
-    elseif T == CUSTATEVEC_COMPUTE_8I
-        return Int8
-    elseif T == CUSTATEVEC_COMPUTE_32I
-        return Int32
     else
         throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
     end
@@ -45,9 +25,7 @@ end
 function compute_type(sv_type::DataType, mat_type::DataType)
     if sv_type == ComplexF64 && mat_type == ComplexF64
         return Float64
-    elseif sv_type == ComplexF32 && mat_type == ComplexF64
-        return Float32
-    elseif sv_type == ComplexF32 && mat_type == ComplexF32
+    elseif sv_type == ComplexF32 && mat_type <: Union{ComplexF64, ComplexF32}
         return Float32
     end
 end
