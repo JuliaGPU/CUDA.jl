@@ -75,6 +75,38 @@ blockdim = 5
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCSC(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
+    x = sprand(m,n,0.2)
+    d_x = CuSparseMatrixCOO(x)
+    @test CuSparseMatrixCOO(d_x) === d_x
+    @test length(d_x) == m*n
+    @test size(d_x)   == (m,n)
+    @test size(d_x,1) == m
+    @test size(d_x,2) == n
+    @test size(d_x,3) == 1
+    @test ndims(d_x)  == 2
+    d_x2 = copy(d_x)
+    @test d_x2 isa CuSparseMatrixCOO
+    @test size(d_x2) == size(d_x)
+    @test length(d_x) == length(x)
+    CUDA.@allowscalar begin
+        @test Array(d_x[:])        == x[:]
+        @test d_x[firstindex(d_x)] == x[firstindex(x)]
+        @test d_x[div(end, 2)]     == x[div(end, 2)]
+        @test d_x[end]             == x[end]
+        @test d_x[firstindex(d_x), firstindex(d_x)] == x[firstindex(x), firstindex(x)]
+        @test d_x[div(end, 2), div(end, 2)]         == x[div(end, 2), div(end, 2)]
+        @test d_x[end, end]        == x[end, end]
+        @test Array(d_x[firstindex(d_x):end]) == x[:]
+        for i in 1:size(x, 2)
+            @test Array(d_x[:, i]) == x[:, i]
+        end
+        for i in 1:size(x, 1)
+            @test Array(d_x[i, :]) == x[i, :]
+        end
+    end
+    y = sprand(k,n,0.2)
+    d_y = CuSparseMatrixCOO(y)
+    @test_throws ArgumentError copyto!(d_y,d_x)
     d_y = CuSparseMatrixCSR(d_y)
     d_x = CuSparseMatrixCSR(d_x)
     @test CuSparseMatrixCSR(d_x) === d_x
@@ -151,6 +183,7 @@ end
             @test size(similar(d_x, (3, 4))) == (3, 4)
             @test similar(d_x, Float32) isa CuSparseMatrixCSC{Float32}
             @test similar(d_x, Float32, n, m) isa CuSparseMatrixCSC{Float32}
+            @test similar(d_x, Float32, (n, m)) isa CuSparseMatrixCSC{Float32}
         end
 
         @testset "CSR" begin
@@ -162,6 +195,7 @@ end
             @test size(similar(d_x, (3, 4))) == (3, 4)
             @test similar(d_x, Float32) isa CuSparseMatrixCSR{Float32}
             @test similar(d_x, Float32, n, m) isa CuSparseMatrixCSR{Float32}
+            @test similar(d_x, Float32, (n, m)) isa CuSparseMatrixCSR{Float32}
         end
         
         @testset "COO" begin
@@ -171,7 +205,9 @@ end
             @test similar(d_x) isa CuSparseMatrixCOO{elty}
             @test similar(d_x, (3, 4)) isa CuSparseMatrixCOO{elty}
             @test size(similar(d_x, (3, 4))) == (3, 4)
+            @test size(similar(d_x, Float64, (3, 4))) == (3, 4)
             @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
+            @test CuSparseMatrixCOO(d_x) === d_x
         end
 
         @testset "BSR" begin

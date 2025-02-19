@@ -50,6 +50,7 @@ function Base.mapreduce(f, op, A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC};
     end
 end
 
+## COV_EXCL_START
 function csr_reduce_kernel(f::F, op::OP, neutral, output::CuDeviceArray, args...) where {F, OP}
     # every thread processes an entire row
     row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
@@ -95,3 +96,4 @@ function csc_reduce_kernel(f::F, op::OP, neutral, output::CuDeviceArray, args...
     @inbounds output[col] = val
     return
 end
+## COV_EXCL_STOP

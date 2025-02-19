@@ -385,6 +385,34 @@ function Base.getindex(x::CuSparseMatrixCSR, i::Integer, ::Colon)
     CuSparseVector(x.colVal[c1:c2], nonzeros(x)[c1:c2], size(x, 2))
 end
 
+function Base.getindex(x::CuSparseMatrixCOO{T}, i::Integer, ::Colon) where {T}
+    checkbounds(x, i, :)
+    if issorted(x.rowInd)
+        row_start = searchsortedfirst(x.rowInd, i)
+        row_end   = min(searchsortedlast(x.rowInd, i), length(x.rowInd))
+        row_start == length(x.rowInd) + 1 && return CuSparseVector(similar(x.rowInd, 0), CUDA.zeros(T, 0), size(x, 2))
+        CuSparseVector(x.colInd[row_start:row_end], x.nzVal[row_start:row_end], size(x, 2))
+    else
+        row_inds = findall(ix->ix == i, x.rowInd)
+        isnothing(row_inds) && return CuSparseVector(similar(x.rowInd, 0), CUDA.zeros(T, 0), size(x, 2))
+        CuSparseVector(x.colInd[row_inds], x.nzVal[row_inds], size(x, 2))
+    end
+end
+
+function Base.getindex(x::CuSparseMatrixCOO{T}, ::Colon, j::Integer) where {T}
+    checkbounds(x, :, j)
+    if issorted(x.colInd)
+        col_start = searchsortedfirst(x.colInd, j)
+        col_end   = min(searchsortedlast(x.colInd, j), length(x.colInd))
+        col_start == length(x.colInd) + 1 && return CuSparseVector(similar(x.colInd, 0), CUDA.zeros(T, 0), size(x, 2))
+        CuSparseVector(x.rowInd[col_start:col_end], x.nzVal[col_start:col_end], size(x, 1))
+    else
+        col_inds = findall(ix->ix == j, x.colInd)
+        isnothing(col_inds) && return CuSparseVector(similar(x.colInd, 0), CUDA.zeros(T, 0), size(x, 1))
+        CuSparseVector(x.rowInd[col_inds], x.nzVal[col_inds], size(x, 1))
+    end
+end
+
 # row slices
 Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(sparse(A[i, 1:end]))  # TODO: optimize
 Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse(A[1:end, j]))  # TODO: optimize
@@ -420,9 +448,9 @@ function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where 
     @boundscheck checkbounds(A, i0, i1)
     r1 = searchsortedfirst(A.rowInd, i0, Base.Order.Forward)
     (r1 > length(A.rowInd) || A.rowInd[r1] > i0) && return zero(T)
-    r2 = searchsortedfirst(A.rowInd, i0+1, Base.Order.Forward)
+    r2 = min(searchsortedfirst(A.rowInd, i0+1, Base.Order.Forward), length(A.rowInd))
     c1 = searchsortedfirst(A.colInd, i1, r1, r2, Base.Order.Forward)
-    (c1 > r2 || A.colInd[c1] > i1) && return zero(T)
+    (c1 > r2 || c1 == length(A.colInd) + 1 || A.colInd[c1] > i1) && return zero(T)
     nonzeros(A)[c1]
 end
 
