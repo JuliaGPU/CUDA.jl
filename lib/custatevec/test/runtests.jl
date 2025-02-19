@@ -8,7 +8,7 @@ using cuStateVec
 @info "cuStateVec version: $(cuStateVec.version())"
 
 @testset "cuStateVec" begin
-    import cuStateVec: CuStateVec, applyMatrix!, applyMatrixBatched!, applyPauliExp!, applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample, testMatrixType, Pauli, PauliX, PauliY, PauliZ, PauliI, measureOnZBasis!, swapIndexBits!, abs2SumOnZBasis, collapseOnZBasis!, batchMeasure!, abs2SumArray, collapseByBitString!, abs2SumArrayBatched, collapseByBitStringBatched!
+    import cuStateVec: CuStateVec, applyMatrix!, applyMatrixBatched!, applyPauliExp!, applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample, testMatrixType, Pauli, PauliX, PauliY, PauliZ, PauliI, measureOnZBasis!, swapIndexBits!, abs2SumOnZBasis, collapseOnZBasis!, batchMeasure!, abs2SumArray, collapseByBitString!, abs2SumArrayBatched, collapseByBitStringBatched!, accessorSet!, accessorGet, CuStateVecAccessor
 
     @testset "applyMatrix! and expectation" begin
         # build a simple state and compute expectations
@@ -43,14 +43,22 @@ using cuStateVec
         n_q = 2
         @testset for elty in [ComplexF32, ComplexF64]
             H = convert(Matrix{elty}, (1/√2).*[1 1; 1 -1])
-            X = convert(Matrix{elty}, [0 1; 1 0])
-            Z = convert(Matrix{elty}, [1 0; 0 -1])
             sv = CuStateVec(elty, n_q)
             sv = applyMatrix!(sv, H, false, Int32[0], Int32[])
             sv = applyMatrix!(sv, H, false, Int32[1], Int32[])
             pauli_ops = [cuStateVec.Pauli[cuStateVec.PauliX()], cuStateVec.Pauli[cuStateVec.PauliX()]]
             exp_vals = expectationsOnPauliBasis(sv, pauli_ops, [[0], [1]])
             @test exp_vals[1] ≈ 1.0 atol=1e-6
+            @test exp_vals[2] ≈ 1.0 atol=1e-6
+
+
+            H = convert(Matrix{elty}, (1/√2).*[1 1; 1 -1])
+            sv = CuStateVec(elty, n_q)
+            sv = applyMatrix!(sv, H, false, Int32[0], Int32[])
+            sv = applyMatrix!(sv, H, false, Int32[1], Int32[])
+            pauli_ops = [cuStateVec.Pauli[cuStateVec.PauliY()], cuStateVec.Pauli[cuStateVec.PauliI()]]
+            exp_vals = expectationsOnPauliBasis(sv, pauli_ops, [[0], [1]])
+            @test exp_vals[1] ≈ 0.0 atol=1e-6
             @test exp_vals[2] ≈ 1.0 atol=1e-6
         end
     end
@@ -246,6 +254,22 @@ using cuStateVec
             @test testMatrixType(A, true, cuStateVec.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
             @test testMatrixType(CuMatrix{elty}(A), false, cuStateVec.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
             @test testMatrixType(CuMatrix{elty}(A), true, cuStateVec.CUSTATEVEC_MATRIX_TYPE_UNITARY) <= 200 * eps(real(elty))
+        end
+    end
+    @testset "accessorSet!/accessorGet" begin
+        nIndexBits = 3
+        bitOrdering  = [1, 2, 0]
+        @testset for elty in [ComplexF32, ComplexF64]
+            h_sv = zeros(elty, 2^nIndexBits)
+            h_sv_result = elty[0; 0.1im; 0.1+0.1im; 0.1+0.2im; 0.2+0.2im; 0.3+0.3im; 0.3+0.4im; 0.4+0.5im]
+            buffer = elty[0; 0.1im; 0.1+0.1im; 0.1+0.2im; 0.2+0.2im; 0.3+0.3im; 0.3+0.4im; 0.4+0.5im]
+            
+            sv = CuStateVec(h_sv)
+            acc = CuStateVecAccessor(sv, bitOrdering, Int[], Int[])
+            accessorSet!(acc, buffer, 0, 2^nIndexBits)
+            next_buf = similar(buffer)
+            accessorGet(acc, next_buf, 0, 2^nIndexBits)
+            @test next_buf == h_sv_result 
         end
     end
 end
