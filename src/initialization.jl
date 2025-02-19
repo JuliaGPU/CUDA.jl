@@ -160,8 +160,7 @@ function __init__()
     end
 
     # if we're not running under an external profiler, let CUPTI handle NVTX events
-    # XXX: JuliaGPU/NVTX.jl#37
-    if !NVTX.isactive() && !Sys.iswindows()
+    if !NVTX.isactive()
         ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
         NVTX.activate()
     end
@@ -218,7 +217,7 @@ function __init__()
             if any(rtlib -> contains(lib, rtlib), runtime_libraries)
                 @warn """CUDA runtime library `$(basename(lib))` was loaded from a system path, `$lib`.
                          This may cause errors.
-                         
+
                          If you're running under a profiler, this situation is expected. Otherwise,
                          ensure that your library path environment variable (e.g., `PATH` on Windows
                          or `LD_LIBRARY_PATH` on Linux) does not include CUDA library paths.
