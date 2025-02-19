@@ -57,6 +57,7 @@ function launch_configuration(fun::CuFunction; shmem::Union{Integer,Base.Callabl
                               max_threads::Integer=0)
     blocks_ref = Ref{Cint}()
     threads_ref = Ref{Cint}()
+    max_threads = clamp(max_threads, Cint)
     if isa(shmem, Integer)
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
     elseif Sys.ARCH == :x86 || Sys.ARCH == :x86_64
