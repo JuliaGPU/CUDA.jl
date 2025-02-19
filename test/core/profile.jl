@@ -74,9 +74,6 @@ let
     @test occursin("cuCtxGetCurrent", str)
 end
 
-# JuliaGPU/NVTX.jl#37
-if !Sys.iswindows()
-
 # NVTX markers
 let
     str = string(CUDA.@profile trace=true NVTX.@mark "a marker")
@@ -89,8 +86,6 @@ let
     str = string(CUDA.@profile trace=true NVTX.@range "a range" identity(nothing))
     @test occursin("NVTX ranges", str)
     @test occursin("a range", str)
-end
-
 end
 
 end
