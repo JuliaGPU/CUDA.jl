@@ -1,6 +1,7 @@
 coverage:
   ignore:
     - "lib/*/lib*.jl"
+    - "lib/*/src/lib*.jl"
     - "src/device"
     - "res/"
     - "doc/"
