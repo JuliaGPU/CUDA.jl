@@ -101,6 +101,7 @@ end
 @inline _zeros_eltypes(A, Bs...) = (zero(eltype(A)), _zeros_eltypes(Bs...)...)
 
 
+## COV_EXCL_START
 ## iteration helpers
 
 """
@@ -300,7 +301,6 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 ## sparse broadcast implementation
 
 # TODO: unify CSC/CSR kernels
-## COV_EXCL_START
 # kernel to count the number of non-zeros in a row, to determine the row offsets
 function compute_offsets_kernel(::Type{<:CuSparseMatrixCSR}, offsets::AbstractVector{Ti},
                                 args...) where Ti
