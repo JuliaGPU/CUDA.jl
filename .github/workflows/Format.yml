@@ -80,9 +80,9 @@ jobs:
             <details>
             <summary>Click here to view the suggested changes.</summary>
 
-            ```diff
+            ~~~diff
             ${{ steps.runic.outputs.diff }}
-            ```
+            ~~~
 
             </details>
           edit-mode: replace
