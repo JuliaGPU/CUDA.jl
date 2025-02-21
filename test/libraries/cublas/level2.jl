@@ -458,7 +458,12 @@ k = 13
 
         @testset "lmul!(::UpperTriangular)" begin
             dy = copy(dx)
-            lmul!(UpperTriangular(dA), dy)
+            utdA = UpperTriangular(dA)
+            if VERSION >= v"1.11.2"
+                @test istriu(utdA)
+                @test !istril(utdA)
+            end
+            lmul!(utdA, dy)
             y = UpperTriangular(A) * x
             @test y ≈ Array(dy)
         end
@@ -476,7 +481,12 @@ k = 13
         end
         @testset "lmul!(::LowerTriangular)" begin
             dy = copy(dx)
-            lmul!(LowerTriangular(dA), dy)
+            ltdA = LowerTriangular(dA)
+            if VERSION >= v"1.11.2"
+                @test !istriu(ltdA)
+                @test istril(ltdA)
+            end
+            lmul!(ltdA, dy)
             y = LowerTriangular(A) * x
             @test y ≈ Array(dy)
         end

@@ -567,6 +567,8 @@ k = 13
             d_X = Diagonal(d_x)
             mul!(d_AX, d_A', d_X)
             Array(d_AX) ≈ A' * Diagonal(x)
+
+            @test Array(d_X) == Diagonal(Array(d_x))
         end
     end # extensions
 
