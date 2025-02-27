@@ -114,9 +114,7 @@ using SpecialFunctions
     @testset "Float16 - $op" for op in (log,exp,exp2,exp10,log2,log10)
         all_float_16 = collect(reinterpret(Float16, pattern) for pattern in  UInt16(0):UInt16(1):typemax(UInt16))
         all_float_16 = filter(!isnan, all_float_16)
-        for each_float in all_float_16
-            @test testf(x->op.(x), Float16[each_float])
-        end
+        @test testf(x->map(op, x), all_float_16)
     end
 
     @testset "fastmath" begin
