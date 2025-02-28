@@ -1189,3 +1189,46 @@ end
         @test Array(coo.nzVal) == [12f0, 1f0]
     end
 end
+
+@testset "Utility type conversions" begin
+    @test convert(CUSPARSE.cusparseIndexType_t, Int32) == CUSPARSE.CUSPARSE_INDEX_32I
+    @test convert(CUSPARSE.cusparseIndexType_t, Int64) == CUSPARSE.CUSPARSE_INDEX_64I
+    @test_throws ArgumentError("CUSPARSE type equivalent for index type Int8 does not exist!") convert(CUSPARSE.cusparseIndexType_t, Int8)
+    @test convert(Type, CUSPARSE.CUSPARSE_INDEX_32I) == Int32
+    @test convert(Type, CUSPARSE.CUSPARSE_INDEX_64I) == Int64
+
+    @test convert(CUSPARSE.cusparseIndexBase_t, 0) == CUSPARSE.CUSPARSE_INDEX_BASE_ZERO
+    @test convert(CUSPARSE.cusparseIndexBase_t, 1) == CUSPARSE.CUSPARSE_INDEX_BASE_ONE
+    @test_throws ArgumentError("CUSPARSE does not support index base 2!") convert(CUSPARSE.cusparseIndexBase_t, 2)
+    @test convert(Int8, CUSPARSE.CUSPARSE_INDEX_BASE_ZERO) == zero(Int8)
+    @test convert(Int8, CUSPARSE.CUSPARSE_INDEX_BASE_ONE)  == one(Int8)
+
+    @test_throws ArgumentError("Unknown operation X") convert(CUSPARSE.cusparseOperation_t, CUSPARSE.SparseChar('X'))
+
+    @test convert(CUSPARSE.cusparseMatrixType_t, CUSPARSE.SparseChar('G')) == CUSPARSE.CUSPARSE_MATRIX_TYPE_GENERAL
+    @test convert(CUSPARSE.cusparseMatrixType_t, CUSPARSE.SparseChar('T')) == CUSPARSE.CUSPARSE_MATRIX_TYPE_TRIANGULAR
+    @test convert(CUSPARSE.cusparseMatrixType_t, CUSPARSE.SparseChar('S')) == CUSPARSE.CUSPARSE_MATRIX_TYPE_SYMMETRIC
+    @test convert(CUSPARSE.cusparseMatrixType_t, CUSPARSE.SparseChar('H')) == CUSPARSE.CUSPARSE_MATRIX_TYPE_HERMITIAN
+    @test_throws ArgumentError("Unknown matrix type X") convert(CUSPARSE.cusparseMatrixType_t, CUSPARSE.SparseChar('X'))
+
+    @test_throws ArgumentError("Unknown attribute X") convert(CUSPARSE.cusparseSpMatAttribute_t, CUSPARSE.SparseChar('X'))
+    @test_throws ArgumentError("Unknown fill mode X") convert(CUSPARSE.cusparseFillMode_t, CUSPARSE.SparseChar('X'))
+    @test_throws ArgumentError("Unknown diag type X") convert(CUSPARSE.cusparseDiagType_t, CUSPARSE.SparseChar('X'))
+    @test_throws ArgumentError("Unknown index base X") convert(CUSPARSE.cusparseIndexBase_t, CUSPARSE.SparseChar('X'))
+
+    @test convert(CUSPARSE.cusparseDirection_t, CUSPARSE.SparseChar('R')) == CUSPARSE.CUSPARSE_DIRECTION_ROW
+    @test convert(CUSPARSE.cusparseDirection_t, CUSPARSE.SparseChar('C')) == CUSPARSE.CUSPARSE_DIRECTION_COLUMN
+    @test_throws ArgumentError("Unknown direction X") convert(CUSPARSE.cusparseDirection_t, CUSPARSE.SparseChar('X'))
+
+    @test convert(CUSPARSE.cusparseOrder_t, CUSPARSE.SparseChar('R')) == CUSPARSE.CUSPARSE_ORDER_ROW
+    @test convert(CUSPARSE.cusparseOrder_t, CUSPARSE.SparseChar('C')) == CUSPARSE.CUSPARSE_ORDER_COL
+    @test_throws ArgumentError("Unknown order X") convert(CUSPARSE.cusparseOrder_t, CUSPARSE.SparseChar('X'))
+
+    @test convert(CUSPARSE.cusparseSpSVUpdate_t, CUSPARSE.SparseChar('G')) == CUSPARSE.CUSPARSE_SPSV_UPDATE_GENERAL
+    @test convert(CUSPARSE.cusparseSpSVUpdate_t, CUSPARSE.SparseChar('D')) == CUSPARSE.CUSPARSE_SPSV_UPDATE_DIAGONAL
+    @test_throws ArgumentError("Unknown update X") convert(CUSPARSE.cusparseSpSVUpdate_t, CUSPARSE.SparseChar('X'))
+
+    @test convert(CUSPARSE.cusparseSpSMUpdate_t, CUSPARSE.SparseChar('G')) == CUSPARSE.CUSPARSE_SPSV_UPDATE_GENERAL
+    @test convert(CUSPARSE.cusparseSpSMUpdate_t, CUSPARSE.SparseChar('D')) == CUSPARSE.CUSPARSE_SPSV_UPDATE_DIAGONAL
+    @test_throws ArgumentError("Unknown update X") convert(CUSPARSE.cusparseSpSMUpdate_t, CUSPARSE.SparseChar('X'))
+end
