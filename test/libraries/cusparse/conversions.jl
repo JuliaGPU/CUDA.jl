@@ -37,6 +37,8 @@ using CUDA
             @test collect(x) == collect(dense)
         end
     end
+    @test_throws ArgumentError("Format :bad not available, use :csc, :csr, :bsr or :coo.") sparse(dense; fmt=:bad)
+    @test_throws ArgumentError("Format :bad not available, use :csc, :csr, or :coo.") sparse(I, J, V; fmt=:bad)
 end
 
 @testset "unsorted sparse (CUDA.jl#1407)" begin
@@ -116,6 +118,19 @@ for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5)]
                 @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
                     @test collect(dA1) ≈ collect(dA2)
                 end
+            end
+        end
+    end
+end
+
+for (n, p) in [(100, 0.02), (5, 0.8), (4, 0.5)]
+    v"12.0" <= CUSPARSE.version() < v"12.1" && n == 4 && continue
+    @testset "conversions between CuSparseMatrices (n, p) = ($n, $p)" begin
+        A = sprand(n, n, p)
+        for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR), CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR), op in (transpose, adjoint)
+            dA1 = CuSparseMatrixType1(A)
+            @testset "conversion $op($CuSparseMatrixType1) --> $CuSparseMatrixType2" begin
+                @test collect(CuSparseMatrixType2(op(dA1))) ≈ op(A)
             end
         end
     end

@@ -7,7 +7,7 @@ function LinearAlgebra.opnorm(A::CuSparseMatrixCSR, p::Real=2)
     elseif p == 1
         return maximum(sum(abs, A; dims=1))
     else
-        error("p=$p is not supported")
+        throw(ArgumentError("p=$p is not supported"))
     end
 end
 

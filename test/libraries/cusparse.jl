@@ -20,12 +20,14 @@ blockdim = 5
     @test size(d_x,1) == m
     @test size(d_x,2) == 1
     @test ndims(d_x)  == 1
+    dense_d_x = CuVector(x)
     CUDA.@allowscalar begin
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
         @test d_x[end]             == x[end]
         @test Array(d_x[firstindex(d_x):end]) == x[firstindex(x):end]
+        @test Array(dense_d_x[firstindex(d_x):end]) == x[firstindex(x):end]
     end
     @test_throws BoundsError d_x[firstindex(d_x) - 1]
     @test_throws BoundsError d_x[end + 1]
@@ -1231,4 +1233,18 @@ end
     @test convert(CUSPARSE.cusparseSpSMUpdate_t, CUSPARSE.SparseChar('G')) == CUSPARSE.CUSPARSE_SPSV_UPDATE_GENERAL
     @test convert(CUSPARSE.cusparseSpSMUpdate_t, CUSPARSE.SparseChar('D')) == CUSPARSE.CUSPARSE_SPSV_UPDATE_DIAGONAL
     @test_throws ArgumentError("Unknown update X") convert(CUSPARSE.cusparseSpSMUpdate_t, CUSPARSE.SparseChar('X'))
+end
+
+@testset "CuSparseArrayCSR" begin
+    x = sprand(n, m, 0.2)
+    d_x = CuSparseArrayCSR(CuArray(x.colptr), CuArray(x.rowval), CuArray(x.nzval), (m, n))
+    @test d_x isa CuSparseArrayCSR
+    @test length(d_x) == m*n
+    @test CuSparseArrayCSR(d_x) === d_x
+    @test size(similar(d_x)) == size(d_x)
+    @test size(d_x, 3) == 1
+    @test_throws ArgumentError("dimension must be ≥ 1, got 0") size(d_x, 0)
+    CUDA.@allowscalar begin
+        @test d_x[1, 2] == x[2, 1]
+    end
 end
