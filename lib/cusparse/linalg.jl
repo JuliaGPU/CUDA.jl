@@ -138,6 +138,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
     end
     n = size(A, 2)
 
+    ## COV_EXCL_START
     function kernel(y::CuDeviceVector{T1}, colPtr::CuDeviceVector{T2}, rowVal::CuDeviceVector{T2},
         nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
 
@@ -163,6 +164,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
         end
         return
     end
+    ## COV_EXCL_STOP
 
     function compute_threads(max_threads, wanted_threads, shuffle, dev)
         if wanted_threads > max_threads
@@ -191,6 +193,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
     end
     n = size(A, 1)
 
+    ## COV_EXCL_START
     function kernel(y::CuDeviceVector{T1}, rowPtr::CuDeviceVector{T2}, colVal::CuDeviceVector{T2},
         nzVal::CuDeviceVector{T1}, x::CuDeviceVector{T1}, result::CuDeviceVector{T1}, n::Integer, shuffle) where {T1,T2}
 
@@ -216,6 +219,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
         end
         return
     end
+    ## COV_EXCL_STOP
 
     function compute_threads(max_threads, wanted_threads, shuffle, dev)
         if wanted_threads > max_threads
