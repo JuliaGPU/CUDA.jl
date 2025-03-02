@@ -37,6 +37,8 @@ using CUDA
             @test collect(x) == collect(dense)
         end
     end
+    @test_throws ArgumentError("Format :bad not available, use :csc, :csr, :bsr or :coo.") sparse(dense; fmt=:bad)
+    @test_throws ArgumentError("Format :bad not available, use :csc, :csr, or :coo.") sparse(I, J, V; fmt=:bad)
 end
 
 @testset "unsorted sparse (CUDA.jl#1407)" begin
@@ -54,10 +56,12 @@ end
 end
 
 @testset "CuSparseMatrix(::Adjoint/::Transpose)" begin
-    A = sprand(5, 5, 0.2)
-    for T in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO), f in (transpose, adjoint)
-        dA = T(f(A))
-        @test Array(dA) == f(A)
+    for typ in (Float32, ComplexF32, Float64, ComplexF64)
+        A = sprand(typ, 5, 5, 0.2)
+        for T in (CuSparseMatrixCSC{typ}, CuSparseMatrixCSR{typ}, CuSparseMatrixCOO{typ}), f in (transpose, adjoint)
+            dA = T(f(A))
+            @test Array(dA) == f(A)
+        end
     end
 end
 

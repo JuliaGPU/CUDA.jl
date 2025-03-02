@@ -9,6 +9,7 @@ using LinearAlgebra, SparseArrays
     @test opnorm(S, Inf) ≈ opnorm(dS_csr, Inf)
     @test opnorm(S, 1) ≈ opnorm(dS_csc, 1)
     @test opnorm(S, 1) ≈ opnorm(dS_csr, 1)
+    @test_throws ArgumentError("p=2 is not supported") opnorm(dS_csr, 2)
     @test norm(S, 0) ≈ norm(dS_csc, 0)
     @test norm(S, 0) ≈ norm(dS_csr, 0)
     @test norm(S, 1) ≈ norm(dS_csc, 1)

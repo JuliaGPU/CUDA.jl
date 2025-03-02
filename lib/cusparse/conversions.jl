@@ -23,7 +23,7 @@ function SparseArrays.sparse(x::DenseCuMatrix; fmt=:csc)
     elseif fmt == :coo
         return CuSparseMatrixCOO(x)
     else
-        error("Format :$fmt not available, use :csc, :csr, :bsr or :coo.")
+        throw(ArgumentError("Format :$fmt not available, use :csc, :csr, :bsr or :coo."))
     end
 end
 
@@ -42,6 +42,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     # otherwise, it will contain gaps of zeros that indicates duplicate values.
     coo = sort_coo(coo, 'R')
     groups = similar(I, Int)
+    # COV_EXCL_START
     function find_groups(groups, I, J)
         i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
         if i > length(groups)
@@ -54,6 +55,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
         return
     end
+    # COV_EXCL_STOP
     kernel = @cuda launch=false find_groups(groups, coo.rowInd, coo.colInd)
     config = launch_configuration(kernel.fun)
     threads = min(length(groups), config.threads)
@@ -83,6 +85,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
         # use one thread per (old) value, and if it's at the start of a group,
         # combine (if needed) all values and update the output vectors.
+        # COV_EXCL_START
         function combine_groups(groups, indices, oldI, oldJ, oldV, newI, newJ, newV, combine)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
             if i > length(groups)
@@ -107,6 +110,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
             return
         end
+        # COV_EXCL_STOP
         kernel = @cuda launch=false combine_groups(groups, indices, coo.rowInd, coo.colInd, coo.nzVal, I, J, V, combine)
         config = launch_configuration(kernel.fun)
         threads = min(length(groups), config.threads)
@@ -123,7 +127,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     elseif fmt == :csr
         return CuSparseMatrixCSR(coo)
     else
-        error("Format :$fmt not available, use :csc, :csr, or :coo.")
+        throw(ArgumentError("Format :$fmt not available, use :csc, :csr, or :coo."))
     end
 end
 
