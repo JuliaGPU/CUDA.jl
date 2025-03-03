@@ -1,12 +1,12 @@
 function initialize!(sv::CuStateVec, sv_type::custatevecStateVectorType_t)
     custatevecInitializeStateVector(handle(), sv.data, eltype(sv), sv.nbits, sv_type)
-    sv
+    return sv
 end
 
 function applyPauliExp!(sv::CuStateVec, theta::Float64, paulis::Vector{<:Pauli}, targets::Vector{Int32}, controls::Vector{Int32}, controlValues::Vector{Int32}=fill(one(Int32), length(controls)))
     cupaulis = CuStateVecPauli.(paulis)
     custatevecApplyPauliRotation(handle(), sv.data, eltype(sv), sv.nbits, theta, cupaulis, targets, length(targets), controls, controlValues, length(controls))
-    sv
+    return sv
 end
 
 function applyMatrix!(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
@@ -18,7 +18,7 @@ function applyMatrix!(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, adjoint::
     with_workspace(handle().cache, bufferSize) do buffer
         custatevecApplyMatrix(handle(), sv.data, eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
     end
-    sv
+    return sv
 end
 
 function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMatrixMapType_t, matrix_inds::Vector{Int}, matrix::Union{Vector, CuVector}, n_matrices::Int, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
@@ -32,7 +32,7 @@ function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMat
     with_workspace(handle().cache, bufferSize) do buffer
         custatevecApplyMatrixBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
     end
-    sv
+    return sv
 end
 
 function applyGeneralizedPermutationMatrix!(sv::CuStateVec, permutation::Union{Vector{<:Integer}, CuVector{<:Integer}}, diagonals::Union{Vector, CuVector}, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
@@ -44,7 +44,7 @@ function applyGeneralizedPermutationMatrix!(sv::CuStateVec, permutation::Union{V
     with_workspace(handle().cache, bufferSize) do buffer
         custatevecApplyGeneralizedPermutationMatrix(handle(), sv.data, eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), Int32(adjoint), convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), buffer, sizeof(buffer))
     end
-    sv
+    return sv
 end
 
 function abs2SumOnZBasis(sv::CuStateVec, basisInds::Vector{<:Integer})
@@ -56,7 +56,7 @@ end
 
 function collapseOnZBasis!(sv::CuStateVec, parity::Int, basisInds::Vector{<:Integer}, norm::Float64)
     custatevecCollapseOnZBasis(handle(), sv.data, eltype(sv), sv.nbits, parity, convert(Vector{Int32}, basisInds), length(basisInds), norm)
-    sv
+    return sv
 end
 
 function measureOnZBasis!(sv::CuStateVec, basisInds::Vector{<:Integer}, randnum::Float64, collapse::custatevecCollapseOp_t=CUSTATEVEC_COLLAPSE_NONE)
@@ -68,7 +68,7 @@ end
 
 function collapseByBitString!(sv::CuStateVec, bitstring::Union{Vector{<:Integer}, BitVector, Vector{Bool}}, bitordering::Vector{<:Integer}, norm::Float64)
     custatevecCollapseByBitString(handle(), sv.data, eltype(sv), sv.nbits, convert(Vector{Int32}, bitstring), convert(Vector{Int32}, bitordering), length(bitstring), norm)
-    sv
+    return sv
 end
 
 function collapseByBitStringBatched!(sv::CuStateVec, n_svs::Int, bitstrings::Vector{<:Integer}, bitordering::Vector{<:Integer}, norms::Vector{Float64})
@@ -82,7 +82,7 @@ function collapseByBitStringBatched!(sv::CuStateVec, n_svs::Int, bitstrings::Vec
     with_workspace(handle().cache, bufferSize) do buffer
         custatevecCollapseByBitStringBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, convert(Vector{custatevecIndex_t}, bitstrings), convert(Vector{Int32}, bitordering), n_index_bits, norms, buffer, sizeof(buffer))
     end
-    sv
+    return sv
 end
 
 function abs2SumArray(sv::CuStateVec, bitordering::Vector{<:Integer}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer})
@@ -110,7 +110,7 @@ end
 function batchMeasureWithOffset!(sv::CuStateVec, bitordering::Vector{<:Integer}, randnum::Float64, offset::Float64, abs2sum::Float64, collapse::custatevecCollapseOp_t=CUSTATEVEC_COLLAPSE_NONE)
     0.0 <= randnum < 1.0 || throw(ArgumentError("randnum $randnum must be in the interval [0, 1)."))
     bitstring = zeros(Int32, length(bitordering))
-    custatevecBatchMeasure(handle(), sv.data, eltype(sv), sv.nbits, convert(Vector{Int32}, bitstring), convert(Vector{Int32}, bitordering), length(bitstring), randnum, collapse, offset, abs2sum)
+    custatevecBatchMeasureWithOffset(handle(), sv.data, eltype(sv), sv.nbits, convert(Vector{Int32}, bitstring), convert(Vector{Int32}, bitordering), length(bitstring), randnum, collapse, offset, abs2sum)
     return sv, bitstring
 end
 
@@ -147,7 +147,7 @@ end
 
 function swapIndexBits!(sv::CuStateVec, bitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}) where {T<:Integer}
     custatevecSwapIndexBits(handle(), sv.data, eltype(sv), sv.nbits, convert(Vector{Pair{Int32, Int32}}, bitSwaps), length(bitSwaps), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering))
-    sv
+    return sv
 end
 
 function swapIndexBitsMultiDevice!(sub_svs::Vector{CuStateVec}, devices::Vector{CuDevice}, indexBitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}, device_network_type::custatevecDeviceNetworkType_t) where {T<:Integer}
