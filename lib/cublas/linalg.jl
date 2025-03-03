@@ -38,6 +38,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
 
     # custom kernel using simple linear indexing and atomic additions,
     # resulting in about 10% speed-up compared to a simple mapreduce.
+    # COV_EXCL_START
     function kernel(x, y, res::AbstractArray{T}, shuffle) where {T}
         local_val = zero(T)
 
@@ -56,6 +57,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
 
         return
     end
+    # COV_EXCL_STOP
 
     dev = device()
     let T = promote_type(T1, T2)

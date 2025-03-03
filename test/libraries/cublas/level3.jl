@@ -291,8 +291,14 @@ k = 13
             dB = CuArray(B)
 
             C = A / B
+            d_C = dA / dB
+            h_C = Array(d_C)
             rdiv!(dA, dB)
             @test C ≈ Array(dA)
+            @test C ≈ h_C
+
+            B_bad = Diagonal(rand(elty, m+1))
+            @test_throws DimensionMismatch("left hand side has $m columns but D is $(m+1) by $(m+1)") rdiv!(dA, B_bad)
         end
 
         @testset "geam!" begin
