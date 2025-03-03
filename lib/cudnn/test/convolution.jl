@@ -134,9 +134,9 @@ function convtest(;
         ay2 = act.(ay .+ beta * ay0)
     end
 
-    d = cudnnConvolutionDescriptor(convdims(padding,size(ax)),
-                                    convdims(stride,size(ax)),
-                                    convdims(dilation,size(ax)), mode,
+    d = cudnnConvolutionDescriptor(convdims(padding,size(ax),1),
+                                    convdims(stride,size(ax),1),
+                                    convdims(dilation,size(ax),1), mode,
                                     cudnnDataType(dataType), mathType, reorderType,
                                     Cint(group))
     @test ay1 ≈ cudnnConvolutionForward(cw0, cx; bias, activation, mode, padding,
