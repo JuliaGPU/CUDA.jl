@@ -105,7 +105,7 @@ using SpecialFunctions
         @test testf(x->exp.(x), [1e7im])
     end
     
-    @testset "Real - $op" for op in (exp, abs, abs2, exp10, log10)
+    @testset "Real - $op" for op in (abs, abs2, exp, exp10, log, log10)
         @testset "$T" for T in (Float16, Float32, Float64)
             @test testf(x->op.(x), rand(T, 1))
         end
