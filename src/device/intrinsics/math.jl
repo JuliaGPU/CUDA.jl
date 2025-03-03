@@ -217,7 +217,7 @@ end
 @device_override function Base.exp10(h::Float16)
     # perform computation in Float32 domain
     f = Float32(h)
-    f = fma(f, log2(10.f0), reinterpret(Float32, Base.sign_mask(Float32)))
+    f = fma(f, log2(10.f0), -0.0f0)
     f = @fastmath exp2(f)
     r = Float16(f)
 
