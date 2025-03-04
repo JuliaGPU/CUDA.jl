@@ -14,9 +14,6 @@ for entry in readdir(@__DIR__)
     endswith(entry, ".jl") || continue
     entry in ["runtests.jl"] && continue
 
-    # XXX: disabled due to sporadic CI issue (JuliaGPU/CUDA.jl#/725)
-    entry == "convolution.jl" && continue
-
     # XXX: disabled due to crash on CUDA 11.4 (JuliaGPU/CUDA.jl#2498)
     if CUDA.runtime_version() < v"12" && entry == "multiheadattn.jl"
         continue
