@@ -2,7 +2,7 @@ using CUDA.CUSPARSE
 
 using LinearAlgebra
 using SparseArrays
-using SparseArrays: nonzeroinds, getcolptr
+using SparseArrays: rowvals, nonzeroinds, getcolptr
 
 @test CUSPARSE.version() isa VersionNumber
 
@@ -34,7 +34,10 @@ blockdim = 5
     @test nnz(d_x)    == nnz(x)
     @test Array(nonzeros(d_x)) == nonzeros(x)
     @test Array(nonzeroinds(d_x)) == nonzeroinds(x)
+    @test Array(rowvals(d_x)) == nonzeroinds(x)
     @test nnz(d_x)    == length(nonzeros(d_x))
+    d_y = copy(d_x)
+    CUDA.unsafe_free!(d_y)
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
     @test CuSparseMatrixCSC(d_x) === d_x
@@ -74,6 +77,8 @@ blockdim = 5
     @test !ishermitian(d_x)
     @test_throws ArgumentError size(d_x,0)
     @test_throws ArgumentError CUSPARSE.CuSparseVector(x)
+    d_y = copy(d_x)
+    CUDA.unsafe_free!(d_y)
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCSC(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
@@ -111,7 +116,13 @@ blockdim = 5
     @test_throws ArgumentError copyto!(d_y,d_x)
     d_y = CuSparseMatrixCSR(d_y)
     d_x = CuSparseMatrixCSR(d_x)
+    d_z = copy(d_x)
+    CUDA.unsafe_free!(d_z)
     @test CuSparseMatrixCSR(d_x) === d_x
+    @test reshape(d_x, :, :, 1, 1, 1) isa CuSparseArrayCSR
+    @test_throws ArgumentError("Cannot repeat matrix dimensions of CuSparseCSR") repeat(d_x, 2, 1, 3)
+    @test repeat(d_x, 1, 1, 3) isa CuSparseArrayCSR
+    @test reshape(repeat(d_x, 1, 1, 3), size(d_x, 1), size(d_x, 2), 3, 1, 1) isa CuSparseArrayCSR
     @test length(d_x) == m*n
     @test_throws ArgumentError copyto!(d_y,d_x)
     CUDA.@allowscalar begin
@@ -123,6 +134,8 @@ blockdim = 5
     d_y = CuSparseMatrixBSR(d_y, blockdim)
     d_x = CuSparseMatrixBSR(d_x, blockdim)
     @test CuSparseMatrixBSR(d_x) === d_x
+    d_z = copy(d_x)
+    CUDA.unsafe_free!(d_z)
     @test_throws ArgumentError copyto!(d_y,d_x)
     CUDA.@allowscalar begin
         @test d_y[1, 1] ≈ y[1, 1]

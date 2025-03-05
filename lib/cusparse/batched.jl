@@ -46,7 +46,7 @@ end
 
 # repeat non-matrix dimensions
 function Base.repeat(A::Union{CuSparseArrayCSR, CuSparseMatrixCSR}, r1::Int64, r2::Int64, rs::Int64...)
-    @assert r1 == 1 && r2 == 1 "Cannot repeat matrix dimensions of CuSparseCSR"
+    (r1 == 1 && r2 == 1) || throw(ArgumentError("Cannot repeat matrix dimensions of CuSparseCSR"))
     CuSparseArrayCSR(repeat(A.rowPtr, 1, rs...),
                      repeat(A.colVal, 1, rs...),
                      repeat(A.nzVal,  1, rs...),
