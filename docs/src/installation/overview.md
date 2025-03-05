@@ -107,7 +107,7 @@ libraries that CUDA.jl supports.
 If you *really* need to use a different CUDA toolkit, it's possible (but not recommended) to
 load a different version of the CUDA runtime, or even an installation from your local
 system. Both are configured by setting the `version` preference (using Preferences.jl) on
-the CUDA_Runtime_jll.jl package, but there is also a user-friendly API available in CUDA.jl.
+the CUDA\_Runtime\_jll.jl package, but there is also a user-friendly API available in CUDA.jl.
 
 ### Specifying the CUDA version
 
