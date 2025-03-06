@@ -15,6 +15,7 @@ blockdim = 5
 @testset "array" begin
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
+    @test sprint(show, d_x) == replace(sprint(show, x), "SparseVector{Float64, Int64}"=>"CUDA.CUSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
     @test length(d_x) == m
     @test size(d_x)   == (m,)
     @test size(d_x,1) == m
@@ -38,6 +39,9 @@ blockdim = 5
     @test nnz(d_x)    == length(nonzeros(d_x))
     d_y = copy(d_x)
     CUDA.unsafe_free!(d_y)
+    x = sprand(m,0.2)
+    d_x = CuSparseMatrixCSC{Float64}(x)
+    @test size(d_x) == (m, 1)
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
     @test CuSparseMatrixCSC(d_x) === d_x
@@ -123,6 +127,8 @@ blockdim = 5
     @test_throws ArgumentError("Cannot repeat matrix dimensions of CuSparseCSR") repeat(d_x, 2, 1, 3)
     @test repeat(d_x, 1, 1, 3) isa CuSparseArrayCSR
     @test reshape(repeat(d_x, 1, 1, 3), size(d_x, 1), size(d_x, 2), 3, 1, 1) isa CuSparseArrayCSR
+    # to hit the CuSparseArrayCSR path
+    CUDA.unsafe_free!(repeat(d_x, 1, 1, 3))
     @test length(d_x) == m*n
     @test_throws ArgumentError copyto!(d_y,d_x)
     CUDA.@allowscalar begin
