@@ -152,10 +152,12 @@ end
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
 
-# convert `region` to a tuple within an inlined function to help constant propagation
+# try to constant-propagate the `region` argument when it is not a tuple. This helps with
+# inference of calls like plan_fft(X), which is translated by AbstractFFTs.jl into
+# plan_fft(X, 1:ndims(X)).
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
-        @inline function $f(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
+        Base.@constprop :aggressive function $f(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
             R = length(region)
             region = NTuple{R,Int}(region)
             $f(X, region)
@@ -210,7 +212,7 @@ function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftC
 end
 
 # out-of-place real-to-complex
-@inline function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
+Base.@constprop :aggressive function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_rfft(X, region)
@@ -237,7 +239,7 @@ function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftR
 end
 
 # out-of-place complex-to-real
-@inline function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region) where {T<:cufftComplexes,N}
+Base.@constprop :aggressive function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region) where {T<:cufftComplexes,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_brfft(X, d, region)
