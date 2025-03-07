@@ -15,7 +15,6 @@ blockdim = 5
 @testset "array" begin
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
-    @test sprint(show, d_x) == replace(sprint(show, x), "SparseVector{Float64, Int64}"=>"CUDA.CUSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
     @test length(d_x) == m
     @test size(d_x)   == (m,)
     @test size(d_x,1) == m
@@ -23,6 +22,7 @@ blockdim = 5
     @test ndims(d_x)  == 1
     dense_d_x = CuVector(x)
     CUDA.@allowscalar begin
+        @test sprint(show, d_x) == replace(sprint(show, x), "SparseVector{Float64, Int64}"=>"CUDA.CUSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
