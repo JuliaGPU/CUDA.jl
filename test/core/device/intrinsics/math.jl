@@ -143,7 +143,7 @@ using SpecialFunctions
             @inbounds b[], c[] = @fastmath sincos(a[])
             return
         end
-        asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{3,CuDeviceArray{Float32,1,AS.Global}}))
+        asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{3,CuDeviceArray{Float32,1,AS.Global,Int32}}))
         @assert contains(asm, "sin.approx.f32")
         @assert contains(asm, "cos.approx.f32")
         @assert !contains(asm, "__nv")  # from libdevice
