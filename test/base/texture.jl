@@ -51,6 +51,8 @@ end
     texarr1D = CuTextureArray(d_a1D)
     tex1D = CuTexture(texarr1D)
     @test fetch_all(tex1D) == d_a1D
+    array_mem = texarr1D.mem
+    @test startswith(sprint(show, array_mem), "$testheight-element ArrayMemory")
 
     texarr2D = CuTextureArray(d_a2D)
     tex2D = CuTexture(texarr2D)
@@ -59,6 +61,14 @@ end
     texarr3D = CuTextureArray(d_a3D)
     tex3D = CuTexture(texarr3D)
     @test fetch_all(tex3D) == d_a3D
+
+    # test the underlying ArrayMemory too
+    array_mem = texarr3D.mem
+    @test_throws ErrorException("Opaque array memory does not have a definite size") sizeof(array_mem)
+    @test size(array_mem) == size(d_a3D)
+    @test length(array_mem) == length(d_a3D)
+    @test ndims(array_mem) == ndims(d_a3D)
+
 end
 
 @testset "CuTextureArray(::Array)" begin
