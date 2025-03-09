@@ -1,5 +1,6 @@
 # on-device sparse array functionality
-
+# should be excluded from coverage counts
+# COV_EXCL_START
 using SparseArrays
 
 # NOTE: this functionality is currently very bare-bones, only defining the array types
@@ -131,3 +132,5 @@ function Base.show(io::IO, ::MIME"text/plain", A::CuSparseDeviceArrayCSR)
     println(io, "  colVal: $(A.colVal)")
     print(io,   "  nzVal:  $(A.nzVal)")
 end
+
+# COV_EXCL_STOP
