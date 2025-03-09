@@ -435,8 +435,15 @@ nb = sizeof(data)
 typed_pointer(buf::Union{CUDA.DeviceMemory, CUDA.UnifiedMemory}, T) = convert(CuPtr{T}, buf)
 typed_pointer(buf::CUDA.HostMemory, T)                              = convert(Ptr{T},   buf)
 
-# allocations and copies
-for srcTy in [CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory],
+@testset "showing" begin
+    for (Ty, str) in zip([CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory], ("DeviceMemory", "HostMemory", "UnifiedMemory"))
+        dummy = CUDA.alloc(Ty, 0)
+        @test startswith(sprint(show, dummy), str)
+        CUDA.free(dummy)
+    end
+end
+
+@testset "allocations and copies, src $srcTy dst $dstTy" for srcTy in [CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory],
     dstTy in [CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory]
 
     dummy = CUDA.alloc(srcTy, 0)
@@ -472,6 +479,7 @@ for srcTy in [CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory],
 
     # test device with context in which pointer was allocated.
     @test device(typed_pointer(src, T)) == device()
+    @test context(typed_pointer(src, T)) == context()
     if !memory_pools_supported(device())
         # NVIDIA bug #3319609
         @test context(typed_pointer(src, T)) == context()
@@ -495,8 +503,7 @@ for srcTy in [CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory],
     CUDA.free(dst)
 end
 
-# pointer attributes
-let
+@testset "pointer attributes" begin
     src = CUDA.alloc(CUDA.DeviceMemory, nb)
 
     attribute!(typed_pointer(src, T), CUDA.POINTER_ATTRIBUTE_SYNC_MEMOPS, 0)
@@ -504,8 +511,7 @@ let
     CUDA.free(src)
 end
 
-# asynchronous operations
-let
+@testset "asynchronous operations" begin
     src = CUDA.alloc(CUDA.DeviceMemory, nb)
 
     unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true)
@@ -515,8 +521,7 @@ let
     CUDA.free(src)
 end
 
-# pinned memory
-let
+@testset "pinned memory" begin
     # create a pinned and mapped buffer
     src = CUDA.alloc(CUDA.HostMemory, nb, CUDA.MEMHOSTALLOC_DEVICEMAP)
 
@@ -547,10 +552,17 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     @test ref == data
 
     CUDA.unregister(src)
+
+    # with a RefValue
+    src = Ref{T}(T(42))
+    CUDA.pin(src)
+    cpu_ptr = Base.unsafe_convert(Ptr{T}, src)
+    ref = Array{T}(undef, 1)
+    unsafe_copyto!(pointer(ref), cpu_ptr, 1)
+    @test ref == [T(42)]
 end
 
-# unified memory
-let
+@testset "unified memory" begin
     src = CUDA.alloc(CUDA.UnifiedMemory, nb)
 
     @test_throws BoundsError CUDA.prefetch(src, 2*nb; device=CUDA.DEVICE_CPU)
@@ -571,8 +583,7 @@ let
     CUDA.free(src)
 end
 
-# 3d memcpy
-let
+@testset "3d memcpy" begin
     # TODO: use cuMemAllocPitch (and put pitch in buffer?) to actually get benefit from this
 
     data = collect(reshape(1:27, 3, 3, 3))
