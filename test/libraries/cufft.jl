@@ -115,7 +115,7 @@ atol(::Type{Complex{T}}) where {T} = atol(T)
 function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     fftw_X = fft(X)
     d_X = CuArray(X)
-    p = plan_fft(d_X)
+    p = @inferred plan_fft(d_X)
     d_Y = p * d_X
     Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = rtol(T), atol = atol(T))
@@ -130,12 +130,16 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     Z = collect(d_Z)
     @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
 
+    pinvb = @inferred plan_bfft(d_Y)
+    d_Z = pinvb * d_Y
+    Z = collect(d_Z) ./ length(d_Z)
+    @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
 end
 
 function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     fftw_X = fft(X)
     d_X = CuArray(X)
-    p = plan_fft!(d_X)
+    p = @inferred plan_fft!(d_X)
     p * d_X
     Y = collect(d_X)
     @test isapprox(Y, fftw_X, rtol = rtol(T), atol = atol(T))
@@ -143,6 +147,12 @@ function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     pinv = plan_ifft!(d_X)
     pinv * d_X
     Z = collect(d_X)
+    @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
+    p * d_X
+
+    pinvb = @inferred plan_bfft!(d_X)
+    pinvb * d_X
+    Z = collect(d_X) ./ length(X)
     @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
 end
 
@@ -261,7 +271,7 @@ end
 function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     fftw_X = rfft(X)
     d_X = CuArray(X)
-    p = plan_rfft(d_X)
+    p = @inferred plan_rfft(d_X)
     d_Y = p * d_X
     Y = collect(d_Y)
     @test isapprox(Y, fftw_X, rtol = rtol(T), atol = atol(T))
@@ -280,6 +290,11 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     d_W = pinv3 * d_X
     W = collect(d_W)
     @test isapprox(W, Y, rtol = rtol(T), atol = atol(T))
+
+    pinvb = @inferred plan_brfft(d_Y,size(X,1))
+    d_Z = pinvb * d_Y
+    Z = collect(d_Z) ./ length(X)
+    @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
 end
 
 function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
