@@ -86,6 +86,10 @@ end
     texarr2D = CuTextureArray(a2D)
     tex2D = CuTexture(texarr2D)
     @test Array(fetch_all(tex2D)) == a2D
+    texarr2D_2 = CuTextureArray(texarr2D)
+    tex2D_2 = CuTexture(texarr2D_2)
+    @test Array(fetch_all(tex2D_2)) == a2D
+
 
     tex2D_dir = CuTexture(CuTextureArray(a2D))
     @test Array(fetch_all(tex2D_dir)) == a2D
@@ -93,6 +97,9 @@ end
     texarr3D = CuTextureArray(a3D)
     tex3D = CuTexture(texarr3D)
     @test Array(fetch_all(tex3D)) == a3D
+    texarr3D_2 = CuTextureArray(texarr3D)
+    tex3D_2 = CuTexture(texarr3D_2)
+    @test Array(fetch_all(tex3D_2)) == a3D
 end
 
 @testset "CuTexture(::CuArray)" begin
