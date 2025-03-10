@@ -97,6 +97,7 @@ end
 
 # idempotency
 CuTextureArray{T,N}(xs::CuTextureArray{T,N}) where {T,N} = xs
+CuTextureArray(xs::CuTextureArray{T,N}) where {T,N} = xs
 
 CuTextureArray(A::AbstractArray{T,N}) where {T,N} = CuTextureArray{T,N}(A)
 
