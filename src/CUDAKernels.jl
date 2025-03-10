@@ -145,9 +145,10 @@ end
 end
 
 @device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
+    # I =  @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
+    return (blockIdx().x-1) * blockDim().x + threadIdx().x
     # TODO: This is unfortunate, can we get the linear index cheaper
-    @inbounds LinearIndices(KA.__ndrange(ctx))[I]
+    # @inbounds LinearIndices(KA.__ndrange(ctx))[I]
 end
 
 @device_override @inline function KA.__index_Local_Cartesian(ctx)
