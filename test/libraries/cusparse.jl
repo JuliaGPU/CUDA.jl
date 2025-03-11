@@ -52,6 +52,7 @@ blockdim = 5
     @test size(d_x,3) == 1
     @test ndims(d_x)  == 2
     CUDA.@allowscalar begin
+        @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
@@ -135,6 +136,9 @@ blockdim = 5
         for i in 1:size(y, 1)
           @test d_y[i, :] ≈ y[i, :]
         end
+        for j in 1:size(y, 2)
+          @test d_y[:, j] ≈ y[:, j]
+        end
         @test d_y[1, 1] ≈ y[1, 1]
     end
     d_y = CuSparseMatrixBSR(d_y, blockdim)
@@ -159,6 +163,8 @@ blockdim = 5
     @test issymmetric(d_x)
     x = sprand(ComplexF64, m, m, 0.2)
     d_x = Hermitian(CuSparseMatrixCSC(x + x'))
+    @test ishermitian(d_x)
+    d_x = Hermitian{ComplexF64}(CuSparseMatrixCSC(x + x'))
     @test ishermitian(d_x)
     x = sprand(m,m,0.2)
     d_x = UpperTriangular(CuSparseMatrixCSC(x))
