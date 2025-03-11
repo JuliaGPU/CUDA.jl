@@ -1,11 +1,5 @@
 # helpers for writing device functionality
 
-# helper type for writing Int32 literals
-# TODO: upstream this
-struct Literal{T} end
-Base.:(*)(x::Number, ::Type{Literal{T}}) where {T} = T(x)
-const i32 = Literal{Int32}
-
 # local method table for device functions
 @static if isdefined(Base.Experimental, Symbol("@overlay"))
 Base.Experimental.@MethodTable(method_table)
