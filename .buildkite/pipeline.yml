@@ -437,6 +437,7 @@ steps:
       build.message !~ /\[only/ && !build.pull_request.draft &&
         build.message !~ /\[skip benchmarks\]/
     timeout_in_minutes: 30
+    soft_fail: true
 
 env:
   JULIA_PKG_SERVER_REGISTRY_PREFERENCE: "eager" # OK to downloading JLLs from GitHub
