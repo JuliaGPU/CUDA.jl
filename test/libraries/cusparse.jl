@@ -133,7 +133,7 @@ blockdim = 5
     # to hit the CuSparseArrayCSR path
     CUDA.unsafe_free!(repeat(d_x, 1, 1, 3))
     CUDA.@allowscalar begin
-        @test startswith(sprint(show, MIME"text/plain"(), repeat(d_x, 1, 1, 2)), "$m×$n×2 CuSparseArrayCSR{Float64, Int32, 3}:")
+        @test startswith(sprint(show, MIME"text/plain"(), repeat(d_x, 1, 1, 2)), "$m×$n×2 CuSparseArrayCSR{Float64, Int32, 3} with $(2*nnz(d_x)) stored entries:\n")
     end
     @test length(d_x) == m*n
     @test_throws ArgumentError copyto!(d_y,d_x)
