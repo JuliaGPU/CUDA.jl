@@ -44,6 +44,10 @@ blockdim = 5
     @test size(d_x) == (m, 1)
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
+    d_tx = CuSparseMatrixCSC(transpose(x))
+    d_ax = CuSparseMatrixCSC(adjoint(x))
+    @test size(d_tx) == (n,m)
+    @test size(d_ax) == (n,m)
     @test CuSparseMatrixCSC(d_x) === d_x
     @test length(d_x) == m*n
     @test size(d_x)   == (m,n)
@@ -55,6 +59,8 @@ blockdim = 5
         @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
         @test Array(d_x[:])        == x[:]
         @test d_x[:, :]            == x[:, :]
+        @test d_tx[:, :]           == transpose(x)[:, :]
+        @test d_ax[:, :]           == adjoint(x)[:, :]
         @test d_x[(1, 1)]          == x[1, 1]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
@@ -91,6 +97,8 @@ blockdim = 5
     @test_throws ArgumentError copyto!(d_y,d_x)
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCOO(x)
+    d_tx = CuSparseMatrixCOO(transpose(x))
+    d_ax = CuSparseMatrixCOO(adjoint(x))
     @test CuSparseMatrixCOO(d_x) === d_x
     @test length(d_x) == m*n
     @test size(d_x)   == (m,n)
@@ -107,6 +115,8 @@ blockdim = 5
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
         @test d_x[end]             == x[end]
+        @test d_tx[:, 1]           == transpose(x)[:, 1]
+        @test d_ax[1, :]           == adjoint(x)[1, :]
         @test d_x[firstindex(d_x), firstindex(d_x)] == x[firstindex(x), firstindex(x)]
         @test d_x[div(end, 2), div(end, 2)]         == x[div(end, 2), div(end, 2)]
         @test d_x[end, end]        == x[end, end]

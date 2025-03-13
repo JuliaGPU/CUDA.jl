@@ -1,8 +1,5 @@
 using CUDA.CUSPARSE, SparseArrays
 
-# XXX: these tests cause GC corruption (see JuliaGPU/CUDA.jl#2027)
-if false
-
 m,n = 5,6
 p = 0.5
 
@@ -25,7 +22,10 @@ for elty in [Int32, Int64, Float32, Float64]
         y = sum(x, dims=2)
         dy = sum(dx, dims=2)
         @test y ≈ Array(dy)
+        if elty in (Float32, Float64)
+            dy = mapreduce(abs, +, dx; init=zero(elty))
+            y  = mapreduce(abs, +, x; init=zero(elty))
+            @test y ≈ dy
+        end
     end
-end
-
 end
