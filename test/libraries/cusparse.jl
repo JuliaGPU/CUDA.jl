@@ -23,6 +23,7 @@ blockdim = 5
     dense_d_x = CuVector(x)
     CUDA.@allowscalar begin
         @test sprint(show, d_x) == replace(sprint(show, x), "SparseVector{Float64, Int64}"=>"CUDA.CUSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
+        @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseVector{Float64, Int64}"=>"CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
@@ -56,6 +57,7 @@ blockdim = 5
     @test size(d_x,3) == 1
     @test ndims(d_x)  == 2
     CUDA.@allowscalar begin
+        @test sprint(show, d_x) == sprint(show, SparseMatrixCSC(d_x))
         @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
         @test Array(d_x[:])        == x[:]
         @test d_x[:, :]            == x[:, :]

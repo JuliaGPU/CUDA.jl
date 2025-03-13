@@ -646,7 +646,7 @@ for (gpu, cpu) in [:CuSparseMatrixCSC => :SparseMatrixCSC,
                    :CuSparseMatrixCSR => :SparseMatrixCSC,
                    :CuSparseMatrixBSR => :SparseMatrixCSC,
                    :CuSparseMatrixCOO => :SparseMatrixCSC]
-    @eval Base.show(io::IOContext, x::$gpu) =
+    @eval Base.show(io::IO, x::$gpu) =
         show(io, $cpu(x))
 
     @eval function Base.show(io::IO, mime::MIME"text/plain", S::$gpu)
