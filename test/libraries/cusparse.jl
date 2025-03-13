@@ -54,6 +54,8 @@ blockdim = 5
     CUDA.@allowscalar begin
         @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
         @test Array(d_x[:])        == x[:]
+        @test d_x[:, :]            == x[:, :]
+        @test d_x[(1, 1)]          == x[1, 1]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
         @test d_x[end]             == x[end]
@@ -130,6 +132,9 @@ blockdim = 5
     @test reshape(repeat(d_x, 1, 1, 3), size(d_x, 1), size(d_x, 2), 3, 1, 1) isa CuSparseArrayCSR
     # to hit the CuSparseArrayCSR path
     CUDA.unsafe_free!(repeat(d_x, 1, 1, 3))
+    CUDA.@allowscalar begin
+        @test startswith(sprint(show, MIME"text/plain"(), repeat(d_x, 1, 1, 2)), "$m×$n×2 CuSparseArrayCSR{Float64, Int32, 3} with $(2*nnz(d_x)) stored entries:\n")
+    end
     @test length(d_x) == m*n
     @test_throws ArgumentError copyto!(d_y,d_x)
     CUDA.@allowscalar begin
@@ -171,6 +176,18 @@ blockdim = 5
     @test istriu(d_x)
     @test !istril(d_x)
     d_x = LowerTriangular(CuSparseMatrixCSC(x))
+    @test !istriu(d_x)
+    @test istril(d_x)
+    d_x = UpperTriangular(triu(transpose(CuSparseMatrixCSC(x)), 1))
+    @test istriu(d_x)
+    @test !istril(d_x)
+    d_x = UpperTriangular(triu(adjoint(CuSparseMatrixCSC(x)), 1))
+    @test istriu(d_x)
+    @test !istril(d_x)
+    d_x = LowerTriangular(tril(transpose(CuSparseMatrixCSC(x)), -1))
+    @test !istriu(d_x)
+    @test istril(d_x)
+    d_x = LowerTriangular(tril(adjoint(CuSparseMatrixCSC(x)), -1))
     @test !istriu(d_x)
     @test istril(d_x)
 

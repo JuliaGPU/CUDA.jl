@@ -667,7 +667,7 @@ for (gpu, cpu) in [:CuSparseMatrixCSC => :SparseMatrixCSC,
     end
 end
 
-function Base.show(io::IOContext, ::MIME"text/plain", A::CuSparseArrayCSR)
+function Base.show(io::IO, ::MIME"text/plain", A::CuSparseArrayCSR)
     xnnz = nnz(A)
     dims = join(size(A), "×")
 
