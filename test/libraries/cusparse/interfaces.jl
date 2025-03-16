@@ -85,6 +85,14 @@ using LinearAlgebra, SparseArrays
                     C = opa(A) * opb(B)
                     dC = opa(dA) * opb(dB)
                     @test C ≈ collect(dC)
+                    if opa == opb == identity
+                        dA = SparseMatrixType(A)
+                        dB = SparseMatrixType(B)
+                        mul!(dC, opa(dA), opb(dB), 3, 3.2)
+                        C = 3.2 * C + 3 * opa(A) * opb(B)
+                        @show SparseMatrixType
+                        @test collect(dC) ≈ C
+                    end
                 end
             end
         end
