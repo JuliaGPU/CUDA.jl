@@ -177,8 +177,9 @@ function LinearAlgebra.generic_matmatmul!(C::CuSparseMatrixCOO{T}, tA, tB, A::Cu
     A_csr = CuSparseMatrixCSR(A)
     B_csr = CuSparseMatrixCSR(B)
     C_csr = CuSparseMatrixCSR(C)
-    generic_matmatmul!(C_csr, tA, tB, A_csr, B_csr, alpha, beta)
-    C = CuSparseMatrixCOO(C_csr) # is this in-place of the original C?
+    LinearAlgebra.generic_matmatmul!(C_csr, tA, tB, A_csr, B_csr, alpha, beta)
+    copyto!(C, CuSparseMatrixCOO(C_csr))
+    return C
 end
 
 for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)

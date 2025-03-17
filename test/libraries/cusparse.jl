@@ -101,9 +101,14 @@ blockdim = 5
     d_x = CuSparseMatrixCOO(x)
     d_tx = CuSparseMatrixCOO(transpose(x))
     d_ax = CuSparseMatrixCOO(adjoint(x))
+    d_tcx = CuSparseMatrixCOO(transpose(CuSparseMatrixCSC(x)))
+    d_acx = CuSparseMatrixCOO(adjoint(CuSparseMatrixCSC(x)))
+    # reordered I, J to test other indexing path
+    d_rx = CuSparseMatrixCOO{eltype(d_x), Int32}(copy(d_x.colInd), copy(d_x.rowInd), copy(d_x.nzVal))
     @test CuSparseMatrixCOO(d_x) === d_x
     @test length(d_x) == m*n
     @test size(d_x)   == (m,n)
+    @test size(d_rx)  == (n,m)
     @test size(d_x,1) == m
     @test size(d_x,2) == n
     @test size(d_x,3) == 1
@@ -119,6 +124,10 @@ blockdim = 5
         @test d_x[end]             == x[end]
         @test d_tx[:, 1]           == transpose(x)[:, 1]
         @test d_ax[1, :]           == adjoint(x)[1, :]
+        @test d_tcx[:, 1]          == transpose(x)[:, 1]
+        @test d_acx[1, :]          == adjoint(x)[1, :]
+        @test d_rx[:, 1]           == transpose(x)[:, 1]
+        @test d_rx[1, :]           == transpose(x)[1, :]
         @test d_x[firstindex(d_x), firstindex(d_x)] == x[firstindex(x), firstindex(x)]
         @test d_x[div(end, 2), div(end, 2)]         == x[div(end, 2), div(end, 2)]
         @test d_x[end, end]        == x[end, end]
