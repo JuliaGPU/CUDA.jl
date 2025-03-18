@@ -65,6 +65,17 @@ end
     end
 end
 
+@testset "CuSparseMatrix(::Adjoint/::Transpose)" begin
+    for typ in (Float32, ComplexF32, Float64, ComplexF64), (outer_T, T) in ((CuSparseMatrixCSC, CuSparseMatrixCSR{typ}), (CuSparseMatrixCSR, CuSparseMatrixCSC{typ}))
+        A = sprand(typ, 5, 5, 0.2)
+        d_A = outer_T(A) 
+        for f in (transpose, adjoint)
+            dA = T(f(d_A))
+            @test Array(dA) == f(A)
+        end
+    end
+end
+
 @testset "CuSparseMatrix(::Diagonal)" begin
     X = Diagonal(rand(10))
     dX = cu(X)
