@@ -90,7 +90,6 @@ using LinearAlgebra, SparseArrays
                         dB = SparseMatrixType(B)
                         mul!(dC, opa(dA), opb(dB), 3, 3.2)
                         C = 3.2 * C + 3 * opa(A) * opb(B)
-                        @show SparseMatrixType
                         @test collect(dC) ≈ C
                     end
                 end
