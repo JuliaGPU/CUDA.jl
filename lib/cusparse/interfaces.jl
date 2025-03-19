@@ -244,19 +244,6 @@ for SparseMatrixType in (:CuSparseMatrixBSR,)
     end
 end # SparseMatrixType loop
 
-# work around upstream breakage from JuliaLang/julia#55547
-@static if VERSION == v"1.11.2"
-const CuSparseUpperOrUnitUpperTriangular = LinearAlgebra.UpperOrUnitUpperTriangular{
-    <:Any,<:Union{<:AbstractCuSparseArray, Adjoint{<:Any, <:AbstractCuSparseArray}, Transpose{<:Any, <:AbstractCuSparseArray}}}
-const CuSparseLowerOrUnitLowerTriangular = LinearAlgebra.LowerOrUnitLowerTriangular{
-    <:Any,<:Union{<:AbstractCuSparseArray, Adjoint{<:Any, <:AbstractCuSparseArray}, Transpose{<:Any, <:AbstractCuSparseArray}}}
-
-LinearAlgebra.istriu(::CuSparseUpperOrUnitUpperTriangular) = true
-LinearAlgebra.istril(::CuSparseUpperOrUnitUpperTriangular) = false
-LinearAlgebra.istriu(::CuSparseLowerOrUnitLowerTriangular) = false
-LinearAlgebra.istril(::CuSparseLowerOrUnitLowerTriangular) = true
-end
-
 for SparseMatrixType in (:CuSparseMatrixCOO, :CuSparseMatrixCSR, :CuSparseMatrixCSC)
     @eval begin
         function LinearAlgebra.generic_trimatdiv!(C::DenseCuVector{T}, uploc, isunitc, tfun::Function, A::$SparseMatrixType{T}, B::DenseCuVector{T}) where {T<:BlasFloat}
