@@ -36,14 +36,6 @@ end
 mutable struct CuDenseVectorDescriptor
     handle::cusparseDnVecDescr_t
 
-    function CuDenseVectorDescriptor(T::DataType, n::Integer)
-        desc_ref = Ref{cusparseDnVecDescr_t}()
-        cusparseCreateDnVec(desc_ref, n, CU_NULL, T)
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnVec, obj)
-        obj
-    end
-
     function CuDenseVectorDescriptor(x::DenseCuVector)
         desc_ref = Ref{cusparseDnVecDescr_t}()
         cusparseCreateDnVec(desc_ref, length(x), x, eltype(x))
@@ -78,18 +70,6 @@ Base.unsafe_convert(::Type{cusparseSpVecDescr_t}, desc::CuSparseVectorDescriptor
 
 mutable struct CuDenseMatrixDescriptor
     handle::cusparseDnMatDescr_t
-
-    function CuDenseMatrixDescriptor(T::DataType, m::Integer, n::Integer; transposed::Bool=false)
-        desc_ref = Ref{cusparseDnMatDescr_t}()
-        if transposed
-            cusparseCreateDnMat(desc_ref, n, m, m, CU_NULL, T, 'R')
-        else
-            cusparseCreateDnMat(desc_ref, m, n, m, CU_NULL, T, 'C')
-        end
-        obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnMat, obj)
-        obj
-    end
 
     function CuDenseMatrixDescriptor(A::DenseCuMatrix; transposed::Bool=false)
         desc_ref = Ref{cusparseDnMatDescr_t}()
