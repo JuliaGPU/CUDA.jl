@@ -44,6 +44,7 @@ Random.seed!(rng::RNG) = Random.seed!(rng, make_seed())
 function Random.rand!(rng::RNG, A::AnyCuArray)
     isempty(A) && return A
 
+    ## COV_EXCL_START
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T}
         device_rng = Random.default_rng()
 
@@ -65,6 +66,7 @@ function Random.rand!(rng::RNG, A::AnyCuArray)
 
         return
     end
+    ## COV_EXCL_STOP
 
     # XXX: because of how random numbers are generated, the launch configuration
     #      affects the results. as such, use a constant number of threads, set
@@ -88,6 +90,7 @@ end
 function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:AbstractFloat}}})
     isempty(A) && return A
 
+    ## COV_EXCL_START
     function kernel(A::AbstractArray{T}, seed::UInt32, counter::UInt32) where {T<:Real}
         device_rng = Random.default_rng()
 
@@ -149,6 +152,7 @@ function Random.randn!(rng::RNG, A::AnyCuArray{<:Union{AbstractFloat,Complex{<:A
         end
         return
     end
+    ## COV_EXCL_STOP
 
     # see note in `rand!` about the launch configuration
     threads = 32

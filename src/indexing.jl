@@ -31,6 +31,7 @@ function Base.findall(bools::AnyCuArray{Bool})
     ys = CuArray{I}(undef, n)
 
     if n > 0
+        ## COV_EXCL_START
         function kernel(ys::CuDeviceArray, bools, indices)
             i = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
 
@@ -42,6 +43,7 @@ function Base.findall(bools::AnyCuArray{Bool})
 
             return
         end
+        ## COV_EXCL_STOP
 
         kernel = @cuda name="findall" launch=false kernel(ys, bools, indices)
         config = launch_configuration(kernel.fun)
