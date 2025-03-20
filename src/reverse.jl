@@ -15,6 +15,7 @@ function _reverse(input::AnyCuArray{T, N}, output::AnyCuArray{T, N};
     # converts a linear index in a reduced array to an ND-index, but using the reduced size
     nd_idx = CartesianIndices(input)
 
+    ## COV_EXCL_START
     function kernel(input::AbstractArray{T, N}, output::AbstractArray{T, N}) where {T, N}
         offset_in = blockDim().x * (blockIdx().x - 1i32)
         index_in = offset_in + threadIdx().x
@@ -28,6 +29,7 @@ function _reverse(input::AnyCuArray{T, N}, output::AnyCuArray{T, N};
 
         return
     end
+    ## COV_EXCL_STOP
 
     nthreads = 256
     nblocks = cld(length(input), nthreads)
@@ -51,6 +53,7 @@ function _reverse!(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
     # converts a linear index in a reduced array to an ND-index, but using the reduced size
     nd_idx = CartesianIndices(reduced_size)
 
+    ## COV_EXCL_START
     function kernel(data::AbstractArray{T, N}) where {T, N}
         offset_in = blockDim().x * (blockIdx().x - 1i32)
 
@@ -71,6 +74,7 @@ function _reverse!(data::AnyCuArray{T, N}; dims=1:ndims(data)) where {T, N}
 
         return
     end
+    ## COV_EXCL_STOP
 
     # NOTE: we launch slightly more than half the number of elements in the array as threads.
     # The last non-singleton dimension along which to reverse is used to define how the array is split.
