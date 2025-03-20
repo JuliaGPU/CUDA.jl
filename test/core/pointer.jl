@@ -77,4 +77,20 @@ end
     cuarr = CUDA.CuArray([1])
     @test Base.cconvert(CuRef{Int}, cuarr) isa CUDA.CuRefArray{Int, typeof(cuarr)}
     @test Base.unsafe_convert(CuRef{Int}, Base.cconvert(CuRef{Int}, cuarr)) == Base.bitcast(CuRef{Int}, pointer(cuarr))
+
+    ref = CuRef{Int64}(1)
+    @test eltype(ref) == Int64
+    @test convert(CuRef{Int64}, ref) === ref
+    @test sprint(show, ref) == "CuRefValue{Int64}(1)"
+    @test ref[] == 1
+    @test Base.unsafe_convert(CuPtr{Cvoid}, ref) isa CuPtr{Cvoid}
+    
+    arr_ref = convert(CuRef{Int64}, CUDA.ones(Int64, 1))
+    @test eltype(arr_ref) == Int64
+    @test convert(CuRef{Int64}, arr_ref) === arr_ref
+    @test sprint(show, arr_ref) == "CuRefArray{Int64}(1)"
+    @test arr_ref[] == 1
+    arr_ref[] = zero(Int64)
+    @test arr_ref[] == 0
+    @test Base.unsafe_convert(CuPtr{Cvoid}, arr_ref) isa CuPtr{Cvoid}
 end
