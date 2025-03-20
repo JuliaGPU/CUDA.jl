@@ -89,9 +89,9 @@ k = 1
             A = rand(elty,n,n)
             A = uplo == 'L' ? tril(A) : triu(A)
             A = diag == 'N' ? A : A - Diagonal(A) + I
-            dA = triangle(CuArray(A))
+            dA = triangle(view(CuArray(A), 1:2:n, 1:2:n)) # without this view, we are hitting the CUBLAS method!
             dA⁻¹ = inv(dA)
-            dI = dA.data * dA⁻¹
+            dI = CuArray(dA) * CuArray(dA⁻¹)
             @test Array(dI) ≈ I
         end
     end
@@ -265,6 +265,8 @@ k = 1
         A             += A'
         d_A            = CuArray(A)
         Eig            = eigen(LinearAlgebra.Hermitian(A))
+        d_eig          = eigen(d_A)
+        @test Eig.values ≈ collect(d_eig.values)
         d_eig          = eigen(LinearAlgebra.Hermitian(d_A))
         @test Eig.values ≈ collect(d_eig.values)
         h_V            = collect(d_eig.vectors)
@@ -533,6 +535,7 @@ k = 1
         B              = rand(elty, n)
         d_B            = CuArray(B)
         @test collect(d_M \ d_B) ≈ M \ B
+        @test_throws DimensionMismatch("arguments must have the same number of rows") d_M \ CUDA.ones(elty, n+1)
         A              = rand(elty, m, n)  # A is a matrix and B,C is a vector
         d_A            = CuArray(A)
         M              = qr(A)
@@ -782,7 +785,9 @@ end
         Bf = cublasfloat.(B)
         bf = cublasfloat.(b)
         @test Array(d_A \ d_B) ≈ (Af \ Bf)
+        @test Array(Symmetric(d_A) \ d_B) ≈ (Af \ Bf)
         @test Array(d_A \ d_b) ≈ (Af \ bf)
+        @test Array(Symmetric(d_A) \ d_b) ≈ (Af \ bf)
         @inferred d_A \ d_B
         @inferred d_A \ d_b
     end
