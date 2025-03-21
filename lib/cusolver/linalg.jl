@@ -66,7 +66,7 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
 end
 
 function Base.:\(_A::Symmetric{<:Any,<:CuMatOrAdj}, _B::CuOrAdj)
-    uplo = A.uplo
+    uplo = _A.uplo
     A, B = copy_cublasfloat(_A.data, _B)
 
     # LDLᴴ decomposition with partial pivoting
@@ -371,9 +371,9 @@ for (triangle, uplo, diag) in ((:LowerTriangular, 'L', 'N'),
     @eval begin
         function LinearAlgebra.inv(A::$triangle{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
             n = checksquare(A)
-            B = copy(A.data)
-            trtri!(uplo, diag, B)
-            return B
+            B = copy(parent(A))
+            trtri!($uplo, $diag, B)
+            return $triangle(B)
         end
     end
 end

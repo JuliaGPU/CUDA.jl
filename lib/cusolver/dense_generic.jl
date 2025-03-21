@@ -122,7 +122,7 @@ function Xgeqrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
 end
 
 # Xsytrs
-function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuMatrix{T}) where {T <: BlasFloat}
+function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
     chkuplo(uplo)
     n = checksquare(A)
     nrhs = size(B, 2)
@@ -149,7 +149,7 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::Stride
     B
 end
 
-function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T <: BlasFloat}
+function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
     chkuplo(uplo)
     n = checksquare(A)
     nrhs = size(B, 2)
