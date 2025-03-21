@@ -96,21 +96,27 @@ p = 5
             @testset "pivoting = $pivoting" for pivoting in (false, true)
                 A = rand(elty,n,n)
                 B = rand(elty,n,p)
+                C = rand(elty,n)
                 A = A + transpose(A)
                 d_A = CuMatrix(A)
                 d_B = CuMatrix(B)
+                d_C = CuVector(C)
                 !pivoting && (CUSOLVER.version() < v"11.7.2") && continue
                 if pivoting
                     d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A; pivoting)
                     d_ipiv = CuVector{Int64}(d_ipiv)
                     CUSOLVER.sytrs!(uplo, d_A, d_ipiv, d_B)
+                    CUSOLVER.sytrs!(uplo, d_A, d_ipiv, d_C)
                 else
                     d_A, _ = CUSOLVER.sytrf!(uplo, d_A; pivoting)
                     CUSOLVER.sytrs!(uplo, d_A, d_B)
+                    CUSOLVER.sytrs!(uplo, d_A, d_C)
                 end
                 A, ipiv, _ = LAPACK.sytrf!(uplo, A)
                 LAPACK.sytrs!(uplo, A, ipiv, B)
+                LAPACK.sytrs!(uplo, A, ipiv, C)
                 @test B ≈ collect(d_B)
+                @test C ≈ collect(d_C)
             end
         end
     end
