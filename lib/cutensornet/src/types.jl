@@ -91,7 +91,7 @@ mutable struct CuTensorNetworkDescriptor
                                            extentsOut, stridesOut, modesOut, dataType, computeType, desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyNetworkDescriptor, obj)
-        obj
+        return obj
     end
 end
 Base.unsafe_convert(::Type{cutensornetNetworkDescriptor_t}, desc::CuTensorNetworkDescriptor) = desc.handle
@@ -177,7 +177,7 @@ mutable struct CuTensorNetworkWorkspaceDescriptor
         cutensornetCreateWorkspaceDescriptor(handle(), desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyWorkspaceDescriptor, obj)
-        obj
+        return obj
     end
 end
 
