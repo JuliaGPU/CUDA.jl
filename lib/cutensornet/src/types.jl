@@ -51,7 +51,7 @@ mutable struct CuTensorDescriptor{T}
                                           T, desc_ref)
         obj = new{T}(desc_ref[])
         finalizer(cutensornetDestroyTensorDescriptor, obj)
-        obj
+        return obj
     end
 end
 CuTensorDescriptor(T::DataType, extents, strides, modes) = CuTensorDescriptor{T}(extents, strides, modes)
@@ -65,12 +65,14 @@ function Base.ndims(desc::CuTensorDescriptor)
 end
 
 function Base.size(desc::CuTensorDescriptor)
+    numModes = Ref{Int32}(C_NULL)
     extents  = Vector{Int64}(undef, ndims(desc))
     cutensornetGetTensorDetails(handle(), desc, numModes, C_NULL, C_NULL, extents, C_NULL)
     return tuple(extents...)
 end
 
 function Base.strides(desc::CuTensorDescriptor)
+    numModes = Ref{Int32}(C_NULL)
     strides  = Vector{Int64}(undef, ndims(desc))
     cutensornetGetTensorDetails(handle(), desc, numModes, C_NULL, C_NULL, C_NULL, strides)
     return tuple(strides...)
@@ -96,9 +98,9 @@ Base.unsafe_convert(::Type{cutensornetNetworkDescriptor_t}, desc::CuTensorNetwor
 
 function compute_type(T::DataType)
     if T == Float16
-        return Float32
-    elseif T == Float32
         return Float16
+    elseif T == Float32
+        return Float32
     elseif T == Float64
         return Float64
     end
@@ -133,7 +135,7 @@ mutable struct CuTensorSVDInfo
         cutensornetCreateTensorSVDInfo(handle(), info_ref)
         obj = new(info_ref[])
         finalizer(cutensornetDestroyTensorSVDInfo, obj)
-        obj
+        return obj
     end
 end
 Base.unsafe_convert(::Type{cutensornetTensorSVDInfo_t}, info::CuTensorSVDInfo) = info.handle
@@ -162,7 +164,7 @@ mutable struct CuTensorNetworkContractionOptimizerInfo
         cutensornetCreateContractionOptimizerInfo(handle(), net_desc, desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyContractionOptimizerInfo, obj)
-        obj
+        return obj
     end
 end
 
@@ -188,7 +190,7 @@ mutable struct CuTensorNetworkContractionPlan
         cutensornetCreateContractionPlan(handle(), net_desc, info, ws_desc, desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyContractionPlan, obj)
-        obj
+        return obj
     end
 end
 
@@ -250,7 +252,7 @@ mutable struct CuTensorNetworkContractionOptimizerConfig
             attr_buf = Ref(Base.getproperty(prefs, attr[1]))
             cutensornetContractionOptimizerConfigSetAttribute(handle(), desc_ref[], attr[2], attr_buf, sizeof(attr_buf))
         end
-        obj
+        return obj
     end
 end
 
@@ -287,7 +289,7 @@ mutable struct CuTensorSVDConfig
             attr_buf = Ref(Base.getproperty(prefs, attr[1]))
             cutensornetTensorSVDConfigSetAttribute(handle(), desc_ref[], attr[2], attr_buf, sizeof(attr_buf))
         end
-        obj
+        return obj
     end
 end
 function abs_cutoff(conf::CuTensorSVDConfig)
@@ -323,7 +325,7 @@ mutable struct CuTensorNetworkAutotunePreference
             attr_buf = Ref(Base.getproperty(prefs, attr[1]))
             cutensornetContractionAutotunePreferenceSetAttribute(handle(), pref_ref[], attr[2], attr_buf, sizeof(attr_buf))
         end
-        obj
+        return obj
     end
 end
 Base.unsafe_convert(::Type{cutensornetContractionAutotunePreference_t}, prefs::CuTensorNetworkAutotunePreference)   = prefs.handle
@@ -336,14 +338,14 @@ mutable struct CuTensorNetworkSliceGroup
         cutensornetCreateSliceGroupFromIDRange(handle(), sliceStart, sliceStop, sliceStep, group_ref)
         obj = new(group_ref[])
         finalizer(cutensornetDestroySliceGroup, obj)
-        obj
+        return obj
     end
     function CuTensorNetworkSliceGroup(slices::Vector{Int64})
         group_ref = Ref{cutensornetSliceGroup_t}()
         cutensornetCreateSliceGroupFromIDs(handle(), pointer(slices), pointer(slices, length(slices)), group_ref)
         obj = new(group_ref[])
         finalizer(cutensornetDestroySliceGroup, obj)
-        obj
+        return obj
     end
 end
 Base.unsafe_convert(::Type{cutensornetSliceGroup_t}, prefs::CuTensorNetworkSliceGroup)   = prefs.handle
