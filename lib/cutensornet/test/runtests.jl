@@ -45,6 +45,28 @@ using TensorOperations
             @test size(descA)  == size(A)
             @test strides(descA) == strides(A)
         end
+        # test if this constructor works
+        slice_group = cuTensorNet.CuTensorNetworkSliceGroup(collect(0:63))
+        @test slice_group isa cuTensorNet.CuTensorNetworkSliceGroup
+    end
+    @testset "Errors" begin
+        @test sprint(showerror, cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_SUCCESS)) == "CUTENSORNETError: the operation completed successfully (code 0, CUTENSORNET_STATUS_SUCCESS)"
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_NOT_INITIALIZED)) == "the library was not initialized"
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_ALLOC_FAILED)) == "the resource allocation failed"
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_INVALID_VALUE)) == "an invalid value was used as an argument"
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_ARCH_MISMATCH)) == "an absent device architectural feature is required"
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_EXECUTION_FAILED)) == "the GPU program failed to execute"
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_INTERNAL_ERROR)) == "an internal operation failed"
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_NOT_SUPPORTED)) == "the API is not supported by the backend."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_LICENSE_ERROR)) == "error checking current licensing."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_CUBLAS_ERROR)) == "a call to CUBLAS did not succeed."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_CUDA_ERROR)) == "some unknown CUDA error has occurred."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_INSUFFICIENT_WORKSPACE)) == "the workspace on the device is too small to execute."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_INSUFFICIENT_DRIVER)) == "the driver version is insufficient."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_IO_ERROR)) == "an error occurred related to file IO."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_CUTENSOR_VERSION_MISMATCH)) == "the dynamically linked cuTENSOR library is incompatible."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_NO_DEVICE_ALLOCATOR)) == "drawing device memory from a mempool is requested, but the mempool is not set."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_ALL_HYPER_SAMPLES_FAILED)) == "all hyper samples failed for one or more errors."
     end
     n = 8
     m = 16

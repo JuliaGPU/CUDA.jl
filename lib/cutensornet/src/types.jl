@@ -272,7 +272,7 @@ mutable struct CuTensorSVDConfig
         cutensornetCreateTensorSVDConfig(handle(), desc_ref)
         obj = new(desc_ref[])
         finalizer(cutensornetDestroyTensorSVDConfig, obj)
-        obj
+        return obj
     end
     function CuTensorSVDConfig(prefs::SVDConfig)
         desc_ref = Ref{cutensornetTensorSVDConfig_t}()
