@@ -10,6 +10,20 @@ using cuStateVec
 @testset "cuStateVec" begin
     import cuStateVec: CuStateVec, applyMatrix!, applyMatrixBatched!, applyPauliExp!, applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample, testMatrixType, Pauli, PauliX, PauliY, PauliZ, PauliI, measureOnZBasis!, swapIndexBits!, abs2SumOnZBasis, collapseOnZBasis!, batchMeasure!, batchMeasureWithOffset!, abs2SumArray, collapseByBitString!, abs2SumArrayBatched, collapseByBitStringBatched!, accessorSet!, accessorGet, CuStateVecAccessor
 
+    @testset "Errors" begin
+        @test sprint(showerror, cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_SUCCESS)) == "CUSTATEVECError: the operation completed successfully (code 0, CUSTATEVEC_STATUS_SUCCESS)"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_NOT_INITIALIZED)) == "the library was not initialized"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_ALLOC_FAILED)) == "the resource allocation failed"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_INVALID_VALUE)) == "an invalid value was used as an argument"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_ARCH_MISMATCH)) == "an absent device architectural feature is required"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_EXECUTION_FAILED)) == "the GPU program failed to execute"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_INTERNAL_ERROR)) == "an internal operation failed"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_NOT_SUPPORTED)) == "the API is not supported by the backend."
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_INSUFFICIENT_WORKSPACE)) == "the workspace on the device is too small to execute."
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_SAMPLER_NOT_PREPROCESSED)) == "the sampler was called prior to preprocessing."
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_NO_DEVICE_ALLOCATOR)) == "the device memory pool was not set."
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_DEVICE_ALLOCATOR_ERROR)) == "operation with the device memory pool failed"
+    end
     @testset "applyMatrix! and expectation" begin
         # build a simple state and compute expectations
         n_q = 2
