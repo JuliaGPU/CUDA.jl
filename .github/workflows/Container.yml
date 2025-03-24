@@ -21,7 +21,6 @@ on:
 jobs:
   push_to_registry:
     name: Container for ${{ matrix.platform }} - Julia ${{ matrix.julia }} - CUDA ${{ matrix.cuda }}
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -31,17 +30,20 @@ jobs:
         julia: ["1.10", "1.11"]
         cuda: ["11.8", "12.6"]
         platform: ["linux/amd64"]
+        os: ["ubuntu-24.04"]
         include:
           - julia: "1.11"
             cuda: "12.6"
             platform: "linux/amd64"
+            os: "ubuntu-24.04"
             default: true
-          # XXX: building for linux/arm64 results in spurious failures.
-          #      Julia bug, or related to Github: Action's QEMU emulation?
-          #- julia: "1.11"
-          #  cuda: "12.6"
-          #  platform: "linux/arm64"
-          #  default: true
+          - julia: "1.11"
+            cuda: "12.6"
+            platform: "linux/arm64"
+            os: "ubuntu-24.04-arm"
+            default: true
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out the repo
