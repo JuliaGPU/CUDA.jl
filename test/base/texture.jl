@@ -82,6 +82,8 @@ end
     copyto!(texarr1D, a1D)
     tex1D = CuTexture(texarr1D)
     @test Array(fetch_all(tex1D)) == a1D
+    @test sizeof(texarr1D) == sizeof(a1D)
+    @test eltype(texarr1D) == Float32
 
     texarr2D = CuTextureArray(a2D)
     tex2D = CuTexture(texarr2D)
@@ -89,6 +91,14 @@ end
     texarr2D_2 = CuTextureArray(texarr2D)
     tex2D_2 = CuTexture(texarr2D_2)
     @test Array(fetch_all(tex2D_2)) == a2D
+    texarr2D_3 = CuTextureArray{Float32, 2}(texarr2D)
+    tex2D_2 = CuTexture(texarr2D_3)
+    @test Array(fetch_all(tex2D_2)) == a2D
+    copyto!(texarr2D_3, texarr2D_2)
+    tex2D_2 = CuTexture(texarr2D_3)
+    @test Array(fetch_all(tex2D_2)) == a2D
+    @test sizeof(texarr2D) == sizeof(a2D)
+    @test eltype(texarr2D) == Float32
 
 
     tex2D_dir = CuTexture(CuTextureArray(a2D))
@@ -100,6 +110,8 @@ end
     texarr3D_2 = CuTextureArray(texarr3D)
     tex3D_2 = CuTexture(texarr3D_2)
     @test Array(fetch_all(tex3D_2)) == a3D
+    @test sizeof(texarr3D) == sizeof(a3D)
+    @test eltype(texarr3D) == Float32
 end
 
 @testset "CuTexture(::CuArray)" begin

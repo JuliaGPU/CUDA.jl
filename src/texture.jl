@@ -104,29 +104,47 @@ CuTextureArray(A::AbstractArray{T,N}) where {T,N} = CuTextureArray{T,N}(A)
 
 ## memory operations
 
-function Base.copyto!(dst::CuTextureArray{T,1}, src::Union{Array{T,1}, CuArray{T,1}}) where {T}
+function Base.copyto!(dst::CuTextureArray{T,1}, src::Union{Array{T,1}, CuArray{T,1}, CuTextureArray{T,3}}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
     Base.unsafe_copyto!(pointer(dst), pointer(src), length(dst))
     return dst
 end
 
-function Base.copyto!(dst::CuTextureArray{T,2}, src::Union{Array{T,2}, CuArray{T,2}}) where {T}
+function Base.copyto!(dst::CuTextureArray{T,2}, src::Array{T,2}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
-    unsafe_copy2d!(pointer(dst), ArrayMemory,
-                   pointer(src), isa(src, Array) ? HostMemory : DeviceMemory,
-                   size(dst)...)
+    unsafe_copy2d!(pointer(dst), ArrayMemory, pointer(src), HostMemory, size(dst)...)
     return dst
 end
 
-function Base.copyto!(dst::CuTextureArray{T,3}, src::Union{Array{T,3}, CuArray{T,3}}) where {T}
+function Base.copyto!(dst::CuTextureArray{T,2}, src::CuArray{T,2,M}) where {T, M}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
-    unsafe_copy3d!(pointer(dst), ArrayMemory,
-                   pointer(src), isa(src, Array) ? HostMemory : DeviceMemory,
-                   size(dst)...)
+    unsafe_copy2d!(pointer(dst), ArrayMemory, pointer(src), M, size(dst)...)
     return dst
 end
 
+function Base.copyto!(dst::CuTextureArray{T,2}, src::CuTextureArray{T,2}) where {T}
+    size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
+    unsafe_copy2d!(pointer(dst), ArrayMemory, pointer(src), ArrayMemory, size(dst)...)
+    return dst
+end
 
+function Base.copyto!(dst::CuTextureArray{T,3}, src::Array{T,3}) where {T}
+    size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
+    unsafe_copy3d!(pointer(dst), ArrayMemory, pointer(src), HostMemory, size(dst)...)
+    return dst
+end
+
+function Base.copyto!(dst::CuTextureArray{T,3}, src::CuArray{T,3,M}) where {T, M}
+    size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
+    unsafe_copy3d!(pointer(dst), ArrayMemory, pointer(src), M, size(dst)...)
+    return dst
+end
+
+function Base.copyto!(dst::CuTextureArray{T,3}, src::CuTextureArray{T,3}) where {T}
+    size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
+    unsafe_copy3d!(pointer(dst), ArrayMemory, pointer(src), ArrayMemory, size(dst)...)
+    return dst
+end
 
 #
 # Texture objects
