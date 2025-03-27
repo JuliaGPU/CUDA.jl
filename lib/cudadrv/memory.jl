@@ -507,7 +507,7 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
 
     dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == HostMemory
         CU_MEMORYTYPE_HOST,
-        dst::PtrOrCuPtr{T},
+        reinterpret(Ptr{T}, dst),
         0,
         0
     elseif dstTyp == DeviceMemory
@@ -600,7 +600,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
 
     dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == HostMemory
         CU_MEMORYTYPE_HOST,
-        dst::PtrOrCuPtr + dstOffset,
+        reinterpret(Ptr{T}, dst) + dstOffset,
         0,
         0
     elseif dstTyp == DeviceMemory
