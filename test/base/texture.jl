@@ -110,6 +110,9 @@ end
     texarr3D_2 = CuTextureArray(texarr3D)
     tex3D_2 = CuTexture(texarr3D_2)
     @test Array(fetch_all(tex3D_2)) == a3D
+    texarr3D_3 = CuTextureArray{Float32, 3}(texarr3D)
+    tex3D_3 = CuTexture(texarr3D_3)
+    @test Array(fetch_all(tex3D_3)) == a3D
     @test sizeof(texarr3D) == sizeof(a3D)
     @test eltype(texarr3D) == Float32
 end
