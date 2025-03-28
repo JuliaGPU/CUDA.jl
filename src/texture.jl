@@ -112,7 +112,11 @@ end
 
 function Base.copyto!(dst::CuTextureArray{T,1}, src::CuArray{T,1,M}) where {T, M}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
-    Base.unsafe_copyto!(pointer(dst), pointer(src; type=M), length(dst))
+    if M <: Union{HostMemory, DeviceMemory}
+        Base.unsafe_copyto!(pointer(dst), pointer(src; type=M), length(dst))
+    else
+        Base.unsafe_copyto!(pointer(dst), pointer(src), length(dst))
+    end
     return dst
 end
 
@@ -124,7 +128,11 @@ end
 
 function Base.copyto!(dst::CuTextureArray{T,2}, src::CuArray{T,2,M}) where {T, M}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
-    unsafe_copy2d!(pointer(dst), ArrayMemory, pointer(src; type=M), M, size(dst)...)
+    if M <: Union{HostMemory, DeviceMemory}
+        unsafe_copy2d!(pointer(dst), ArrayMemory, pointer(src; type=M), M, size(dst)...)
+    else
+        unsafe_copy2d!(pointer(dst), ArrayMemory, pointer(src), M, size(dst)...)
+    end
     return dst
 end
 
@@ -142,7 +150,11 @@ end
 
 function Base.copyto!(dst::CuTextureArray{T,3}, src::CuArray{T,3,M}) where {T, M}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
-    unsafe_copy3d!(pointer(dst), ArrayMemory, pointer(src; type=M), M, size(dst)...)
+    if M <: Union{HostMemory, DeviceMemory}
+        unsafe_copy3d!(pointer(dst), ArrayMemory, pointer(src; type=M), M, size(dst)...)
+    else
+        unsafe_copy3d!(pointer(dst), ArrayMemory, pointer(src), M, size(dst)...)
+    end
     return dst
 end
 
