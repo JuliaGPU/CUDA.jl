@@ -7,8 +7,10 @@ import SparseMatricesCSR: SparseMatrixCSR
 import Adapt
 
 CUSPARSE.CuSparseMatrixCSR{T}(Mat::SparseMatrixCSR) where {T} =
-    CUSPARSE.CuSparseMatrixCSR{T}(CuVector{Cint}(Mat.rowptr), CuVector{Cint}(Mat.colval),
-        CuVector{T}(Mat.nzval), size(Mat))
+    CUSPARSE.CuSparseMatrixCSR{T}(
+    CuVector{Cint}(Mat.rowptr), CuVector{Cint}(Mat.colval),
+    CuVector{T}(Mat.nzval), size(Mat)
+)
 
 
 SparseMatricesCSR.SparseMatrixCSR(A::CUSPARSE.CuSparseMatrixCSR) =
