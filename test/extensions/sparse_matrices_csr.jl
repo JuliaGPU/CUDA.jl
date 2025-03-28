@@ -1,7 +1,7 @@
 using SparseMatricesCSR
 using SparseArrays
 using CUDA
-using Test 
+using Test
 
 @testset "SparseMatricesCSR -> CuSparseMatrixCSR" begin
     A = sprand(10, 10, 0.1)
