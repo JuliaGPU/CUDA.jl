@@ -84,6 +84,12 @@ end
     @test Array(fetch_all(tex1D)) == a1D
     @test sizeof(texarr1D) == sizeof(a1D)
     @test eltype(texarr1D) == Float32
+    h_arr_1D = zeros(Float32, length(a1D))
+    Base.unsafe_copyto!(pointer(h_arr_1D), pointer(texarr1D), length(h_arr_1D))
+    @test h_arr_1D == a1D
+    cu_arr_1D = CUDA.zeros(Float32, length(a1D))
+    Base.unsafe_copyto!(pointer(cu_arr_1D), pointer(texarr1D), length(cu_arr_1D))
+    @test Array(cu_arr_1D) == a1D
 
     texarr2D = CuTextureArray(a2D)
     tex2D = CuTexture(texarr2D)
@@ -100,7 +106,6 @@ end
     @test sizeof(texarr2D) == sizeof(a2D)
     @test eltype(texarr2D) == Float32
 
-
     tex2D_dir = CuTexture(CuTextureArray(a2D))
     @test Array(fetch_all(tex2D_dir)) == a2D
 
@@ -111,6 +116,7 @@ end
     tex3D_2 = CuTexture(texarr3D_2)
     @test Array(fetch_all(tex3D_2)) == a3D
     texarr3D_3 = CuTextureArray{Float32, 3}(texarr3D)
+    copyto!(texarr2D_3, texarr2D_2)
     tex3D_3 = CuTexture(texarr3D_3)
     @test Array(fetch_all(tex3D_3)) == a3D
     @test sizeof(texarr3D) == sizeof(a3D)

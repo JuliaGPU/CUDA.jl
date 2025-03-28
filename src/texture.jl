@@ -104,7 +104,7 @@ CuTextureArray(A::AbstractArray{T,N}) where {T,N} = CuTextureArray{T,N}(A)
 
 ## memory operations
 
-function Base.copyto!(dst::CuTextureArray{T,1}, src::Union{Array{T,1}, CuArray{T,1}, CuTextureArray{T,3}}) where {T}
+function Base.copyto!(dst::CuTextureArray{T,1}, src::Union{Array{T,1}, CuArray{T,1}, CuTextureArray{T,1}}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
     Base.unsafe_copyto!(pointer(dst), pointer(src), length(dst))
     return dst
