@@ -379,6 +379,24 @@ const StridedCuVector{T} = StridedCuArray{T,1}
 const StridedCuMatrix{T} = StridedCuArray{T,2}
 const StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
 
+"""
+    pointer(::CuArray, [index=1]; [type=DeviceMemory])
+
+Get the native address of a CUDA array object, optionally at a given location `index`.
+
+The `type` argument indicates what kind of pointer to return, either a GPU-accessible
+`CuPtr` when passing `type=DeviceMemory`, or a CPU-accessible `Ptr` when passing
+`type=HostMemory`.
+
+!!! note
+
+    The `type` argument indicates what kind of pointer to return, i.e., where the data will
+    be accessed from. This is separate from where the data is stored. For example an array
+    backed by `HostMemory` may be accessed from both the CPU and GPU, so it is valid to
+    pass `type=HostMemory` or `type=DeviceMemory` (but not that accessing `HostMemory` from
+    the GPU is typically slow). That also implies it is not valid to pass
+    `type=UnifiedMemory`, as this does not indicate where the pointer will be accessed from.
+"""
 @inline function Base.pointer(x::StridedCuArray{T}, i::Integer=1; type=DeviceMemory) where T
     PT = if type == DeviceMemory
       CuPtr{T}
