@@ -393,7 +393,7 @@ The `type` argument indicates what kind of pointer to return, either a GPU-acces
     The `type` argument indicates what kind of pointer to return, i.e., where the data will
     be accessed from. This is separate from where the data is stored. For example an array
     backed by `HostMemory` may be accessed from both the CPU and GPU, so it is valid to
-    pass `type=HostMemory` or `type=DeviceMemory` (but not that accessing `HostMemory` from
+    pass `type=HostMemory` or `type=DeviceMemory` (but note that accessing `HostMemory` from
     the GPU is typically slow). That also implies it is not valid to pass
     `type=UnifiedMemory`, as this does not indicate where the pointer will be accessed from.
 """
