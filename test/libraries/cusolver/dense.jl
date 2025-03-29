@@ -11,28 +11,59 @@ k = 1
 
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "gesv!" begin
-        A = rand(elty, n, n)
-        X = zeros(elty, n, p)
-        B = rand(elty, n, p)
-        dA = CuArray(A)
-        dX = CuArray(X)
-        dB = CuArray(B)
-        CUSOLVER.gesv!(dX, dA, dB)
-        tol = real(elty) |> eps |> sqrt
-        dR = dB - dA * dX
-        @test norm(dR) <= tol
+        @testset "irs_precision = AUTO" begin
+            A = rand(elty, n, n)
+            X = zeros(elty, n, p)
+            B = rand(elty, n, p)
+            dA = CuArray(A)
+            dX = CuArray(X)
+            dB = CuArray(B)
+            CUSOLVER.gesv!(dX, dA, dB)
+            tol = real(elty) |> eps |> sqrt
+            dR = dB - dA * dX
+            @test norm(dR) <= tol
+        end
+        @testset "irs_precision = $elty" begin
+            irs_precision = elty <: Real ? "R_" : "C_"
+            irs_precision *= string(sizeof(real(elty)) * 8) * "F"
+            A = rand(elty, n, n)
+            X = zeros(elty, n, p)
+            B = rand(elty, n, p)
+            dA = CuArray(A)
+            dX = CuArray(X)
+            dB = CuArray(B)
+            CUSOLVER.gesv!(dX, dA, dB; irs_precision=irs_precision)
+            tol = real(elty) |> eps |> sqrt
+            dR = dB - dA * dX
+            @test norm(dR) <= tol
+        end
     end
 
     @testset "gels!" begin
-        A = rand(elty, m, n)
-        X = zeros(elty, n, p)
-        B = A * rand(elty, n, p)  # ensure that AX = B is consistent
-        dA = CuArray(A)
-        dX = CuArray(X)
-        dB = CuArray(B)
-        CUSOLVER.gels!(dX, dA, dB)
-        tol = real(elty) |> eps |> sqrt
-        dR = dB - dA * dX
+        @testset "irs_precision = AUTO" begin
+            A = rand(elty, m, n)
+            X = zeros(elty, n, p)
+            B = A * rand(elty, n, p)  # ensure that AX = B is consistent
+            dA = CuArray(A)
+            dX = CuArray(X)
+            dB = CuArray(B)
+            CUSOLVER.gels!(dX, dA, dB)
+            tol = real(elty) |> eps |> sqrt
+            dR = dB - dA * dX
+        end
+        @testset "irs_precision = $elty" begin
+            irs_precision = elty <: Real ? "R_" : "C_"
+            irs_precision *= string(sizeof(real(elty)) * 8) * "F"
+            A = rand(elty, m, n)
+            X = zeros(elty, n, p)
+            B = A * rand(elty, n, p)  # ensure that AX = B is consistent
+            dA = CuArray(A)
+            dX = CuArray(X)
+            dB = CuArray(B)
+            CUSOLVER.gels!(dX, dA, dB; irs_precision=irs_precision)
+            tol = real(elty) |> eps |> sqrt
+            dR = dB - dA * dX
+        end
     end
 
     @testset "geqrf! -- orgqr!" begin
@@ -41,6 +72,14 @@ k = 1
         dA, τ = CUSOLVER.geqrf!(dA)
         CUSOLVER.orgqr!(dA, τ)
         @test dA' * dA ≈ I
+        dB = CuArray(A)
+        dB, τ_b = LAPACK.geqrf!(dB)
+        LAPACK.orgqr!(dB, τ_b)
+        @test dB ≈ dA
+        @test τ ≈ τ_b
+        dB, τ_b = LAPACK.geqrf!(dB, similar(τ_b))
+        LAPACK.orgqr!(dB, τ_b)
+        @test dB ≈ dA
     end
 
     @testset "ormqr!" begin
@@ -160,6 +199,12 @@ k = 1
         h_ipiv = collect(d_ipiv)
         alu = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
         @test A ≈ Array(alu)
+        d_B = CuArray(A)
+        d_B,d_ipiv,info = LAPACK.getrf!(d_B)
+        @test d_B ≈ d_A
+        d_B = CuArray(A)
+        d_B,d_ipiv,info = LAPACK.getrf!(d_B, similar(d_ipiv))
+        @test d_B ≈ d_A
 
         d_A,d_ipiv,info = CUSOLVER.getrf!(CUDA.zeros(elty,n,n))
         @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
@@ -172,6 +217,9 @@ k = 1
         B          = rand(elty,n,n)
         d_B        = CuArray(B)
         d_B        = CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
+        d_C        = CuArray(B)
+        d_C        = LAPACK.getrs!('N',d_A,d_ipiv,d_C)
+        @test d_C  ≈ d_B
         h_B        = collect(d_B)
         @test h_B  ≈ A\B
         A          = rand(elty,m,n)
@@ -188,6 +236,8 @@ k = 1
         A = rand(elty,n,n)
         A = A + A' #symmetric
         d_A = CuArray(A)
+        d_B = CuArray(A)
+        d_C = CuArray(A)
         d_A,d_ipiv,info = CUSOLVER.sytrf!('U',d_A)
         LinearAlgebra.checknonsingular(info)
         h_A = collect(d_A)
@@ -195,6 +245,10 @@ k = 1
         A, ipiv = LAPACK.sytrf!('U',A)
         @test ipiv == h_ipiv
         @test A ≈ h_A
+        d_B, ipiv_b = LAPACK.sytrf!('U',d_B)
+        @test d_B ≈ d_A
+        d_C, ipiv_b = LAPACK.sytrf!('U',d_C, similar(ipiv_b))
+        @test d_C ≈ d_A
         A    = rand(elty,m,n)
         d_A  = CuArray(A)
         @test_throws DimensionMismatch CUSOLVER.sytrf!('U',d_A)
@@ -206,6 +260,7 @@ k = 1
     @testset "gebrd!" begin
         A                             = rand(elty,m,n)
         d_A                           = CuArray(A)
+        d_B                           = CuArray(A)
         d_A, d_D, d_E, d_TAUQ, d_TAUP = CUSOLVER.gebrd!(d_A)
         h_A                           = collect(d_A)
         h_D                           = collect(d_D)
@@ -218,6 +273,8 @@ k = 1
         @test e[min(m,n)-1] ≈ h_E[min(m,n)-1]
         @test q ≈ h_TAUQ
         @test p ≈ h_TAUP
+        d_B, d_D, d_E, d_TAUQ, d_TAUP = LAPACK.gebrd!(d_B)
+        @test d_B ≈ d_A
     end
 
     @testset "gesvd!" begin
@@ -233,6 +290,9 @@ k = 1
                 d_A = CuMatrix(A)
                 U2, Σ2, Vt2 = CUSOLVER.gesvd!(jobu, jobvt, d_A)
                 @test Σ ≈ Σ2
+                d_A = CuMatrix(A)
+                U2, Σ2, Vt2 = LAPACK.gesvd!(jobu, jobvt, d_A)
+                @test Σ ≈ Σ2
             end
         end
     end
@@ -244,8 +304,20 @@ k = 1
         local d_W, d_V
         if( elty <: Complex )
             d_W, d_V   = CUSOLVER.heevd!('V','U', d_A)
+            d_W_b, d_V_b  = LAPACK.syev!('V','U', CuArray(A))
+            @test d_W ≈ d_W_b
+            @test d_V ≈ d_V_b
+            d_W_c, d_V_c  = LAPACK.syevd!('V','U', CuArray(A))
+            @test d_W ≈ d_W_c
+            @test d_V ≈ d_V_c
         else
             d_W, d_V   = CUSOLVER.syevd!('V','U', d_A)
+            d_W_b, d_V_b  = LAPACK.syev!('V','U', CuArray(A))
+            @test d_W ≈ d_W_b
+            @test d_V ≈ d_V_b
+            d_W_c, d_V_c  = LAPACK.syevd!('V','U', CuArray(A))
+            @test d_W ≈ d_W_c
+            @test d_V ≈ d_V_c
         end
         h_W            = collect(d_W)
         h_V            = collect(d_V)
@@ -291,8 +363,16 @@ k = 1
         local d_W, d_VA, d_VB
         if( elty <: Complex )
             d_W, d_VA, d_VB = CUSOLVER.hegvd!(1, 'V','U', d_A, d_B)
+            d_W2, d_VA2, d_VB2 = LAPACK.sygvd!(1, 'V','U', CuArray(A), CuArray(B))
+            @test d_W2 ≈ d_W
+            @test d_VA2 ≈ d_VA
+            @test d_VB2 ≈ d_VB
         else
             d_W, d_VA, d_VB = CUSOLVER.sygvd!(1, 'V','U', d_A, d_B)
+            d_W2, d_VA2, d_VB2 = LAPACK.sygvd!(1, 'V','U', CuArray(A), CuArray(B))
+            @test d_W2 ≈ d_W
+            @test d_VA2 ≈ d_VA
+            @test d_VB2 ≈ d_VB
         end
         h_W            = collect(d_W)
         h_VA           = collect(d_VA)
