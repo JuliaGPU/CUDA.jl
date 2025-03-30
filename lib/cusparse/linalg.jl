@@ -57,7 +57,7 @@ function Base.reshape(A::CuSparseMatrixCOO, dims::Dims)
     sparse(new_row, new_col, A.nzVal, dims[1], length(dims) == 1 ? 1 : dims[2], fmt = :coo)
 end
 
-function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) where {T}
+function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::CuSparseMatrixCOO{T, Ti}) where {Ti, T}
     mA,nA = size(A)
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
@@ -65,7 +65,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) wh
     Bnnz = Int64(B.nnz)
 
     if Annz == 0 || Bnnz == 0
-        return CuSparseMatrixCOO(CuVector{T}(undef, 0), CuVector{T}(undef, 0), CuVector{T}(undef, 0), out_shape)
+        return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
     end
 
     row = (A.rowInd .- 1) .* mB
@@ -82,7 +82,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}) wh
     sparse(row, col, data, out_shape..., fmt = :coo)
 end
 
-function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::Diagonal) where {T}
+function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::Diagonal) where {Ti, T}
     mA,nA = size(A)
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
@@ -90,7 +90,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::Diagonal) where {T}
     Bnnz = nB
 
     if Annz == 0 || Bnnz == 0
-        return CuSparseMatrixCOO(CuVector{T}(undef, 0), CuVector{T}(undef, 0), CuVector{T}(undef, 0), out_shape)
+        return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
     end
 
     row = (A.rowInd .- 1) .* mB
@@ -107,7 +107,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T}, B::Diagonal) where {T}
     sparse(row, col, data, out_shape..., fmt = :coo)
 end
 
-function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T}) where {T}
+function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T, Ti}) where {Ti, T}
     mA,nA = size(A)
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
@@ -115,7 +115,7 @@ function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T}) where {T}
     Bnnz = Int64(B.nnz)
 
     if Annz == 0 || Bnnz == 0
-        return CuSparseMatrixCOO(CuVector{T}(undef, 0), CuVector{T}(undef, 0), CuVector{T}(undef, 0), out_shape)
+        return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
     end
 
     row = (0:nA-1) .* mB
