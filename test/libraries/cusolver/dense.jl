@@ -37,6 +37,24 @@ k = 1
             dR = dB - dA * dX
             @test norm(dR) <= tol
         end
+        @testset "IRSParameters" begin
+            params = CUSOLVER.CuSolverIRSParameters()
+            max_iter = 10
+            CUSOLVER.cusolverDnIRSParamsSetMaxIters(params, max_iter)
+            @test CUSOLVER.get_info(params, :maxiters) == max_iter
+            @test_throws ErrorException("The information fake is incorrect.") CUSOLVER.get_info(params, :fake)
+            A = rand(elty, n, n)
+            X = zeros(elty, n, p)
+            B = rand(elty, n, p)
+            dA = CuArray(A)
+            dX = CuArray(X)
+            dB = CuArray(B)
+            dX, info = CUSOLVER.gesv!(dX, dA, dB; maxiters=max_iter)
+            @test CUSOLVER.get_info(info, :maxiters) == max_iter
+            @test CUSOLVER.get_info(info, :niters) <= max_iter
+            @test CUSOLVER.get_info(info, :outer_niters) <= max_iter
+            @test_throws ErrorException("The information fake is incorrect.") CUSOLVER.get_info(info, :fake)
+        end
     end
 
     @testset "gels!" begin
