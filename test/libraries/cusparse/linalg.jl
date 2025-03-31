@@ -70,6 +70,15 @@ end
     @test collect(kron(C, adjoint(A))) ≈ kron(C, adjoint(a))
     @test collect(kron(A', C)) ≈ kron(a', C)
     @test collect(kron(C, A')) ≈ kron(C, a')
+    
+    @test collect(kron(ZA, C)) ≈ kron(za, C)
+    @test collect(kron(C, ZA)) ≈ kron(C, za)
+    @test collect(kron(transpose(ZA), C)) ≈ kron(transpose(za), C)
+    @test collect(kron(C, transpose(ZA))) ≈ kron(C, transpose(za))
+    @test collect(kron(adjoint(ZA), C)) ≈ kron(adjoint(za), C)
+    @test collect(kron(C, adjoint(ZA))) ≈ kron(C, adjoint(za))
+    @test collect(kron(ZA', C)) ≈ kron(za', C)
+    @test collect(kron(C, ZA')) ≈ kron(C, za')
 end
 
 @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for
