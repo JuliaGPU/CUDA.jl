@@ -108,9 +108,7 @@ function batchMeasure!(sv::CuStateVec, bitordering::Vector{<:Integer}, randnum::
 end
 
 function measureBatched!(sv::CuStateVec, n_svs::Int, bitordering::Vector{<:Integer},randnums::Vector{<:Integer}, collapse::custatevecCollapseOp_t=CUSTATEVEC_COLLAPSE_NONE)
-
     all(0.0 .<= randnums .< 1.0) && length(randnums) == n_svs || throw(ArgumentError("randnums must have length $nsvs and all elements must be in the interval [0, 1)."))
-
     bitStrings = zeros(Int32, length(bitordering)*n_svs)
     sv_stride    = div(length(sv.data), n_svs)
     n_index_bits = Int(log2(div(length(sv.data), n_svs)))
