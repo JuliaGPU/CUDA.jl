@@ -1,7 +1,7 @@
 module SparseMatricesCSRExt
 
 using CUDA
-import CUDA: CUSPARSE, CuVector
+import CUDA: CUSPARSE
 using SparseMatricesCSR
 import SparseMatricesCSR: SparseMatrixCSR
 import Adapt
@@ -18,10 +18,11 @@ CUSPARSE.CuSparseMatrixCSC{T}(Mat::SparseMatrixCSR) where {T} =
 SparseMatricesCSR.SparseMatrixCSR(A::CUSPARSE.CuSparseMatrixCSR) =
     SparseMatrixCSR(CUSPARSE.SparseMatrixCSC(A)) # no direct conversion (gpu_CSR -> cpu_CSC -> cpu_CSR)
 
-Adapt.adapt_storage(::Type{CUDA.CuArray}, xs::SparseMatrixCSR) =
+Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSR) =
     CUSPARSE.CuSparseMatrixCSR(xs)
 
-Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseMatrixCSR) where {T} = CUSPARSE.CuSparseMatrixCSR{T}(xs)
+Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseMatrixCSR) where {T} =
+    CUSPARSE.CuSparseMatrixCSR{T}(xs)
 
 Adapt.adapt_storage(::Type{Array}, mat::CUSPARSE.CuSparseMatrixCSR) =
     SparseMatrixCSR(mat)
