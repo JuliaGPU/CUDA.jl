@@ -199,6 +199,14 @@ blockdim = 5
     d_x = LowerTriangular(CuSparseMatrixCSC(x))
     @test !istriu(d_x)
     @test istril(d_x)
+    if VERSION >= v"1.11.2"
+        d_x = UpperTriangular(transpose(CuSparseMatrixCSC(x)))
+        @test istriu(d_x)
+        @test !istril(d_x)
+        d_x = LowerTriangular(transpose(CuSparseMatrixCSC(x)))
+        @test !istriu(d_x)
+        @test istril(d_x)
+    end
     d_x = UpperTriangular(triu(transpose(CuSparseMatrixCSC(x)), 1))
     @test istriu(d_x)
     @test !istril(d_x)

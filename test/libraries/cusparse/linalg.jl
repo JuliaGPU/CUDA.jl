@@ -43,6 +43,8 @@ end
     b = sprand(ComplexF32, 100, 100, 0.1)
     A = typ(a)
     B = typ(b)
+    za = spzeros(ComplexF32, 100, 100)
+    ZA = typ(za)
     @test collect(kron(A, B)) ≈ kron(a, b)
     @test collect(kron(transpose(A), B)) ≈ kron(transpose(a), b)
     @test collect(kron(A, transpose(B))) ≈ kron(a, transpose(b))
@@ -50,6 +52,14 @@ end
     @test collect(kron(A', B)) ≈ kron(a', b)
     @test collect(kron(A, B')) ≈ kron(a, b')
     @test collect(kron(A', B')) ≈ kron(a', b')
+    
+    @test collect(kron(ZA, B)) ≈ kron(za, b)
+    @test collect(kron(transpose(ZA), B)) ≈ kron(transpose(za), b)
+    @test collect(kron(ZA, transpose(B))) ≈ kron(za, transpose(b))
+    @test collect(kron(transpose(ZA), transpose(B))) ≈ kron(transpose(za), transpose(b))
+    @test collect(kron(ZA', B)) ≈ kron(za', b)
+    @test collect(kron(ZA, B')) ≈ kron(za, b')
+    @test collect(kron(ZA', B')) ≈ kron(za', b')
 
     C = I(50)
     @test collect(kron(A, C)) ≈ kron(a, C)
@@ -88,4 +98,5 @@ end
     A2 = typ(A)
 
     @test dot(x, A, y) ≈ dot(x2, A2, y2)
+    @test_throws DimensionMismatch("dimensions must match") dot(CUDA.rand(elty, N1+1), A2, y2)
 end
