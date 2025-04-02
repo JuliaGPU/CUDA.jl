@@ -531,6 +531,24 @@ k = 13
             h_C = Array(d_C)
             @test C ≈ h_C
         end
+        @testset "diagonal conversion" begin
+            for T in (Int32, Int64, Float32, Float64, ComplexF32, ComplexF64)
+                X = Diagonal(rand(T, m))
+                d_X = CuArray(X)
+                @test d_X isa Diagonal{T, <:CuVector{T}}
+                @test Array(d_X.diag) == X.diag
+
+                types = (T in (ComplexF32, ComplexF64)) ? (ComplexF32, ComplexF64) : (Float32, Float64, ComplexF32, ComplexF64)
+                    
+                for T2 in types
+                    if T != T2
+                        d_X2 = CuArray{T2}(X)
+                        @test d_X2 isa Diagonal{T2, <:CuVector{T2}}
+                        @test Array(d_X2.diag) == convert(Vector{T2},X.diag)
+                    end
+                end
+            end
+        end
         @testset "diagonal -- mul!" begin
             XA = rand(elty,m,n)
             d_XA = CuArray(XA)

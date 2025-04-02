@@ -330,6 +330,7 @@ end
 # Diagonal
 Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Diagonal(Array(D.diag))
 CuArray(D::Diagonal{T, <:Vector{T}}) where {T} = Diagonal(CuArray(D.diag))
+CuArray{T1}(D::Diagonal{T2, <:Vector{T2}}) where {T1,T2} = Diagonal(CuArray{T1}(D.diag))
 
 function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
     Di = map(inv, D.diag)
