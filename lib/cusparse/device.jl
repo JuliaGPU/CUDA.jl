@@ -19,7 +19,7 @@ struct CuSparseDeviceVector{Tv,Ti, A} <: AbstractSparseVector{Tv,Ti}
     nnz::Ti
 end
 
-Base.length(g::CuSparseDeviceVector) = prod(g.dims)
+Base.length(g::CuSparseDeviceVector) = g.len
 Base.size(g::CuSparseDeviceVector) = (g.len,)
 SparseArrays.nnz(g::CuSparseDeviceVector) = g.nnz
 
