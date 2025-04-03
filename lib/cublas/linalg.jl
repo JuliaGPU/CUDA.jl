@@ -322,7 +322,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
     (:UpperTriangular, 'U', 'N'),
     (:UnitUpperTriangular, 'U', 'U'))
     @eval function LinearAlgebra.inv(x::$t{T, <:CuMatrix{T}}) where T<:CublasFloat
-        out = CuArray{T}(I(size(x,1)))
+        out = CuArray{T}(Array(I(size(x,1))))
         $t(LinearAlgebra.ldiv!(x, out))
     end
 end
@@ -330,6 +330,7 @@ end
 # Diagonal
 Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Diagonal(Array(D.diag))
 CuArray(D::Diagonal{T, <:Vector{T}}) where {T} = Diagonal(CuArray(D.diag))
+CuArray{T1}(D::Diagonal{T2, <:Vector{T2}}) where {T1,T2} = Diagonal(CuArray{T1}(D.diag))
 
 function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
     Di = map(inv, D.diag)
