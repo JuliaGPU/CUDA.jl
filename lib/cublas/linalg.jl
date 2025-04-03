@@ -322,7 +322,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
     (:UpperTriangular, 'U', 'N'),
     (:UnitUpperTriangular, 'U', 'U'))
     @eval function LinearAlgebra.inv(x::$t{T, <:CuMatrix{T}}) where T<:CublasFloat
-        out = CuArray{T}(I(size(x,1)))
+        out = CuArray{T}(Array(I(size(x,1))))
         $t(LinearAlgebra.ldiv!(x, out))
     end
 end
