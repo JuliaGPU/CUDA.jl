@@ -503,19 +503,20 @@ mutable struct Managed{M}
   # which stream is currently using the memory.
   stream::CuStream
 
+  # whether accessing this memory can cause implicit synchronization
+  synchronizing::Bool
+
   # whether there are outstanding operations that haven't been synchronized
   dirty::Bool
 
   # whether the memory has been captured in a way that would make the dirty bit unreliable
   captured::Bool
 
-  # whether memory accessed from another task causes implicit syncrhonization
-  task_sync::Bool
-
-  function Managed(mem::AbstractMemory; stream = CUDA.stream(), dirty = true, captured = false, task_sync = true)
+  function Managed(mem::AbstractMemory; stream = CUDA.stream(), synchronizing = true,
+                   dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    return new{typeof(mem)}(mem, stream, dirty, captured, task_sync)
+    new{typeof(mem)}(mem, stream, synchronizing, dirty, captured)
   end
 end
 
@@ -527,7 +528,7 @@ function synchronize(managed::Managed)
   managed.dirty = false
 end
 function maybe_synchronize(managed::Managed)
-  if managed.dirty || managed.captured
+  if managed.synchronizing && (managed.dirty || managed.captured)
     synchronize(managed)
   end
 end
@@ -569,13 +570,7 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
 
   # accessing memory on another stream: ensure the data is ready and take ownership
   if managed.stream != state.stream
-    # Synchronize the array if task_sync is enabled
-    managed.task_sync && maybe_synchronize(managed)
-    # We must still switch the stream, since we are about to set ".dirty=true"
-    # and otherwise subsequent operations will synchronize against the wrong stream.
-    # XXX: What to do when an array is used on multiple tasks concurrently?
-    #      We could have the situation that we will synchronize against the "wrong" stream
-    #      But that would mean that we need a mapping from task to stream per Managed object...
+    maybe_synchronize(managed)
     managed.stream = state.stream
   end
 
