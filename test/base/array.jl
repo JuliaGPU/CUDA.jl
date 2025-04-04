@@ -51,6 +51,13 @@ using ChainRulesCore: add!!, is_inplaceable_destination
   end
 end
 
+@testset "synchronization" begin
+  a = CUDA.zeros(2, 2)
+  synchronize(a)
+  enable_synchronization!(a, false)
+  enable_synchronization!(a)
+end
+
 @testset "unsafe_wrap" begin
     # managed memory -> CuArray
     for a in [cu([1]; device=true), cu([1]; unified=true)]

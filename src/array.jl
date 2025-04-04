@@ -472,9 +472,34 @@ function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArr
 end
 
 
-## memory copying
+## synchronization
 
 synchronize(x::CuArray) = synchronize(x.data[])
+
+"""
+    enable_synchronization!(arr::CuArray, enable::Bool)
+
+By default `CuArray`s are implicitly synchronized when they are accessed on different CUDA
+devices or streams. This may be unwanted when e.g. using disjoint slices of memory across
+different tasks. This function allows to enable or disable this behavior.
+
+!!! warning
+
+    Disabling implicit synchronization affects _all_ `CuArray`s that are referring to the
+    same underlying memory. Unsafe use of this API _will_ result in data corruption.
+
+    This API is only provided as an escape hatch, and should not be used without careful
+    consideration. If automatic synchronization is generally problematic for your use case,
+    it is recommended to figure out a better model instead and file an issue or pull request.
+    For more details see [this discussion](https://github.com/JuliaGPU/CUDA.jl/issues/2617).
+"""
+function enable_synchronization!(arr::CuArray, enable::Bool=true)
+    arr.data[].synchronizing = enable
+    return arr
+end
+
+
+## memory copying
 
 if VERSION >= v"1.11.0-DEV.753"
 function typetagdata(a::Array, i=1)

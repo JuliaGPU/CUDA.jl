@@ -503,16 +503,20 @@ mutable struct Managed{M}
   # which stream is currently using the memory.
   stream::CuStream
 
+  # whether accessing this memory can cause implicit synchronization
+  synchronizing::Bool
+
   # whether there are outstanding operations that haven't been synchronized
   dirty::Bool
 
   # whether the memory has been captured in a way that would make the dirty bit unreliable
   captured::Bool
 
-  function Managed(mem::AbstractMemory; stream=CUDA.stream(), dirty=true, captured=false)
+  function Managed(mem::AbstractMemory; stream = CUDA.stream(), synchronizing = true,
+                   dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, stream, dirty, captured)
+    new{typeof(mem)}(mem, stream, synchronizing, dirty, captured)
   end
 end
 
@@ -524,7 +528,7 @@ function synchronize(managed::Managed)
   managed.dirty = false
 end
 function maybe_synchronize(managed::Managed)
-  if managed.dirty || managed.captured
+  if managed.synchronizing && (managed.dirty || managed.captured)
     synchronize(managed)
   end
 end
