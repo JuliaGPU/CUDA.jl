@@ -54,8 +54,8 @@ end
 @testset "synchronization" begin
   a = CUDA.zeros(2, 2)
   synchronize(a)
-  enable_synchronization!(a, false)
-  enable_synchronization!(a)
+  CUDA.enable_synchronization!(a, false)
+  CUDA.enable_synchronization!(a)
 end
 
 @testset "unsafe_wrap" begin
