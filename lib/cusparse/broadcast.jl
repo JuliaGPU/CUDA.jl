@@ -368,37 +368,19 @@ function sparse_to_sparse_broadcast_kernel(f, output::T, offsets::Union{Abstract
 
     return
 end
-function sparse_to_dense_broadcast_kernel(::Type{<:CuSparseMatrixCSR}, f,
-                                          output::CuDeviceArray, args...)
+function sparse_to_dense_broadcast_kernel(T::Type{<:Union{CuSparseMatrixCSR{Tv, Ti}, CuSparseMatrixCSC{Tv, Ti}}}, f,
+                                          output::CuDeviceArray, args...) where {Tv, Ti}
     # every thread processes an entire row
-    row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    row > size(output, 1) && return
-    iter = @inbounds CSRIterator{Int}(row, args...)
+    leading_dim = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    leading_dim_size = T <: CuSparseMatrixCSR ? size(output, 1) : size(output, 2)
+    leading_dim > leading_dim_size && return
+    iter = @inbounds iter_type(T, Ti)(leading_dim, args...)
 
     # set the values for this row
-    for (col, ptrs) in iter
-        I = CartesianIndex(row, col)
-        vals = ntuple(Val(length(args))) do i
-            arg = @inbounds args[i]
-            ptr = @inbounds ptrs[i]
-            _getindex(arg, I, ptr)
-        end
-
-        @inbounds output[I] = f(vals...)
-    end
-
-    return
-end
-function sparse_to_dense_broadcast_kernel(::Type{<:CuSparseMatrixCSC}, f,
-                                          output::CuDeviceArray, args...)
-    # every thread processes an entire column
-    col = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    col > size(output, 2) && return
-    iter = @inbounds CSCIterator{Int}(col, args...)
-
-    # set the values for this col
-    for (row, ptrs) in iter
-        I = CartesianIndex(row, col)
+    for (sub_leading_dim, ptrs) in iter
+        index_first  = T <: CuSparseMatrixCSR ? leading_dim : sub_leading_dim
+        index_second = T <: CuSparseMatrixCSR ? sub_leading_dim : leading_dim
+        I = CartesianIndex(index_first, index_second)
         vals = ntuple(Val(length(args))) do i
             arg = @inbounds args[i]
             ptr = @inbounds ptrs[i]
