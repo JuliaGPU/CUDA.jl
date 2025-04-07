@@ -302,8 +302,9 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 
 iter_type(::Type{<:CuSparseMatrixCSC}, ::Type{Ti}) where {Ti} = CSCIterator{Ti}
 iter_type(::Type{<:CuSparseMatrixCSR}, ::Type{Ti}) where {Ti} = CSRIterator{Ti}
+iter_type(::Type{<:CuSparseDeviceMatrixCSC}, ::Type{Ti}) where {Ti} = CSCIterator{Ti}
+iter_type(::Type{<:CuSparseDeviceMatrixCSR}, ::Type{Ti}) where {Ti} = CSRIterator{Ti}
 
-# TODO: unify CSC/CSR kernels
 # kernel to count the number of non-zeros in a row, to determine the row offsets
 function compute_offsets_kernel(T::Type{<:Union{CuSparseMatrixCSR, CuSparseMatrixCSC}}, offsets::AbstractVector{Ti},
                                 args...) where Ti
@@ -331,64 +332,36 @@ function compute_offsets_kernel(T::Type{<:Union{CuSparseMatrixCSR, CuSparseMatri
 end
 
 # broadcast kernels that iterate the elements of sparse arrays
-function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSR{<:Any,Ti},
-                                           offsets::Union{AbstractVector,Nothing},
-                                           args...) where {Ti}
+function sparse_to_sparse_broadcast_kernel(f, output::T, offsets::Union{AbstractVector,Nothing}, args...) where {Ti, T<:Union{CuSparseDeviceMatrixCSR{<:Any,Ti},CuSparseDeviceMatrixCSC{<:Any,Ti}}}
     # every thread processes an entire row
-    row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    row > size(output, 1) && return
-    iter = @inbounds CSRIterator{Ti}(row, args...)
+    leading_dim = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    leading_dim_size = output isa CuSparseDeviceMatrixCSR ? size(output, 1) : size(output, 2)
+    leading_dim > leading_dim_size && return
+    iter = @inbounds iter_type(T, Ti)(leading_dim, args...)
 
+
+    output_ptrs  = output isa CuSparseDeviceMatrixCSR ? output.rowPtr : output.colPtr
+    output_ivals = output isa CuSparseDeviceMatrixCSR ? output.colVal : output.rowVal
     # fetch the row offset, and write it to the output
     @inbounds begin
-        output_ptr = output.rowPtr[row] = offsets[row]
-        if row == size(output, 1)
-            output.rowPtr[row+1i32] = offsets[row+1i32]
+        output_ptr = output_ptrs[leading_dim] = offsets[leading_dim]
+        if leading_dim == leading_dim_size 
+            output_ptrs[leading_dim+1i32] = offsets[leading_dim+1i32]
         end
     end
 
     # set the values for this row
-    for (col, ptrs) in iter
-        I = CartesianIndex(row, col)
+    for (sub_leading_dim, ptrs) in iter
+        index_first  = output isa CuSparseDeviceMatrixCSR ? leading_dim : sub_leading_dim
+        index_second = output isa CuSparseDeviceMatrixCSR ? sub_leading_dim : leading_dim
+        I = CartesianIndex(index_first, index_second)
         vals = ntuple(Val(length(args))) do i
             arg = @inbounds args[i]
             ptr = @inbounds ptrs[i]
             _getindex(arg, I, ptr)
         end
 
-        @inbounds output.colVal[output_ptr] = col
-        @inbounds output.nzVal[output_ptr] = f(vals...)
-        output_ptr += one(Ti)
-    end
-
-    return
-end
-function sparse_to_sparse_broadcast_kernel(f, output::CuSparseDeviceMatrixCSC{<:Any,Ti},
-                                           offsets::Union{AbstractVector,Nothing},
-                                           args...) where {Ti}
-    # every thread processes an entire column
-    col = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    col > size(output, 2) && return
-    iter = @inbounds CSCIterator{Ti}(col, args...)
-
-    # fetch the column offset, and write it to the output
-    @inbounds begin
-        output_ptr = output.colPtr[col] = offsets[col]
-        if col == size(output, 2)
-            output.colPtr[col+1i32] = offsets[col+1i32]
-        end
-    end
-
-    # set the values for this col
-    for (row, ptrs) in iter
-        I = CartesianIndex(col, row)
-        vals = ntuple(Val(length(args))) do i
-            arg = @inbounds args[i]
-            ptr = @inbounds ptrs[i]
-            _getindex(arg, I, ptr)
-        end
-
-        @inbounds output.rowVal[output_ptr] = row
+        @inbounds output_ivals[output_ptr] = sub_leading_dim
         @inbounds output.nzVal[output_ptr] = f(vals...)
         output_ptr += one(Ti)
     end
