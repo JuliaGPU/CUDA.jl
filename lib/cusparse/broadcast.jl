@@ -300,52 +300,31 @@ _getindex(arg, I, ptr) = Broadcast._broadcast_getindex(arg, I)
 
 ## sparse broadcast implementation
 
+iter_type(::Type{<:CuSparseMatrixCSC}, ::Type{Ti}) where {Ti} = CSCIterator{Ti}
+iter_type(::Type{<:CuSparseMatrixCSR}, ::Type{Ti}) where {Ti} = CSRIterator{Ti}
+
 # TODO: unify CSC/CSR kernels
 # kernel to count the number of non-zeros in a row, to determine the row offsets
-function compute_offsets_kernel(::Type{<:CuSparseMatrixCSR}, offsets::AbstractVector{Ti},
+function compute_offsets_kernel(T::Type{<:Union{CuSparseMatrixCSR, CuSparseMatrixCSC}}, offsets::AbstractVector{Ti},
                                 args...) where Ti
     # every thread processes an entire row
-    row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    row > length(offsets)-1 && return
-    iter = @inbounds CSRIterator{Ti}(row, args...)
+    leading_dim = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    leading_dim > length(offsets)-1 && return
+    iter = @inbounds iter_type(T, Ti)(leading_dim, args...)
 
-    # count the nonzero columns of all inputs
+    # count the nonzero leading_dims of all inputs
     accum = zero(Ti)
-    for (col, vals) in iter
+    for (leading_dim, vals) in iter
         accum += one(Ti)
     end
 
     # the way we write the nnz counts is a bit strange, but done so that the result
-    # after accumulation can be directly used as the rowPtr array of a CSR matrix.
+    # after accumulation can be directly used as the rowPtr/colPtr array of a CSR/CSC matrix.
     @inbounds begin
-        if row == 1
+        if leading_dim == 1
             offsets[1] = 1
         end
-        offsets[row+1] = accum
-    end
-
-    return
-end
-function compute_offsets_kernel(::Type{<:CuSparseMatrixCSC}, offsets::AbstractVector{Ti},
-                                args...) where Ti
-    # every thread processes an entire columm
-    col = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    col > length(offsets)-1 && return
-    iter = @inbounds CSCIterator{Ti}(col, args...)
-
-    # count the nonzero columns of all inputs
-    accum = zero(Ti)
-    for (col, vals) in iter
-        accum += one(Ti)
-    end
-
-    # the way we write the nnz counts is a bit strange, but done so that the result
-    # after accumulation can be directly used as the colPtr array of a CSC matrix.
-    @inbounds begin
-        if col == 1
-            offsets[1] = 1
-        end
-        offsets[col+1] = accum
+        offsets[leading_dim+1] = accum
     end
 
     return
