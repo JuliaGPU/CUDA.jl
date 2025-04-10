@@ -4,7 +4,7 @@ using GPUCompiler
 
 using GPUArrays
 
-using GPUToolbox: SimpleVersion, @sv_str, i32
+using GPUToolbox
 
 using LLVM
 using LLVM.Interop
