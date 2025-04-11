@@ -34,6 +34,10 @@ end
 Base.length(g::CuSparseDeviceMatrixCSC) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCSC) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixCSC) = g.nnz
+SparseArrays.rowvals(g::CuSparseDeviceMatrixCSC) = g.rowVal
+SparseArrays.getcolptr(g::CuSparseDeviceMatrixCSC) = g.colPtr
+SparseArrays.getnzval(g::CuSparseDeviceMatrixCSC) = g.nzVal
+SparseArrays.nzrange(g::CuSparseDeviceMatrixCSC, col::Integer) = SparseArrays.getcolptr(g)[col]:(SparseArrays.getcolptr(g)[col+1]-1)
 
 struct CuSparseDeviceMatrixCSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     rowPtr::CuDeviceVector{Ti, A}
@@ -46,6 +50,7 @@ end
 Base.length(g::CuSparseDeviceMatrixCSR) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCSR) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixCSR) = g.nnz
+SparseArrays.getnzval(g::CuSparseDeviceMatrixCSR) = g.nzVal
 
 struct CuSparseDeviceMatrixBSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     rowPtr::CuDeviceVector{Ti, A}
@@ -60,6 +65,7 @@ end
 Base.length(g::CuSparseDeviceMatrixBSR) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixBSR) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixBSR) = g.nnz
+SparseArrays.getnzval(g::CuSparseDeviceMatrixBSR) = g.nzVal
 
 struct CuSparseDeviceMatrixCOO{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     rowInd::CuDeviceVector{Ti, A}
@@ -72,6 +78,7 @@ end
 Base.length(g::CuSparseDeviceMatrixCOO) = prod(g.dims)
 Base.size(g::CuSparseDeviceMatrixCOO) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceMatrixCOO) = g.nnz
+SparseArrays.getnzval(g::CuSparseDeviceMatrixCOO) = g.nzVal
 
 struct CuSparseDeviceArrayCSR{Tv, Ti, N, M, A} <: AbstractSparseArray{Tv, Ti, N}
     rowPtr::CuDeviceArray{Ti, M, A} 
@@ -89,6 +96,7 @@ end
 Base.length(g::CuSparseDeviceArrayCSR) = prod(g.dims)
 Base.size(g::CuSparseDeviceArrayCSR) = g.dims
 SparseArrays.nnz(g::CuSparseDeviceArrayCSR) = g.nnz
+SparseArrays.getnzval(g::CuSparseDeviceArrayCSR) = g.nzVal
 
 # input/output
 
