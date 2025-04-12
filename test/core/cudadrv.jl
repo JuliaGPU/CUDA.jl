@@ -15,6 +15,9 @@ exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUT
 
 synchronize(ctx)
 
+@test startswith(sprint(show, MIME"text/plain"(), ctx), "CuContext")
+@test CUDA.api_version(ctx) isa Cuint
+
 if !exclusive
     let ctx2 = CuContext(dev)
         @test ctx2 == current_context()    # ctor implicitly pushes
