@@ -52,10 +52,10 @@ for elty in [Int32, Int64, Float32, Float64]
         @test y == Array(dy)
 
         # involving something dense - broken for now
-        #=y = x .+ ones(elty, m)
+        y = x .+ ones(elty, m)
         dy = dx .+ CUDA.ones(elty, m)
         @test dy isa CuArray{elty}
-        @test y == Array(dy)=#
+        @test y == Array(dy)
         
         # sparse to sparse 
         y = sprand(elty, m, p)
@@ -78,13 +78,13 @@ for elty in [Int32, Int64, Float32, Float64]
         @test z == SparseVector(dz)=#
 
         # broken due to llvm IR
-        #=y = sprand(elty, m, p)
+        y = sprand(elty, m, p)
         dy = typ(y)
         dx = typ(x)
         z  = x .* y .* elty(2)
         dz = dx .* dy .* elty(2)
         @test dz isa typ{elty}
-        @test z == SparseVector(dz)=#
+        @test z == SparseVector(dz)
     end
 end
 
