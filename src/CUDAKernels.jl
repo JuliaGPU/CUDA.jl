@@ -28,6 +28,8 @@ KA.get_backend(::CuArray) = CUDABackend()
 KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
+KA.functional(::CUDABackend) = CUDA.functional()
+
 Adapt.adapt_storage(::CUDABackend, a::Array) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::CuArray) = a
 Adapt.adapt_storage(::KA.CPU, a::CuArray) = convert(Array, a)
