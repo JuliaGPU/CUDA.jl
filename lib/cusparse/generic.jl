@@ -53,7 +53,7 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
         colPtr = CuVector{Cint}(undef, n+1)
         desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCSC, colPtr, T, Cint, m, n, index)
     else
-        error("Format :$fmt not available, use :csc, :csr or :coo.")
+        throw(ArgumentError("Format :$fmt not available, use :csc, :csr or :coo."))
     end
     desc_dense = CuDenseMatrixDescriptor(A)
 
@@ -82,8 +82,6 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
             nzVal = CuVector{T}(undef, nnzB[])
             B = CuSparseMatrixCSC{T, Cint}(colPtr, rowVal, nzVal, (m,n))
             cusparseCscSetPointers(desc_sparse, B.colPtr, B.rowVal, B.nzVal)
-        else
-            error("Format :$fmt not available, use :csc, :csr or :coo.")
         end
         cusparseDenseToSparse_convert(handle(), desc_dense, desc_sparse, algo, buffer)
     end
