@@ -32,6 +32,14 @@ for elty in [Int32, Int64, Float32, Float64]
         dz = dx .* dy .* elty(2)
         @test dz isa typ{elty}
         @test z == SparseMatrixCSC(dz)
+        
+        # multiple inputs
+        w = sprand(elty, m, n, p)
+        dw = typ(w)
+        z  = @. x * y * w
+        dz = @. dx * dy * w
+        @test dz isa typ{elty}
+        @test z == SparseMatrixCSC(dz)
     end
     @testset "$typ($elty)" for typ in [CuSparseVector,]
         m = 64 
@@ -67,7 +75,7 @@ for elty in [Int32, Int64, Float32, Float64]
         @test z == SparseVector(dz)
 
         # multiple inputs
-        #=y = sprand(elty, m, p)
+        y = sprand(elty, m, p)
         w = sprand(elty, m, p)
         dy = typ(y)
         dx = typ(x)
@@ -75,7 +83,7 @@ for elty in [Int32, Int64, Float32, Float64]
         z  = @. x * y * w
         dz = @. dx * dy * w
         @test dz isa typ{elty}
-        @test z == SparseVector(dz)=#
+        @test z == SparseVector(dz)
 
         # broken due to llvm IR
         y = sprand(elty, m, p)
