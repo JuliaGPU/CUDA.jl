@@ -377,9 +377,9 @@ function _getindex(A::CuSparseDeviceVector{Tv}, row, ptr) where {Tv}
     return zero(Tv)
 end
 
-function sparse_to_sparse_broadcast_kernel(f, first_row::Ti, last_row::Ti, output::CuSparseDeviceVector{Tv,Ti},
+function sparse_to_sparse_broadcast_kernel(f::F, first_row::Ti, last_row::Ti, output::CuSparseDeviceVector{Tv,Ti},
                                            offsets::Union{AbstractVector,Nothing},
-                                           args::Vararg{Any, N}) where {Tv, Ti, N}
+                                           args::Vararg{<:Any, N}) where {Tv, Ti, N, F}
     row_ix = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
     row_ix > output.nnz && return
     row    = @inbounds output.iPtr[row_ix + first_row - 1i32]
