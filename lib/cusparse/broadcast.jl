@@ -304,7 +304,7 @@ iter_type(::Type{<:CuSparseMatrixCSR}, ::Type{Ti}) where {Ti} = CSRIterator{Ti}
 iter_type(::Type{<:CuSparseDeviceMatrixCSC}, ::Type{Ti}) where {Ti} = CSCIterator{Ti}
 iter_type(::Type{<:CuSparseDeviceMatrixCSR}, ::Type{Ti}) where {Ti} = CSRIterator{Ti}
 
-function compute_offsets_kernel(::Type{<:CuSparseVector}, first_row::Ti, last_row::Ti, offsets::AbstractVector{Ti}, args...) where Ti
+function compute_offsets_kernel(::Type{<:CuSparseVector}, first_row::Ti, last_row::Ti, offsets::AbstractVector{Ti}, args::Vararg{Any, N}) where {Ti, N}
     row_ix = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
     row    = row_ix + first_row - 1i32
     
@@ -312,7 +312,8 @@ function compute_offsets_kernel(::Type{<:CuSparseVector}, first_row::Ti, last_ro
 
     # TODO load arg.iPtr slices into shared memory
     row_is_nnz = 0i32
-    for arg in args
+    for i in 1:N
+        arg = @inbounds args[i]
         if arg isa CuSparseDeviceVector
             for arg_row in arg.iPtr
                 if arg_row == row 
