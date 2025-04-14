@@ -240,6 +240,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
             dA_dense = CuMatrix{T}(A_dense)
             dA_sparse = CUSPARSE.densetosparse(dA_dense, fmt[SparseMatrixType], 'O', algo)
             @test A_sparse ≈ collect(dA_sparse)
+            @test_throws ArgumentError("Format :bad not available, use :csc, :csr or :coo.")  CUSPARSE.densetosparse(dA_dense, :bad, 'O', algo)
         end
     end
     @testset "$SparseMatrixType -- sparsetodense algo=$algo" for algo in [CUSPARSE.CUSPARSE_SPARSETODENSE_ALG_DEFAULT]
@@ -362,7 +363,24 @@ for SparseMatrixType in keys(SPGEMM_ALGOS)
                     F = alpha * opa(A) * opb(B) + beta * E
                     dF = gemm(transa, transb, alpha, dA, dB, beta, dE, 'O', algo, same_pattern=false)
                     @test F ≈ SparseMatrixCSC(dF)
+                    
+                    # not same pattern
+                    G = sprand(T, 25, 35, 0.4)
+                    dG = SparseMatrixType(G)
+                    @test_throws ErrorException("AB and C must have the same sparsity pattern.") gemm!(transa, transb, gamma, dA, dB, beta, dG, 'O', algo)
+                    dG = gemm!(transa, transb, gamma, dA, dB, zero(T), dG, 'O', algo)
+                    H = gamma * opa(A) * opa(B) + zero(T) * G
+                    @test H ≈ SparseMatrixCSC(dG)
                 end
+            end
+            if SparseMatrixType == CuSparseMatrixCSR
+                A = sprand(T,25,10,0.2)
+                B = sprand(T,10,35,0.3)
+                dA = SparseMatrixType(A)
+                dB = SparseMatrixType(B)
+                C  = A * B
+                dC = SparseMatrixType(C)
+                @test_throws ArgumentError("Sparse matrix-matrix multiplication only supports transa (T) = 'N' and transb (C) = 'N'") gemm!('T', 'C', one(T), dA, dB, zero(T), dC, 'O', algo)
             end
         end
     end
