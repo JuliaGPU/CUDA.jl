@@ -36,8 +36,8 @@ for elty in [Int32, Int64, Float32, Float64]
         # multiple inputs
         w = sprand(elty, m, n, p)
         dw = typ(w)
-        z  = @. x * y * w
-        dz = @. dx * dy * w
+        z = x .* y .* w
+        dz = dx .* dy .* dw
         @test dz isa typ{elty}
         @test z == SparseMatrixCSC(dz)
     end
@@ -81,7 +81,7 @@ for elty in [Int32, Int64, Float32, Float64]
         dx = typ(x)
         dw = typ(w)
         z  = @. x * y * w
-        dz = @. dx * dy * w
+        dz = @. dx * dy * dw
         @test dz isa typ{elty}
         @test z == SparseVector(dz)
 
