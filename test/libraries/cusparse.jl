@@ -21,6 +21,7 @@ blockdim = 5
     @test size(d_x,2) == 1
     @test ndims(d_x)  == 1
     dense_d_x = CuVector(x)
+    dense_d_x2 = CuVector(d_x)
     CUDA.@allowscalar begin
         @test sprint(show, d_x) == replace(sprint(show, x), "SparseVector{Float64, Int64}"=>"CUDA.CUSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
         @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseVector{Float64, Int64}"=>"CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
@@ -30,6 +31,7 @@ blockdim = 5
         @test d_x[end]             == x[end]
         @test Array(d_x[firstindex(d_x):end]) == x[firstindex(x):end]
         @test Array(dense_d_x[firstindex(d_x):end]) == x[firstindex(x):end]
+        @test Array(dense_d_x2[firstindex(d_x):end]) == x[firstindex(x):end]
     end
     @test_throws BoundsError d_x[firstindex(d_x) - 1]
     @test_throws BoundsError d_x[end + 1]
@@ -173,8 +175,10 @@ blockdim = 5
     d_z = copy(d_x)
     CUDA.unsafe_free!(d_z)
     @test_throws ArgumentError copyto!(d_y,d_x)
+    d_y_mat = CuMatrix{eltype(d_y)}(d_y)
     CUDA.@allowscalar begin
         @test d_y[1, 1] ≈ y[1, 1]
+        @test d_y_mat[1, 1] ≈ y[1, 1]
     end
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)

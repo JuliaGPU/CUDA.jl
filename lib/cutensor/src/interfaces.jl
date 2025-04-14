@@ -9,7 +9,7 @@ function Base.:(+)(A::CuTensor, B::CuTensor)
     elementwise_binary_execute!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY,
                                 γ, B.data, B.inds, CUTENSOR_OP_IDENTITY,
                                 C.data, C.inds, CUTENSOR_OP_ADD)
-    C
+    return C
 end
 
 function Base.:(-)(A::CuTensor, B::CuTensor)
@@ -19,7 +19,7 @@ function Base.:(-)(A::CuTensor, B::CuTensor)
     elementwise_binary_execute!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY,
                                 γ, B.data, B.inds, CUTENSOR_OP_IDENTITY,
                                 C.data, C.inds, CUTENSOR_OP_ADD)
-    C
+    return C
 end
 
 function Base.:(*)(A::CuTensor, B::CuTensor)
