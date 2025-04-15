@@ -1,8 +1,9 @@
+import KernelAbstractions
 import KernelAbstractions as KA
 using SparseArrays
 using Adapt
 
-include(joinpath(dirname(pathof(KA)), "..", "test", "testsuite.jl"))
+include(joinpath(dirname(pathof(KernelAbstractions)), "..", "test", "testsuite.jl"))
 
 Testsuite.testsuite(()->CUDABackend(false, false), "CUDA", CUDA, CuArray, CuDeviceArray)
 for (PreferBlocks, AlwaysInline) in Iterators.product((true, false), (true, false))
