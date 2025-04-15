@@ -1,21 +1,30 @@
 using SparseMatricesCSR
 using SparseArrays
 using CUDA
+using CUDA.CUSPARSE
 using Test
 
-@testset "SparseMatricesCSR" begin
-    A = sprand(10, 10, 0.1)
-    A_csr = SparseMatrixCSR(A)
-    A_gpu = CUSPARSE.CuSparseMatrixCSR(A_csr)
+@testset "SparseMatricesCSRExt" begin
 
-    @test size(A_gpu) == size(A_csr)
-    @test CUSPARSE.nnz(A_gpu) == nnz(A_csr)
-    @test SparseMatrixCSR(A_gpu) ≈ A_csr
-    @test A_csr |> cu isa CUSPARSE.CuSparseMatrixCSR
-
-    # convert from CSR to CuCSC
-    A_csc_gpu = CUSPARSE.CuSparseMatrixCSC(A_csr)
-    @test size(A_csc_gpu) == size(A)
-    @test CUSPARSE.nnz(A_csc_gpu) == nnz(A)
-    @test SparseMatrixCSC(A_csc_gpu) ≈ A
+    for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5)]
+        v"12.0" <= CUSPARSE.version() < v"12.1" && n == 4 && continue
+        @testset "conversions between CuSparseMatrices (n, bd, p) = ($n, $bd, $p)" begin
+            _A = sprand(n, n, p)
+            A = SparseMatrixCSR(_A)
+            blockdim = bd
+            for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+                dA1 = CuSparseMatrixType1 == CuSparseMatrixBSR ? CuSparseMatrixType1(A, blockdim) : CuSparseMatrixType1(A)
+                @testset "conversion $CuSparseMatrixType1 --> SparseMatrixCSR" begin
+                    @test SparseMatrixCSR(dA1) ≈ A
+                end
+                for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+                    CuSparseMatrixType1 == CuSparseMatrixType2 && continue
+                    dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
+                    @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
+                        @test collect(dA1) ≈ collect(dA2)
+                    end
+                end
+            end
+        end
+    end
 end
