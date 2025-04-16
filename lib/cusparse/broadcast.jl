@@ -1,5 +1,7 @@
 using Base.Broadcast: Broadcasted
 
+using Base.Cartesian: @nany
+
 using CUDA: CuArrayStyle
 
 # TODO: support more types (SparseVector, SparseMatrixCSC, COO, BSR)
@@ -304,40 +306,47 @@ iter_type(::Type{<:CuSparseMatrixCSR}, ::Type{Ti}) where {Ti} = CSRIterator{Ti}
 iter_type(::Type{<:CuSparseDeviceMatrixCSC}, ::Type{Ti}) where {Ti} = CSCIterator{Ti}
 iter_type(::Type{<:CuSparseDeviceMatrixCSR}, ::Type{Ti}) where {Ti} = CSRIterator{Ti}
 
-function compute_offsets_kernel(::Type{<:CuSparseVector}, first_row::Ti, last_row::Ti, offsets::AbstractVector{Ti}, args::Vararg{Any, N}) where {Ti, N}
-    row_ix = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
-    row    = row_ix + first_row - 1i32
-    
-    row > last_row && return
+@eval @generated function compute_offsets_kernel(::Type{<:CuSparseVector}, first_row::Ti,
+                                                 last_row::Ti, offsets::AbstractVector{Ti},
+                                                 args...) where {Ti}
+    N = length(args)
+    quote
+        row_ix = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+        row    = row_ix + first_row - 1i32
 
-    # TODO load arg.iPtr slices into shared memory
-    row_is_nnz = 0i32
-    for i in 1:N
-        arg = @inbounds args[i]
-        if arg isa CuSparseDeviceVector
-            for arg_row in arg.iPtr
-                if arg_row == row 
-                    row_is_nnz = 1i32
-                    @inbounds offsets[row] = row
+        row > last_row && return
+
+        # TODO load arg.iPtr slices into shared memory
+        row_is_nnz = @nany $N i -> begin
+            is_nnz = false
+            arg = @inbounds args[i]
+            if arg isa CuSparseDeviceVector
+                for arg_row in arg.iPtr
+                    if arg_row == row
+                        is_nnz = true
+                        @inbounds offsets[row] = row
+                    end
+                    arg_row > row && break
                 end
-                arg_row > row && break
+            else
+                @inbounds offsets[row] = row
+                is_nnz = true
             end
-        else
-            @inbounds offsets[row] = row
-            row_is_nnz = 1i32
+            is_nnz
         end
         sync_warp()
+
+        # count nnz in the warp
+        offset = 16
+        while (offset >= 1)
+            row_is_nnz = shfl_down_sync(FULL_MASK, row_is_nnz, offset)
+            offset = offset >> 1
+        end
+        if threadIdx().x == 1
+            CUDA.@atomic offsets[last_row+1] += row_is_nnz
+        end
+        return
     end
-    # count nnz in the warp
-    offset = 16
-    while (offset >= 1)
-        row_is_nnz = shfl_down_sync(FULL_MASK, row_is_nnz, offset)
-        offset = offset >> 1
-    end
-    if threadIdx().x == 1
-        CUDA.@atomic offsets[last_row+1] += row_is_nnz
-    end
-    return
 end
 # TODO: unify CSC/CSR kernels
 
@@ -379,7 +388,7 @@ end
 
 function sparse_to_sparse_broadcast_kernel(f::F, first_row::Ti, last_row::Ti, output::CuSparseDeviceVector{Tv,Ti},
                                            offsets::Union{AbstractVector,Nothing},
-                                           args::Vararg{<:Any, N}) where {Tv, Ti, N, F}
+                                           args::Vararg{Any, N}) where {Tv, Ti, N, F}
     row_ix = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
     row_ix > output.nnz && return
     row    = @inbounds output.iPtr[row_ix + first_row - 1i32]
@@ -405,7 +414,7 @@ function sparse_to_sparse_broadcast_kernel(f, output::T, offsets::Union{Abstract
     # fetch the row offset, and write it to the output
     @inbounds begin
         output_ptr = output_ptrs[leading_dim] = offsets[leading_dim]
-        if leading_dim == leading_dim_size 
+        if leading_dim == leading_dim_size
             output_ptrs[leading_dim+1i32] = offsets[leading_dim+1i32]
         end
     end
@@ -454,18 +463,19 @@ function sparse_to_dense_broadcast_kernel(T::Type{<:Union{CuSparseMatrixCSR{Tv, 
 end
 
 function sparse_to_dense_broadcast_kernel(::Type{<:CuSparseVector}, f,
-                                          output::CuDeviceArray{Tv}, args::Vararg{Any, N}) where {Tv, N}
+                                         output::CuDeviceArray{Tv}, args...) where {Tv}
     # every thread processes an entire row
     row = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
     row > length(output) && return
 
     # set the values for this row
-    vals = ntuple(Val(N)) do i
-        arg = @inbounds args[i] 
-        _getindex(arg, row, 0)::Tv
+    vals = ntuple(Val(length(args))) do i
+        @inline # XXX: works around bad codegen
+        arg = @inbounds args[i]
+        _getindex(arg, row, 0)
     end
-    out_val =  f(vals...)
-    @inbounds output[row] = out_val 
+    out_val = f(vals...)
+    @inbounds output[row] = out_val
     return
 end
 ## COV_EXCL_STOP
@@ -532,7 +542,7 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
     # for CuSparseVec, figure out the actual row range we need to address, e.g. if m = 2^20
     # but the only rows present in any sparse vector input are between 2 and 128, no need to
     # launch massive threads. TODO: use the difference here to set the thread count
-    overall_first_row = one(Ti) 
+    overall_first_row = one(Ti)
     overall_last_row = Ti(rows)
     # allocate the output container
     if !fpreszeros
@@ -593,7 +603,7 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
             end
             overall_first_row = min(arg_first_rows...)
             overall_last_row  = max(arg_last_rows...)
-            offsets_len = overall_last_row - overall_first_row 
+            offsets_len = overall_last_row - overall_first_row
             # last element is new NNZ
             CUDA.zeros(Ti, offsets_len + 1)
         end
@@ -637,7 +647,7 @@ function Broadcast.copy(bc::Broadcasted{<:Union{CuSparseVecStyle,CuSparseMatStyl
     end
 
     # perform the actual broadcast
-    if output isa CuSparseVector 
+    if output isa CuSparseVector
         args = (bc.f, overall_first_row, overall_last_row, output, offsets, bc.args...)
         kernel = @cuda launch=false sparse_to_sparse_broadcast_kernel(args...)
         threads, blocks = compute_launch_config(kernel)
