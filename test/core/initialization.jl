@@ -185,7 +185,7 @@ end
 
 ## allocations
 
-let broken = VERSION >= v"1.11.3" && Base.JLOptions().code_coverage != 0
+let broken = v"1.11.3" <= VERSION < v"1.11.5" && Base.JLOptions().code_coverage != 0
     @test @allocated(current_context()) == 0 broken=broken
     @test @allocated(context()) == 0 broken=broken
     @test @allocated(stream()) == 0 broken=broken
