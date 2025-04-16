@@ -41,7 +41,7 @@ mutable struct CuDenseVectorDescriptor
         cusparseCreateDnVec(desc_ref, n, CU_NULL, T)
         obj = new(desc_ref[])
         finalizer(cusparseDestroyDnVec, obj)
-        obj
+        return obj
     end
 
     function CuDenseVectorDescriptor(x::DenseCuVector)
@@ -88,7 +88,7 @@ mutable struct CuDenseMatrixDescriptor
         end
         obj = new(desc_ref[])
         finalizer(cusparseDestroyDnMat, obj)
-        obj
+        return obj
     end
 
     function CuDenseMatrixDescriptor(A::DenseCuMatrix; transposed::Bool=false)
