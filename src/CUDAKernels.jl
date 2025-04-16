@@ -1,11 +1,12 @@
 module CUDAKernels
 
 using ..CUDA
-using ..CUDA: @device_override
+using ..CUDA: @device_override, CUSPARSE
 
 import KernelAbstractions as KA
 
 import StaticArrays
+import SparseArrays: AbstractSparseArray
 
 import Adapt
 
@@ -28,9 +29,11 @@ KA.get_backend(::CuArray) = CUDABackend()
 KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
-Adapt.adapt_storage(::CUDABackend, a::Array) = Adapt.adapt(CuArray, a)
-Adapt.adapt_storage(::CUDABackend, a::CuArray) = a
-Adapt.adapt_storage(::KA.CPU, a::CuArray) = convert(Array, a)
+KA.functional(::CUDABackend) = CUDA.functional()
+
+Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
+Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,CUSPARSE.AbstractCuSparseArray}) = a
+Adapt.adapt_storage(::KA.CPU, a::Union{CuArray,CUSPARSE.AbstractCuSparseArray}) = Adapt.adapt(Array, a)
 
 ## memory operations
 
