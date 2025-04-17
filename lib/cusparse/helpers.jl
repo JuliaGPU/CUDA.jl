@@ -239,13 +239,14 @@ mutable struct CuSparseMatrixDescriptor
 
     function CuSparseMatrixDescriptor(A::CuSparseMatrixBSR, IndexBase::Char)
         desc_ref = Ref{cusparseSpMatDescr_t}()
+        brows, bcols = cld.(size(A), A.blockDim)
         cusparseCreateBsr(
             desc_ref,
-            size(A)..., nnz(A),
+            brows, bcols, A.nnzb,
             A.blockDim, A.blockDim,
-            A.rowPtr, A.colVal, nonzeros(A),
+            A.rowPtr, A.colVal, A.nzVal,
             eltype(A.rowPtr), eltype(A.colVal), IndexBase,
-            eltype(nonzeros(A)), A.dir
+            eltype(A.nzVal), A.dir
         )
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
