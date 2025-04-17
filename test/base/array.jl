@@ -51,6 +51,15 @@ using ChainRulesCore: add!!, is_inplaceable_destination
   end
 end
 
+mutable struct MyBadType
+    a::Any
+end
+const MyBadType2 = Union{BigFloat, Float32}
+@testset "Bad CuArray eltype" begin
+    @test_throws ErrorException CuArray{MyBadType, 1}(undef, 64)
+    @test_throws ErrorException CuArray{MyBadType2, 1}(undef, 64)
+end
+
 @testset "synchronization" begin
   a = CUDA.zeros(2, 2)
   synchronize(a)
