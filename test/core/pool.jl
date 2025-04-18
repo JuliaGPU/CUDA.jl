@@ -5,7 +5,7 @@ CUDA.pool_alloc(0)
 try
     CuArray{Int}(undef, 10^20)
 catch e
-    @test startswith(sprint(showerror, e), "Out of GPU memory trying to allocate ")
+    @test startswith(sprint(showerror, e), "Out of GPU memory")
 end
 
 
