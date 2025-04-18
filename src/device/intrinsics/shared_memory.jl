@@ -16,7 +16,8 @@ generator function will be called dynamically.
     # NOTE: this relies on const-prop to forward the literal length to the generator.
     #       maybe we should include the size in the type, like StaticArrays does?
     ptr = emit_shmem(T, Val(len))
-    CuDeviceArray{T,N,AS.Shared}(ptr, dims)
+    # XXX: 4GB ought to be enough shared memory for anybody
+    CuDeviceArray{T,N,AS.Shared,Int32}(ptr, dims)
 end
 CuStaticSharedArray(::Type{T}, len::Integer) where {T} = CuStaticSharedArray(T, (len,))
 
@@ -53,7 +54,8 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
         end
     end
     ptr = emit_shmem(T) + offset
-    CuDeviceArray{T,N,AS.Shared}(ptr, dims)
+    # XXX: 4GB ought to be enough shared memory for anybody
+    CuDeviceArray{T,N,AS.Shared,Int32}(ptr, dims)
 end
 Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, len::Integer, offset) where {T} =
     CuDynamicSharedArray(T, (len,), offset)
