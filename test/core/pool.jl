@@ -2,6 +2,13 @@ CUDA.pool_alloc(0)
 
 @test_throws OutOfGPUMemoryError CuArray{Int}(undef, 10^20)
 
+try
+    CuArray{Int}(undef, 10^20)
+catch e
+    @test startswith(sprint(showerror, e), "Out of GPU memory")
+end
+
+
 @testset "@allocated" begin
     @test (CUDA.@allocated CuArray{Int32}(undef,1)) == 4
 end
