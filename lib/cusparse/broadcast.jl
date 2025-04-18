@@ -375,11 +375,13 @@ function sparse_to_sparse_broadcast_kernel(f::F, output::CuSparseDeviceVector{Tv
     row_ix > output.nnz && return
     row_and_ptrs = @inbounds offsets[row_ix]
     row          = @inbounds row_and_ptrs[1]
-    args_are_nnz = @inbounds row_and_ptrs[2]
+    arg_ptrs     = @inbounds row_and_ptrs[2]
     vals = ntuple(Val(N)) do i
         arg = @inbounds args[i]
-        arg_is_nnz = @inbounds args_are_nnz[i]
-        _getindex(arg, row, arg_is_nnz)::Tv
+        # ptr is 0 if the sparse vector doesn't have an element at this row
+        # ptr is 0 if the arg is a scalar AND f preserves zeros
+        ptr = @inbounds arg_ptrs[i]
+        _getindex(arg, row, ptr)::Tv
     end
     output_val = f(vals...)
     @inbounds output.iPtr[row_ix]  = row 
@@ -455,14 +457,16 @@ function sparse_to_dense_broadcast_kernel(::Type{<:CuSparseVector}, f::F,
     row_ix > length(output) && return
     row_and_ptrs = @inbounds offsets[row_ix]
     row          = @inbounds row_and_ptrs[1]
-    args_are_nnz = @inbounds row_and_ptrs[2]
+    arg_ptrs     = @inbounds row_and_ptrs[2]
     vals = ntuple(Val(length(args))) do i
         arg = @inbounds args[i]
-        arg_is_nnz = @inbounds args_are_nnz[i]
-        _getindex(arg, row, arg_is_nnz)::Tv
+        # ptr is 0 if the sparse vector doesn't have an element at this row
+        # ptr is row if the arg is dense OR a scalar with non-zero-preserving f
+        # ptr is 0 if the arg is a scalar AND f preserves zeros
+        ptr = @inbounds arg_ptrs[i]
+        _getindex(arg, row, ptr)::Tv
     end
-    out_val = f(vals...)
-    @inbounds output[row] = out_val 
+    @inbounds output[row] = f(vals...)
     return
 end
 ## COV_EXCL_STOP
