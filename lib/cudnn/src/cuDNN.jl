@@ -188,7 +188,7 @@ function __init__()
                     message = popfirst!(log_messages)
                     _log_message(message...)
                 end
-            end 
+            end
         end
 
         callback = @cfunction(log_message, Nothing,
