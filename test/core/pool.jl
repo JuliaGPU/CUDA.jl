@@ -47,3 +47,13 @@ end
     CUDA.used_memory()
     CUDA.cached_memory()
 end
+
+@testset "parse_limit" begin
+    @test CUDA.parse_limit("8000kB") == UInt(8000*1000)
+    @test CUDA.parse_limit("8000MB") == UInt(8000*1000*1000)
+    @test CUDA.parse_limit("8GB")    == UInt(8*1000*1000*1000)
+
+    @test CUDA.parse_limit("8KiB")   == UInt(8*1024)
+    @test CUDA.parse_limit("8MiB")   == UInt(8*1024*1024)
+    @test CUDA.parse_limit("8GiB")   == UInt(8*1024*1024*1024)
+end
