@@ -1,7 +1,5 @@
 using Base.Broadcast: Broadcasted
 
-using Base.Cartesian: @nany
-
 using CUDA: CuArrayStyle
 
 # TODO: support more types (SparseVector, SparseMatrixCSC, COO, BSR)
