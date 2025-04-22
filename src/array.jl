@@ -12,6 +12,8 @@ function hasfieldcount(@nospecialize(dt))
     return true
 end
 
+explain_nonisbits(@nospecialize(T), depth=0) = "  "^depth * "$T is not a bitstype\n"
+
 function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
     depth > maxdepth && return ""
 
@@ -28,7 +30,7 @@ function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
       msg = "  "^depth * "$T is a struct that's not allocated inline\n"
       for U in fieldtypes(T)
           if !Base.allocatedinline(U)
-              msg *= explain_nonisbits(U, depth+1)
+              ms *= explain_nonisbits(U, depth+1)
           end
       end
     else
