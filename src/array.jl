@@ -67,7 +67,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
 
   function CuArray{T,N,M}(::UndefInitializer, dims::Dims{N}) where {T,N,M}
     check_eltype("CuArray", T)
-    maxsize = prod(dims) * sizeof(T)
+    maxsize = prod(dims) * aligned_sizeof(T)
     bufsize = if Base.isbitsunion(T)
       # type tag array past the data
       maxsize + prod(dims)
@@ -84,7 +84,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
   end
 
   function CuArray{T,N}(data::DataRef{Managed{M}}, dims::Dims{N};
-                        maxsize::Int=prod(dims) * sizeof(T), offset::Int=0) where {T,N,M}
+                        maxsize::Int=prod(dims) * aligned_sizeof(T), offset::Int=0) where {T,N,M}
     check_eltype("CuArray", T)
     obj = new{T,N,M}(data, maxsize, offset, dims)
     finalizer(unsafe_free!, obj)
@@ -235,7 +235,7 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,M}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
-  sz = prod(dims) * sizeof(T)
+  sz = prod(dims) * aligned_sizeof(T)
 
   # create a memory object
   mem = if M == UnifiedMemory
@@ -290,7 +290,7 @@ supports_hmm(dev) = driver_version() >= v"12.2" &&
 function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
                           ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
-  sz = prod(dims) * sizeof(T)
+  sz = prod(dims) * aligned_sizeof(T)
 
   data = if M == UnifiedMemory
     # HMM extends unified memory to include system memory
@@ -338,7 +338,7 @@ Base.unsafe_wrap(::Type{CuArray{T,N,M}}, a::Array{T,N}) where {T,N,M} =
 
 ## array interface
 
-Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
+Base.elsize(::Type{<:CuArray{T}}) where {T} = aligned_sizeof(T)
 
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
@@ -837,7 +837,7 @@ end
 ## derived arrays
 
 function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
-  offset = (a.offset * Base.elsize(a)) ÷ sizeof(T) + offset
+  offset = (a.offset * Base.elsize(a)) ÷ aligned_sizeof(T) + offset
   CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
 end
 
@@ -851,7 +851,7 @@ function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{
 end
 function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Union{Base.RangeIndex,Base.ReshapedUnitRange}}}}) where {T,N,P}
    return Base.unsafe_convert(CuPtr{T}, parent(V)) +
-          (Base.first_index(V)-1)*sizeof(T)
+          (Base.first_index(V)-1)*aligned_sizeof(T)
 end
 
 
@@ -874,7 +874,7 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
 
   # TODO: add additional space to allow for quicker resizing
-  maxsize = n * sizeof(T)
+  maxsize = n * aligned_sizeof(T)
   bufsize = if isbitstype(T)
     maxsize
   else

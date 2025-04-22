@@ -29,7 +29,7 @@ struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
     CuDeviceArray{T,N,A}(ptr::LLVMPtr{T,A}, dims::Tuple,
-                         maxsize::Int=prod(dims)*sizeof(T)) where {T,A,N} =
+                         maxsize::Int=prod(dims)*aligned_sizeof(T)) where {T,A,N} =
         new(ptr, maxsize, dims, prod(dims))
 end
 
@@ -39,7 +39,7 @@ const CuDeviceMatrix = CuDeviceArray{T,2,A} where {T,A}
 
 ## array interface
 
-Base.elsize(::Type{<:CuDeviceArray{T}}) where {T} = sizeof(T)
+Base.elsize(::Type{<:CuDeviceArray{T}}) where {T} = aligned_sizeof(T)
 
 Base.size(g::CuDeviceArray) = g.dims
 Base.sizeof(x::CuDeviceArray) = Base.elsize(x) * length(x)
@@ -239,12 +239,12 @@ function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
   err = GPUArrays._reinterpret_exception(T, a)
   err === nothing || throw(err)
 
-  if sizeof(T) == sizeof(S) # fast case
+  if aligned_sizeof(T) == aligned_sizeof(S) # fast case
     return CuDeviceArray{T,N,A}(reinterpret(LLVMPtr{T,A}, a.ptr), size(a), a.maxsize)
   end
 
   isize = size(a)
-  size1 = div(isize[1]*sizeof(S), sizeof(T))
+  size1 = div(isize[1]*aligned_sizeof(S), aligned_sizeof(T))
   osize = tuple(size1, Base.tail(isize)...)
   return CuDeviceArray{T,N,A}(reinterpret(LLVMPtr{T,A}, a.ptr), osize, a.maxsize)
 end

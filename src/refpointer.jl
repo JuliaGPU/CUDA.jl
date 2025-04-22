@@ -42,7 +42,7 @@ mutable struct CuRefValue{T} <: AbstractCuRef{T}
 
     function CuRefValue{T}() where {T}
         check_eltype("CuRef", T)
-        buf = pool_alloc(DeviceMemory, sizeof(T))
+        buf = pool_alloc(DeviceMemory, aligned_sizeof(T))
         obj = new(buf)
         finalizer(obj) do _
             pool_free(buf)

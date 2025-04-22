@@ -35,7 +35,7 @@ Base.convert(::Type{CUtexObject}, t::CuDeviceTexture) = t.handle
 
 ## array interface
 
-Base.elsize(::Type{<:CuDeviceTexture{T}}) where {T} = sizeof(T)
+Base.elsize(::Type{<:CuDeviceTexture{T}}) where {T} = aligned_sizeof(T)
 
 Base.size(tm::CuDeviceTexture) = tm.dims
 Base.sizeof(tm::CuDeviceTexture) = Base.elsize(x) * length(x)

@@ -411,7 +411,7 @@ for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", :CuPtr, :Ptr),
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::CuStream=stream(),
                                        async::Bool=false) where T
-        $(getproperty(CUDA, Symbol(fn)))(dst, src, N*sizeof(T), stream)
+        $(getproperty(CUDA, Symbol(fn)))(dst, src, N*aligned_sizeof(T), stream)
         async || synchronize(stream)
         return dst
     end
@@ -423,11 +423,11 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
     dst_dev = device(dst)
     src_dev = device(src)
     if dst_dev == src_dev
-        cuMemcpyDtoDAsync_v2(dst, src, N*sizeof(T), stream)
+        cuMemcpyDtoDAsync_v2(dst, src, N*aligned_sizeof(T), stream)
     else
         cuMemcpyPeerAsync(dst, context(dst_dev),
                           src, context(src_dev),
-                          N*sizeof(T), stream)
+                          N*aligned_sizeof(T), stream)
     end
     async || synchronize(stream)
     return dst
@@ -436,7 +436,7 @@ end
 function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
                              stream::CuStream=stream(),
                              async::Bool=false) where T
-    cuMemcpyHtoAAsync_v2(dst, doffs, src, N*sizeof(T), stream)
+    cuMemcpyHtoAAsync_v2(dst, doffs, src, N*aligned_sizeof(T), stream)
     async || synchronize(stream)
     return dst
 end
@@ -444,16 +444,16 @@ end
 function Base.unsafe_copyto!(dst::Ptr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer;
                              stream::CuStream=stream(),
                              async::Bool=false) where T
-    cuMemcpyAtoHAsync_v2(dst, src, soffs, N*sizeof(T), stream)
+    cuMemcpyAtoHAsync_v2(dst, src, soffs, N*aligned_sizeof(T), stream)
     async || synchronize(stream)
     return dst
 end
 
 Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::CuPtr{T}, N::Integer) where {T} =
-    cuMemcpyDtoA_v2(dst, doffs, src, N*sizeof(T))
+    cuMemcpyDtoA_v2(dst, doffs, src, N*aligned_sizeof(T))
 
 Base.unsafe_copyto!(dst::CuPtr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer) where {T} =
-    cuMemcpyAtoD_v2(dst, src, soffs, N*sizeof(T))
+    cuMemcpyAtoD_v2(dst, src, soffs, N*aligned_sizeof(T))
 
 Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
     Base.unsafe_copyto!(dst, 0, src, N; kwargs...)
@@ -529,15 +529,15 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
 
     params_ref = Ref(CUDA_MEMCPY2D(
         # source
-        (srcPos.x-1)*sizeof(T), srcPos.y-1,
+        (srcPos.x-1)*aligned_sizeof(T), srcPos.y-1,
         srcMemoryType, srcHost, srcDevice, srcArray,
         srcPitch,
         # destination
-        (dstPos.x-1)*sizeof(T), dstPos.y-1,
+        (dstPos.x-1)*aligned_sizeof(T), dstPos.y-1,
         dstMemoryType, dstHost, dstDevice, dstArray,
         dstPitch,
         # extent
-        width*sizeof(T), height
+        width*aligned_sizeof(T), height
     ))
     cuMemcpy2DAsync_v2(params_ref, stream)
     async || synchronize(stream)
@@ -569,8 +569,8 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
     #                       when using the stream-ordered memory allocator
     # NOTE: we apply the workaround unconditionally, since we want to keep this call cheap.
     if v"11.2" <= driver_version() <= v"11.3" #&& pools[device()].stream_ordered
-        srcOffset = (srcPos.x-1)*sizeof(T) + srcPitch*((srcPos.y-1) + srcHeight*(srcPos.z-1))
-        dstOffset = (dstPos.x-1)*sizeof(T) + dstPitch*((dstPos.y-1) + dstHeight*(dstPos.z-1))
+        srcOffset = (srcPos.x-1)*aligned_sizeof(T) + srcPitch*((srcPos.y-1) + srcHeight*(srcPos.z-1))
+        dstOffset = (dstPos.x-1)*aligned_sizeof(T) + dstPitch*((dstPos.y-1) + dstHeight*(dstPos.z-1))
     else
         srcOffset = 0
         dstOffset = 0
@@ -622,7 +622,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
 
     params_ref = Ref(CUDA_MEMCPY3D(
         # source
-        srcOffset==0 ? (srcPos.x-1)*sizeof(T) : 0,
+        srcOffset==0 ? (srcPos.x-1)*aligned_sizeof(T) : 0,
         srcOffset==0 ? srcPos.y-1             : 0,
         srcOffset==0 ? srcPos.z-1             : 0,
         0, # LOD
@@ -630,7 +630,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         C_NULL, # reserved
         srcPitch, srcHeight,
         # destination
-        dstOffset==0 ? (dstPos.x-1)*sizeof(T) : 0,
+        dstOffset==0 ? (dstPos.x-1)*aligned_sizeof(T) : 0,
         dstOffset==0 ? dstPos.y-1             : 0,
         dstOffset==0 ? dstPos.z-1             : 0,
         0, # LOD
@@ -638,7 +638,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         C_NULL, # reserved
         dstPitch, dstHeight,
         # extent
-        width*sizeof(T), height, depth
+        width*aligned_sizeof(T), height, depth
     ))
     cuMemcpy3DAsync_v2(params_ref, stream)
     async || synchronize(stream)
@@ -698,7 +698,7 @@ function pin(ref::Base.RefValue{T}) where T
     ctx = context()
     ptr = Base.unsafe_convert(Ptr{T}, ref)
 
-    __pin(ptr, sizeof(T))
+    __pin(ptr, aligned_sizeof(T))
     finalizer(ref) do _
         __unpin(ptr, ctx)
     end
