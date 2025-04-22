@@ -30,7 +30,7 @@ function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
       msg = "  "^depth * "$T is a struct that's not allocated inline\n"
       for U in fieldtypes(T)
           if !Base.allocatedinline(U)
-              ms *= explain_nonisbits(U, depth+1)
+              msg *= explain_nonisbits(U, depth+1)
           end
       end
     else
