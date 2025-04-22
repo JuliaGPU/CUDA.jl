@@ -46,8 +46,8 @@ end
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
 #    these are stored contiguously and require a selector array (handled by us)
 @inline function check_eltype(name, T)
-  eltype_is_valid = !Base.allocatedinline(T) || (hasfieldcount(T) && any(!Base.allocatedinline, fieldtypes(T)))
-  if eltype_is_valid 
+  eltype_is_invalid = !Base.allocatedinline(T) || (hasfieldcount(T) && any(!Base.allocatedinline, fieldtypes(T)))
+  if eltype_is_invalid 
     explanation = explain_eltype(T)
     error("""
       $name only supports element types that are allocated inline.
