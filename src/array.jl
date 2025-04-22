@@ -24,7 +24,7 @@ function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
           msg *= explain_eltype(U, depth+1)
         end
       end
-    elseif Base.ismutabletype(T)
+    elseif Base.ismutabletype(T) && Base.datatype_fieldcount(T) != 0
       msg = "  "^depth * "$T is a mutable type\n"
     elseif hasfieldcount(T)
       msg = "  "^depth * "$T is a struct that's not allocated inline\n"
@@ -47,8 +47,11 @@ end
 #    these are stored with a selector at the end (handled by Julia).
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
 #    these are stored contiguously and require a selector array (handled by us)
+# As well as "mutable singleton" types like `Symbol` that use pointer-identity
 @inline function check_eltype(name, T)
-  eltype_is_invalid = !Base.allocatedinline(T) || (hasfieldcount(T) && any(!Base.allocatedinline, fieldtypes(T)))
+  eltype_is_invalid = !Base.allocatedinline(T) || 
+                      (hasfieldcount(T) && any(!Base.allocatedinline, fieldtypes(T)))
+                      
   if eltype_is_invalid 
     explanation = explain_eltype(T)
     error("""
@@ -234,7 +237,7 @@ end
 function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,M}
-  isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
+  check_eltype("unsafe_wrap(CuArray, ...)", T)
   sz = prod(dims) * aligned_sizeof(T)
 
   # create a memory object

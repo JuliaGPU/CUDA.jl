@@ -173,6 +173,18 @@ end
         cpu_arr = unsafe_wrap(Array, cpu_ptr, 1)
         @test cpu_arr == [42]
     end
+
+    # symbols and tuples thereof
+    let a = CuArray([:a])
+      b = unsafe_wrap(CuArray, pointer(a), 1)
+      @test typeof(b) <: CuArray{Symbol,1}
+      @test size(b) == (1,)
+    end
+    let a = CuArray([(:a,:b)])
+      b = unsafe_wrap(CuArray, pointer(a), 1)
+      @test typeof(b) <: CuArray{Tuple{Symbol,Symbol},1}
+      @test size(b) == (1,)
+    end
 end
 
 @testset "adapt" begin
