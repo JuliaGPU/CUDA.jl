@@ -55,9 +55,13 @@ mutable struct MyBadType
     a::Any
 end
 const MyBadType2 = Union{BigFloat, Float32}
+struct MyBadType3
+    a::MyBadType2
+end
 @testset "Bad CuArray eltype" begin
     @test_throws ErrorException CuArray{MyBadType, 1}(undef, 64)
     @test_throws ErrorException CuArray{MyBadType2, 1}(undef, 64)
+    @test_throws ErrorException CuArray{MyBadType3, 1}(undef, 64)
 end
 
 @testset "synchronization" begin

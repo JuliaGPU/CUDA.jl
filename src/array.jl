@@ -12,6 +12,8 @@ function hasfieldcount(@nospecialize(dt))
     return true
 end
 
+explain_nonisbits(@nospecialize(T), depth=0) = "  "^depth * "$T is not a bitstype\n"
+
 function explain_eltype(@nospecialize(T), depth=0; maxdepth=10)
     depth > maxdepth && return ""
 
@@ -46,7 +48,8 @@ end
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
 #    these are stored contiguously and require a selector array (handled by us)
 @inline function check_eltype(name, T)
-  if !Base.allocatedinline(T)
+  eltype_is_invalid = !Base.allocatedinline(T) || (hasfieldcount(T) && any(!Base.allocatedinline, fieldtypes(T)))
+  if eltype_is_invalid 
     explanation = explain_eltype(T)
     error("""
       $name only supports element types that are allocated inline.
