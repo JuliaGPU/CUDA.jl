@@ -36,6 +36,15 @@ using ChainRulesCore: add!!, is_inplaceable_destination
   @test collect(CUDA.fill(0, 2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.fill(1, 2, 2)) == ones(Float32, 2, 2)
 
+  # undef with various forms of dims
+  let xs = CuArray{Int, 1, CUDA.DeviceMemory}(undef, (64,))
+    @test size(xs) == (64,)
+  end
+  let xs = CuArray{Int, 1, CUDA.DeviceMemory}()
+    @test size(xs) == (0,)
+  end
+  # cu with too many memory types
+  @test_throws ArgumentError("Can only specify one of `device`, `unified`, or `host`") cu([1]; device=true, host=true)
   let
     @gensym typnam
     typ = @eval begin
@@ -49,6 +58,20 @@ using ChainRulesCore: add!!, is_inplaceable_destination
     @test collect(CUDA.zeros(typ, 2, 2)) == zeros(typ, 2, 2)
     @test collect(CUDA.ones(typ, 2, 2)) == ones(typ, 2, 2)
   end
+end
+
+mutable struct MyBadType
+    a::Any
+end
+const MyBadType2 = Union{BigFloat, Float32}
+struct MyBadType3
+    a::MyBadType2
+end
+@testset "Bad CuArray eltype" begin
+    @test_throws ErrorException CuArray{MyBadType, 1}(undef, 64)
+    @test_throws ErrorException CuArray{MyBadType2, 1}(undef, 64)
+    @test_throws ErrorException CuArray{MyBadType3, 1}(undef, 64)
+    @test_throws ErrorException CuArray{BigFloat, 1}(undef, 64)
 end
 
 @testset "synchronization" begin
@@ -79,6 +102,10 @@ end
             @test pointer(b) == reinterpret(Ptr{Int}, p)
             @test size(b) == (1,)
         end
+    end
+    let a = cu([1]; device=true)
+        p = pointer(a)
+        @test_throws ArgumentError("Can only create a CPU array object from a unified or host CUDA array") unsafe_wrap(Array, p, 1)
     end
 
     # unmanaged memory -> CuArray
@@ -734,13 +761,17 @@ end
 
   let
     a = CuVector{Int,CUDA.DeviceMemory}(undef, 1)
+    @test is_device(a)
+    @test !is_host(a)
     @test !is_unified(a)
     @test !is_managed(pointer(a))
   end
 
   let
     a = CuVector{Int,CUDA.UnifiedMemory}(undef, 1)
+    @test !is_device(a)
     @test is_unified(a)
+    @test !is_host(a)
     @test is_managed(pointer(a))
     a .= 0
     @test Array(a) == [0]

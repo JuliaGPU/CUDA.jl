@@ -116,10 +116,6 @@ end
 
 ## logging
 
-const log_messages = []
-const log_lock = ReentrantLock()
-const log_cond = Ref{Any}()    # root
-
 function log_message(sev, udata, dbg_ptr, ptr)
     dbg = unsafe_load(dbg_ptr)
 
@@ -131,20 +127,11 @@ function log_message(sev, udata, dbg_ptr, ptr)
         end
         len += 1
     end
-    str = unsafe_string(ptr, len)   # XXX: can this yield?
+    str = unsafe_string(ptr, len)
 
-    # print asynchronously
-    Base.@lock log_lock begin
-        push!(log_messages, (; sev, dbg, str))
-    end
-    ccall(:uv_async_send, Cint, (Ptr{Cvoid},), udata)
-
-    return
-end
-
-function _log_message(sev, dbg, str)
+    # split into lines and report
     lines = split(str, '\0')
-    msg = join(lines, '\n')
+    msg = join(strip.(lines), '\n')
     if sev == CUDNN_SEV_INFO
         @debug msg
     elseif sev == CUDNN_SEV_WARNING
@@ -154,6 +141,7 @@ function _log_message(sev, dbg, str)
     elseif sev == CUDNN_SEV_FATAL
         error(msg)
     end
+
     return
 end
 
@@ -182,14 +170,9 @@ function __init__()
 
     # register a log callback
     if !precompiling && (isdebug(:init, cuDNN) || Base.JLOptions().debug_level >= 2)
-        log_cond[] = Base.AsyncCondition() do async_cond
-            message = Base.@lock log_lock popfirst!(log_messages)
-            _log_message(message...)
-        end
-
         callback = @cfunction(log_message, Nothing,
                               (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Ptr{UInt8}))
-        cudnnSetCallback(typemax(UInt32), log_cond[], callback)
+        cudnnSetCallback(typemax(UInt32), C_NULL, callback)
     end
 
     _initialized[] = true

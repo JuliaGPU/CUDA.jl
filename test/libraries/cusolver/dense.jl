@@ -520,6 +520,7 @@ k = 1
             @test abs.(h_U'h_U) ≈ I
             @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
             @test collect(svdvals(d_A; alg=alg)) ≈ svdvals(A)
+            @test svdvals!(copy(d_A); alg=alg) == svdvals(d_A; alg=alg)
             @test abs.(h_V'*h_V) ≈ I
             @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
             @test collect(d_U'*d_A*d_V) ≈ U'*A*V
@@ -588,6 +589,8 @@ k = 1
         @test size(d_RR) == size(d_A)
         @test size(d_RRt) == size(d_A')
 
+        @test CuArray(d_F) ≈ d_A
+
         d_I = CuMatrix{elty}(I, size(d_F.Q))
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
         @test collect((d_F.Q'd_I) * d_F.Q) ≈ collect(d_I)
@@ -617,6 +620,7 @@ k = 1
         d_q, d_r       = qr(d_A)
         q, r           = qr(A)
         @test Array(d_q) ≈ Array(q)
+        @test collect(CuArray{elty}(d_q)) ≈ Array(q)
         @test collect(CuArray(d_q)) ≈ Array(q)
         @test Array(d_r) ≈ Array(r)
         @test CuArray(d_q) ≈ convert(typeof(d_A), d_q)
