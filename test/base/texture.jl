@@ -69,6 +69,16 @@ end
     @test length(array_mem) == length(d_a3D)
     @test ndims(array_mem) == ndims(d_a3D)
 
+    # and its CuArrayPtr
+    ptr = convert(CUDA.CuArrayPtr{Float32}, array_mem)
+    @test isequal(ptr, ptr)
+    @test isless(ptr, 2 + ptr)
+    @test isless(ptr - 2, ptr)
+    @test ptr == ptr
+    @test ptr - 2 < ptr
+    @test eltype(ptr) == Float32
+    @test convert(UInt64, ptr) == UInt64(UInt(ptr)) 
+    @test_throws ArgumentError("cannot convert a GPU array pointer to a CPU pointer") convert(Ptr{Float32}, ptr)
 end
 
 @testset "CuTextureArray(::Array)" begin
