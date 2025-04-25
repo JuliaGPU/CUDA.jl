@@ -19,7 +19,7 @@ struct CuGlobal{T}
         ptr_ref = Ref{CuPtr{Cvoid}}()
         nbytes_ref = Ref{Csize_t}()
         cuModuleGetGlobal_v2(ptr_ref, nbytes_ref, mod, name)
-        if nbytes_ref[] != sizeof(T)
+        if nbytes_ref[] != aligned_sizeof(T)
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
         buf = DeviceMemory(device(), context(), ptr_ref[], nbytes_ref[], false)
