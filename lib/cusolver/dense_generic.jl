@@ -286,29 +286,15 @@ function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: Blas
     m, n = size(A)
     p = min(m, n)
     R = real(T)
-    econ ∈ (0, 1) || throw(ArgumentError("econ is incorrect. The values accepted are 0 and 1."))
-    U = if jobz == 'V' && econ == 1
-        CuMatrix{T}(undef, m, p)
-    elseif jobz == 'V' && econ == 0
-        CuMatrix{T}(undef, m, m)
-    elseif jobz == 'N'
-        CU_NULL
-    else
-        throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
-    end
+    econ == 0 || econ == 1 || throw(ArgumentError("econ is incorrect. The values accepted are 0 and 1."))
+    jobz == 'N' || jobz == 'V' || throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
+
+    U = (jobz == 'V' && econ == 0) ? CuMatrix{T}(undef, m, m) : CuMatrix{T}(undef, m, p)
     Σ = CuVector{R}(undef, p)
-    V = if jobz == 'V' && econ == 1
-        CuMatrix{T}(undef, n, p)
-    elseif jobz == 'V' && econ == 0
-        CuMatrix{T}(undef, n, n)
-    elseif jobz == 'N'
-        CU_NULL
-    else
-        throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
-    end
+    V = (jobz == 'V' && econ == 0) ? CuMatrix{T}(undef, n, n) : CuMatrix{T}(undef, n, p)
     lda = max(1, stride(A, 2))
-    ldu = U == CU_NULL ? 1 : max(1, stride(U, 2))
-    ldv = V == CU_NULL ? 1 : max(1, stride(V, 2))
+    ldu = max(1, stride(U, 2))
+    ldv = max(1, stride(V, 2))
     h_err_sigma = Ref{Cdouble}(0)
     params = CuSolverParameters()
     dh = dense_handle()
