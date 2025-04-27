@@ -287,7 +287,7 @@ function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: Blas
     p = min(m, n)
     R = real(T)
     econ == 0 || econ == 1 || throw(ArgumentError("econ is incorrect. The values accepted are 0 and 1."))
-    jobz == 'N' || jobz == 'V' || throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
+    jobz in ('N', 'V') || throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
 
     U = (jobz == 'V' && econ == 0) ? CuMatrix{T}(undef, m, m) : CuMatrix{T}(undef, m, p)
     Σ = CuVector{R}(undef, p)
