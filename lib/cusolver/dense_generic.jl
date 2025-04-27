@@ -317,6 +317,8 @@ function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: Blas
     flag = @allowscalar dh.info[1]
     chklapackerror(flag |> BlasInt)
     if jobz == 'N'
+        unsafe_free!(U)
+        unsafe_free!(V)
         return Σ, h_err_sigma[]
     elseif jobz == 'V'
         return U, Σ, V, h_err_sigma[]
