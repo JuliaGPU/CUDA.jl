@@ -283,15 +283,24 @@ end
 
 # Xgesvdp
 function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    econ in (0, 1) || throw(ArgumentError("econ is incorrect. The values accepted are 0 and 1."))
+    return Xgesvdp!(jobz, Bool(econ), A)
+end
+
+function Xgesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     m, n = size(A)
     p = min(m, n)
     R = real(T)
-    econ == 0 || econ == 1 || throw(ArgumentError("econ is incorrect. The values accepted are 0 and 1."))
     jobz in ('N', 'V') || throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
 
-    U = (jobz == 'V' && econ == 0) ? CuMatrix{T}(undef, m, m) : CuMatrix{T}(undef, m, p)
+    if econ
+        U = CuMatrix{T}(undef, m, p)
+        V = CuMatrix{T}(undef, n, p)
+    else
+        U = CuMatrix{T}(undef, m, m)
+        V = CuMatrix{T}(undef, n, n)
+    end
     Σ = CuVector{R}(undef, p)
-    V = (jobz == 'V' && econ == 0) ? CuMatrix{T}(undef, n, n) : CuMatrix{T}(undef, n, p)
     lda = max(1, stride(A, 2))
     ldu = max(1, stride(U, 2))
     ldv = max(1, stride(V, 2))
