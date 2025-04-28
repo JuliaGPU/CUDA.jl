@@ -48,11 +48,23 @@ end
 # 3. bitstype unions (`Union{Int, Float32}`, etc)
 #    these are stored contiguously and require a selector array (handled by us)
 # As well as "mutable singleton" types like `Symbol` that use pointer-identity
-@inline function check_eltype(name, T)
-  eltype_is_invalid = !Base.allocatedinline(T) || 
-                      (hasfieldcount(T) && any(!Base.allocatedinline, fieldtypes(T)))
-                      
-  if eltype_is_invalid 
+
+function valid_leaftype(@nospecialize(T))
+  Base.allocatedinline(T) || (Base.ismutabletype(T) && Base.datatype_fieldcount(T) == 0)
+end
+
+function valid_type(@nospecialize(T))
+  if valid_leaftype(T)
+    if hasfieldcount(T)
+      return all(valid_type, fieldtypes(T))
+    end
+    return true
+  end
+  return false
+end
+
+@inline function check_eltype(name, T)                      
+  if !valid_type(T) 
     explanation = explain_eltype(T)
     error("""
       $name only supports element types that are allocated inline.
