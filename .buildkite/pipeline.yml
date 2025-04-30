@@ -17,8 +17,10 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        commands: |
-          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
+        # XXX: temporarily disabled as the local libcuda.so on gpuci somehow
+        #      does not seem to work anymore when mounted in the container
+        #commands: |
+        #  echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only julia\]/ ||
