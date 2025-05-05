@@ -325,11 +325,11 @@ SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT],
                     CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT])
 if CUSPARSE.version() >= v"12.0"
     push!(SPGEMM_ALGOS[CuSparseMatrixCSR], CUSPARSE.CUSPARSE_SPGEMM_ALG1)
-                                           # CUSPARSE.CUSPARSE_SPGEMM_ALG2
-                                           # CUSPARSE.CUSPARSE_SPGEMM_ALG3
+                                           CUSPARSE.CUSPARSE_SPGEMM_ALG2
+                                           CUSPARSE.CUSPARSE_SPGEMM_ALG3
     push!(SPGEMM_ALGOS[CuSparseMatrixCSC], CUSPARSE.CUSPARSE_SPGEMM_ALG1)
-                                           # CUSPARSE.CUSPARSE_SPGEMM_ALG2
-                                           # CUSPARSE.CUSPARSE_SPGEMM_ALG3
+                                           CUSPARSE.CUSPARSE_SPGEMM_ALG2
+                                           CUSPARSE.CUSPARSE_SPGEMM_ALG3
 end
 # Algorithms CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC and
 # CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC are dedicated to the cusparseSpGEMMreuse routine.
@@ -363,7 +363,7 @@ for SparseMatrixType in keys(SPGEMM_ALGOS)
                     F = alpha * opa(A) * opb(B) + beta * E
                     dF = gemm(transa, transb, alpha, dA, dB, beta, dE, 'O', algo, same_pattern=false)
                     @test F ≈ SparseMatrixCSC(dF)
-                    
+
                     # not same pattern
                     G = sprand(T, 25, 35, 0.4)
                     dG = SparseMatrixType(G)
