@@ -142,6 +142,7 @@ needs_context = false
 7 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
+12 = "Ref{Csize_t}"
 
 [api."cusparse𝕏bsrsv2_analysis".argtypes]
 7 = "CuPtr{T}"
@@ -208,6 +209,7 @@ needs_context = false
 9 = "CuPtr{T}"
 10 = "CuPtr{Cint}"
 11 = "CuPtr{Cint}"
+14 = "Ref{Csize_t}"
 
 [api."cusparse𝕏bsrsm2_analysis".argtypes]
 9 = "CuPtr{T}"
@@ -239,6 +241,7 @@ needs_context = false
 5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
+9 = "Ref{Csize_t}"
 
 [api."cusparse𝕏csrilu02_analysis".argtypes]
 5 = "CuPtr{T}"
@@ -261,6 +264,7 @@ needs_context = false
 6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
+11 = "Ref{Csize_t}"
 
 [api."cusparse𝕏bsrilu02_analysis".argtypes]
 6 = "CuPtr{T}"
@@ -283,6 +287,7 @@ needs_context = false
 5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
+9 = "Ref{Csize_t}"
 
 [api."cusparse𝕏csric02_analysis".argtypes]
 5 = "CuPtr{T}"
@@ -305,6 +310,7 @@ needs_context = false
 6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
+11 = "Ref{Csize_t}"
 
 [api."cusparse𝕏bsric02_analysis".argtypes]
 6 = "CuPtr{T}"
@@ -556,6 +562,7 @@ needs_context = false
 5 = "CuPtr{T}"
 6 = "CuPtr{Cint}"
 7 = "CuPtr{Cint}"
+10 = "Ref{Csize_t}"
 
 [api.cusparseXgebsr2csr.argtypes]
 6 = "CuPtr{Cint}"
@@ -589,6 +596,7 @@ needs_context = false
 6 = "CuPtr{T}"
 7 = "CuPtr{Cint}"
 8 = "CuPtr{Cint}"
+11 = "Ref{Csize_t}"
 
 [api.cusparseXcsr2gebsrNnz.argtypes]
 6 = "CuPtr{Cint}"
@@ -615,6 +623,7 @@ needs_context = false
 7 = "CuPtr{T}"
 8 = "CuPtr{Cint}"
 9 = "CuPtr{Cint}"
+14 = "Ref{Csize_t}"
 
 [api.cusparseXgebsr2gebsrNnz.argtypes]
 7 = "CuPtr{Cint}"
@@ -783,12 +792,14 @@ needs_context = false
 8 = "CuPtr{Cvoid}"
 9 = "CuPtr{Cint}"
 10 = "CuPtr{Cint}"
+15 = "Ref{Csize_t}"
 
 [api.cusparseCreateSpVec.argtypes]
 4 = "CuPtr{Cvoid}"
 5 = "CuPtr{Cvoid}"
 
 [api.cusparseSpVecGet.argtypes]
+2 = "Ref{Int64}"
 4 = "CuPtr{Ptr{Cvoid}}"
 5 = "CuPtr{Ptr{Cvoid}}"
 
@@ -802,6 +813,7 @@ needs_context = false
 3 = "CuPtr{Cvoid}"
 
 [api.cusparseDnVecGet.argtypes]
+2 = "Ref{Int64}"
 3 = "CuPtr{Ptr{Cvoid}}"
 
 [api.cusparseDnVecGetValues.argtypes]
@@ -875,6 +887,7 @@ needs_context = false
 
 [api.cusparseSpVV_bufferSize.argtypes]
 5 = "PtrOrCuPtr{Cvoid}"
+7 = "Ref{Csize_t}"
 
 [api.cusparseSpMV.argtypes]
 3 = "PtrOrCuPtr{Cvoid}"
@@ -889,15 +902,18 @@ needs_context = false
 [api.cusparseSpMM_bufferSize.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
+11 = "Ref{Csize_t}"
 
 [api.cusparseSpGEMM_workEstimation.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
+12 = "Ref{Csize_t}"
 13 = "CuPtr{Cvoid}"
 
 [api.cusparseSpGEMM_compute.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
+12 = "Ref{Csize_t}"
 13 = "CuPtr{Cvoid}"
 
 [api.cusparseSpGEMM_copy.argtypes]
@@ -940,6 +956,7 @@ needs_context = false
 [api.cusparseSDDMM_bufferSize.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
+11 = "Ref{Csize_t}"
 
 [api.cusparseSDDMM.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
@@ -947,6 +964,7 @@ needs_context = false
 11 = "CuPtr{Cvoid}"
 
 [api.cusparseBlockedEllGet.argtypes]
+4 = "Ref{Int64}"
 6 = "CuPtr{Ptr{Cvoid}}"
 7 = "CuPtr{Ptr{Cvoid}}"
 
@@ -966,11 +984,15 @@ needs_context = false
 11 = "CuPtr{Cvoid}"
 
 [api.cusparseSpGEMMreuse_nnz.argtypes]
+9 = "Ref{Csize_t}"
 10 = "CuPtr{Cvoid}"
+11 = "Ref{Csize_t}"
 12 = "CuPtr{Cvoid}"
+13 = "Ref{Csize_t}"
 14 = "CuPtr{Cvoid}"
 
 [api.cusparseSpGEMMreuse_copy.argtypes]
+9 = "Ref{Csize_t}"
 10 = "CuPtr{Cvoid}"
 
 [api.cusparseSpSM_analysis.argtypes]
@@ -986,6 +1008,7 @@ needs_context = false
 3 = "CuPtr{Cvoid}"
 
 [api.cusparseSpGEMMreuse_workEstimation.argtypes]
+9 = "Ref{Csize_t}"
 10 = "CuPtr{Cvoid}"
 
 [api.cusparseSpMMOp.argtypes]
@@ -1000,3 +1023,40 @@ needs_context = false
 7 = "CuPtr{Cvoid}"
 8 = "CuPtr{Cvoid}"
 9 = "CuPtr{Cvoid}"
+
+[api."cusparse𝕏gemvi_bufferSize".argtypes]
+6 = "Ref{Cint}"
+
+[api.cusparseSparseToDense_bufferSize.argtypes]
+5 = "Ref{Csize_t}"
+
+[api.cusparseDenseToSparse_bufferSize.argtypes]
+5 = "Ref{Csize_t}"
+
+[api.cusparseSpMV_bufferSize.argtypes]
+10 = "Ref{Csize_t}"
+
+[api.cusparseSpSV_bufferSize.argtypes]
+10 = "Ref{Csize_t}"
+
+[api.cusparseSpSM_bufferSize.argtypes]
+11 = "Ref{Csize_t}"
+
+[api.cusparseSpGEMM_estimateMemory.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+7 = "PtrOrCuPtr{Cvoid}"
+13 = "Ref{Csize_t}"
+14 = "CuPtr{Cvoid}"
+15 = "Ref{Csize_t}"
+
+[api.cusparseSpMMOp_createPlan.argtypes]
+16 = "Ref{Csize_t}"
+
+[api.cusparseConstSpVecGet.argtypes]
+2 = "Ref{Int64}"
+
+[api.cusparseConstDnVecGet.argtypes]
+2 = "Ref{Int64}"
+
+[api.cusparseConstBlockedEllGet.argtypes]
+4 = "Ref{Int64}"

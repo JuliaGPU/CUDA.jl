@@ -386,7 +386,7 @@ end
     @gcsafe_ccall libcusparse.cusparseSgemvi_bufferSize(handle::cusparseHandle_t,
                                                         transA::cusparseOperation_t,
                                                         m::Cint, n::Cint, nnz::Cint,
-                                                        pBufferSize::Ptr{Cint})::cusparseStatus_t
+                                                        pBufferSize::Ref{Cint})::cusparseStatus_t
 end
 
 @checked function cusparseDgemvi(handle, transA, m, n, alpha, A, lda, nnz, xVal, xInd, beta,
@@ -407,7 +407,7 @@ end
     @gcsafe_ccall libcusparse.cusparseDgemvi_bufferSize(handle::cusparseHandle_t,
                                                         transA::cusparseOperation_t,
                                                         m::Cint, n::Cint, nnz::Cint,
-                                                        pBufferSize::Ptr{Cint})::cusparseStatus_t
+                                                        pBufferSize::Ref{Cint})::cusparseStatus_t
 end
 
 @checked function cusparseCgemvi(handle, transA, m, n, alpha, A, lda, nnz, xVal, xInd, beta,
@@ -428,7 +428,7 @@ end
     @gcsafe_ccall libcusparse.cusparseCgemvi_bufferSize(handle::cusparseHandle_t,
                                                         transA::cusparseOperation_t,
                                                         m::Cint, n::Cint, nnz::Cint,
-                                                        pBufferSize::Ptr{Cint})::cusparseStatus_t
+                                                        pBufferSize::Ref{Cint})::cusparseStatus_t
 end
 
 @checked function cusparseZgemvi(handle, transA, m, n, alpha, A, lda, nnz, xVal, xInd, beta,
@@ -450,7 +450,7 @@ end
     @gcsafe_ccall libcusparse.cusparseZgemvi_bufferSize(handle::cusparseHandle_t,
                                                         transA::cusparseOperation_t,
                                                         m::Cint, n::Cint, nnz::Cint,
-                                                        pBufferSize::Ptr{Cint})::cusparseStatus_t
+                                                        pBufferSize::Ref{Cint})::cusparseStatus_t
 end
 
 @checked function cusparseSbsrmv(handle, dirA, transA, mb, nb, nnzb, alpha, descrA,
@@ -690,7 +690,7 @@ end
                                                             bsrSortedColIndA::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsv2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDbsrsv2_bufferSizeExt(handle, dirA, transA, mb, nnzb, descrA,
@@ -708,7 +708,7 @@ end
                                                             bsrSortedColIndA::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsv2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCbsrsv2_bufferSizeExt(handle, dirA, transA, mb, nnzb, descrA,
@@ -726,7 +726,7 @@ end
                                                             bsrSortedColIndA::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsv2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZbsrsv2_bufferSizeExt(handle, dirA, transA, mb, nnzb, descrA,
@@ -744,7 +744,7 @@ end
                                                             bsrSortedColIndA::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsv2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSbsrsv2_analysis(handle, dirA, transA, mb, nnzb, descrA,
@@ -1065,7 +1065,7 @@ end
                                                             bsrSortedColInd::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsm2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDbsrsm2_bufferSizeExt(handle, dirA, transA, transB, mb, n, nnzb,
@@ -1084,7 +1084,7 @@ end
                                                             bsrSortedColInd::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsm2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCbsrsm2_bufferSizeExt(handle, dirA, transA, transB, mb, n, nnzb,
@@ -1103,7 +1103,7 @@ end
                                                             bsrSortedColInd::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsm2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZbsrsm2_bufferSizeExt(handle, dirA, transA, transB, mb, n, nnzb,
@@ -1122,7 +1122,7 @@ end
                                                             bsrSortedColInd::CuPtr{Cint},
                                                             blockSize::Cint,
                                                             info::bsrsm2Info_t,
-                                                            pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSbsrsm2_analysis(handle, dirA, transA, transXY, mb, n, nnzb,
@@ -1398,7 +1398,7 @@ end
                                                               csrSortedRowPtr::CuPtr{Cint},
                                                               csrSortedColInd::CuPtr{Cint},
                                                               info::csrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDcsrilu02_bufferSizeExt(handle, m, nnz, descrA, csrSortedVal,
@@ -1412,7 +1412,7 @@ end
                                                               csrSortedRowPtr::CuPtr{Cint},
                                                               csrSortedColInd::CuPtr{Cint},
                                                               info::csrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCcsrilu02_bufferSizeExt(handle, m, nnz, descrA, csrSortedVal,
@@ -1426,7 +1426,7 @@ end
                                                               csrSortedRowPtr::CuPtr{Cint},
                                                               csrSortedColInd::CuPtr{Cint},
                                                               info::csrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZcsrilu02_bufferSizeExt(handle, m, nnz, descrA, csrSortedVal,
@@ -1440,7 +1440,7 @@ end
                                                               csrSortedRowPtr::CuPtr{Cint},
                                                               csrSortedColInd::CuPtr{Cint},
                                                               info::csrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseScsrilu02_analysis(handle, m, nnz, descrA, csrSortedValA,
@@ -1680,7 +1680,7 @@ end
                                                               bsrSortedColInd::CuPtr{Cint},
                                                               blockSize::Cint,
                                                               info::bsrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDbsrilu02_bufferSizeExt(handle, dirA, mb, nnzb, descrA,
@@ -1697,7 +1697,7 @@ end
                                                               bsrSortedColInd::CuPtr{Cint},
                                                               blockSize::Cint,
                                                               info::bsrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCbsrilu02_bufferSizeExt(handle, dirA, mb, nnzb, descrA,
@@ -1714,7 +1714,7 @@ end
                                                               bsrSortedColInd::CuPtr{Cint},
                                                               blockSize::Cint,
                                                               info::bsrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZbsrilu02_bufferSizeExt(handle, dirA, mb, nnzb, descrA,
@@ -1731,7 +1731,7 @@ end
                                                               bsrSortedColInd::CuPtr{Cint},
                                                               blockSize::Cint,
                                                               info::bsrilu02Info_t,
-                                                              pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                              pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSbsrilu02_analysis(handle, dirA, mb, nnzb, descrA, bsrSortedVal,
@@ -1936,7 +1936,7 @@ end
                                                              csrSortedRowPtr::CuPtr{Cint},
                                                              csrSortedColInd::CuPtr{Cint},
                                                              info::csric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDcsric02_bufferSizeExt(handle, m, nnz, descrA, csrSortedVal,
@@ -1950,7 +1950,7 @@ end
                                                              csrSortedRowPtr::CuPtr{Cint},
                                                              csrSortedColInd::CuPtr{Cint},
                                                              info::csric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCcsric02_bufferSizeExt(handle, m, nnz, descrA, csrSortedVal,
@@ -1964,7 +1964,7 @@ end
                                                              csrSortedRowPtr::CuPtr{Cint},
                                                              csrSortedColInd::CuPtr{Cint},
                                                              info::csric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZcsric02_bufferSizeExt(handle, m, nnz, descrA, csrSortedVal,
@@ -1978,7 +1978,7 @@ end
                                                              csrSortedRowPtr::CuPtr{Cint},
                                                              csrSortedColInd::CuPtr{Cint},
                                                              info::csric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseScsric02_analysis(handle, m, nnz, descrA, csrSortedValA,
@@ -2182,7 +2182,7 @@ end
                                                              bsrSortedColInd::CuPtr{Cint},
                                                              blockSize::Cint,
                                                              info::bsric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDbsric02_bufferSizeExt(handle, dirA, mb, nnzb, descrA,
@@ -2199,7 +2199,7 @@ end
                                                              bsrSortedColInd::CuPtr{Cint},
                                                              blockSize::Cint,
                                                              info::bsric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCbsric02_bufferSizeExt(handle, dirA, mb, nnzb, descrA,
@@ -2216,7 +2216,7 @@ end
                                                              bsrSortedColInd::CuPtr{Cint},
                                                              blockSize::Cint,
                                                              info::bsric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZbsric02_bufferSizeExt(handle, dirA, mb, nnzb, descrA,
@@ -2233,7 +2233,7 @@ end
                                                              bsrSortedColInd::CuPtr{Cint},
                                                              blockSize::Cint,
                                                              info::bsric02Info_t,
-                                                             pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                             pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSbsric02_analysis(handle, dirA, mb, nnzb, descrA, bsrSortedVal,
@@ -3569,7 +3569,7 @@ end
                                                                  bsrSortedColInd::CuPtr{Cint},
                                                                  rowBlockDim::Cint,
                                                                  colBlockDim::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDgebsr2gebsc_bufferSizeExt(handle, mb, nb, nnzb, bsrSortedVal,
@@ -3584,7 +3584,7 @@ end
                                                                  bsrSortedColInd::CuPtr{Cint},
                                                                  rowBlockDim::Cint,
                                                                  colBlockDim::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCgebsr2gebsc_bufferSizeExt(handle, mb, nb, nnzb, bsrSortedVal,
@@ -3599,7 +3599,7 @@ end
                                                                  bsrSortedColInd::CuPtr{Cint},
                                                                  rowBlockDim::Cint,
                                                                  colBlockDim::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZgebsr2gebsc_bufferSizeExt(handle, mb, nb, nnzb, bsrSortedVal,
@@ -3614,7 +3614,7 @@ end
                                                                  bsrSortedColInd::CuPtr{Cint},
                                                                  rowBlockDim::Cint,
                                                                  colBlockDim::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSgebsr2gebsc(handle, mb, nb, nnzb, bsrSortedVal, bsrSortedRowPtr,
@@ -3858,7 +3858,7 @@ end
                                                                csrSortedColIndA::CuPtr{Cint},
                                                                rowBlockDim::Cint,
                                                                colBlockDim::Cint,
-                                                               pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                               pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDcsr2gebsr_bufferSizeExt(handle, dirA, m, n, descrA,
@@ -3875,7 +3875,7 @@ end
                                                                csrSortedColIndA::CuPtr{Cint},
                                                                rowBlockDim::Cint,
                                                                colBlockDim::Cint,
-                                                               pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                               pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCcsr2gebsr_bufferSizeExt(handle, dirA, m, n, descrA,
@@ -3892,7 +3892,7 @@ end
                                                                csrSortedColIndA::CuPtr{Cint},
                                                                rowBlockDim::Cint,
                                                                colBlockDim::Cint,
-                                                               pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                               pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZcsr2gebsr_bufferSizeExt(handle, dirA, m, n, descrA,
@@ -3909,7 +3909,7 @@ end
                                                                csrSortedColIndA::CuPtr{Cint},
                                                                rowBlockDim::Cint,
                                                                colBlockDim::Cint,
-                                                               pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                               pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseXcsr2gebsrNnz(handle, dirA, m, n, descrA, csrSortedRowPtrA,
@@ -4107,7 +4107,7 @@ end
                                                                  colBlockDimA::Cint,
                                                                  rowBlockDimC::Cint,
                                                                  colBlockDimC::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDgebsr2gebsr_bufferSizeExt(handle, dirA, mb, nb, nnzb, descrA,
@@ -4128,7 +4128,7 @@ end
                                                                  colBlockDimA::Cint,
                                                                  rowBlockDimC::Cint,
                                                                  colBlockDimC::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseCgebsr2gebsr_bufferSizeExt(handle, dirA, mb, nb, nnzb, descrA,
@@ -4149,7 +4149,7 @@ end
                                                                  colBlockDimA::Cint,
                                                                  rowBlockDimC::Cint,
                                                                  colBlockDimC::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseZgebsr2gebsr_bufferSizeExt(handle, dirA, mb, nb, nnzb, descrA,
@@ -4170,7 +4170,7 @@ end
                                                                  colBlockDimA::Cint,
                                                                  rowBlockDimC::Cint,
                                                                  colBlockDimC::Cint,
-                                                                 pBufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                                 pBufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseXgebsr2gebsrNnz(handle, dirA, mb, nb, nnzb, descrA,
@@ -4996,7 +4996,7 @@ end
                                                             copyValues::cusparseAction_t,
                                                             idxBase::cusparseIndexBase_t,
                                                             alg::cusparseCsr2CscAlg_t,
-                                                            bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                            bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @cenum cusparseFormat_t::UInt32 begin
@@ -5076,7 +5076,7 @@ end
                                    valueType)
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseSpVecGet(spVecDescr::cusparseSpVecDescr_t,
-                                               size::Ptr{Int64}, nnz::Ptr{Int64},
+                                               size::Ref{Int64}, nnz::Ptr{Int64},
                                                indices::CuPtr{Ptr{Cvoid}},
                                                values::CuPtr{Ptr{Cvoid}},
                                                idxType::Ptr{cusparseIndexType_t},
@@ -5088,7 +5088,7 @@ end
                                         idxBase, valueType)
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseConstSpVecGet(spVecDescr::cusparseConstSpVecDescr_t,
-                                                    size::Ptr{Int64}, nnz::Ptr{Int64},
+                                                    size::Ref{Int64}, nnz::Ptr{Int64},
                                                     indices::Ptr{Ptr{Cvoid}},
                                                     values::Ptr{Ptr{Cvoid}},
                                                     idxType::Ptr{cusparseIndexType_t},
@@ -5142,14 +5142,14 @@ end
 @checked function cusparseDnVecGet(dnVecDescr, size, values, valueType)
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseDnVecGet(dnVecDescr::cusparseDnVecDescr_t,
-                                               size::Ptr{Int64}, values::CuPtr{Ptr{Cvoid}},
+                                               size::Ref{Int64}, values::CuPtr{Ptr{Cvoid}},
                                                valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
 
 @checked function cusparseConstDnVecGet(dnVecDescr, size, values, valueType)
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseConstDnVecGet(dnVecDescr::cusparseConstDnVecDescr_t,
-                                                    size::Ptr{Int64},
+                                                    size::Ref{Int64},
                                                     values::Ptr{Ptr{Cvoid}},
                                                     valueType::Ptr{cudaDataType})::cusparseStatus_t
 end
@@ -5539,7 +5539,7 @@ end
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseBlockedEllGet(spMatDescr::cusparseSpMatDescr_t,
                                                     rows::Ptr{Int64}, cols::Ptr{Int64},
-                                                    ellBlockSize::Ptr{Int64},
+                                                    ellBlockSize::Ref{Int64},
                                                     ellCols::Ptr{Int64},
                                                     ellColInd::CuPtr{Ptr{Cvoid}},
                                                     ellValue::CuPtr{Ptr{Cvoid}},
@@ -5554,7 +5554,7 @@ end
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseConstBlockedEllGet(spMatDescr::cusparseConstSpMatDescr_t,
                                                          rows::Ptr{Int64}, cols::Ptr{Int64},
-                                                         ellBlockSize::Ptr{Int64},
+                                                         ellBlockSize::Ref{Int64},
                                                          ellCols::Ptr{Int64},
                                                          ellColInd::Ptr{Ptr{Cvoid}},
                                                          ellValue::Ptr{Ptr{Cvoid}},
@@ -5715,7 +5715,7 @@ end
                                                       vecY::cusparseConstDnVecDescr_t,
                                                       result::PtrOrCuPtr{Cvoid},
                                                       computeType::cudaDataType,
-                                                      bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                      bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpVV(handle, opX, vecX, vecY, result, computeType, externalBuffer)
@@ -5739,7 +5739,7 @@ end
                                                                matA::cusparseConstSpMatDescr_t,
                                                                matB::cusparseDnMatDescr_t,
                                                                alg::cusparseSparseToDenseAlg_t,
-                                                               bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                               bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSparseToDense(handle, matA, matB, alg, externalBuffer)
@@ -5761,7 +5761,7 @@ end
                                                                matA::cusparseConstDnMatDescr_t,
                                                                matB::cusparseSpMatDescr_t,
                                                                alg::cusparseDenseToSparseAlg_t,
-                                                               bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                               bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseDenseToSparse_analysis(handle, matA, matB, alg, externalBuffer)
@@ -5818,7 +5818,7 @@ end
                                                       vecY::cusparseDnVecDescr_t,
                                                       computeType::cudaDataType,
                                                       alg::cusparseSpMVAlg_t,
-                                                      bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                      bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpMV_preprocess(handle, opA, alpha, matA, vecX, beta, vecY,
@@ -5871,7 +5871,7 @@ end
                                                       computeType::cudaDataType,
                                                       alg::cusparseSpSVAlg_t,
                                                       spsvDescr::cusparseSpSVDescr_t,
-                                                      bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                      bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpSV_analysis(handle, opA, alpha, matA, vecX, vecY, computeType,
@@ -5947,7 +5947,7 @@ end
                                                       computeType::cudaDataType,
                                                       alg::cusparseSpSMAlg_t,
                                                       spsmDescr::cusparseSpSMDescr_t,
-                                                      bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                      bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpSM_analysis(handle, opA, opB, alpha, matA, matB, matC,
@@ -6015,7 +6015,7 @@ end
                                                       matC::cusparseDnMatDescr_t,
                                                       computeType::cudaDataType,
                                                       alg::cusparseSpMMAlg_t,
-                                                      bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                      bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpMM_preprocess(handle, opA, opB, alpha, matA, matB, beta, matC,
@@ -6088,7 +6088,7 @@ end
                                                             computeType::cudaDataType,
                                                             alg::cusparseSpGEMMAlg_t,
                                                             spgemmDescr::cusparseSpGEMMDescr_t,
-                                                            bufferSize1::Ptr{Csize_t},
+                                                            bufferSize1::Ref{Csize_t},
                                                             externalBuffer1::CuPtr{Cvoid})::cusparseStatus_t
 end
 
@@ -6106,18 +6106,18 @@ end
     @gcsafe_ccall libcusparse.cusparseSpGEMM_estimateMemory(handle::cusparseHandle_t,
                                                             opA::cusparseOperation_t,
                                                             opB::cusparseOperation_t,
-                                                            alpha::Ptr{Cvoid},
+                                                            alpha::PtrOrCuPtr{Cvoid},
                                                             matA::cusparseConstSpMatDescr_t,
                                                             matB::cusparseConstSpMatDescr_t,
-                                                            beta::Ptr{Cvoid},
+                                                            beta::PtrOrCuPtr{Cvoid},
                                                             matC::cusparseSpMatDescr_t,
                                                             computeType::cudaDataType,
                                                             alg::cusparseSpGEMMAlg_t,
                                                             spgemmDescr::cusparseSpGEMMDescr_t,
                                                             chunk_fraction::Cfloat,
-                                                            bufferSize3::Ptr{Csize_t},
-                                                            externalBuffer3::Ptr{Cvoid},
-                                                            bufferSize2::Ptr{Csize_t})::cusparseStatus_t
+                                                            bufferSize3::Ref{Csize_t},
+                                                            externalBuffer3::CuPtr{Cvoid},
+                                                            bufferSize2::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpGEMM_compute(handle, opA, opB, alpha, matA, matB, beta, matC,
@@ -6135,7 +6135,7 @@ end
                                                      computeType::cudaDataType,
                                                      alg::cusparseSpGEMMAlg_t,
                                                      spgemmDescr::cusparseSpGEMMDescr_t,
-                                                     bufferSize2::Ptr{Csize_t},
+                                                     bufferSize2::Ref{Csize_t},
                                                      externalBuffer2::CuPtr{Cvoid})::cusparseStatus_t
 end
 
@@ -6167,7 +6167,7 @@ end
                                                                  matC::cusparseSpMatDescr_t,
                                                                  alg::cusparseSpGEMMAlg_t,
                                                                  spgemmDescr::cusparseSpGEMMDescr_t,
-                                                                 bufferSize1::Ptr{Csize_t},
+                                                                 bufferSize1::Ref{Csize_t},
                                                                  externalBuffer1::CuPtr{Cvoid})::cusparseStatus_t
 end
 
@@ -6184,11 +6184,11 @@ end
                                                       matC::cusparseSpMatDescr_t,
                                                       alg::cusparseSpGEMMAlg_t,
                                                       spgemmDescr::cusparseSpGEMMDescr_t,
-                                                      bufferSize2::Ptr{Csize_t},
+                                                      bufferSize2::Ref{Csize_t},
                                                       externalBuffer2::CuPtr{Cvoid},
-                                                      bufferSize3::Ptr{Csize_t},
+                                                      bufferSize3::Ref{Csize_t},
                                                       externalBuffer3::CuPtr{Cvoid},
-                                                      bufferSize4::Ptr{Csize_t},
+                                                      bufferSize4::Ref{Csize_t},
                                                       externalBuffer4::CuPtr{Cvoid})::cusparseStatus_t
 end
 
@@ -6203,7 +6203,7 @@ end
                                                        matC::cusparseSpMatDescr_t,
                                                        alg::cusparseSpGEMMAlg_t,
                                                        spgemmDescr::cusparseSpGEMMDescr_t,
-                                                       bufferSize5::Ptr{Csize_t},
+                                                       bufferSize5::Ref{Csize_t},
                                                        externalBuffer5::CuPtr{Cvoid})::cusparseStatus_t
 end
 
@@ -6240,7 +6240,7 @@ end
                                                        matC::cusparseSpMatDescr_t,
                                                        computeType::cudaDataType,
                                                        alg::cusparseSDDMMAlg_t,
-                                                       bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                       bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSDDMM_preprocess(handle, opA, opB, alpha, matA, matB, beta, matC,
@@ -6304,7 +6304,7 @@ end
                                                         mulOperationBufferSize::Csize_t,
                                                         epilogueNvvmBuffer::Ptr{Cvoid},
                                                         epilogueBufferSize::Csize_t,
-                                                        SpMMWorkspaceSize::Ptr{Csize_t})::cusparseStatus_t
+                                                        SpMMWorkspaceSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpMMOp(plan, externalBuffer)
