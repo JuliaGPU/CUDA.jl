@@ -1,4 +1,13 @@
 steps:
+  - label: "Debug CI"
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+      # debug: "*"
+    command: "nvidia-smi"
+
+  - wait: ~
+
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
     key: "julia"
