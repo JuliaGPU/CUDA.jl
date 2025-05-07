@@ -49,16 +49,14 @@ end
 #    these are stored contiguously and require a selector array (handled by us)
 # As well as "mutable singleton" types like `Symbol` that use pointer-identity
 
-function valid_leaftype(@nospecialize(T))
-  Base.allocatedinline(T) || (Base.ismutabletype(T) && Base.datatype_fieldcount(T) == 0)
-end
-
 function valid_type(@nospecialize(T))
-  if valid_leaftype(T)
+  if Base.allocatedinline(T)
     if hasfieldcount(T)
       return all(valid_type, fieldtypes(T))
     end
     return true
+  elseif Base.ismutabletype(T)
+    return Base.datatype_fieldcount(T) == 0
   end
   return false
 end
