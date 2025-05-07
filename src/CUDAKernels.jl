@@ -59,11 +59,11 @@ function KA.ndevices(::CUDABackend)
 end
 
 function KA.device(::CUDABackend)
-    deviceid(CUDA.active_state().device)+1
+    deviceid(CUDA.active_state().device) + 1
 end
 
 function KA.device!(::CUDABackend, id::Int32)
-    device!(id-1)
+    device!(id - 1)
 end
 
 ## kernel launch
