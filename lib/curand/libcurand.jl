@@ -16,12 +16,10 @@ const cudaStream_t = CUstream
 end
 
 @inline function check(f)
-    function retry_if(res)
-        return res in (CURAND_STATUS_ALLOCATION_FAILED,
-                       CURAND_STATUS_PREEXISTING_FAILURE,
-                       CURAND_STATUS_INITIALIZATION_FAILED,
-                       CURAND_STATUS_INTERNAL_ERROR)
-    end
+    retry_if(res) = res in (CURAND_STATUS_ALLOCATION_FAILED,
+                            CURAND_STATUS_PREEXISTING_FAILURE,
+                            CURAND_STATUS_INITIALIZATION_FAILED,
+                            CURAND_STATUS_INTERNAL_ERROR)
     res = retry_reclaim(f, retry_if)
 
     if res != CURAND_STATUS_SUCCESS

@@ -16,11 +16,9 @@ const cudaStream_t = CUstream
 end
 
 @inline function check(f)
-    function retry_if(res)
-        return res in (CUDNN_STATUS_NOT_INITIALIZED,
-                       CUDNN_STATUS_ALLOC_FAILED,
-                       CUDNN_STATUS_INTERNAL_ERROR)
-    end
+    retry_if(res) = res in (CUDNN_STATUS_NOT_INITIALIZED,
+                            CUDNN_STATUS_ALLOC_FAILED,
+                            CUDNN_STATUS_INTERNAL_ERROR)
     res = retry_reclaim(f, retry_if)
 
     if res != CUDNN_STATUS_SUCCESS
@@ -48,6 +46,8 @@ end
     CUDNN_STATUS_BAD_PARAM_SHAPE_MISMATCH = 2008
     CUDNN_STATUS_BAD_PARAM_DUPLICATED_ENTRIES = 2009
     CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE = 2010
+    CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH = 2011
+    CUDNN_STATUS_BAD_PARAM_DESCRIPTOR_TYPE = 2012
     CUDNN_STATUS_NOT_SUPPORTED = 3000
     CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN = 3001
     CUDNN_STATUS_NOT_SUPPORTED_SHAPE = 3002
@@ -61,6 +61,7 @@ end
     CUDNN_STATUS_NOT_SUPPORTED_SHARED_MEMORY_INSUFFICIENT = 3010
     CUDNN_STATUS_NOT_SUPPORTED_PADDING = 3011
     CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM = 3012
+    CUDNN_STATUS_NOT_SUPPORTED_CUDA_GRAPH_NATIVE_API = 3013
     CUDNN_STATUS_INTERNAL_ERROR = 4000
     CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED = 4001
     CUDNN_STATUS_INTERNAL_ERROR_UNEXPECTED_VALUE = 4002
@@ -166,6 +167,8 @@ end
     CUDNN_DATA_FP8_E4M3 = 12
     CUDNN_DATA_FP8_E5M2 = 13
     CUDNN_DATA_FAST_FLOAT_FOR_FP8 = 14
+    CUDNN_DATA_FP8_E8M0 = 15
+    CUDNN_DATA_FP4_E2M1 = 16
 end
 
 @cenum cudnnMathType_t::UInt32 begin
@@ -449,6 +452,7 @@ end
     CUDNN_ATTR_OPERATIONGRAPH_OPS = 801
     CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT = 802
     CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED = 803
+    CUDNN_ATTR_OPERATIONGRAPH_IS_SAME_TOPOLOGY = 804
     CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT = 900
     CUDNN_ATTR_TENSOR_DATA_TYPE = 901
     CUDNN_ATTR_TENSOR_DIMENSIONS = 902
@@ -577,7 +581,19 @@ end
     CUDNN_ATTR_OPERATION_RNG_SEED = 2311
     CUDNN_ATTR_OPERATION_RNG_DESC = 2312
     CUDNN_ATTR_OPERATION_RNG_OFFSET_DESC = 2313
-    CUDNN_ATTR_KERNEL_CACHE_IS_ENGINECFG_KERNEL_CACHED = 2400
+    CUDNN_ATTR_KERNEL_CACHE_OPERATION_GRAPH = 2400
+    CUDNN_ATTR_KERNEL_CACHE_IS_ENGINECFG_KERNEL_CACHED = 2401
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_XDESC = 2500
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_YDESC = 2501
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_SCALE_DESC = 2502
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_MATH_PREC = 2503
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_BLOCK_SIZE = 2504
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_QUANTIZE_DENOM_FACTOR_MODE = 2505
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_XDESC = 2600
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_SCALE_DESC = 2601
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_YDESC = 2602
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_MATH_PREC = 2603
+    CUDNN_ATTR_OPERATION_BLOCK_SCALE_DEQUANTIZE_BLOCK_SIZE = 2604
 end
 
 @cenum cudnnBackendAttributeType_t::UInt32 begin
@@ -650,6 +666,8 @@ end
     CUDNN_BACKEND_OPERATION_RNG_DESCRIPTOR = 33
     CUDNN_BACKEND_KERNEL_CACHE_DESCRIPTOR = 34
     CUDNN_BACKEND_OPERATION_PAGED_CACHE_LOAD_DESCRIPTOR = 35
+    CUDNN_BACKEND_OPERATION_BLOCK_SCALE_QUANTIZE_DESCRIPTOR = 36
+    CUDNN_BACKEND_OPERATION_BLOCK_SCALE_DEQUANTIZE_DESCRIPTOR = 37
 end
 
 @cenum cudnnBackendNumericalNote_t::UInt32 begin
@@ -670,7 +688,8 @@ end
     CUDNN_BEHAVIOR_NOTE_RUNTIME_COMPILATION = 0
     CUDNN_BEHAVIOR_NOTE_REQUIRES_FILTER_INT8x32_REORDER = 1
     CUDNN_BEHAVIOR_NOTE_REQUIRES_BIAS_INT8x32_REORDER = 2
-    CUDNN_BEHAVIOR_NOTE_TYPE_COUNT = 3
+    CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API = 3
+    CUDNN_BEHAVIOR_NOTE_TYPE_COUNT = 4
 end
 
 @cenum cudnnBackendKnobType_t::UInt32 begin
@@ -711,7 +730,13 @@ end
     CUDNN_KNOB_TYPE_TILE_ROWS = 34
     CUDNN_KNOB_TYPE_TILE_COLS = 35
     CUDNN_KNOB_TYPE_LOAD_SIZE = 36
-    CUDNN_KNOB_TYPE_COUNTS = 37
+    CUDNN_KNOB_TYPE_CTA_COUNT = 37
+    CUDNN_KNOB_TYPE_STREAM_K = 38
+    CUDNN_KNOB_TYPE_SPLIT_P_SLC = 39
+    CUDNN_KNOB_TYPE_TILE_M = 40
+    CUDNN_KNOB_TYPE_TILE_N = 41
+    CUDNN_KNOB_TYPE_WARP_SPEC_CFG = 42
+    CUDNN_KNOB_TYPE_COUNTS = 43
 end
 
 @cenum cudnnBackendLayoutType_t::UInt32 begin
@@ -734,6 +759,7 @@ end
     CUDNN_TENSOR_REORDERING_NONE = 0
     CUDNN_TENSOR_REORDERING_INT8x32 = 1
     CUDNN_TENSOR_REORDERING_F16x16 = 2
+    CUDNN_TENSOR_REORDERING_F8_128x4 = 3
 end
 
 @cenum cudnnPaddingMode_t::UInt32 begin
@@ -748,6 +774,7 @@ end
     CUDNN_BATCH_NORM = 2
     CUDNN_GROUP_NORM = 3
     CUDNN_RMS_NORM = 4
+    CUDNN_ADA_LAYER_NORM = 5
 end
 
 @cenum cudnnBackendNormFwdPhase_t::UInt32 begin
@@ -803,6 +830,22 @@ end
     @gcsafe_ccall libcudnn.cudnnBackendExecute(handle::cudnnHandle_t,
                                                executionPlan::cudnnBackendDescriptor_t,
                                                variantPack::cudnnBackendDescriptor_t)::cudnnStatus_t
+end
+
+@checked function cudnnBackendPopulateCudaGraph(handle, executionPlan, variantPack, graph)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendPopulateCudaGraph(handle::cudnnHandle_t,
+                                                         executionPlan::cudnnBackendDescriptor_t,
+                                                         variantPack::cudnnBackendDescriptor_t,
+                                                         graph::cudaGraph_t)::cudnnStatus_t
+end
+
+@checked function cudnnBackendUpdateCudaGraph(handle, executionPlan, variantPack, graph)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnBackendUpdateCudaGraph(handle::cudnnHandle_t,
+                                                       executionPlan::cudnnBackendDescriptor_t,
+                                                       variantPack::cudnnBackendDescriptor_t,
+                                                       graph::cudaGraph_t)::cudnnStatus_t
 end
 
 mutable struct cudnnTensorStruct end
@@ -3542,7 +3585,7 @@ end
                                                 varPack::cudnnFusedOpsVariantParamPack_t)::cudnnStatus_t
 end
 
-const CUDNN_MAX_SM_MAJOR_NUMBER = 9
+const CUDNN_MAX_SM_MAJOR_NUMBER = 12
 
 const CUDNN_MAX_SM_MINOR_NUMBER = 0
 

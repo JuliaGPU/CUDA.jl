@@ -19,11 +19,9 @@ const int2 = Tuple{Int32,Int32}
 end
 
 @inline function check(f)
-    function retry_if(res)
-        return res in (CUSTATEVEC_STATUS_NOT_INITIALIZED,
-                       CUSTATEVEC_STATUS_ALLOC_FAILED,
-                       CUSTATEVEC_STATUS_INTERNAL_ERROR)
-    end
+    retry_if(res) = res in (CUSTATEVEC_STATUS_NOT_INITIALIZED,
+                            CUSTATEVEC_STATUS_ALLOC_FAILED,
+                            CUSTATEVEC_STATUS_INTERNAL_ERROR)
     res = retry_reclaim(f, retry_if)
 
     if res != CUSTATEVEC_STATUS_SUCCESS
@@ -166,7 +164,7 @@ end
                                                       value::Ptr{Int32})::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:521:8, please use with caution
+# no prototype is found for this function at custatevec.h:522:8, please use with caution
 function custatevecGetVersion()
     @gcsafe_ccall libcustatevec.custatevecGetVersion()::Csize_t
 end
@@ -210,7 +208,7 @@ end
     @gcsafe_ccall libcustatevec.custatevecLoggerSetMask(mask::Int32)::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:621:1, please use with caution
+# no prototype is found for this function at custatevec.h:622:1, please use with caution
 @checked function custatevecLoggerForceDisable()
     @gcsafe_ccall libcustatevec.custatevecLoggerForceDisable()::custatevecStatus_t
 end
@@ -600,7 +598,7 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecAccessorGet(handle::custatevecHandle_t,
                                                       accessor::custatevecAccessorDescriptor_t,
-                                                      externalBuffer::PtrOrCuPtr{Cvoid},
+                                                      externalBuffer::Ptr{Cvoid},
                                                       _begin::custatevecIndex_t,
                                                       _end::custatevecIndex_t)::custatevecStatus_t
 end
@@ -609,7 +607,7 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecAccessorSet(handle::custatevecHandle_t,
                                                       accessor::custatevecAccessorDescriptor_t,
-                                                      externalBuffer::PtrOrCuPtr{Cvoid},
+                                                      externalBuffer::Ptr{Cvoid},
                                                       _begin::custatevecIndex_t,
                                                       _end::custatevecIndex_t)::custatevecStatus_t
 end
@@ -665,7 +663,7 @@ end
                                                   svType)
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecInitializeStateVector(handle::custatevecHandle_t,
-                                                                sv::PtrOrCuPtr{Cvoid},
+                                                                sv::Ptr{Cvoid},
                                                                 svDataType::cudaDataType_t,
                                                                 nIndexBits::UInt32,
                                                                 svType::custatevecStateVectorType_t)::custatevecStatus_t
@@ -806,6 +804,25 @@ end
                                                              minTransferWorkspaceSizeInBytes::Ptr{Csize_t})::custatevecStatus_t
 end
 
+@checked function custatevecSVSwapWorkerCreateWithSemaphore(handle, svSwapWorker,
+                                                            communicator, orgSubSV,
+                                                            orgSubSVIndex, orgSemaphore,
+                                                            svDataType, stream,
+                                                            extraWorkspaceSizeInBytes,
+                                                            minTransferWorkspaceSizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcustatevec.custatevecSVSwapWorkerCreateWithSemaphore(handle::custatevecHandle_t,
+                                                                          svSwapWorker::Ptr{custatevecSVSwapWorkerDescriptor_t},
+                                                                          communicator::custatevecCommunicatorDescriptor_t,
+                                                                          orgSubSV::Ptr{Cvoid},
+                                                                          orgSubSVIndex::Int32,
+                                                                          orgSemaphore::Ptr{Cvoid},
+                                                                          svDataType::cudaDataType_t,
+                                                                          stream::cudaStream_t,
+                                                                          extraWorkspaceSizeInBytes::Ptr{Csize_t},
+                                                                          minTransferWorkspaceSizeInBytes::Ptr{Csize_t})::custatevecStatus_t
+end
+
 @checked function custatevecSVSwapWorkerDestroy(handle, svSwapWorker)
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecSVSwapWorkerDestroy(handle::custatevecHandle_t,
@@ -842,6 +859,20 @@ end
                                                                    dstSubSVIndicesP2P::Ptr{Int32},
                                                                    dstEvents::Ptr{cudaEvent_t},
                                                                    nDstSubSVsP2P::UInt32)::custatevecStatus_t
+end
+
+@checked function custatevecSVSwapWorkerSetSubSVsP2PWithSemaphores(handle, svSwapWorker,
+                                                                   dstSubSVsP2P,
+                                                                   dstSubSVIndicesP2P,
+                                                                   dstSemaphores,
+                                                                   nDstSubSVsP2P)
+    initialize_context()
+    @gcsafe_ccall libcustatevec.custatevecSVSwapWorkerSetSubSVsP2PWithSemaphores(handle::custatevecHandle_t,
+                                                                                 svSwapWorker::custatevecSVSwapWorkerDescriptor_t,
+                                                                                 dstSubSVsP2P::Ptr{Ptr{Cvoid}},
+                                                                                 dstSubSVIndicesP2P::Ptr{Int32},
+                                                                                 dstSemaphores::Ptr{Ptr{Cvoid}},
+                                                                                 nDstSubSVsP2P::UInt32)::custatevecStatus_t
 end
 
 @checked function custatevecSVSwapWorkerSetParameters(handle, svSwapWorker, parameters,

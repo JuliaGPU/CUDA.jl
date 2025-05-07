@@ -430,7 +430,7 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:697:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:697:5)"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
@@ -445,7 +445,7 @@ end
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
     f === :sensor && return Ptr{NTuple{3,
-                                       var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:697:5)"}}(x +
+                                       var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:697:5)"}}(x +
                                                                                                                                                                 4)
     return getfield(x, f)
 end
@@ -829,7 +829,18 @@ struct nvmlPlatformInfo_v1_t
     moduleId::Cuchar
 end
 
-const nvmlPlatformInfo_t = nvmlPlatformInfo_v1_t
+struct nvmlPlatformInfo_v2_t
+    version::Cuint
+    ibGuid::NTuple{16,Cuchar}
+    chassisSerialNumber::NTuple{16,Cuchar}
+    slotNumber::Cuchar
+    trayIndex::Cuchar
+    hostId::Cuchar
+    peerType::Cuchar
+    moduleId::Cuchar
+end
+
+const nvmlPlatformInfo_t = nvmlPlatformInfo_v2_t
 
 const nvmlDeviceArchitecture_t = Cuint
 
@@ -846,7 +857,7 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1402:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1418:5)"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
@@ -860,7 +871,7 @@ end
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
     f === :utilization && return Ptr{NTuple{8,
-                                            var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1402:5)"}}(x +
+                                            var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1418:5)"}}(x +
                                                                                                                                                                       4)
     return getfield(x, f)
 end
@@ -1083,10 +1094,10 @@ end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
     f === :vgpuSchedDataWithARR &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1792:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1808:5)"}(x +
                                                                                                                                             0)
     f === :vgpuSchedData &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1798:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1814:5)"}(x +
                                                                                                                                             0)
     return getfield(x, f)
 end
@@ -1138,10 +1149,10 @@ end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
     f === :vgpuSchedDataWithARR &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1846:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1862:5)"}(x +
                                                                                                                                             0)
     f === :vgpuSchedData &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1852:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1868:5)"}(x +
                                                                                                                                             0)
     return getfield(x, f)
 end
@@ -4016,7 +4027,7 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:11771:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:11795:5)"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
@@ -4031,7 +4042,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
     f === :metricInfo &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:11771:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:11795:5)"}(x +
                                                                                                                                              16)
     return getfield(x, f)
 end
@@ -4381,21 +4392,21 @@ end
                                                        pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1792:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1808:5)"
     avgFactor::Cuint
     timeslice::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1798:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1814:5)"
     timeslice::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1846:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1862:5)"
     avgFactor::Cuint
     frequency::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/7bb30495a30b7f05ebd34ec477e37dcd24990bef/cuda/include/nvml.h:1852:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1868:5)"
     timeslice::Cuint
 end
 
@@ -4462,6 +4473,8 @@ const nvmlProcessesUtilizationInfo_v1 = @NVML_STRUCT_VERSION(ProcessesUtilizatio
 const nvmlEccSramErrorStatus_v1 = @NVML_STRUCT_VERSION(EccSramErrorStatus, 1)
 
 const nvmlPlatformInfo_v1 = @NVML_STRUCT_VERSION(PlatformInfo, 1)
+
+const nvmlPlatformInfo_v2 = @NVML_STRUCT_VERSION(PlatformInfo, 2)
 
 const NVML_GSP_FIRMWARE_VERSION_BUF_SIZE = 0x40
 

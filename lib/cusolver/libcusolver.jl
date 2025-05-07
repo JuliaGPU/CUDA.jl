@@ -16,11 +16,9 @@ const cudaStream_t = CUstream
 end
 
 @inline function check(f)
-    function retry_if(res)
-        return res in (CUSOLVER_STATUS_NOT_INITIALIZED,
-                       CUSOLVER_STATUS_ALLOC_FAILED,
-                       CUSOLVER_STATUS_INTERNAL_ERROR)
-    end
+    retry_if(res) = res in (CUSOLVER_STATUS_NOT_INITIALIZED,
+                            CUSOLVER_STATUS_ALLOC_FAILED,
+                            CUSOLVER_STATUS_INTERNAL_ERROR)
     res = retry_reclaim(f, retry_if)
 
     if res != CUSOLVER_STATUS_SUCCESS
