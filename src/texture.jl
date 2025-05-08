@@ -59,8 +59,9 @@ Base.size(tm::CuTextureArray) = tm.dims
 Base.length(tm::CuTextureArray) = prod(size(tm))
 
 Base.eltype(tm::CuTextureArray{T,N}) where {T,N} = T
+Base.elsize(tm::CuTextureArray) = aligned_sizeof(eltype(tm))
 
-Base.sizeof(tm::CuTextureArray) = sizeof(eltype(tm)) * length(tm)
+Base.sizeof(tm::CuTextureArray) = Base.elsize(tm) * length(tm)
 
 Base.pointer(t::CuTextureArray) = t.mem.ptr
 

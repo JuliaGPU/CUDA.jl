@@ -46,25 +46,12 @@ function math_mode!(handle, mode)
 
     flags |= if mode == CUDA.PEDANTIC_MATH
         # prevent use of tensor cores
-        if version() < v"11"
-            CUBLAS_DEFAULT_MATH
-        else
-            CUBLAS_PEDANTIC_MATH
-        end
+        CUBLAS_PEDANTIC_MATH
     elseif mode == CUDA.DEFAULT_MATH
-        # use tensor cores, but don't reduce precision
-        if version() < v"11"
-            CUBLAS_TENSOR_OP_MATH
-        else
-            CUBLAS_DEFAULT_MATH
-        end
+        CUBLAS_DEFAULT_MATH
     elseif mode == CUDA.FAST_MATH
         # we'll additionally select a compute-mode with reduced precision whenever possible
-        if version() < v"11"
-            CUBLAS_TENSOR_OP_MATH
-        else
-            CUBLAS_TF32_TENSOR_OP_MATH
-        end
+        CUBLAS_TF32_TENSOR_OP_MATH
     end
 
     cublasSetMathMode(handle, cublasMath_t(flags))

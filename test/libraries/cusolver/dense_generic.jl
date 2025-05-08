@@ -206,6 +206,7 @@ p = 5
     end
 
     @testset "gesvdp!" begin
+        # nrows > ncols
         A = rand(elty,m,n)
         d_A = CuMatrix(A)
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 0, d_A)
@@ -215,6 +216,15 @@ p = 5
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 1, d_A)
         @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
 
+        d_A = CuMatrix(A)
+        Σ2, err_sigma = CUSOLVER.Xgesvdp!('N', 0, d_A)
+        @test collect(Σ) ≈ collect(Σ2)
+
+        d_A = CuMatrix(A)
+        Σ3, err_sigma = CUSOLVER.Xgesvdp!('N', 1, d_A)
+        @test collect(Σ) ≈ collect(Σ3)
+
+        # nrows < ncols
         A = rand(elty,n,m)
         d_A = CuMatrix(A)
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 0, d_A)
@@ -223,6 +233,14 @@ p = 5
         d_A = CuMatrix(A)
         U, Σ, V, err_sigma = CUSOLVER.Xgesvdp!('V', 1, d_A)
         @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
+
+        d_A = CuMatrix(A)
+        Σ2, err_sigma = CUSOLVER.Xgesvdp!('N', 0, d_A)
+        @test collect(Σ) ≈ collect(Σ2)
+
+        d_A = CuMatrix(A)
+        Σ3, err_sigma = CUSOLVER.Xgesvdp!('N', 1, d_A)
+        @test collect(Σ) ≈ collect(Σ3)
     end
 
     @testset "gesvdr!" begin

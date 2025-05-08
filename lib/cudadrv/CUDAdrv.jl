@@ -6,7 +6,6 @@ using Printf
 
 using LazyArtifacts
 
-
 # low-level wrappers
 include("libcuda.jl")
 include("libcuda_deprecated.jl")
