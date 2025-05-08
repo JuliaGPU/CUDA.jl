@@ -549,51 +549,85 @@ end
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
               B::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
 
-    m,k = size(A)
-    l,n = size(B)
+    m, k = size(A)
+    l, n = size(B)
 
-    (k != l) && throw(DimensionMismatch("A must have the same the number of columns that B has as rows, but A has $k columns and B has $l columns"))
+    (k != l) && throw(DimensionMismatch("A must have the same number of columns that B has as rows, but A has $k columns and B has $l rows."))
     !(transa == 'N' && transb == 'N') && throw(ArgumentError("Sparse matrix-matrix multiplication only supports transa ($transa) = 'N' and transb ($transb) = 'N'"))
+
+    alpha_ref = Ref{T}(convert(T, alpha))
+    beta_ref  = Ref{T}(zero(T))
 
     descA = CuSparseMatrixDescriptor(A, index)
     descB = CuSparseMatrixDescriptor(B, index)
 
-    rowPtr = CuVector{Cint}(undef, m+1)
+    rowPtr = CuVector{Cint}(undef, m + 1)
     descC = CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtr, T, Cint, m, n, index)
 
     spgemm_desc = CuSpGEMMDescriptor()
 
     buffer1 = CuVector{UInt8}(undef, 0)
     buffer2 = CuVector{UInt8}(undef, 0)
-    GC.@preserve buffer1 buffer1 begin
+    GC.@preserve buffer1 buffer2 rowPtr begin
         # compute an upper bound of the memory required for the intermediate products.
         function buffer1Size()
             out = Ref{Csize_t}(0)
             cusparseSpGEMM_workEstimation(
-                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
+                handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
                 descC, T, algo, spgemm_desc, out, CU_NULL)
             return out[]
         end
         with_workspace(buffer1, buffer1Size) do buffer
             out = Ref{Csize_t}(sizeof(buffer))
             cusparseSpGEMM_workEstimation(
-                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
+                handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
                 descC, T, algo, spgemm_desc, out, buffer)
         end
 
         # compute the structure of the output matrix and its values in a temporary buffer
-        function buffer2Size()
-            out = Ref{Csize_t}(0)
-            cusparseSpGEMM_compute(
-                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
-                descC, T, algo, spgemm_desc, out, CU_NULL)
-            return out[]
-        end
-        with_workspace(buffer2, buffer2Size) do buffer
-            out = Ref{Csize_t}(sizeof(buffer))
-            cusparseSpGEMM_compute(
-                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
-                descC, T, algo, spgemm_desc, out, buffer)
+        if algo == CUSPARSE_SPGEMM_DEFAULT || algo == CUSPARSE_SPGEMM_ALG1
+            function buffer2Size()
+                out = Ref{Csize_t}(0)
+                cusparseSpGEMM_compute(
+                    handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
+                    descC, T, algo, spgemm_desc, out, CU_NULL)
+                return out[]
+            end
+            with_workspace(buffer2, buffer2Size) do buffer
+                out = Ref{Csize_t}(sizeof(buffer))
+                cusparseSpGEMM_compute(
+                    handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
+                    descC, T, algo, spgemm_desc, out, buffer)
+            end
+        elseif algo == CUSPARSE_SPGEMM_ALG2 || algo == CUSPARSE_SPGEMM_ALG3
+            chunk_fraction = Cfloat(0.2) # as per NVIDIA example (make it configurable?)
+            function buffer3Size()
+                out = Ref{Csize_t}(0)
+                cusparseSpGEMM_estimateMemory(
+                    handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
+                    descC, T, algo, spgemm_desc, chunk_fraction, out, CU_NULL, 0)
+                return out[]
+            end
+            with_workspace(buffer3Size) do buffer3
+                function buffer2Size()
+                    out = Ref{Csize_t}(0)
+                    cusparseSpGEMM_estimateMemory(
+                        handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
+                        descC, T, algo, spgemm_desc, chunk_fraction, sizeof(buffer3),
+                        buffer3, out)
+                    return out[]
+                end
+                with_workspace(buffer2, buffer2Size) do buffer
+                    unsafe_free!(buffer3)
+
+                    out = Ref{Csize_t}(sizeof(buffer))
+                    cusparseSpGEMM_compute(
+                        handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
+                        descC, T, algo, spgemm_desc, out, buffer)
+                end
+            end
+        else
+            throw(ArgumentError("Unsupported SpGEMM algorithm: $algo"))
         end
         CUDA.unsafe_free!(buffer1)
 

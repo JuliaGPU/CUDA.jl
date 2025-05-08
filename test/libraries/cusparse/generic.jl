@@ -324,12 +324,12 @@ end
 SPGEMM_ALGOS = Dict(CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT],
                     CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPGEMM_DEFAULT])
 if CUSPARSE.version() >= v"12.0"
-    push!(SPGEMM_ALGOS[CuSparseMatrixCSR], CUSPARSE.CUSPARSE_SPGEMM_ALG1)
-                                           CUSPARSE.CUSPARSE_SPGEMM_ALG2
-                                           CUSPARSE.CUSPARSE_SPGEMM_ALG3
-    push!(SPGEMM_ALGOS[CuSparseMatrixCSC], CUSPARSE.CUSPARSE_SPGEMM_ALG1)
-                                           CUSPARSE.CUSPARSE_SPGEMM_ALG2
-                                           CUSPARSE.CUSPARSE_SPGEMM_ALG3
+    append!(SPGEMM_ALGOS[CuSparseMatrixCSR], (CUSPARSE.CUSPARSE_SPGEMM_ALG1,
+                                              CUSPARSE.CUSPARSE_SPGEMM_ALG2,
+                                              CUSPARSE.CUSPARSE_SPGEMM_ALG3))
+    append!(SPGEMM_ALGOS[CuSparseMatrixCSC], (CUSPARSE.CUSPARSE_SPGEMM_ALG1,
+                                              CUSPARSE.CUSPARSE_SPGEMM_ALG2,
+                                              CUSPARSE.CUSPARSE_SPGEMM_ALG3))
 end
 # Algorithms CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC and
 # CUSPARSE.CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC are dedicated to the cusparseSpGEMMreuse routine.
