@@ -56,8 +56,8 @@ const cuda_cap_db = Dict(
     v"8.7"   => between(v"11.4", highest),
     v"8.9"   => between(v"11.8", highest),
     v"9.0"   => between(v"11.8", highest),
-    #v"9.0a" => between(v"12.0", highest),
     v"12.0" => between(v"12.8", highest),
+    v"12.1" => between(v"12.9", highest),
 )
 
 function cuda_cap_support(ver::VersionNumber)
@@ -116,6 +116,7 @@ const cuda_ptx_db = Dict(
     v"8.5" => between(v"12.5", highest),
     v"8.6" => between(v"12.7", highest),
     v"8.7" => between(v"12.8", highest),
+    v"8.8" => between(v"12.9", highest),
 )
 
 function cuda_ptx_support(ver::VersionNumber)
@@ -159,10 +160,19 @@ const ptx_cap_db = Dict(
     #v"9.0a" => between(v"8.0", highest)
     v"10.0"  => between(v"8.6", highest),
     #v"10.0a"=> between(v"8.6", highest),
+    #v"10.0f"=> between(v"8.8", highest),
     v"10.1"  => between(v"8.6", highest),
     #v"10.1a"=> between(v"8.6", highest),
+    #v"10.1f"=> between(v"8.8", highest),
+    v"10.3"  => between(v"8.8", highest),
+    #v"10.3a"=> between(v"8.8", highest),
+    #v"10.3f"=> between(v"8.8", highest),
     v"12.0"  => between(v"8.7", highest),
     #v"12.0a"=> between(v"8.7", highest),
+    #v"12.0f"=> between(v"8.8", highest),
+    v"12.1"  => between(v"8.8", highest),
+    #v"12.1a"=> between(v"8.8", highest),
+    #v"12.1f"=> between(v"8.8", highest),
 )
 
 function ptx_cap_support(ver::VersionNumber)
@@ -205,8 +215,12 @@ const llvm_cap_db = Dict(
     #v"10.0a"=> between(v"20", highest),
     v"10.1"  => between(v"20", highest),
     #v"10.1a"=> between(v"20", highest),
+    v"10.3"  => between(v"21", highest),
+    #v"10.3a"=> between(v"21", highest),
     v"12.0"  => between(v"20", highest),
     #v"12.0a"=> between(v"20", highest),
+    v"12.1"  => between(v"21", highest),
+    #v"12.1a"=> between(v"21", highest),
 )
 
 function llvm_cap_support(ver::VersionNumber)
@@ -254,6 +268,7 @@ const llvm_ptx_db = Dict(
     v"8.5" => between(v"19", highest),
     v"8.6" => between(v"20", highest),
     v"8.7" => between(v"20", highest),
+    v"8.8" => between(v"21", highest),
 )
 
 function llvm_ptx_support(ver::VersionNumber)

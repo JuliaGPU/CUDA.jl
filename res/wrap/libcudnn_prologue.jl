@@ -1,5 +1,6 @@
 # cuDNN uses CUDA runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
+const cudaGraph_t = CUgraph
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)

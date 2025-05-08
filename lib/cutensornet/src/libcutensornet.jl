@@ -16,11 +16,9 @@ const cudaStream_t = CUstream
 end
 
 @inline function check(f)
-    function retry_if(res)
-        return res in (CUTENSORNET_STATUS_NOT_INITIALIZED,
-                       CUTENSORNET_STATUS_ALLOC_FAILED,
-                       CUTENSORNET_STATUS_INTERNAL_ERROR)
-    end
+    retry_if(res) = res in (CUTENSORNET_STATUS_NOT_INITIALIZED,
+                            CUTENSORNET_STATUS_ALLOC_FAILED,
+                            CUTENSORNET_STATUS_INTERNAL_ERROR)
     res = retry_reclaim(f, retry_if)
 
     if res != CUTENSORNET_STATUS_SUCCESS
@@ -331,6 +329,7 @@ const cutensornetStateSampler_t = Ptr{Cvoid}
 @cenum cutensornetSamplerAttributes_t::UInt32 begin
     CUTENSORNET_SAMPLER_OPT_NUM_HYPER_SAMPLES = 0
     CUTENSORNET_SAMPLER_CONFIG_NUM_HYPER_SAMPLES = 1
+    CUTENSORNET_SAMPLER_CONFIG_DETERMINISTIC = 2
     CUTENSORNET_SAMPLER_INFO_FLOPS = 64
 end
 
@@ -996,17 +995,17 @@ end
     @gcsafe_ccall libcutensornet.cutensornetLoggerSetMask(mask::Int32)::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1268:21, please use with caution
+# no prototype is found for this function at cutensornet.h:1269:21, please use with caution
 @checked function cutensornetLoggerForceDisable()
     @gcsafe_ccall libcutensornet.cutensornetLoggerForceDisable()::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1273:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1274:8, please use with caution
 function cutensornetGetVersion()
     @gcsafe_ccall libcutensornet.cutensornetGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensornet.h:1279:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1280:8, please use with caution
 function cutensornetGetCudartVersion()
     @gcsafe_ccall libcutensornet.cutensornetGetCudartVersion()::Csize_t
 end
@@ -1141,6 +1140,22 @@ end
                                                                       operatorId::Ptr{Int64})::cutensornetStatus_t
 end
 
+@checked function cutensornetStateApplyUnitaryChannel(handle, tensorNetworkState,
+                                                      numStateModes, stateModes, numTensors,
+                                                      tensorData, tensorModeStrides,
+                                                      probabilities, channelId)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateApplyUnitaryChannel(handle::cutensornetHandle_t,
+                                                                     tensorNetworkState::cutensornetState_t,
+                                                                     numStateModes::Int32,
+                                                                     stateModes::Ptr{Int32},
+                                                                     numTensors::Int32,
+                                                                     tensorData::Ptr{Ptr{Cvoid}},
+                                                                     tensorModeStrides::Ptr{Int64},
+                                                                     probabilities::Ptr{Cdouble},
+                                                                     channelId::Ptr{Int64})::cutensornetStatus_t
+end
+
 @checked function cutensornetStateInitializeMPS(handle, tensorNetworkState,
                                                 boundaryCondition, extentsIn, stridesIn,
                                                 stateTensorsIn)
@@ -1161,6 +1176,12 @@ end
                                                              boundaryCondition::cutensornetBoundaryCondition_t,
                                                              extentsOut::Ptr{Ptr{Int64}},
                                                              stridesOut::Ptr{Ptr{Int64}})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateCaptureMPS(handle, tensorNetworkState)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateCaptureMPS(handle::cutensornetHandle_t,
+                                                            tensorNetworkState::cutensornetState_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetStateConfigure(handle, tensorNetworkState, attribute,
