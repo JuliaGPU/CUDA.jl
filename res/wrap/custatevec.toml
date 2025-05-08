@@ -137,3 +137,12 @@ needs_context = false
 
 [api.custatevecComputeExpectationBatched.argtypes]
 7 = "Ptr{ComplexF64}"
+
+[api.custatevecAccessorGet.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecAccessorSet.argtypes]
+3 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecInitializeStateVector.argtypes]
+2 = "PtrOrCuPtr{Cvoid}"
