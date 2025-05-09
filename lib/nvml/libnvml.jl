@@ -51,6 +51,10 @@ mutable struct nvmlDevice_st end
 
 const nvmlDevice_t = Ptr{nvmlDevice_st}
 
+mutable struct nvmlGpuInstance_st end
+
+const nvmlGpuInstance_t = Ptr{nvmlGpuInstance_st}
+
 struct nvmlPciInfoExt_v1_t
     version::Cuint
     domain::Cuint
@@ -430,7 +434,7 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:697:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:699:5)"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
@@ -445,7 +449,7 @@ end
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
     f === :sensor && return Ptr{NTuple{3,
-                                       var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:697:5)"}}(x +
+                                       var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:699:5)"}}(x +
                                                                                                                                                                 4)
     return getfield(x, f)
 end
@@ -488,6 +492,41 @@ struct nvmlCoolerInfo_v1_t
 end
 
 const nvmlCoolerInfo_t = nvmlCoolerInfo_v1_t
+
+@cenum nvmlUUIDType_t::UInt32 begin
+    NVML_UUID_TYPE_NONE = 0
+    NVML_UUID_TYPE_ASCII = 1
+    NVML_UUID_TYPE_BINARY = 2
+end
+
+struct nvmlUUIDValue_t
+    data::NTuple{41,UInt8}
+end
+
+function Base.getproperty(x::Ptr{nvmlUUIDValue_t}, f::Symbol)
+    f === :str && return Ptr{NTuple{41,Cchar}}(x + 0)
+    f === :bytes && return Ptr{NTuple{16,Cuchar}}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::nvmlUUIDValue_t, f::Symbol)
+    r = Ref{nvmlUUIDValue_t}(x)
+    ptr = Base.unsafe_convert(Ptr{nvmlUUIDValue_t}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{nvmlUUIDValue_t}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct nvmlUUID_v1_t
+    version::Cuint
+    type::Cuint
+    value::nvmlUUIDValue_t
+end
+
+const nvmlUUID_t = nvmlUUID_v1_t
 
 @cenum nvmlEnableState_enum::UInt32 begin
     NVML_FEATURE_DISABLED = 0
@@ -857,7 +896,7 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1418:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1465:5)"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
@@ -871,7 +910,7 @@ end
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
     f === :utilization && return Ptr{NTuple{8,
-                                            var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1418:5)"}}(x +
+                                            var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1465:5)"}}(x +
                                                                                                                                                                       4)
     return getfield(x, f)
 end
@@ -967,7 +1006,9 @@ const nvmlVgpuDriverCapability_t = nvmlVgpuDriverCapability_enum
     NVML_DEVICE_VGPU_CAP_COMPUTE_MEDIA_ENGINE_GPU = 7
     NVML_DEVICE_VGPU_CAP_WARM_UPDATE = 8
     NVML_DEVICE_VGPU_CAP_HOMOGENEOUS_PLACEMENTS = 9
-    NVML_DEVICE_VGPU_CAP_COUNT = 10
+    NVML_DEVICE_VGPU_CAP_MIG_TIMESLICING_SUPPORTED = 10
+    NVML_DEVICE_VGPU_CAP_MIG_TIMESLICING_ENABLED = 11
+    NVML_DEVICE_VGPU_CAP_COUNT = 12
 end
 
 const nvmlDeviceVgpuCapability_t = nvmlDeviceVgpuCapability_enum
@@ -1094,10 +1135,10 @@ end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
     f === :vgpuSchedDataWithARR &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1808:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1862:5)"}(x +
                                                                                                                                             0)
     f === :vgpuSchedData &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1814:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1868:5)"}(x +
                                                                                                                                             0)
     return getfield(x, f)
 end
@@ -1149,10 +1190,10 @@ end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
     f === :vgpuSchedDataWithARR &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1862:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1916:5)"}(x +
                                                                                                                                             0)
     f === :vgpuSchedData &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1868:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1922:5)"}(x +
                                                                                                                                             0)
     return getfield(x, f)
 end
@@ -1250,6 +1291,72 @@ end
 
 const nvmlDeviceGpuRecoveryAction_t = nvmlDeviceGpuRecoveryAction_s
 
+struct nvmlVgpuTypeIdInfo_v1_t
+    version::Cuint
+    vgpuCount::Cuint
+    vgpuTypeIds::Ptr{nvmlVgpuTypeId_t}
+end
+
+const nvmlVgpuTypeIdInfo_t = nvmlVgpuTypeIdInfo_v1_t
+
+struct nvmlVgpuTypeMaxInstance_v1_t
+    version::Cuint
+    vgpuTypeId::nvmlVgpuTypeId_t
+    maxInstancePerGI::Cuint
+end
+
+const nvmlVgpuTypeMaxInstance_t = nvmlVgpuTypeMaxInstance_v1_t
+
+struct nvmlActiveVgpuInstanceInfo_v1_t
+    version::Cuint
+    vgpuCount::Cuint
+    vgpuInstances::Ptr{nvmlVgpuInstance_t}
+end
+
+const nvmlActiveVgpuInstanceInfo_t = nvmlActiveVgpuInstanceInfo_v1_t
+
+struct nvmlVgpuSchedulerState_v1_t
+    version::Cuint
+    engineId::Cuint
+    schedulerPolicy::Cuint
+    enableARRMode::Cuint
+    schedulerParams::nvmlVgpuSchedulerSetParams_t
+end
+
+const nvmlVgpuSchedulerState_t = nvmlVgpuSchedulerState_v1_t
+
+struct nvmlVgpuSchedulerStateInfo_v1_t
+    version::Cuint
+    engineId::Cuint
+    schedulerPolicy::Cuint
+    arrMode::Cuint
+    schedulerParams::nvmlVgpuSchedulerParams_t
+end
+
+const nvmlVgpuSchedulerStateInfo_t = nvmlVgpuSchedulerStateInfo_v1_t
+
+struct nvmlVgpuSchedulerLogInfo_v1_t
+    version::Cuint
+    engineId::Cuint
+    schedulerPolicy::Cuint
+    arrMode::Cuint
+    schedulerParams::nvmlVgpuSchedulerParams_t
+    entriesCount::Cuint
+    logEntries::NTuple{200,nvmlVgpuSchedulerLogEntry_t}
+end
+
+const nvmlVgpuSchedulerLogInfo_t = nvmlVgpuSchedulerLogInfo_v1_t
+
+struct nvmlVgpuCreatablePlacementInfo_v1_t
+    version::Cuint
+    vgpuTypeId::nvmlVgpuTypeId_t
+    count::Cuint
+    placementIds::Ptr{Cuint}
+    placementSize::Cuint
+end
+
+const nvmlVgpuCreatablePlacementInfo_t = nvmlVgpuCreatablePlacementInfo_v1_t
+
 struct nvmlNvLinkPowerThres_st
     lowPwrThreshold::Cuint
 end
@@ -1345,6 +1452,48 @@ struct nvmlEventData_st
 end
 
 const nvmlEventData_t = nvmlEventData_st
+
+mutable struct nvmlSystemEventSet_st end
+
+const nvmlSystemEventSet_t = Ptr{nvmlSystemEventSet_st}
+
+struct nvmlSystemEventSetCreateRequest_v1_t
+    version::Cuint
+    set::nvmlSystemEventSet_t
+end
+
+const nvmlSystemEventSetCreateRequest_t = nvmlSystemEventSetCreateRequest_v1_t
+
+struct nvmlSystemEventSetFreeRequest_v1_t
+    version::Cuint
+    set::nvmlSystemEventSet_t
+end
+
+const nvmlSystemEventSetFreeRequest_t = nvmlSystemEventSetFreeRequest_v1_t
+
+struct nvmlSystemRegisterEventRequest_v1_t
+    version::Cuint
+    eventTypes::Culonglong
+    set::nvmlSystemEventSet_t
+end
+
+const nvmlSystemRegisterEventRequest_t = nvmlSystemRegisterEventRequest_v1_t
+
+struct nvmlSystemEventData_v1_t
+    eventType::Culonglong
+    gpuId::Cuint
+end
+
+struct nvmlSystemEventSetWaitRequest_v1_t
+    version::Cuint
+    timeoutms::Cuint
+    set::nvmlSystemEventSet_t
+    data::Ptr{nvmlSystemEventData_v1_t}
+    dataSize::Cuint
+    numEvent::Cuint
+end
+
+const nvmlSystemEventSetWaitRequest_t = nvmlSystemEventSetWaitRequest_v1_t
 
 struct nvmlAccountingStats_st
     gpuUtilization::Cuint
@@ -1663,6 +1812,12 @@ end
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByUUID(uuid::Cstring,
                                                         device::Ptr{nvmlDevice_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetHandleByUUIDV(uuid, device)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetHandleByUUIDV(uuid::Ptr{nvmlUUID_t},
+                                                         device::Ptr{nvmlDevice_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetHandleByPciBusId_v2(pciBusId, device)
@@ -3047,6 +3202,26 @@ end
     @gcsafe_ccall (libnvml()).nvmlEventSetFree(set::nvmlEventSet_t)::nvmlReturn_t
 end
 
+@checked function nvmlSystemEventSetCreate(request)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemEventSetCreate(request::Ptr{nvmlSystemEventSetCreateRequest_t})::nvmlReturn_t
+end
+
+@checked function nvmlSystemEventSetFree(request)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemEventSetFree(request::Ptr{nvmlSystemEventSetFreeRequest_t})::nvmlReturn_t
+end
+
+@checked function nvmlSystemRegisterEvents(request)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemRegisterEvents(request::Ptr{nvmlSystemRegisterEventRequest_t})::nvmlReturn_t
+end
+
+@checked function nvmlSystemEventSetWait(request)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlSystemEventSetWait(request::Ptr{nvmlSystemEventSetWaitRequest_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceModifyDrainState(pciInfo, newState)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlDeviceModifyDrainState(pciInfo::Ptr{nvmlPciInfo_t},
@@ -3401,6 +3576,60 @@ end
                                                           size::Cuint)::nvmlReturn_t
 end
 
+@checked function nvmlGpuInstanceGetCreatableVgpus(gpuInstance, pVgpus)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceGetCreatableVgpus(gpuInstance::nvmlGpuInstance_t,
+                                                               pVgpus::Ptr{nvmlVgpuTypeIdInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlVgpuTypeGetMaxInstancesPerGpuInstance(pMaxInstance)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlVgpuTypeGetMaxInstancesPerGpuInstance(pMaxInstance::Ptr{nvmlVgpuTypeMaxInstance_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceGetActiveVgpus(gpuInstance, pVgpuInstanceInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceGetActiveVgpus(gpuInstance::nvmlGpuInstance_t,
+                                                            pVgpuInstanceInfo::Ptr{nvmlActiveVgpuInstanceInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceSetVgpuSchedulerState(gpuInstance, pScheduler)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceSetVgpuSchedulerState(gpuInstance::nvmlGpuInstance_t,
+                                                                   pScheduler::Ptr{nvmlVgpuSchedulerState_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceGetVgpuSchedulerState(gpuInstance, pSchedulerStateInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceGetVgpuSchedulerState(gpuInstance::nvmlGpuInstance_t,
+                                                                   pSchedulerStateInfo::Ptr{nvmlVgpuSchedulerStateInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceGetVgpuSchedulerLog(gpuInstance, pSchedulerLogInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceGetVgpuSchedulerLog(gpuInstance::nvmlGpuInstance_t,
+                                                                 pSchedulerLogInfo::Ptr{nvmlVgpuSchedulerLogInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceGetVgpuTypeCreatablePlacements(gpuInstance,
+                                                                pCreatablePlacementInfo)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceGetVgpuTypeCreatablePlacements(gpuInstance::nvmlGpuInstance_t,
+                                                                            pCreatablePlacementInfo::Ptr{nvmlVgpuCreatablePlacementInfo_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceGetVgpuHeterogeneousMode(gpuInstance, pHeterogeneousMode)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceGetVgpuHeterogeneousMode(gpuInstance::nvmlGpuInstance_t,
+                                                                      pHeterogeneousMode::Ptr{nvmlVgpuHeterogeneousMode_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceSetVgpuHeterogeneousMode(gpuInstance, pHeterogeneousMode)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlGpuInstanceSetVgpuHeterogeneousMode(gpuInstance::nvmlGpuInstance_t,
+                                                                      pHeterogeneousMode::Ptr{nvmlVgpuHeterogeneousMode_t})::nvmlReturn_t
+end
+
 struct nvmlVgpuVersion_st
     minVersion::Cuint
     maxVersion::Cuint
@@ -3674,10 +3903,6 @@ struct nvmlGpuInstanceInfo_st
 end
 
 const nvmlGpuInstanceInfo_t = nvmlGpuInstanceInfo_st
-
-mutable struct nvmlGpuInstance_st end
-
-const nvmlGpuInstance_t = Ptr{nvmlGpuInstance_st}
 
 struct nvmlComputeInstancePlacement_st
     start::Cuint
@@ -4020,14 +4245,124 @@ end
     NVML_GPM_METRIC_NVLINK_L16_TX_PER_SEC = 95
     NVML_GPM_METRIC_NVLINK_L17_RX_PER_SEC = 96
     NVML_GPM_METRIC_NVLINK_L17_TX_PER_SEC = 97
-    NVML_GPM_METRIC_MAX = 98
+    NVML_GPM_METRIC_C2C_TOTAL_TX_PER_SEC = 100
+    NVML_GPM_METRIC_C2C_TOTAL_RX_PER_SEC = 101
+    NVML_GPM_METRIC_C2C_DATA_TX_PER_SEC = 102
+    NVML_GPM_METRIC_C2C_DATA_RX_PER_SEC = 103
+    NVML_GPM_METRIC_C2C_LINK0_TOTAL_TX_PER_SEC = 104
+    NVML_GPM_METRIC_C2C_LINK0_TOTAL_RX_PER_SEC = 105
+    NVML_GPM_METRIC_C2C_LINK0_DATA_TX_PER_SEC = 106
+    NVML_GPM_METRIC_C2C_LINK0_DATA_RX_PER_SEC = 107
+    NVML_GPM_METRIC_C2C_LINK1_TOTAL_TX_PER_SEC = 108
+    NVML_GPM_METRIC_C2C_LINK1_TOTAL_RX_PER_SEC = 109
+    NVML_GPM_METRIC_C2C_LINK1_DATA_TX_PER_SEC = 110
+    NVML_GPM_METRIC_C2C_LINK1_DATA_RX_PER_SEC = 111
+    NVML_GPM_METRIC_C2C_LINK2_TOTAL_TX_PER_SEC = 112
+    NVML_GPM_METRIC_C2C_LINK2_TOTAL_RX_PER_SEC = 113
+    NVML_GPM_METRIC_C2C_LINK2_DATA_TX_PER_SEC = 114
+    NVML_GPM_METRIC_C2C_LINK2_DATA_RX_PER_SEC = 115
+    NVML_GPM_METRIC_C2C_LINK3_TOTAL_TX_PER_SEC = 116
+    NVML_GPM_METRIC_C2C_LINK3_TOTAL_RX_PER_SEC = 117
+    NVML_GPM_METRIC_C2C_LINK3_DATA_TX_PER_SEC = 118
+    NVML_GPM_METRIC_C2C_LINK3_DATA_RX_PER_SEC = 119
+    NVML_GPM_METRIC_C2C_LINK4_TOTAL_TX_PER_SEC = 120
+    NVML_GPM_METRIC_C2C_LINK4_TOTAL_RX_PER_SEC = 121
+    NVML_GPM_METRIC_C2C_LINK4_DATA_TX_PER_SEC = 122
+    NVML_GPM_METRIC_C2C_LINK4_DATA_RX_PER_SEC = 123
+    NVML_GPM_METRIC_C2C_LINK5_TOTAL_TX_PER_SEC = 124
+    NVML_GPM_METRIC_C2C_LINK5_TOTAL_RX_PER_SEC = 125
+    NVML_GPM_METRIC_C2C_LINK5_DATA_TX_PER_SEC = 126
+    NVML_GPM_METRIC_C2C_LINK5_DATA_RX_PER_SEC = 127
+    NVML_GPM_METRIC_C2C_LINK6_TOTAL_TX_PER_SEC = 128
+    NVML_GPM_METRIC_C2C_LINK6_TOTAL_RX_PER_SEC = 129
+    NVML_GPM_METRIC_C2C_LINK6_DATA_TX_PER_SEC = 130
+    NVML_GPM_METRIC_C2C_LINK6_DATA_RX_PER_SEC = 131
+    NVML_GPM_METRIC_C2C_LINK7_TOTAL_TX_PER_SEC = 132
+    NVML_GPM_METRIC_C2C_LINK7_TOTAL_RX_PER_SEC = 133
+    NVML_GPM_METRIC_C2C_LINK7_DATA_TX_PER_SEC = 134
+    NVML_GPM_METRIC_C2C_LINK7_DATA_RX_PER_SEC = 135
+    NVML_GPM_METRIC_C2C_LINK8_TOTAL_TX_PER_SEC = 136
+    NVML_GPM_METRIC_C2C_LINK8_TOTAL_RX_PER_SEC = 137
+    NVML_GPM_METRIC_C2C_LINK8_DATA_TX_PER_SEC = 138
+    NVML_GPM_METRIC_C2C_LINK8_DATA_RX_PER_SEC = 139
+    NVML_GPM_METRIC_C2C_LINK9_TOTAL_TX_PER_SEC = 140
+    NVML_GPM_METRIC_C2C_LINK9_TOTAL_RX_PER_SEC = 141
+    NVML_GPM_METRIC_C2C_LINK9_DATA_TX_PER_SEC = 142
+    NVML_GPM_METRIC_C2C_LINK9_DATA_RX_PER_SEC = 143
+    NVML_GPM_METRIC_C2C_LINK10_TOTAL_TX_PER_SEC = 144
+    NVML_GPM_METRIC_C2C_LINK10_TOTAL_RX_PER_SEC = 145
+    NVML_GPM_METRIC_C2C_LINK10_DATA_TX_PER_SEC = 146
+    NVML_GPM_METRIC_C2C_LINK10_DATA_RX_PER_SEC = 147
+    NVML_GPM_METRIC_C2C_LINK11_TOTAL_TX_PER_SEC = 148
+    NVML_GPM_METRIC_C2C_LINK11_TOTAL_RX_PER_SEC = 149
+    NVML_GPM_METRIC_C2C_LINK11_DATA_TX_PER_SEC = 150
+    NVML_GPM_METRIC_C2C_LINK11_DATA_RX_PER_SEC = 151
+    NVML_GPM_METRIC_C2C_LINK12_TOTAL_TX_PER_SEC = 152
+    NVML_GPM_METRIC_C2C_LINK12_TOTAL_RX_PER_SEC = 153
+    NVML_GPM_METRIC_C2C_LINK12_DATA_TX_PER_SEC = 154
+    NVML_GPM_METRIC_C2C_LINK12_DATA_RX_PER_SEC = 155
+    NVML_GPM_METRIC_C2C_LINK13_TOTAL_TX_PER_SEC = 156
+    NVML_GPM_METRIC_C2C_LINK13_TOTAL_RX_PER_SEC = 157
+    NVML_GPM_METRIC_C2C_LINK13_DATA_TX_PER_SEC = 158
+    NVML_GPM_METRIC_C2C_LINK13_DATA_RX_PER_SEC = 159
+    NVML_GPM_METRIC_HOSTMEM_CACHE_HIT = 160
+    NVML_GPM_METRIC_HOSTMEM_CACHE_MISS = 161
+    NVML_GPM_METRIC_PEERMEM_CACHE_HIT = 162
+    NVML_GPM_METRIC_PEERMEM_CACHE_MISS = 163
+    NVML_GPM_METRIC_DRAM_CACHE_HIT = 164
+    NVML_GPM_METRIC_DRAM_CACHE_MISS = 165
+    NVML_GPM_METRIC_NVENC_0_UTIL = 166
+    NVML_GPM_METRIC_NVENC_1_UTIL = 167
+    NVML_GPM_METRIC_NVENC_2_UTIL = 168
+    NVML_GPM_METRIC_NVENC_3_UTIL = 169
+    NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ELAPSED = 170
+    NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ACTIVE = 171
+    NVML_GPM_METRIC_GR0_CTXSW_REQUESTS = 172
+    NVML_GPM_METRIC_GR0_CTXSW_CYCLES_PER_REQ = 173
+    NVML_GPM_METRIC_GR0_CTXSW_ACTIVE_PCT = 174
+    NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ELAPSED = 175
+    NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ACTIVE = 176
+    NVML_GPM_METRIC_GR1_CTXSW_REQUESTS = 177
+    NVML_GPM_METRIC_GR1_CTXSW_CYCLES_PER_REQ = 178
+    NVML_GPM_METRIC_GR1_CTXSW_ACTIVE_PCT = 179
+    NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ELAPSED = 180
+    NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ACTIVE = 181
+    NVML_GPM_METRIC_GR2_CTXSW_REQUESTS = 182
+    NVML_GPM_METRIC_GR2_CTXSW_CYCLES_PER_REQ = 183
+    NVML_GPM_METRIC_GR2_CTXSW_ACTIVE_PCT = 184
+    NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ELAPSED = 185
+    NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ACTIVE = 186
+    NVML_GPM_METRIC_GR3_CTXSW_REQUESTS = 187
+    NVML_GPM_METRIC_GR3_CTXSW_CYCLES_PER_REQ = 188
+    NVML_GPM_METRIC_GR3_CTXSW_ACTIVE_PCT = 189
+    NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ELAPSED = 190
+    NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ACTIVE = 191
+    NVML_GPM_METRIC_GR4_CTXSW_REQUESTS = 192
+    NVML_GPM_METRIC_GR4_CTXSW_CYCLES_PER_REQ = 193
+    NVML_GPM_METRIC_GR4_CTXSW_ACTIVE_PCT = 194
+    NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ELAPSED = 195
+    NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ACTIVE = 196
+    NVML_GPM_METRIC_GR5_CTXSW_REQUESTS = 197
+    NVML_GPM_METRIC_GR5_CTXSW_CYCLES_PER_REQ = 198
+    NVML_GPM_METRIC_GR5_CTXSW_ACTIVE_PCT = 199
+    NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ELAPSED = 200
+    NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ACTIVE = 201
+    NVML_GPM_METRIC_GR6_CTXSW_REQUESTS = 202
+    NVML_GPM_METRIC_GR6_CTXSW_CYCLES_PER_REQ = 203
+    NVML_GPM_METRIC_GR6_CTXSW_ACTIVE_PCT = 204
+    NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ELAPSED = 205
+    NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ACTIVE = 206
+    NVML_GPM_METRIC_GR7_CTXSW_REQUESTS = 207
+    NVML_GPM_METRIC_GR7_CTXSW_CYCLES_PER_REQ = 208
+    NVML_GPM_METRIC_GR7_CTXSW_ACTIVE_PCT = 209
+    NVML_GPM_METRIC_MAX = 210
 end
 
 mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:11795:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:12604:5)"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
@@ -4042,7 +4377,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
     f === :metricInfo &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:11795:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:12604:5)"}(x +
                                                                                                                                              16)
     return getfield(x, f)
 end
@@ -4063,7 +4398,7 @@ struct nvmlGpmMetricsGet_t
     numMetrics::Cuint
     sample1::nvmlGpmSample_t
     sample2::nvmlGpmSample_t
-    metrics::NTuple{98,nvmlGpmMetric_t}
+    metrics::NTuple{210,nvmlGpmMetric_t}
 end
 
 struct nvmlGpmSupport_t
@@ -4392,21 +4727,21 @@ end
                                                        pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1808:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1862:5)"
     avgFactor::Cuint
     timeslice::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1814:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1868:5)"
     timeslice::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1862:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1916:5)"
     avgFactor::Cuint
     frequency::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/nvml.h:1868:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/nvml.h:1922:5)"
     timeslice::Cuint
 end
 
@@ -4441,6 +4776,12 @@ const NVML_MAX_PHYSICAL_BRIDGE = 128
 const NVML_MAX_THERMAL_SENSORS_PER_GPU = 3
 
 const nvmlCoolerInfo_v1 = @NVML_STRUCT_VERSION(CoolerInfo, 1)
+
+const NVML_DEVICE_UUID_ASCII_LEN = 41
+
+const NVML_DEVICE_UUID_BINARY_LEN = 16
+
+const nvmlUUID_v1 = @NVML_STRUCT_VERSION(UUID, 1)
 
 const nvmlFlagDefault = 0x00
 
@@ -4638,6 +4979,8 @@ const NVML_VGPU_SCHEDULER_ARR_DISABLE = 1
 
 const NVML_VGPU_SCHEDULER_ARR_ENABLE = 2
 
+const NVML_VGPU_SCHEDULER_ENGINE_TYPE_GRAPHICS = 1
+
 const NVML_GRID_LICENSE_STATE_UNKNOWN = 0
 
 const NVML_GRID_LICENSE_STATE_UNINITIALIZED = 1
@@ -4649,6 +4992,21 @@ const NVML_GRID_LICENSE_STATE_UNLICENSED_RESTRICTED = 3
 const NVML_GRID_LICENSE_STATE_UNLICENSED = 4
 
 const NVML_GRID_LICENSE_STATE_LICENSED = 5
+
+const nvmlVgpuTypeIdInfo_v1 = @NVML_STRUCT_VERSION(VgpuTypeIdInfo, 1)
+
+const nvmlVgpuTypeMaxInstance_v1 = @NVML_STRUCT_VERSION(VgpuTypeMaxInstance, 1)
+
+const nvmlActiveVgpuInstanceInfo_v1 = @NVML_STRUCT_VERSION(ActiveVgpuInstanceInfo, 1)
+
+const nvmlVgpuSchedulerState_v1 = @NVML_STRUCT_VERSION(VgpuSchedulerState, 1)
+
+const nvmlVgpuSchedulerStateInfo_v1 = @NVML_STRUCT_VERSION(VgpuSchedulerStateInfo, 1)
+
+const nvmlVgpuSchedulerLogInfo_v1 = @NVML_STRUCT_VERSION(VgpuSchedulerLogInfo, 1)
+
+const nvmlVgpuCreatablePlacementInfo_v1 = @NVML_STRUCT_VERSION(VgpuCreatablePlacementInfo,
+                                                               1)
 
 const NVML_FI_DEV_ECC_CURRENT = 1
 
@@ -5110,6 +5468,14 @@ const NVML_FI_DEV_PCIE_INBOUND_ATOMICS_MASK = 229
 
 const NVML_FI_DEV_GET_GPU_RECOVERY_ACTION = 230
 
+const NVML_FI_DEV_C2C_LINK_ERROR_INTR = 231
+
+const NVML_FI_DEV_C2C_LINK_ERROR_REPLAY = 232
+
+const NVML_FI_DEV_C2C_LINK_ERROR_REPLAY_B2B = 233
+
+const NVML_FI_DEV_C2C_LINK_POWER_STATE = 234
+
 const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_0 = 235
 
 const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_1 = 236
@@ -5142,43 +5508,57 @@ const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_14 = 249
 
 const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_15 = 250
 
-const NVML_FI_PWR_SMOOTHING_ENABLED = 251
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_SW_POWER_CAP = NVML_FI_DEV_PERF_POLICY_POWER
 
-const NVML_FI_PWR_SMOOTHING_PRIV_LVL = 252
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_SYNC_BOOST = NVML_FI_DEV_PERF_POLICY_SYNC_BOOST
 
-const NVML_FI_PWR_SMOOTHING_IMM_RAMP_DOWN_ENABLED = 253
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_SW_THERM_SLOWDOWN = 251
 
-const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_CEIL = 254
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_HW_THERM_SLOWDOWN = 252
 
-const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_FLOOR = 255
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN = 253
 
-const NVML_FI_PWR_SMOOTHING_MAX_PERCENT_TMP_FLOOR_SETTING = 256
+const NVML_FI_DEV_POWER_SYNC_BALANCING_FREQ = 254
 
-const NVML_FI_PWR_SMOOTHING_MIN_PERCENT_TMP_FLOOR_SETTING = 257
+const NVML_FI_DEV_POWER_SYNC_BALANCING_AF = 255
 
-const NVML_FI_PWR_SMOOTHING_HW_CIRCUITRY_PERCENT_LIFETIME_REMAINING = 258
+const NVML_FI_PWR_SMOOTHING_ENABLED = 256
 
-const NVML_FI_PWR_SMOOTHING_MAX_NUM_PRESET_PROFILES = 259
+const NVML_FI_PWR_SMOOTHING_PRIV_LVL = 257
 
-const NVML_FI_PWR_SMOOTHING_PROFILE_PERCENT_TMP_FLOOR = 260
+const NVML_FI_PWR_SMOOTHING_IMM_RAMP_DOWN_ENABLED = 258
 
-const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_UP_RATE = 261
+const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_CEIL = 259
 
-const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_RATE = 262
+const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_FLOOR = 260
 
-const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_HYST_VAL = 263
+const NVML_FI_PWR_SMOOTHING_MAX_PERCENT_TMP_FLOOR_SETTING = 261
 
-const NVML_FI_PWR_SMOOTHING_ACTIVE_PRESET_PROFILE = 264
+const NVML_FI_PWR_SMOOTHING_MIN_PERCENT_TMP_FLOOR_SETTING = 262
 
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_PERCENT_TMP_FLOOR = 265
+const NVML_FI_PWR_SMOOTHING_HW_CIRCUITRY_PERCENT_LIFETIME_REMAINING = 263
 
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_UP_RATE = 266
+const NVML_FI_PWR_SMOOTHING_MAX_NUM_PRESET_PROFILES = 264
 
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_RATE = 267
+const NVML_FI_PWR_SMOOTHING_PROFILE_PERCENT_TMP_FLOOR = 265
 
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_HYST_VAL = 268
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_UP_RATE = 266
 
-const NVML_FI_MAX = 269
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_RATE = 267
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_HYST_VAL = 268
+
+const NVML_FI_PWR_SMOOTHING_ACTIVE_PRESET_PROFILE = 269
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_PERCENT_TMP_FLOOR = 270
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_UP_RATE = 271
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_RATE = 272
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_HYST_VAL = 273
+
+const NVML_FI_MAX = 274
 
 const NVML_NVLINK_LOW_POWER_THRESHOLD_UNIT_100US = 0x00
 
@@ -5195,6 +5575,10 @@ const NVML_NVLINK_LOW_POWER_THRESHOLD_MAX = 0x1fff
 const NVML_NVLINK_LOW_POWER_THRESHOLD_RESET = 0xffffffff
 
 const NVML_NVLINK_LOW_POWER_THRESHOLD_DEFAULT = NVML_NVLINK_LOW_POWER_THRESHOLD_RESET
+
+const NVML_C2C_POWER_STATE_FULL_POWER = 0
+
+const NVML_C2C_POWER_STATE_LOW_POWER = 1
 
 const nvmlEventTypeNone = Clonglong(0x0000000000000000)
 
@@ -5236,6 +5620,22 @@ const nvmlEventTypeAll = (((((((((((((nvmlEventTypeNone | nvmlEventTypeSingleBit
                             nvmlEventTypeNonFatalPoisonError) |
                            nvmlEventTypeFatalPoisonError) |
                           nvmlEventTypeGpuUnavailableError) | nvmlEventTypeGpuRecoveryAction
+
+const nvmlSystemEventTypeGpuDriverUnbind = Clonglong(0x0000000000000001)
+
+const nvmlSystemEventTypeGpuDriverBind = Clonglong(0x0000000000000002)
+
+const nvmlSystemEventTypeCount = 2
+
+const nvmlSystemEventSetCreateRequest_v1 = @NVML_STRUCT_VERSION(SystemEventSetCreateRequest,
+                                                                1)
+
+const nvmlSystemEventSetFreeRequest_v1 = @NVML_STRUCT_VERSION(SystemEventSetFreeRequest, 1)
+
+const nvmlSystemRegisterEventRequest_v1 = @NVML_STRUCT_VERSION(SystemRegisterEventRequest,
+                                                               1)
+
+const nvmlSystemEventSetWaitRequest_v1 = @NVML_STRUCT_VERSION(SystemEventSetWaitRequest, 1)
 
 const nvmlClocksEventReasonGpuIdle = Clonglong(0x0000000000000001)
 
@@ -5468,7 +5868,15 @@ const NVML_GPU_INSTANCE_PROFILE_2_SLICE_GFX = 0x0b
 
 const NVML_GPU_INSTANCE_PROFILE_4_SLICE_GFX = 0x0c
 
-const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x0d
+const NVML_GPU_INSTANCE_PROFILE_1_SLICE_NO_ME = 0x0d
+
+const NVML_GPU_INSTANCE_PROFILE_2_SLICE_NO_ME = 0x0e
+
+const NVML_GPU_INSTANCE_PROFILE_1_SLICE_ALL_ME = 0x0f
+
+const NVML_GPU_INSTANCE_PROFILE_2_SLICE_ALL_ME = 0x10
+
+const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x11
 
 const NVML_GPU_INSTANCE_PROFILE_CAPS_P2P = 0x01
 

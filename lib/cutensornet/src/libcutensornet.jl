@@ -354,6 +354,7 @@ end
     CUTENSORNET_STATE_CONFIG_MPS_SVD_ALGO_PARAMS = 21
     CUTENSORNET_STATE_CONFIG_MPS_SVD_DISCARDED_WEIGHT_CUTOFF = 22
     CUTENSORNET_STATE_CONFIG_MPS_MPO_APPLICATION = 23
+    CUTENSORNET_STATE_CONFIG_MPS_GAUGE_OPTION = 24
     CUTENSORNET_STATE_CONFIG_NUM_HYPER_SAMPLES = 30
     CUTENSORNET_STATE_INFO_FLOPS = 64
 end
@@ -370,6 +371,11 @@ const cutensornetLoggerCallback_t = Ptr{Cvoid}
 
 # typedef void ( * cutensornetLoggerCallbackData_t ) ( int32_t logLevel , const char * functionName , const char * message , void * userData )
 const cutensornetLoggerCallbackData_t = Ptr{Cvoid}
+
+@cenum cutensornetStateMPSGaugeOption_t::UInt32 begin
+    CUTENSORNET_STATE_MPS_GAUGE_FREE = 0
+    CUTENSORNET_STATE_MPS_GAUGE_SIMPLE = 1
+end
 
 @checked function cutensornetCreate(handle)
     initialize_context()
@@ -1153,6 +1159,21 @@ end
                                                                      tensorData::Ptr{Ptr{Cvoid}},
                                                                      tensorModeStrides::Ptr{Int64},
                                                                      probabilities::Ptr{Cdouble},
+                                                                     channelId::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateApplyGeneralChannel(handle, tensorNetworkState,
+                                                      numStateModes, stateModes, numTensors,
+                                                      tensorData, tensorModeStrides,
+                                                      channelId)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateApplyGeneralChannel(handle::cutensornetHandle_t,
+                                                                     tensorNetworkState::cutensornetState_t,
+                                                                     numStateModes::Int32,
+                                                                     stateModes::Ptr{Int32},
+                                                                     numTensors::Int32,
+                                                                     tensorData::Ptr{Ptr{Cvoid}},
+                                                                     tensorModeStrides::Ptr{Int64},
                                                                      channelId::Ptr{Int64})::cutensornetStatus_t
 end
 

@@ -833,7 +833,10 @@ end
     CUBLASLT_MATMUL_MATRIX_SCALE_SCALAR_32F = 0
     CUBLASLT_MATMUL_MATRIX_SCALE_VEC16_UE4M3 = 1
     CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_UE8M0 = 2
-    CUBLASLT_MATMUL_MATRIX_SCALE_END = 3
+    CUBLASLT_MATMUL_MATRIX_SCALE_OUTER_VEC_32F = 3
+    CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_32F = 4
+    CUBLASLT_MATMUL_MATRIX_SCALE_BLK128x128_32F = 5
+    CUBLASLT_MATMUL_MATRIX_SCALE_END = 6
 end
 
 @cenum cublasLtPointerMode_t::UInt32 begin
@@ -896,6 +899,11 @@ end
     CUBLASLT_ORDER_COL32_2R_4R4 = 4
 end
 
+@cenum cublasLtBatchMode_t::UInt32 begin
+    CUBLASLT_BATCH_MODE_STRIDED = 0
+    CUBLASLT_BATCH_MODE_POINTER_ARRAY = 1
+end
+
 @cenum cublasLtMatrixLayoutAttribute_t::UInt32 begin
     CUBLASLT_MATRIX_LAYOUT_TYPE = 0
     CUBLASLT_MATRIX_LAYOUT_ORDER = 1
@@ -905,6 +913,7 @@ end
     CUBLASLT_MATRIX_LAYOUT_BATCH_COUNT = 5
     CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET = 6
     CUBLASLT_MATRIX_LAYOUT_PLANE_OFFSET = 7
+    CUBLASLT_MATRIX_LAYOUT_BATCH_MODE = 8
 end
 
 @checked function cublasLtMatrixLayoutInit_internal(matLayout, size, type, rows, cols, ld)
@@ -1267,6 +1276,8 @@ end
     CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_C_BYTES = 18
     CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_D_BYTES = 19
     CUBLASLT_ALGO_CAP_ATOMIC_SYNC = 20
+    CUBLASLT_ALGO_CAP_POINTER_ARRAY_BATCH_SUPPORT = 21
+    CUBLASLT_ALGO_CAP_FLOATING_POINT_EMULATION_SUPPORT = 22
 end
 
 @checked function cublasLtMatmulAlgoCapGetAttribute(algo, attr, buf, sizeInBytes,
@@ -1337,7 +1348,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2507:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2550:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t
