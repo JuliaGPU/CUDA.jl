@@ -126,6 +126,12 @@ end
     CUSTATEVEC_STATE_VECTOR_TYPE_W = 3
 end
 
+@cenum custatevecMathMode_t::UInt32 begin
+    CUSTATEVEC_MATH_MODE_DEFAULT = 0
+    CUSTATEVEC_MATH_MODE_ALLOW_FP32_EMULATED_BF16X9 = 1
+    CUSTATEVEC_MATH_MODE_DISALLOW_FP32_EMULATED_BF16X9 = 2
+end
+
 @checked function custatevecCreate(handle)
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecCreate(handle::Ptr{custatevecHandle_t})::custatevecStatus_t
@@ -164,7 +170,7 @@ end
                                                       value::Ptr{Int32})::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:522:8, please use with caution
+# no prototype is found for this function at custatevec.h:532:8, please use with caution
 function custatevecGetVersion()
     @gcsafe_ccall libcustatevec.custatevecGetVersion()::Csize_t
 end
@@ -208,7 +214,7 @@ end
     @gcsafe_ccall libcustatevec.custatevecLoggerSetMask(mask::Int32)::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:622:1, please use with caution
+# no prototype is found for this function at custatevec.h:632:1, please use with caution
 @checked function custatevecLoggerForceDisable()
     @gcsafe_ccall libcustatevec.custatevecLoggerForceDisable()::custatevecStatus_t
 end
@@ -223,6 +229,18 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecSetDeviceMemHandler(handle::custatevecHandle_t,
                                                               handler::Ptr{custatevecDeviceMemHandler_t})::custatevecStatus_t
+end
+
+@checked function custatevecSetMathMode(handle, mode)
+    initialize_context()
+    @gcsafe_ccall libcustatevec.custatevecSetMathMode(handle::custatevecHandle_t,
+                                                      mode::custatevecMathMode_t)::custatevecStatus_t
+end
+
+@checked function custatevecGetMathMode(handle, mode)
+    initialize_context()
+    @gcsafe_ccall libcustatevec.custatevecGetMathMode(handle::custatevecHandle_t,
+                                                      mode::Ptr{custatevecMathMode_t})::custatevecStatus_t
 end
 
 @checked function custatevecAbs2SumOnZBasis(handle, sv, svDataType, nIndexBits, abs2sum0,

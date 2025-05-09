@@ -1,7 +1,7 @@
 name = "cuStateVec"
 uuid = "92f7fd98-d22e-4c0d-85a8-6ade11b672fb"
 authors = ["Katharine Hyatt <kslimes@gmail.com>"]
-version = "1.3.2"
+version = "1.3.3"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
@@ -13,5 +13,5 @@ cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDA = "~5.7"
 CUDA_Runtime_Discovery = "0.2, 0.3"
-cuQuantum_jll = "~24.03"
+cuQuantum_jll = "25.03"
 julia = "1.10"

@@ -3046,6 +3046,7 @@ end
     CUBLAS_TENSOR_OP_MATH = 1
     CUBLAS_PEDANTIC_MATH = 2
     CUBLAS_TF32_TENSOR_OP_MATH = 3
+    CUBLAS_FP32_EMULATED_BF16X9_MATH = 4
     CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION = 16
 end
 
@@ -3059,10 +3060,17 @@ const cublasDataType_t = cudaDataType
     CUBLAS_COMPUTE_32F_FAST_16F = 74
     CUBLAS_COMPUTE_32F_FAST_16BF = 75
     CUBLAS_COMPUTE_32F_FAST_TF32 = 77
+    CUBLAS_COMPUTE_32F_EMULATED_16BFX9 = 78
     CUBLAS_COMPUTE_64F = 70
     CUBLAS_COMPUTE_64F_PEDANTIC = 71
     CUBLAS_COMPUTE_32I = 72
     CUBLAS_COMPUTE_32I_PEDANTIC = 73
+end
+
+@cenum cublasEmulationStrategy_t::UInt32 begin
+    CUBLAS_EMULATION_STRATEGY_DEFAULT = 0
+    CUBLAS_EMULATION_STRATEGY_PERFORMANT = 1
+    CUBLAS_EMULATION_STRATEGY_EAGER = 2
 end
 
 # typedef void ( * cublasLogCallback ) ( const char * msg )
@@ -3111,6 +3119,18 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasSetSmCountTarget(handle::cublasHandle_t,
                                                    smCountTarget::Cint)::cublasStatus_t
+end
+
+@checked function cublasGetEmulationStrategy(handle, emulationStrategy)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasGetEmulationStrategy(handle::cublasHandle_t,
+                                                       emulationStrategy::Ptr{cublasEmulationStrategy_t})::cublasStatus_t
+end
+
+@checked function cublasSetEmulationStrategy(handle, emulationStrategy)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSetEmulationStrategy(handle::cublasHandle_t,
+                                                       emulationStrategy::cublasEmulationStrategy_t)::cublasStatus_t
 end
 
 function cublasGetStatusName(status)

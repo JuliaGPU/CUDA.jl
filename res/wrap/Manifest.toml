@@ -29,33 +29,33 @@ version = "3.4.3"
 
 [[deps.CUDA_Driver_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "f69205592dbd3721a156245b6dd837206786a848"
+git-tree-sha1 = "5129b555ff876c47ad9e53bcd86e9a94bcc12ea4"
 uuid = "4ee394cb-3365-5eb0-8335-949819d2adfc"
-version = "0.12.1+1"
+version = "0.13.0+0"
 
 [[deps.CUDA_Runtime_jll]]
 deps = ["Artifacts", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "99f1c6b659c14bbb3492246791bb4928a40ceb84"
+git-tree-sha1 = "28126781294b2f31bc815f96922d680426e3a0bc"
 uuid = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
-version = "0.16.1+0"
+version = "0.17.0+0"
 
 [[deps.CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "750e5663457e178ff7c6d3874b5982b5ca50179e"
+git-tree-sha1 = "8654f37720ed78e619ecd3f583c795875db02f39"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "12.8.1+0"
+version = "12.9.0+0"
 
 [[deps.CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "e0a7e60ef1bb05bec85e962c996ffd3e302e2f35"
+git-tree-sha1 = "12ab2a3e7d1e5f523e95b94cd9334ebcf5be220e"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "9.7.0+0"
+version = "9.10.0+0"
 
 [[deps.CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "2ad02c8180d94cca10336fc5646a7e24ab4aa268"
+git-tree-sha1 = "2c885279d0da51f9f43b6e868f5c54502ce17b7e"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "2.0.1+0"
+version = "2.2.0+0"
 
 [[deps.Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
@@ -282,9 +282,9 @@ version = "1.2.13+1"
 
 [[deps.cuQuantum_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CUTENSOR_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "b4529e96f4eeb7b847a016a60d139e72a9bb568c"
+git-tree-sha1 = "3192cef0d0cac365833c334bb5b4baf6d26dc5cb"
 uuid = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
-version = "24.11.0+0"
+version = "25.3.0+0"
 
 [[deps.libLLVM_jll]]
 deps = ["Artifacts", "Libdl"]

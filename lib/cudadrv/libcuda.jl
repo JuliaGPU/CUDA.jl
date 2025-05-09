@@ -1169,28 +1169,28 @@ end
 
 const CUasyncNotificationType = CUasyncNotificationType_enum
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:615:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:616:5)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:615:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:616:5)"},
                           f::Symbol)
     f === :overBudget &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:616:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:617:9)"}(x +
                                                                                                                                            0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:615:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:616:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:615:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:615:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:616:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:616:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:615:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:616:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -1202,7 +1202,7 @@ end
 function Base.getproperty(x::Ptr{CUasyncNotificationInfo_st}, f::Symbol)
     f === :type && return Ptr{CUasyncNotificationType}(x + 0)
     f === :info &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:615:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:616:5)"}(x +
                                                                                                                                           8)
     return getfield(x, f)
 end
@@ -1383,8 +1383,11 @@ const CUfilter_mode = CUfilter_mode_enum
     CU_DEVICE_ATTRIBUTE_D3D12_CIG_SUPPORTED = 135
     CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_ALGORITHM_MASK = 136
     CU_DEVICE_ATTRIBUTE_MEM_DECOMPRESS_MAXIMUM_LENGTH = 137
+    CU_DEVICE_ATTRIBUTE_VULKAN_CIG_SUPPORTED = 138
     CU_DEVICE_ATTRIBUTE_GPU_PCI_DEVICE_ID = 139
     CU_DEVICE_ATTRIBUTE_GPU_PCI_SUBSYSTEM_ID = 140
+    CU_DEVICE_ATTRIBUTE_HOST_NUMA_VIRTUAL_MEMORY_MANAGEMENT_SUPPORTED = 141
+    CU_DEVICE_ATTRIBUTE_HOST_NUMA_MEMORY_POOLS_SUPPORTED = 142
     CU_DEVICE_ATTRIBUTE_HOST_NUMA_MULTINODE_IPC_SUPPORTED = 143
     CU_DEVICE_ATTRIBUTE_MAX = 144
 end
@@ -1534,11 +1537,20 @@ const CUmem_range_attribute = CUmem_range_attribute_enum
     CU_TARGET_COMPUTE_90 = 90
     CU_TARGET_COMPUTE_100 = 100
     CU_TARGET_COMPUTE_101 = 101
+    CU_TARGET_COMPUTE_103 = 103
     CU_TARGET_COMPUTE_120 = 120
+    CU_TARGET_COMPUTE_121 = 121
     CU_TARGET_COMPUTE_90A = 65626
     CU_TARGET_COMPUTE_100A = 65636
     CU_TARGET_COMPUTE_101A = 65637
+    CU_TARGET_COMPUTE_103A = 65639
     CU_TARGET_COMPUTE_120A = 65656
+    CU_TARGET_COMPUTE_121A = 65657
+    CU_TARGET_COMPUTE_100F = 131172
+    CU_TARGET_COMPUTE_101F = 131173
+    CU_TARGET_COMPUTE_103F = 131175
+    CU_TARGET_COMPUTE_120F = 131192
+    CU_TARGET_COMPUTE_121F = 131193
 end
 
 const CUjit_target = CUjit_target_enum
@@ -1840,24 +1852,24 @@ function Base.getproperty(x::Ptr{CUlaunchAttributeValue_union}, f::Symbol)
     f === :cooperative && return Ptr{Cint}(x + 0)
     f === :syncPolicy && return Ptr{CUsynchronizationPolicy}(x + 0)
     f === :clusterDim &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2190:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2216:5)"}(x +
                                                                                                                                             0)
     f === :clusterSchedulingPolicyPreference && return Ptr{CUclusterSchedulingPolicy}(x + 0)
     f === :programmaticStreamSerializationAllowed && return Ptr{Cint}(x + 0)
     f === :programmaticEvent &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2207:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2233:5)"}(x +
                                                                                                                                             0)
     f === :launchCompletionEvent &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2218:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2244:5)"}(x +
                                                                                                                                             0)
     f === :priority && return Ptr{Cint}(x + 0)
     f === :memSyncDomainMap && return Ptr{CUlaunchMemSyncDomainMap}(x + 0)
     f === :memSyncDomain && return Ptr{CUlaunchMemSyncDomain}(x + 0)
     f === :preferredClusterDim &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2241:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2267:5)"}(x +
                                                                                                                                             0)
     f === :deviceUpdatableKernelNode &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2253:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2279:5)"}(x +
                                                                                                                                             0)
     f === :sharedMemCarveout && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
@@ -1934,26 +1946,26 @@ const CUexecAffinitySmCount_v1 = CUexecAffinitySmCount_st
 
 const CUexecAffinitySmCount = CUexecAffinitySmCount_v1
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2369:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2395:5)"
     data::NTuple{4,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2369:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2395:5)"},
                           f::Symbol)
     f === :smCount && return Ptr{CUexecAffinitySmCount}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2369:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2395:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2369:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2369:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2395:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2395:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2369:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2395:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -1965,7 +1977,7 @@ end
 function Base.getproperty(x::Ptr{CUexecAffinityParam_st}, f::Symbol)
     f === :type && return Ptr{CUexecAffinityType}(x + 0)
     f === :param &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2369:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2395:5)"}(x +
                                                                                                                                            4)
     return getfield(x, f)
 end
@@ -1987,6 +1999,7 @@ const CUexecAffinityParam = CUexecAffinityParam_v1
 
 @cenum CUcigDataType_enum::UInt32 begin
     CIG_DATA_TYPE_D3D12_COMMAND_QUEUE = 1
+    CIG_DATA_TYPE_NV_BLOB = 2
 end
 
 const CUcigDataType = CUcigDataType_enum
@@ -2080,7 +2093,7 @@ end
 
 const CUDA_MEMCPY_NODE_PARAMS = CUDA_MEMCPY_NODE_PARAMS_st
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3324:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3351:5)"
     width::Cuint
     height::Cuint
     depth::Cuint
@@ -2092,7 +2105,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_ARRAY_SPARSE_PROPERTIES_st}, f::Symbol)
     f === :tileExtent &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3324:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3351:5)"}(x +
                                                                                                                                             0)
     f === :miptailFirstLevel && return Ptr{Cuint}(x + 12)
     f === :miptailSize && return Ptr{Culonglong}(x + 16)
@@ -2126,40 +2139,40 @@ const CUDA_ARRAY_MEMORY_REQUIREMENTS_v1 = CUDA_ARRAY_MEMORY_REQUIREMENTS_st
 
 const CUDA_ARRAY_MEMORY_REQUIREMENTS = CUDA_ARRAY_MEMORY_REQUIREMENTS_v1
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3363:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3390:5)"
     data::NTuple{128,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3363:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3390:5)"},
                           f::Symbol)
     f === :array &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3364:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3391:9)"}(x +
                                                                                                                                             0)
     f === :mipmap &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3367:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3394:9)"}(x +
                                                                                                                                             0)
     f === :linear &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3370:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3397:9)"}(x +
                                                                                                                                             0)
     f === :pitch2D &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3376:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3403:9)"}(x +
                                                                                                                                             0)
     f === :reserved &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3384:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3411:9)"}(x +
                                                                                                                                             0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3363:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3390:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3363:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3363:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3390:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3390:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3363:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3390:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -2171,7 +2184,7 @@ end
 function Base.getproperty(x::Ptr{CUDA_RESOURCE_DESC_st}, f::Symbol)
     f === :resType && return Ptr{CUresourcetype}(x + 0)
     f === :res &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3363:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3390:5)"}(x +
                                                                                                                                            8)
     f === :flags && return Ptr{Cuint}(x + 136)
     return getfield(x, f)
@@ -2398,30 +2411,30 @@ end
 
 const CUexternalMemoryHandleType = CUexternalMemoryHandleType_enum
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3674:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3701:5)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3674:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3701:5)"},
                           f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
     f === :win32 &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3696:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3723:9)"}(x +
                                                                                                                                             0)
     f === :nvSciBufObject && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3674:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3701:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3674:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3674:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3701:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3701:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3674:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3701:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -2433,7 +2446,7 @@ end
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st}, f::Symbol)
     f === :type && return Ptr{CUexternalMemoryHandleType}(x + 0)
     f === :handle &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3674:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3701:5)"}(x +
                                                                                                                                            8)
     f === :size && return Ptr{Culonglong}(x + 24)
     f === :flags && return Ptr{Cuint}(x + 32)
@@ -2493,30 +2506,30 @@ end
 
 const CUexternalSemaphoreHandleType = CUexternalSemaphoreHandleType_enum
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3820:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3847:5)"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3820:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3847:5)"},
                           f::Symbol)
     f === :fd && return Ptr{Cint}(x + 0)
     f === :win32 &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3843:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3870:9)"}(x +
                                                                                                                                             0)
     f === :nvSciSyncObj && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3820:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3847:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3820:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3820:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3847:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3847:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3820:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3847:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -2528,7 +2541,7 @@ end
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st}, f::Symbol)
     f === :type && return Ptr{CUexternalSemaphoreHandleType}(x + 0)
     f === :handle &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3820:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3847:5)"}(x +
                                                                                                                                            8)
     f === :flags && return Ptr{Cuint}(x + 24)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 28)
@@ -2550,68 +2563,68 @@ const CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_v1 = CUDA_EXTERNAL_SEMAPHORE_HANDLE_DE
 
 const CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC = CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_v1
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3875:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3902:9)"
     value::Culonglong
 end
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3881:9)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3908:9)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3881:9)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3908:9)"},
                           f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3881:9)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3908:9)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3881:9)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3881:9)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3908:9)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3908:9)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3881:9)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3908:9)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3892:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3919:9)"
     key::Culonglong
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3871:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3898:5)"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3871:5)"},
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3898:5)"},
                           f::Symbol)
     f === :fence &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3875:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3902:9)"}(x +
                                                                                                                                             0)
     f === :nvSciSync &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3881:9)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3908:9)"}(x +
                                                                                                                                            8)
     f === :keyedMutex &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3892:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3919:9)"}(x +
                                                                                                                                             16)
     f === :reserved && return Ptr{NTuple{12,Cuint}}(x + 24)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3871:5)",
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3898:5)",
                           f::Symbol)
-    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3871:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3871:5)"},
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3898:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3898:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3871:5)"},
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3898:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -2622,7 +2635,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st}, f::Symbol)
     f === :params &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3871:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3898:5)"}(x +
                                                                                                                                             0)
     f === :flags && return Ptr{Cuint}(x + 72)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 76)
@@ -2644,69 +2657,69 @@ const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_v1 = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_
 
 const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_v1
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3923:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3950:9)"
     value::Culonglong
 end
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3933:9)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3960:9)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3933:9)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3960:9)"},
                           f::Symbol)
     f === :fence && return Ptr{Ptr{Cvoid}}(x + 0)
     f === :reserved && return Ptr{Culonglong}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3933:9)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3960:9)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3933:9)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3933:9)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3960:9)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3960:9)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3933:9)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3960:9)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3940:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3967:9)"
     key::Culonglong
     timeoutMs::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3919:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3946:5)"
     data::NTuple{72,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3919:5)"},
+function Base.getproperty(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3946:5)"},
                           f::Symbol)
     f === :fence &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3923:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3950:9)"}(x +
                                                                                                                                             0)
     f === :nvSciSync &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3933:9)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3960:9)"}(x +
                                                                                                                                            8)
     f === :keyedMutex &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3940:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3967:9)"}(x +
                                                                                                                                             16)
     f === :reserved && return Ptr{NTuple{10,Cuint}}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3919:5)",
+function Base.getproperty(x::var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3946:5)",
                           f::Symbol)
-    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3919:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3919:5)"},
+    r = Ref{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3946:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3946:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3919:5)"},
+function Base.setproperty!(x::Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3946:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -2717,7 +2730,7 @@ end
 
 function Base.getproperty(x::Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st}, f::Symbol)
     f === :params &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3919:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3946:5)"}(x +
                                                                                                                                             0)
     f === :flags && return Ptr{Cuint}(x + 72)
     f === :reserved && return Ptr{NTuple{16,Cuint}}(x + 76)
@@ -2858,80 +2871,80 @@ end
 
 const CUmemHandleType = CUmemHandleType_enum
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4107:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4134:5)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4107:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4134:5)"},
                           f::Symbol)
     f === :mipmap && return Ptr{CUmipmappedArray}(x + 0)
     f === :array && return Ptr{CUarray}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4107:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4134:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4107:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4107:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4134:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4134:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4107:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4134:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4114:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4141:5)"
     data::NTuple{32,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4114:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4141:5)"},
                           f::Symbol)
     f === :sparseLevel &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4115:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4142:9)"}(x +
                                                                                                                                             0)
     f === :miptail &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4125:9)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4152:9)"}(x +
                                                                                                                                             0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4114:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4141:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4114:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4114:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4141:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4141:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4114:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4141:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4135:5)"
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4162:5)"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4135:5)"},
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4162:5)"},
                           f::Symbol)
     f === :memHandle && return Ptr{CUmemGenericAllocationHandle}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4135:5)",
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4162:5)",
                           f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4135:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4135:5)"},
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4162:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4162:5)"},
                               r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4135:5)"},
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4162:5)"},
                            f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
@@ -2943,16 +2956,16 @@ end
 function Base.getproperty(x::Ptr{CUarrayMapInfo_st}, f::Symbol)
     f === :resourceType && return Ptr{CUresourcetype}(x + 0)
     f === :resource &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4107:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4134:5)"}(x +
                                                                                                                                            8)
     f === :subresourceType && return Ptr{CUarraySparseSubresourceType}(x + 16)
     f === :subresource &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4114:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4141:5)"}(x +
                                                                                                                                            24)
     f === :memOperationType && return Ptr{CUmemOperationType}(x + 56)
     f === :memHandleType && return Ptr{CUmemHandleType}(x + 60)
     f === :memHandle &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4135:5)"}(x +
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4162:5)"}(x +
                                                                                                                                            64)
     f === :offset && return Ptr{Culonglong}(x + 72)
     f === :deviceBitMask && return Ptr{Cuint}(x + 80)
@@ -2992,7 +3005,7 @@ end
 
 const CUmemAllocationCompType = CUmemAllocationCompType_enum
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4191:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4218:5)"
     compressionType::Cuchar
     gpuDirectRDMACapable::Cuchar
     usage::Cushort
@@ -3009,7 +3022,7 @@ function Base.getproperty(x::Ptr{CUmemAllocationProp_st}, f::Symbol)
     f === :location && return Ptr{CUmemLocation}(x + 8)
     f === :win32HandleMetaData && return Ptr{Ptr{Cvoid}}(x + 16)
     f === :allocFlags &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4191:5)"}(x +
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4218:5)"}(x +
                                                                                                                                             24)
     return getfield(x, f)
 end
@@ -3091,6 +3104,130 @@ const CUmemPoolPtrExportData_v1 = CUmemPoolPtrExportData_st
 
 const CUmemPoolPtrExportData = CUmemPoolPtrExportData_v1
 
+@cenum CUmemcpyFlags_enum::UInt32 begin
+    CU_MEMCPY_FLAG_DEFAULT = 0
+    CU_MEMCPY_FLAG_PREFER_OVERLAP_WITH_COMPUTE = 1
+end
+
+const CUmemcpyFlags = CUmemcpyFlags_enum
+
+@cenum CUmemcpySrcAccessOrder_enum::UInt32 begin
+    CU_MEMCPY_SRC_ACCESS_ORDER_INVALID = 0
+    CU_MEMCPY_SRC_ACCESS_ORDER_STREAM = 1
+    CU_MEMCPY_SRC_ACCESS_ORDER_DURING_API_CALL = 2
+    CU_MEMCPY_SRC_ACCESS_ORDER_ANY = 3
+    CU_MEMCPY_SRC_ACCESS_ORDER_MAX = 2147483647
+end
+
+const CUmemcpySrcAccessOrder = CUmemcpySrcAccessOrder_enum
+
+struct CUmemcpyAttributes_st
+    srcAccessOrder::CUmemcpySrcAccessOrder
+    srcLocHint::CUmemLocation
+    dstLocHint::CUmemLocation
+    flags::Cuint
+end
+
+const CUmemcpyAttributes_v1 = CUmemcpyAttributes_st
+
+const CUmemcpyAttributes = CUmemcpyAttributes_v1
+
+@cenum CUmemcpy3DOperandType_enum::UInt32 begin
+    CU_MEMCPY_OPERAND_TYPE_POINTER = 1
+    CU_MEMCPY_OPERAND_TYPE_ARRAY = 2
+    CU_MEMCPY_OPERAND_TYPE_MAX = 2147483647
+end
+
+const CUmemcpy3DOperandType = CUmemcpy3DOperandType_enum
+
+struct CUoffset3D_st
+    x::Csize_t
+    y::Csize_t
+    z::Csize_t
+end
+
+const CUoffset3D_v1 = CUoffset3D_st
+
+const CUoffset3D = CUoffset3D_v1
+
+struct CUextent3D_st
+    width::Csize_t
+    height::Csize_t
+    depth::Csize_t
+end
+
+const CUextent3D_v1 = CUextent3D_st
+
+const CUextent3D = CUextent3D_v1
+
+struct var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4514:5)"
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4514:5)"},
+                          f::Symbol)
+    f === :ptr &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4518:9)"}(x +
+                                                                                                                                            0)
+    f === :array &&
+        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4528:9)"}(x +
+                                                                                                                                            0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4514:5)",
+                          f::Symbol)
+    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4514:5)"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4514:5)"},
+                              r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4514:5)"},
+                           f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct CUmemcpy3DOperand_st
+    data::NTuple{40,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUmemcpy3DOperand_st}, f::Symbol)
+    f === :type && return Ptr{CUmemcpy3DOperandType}(x + 0)
+    f === :op &&
+        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4514:5)"}(x +
+                                                                                                                                           8)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUmemcpy3DOperand_st, f::Symbol)
+    r = Ref{CUmemcpy3DOperand_st}(x)
+    ptr = Base.unsafe_convert(Ptr{CUmemcpy3DOperand_st}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUmemcpy3DOperand_st}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+const CUmemcpy3DOperand_v1 = CUmemcpy3DOperand_st
+
+const CUmemcpy3DOperand = CUmemcpy3DOperand_v1
+
+struct CUDA_MEMCPY3D_BATCH_OP_st
+    src::CUmemcpy3DOperand
+    dst::CUmemcpy3DOperand
+    extent::CUextent3D
+    srcAccessOrder::CUmemcpySrcAccessOrder
+    flags::Cuint
+end
+
+const CUDA_MEMCPY3D_BATCH_OP_v1 = CUDA_MEMCPY3D_BATCH_OP_st
+
+const CUDA_MEMCPY3D_BATCH_OP = CUDA_MEMCPY3D_BATCH_OP_v1
+
 struct CUDA_MEM_ALLOC_NODE_PARAMS_v1_st
     poolProps::CUmemPoolProps
     accessDescs::Ptr{CUmemAccessDesc}
@@ -3128,8 +3265,16 @@ end
 
 const CUgraphMem_attribute = CUgraphMem_attribute_enum
 
+@cenum CUgraphChildGraphNodeOwnership_enum::UInt32 begin
+    CU_GRAPH_CHILD_GRAPH_OWNERSHIP_CLONE = 0
+    CU_GRAPH_CHILD_GRAPH_OWNERSHIP_MOVE = 1
+end
+
+const CUgraphChildGraphNodeOwnership = CUgraphChildGraphNodeOwnership_enum
+
 struct CUDA_CHILD_GRAPH_NODE_PARAMS_st
     graph::CUgraph
+    ownership::CUgraphChildGraphNodeOwnership
 end
 
 const CUDA_CHILD_GRAPH_NODE_PARAMS = CUDA_CHILD_GRAPH_NODE_PARAMS_st
@@ -3295,130 +3440,6 @@ struct CUcheckpointUnlockArgs_st
 end
 
 const CUcheckpointUnlockArgs = CUcheckpointUnlockArgs_st
-
-@cenum CUmemcpyFlags_enum::UInt32 begin
-    CU_MEMCPY_FLAG_DEFAULT = 0
-    CU_MEMCPY_FLAG_PREFER_OVERLAP_WITH_COMPUTE = 1
-end
-
-const CUmemcpyFlags = CUmemcpyFlags_enum
-
-@cenum CUmemcpySrcAccessOrder_enum::UInt32 begin
-    CU_MEMCPY_SRC_ACCESS_ORDER_INVALID = 0
-    CU_MEMCPY_SRC_ACCESS_ORDER_STREAM = 1
-    CU_MEMCPY_SRC_ACCESS_ORDER_DURING_API_CALL = 2
-    CU_MEMCPY_SRC_ACCESS_ORDER_ANY = 3
-    CU_MEMCPY_SRC_ACCESS_ORDER_MAX = 2147483647
-end
-
-const CUmemcpySrcAccessOrder = CUmemcpySrcAccessOrder_enum
-
-struct CUmemcpyAttributes_st
-    srcAccessOrder::CUmemcpySrcAccessOrder
-    srcLocHint::CUmemLocation
-    dstLocHint::CUmemLocation
-    flags::Cuint
-end
-
-const CUmemcpyAttributes_v1 = CUmemcpyAttributes_st
-
-const CUmemcpyAttributes = CUmemcpyAttributes_v1
-
-@cenum CUmemcpy3DOperandType_enum::UInt32 begin
-    CU_MEMCPY_OPERAND_TYPE_POINTER = 1
-    CU_MEMCPY_OPERAND_TYPE_ARRAY = 2
-    CU_MEMCPY_OPERAND_TYPE_MAX = 2147483647
-end
-
-const CUmemcpy3DOperandType = CUmemcpy3DOperandType_enum
-
-struct CUoffset3D_st
-    x::Csize_t
-    y::Csize_t
-    z::Csize_t
-end
-
-const CUoffset3D_v1 = CUoffset3D_st
-
-const CUoffset3D = CUoffset3D_v1
-
-struct CUextent3D_st
-    width::Csize_t
-    height::Csize_t
-    depth::Csize_t
-end
-
-const CUextent3D_v1 = CUextent3D_st
-
-const CUextent3D = CUextent3D_v1
-
-struct var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4905:5)"
-    data::NTuple{32,UInt8}
-end
-
-function Base.getproperty(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4905:5)"},
-                          f::Symbol)
-    f === :ptr &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4909:9)"}(x +
-                                                                                                                                            0)
-    f === :array &&
-        return Ptr{var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4919:9)"}(x +
-                                                                                                                                            0)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4905:5)",
-                          f::Symbol)
-    r = Ref{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4905:5)"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4905:5)"},
-                              r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4905:5)"},
-                           f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct CUmemcpy3DOperand_st
-    data::NTuple{40,UInt8}
-end
-
-function Base.getproperty(x::Ptr{CUmemcpy3DOperand_st}, f::Symbol)
-    f === :type && return Ptr{CUmemcpy3DOperandType}(x + 0)
-    f === :op &&
-        return Ptr{var"union (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4905:5)"}(x +
-                                                                                                                                           8)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::CUmemcpy3DOperand_st, f::Symbol)
-    r = Ref{CUmemcpy3DOperand_st}(x)
-    ptr = Base.unsafe_convert(Ptr{CUmemcpy3DOperand_st}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{CUmemcpy3DOperand_st}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-const CUmemcpy3DOperand_v1 = CUmemcpy3DOperand_st
-
-const CUmemcpy3DOperand = CUmemcpy3DOperand_v1
-
-struct CUDA_MEMCPY3D_BATCH_OP_st
-    src::CUmemcpy3DOperand
-    dst::CUmemcpy3DOperand
-    extent::CUextent3D
-    srcAccessOrder::CUmemcpySrcAccessOrder
-    flags::Cuint
-end
-
-const CUDA_MEMCPY3D_BATCH_OP_v1 = CUDA_MEMCPY3D_BATCH_OP_st
-
-const CUDA_MEMCPY3D_BATCH_OP = CUDA_MEMCPY3D_BATCH_OP_v1
 
 @checked function cuGetErrorString(error, pStr)
     @gcsafe_ccall libcuda.cuGetErrorString(error::CUresult, pStr::Ptr{Cstring})::CUresult
@@ -4089,6 +4110,7 @@ end
     CU_MEM_DECOMPRESS_UNSUPPORTED = 0
     CU_MEM_DECOMPRESS_ALGORITHM_DEFLATE = 1
     CU_MEM_DECOMPRESS_ALGORITHM_SNAPPY = 2
+    CU_MEM_DECOMPRESS_ALGORITHM_LZ4 = 4
 end
 
 const CUmemDecompressAlgorithm = CUmemDecompressAlgorithm_enum
@@ -5983,6 +6005,52 @@ end
                                                  priority::Cint)::CUresult
 end
 
+@cenum CUlogLevel_enum::UInt32 begin
+    CU_LOG_LEVEL_ERROR = 0
+    CU_LOG_LEVEL_WARNING = 1
+end
+
+const CUlogLevel = CUlogLevel_enum
+
+mutable struct CUlogsCallbackEntry_st end
+
+const CUlogsCallbackHandle = Ptr{CUlogsCallbackEntry_st}
+
+# typedef void ( CUDA_CB * CUlogsCallback ) ( void * data , CUlogLevel logLevel , char * message , size_t length )
+const CUlogsCallback = Ptr{Cvoid}
+
+const CUlogIterator = Cuint
+
+@checked function cuLogsRegisterCallback(callbackFunc, userData, callback_out)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogsRegisterCallback(callbackFunc::CUlogsCallback,
+                                                 userData::Ptr{Cvoid},
+                                                 callback_out::Ptr{CUlogsCallbackHandle})::CUresult
+end
+
+@checked function cuLogsUnregisterCallback(callback)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogsUnregisterCallback(callback::CUlogsCallbackHandle)::CUresult
+end
+
+@checked function cuLogsCurrent(iterator_out, flags)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogsCurrent(iterator_out::Ptr{CUlogIterator},
+                                        flags::Cuint)::CUresult
+end
+
+@checked function cuLogsDumpToFile(iterator, pathToFile, flags)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogsDumpToFile(iterator::Ptr{CUlogIterator},
+                                           pathToFile::Cstring, flags::Cuint)::CUresult
+end
+
+@checked function cuLogsDumpToMemory(iterator, buffer, size, flags)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogsDumpToMemory(iterator::Ptr{CUlogIterator}, buffer::Cstring,
+                                             size::Ptr{Csize_t}, flags::Cuint)::CUresult
+end
+
 @checked function cuCheckpointProcessGetRestoreThreadId(pid, tid)
     initialize_context()
     @gcsafe_ccall libcuda.cuCheckpointProcessGetRestoreThreadId(pid::Cint,
@@ -6131,12 +6199,12 @@ end
     @gcsafe_ccall libcuda.cuProfilerStop()::CUresult
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3843:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3870:9)"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4115:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4142:9)"
     level::Cuint
     layer::Cuint
     offsetX::Cuint
@@ -6147,13 +6215,13 @@ struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda2
     extentDepth::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4125:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4152:9)"
     layer::Cuint
     offset::Culonglong
     size::Culonglong
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:616:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:617:9)"
     bytesOverBudget::Culonglong
 end
 
@@ -6217,55 +6285,55 @@ struct CUstreamMemOpMemoryBarrierParams_st
     flags::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3696:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3723:9)"
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2190:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2216:5)"
     x::Cuint
     y::Cuint
     z::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2207:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2233:5)"
     event::CUevent
     flags::Cint
     triggerAtBlockStart::Cint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2218:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2244:5)"
     event::CUevent
     flags::Cint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2241:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2267:5)"
     x::Cuint
     y::Cuint
     z::Cuint
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:2253:5)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:2279:5)"
     deviceUpdatable::Cint
     devNode::CUgraphDeviceNode
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3364:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3391:9)"
     hArray::CUarray
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3367:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3394:9)"
     hMipmappedArray::CUmipmappedArray
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3370:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3397:9)"
     devPtr::CUdeviceptr
     format::CUarray_format
     numChannels::Cuint
     sizeInBytes::Csize_t
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3376:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3403:9)"
     devPtr::CUdeviceptr
     format::CUarray_format
     numChannels::Cuint
@@ -6274,18 +6342,18 @@ struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda2
     pitchInBytes::Csize_t
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:3384:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:3411:9)"
     reserved::NTuple{32,Cint}
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4909:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4518:9)"
     ptr::CUdeviceptr
     rowLength::Csize_t
     layerHeight::Csize_t
     locHint::CUmemLocation
 end
 
-struct var"struct (unnamed at /home/tim/.julia/artifacts/5fb2d9ace042b36f558cda20dfe92402e089a432/cuda/include/cuda.h:4919:9)"
+struct var"struct (unnamed at /home/tim/.julia/artifacts/6c811367453a777320ca6bb9e507cc842ff6745f/cuda/include/cuda.h:4528:9)"
     array::CUarray
     offset::CUoffset3D
 end
@@ -6299,6 +6367,8 @@ const CU_STREAM_LEGACY = CUstream(0x01)
 const CU_STREAM_PER_THREAD = CUstream(0x02)
 
 const CU_COMPUTE_ACCELERATED_TARGET_BASE = 0x00010000
+
+const CU_COMPUTE_FAMILY_TARGET_BASE = 0x00020000
 
 const CU_GRAPH_COND_ASSIGN_DEFAULT = 0x01
 
@@ -6407,6 +6477,8 @@ const CU_TRSF_SRGB = 0x10
 const CU_TRSF_DISABLE_TRILINEAR_OPTIMIZATION = 0x20
 
 const CU_TRSF_SEAMLESS_CUBEMAP = 0x40
+
+const CU_LAUNCH_KERNEL_REQUIRED_BLOCK_DIM = 1
 
 const CU_LAUNCH_PARAM_END_AS_INT = 0x00
 
