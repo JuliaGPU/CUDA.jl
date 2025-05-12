@@ -27,6 +27,7 @@ KA.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.ones(T, dims)
 
 KA.get_backend(::CuArray) = CUDABackend()
 KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
+KA.get_backend(::CuDevice) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
 KA.functional(::CUDABackend) = CUDA.functional()
