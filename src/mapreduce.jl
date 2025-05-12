@@ -207,11 +207,6 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         return R
     end
 
-    # allocate an additional, empty dimension to write the reduced value to.
-    # this does not affect the actual location in memory of the final values,
-    # but allows us to write a generalized kernel supporting partial reductions.
-    R′ = reshape(R, (size(R)..., 1))
-
     # how many threads do we want?
     #
     # threads in a block work together to reduce values across the reduction dimensions;
@@ -231,7 +226,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # we might not be able to launch all those threads to reduce each slice in one go.
     # that's why each threads also loops across their inputs, processing multiple values
     # so that we can span the entire reduction dimension using a single thread block.
-    kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), R′, A)
+    kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), R, A)
     compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
     kernel_config = launch_configuration(kernel.fun; shmem=compute_shmem∘compute_threads)
     reduce_threads = compute_threads(kernel_config.threads)
@@ -258,7 +253,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # perform the actual reduction
     if reduce_blocks == 1
         # we can cover the dimensions to reduce using a single block
-        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R′, A; threads, blocks, shmem)
+        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; threads, blocks, shmem)
     else
         # we need multiple steps to cover all values to reduce
         partial = similar(R, (size(R)..., reduce_blocks))
@@ -271,7 +266,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         @cuda(threads, blocks, shmem,
               partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), partial, A))
 
-        GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
+        GPUArrays.mapreducedim!(identity, op, R, partial; init=init)
     end
 
     return R
