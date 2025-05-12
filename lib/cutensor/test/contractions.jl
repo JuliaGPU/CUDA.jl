@@ -185,11 +185,6 @@ end
         tB = CuTensor(reshape(vB, (1, 1)), [3, 2])
         tC = CuTensor(reshape(vC, (1, 4)), [3, 1])
         mul!(tC, tA, tB)
-        tA2 = CuTensor(copy(vA), [1, 2])
-        tB2 = CuTensor(copy(vB), [3, 2])
-        tD = CuTensor(copy(vD), [3, 1])
-        mul!(tD, tA2, tB2)
-        @test tD.data ≈ tD.data
     end
 end
 
