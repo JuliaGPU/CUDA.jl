@@ -316,8 +316,11 @@ function plan_contraction(
     descC = CuTensorDescriptor(C)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
     modeA = collect(Cint, Ainds)
+    length(modeA) == ndims(A) || throw(ArgumentError("Ainds must match number of dimensions in A!"))
     modeB = collect(Cint, Binds)
+    length(modeB) == ndims(B) || throw(ArgumentError("Binds must match number of dimensions in B!"))
     modeC = collect(Cint, Cinds)
+    length(modeC) == ndims(C) || throw(ArgumentError("Cinds must match number of dimensions in C!"))
 
     actual_compute_type = if compute_type === nothing
         contraction_compute_types[(eltype(A), eltype(B), eltype(C))]

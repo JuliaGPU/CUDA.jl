@@ -477,16 +477,52 @@ end
                                              stream::cudaStream_t)::cutensorStatus_t
 end
 
+@checked function cutensorCreateContractionTrinary(handle, desc, descA, modeA, opA, descB,
+                                                   modeB, opB, descC, modeC, opC, descD,
+                                                   modeD, opD, descE, modeE, descCompute)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorCreateContractionTrinary(handle::cutensorHandle_t,
+                                                               desc::Ptr{cutensorOperationDescriptor_t},
+                                                               descA::cutensorTensorDescriptor_t,
+                                                               modeA::Ptr{Int32},
+                                                               opA::cutensorOperator_t,
+                                                               descB::cutensorTensorDescriptor_t,
+                                                               modeB::Ptr{Int32},
+                                                               opB::cutensorOperator_t,
+                                                               descC::cutensorTensorDescriptor_t,
+                                                               modeC::Ptr{Int32},
+                                                               opC::cutensorOperator_t,
+                                                               descD::cutensorTensorDescriptor_t,
+                                                               modeD::Ptr{Int32},
+                                                               opD::cutensorOperator_t,
+                                                               descE::cutensorTensorDescriptor_t,
+                                                               modeE::Ptr{Int32},
+                                                               descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
+end
+
+@checked function cutensorContractTrinary(handle, plan, alpha, A, B, C, beta, D, E,
+                                          workspace, workspaceSize, stream)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorContractTrinary(handle::cutensorHandle_t,
+                                                      plan::cutensorPlan_t,
+                                                      alpha::Ptr{Cvoid}, A::Ptr{Cvoid},
+                                                      B::Ptr{Cvoid}, C::Ptr{Cvoid},
+                                                      beta::Ptr{Cvoid}, D::Ptr{Cvoid},
+                                                      E::Ptr{Cvoid}, workspace::Ptr{Cvoid},
+                                                      workspaceSize::UInt64,
+                                                      stream::cudaStream_t)::cutensorStatus_t
+end
+
 function cutensorGetErrorString(error)
     @gcsafe_ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
 
-# no prototype is found for this function at cutensor.h:980:8, please use with caution
+# no prototype is found for this function at cutensor.h:1102:8, please use with caution
 function cutensorGetVersion()
     @gcsafe_ccall libcutensor.cutensorGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensor.h:986:8, please use with caution
+# no prototype is found for this function at cutensor.h:1108:8, please use with caution
 function cutensorGetCudartVersion()
     @gcsafe_ccall libcutensor.cutensorGetCudartVersion()::Csize_t
 end
@@ -516,7 +552,7 @@ end
     @gcsafe_ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
-# no prototype is found for this function at cutensor.h:1034:18, please use with caution
+# no prototype is found for this function at cutensor.h:1159:18, please use with caution
 @checked function cutensorLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t

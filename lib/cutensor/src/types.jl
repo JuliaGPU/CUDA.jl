@@ -238,6 +238,9 @@ mutable struct CuTensor{T, N}
     inds::Vector{Int32}
 
     function CuTensor{T, N}(data::CuArray{T,N}, inds::Vector) where {T<:Number, N}
+        if length(inds) != N
+            throw(ArgumentError("The number of indices must match the number of dimensions of the data."))
+        end
         if !iszero(UInt(pointer(data)) % CUTENSOR_ALIGNMENT)
             @warn "The data for this CuTensor does not obey the CUTENSOR alignment requirement of $CUTENSOR_ALIGNMENT. An explicit copy will be made to ensure the requirement is met."
             return new(copy(data), inds)
