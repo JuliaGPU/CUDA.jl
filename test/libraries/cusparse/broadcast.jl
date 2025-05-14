@@ -32,7 +32,7 @@ using CUDA.CUSPARSE, SparseArrays
         dz = dx .* dy .* elty(2)
         @test dz isa typ{elty}
         @test z == SparseMatrixCSC(dz)
-        
+
         # multiple inputs
         w = sprand(elty, m, n, p)
         dw = typ(w)
@@ -42,34 +42,34 @@ using CUDA.CUSPARSE, SparseArrays
         @test z == SparseMatrixCSC(dz)
     end
     @testset "$typ($elty)" for typ in [CuSparseVector,]
-        m = 64 
+        m = 64
         p = 0.5
         x = sprand(elty, m, p)
         dx = typ(x)
-        
+
         # zero-preserving
         y  = x .* elty(1)
         dy = dx .* elty(1)
         @test dy isa typ{elty}
-        @test collect(dy.iPtr) == collect(dx.iPtr) 
+        @test collect(dy.iPtr) == collect(dx.iPtr)
         @test collect(dy.iPtr) == y.nzind
         @test collect(dy.nzVal) == y.nzval
         @test y  == SparseVector(dy)
-        
+
         # not zero-preserving
         y = x .+ elty(1)
         dy = dx .+ elty(1)
         @test dy isa CuArray{elty}
         hy = Array(dy)
-        @test Array(y) == hy 
+        @test Array(y) == hy
 
         # involving something dense
         y = x .+ ones(elty, m)
         dy = dx .+ CUDA.ones(elty, m)
         @test dy isa CuArray{elty}
         @test y == Array(dy)
-         
-        # sparse to sparse 
+
+        # sparse to sparse
         dx = typ(x)
         y  = sprand(elty, m, p)
         dy = typ(y)
@@ -88,18 +88,18 @@ using CUDA.CUSPARSE, SparseArrays
         dz = @. dx * dy * dw
         @test dz isa typ{elty}
         @test z == SparseVector(dz)
-        
+
         y = sprand(elty, m, p)
         w = sprand(elty, m, p)
         dense_arr   = rand(elty, m)
-        d_dense_arr = CuArray(dense_arr) 
+        d_dense_arr = CuArray(dense_arr)
         dy = typ(y)
         dw = typ(w)
-        z  = @. x * y * w * dense_arr 
-        dz = @. dx * dy * dw * d_dense_arr 
+        z  = @. x * y * w * dense_arr
+        dz = @. dx * dy * dw * d_dense_arr
         @test dz isa CuArray{elty}
         @test z == Array(dz)
-        
+
         y = sprand(elty, m, p)
         dy = typ(y)
         dx = typ(x)
@@ -107,6 +107,22 @@ using CUDA.CUSPARSE, SparseArrays
         dz = dx .* dy .* elty(2)
         @test dz isa typ{elty}
         @test z == SparseVector(dz)
+
+        # type-mismatching
+        ## non-zero-preserving
+        dx = typ(x)
+        dy = dx .+ 1
+        y = x .+ 1
+        @test dy isa CuArray{promote_type(elty, Int)}
+        @test y == Array(dy)
+        ## zero-preserving
+        dy = dx .* 1
+        y = x .* 1
+        @test dy isa typ{promote_type(elty, Int)}
+        @test collect(dy.iPtr) == collect(dx.iPtr)
+        @test collect(dy.iPtr) == y.nzind
+        @test collect(dy.nzVal) == y.nzval
+        @test y == SparseVector(dy)
     end
 end
 

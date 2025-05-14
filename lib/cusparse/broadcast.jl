@@ -383,11 +383,12 @@ function sparse_to_sparse_broadcast_kernel(f::F, output::CuSparseDeviceVector{Tv
     row          = @inbounds row_and_ptrs[1]
     arg_ptrs     = @inbounds row_and_ptrs[2]
     vals = ntuple(Val(N)) do i
+        @inline
         arg = @inbounds args[i]
         # ptr is 0 if the sparse vector doesn't have an element at this row
         # ptr is 0 if the arg is a scalar AND f preserves zeros
         ptr = @inbounds arg_ptrs[i]
-        _getindex(arg, row, ptr)::Tv
+        _getindex(arg, row, ptr)
     end
     output_val = f(vals...)
     @inbounds output.iPtr[row_ix]  = row
@@ -470,12 +471,13 @@ function sparse_to_dense_broadcast_kernel(::Type{<:CuSparseVector}, f::F,
     row          = @inbounds row_and_ptrs[1]
     arg_ptrs     = @inbounds row_and_ptrs[2]
     vals = ntuple(Val(length(args))) do i
+        @inline
         arg = @inbounds args[i]
         # ptr is 0 if the sparse vector doesn't have an element at this row
         # ptr is row if the arg is dense OR a scalar with non-zero-preserving f
         # ptr is 0 if the arg is a scalar AND f preserves zeros
         ptr = @inbounds arg_ptrs[i]
-        _getindex(arg, row, ptr)::Tv
+        _getindex(arg, row, ptr)
     end
     @inbounds output[row] = f(vals...)
     return
