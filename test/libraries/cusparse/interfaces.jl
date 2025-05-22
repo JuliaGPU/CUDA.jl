@@ -581,7 +581,23 @@ end
         cuda_vec = CuVector(ref_vec)
 
         ref_spdiagm = spdiagm(ref_vec) # SparseArrays
-        cuda_spdiagm = spdiagm(cuda_vec) # CuSparseMatrixCSC
+        cuda_spdiagm = spdiagm(cuda_vec)
+
+        ref_cuda_sparse = CuSparseMatrixCSC(ref_spdiagm)
+
+        @test ref_cuda_sparse.rowVal == cuda_spdiagm.rowVal
+
+        @test ref_cuda_sparse.nzVal == cuda_spdiagm.nzVal
+
+        @test ref_cuda_sparse.colPtr == cuda_spdiagm.colPtr
+    end
+
+    @testset "spdiagm(2 => CuVector{$elty})" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        ref_vec = collect(elty, 100:121)
+        cuda_vec = CuVector(ref_vec)
+
+        ref_spdiagm = spdiagm(2 => ref_vec) # SparseArrays
+        cuda_spdiagm = spdiagm(2 => cuda_vec)
 
         ref_cuda_sparse = CuSparseMatrixCSC(ref_spdiagm)
 
