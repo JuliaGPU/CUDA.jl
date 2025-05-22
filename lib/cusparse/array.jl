@@ -349,7 +349,7 @@ function _cuda_spdiagm(size, kv::Pair{<:Integer, <:CuVector}...)
     return sparse(CuVector(I), CuVector(J), V, m, n)
 end
 
-function _cuda_spdiagm_internal(kv::Pair{<:Integer,<:CuVector{T}}...) where {T}
+function _cuda_spdiagm_internal(kv::Pair{T,<:CuVector}...) where {T<:Integer}
     ncoeffs = 0
     for p in kv
         ncoeffs += SparseArrays._nnz(p.second)
