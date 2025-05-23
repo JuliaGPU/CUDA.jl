@@ -395,7 +395,7 @@ LinearAlgebra.diagm(m::Integer, n::Integer, v::CuVector) = LinearAlgebra.diagm(m
 function _cuda_diagm(size, kv::Pair{<:Integer,<:CuVector}...)
     A = LinearAlgebra.diagm_container(size, kv...)
     for p in kv
-        inds = diagind(A, p.first)
+        inds = LinearAlgebra.diagind(A, p.first)
         copyto!(view(A, inds), p.second)
     end
     return A
@@ -404,7 +404,7 @@ end
 function LinearAlgebra.diagm_container(size, kv::Pair{<:Integer,<:CuVector}...)
     T = promote_type(map(x -> eltype(x.second), kv)...)
     U = promote_type(T, typeof(zero(T)))
-    return cu(zeros(U, diagm_size(size, kv...)...))
+    return cu(zeros(U, LinearAlgebra.diagm_size(size, kv...)...))
 end
 
 function LinearAlgebra.diagm_size(size::Nothing, kv::Pair{<:Integer,<:CuVector}...)
