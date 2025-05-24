@@ -336,14 +336,55 @@ function SparseArrays.sparsevec(I::CuArray{Ti}, V::CuArray{Tv}, n::Integer) wher
     CuSparseVector(I, V, n)
 end
 
-function SparseArrays.spdiagm(v::CuVector{Tv}) where {Tv}
-    nzVal = v
-    N = Int32(length(nzVal))
+SparseArrays.spdiagm(kv::Pair{<:Integer,<:CuVector}...) = _cuda_spdiagm(nothing, kv...)
+SparseArrays.spdiagm(m::Integer, n::Integer, kv::Pair{<:Integer,<:CuVector}...) = _cuda_spdiagm((Int(m),Int(n)), kv...)
+SparseArrays.spdiagm(v::CuVector) = _cuda_spdiagm(nothing, 0 => v)
+SparseArrays.spdiagm(m::Integer, n::Integer, v::CuVector) = _cuda_spdiagm((Int(m), Int(n)), 0 => v)
 
-    colPtr = CuArray(one(Int32):(N + one(Int32)))
-    rowVal = CuArray(one(Int32):N)
-    dims = (N, N)
-    CuSparseMatrixCSC(colPtr, rowVal, nzVal, dims)
+function _cuda_spdiagm(size, kv::Pair{<:Integer, <:CuVector}...)
+    I, J, V, mmax, nmax = _cuda_spdiagm_internal(kv...)
+    mnmax = max(mmax, nmax)
+    m, n = something(size, (mnmax,mnmax))
+    (m ≥ mmax && n ≥ nmax) || throw(DimensionMismatch("invalid size=$size"))
+    return sparse(CuVector(I), CuVector(J), V, m, n)
+end
+
+function _cuda_spdiagm_internal(kv::Pair{T,<:CuVector}...) where {T<:Integer}
+    ncoeffs = 0
+    for p in kv
+        ncoeffs += SparseArrays._nnz(p.second)
+    end
+    I = Vector{T}(undef, ncoeffs)
+    J = Vector{T}(undef, ncoeffs)
+    V = CuArray{promote_type(map(x -> eltype(x.second), kv)...)}(undef, ncoeffs)
+    i = 0
+    m = 0
+    n = 0
+    for p in kv
+        k = p.first
+        v = p.second
+        if k < 0
+            row = -k
+            col = 0
+        elseif k > 0
+            row = 0
+            col = k
+        else
+            row = 0
+            col = 0
+        end
+        numel = SparseArrays._nnz(v)
+        r = 1+i:numel+i
+        I_r, J_r = SparseArrays._indices(v, row, col)
+        copyto!(view(I, r), I_r)
+        copyto!(view(J, r), J_r)
+        copyto!(view(V, r), v)
+        veclen = length(v)
+        m = max(m, row + veclen)
+        n = max(n, col + veclen)
+        i += numel
+    end
+    return I, J, V, m, n
 end
 
 LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - transpose(M), Inf) == 0 : false
