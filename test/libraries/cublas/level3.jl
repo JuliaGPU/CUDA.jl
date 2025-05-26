@@ -467,6 +467,23 @@ k = 13
             h_C = triu(h_C)
             @test C ≈ h_C
         end
+        @testset "diagm" begin
+            A = rand(elty, m)
+            B = rand(elty, n)
+            # move to device
+            d_A = CuArray(A)
+            d_B = CuArray(B)
+            diagA = diagm(d_A)
+            diagB = diagm(2 => d_B)
+            # move back to host and compare
+            diagind_A = diagind(diagA, 0)
+            diagind_B = diagind(diagB, 2)
+            h_A = Array(diagA[diagind_A])
+            h_B = Array(diagB[diagind_B])
+
+            @test A ≈ h_A
+            @test B ≈ h_B
+        end
         if elty <: Complex
             @testset "herk!" begin
                 alpha = rand(real(elty))
