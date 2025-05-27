@@ -341,7 +341,20 @@ k = 1
         @test Eig.values ≈ collect(d_eig.values)
         h_V            = collect(d_eig.vectors)
         h_V⁻¹          = inv(h_V)
-        @test abs.(Eig.vectors* h_V⁻¹) ≈ I
+        @test abs.(Eig.vectors*h_V⁻¹) ≈ I
+
+        A              = rand(elty,m,m)
+        d_A            = CuArray(A)
+        W              = eigvals(A)
+        d_W            = eigvals(d_A)
+        @test W        ≈ collect(d_W)
+
+        A              = rand(elty,m,m)
+        d_A            = CuArray(A)
+        V              = eigvecs(A)
+        d_V            = eigvecs(d_A)
+        V⁻¹            = inv(V)
+        @test abs.(collect(d_V)*V⁻¹) ≈ I
     end
 
     @testset "syevd!" begin
@@ -398,6 +411,35 @@ k = 1
             @test abs.(Eig.vectors'*h_V) ≈ I
         end
 
+        A              = rand(elty,m,m)
+        A             += A'
+        d_A            = CuArray(A)
+        W              = eigvals(LinearAlgebra.Hermitian(A))
+        d_W            = eigvals(d_A)
+        @test W        ≈ collect(d_W)
+        d_W            = eigvals(LinearAlgebra.Hermitian(d_A))
+        @test W        ≈ collect(d_W)
+        if elty <: Real
+            W              = eigvals(LinearAlgebra.Symmetric(A))
+            d_W            = eigvals(LinearAlgebra.Symmetric(d_A))
+            @test W        ≈ collect(d_W)
+        end
+
+        A              = rand(elty,m,m)
+        A             += A'
+        d_A            = CuArray(A)
+        V              = eigvecs(LinearAlgebra.Hermitian(A))
+        V⁻¹            = inv(V)
+        d_V            = eigvecs(d_A)
+        @test abs.(collect(d_V)*V⁻¹) ≈ I
+        d_V            = eigvecs(LinearAlgebra.Hermitian(d_A))
+        @test abs.(collect(d_V)*V⁻¹) ≈ I
+        if elty <: Real
+            V              = eigvecs(LinearAlgebra.Symmetric(A))
+            V⁻¹            = inv(V)
+            d_V            = eigvecs(LinearAlgebra.Symmetric(d_A))
+           @test abs.(collect(d_V)*V⁻¹) ≈ I
+        end
     end
 
     @testset "sygvd!" begin
