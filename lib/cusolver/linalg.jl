@@ -169,7 +169,7 @@ function LinearAlgebra.eigvecs(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComp
     return heevd!('V', 'U', A2)[2]
 end
 function LinearAlgebra.eigvecs(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
-    return eigvals(Symmetric(A))
+    return eigvecs(Symmetric(A))
 end
 
 function LinearAlgebra.eigvecs(A::CuMatrix{T}) where {T <: BlasReal}
