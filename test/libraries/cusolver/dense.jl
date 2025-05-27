@@ -345,7 +345,7 @@ k = 1
         @test Eig.values ≈ collect(d_eig.values)
         h_V            = collect(d_eig.vectors)
         h_V⁻¹          = inv(h_V)
-        @test abs.(Eig.vectors*h_V⁻¹) ≈ I
+        @test abs.(h_V⁻¹*Eig.vectors) ≈ I
 
         A              = rand(elty,m,m)
         d_A            = CuArray(A)
@@ -358,7 +358,7 @@ k = 1
         V              = eigvecs(A)
         d_V            = eigvecs(d_A)
         V⁻¹            = inv(V)
-        @test abs.(collect(d_V)*V⁻¹) ≈ I
+        @test abs.(V⁻¹*collect(d_V)) ≈ I
     end
 
     @testset "syevd!" begin
