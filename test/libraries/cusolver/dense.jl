@@ -315,6 +315,35 @@ k = 1
         end
     end
 
+    @testset "geev!" begin
+        A              = rand(elty,m,m)
+        d_A            = CuArray(A)
+        local d_W, d_V
+        d_W, d_V       = CUSOLVER.Xgeev!('N','V', d_A)
+        d_W_b, d_V_b   = LAPACK.geev!('N','V', CuArray(A))
+        @test d_W ≈ d_W_b
+        @test d_V ≈ d_V_b
+        h_W            = collect(d_W)
+        h_V            = collect(d_V)
+        h_V⁻¹          = inv(h_V)
+        Eig            = eigen(A)
+        @test Eig.values ≈ h_W
+        @test abs.(Eig.vectors*h_V⁻¹) ≈ I
+        d_A            = CuArray(A)
+        d_W            = CUSOLVER.Xgeev!('N','N', d_A)
+        h_W            = collect(d_W)
+        @test Eig.values ≈ h_W
+
+        A              = rand(elty,m,m)
+        d_A            = CuArray(A)
+        Eig            = eigen(A)
+        d_eig          = eigen(d_A)
+        @test Eig.values ≈ collect(d_eig.values)
+        h_V            = collect(d_eig.vectors)
+        h_V⁻¹          = inv(h_V)
+        @test abs.(Eig.vectors* h_V⁻¹) ≈ I
+    end
+
     @testset "syevd!" begin
         A              = rand(elty,m,m)
         A             += A'
