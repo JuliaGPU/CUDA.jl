@@ -110,6 +110,20 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     return LinearAlgebra._cut_B(BB, 1:n)
 end
 
+# Adapted from LinearAlgebra.sorteig!().
+# Warning: not very efficient, but works.
+eigsortby(λ::Real) = λ
+eigsortby(λ::Complex) = (real(λ),imag(λ))
+function sorteig!(λ::AbstractVector, X::AbstractMatrix, sortby::Union{Function,Nothing}=eigsortby)
+    if sortby !== nothing # && !issorted(λ, by=sortby)
+        p = sortperm(λ; by=sortby)
+        λ .= λ[p] # permute!(λ, p)
+        X .= X[:, p] # Base.permutecols!!(X, p)
+    end
+    return λ, X
+end
+sorteig!(λ::AbstractVector, sortby::Union{Function,Nothing}=eigsortby) = sortby === nothing ? λ : sort!(λ, by=sortby)
+
 # eigen
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
@@ -127,23 +141,23 @@ end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
     r = Xgeev!('N', 'V', A2)
-    return Eigen(r[1], r[3])
+    return Eigen(sorteig!(r[1], r[3])...)
 end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
     r = Xgeev!('N', 'V', A2)
-    return Eigen(r[1], r[3])
+    return Eigen(sorteig!(r[1], r[3])...)
 end
 
 # eigvals
 
 function LinearAlgebra.eigvals(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
     A2 = copy(A.data)
-    return syevd!('N', 'U', A2)[1]
+    return syevd!('N', 'U', A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
     A2 = copy(A.data)
-    return heevd!('N', 'U', A2)[1]
+    return heevd!('N', 'U', A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
     return eigvals(Symmetric(A))
@@ -151,34 +165,34 @@ end
 
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
     A2 = copy(A)
-    return Xgeev!('N', 'N', A2)[1]
+    return sorteig!(Xgeev!('N', 'N', A2)[1])
 end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
     A2 = copy(A)
-    return Xgeev!('N', 'N', A2)[1]
+    return sorteig!(Xgeev!('N', 'N', A2)[1])
 end
 
 # eigvecs
 
 function LinearAlgebra.eigvecs(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
-    A2 = copy(A.data)
-    return syevd!('V', 'U', A2)[2]
+    E = eigen(A)
+    return E.vectors
 end
 function LinearAlgebra.eigvecs(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
-    A2 = copy(A.data)
-    return heevd!('V', 'U', A2)[2]
+    E = eigen(A)
+    return E.vectors
 end
 function LinearAlgebra.eigvecs(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
     return eigvecs(Symmetric(A))
 end
 
 function LinearAlgebra.eigvecs(A::CuMatrix{T}) where {T <: BlasReal}
-    A2 = copy(A)
-    return Xgeev!('N', 'V', A2)[3]
+    E = eigen(A)
+    return E.vectors
 end
 function LinearAlgebra.eigvecs(A::CuMatrix{T}) where {T <: BlasComplex}
-    A2 = copy(A)
-    return Xgeev!('N', 'V', A2)[3]
+    E = eigen(A)
+    return E.vectors
 end
 
 # factorizations

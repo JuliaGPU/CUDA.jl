@@ -316,23 +316,27 @@ k = 1
     end
 
     @testset "geev!" begin
-        A              = rand(elty,m,m)
-        d_A            = CuArray(A)
+        ## Note: we have Xgeev in dense_generic.jl, but no geev in dense.jl.
+        # A               = rand(elty,m,m)
+        # d_A             = CuArray(A)
         local d_W, d_V
-        d_W, d_V       = CUSOLVER.Xgeev!('N','V', d_A)
-        d_W_b, d_V_b   = LAPACK.geev!('N','V', CuArray(A))
-        @test d_W ≈ d_W_b
-        @test d_V ≈ d_V_b
-        h_W            = collect(d_W)
-        h_V            = collect(d_V)
-        h_V⁻¹          = inv(h_V)
-        Eig            = eigen(A)
-        @test Eig.values ≈ h_W
-        @test abs.(Eig.vectors*h_V⁻¹) ≈ I
-        d_A            = CuArray(A)
-        d_W            = CUSOLVER.Xgeev!('N','N', d_A)
-        h_W            = collect(d_W)
-        @test Eig.values ≈ h_W
+        # d_W, _, d_V     = CUSOLVER.Xgeev!('N','V', d_A)
+        # # d_W_b, _, d_V_b = LAPACK.geev!('N','V', CuArray(A))
+        # # @test d_W ≈ d_W_b
+        # # @test d_V ≈ d_V_b
+        # W_b, _, V_b       = LAPACK.geev!('N','V', A)
+        # @test collect(d_W) ≈ W_b
+        # @test collect(d_V) ≈ V_b
+        # h_W             = collect(d_W)
+        # h_V             = collect(d_V)
+        # h_V⁻¹           = inv(h_V)
+        # Eig             = eigen(A)
+        # @test Eig.values ≈ h_W
+        # @test abs.(Eig.vectors*h_V⁻¹) ≈ I
+        # d_A            = CuArray(A)
+        # d_W            = CUSOLVER.Xgeev!('N','N', d_A)
+        # h_W            = collect(d_W)
+        # @test Eig.values ≈ h_W
 
         A              = rand(elty,m,m)
         d_A            = CuArray(A)
@@ -429,16 +433,17 @@ k = 1
         A             += A'
         d_A            = CuArray(A)
         V              = eigvecs(LinearAlgebra.Hermitian(A))
-        V⁻¹            = inv(V)
         d_V            = eigvecs(d_A)
-        @test abs.(collect(d_V)*V⁻¹) ≈ I
+        h_V            = collect(d_V)
+        @test abs.(V'*h_V) ≈ I
         d_V            = eigvecs(LinearAlgebra.Hermitian(d_A))
-        @test abs.(collect(d_V)*V⁻¹) ≈ I
+        h_V            = collect(d_V)
+        @test abs.(V'*h_V) ≈ I
         if elty <: Real
             V              = eigvecs(LinearAlgebra.Symmetric(A))
-            V⁻¹            = inv(V)
             d_V            = eigvecs(LinearAlgebra.Symmetric(d_A))
-           @test abs.(collect(d_V)*V⁻¹) ≈ I
+            h_V            = collect(d_V)
+            @test abs.(V'*h_V) ≈ I
         end
     end
 
