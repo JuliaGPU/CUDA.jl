@@ -140,8 +140,22 @@ end
 
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
-    r = Xgeev!('N', 'V', A2)
-    return Eigen(sorteig!(r[1], r[3])...)
+    W, _, VR = Xgeev!('N', 'V', A2)
+    C = Complex{T}
+    U = CuMatrix{C}([1. 1.; im -im])
+    VR = CuMatrix{C}(VR)
+    h_W = collect(W)
+    n = length(W)
+    j = 1
+    while j <= n
+        if imag(h_W[j]) == 0
+            j += 1
+        else
+            VR[:,j:j+1] .= VR[:,j:j+1] * U
+            j += 2
+        end
+    end
+    return Eigen(sorteig!(W, VR)...)
 end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
