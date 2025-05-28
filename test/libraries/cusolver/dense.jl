@@ -331,27 +331,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
 
     if CUSOLVER.version() >= v"11.7.1"
         @testset "geev!" begin
-            ## Note: we have Xgeev in dense_generic.jl, but no geev in dense.jl.
-            # A               = rand(elty,m,m)
-            # d_A             = CuArray(A)
             local d_W, d_V
-            # d_W, _, d_V     = CUSOLVER.Xgeev!('N','V', d_A)
-            # # d_W_b, _, d_V_b = LAPACK.geev!('N','V', CuArray(A))
-            # # @test d_W ≈ d_W_b
-            # # @test d_V ≈ d_V_b
-            # W_b, _, V_b       = LAPACK.geev!('N','V', A)
-            # @test collect(d_W) ≈ W_b
-            # @test collect(d_V) ≈ V_b
-            # h_W             = collect(d_W)
-            # h_V             = collect(d_V)
-            # h_V⁻¹           = inv(h_V)
-            # Eig             = eigen(A)
-            # @test Eig.values ≈ h_W
-            # @test abs.(Eig.vectors*h_V⁻¹) ≈ I
-            # d_A            = CuArray(A)
-            # d_W            = CUSOLVER.Xgeev!('N','N', d_A)
-            # h_W            = collect(d_W)
-            # @test Eig.values ≈ h_W
 
             A              = rand(elty,m,m)
             d_A            = CuArray(A)
