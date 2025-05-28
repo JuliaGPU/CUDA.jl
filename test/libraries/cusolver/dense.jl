@@ -329,54 +329,56 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         end
     end
 
-    @testset "geev!" begin
-        ## Note: we have Xgeev in dense_generic.jl, but no geev in dense.jl.
-        # A               = rand(elty,m,m)
-        # d_A             = CuArray(A)
-        local d_W, d_V
-        # d_W, _, d_V     = CUSOLVER.Xgeev!('N','V', d_A)
-        # # d_W_b, _, d_V_b = LAPACK.geev!('N','V', CuArray(A))
-        # # @test d_W ≈ d_W_b
-        # # @test d_V ≈ d_V_b
-        # W_b, _, V_b       = LAPACK.geev!('N','V', A)
-        # @test collect(d_W) ≈ W_b
-        # @test collect(d_V) ≈ V_b
-        # h_W             = collect(d_W)
-        # h_V             = collect(d_V)
-        # h_V⁻¹           = inv(h_V)
-        # Eig             = eigen(A)
-        # @test Eig.values ≈ h_W
-        # @test abs.(Eig.vectors*h_V⁻¹) ≈ I
-        # d_A            = CuArray(A)
-        # d_W            = CUSOLVER.Xgeev!('N','N', d_A)
-        # h_W            = collect(d_W)
-        # @test Eig.values ≈ h_W
+    if CUSOLVER.version() >= v"11.7.1"
+        @testset "geev!" begin
+            ## Note: we have Xgeev in dense_generic.jl, but no geev in dense.jl.
+            # A               = rand(elty,m,m)
+            # d_A             = CuArray(A)
+            local d_W, d_V
+            # d_W, _, d_V     = CUSOLVER.Xgeev!('N','V', d_A)
+            # # d_W_b, _, d_V_b = LAPACK.geev!('N','V', CuArray(A))
+            # # @test d_W ≈ d_W_b
+            # # @test d_V ≈ d_V_b
+            # W_b, _, V_b       = LAPACK.geev!('N','V', A)
+            # @test collect(d_W) ≈ W_b
+            # @test collect(d_V) ≈ V_b
+            # h_W             = collect(d_W)
+            # h_V             = collect(d_V)
+            # h_V⁻¹           = inv(h_V)
+            # Eig             = eigen(A)
+            # @test Eig.values ≈ h_W
+            # @test abs.(Eig.vectors*h_V⁻¹) ≈ I
+            # d_A            = CuArray(A)
+            # d_W            = CUSOLVER.Xgeev!('N','N', d_A)
+            # h_W            = collect(d_W)
+            # @test Eig.values ≈ h_W
 
-        A              = rand(elty,m,m)
-        d_A            = CuArray(A)
-        Eig            = eigen(A)
-        d_eig          = eigen(d_A)
-        sorteig!(d_eig.values, d_eig.vectors)
-        @test Eig.values ≈ collect(d_eig.values)
-        h_V            = collect(d_eig.vectors)
-        h_V⁻¹          = inv(h_V)
-        @test abs.(h_V⁻¹*Eig.vectors) ≈ I
+            A              = rand(elty,m,m)
+            d_A            = CuArray(A)
+            Eig            = eigen(A)
+            d_eig          = eigen(d_A)
+            sorteig!(d_eig.values, d_eig.vectors)
+            @test Eig.values ≈ collect(d_eig.values)
+            h_V            = collect(d_eig.vectors)
+            h_V⁻¹          = inv(h_V)
+            @test abs.(h_V⁻¹*Eig.vectors) ≈ I
 
-        A              = rand(elty,m,m)
-        d_A            = CuArray(A)
-        W              = eigvals(A)
-        d_W            = eigvals(d_A)
-        sorteig!(d_W)
-        @test W        ≈ collect(d_W)
+            A              = rand(elty,m,m)
+            d_A            = CuArray(A)
+            W              = eigvals(A)
+            d_W            = eigvals(d_A)
+            sorteig!(d_W)
+            @test W        ≈ collect(d_W)
 
-        A              = rand(elty,m,m)
-        d_A            = CuArray(A)
-        V              = eigvecs(A)
-        d_W            = eigvals(d_A)
-        d_V            = eigvecs(d_A)
-        sorteig!(d_W, d_V)
-        V⁻¹            = inv(V)
-        @test abs.(V⁻¹*collect(d_V)) ≈ I
+            A              = rand(elty,m,m)
+            d_A            = CuArray(A)
+            V              = eigvecs(A)
+            d_W            = eigvals(d_A)
+            d_V            = eigvecs(d_A)
+            sorteig!(d_W, d_V)
+            V⁻¹            = inv(V)
+            @test abs.(V⁻¹*collect(d_V)) ≈ I
+        end
     end
 
     @testset "syevd!" begin
@@ -419,9 +421,11 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         A             += A'
         d_A            = CuArray(A)
         Eig            = eigen(LinearAlgebra.Hermitian(A))
-        d_eig          = eigen(d_A)
-        sorteig!(d_eig.values, d_eig.vectors)
-        @test Eig.values ≈ collect(d_eig.values)
+        if CUSOLVER.version() >= v"11.7.1"
+            d_eig          = eigen(d_A)
+            sorteig!(d_eig.values, d_eig.vectors)
+            @test Eig.values ≈ collect(d_eig.values)
+        end
         d_eig          = eigen(LinearAlgebra.Hermitian(d_A))
         @test Eig.values ≈ collect(d_eig.values)
         h_V            = collect(d_eig.vectors)
@@ -438,9 +442,11 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         A             += A'
         d_A            = CuArray(A)
         W              = eigvals(LinearAlgebra.Hermitian(A))
-        d_W            = eigvals(d_A)
-        sorteig!(d_W)
-        @test W        ≈ collect(d_W)
+        if CUSOLVER.version() >= v"11.7.1"
+            d_W            = eigvals(d_A)
+            sorteig!(d_W)
+            @test W        ≈ collect(d_W)
+        end
         d_W            = eigvals(LinearAlgebra.Hermitian(d_A))
         @test W        ≈ collect(d_W)
         if elty <: Real
@@ -453,11 +459,13 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         A             += A'
         d_A            = CuArray(A)
         V              = eigvecs(LinearAlgebra.Hermitian(A))
-        d_W            = eigvals(d_A)
-        d_V            = eigvecs(d_A)
-        sorteig!(d_W, d_V)
-        h_V            = collect(d_V)
-        @test abs.(V'*h_V) ≈ I
+        if CUSOLVER.version() >= v"11.7.1"
+            d_W            = eigvals(d_A)
+            d_V            = eigvecs(d_A)
+            sorteig!(d_W, d_V)
+            h_V            = collect(d_V)
+            @test abs.(V'*h_V) ≈ I
+        end
         d_V            = eigvecs(LinearAlgebra.Hermitian(d_A))
         h_V            = collect(d_V)
         @test abs.(V'*h_V) ≈ I
