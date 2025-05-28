@@ -110,20 +110,6 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     return LinearAlgebra._cut_B(BB, 1:n)
 end
 
-# Adapted from LinearAlgebra.sorteig!().
-# Warning: not very efficient, but works.
-eigsortby(λ::Real) = λ
-eigsortby(λ::Complex) = (real(λ),imag(λ))
-function sorteig!(λ::AbstractVector, X::AbstractMatrix, sortby::Union{Function,Nothing}=eigsortby)
-    if sortby !== nothing # && !issorted(λ, by=sortby)
-        p = sortperm(λ; by=sortby)
-        λ .= λ[p] # permute!(λ, p)
-        X .= X[:, p] # Base.permutecols!!(X, p)
-    end
-    return λ, X
-end
-sorteig!(λ::AbstractVector, sortby::Union{Function,Nothing}=eigsortby) = sortby === nothing ? λ : sort!(λ, by=sortby)
-
 # eigen
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
@@ -142,7 +128,7 @@ function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
     W, _, VR = Xgeev!('N', 'V', A2)
     C = Complex{T}
-    U = CuMatrix{C}([1. 1.; im -im])
+    U = CuMatrix{C}([1.0 1.0; im -im])
     VR = CuMatrix{C}(VR)
     h_W = collect(W)
     n = length(W)
@@ -151,16 +137,16 @@ function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
         if imag(h_W[j]) == 0
             j += 1
         else
-            VR[:,j:j+1] .= VR[:,j:j+1] * U
+            VR[:, j:(j + 1)] .= VR[:, j:(j + 1)] * U
             j += 2
         end
     end
-    return Eigen(sorteig!(W, VR)...)
+    return Eigen(W, VR)
 end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
     r = Xgeev!('N', 'V', A2)
-    return Eigen(sorteig!(r[1], r[3])...)
+    return Eigen(r[1], r[3])
 end
 
 # eigvals
@@ -179,11 +165,11 @@ end
 
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
     A2 = copy(A)
-    return sorteig!(Xgeev!('N', 'N', A2)[1])
+    return Xgeev!('N', 'N', A2)[1]
 end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
     A2 = copy(A)
-    return sorteig!(Xgeev!('N', 'N', A2)[1])
+    return Xgeev!('N', 'N', A2)[1]
 end
 
 # eigvecs

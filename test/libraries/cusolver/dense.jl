@@ -9,6 +9,20 @@ p = 5
 l = 13
 k = 1
 
+# Adapted from LinearAlgebra.sorteig!().
+# Warning: not very efficient, but works.
+eigsortby(λ::Real) = λ
+eigsortby(λ::Complex) = (real(λ), imag(λ))
+function sorteig!(λ::AbstractVector, X::AbstractMatrix, sortby::Union{Function, Nothing} = eigsortby)
+    if sortby !== nothing # && !issorted(λ, by=sortby)
+        p = sortperm(λ; by = sortby)
+        λ .= λ[p] # permute!(λ, p)
+        X .= X[:, p] # Base.permutecols!!(X, p)
+    end
+    return λ, X
+end
+sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sortby === nothing ? λ : sort!(λ, by = sortby)
+
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "gesv!" begin
         @testset "irs_precision = AUTO" begin
@@ -342,6 +356,7 @@ k = 1
         d_A            = CuArray(A)
         Eig            = eigen(A)
         d_eig          = eigen(d_A)
+        sorteig!(d_eig.values, d_eig.vectors)
         @test Eig.values ≈ collect(d_eig.values)
         h_V            = collect(d_eig.vectors)
         h_V⁻¹          = inv(h_V)
@@ -351,12 +366,15 @@ k = 1
         d_A            = CuArray(A)
         W              = eigvals(A)
         d_W            = eigvals(d_A)
+        sorteig!(d_W)
         @test W        ≈ collect(d_W)
 
         A              = rand(elty,m,m)
         d_A            = CuArray(A)
         V              = eigvecs(A)
+        d_W            = eigvals(d_A)
         d_V            = eigvecs(d_A)
+        sorteig!(d_W, d_V)
         V⁻¹            = inv(V)
         @test abs.(V⁻¹*collect(d_V)) ≈ I
     end
@@ -402,6 +420,7 @@ k = 1
         d_A            = CuArray(A)
         Eig            = eigen(LinearAlgebra.Hermitian(A))
         d_eig          = eigen(d_A)
+        sorteig!(d_eig.values, d_eig.vectors)
         @test Eig.values ≈ collect(d_eig.values)
         d_eig          = eigen(LinearAlgebra.Hermitian(d_A))
         @test Eig.values ≈ collect(d_eig.values)
@@ -420,6 +439,7 @@ k = 1
         d_A            = CuArray(A)
         W              = eigvals(LinearAlgebra.Hermitian(A))
         d_W            = eigvals(d_A)
+        sorteig!(d_W)
         @test W        ≈ collect(d_W)
         d_W            = eigvals(LinearAlgebra.Hermitian(d_A))
         @test W        ≈ collect(d_W)
@@ -433,7 +453,9 @@ k = 1
         A             += A'
         d_A            = CuArray(A)
         V              = eigvecs(LinearAlgebra.Hermitian(A))
+        d_W            = eigvals(d_A)
         d_V            = eigvecs(d_A)
+        sorteig!(d_W, d_V)
         h_V            = collect(d_V)
         @test abs.(V'*h_V) ≈ I
         d_V            = eigvecs(LinearAlgebra.Hermitian(d_A))
