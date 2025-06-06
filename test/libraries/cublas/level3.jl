@@ -483,6 +483,16 @@ k = 13
 
             @test A ≈ h_A
             @test B ≈ h_B
+            
+            diagA = diagm(m, m, 0 => d_A)
+            diagind_A = diagind(diagA, 0)
+            h_A = Array(diagA[diagind_A])
+            @test A ≈ h_A
+            
+            diagA = diagm(m, m, d_A)
+            diagind_A = diagind(diagA, 0)
+            h_A = Array(diagA[diagind_A])
+            @test A ≈ h_A
         end
         if elty <: Complex
             @testset "herk!" begin
