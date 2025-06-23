@@ -15,6 +15,25 @@ if CUSPARSE.version() ≥ v"11.7.2"
     α = rand(elty) 
     β = rand(elty) 
 
+    @testset "Dimension checks" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CUDA.rand(elty, size(A2.nzVal)...)
+        A = cat(A1, A2; dims=3)
+
+        B = CUDA.rand(elty, k, n, 2)
+        C = CUDA.rand(elty, m, n, 3)
+
+        @test_throws ArgumentError("C must have same batch-dimension as max(size(A,3)=$(size(A,3)), size(B,3)=$(size(B,3))), got $(size(C,3)).") CUSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+        
+        C = CUDA.rand(elty, m, 1, 2)
+        @test_throws ArgumentError("bmm! does not work for n==1 and b>1 due to CUDA error.") CUSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+
+        C = CUDA.rand(elty, m, n, 2)
+        B = CUDA.rand(elty, k+1, n, 2)
+        @test_throws DimensionMismatch("B has dimensions $(size(B)) but needs ($k,$n)") CUSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+    end
+
     @testset "C = αAB + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
