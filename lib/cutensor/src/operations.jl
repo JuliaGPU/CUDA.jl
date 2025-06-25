@@ -104,7 +104,10 @@ function plan_elementwise_trinary(
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    plan = CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    cutensorDestroyOperationDescriptor(desc[])
+    cutensorDestroyPlanPreference(plan_pref[])
+    return plan
 end
 
 function elementwise_binary_execute!(
@@ -186,7 +189,10 @@ function plan_elementwise_binary(
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    plan = CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    cutensorDestroyOperationDescriptor(desc[])
+    cutensorDestroyPlanPreference(plan_pref[])
+    return plan
 end
 
 function permute!(
@@ -253,7 +259,10 @@ function plan_permutation(
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    plan = CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    cutensorDestroyOperationDescriptor(desc[])
+    cutensorDestroyPlanPreference(plan_pref[])
+    return plan
 end
 
 function contract!(
@@ -340,7 +349,10 @@ function plan_contraction(
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    plan = CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    cutensorDestroyOperationDescriptor(desc[])
+    cutensorDestroyPlanPreference(plan_pref[])
+    return plan
 end
 
 function reduce!(
@@ -415,5 +427,8 @@ function plan_reduction(
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
-    CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    plan = CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
+    cutensorDestroyOperationDescriptor(desc[])
+    cutensorDestroyPlanPreference(plan_pref[])
+    return plan
 end
