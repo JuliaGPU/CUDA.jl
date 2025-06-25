@@ -137,7 +137,7 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         # only emitting `.loc` instructions...
         #
         # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
-        # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
+        # set `.target debug` and if `--device-debug` isn't passed, ptxas will compile in
         # release mode".
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
