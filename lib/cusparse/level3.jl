@@ -41,10 +41,10 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             mX,nX = size(X)
             nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
-                throw(DimensionMismatch(""))
+                throw(DimensionMismatch("first dimensions of A ($m) and X ($mX) must match when transxy is 'N'"))
             end
             if transxy != 'N' && (nX != m)
-                throw(DimensionMismatch(""))
+                throw(DimensionMismatch("first dimension of A ($m) must match second dimension of X ($nX) when transxy is not 'N'"))
             end
             ldx = max(1,stride(X,2))
             info = bsrsm2Info_t[0]
@@ -106,10 +106,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
             mX,nX = size(X)
             nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
-                throw(DimensionMismatch(""))
+                throw(DimensionMismatch("first dimensions of A ($m) and X ($mX) must match when transxy is 'N'"))
             end
             if transxy != 'N' && (nX != m)
-                throw(DimensionMismatch(""))
+                throw(DimensionMismatch("first dimension of A ($m) must match second dimension of X ($nX) when transxy is not 'N'"))
             end
             ldx = max(1,stride(X,2))
             info = csrsm2Info_t[0]
@@ -182,10 +182,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
             mX,nX = size(X)
             nrhs = transxy == 'N' ? nX : mX
             if transxy == 'N' && (mX != m)
-                throw(DimensionMismatch(""))
+                throw(DimensionMismatch("first dimensions of A ($m) and X ($mX) must match when transxy is 'N'"))
             end
             if transxy != 'N' && (nX != m)
-                throw(DimensionMismatch(""))
+                throw(DimensionMismatch("first dimension of A ($m) must match second dimension of X ($nX) when transxy is not 'N'"))
             end
             ldx = max(1,stride(X,2))
             info = csrsm2Info_t[0]

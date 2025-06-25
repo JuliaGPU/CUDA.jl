@@ -340,21 +340,23 @@ using LinearAlgebra, SparseArrays
     end
 
     @testset "CuSparseMatrixCSR($f) $elty" for f in [transpose, adjoint], elty in [Float32, ComplexF32]
-        S = f(sprand(elty, 10, 10, 0.1))
+        m = 10
+        S = f(sprand(elty, m, m, 0.1))
         @test SparseMatrixCSC(CuSparseMatrixCSR(S)) ≈ S
 
-        S = sprand(elty, 10, 10, 0.1)
+        S = sprand(elty, m, m, 0.1)
         T = f(CuSparseMatrixCSR(S))
         @test SparseMatrixCSC(CuSparseMatrixCSC(T)) ≈ f(S)
 
-        S = sprand(elty, 10, 10, 0.1)
+        S = sprand(elty, m, m, 0.1)
         T = f(CuSparseMatrixCSC(S))
         @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
     end
 
     @testset "UniformScaling basic operations" begin
         for elty in (Float32, Float64, ComplexF32, ComplexF64)
-            A = sprand(elty, 100, 100, 0.1)
+            m = 100
+            A = sprand(elty, m, m, 0.1)
             U1 = 2*I
             for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
                 B = SparseMatrixType(A)
@@ -367,9 +369,10 @@ using LinearAlgebra, SparseArrays
 
     @testset "Diagonal basic operations" begin
         for elty in (Float32, Float64, ComplexF32, ComplexF64)
-            A = sprand(elty, 100, 100, 0.1)
-            U2 = 2*I(100)
-            U3 = Diagonal(rand(elty, 100))
+            m = 100
+            A = sprand(elty, m, m, 0.1)
+            U2 = 2*I(m)
+            U3 = Diagonal(rand(elty, m))
             for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
                 B = SparseMatrixType(A)
                 for op in (+, -, *)
@@ -395,11 +398,12 @@ using LinearAlgebra, SparseArrays
     for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
         @testset "ldiv!($triangle(CuSparseMatrixBSR), CuVector) -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
             @testset "opa = $opa" for opa in [identity, transpose, adjoint]
-                A = rand(elty, 10, 10)
+                m = 10
+                A = rand(elty, m, m)
                 A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                 A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                 A = sparse(A)
-                y = rand(elty, 10)
+                y = rand(elty, m)
                 dA = CuSparseMatrixBSR(A, 1)
                 dy = CuArray(y)
                 ldiv!(triangle(opa(A)), y)
@@ -410,11 +414,12 @@ using LinearAlgebra, SparseArrays
 
         @testset "$triangle(CuSparseMatrixBSR) \\ CuVector -- $elty" for elty in [Float32,Float64,ComplexF32,ComplexF64]
             @testset "opa = $opa" for opa in [identity, transpose, adjoint]
-                A = rand(elty, 10, 10)
+                m = 10
+                A = rand(elty, m, m)
                 A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                 A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                 A = sparse(A)
-                y = rand(elty, 10)
+                y = rand(elty, m)
                 dA = CuSparseMatrixBSR(A, 1)
                 dy = CuArray(y)
                 x = triangle(opa(A)) \ y
@@ -427,16 +432,23 @@ using LinearAlgebra, SparseArrays
             @testset "opa = $opa" for opa in [identity, transpose, adjoint]
                 @testset "opb = $opb" for opb in [identity, transpose, adjoint]
                     elty <: Complex && opb == adjoint && continue
-                    A = rand(elty, 10, 10)
+                    m = 10
+                    n = 2
+                    A = rand(elty, m, m)
                     A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                     A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                     A = sparse(A)
-                    B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
+                    B = opb == identity ? rand(elty, m, n) : rand(elty, n, m)
                     dA = CuSparseMatrixBSR(A, 1)
                     dB = CuArray(B)
                     ldiv!(triangle(opa(A)), opb(B))
                     ldiv!(triangle(opa(dA)), opb(dB))
                     @test B ≈ collect(dB)
+                    if CUSPARSE.version() < v"12.0"
+                        B_bad     = opb == identity ? rand(elty, m+1, n) : rand(elty, n, m+1)
+                        error_str = opb == identity ? "first dimensions of A ($m) and X ($(m+1)) must match when transxy is 'N'" : "first dimension of A ($m) must match second dimension of X ($(m+1)) when transxy is not 'N'"
+                        @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(CuArray(B_bad)))
+                    end
                 end
             end
         end
@@ -445,16 +457,23 @@ using LinearAlgebra, SparseArrays
             @testset "opa = $opa" for opa in [identity, transpose, adjoint]
                 @testset "opb = $opb" for opb in [identity, transpose, adjoint]
                     elty <: Complex && opb == adjoint && continue
-                    A = rand(elty, 10, 10)
+                    m = 10
+                    n = 2
+                    A = rand(elty, m, m)
                     A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                     A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                     A = sparse(A)
-                    B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
+                    B = opb == identity ? rand(elty, m, n) : rand(elty, n, m)
                     dA = CuSparseMatrixBSR(A, 1)
                     dB = CuArray(B)
                     C = triangle(opa(A)) \ opb(B)
                     dC = triangle(opa(dA)) \ opb(dB)
                     @test C ≈ collect(dC)
+                    if CUSPARSE.version() < v"12.0"
+                        B_bad = opb == identity ? rand(elty, m+1, n) : rand(elty, n, m+1)
+                        error_str = opb == identity ? "first dimensions of A ($m) and X ($(m+1)) must match when transxy is 'N'" : "first dimension of A ($m) must match second dimension of X ($(m+1)) when transxy is not 'N'"
+                        @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(CuArray(B_bad)))
+                    end
                 end
             end
         end
@@ -466,11 +485,12 @@ using LinearAlgebra, SparseArrays
             @testset "ldiv!($triangle($SparseMatrixType), CuVector) -- $elty" for elty in [Float64,ComplexF64]
                 @testset "opa = $opa" for opa in [identity, transpose, adjoint]
                     SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
-                    A = A = rand(elty, 10, 10)
+                    m = 10
+                    A = A = rand(elty, m, m)
                     A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                     A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                     A = sparse(A)
-                    y = rand(elty, 10)
+                    y = rand(elty, m)
                     dA = SparseMatrixType(A)
                     dy = CuArray(y)
                     ldiv!(triangle(opa(A)), y)
@@ -482,12 +502,13 @@ using LinearAlgebra, SparseArrays
             @testset "ldiv!(CuVector, $triangle($SparseMatrixType), CuVector) -- $elty" for elty in [Float64,ComplexF64]
                 @testset "opa = $opa" for opa in [identity, transpose, adjoint]
                     SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
-                    A = A = rand(elty, 10, 10)
+                    m = 10
+                    A = A = rand(elty, m, m)
                     A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                     A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                     A = sparse(A)
-                    y = rand(elty, 10)
-                    x = rand(elty, 10)
+                    y = rand(elty, m)
+                    x = rand(elty, m)
                     dA = SparseMatrixType(A)
                     dy = CuArray(y)
                     dx = CuArray(x)
@@ -500,11 +521,12 @@ using LinearAlgebra, SparseArrays
             @testset "$triangle($SparseMatrixType) \\ CuVector -- $elty" for elty in [Float64,ComplexF64]
                 @testset "opa = $opa" for opa in [identity, transpose, adjoint]
                     SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
-                    A = rand(elty, 10, 10)
+                    m = 10
+                    A = rand(elty, m, m)
                     A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                     A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                     A = sparse(A)
-                    y = rand(elty, 10)
+                    y = rand(elty, m)
                     dA = SparseMatrixType(A)
                     dy = CuArray(y)
                     x = triangle(opa(A)) \ y
@@ -518,16 +540,23 @@ using LinearAlgebra, SparseArrays
                     @testset "opb = $opb" for opb in [identity, transpose, adjoint]
                         SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                         elty <: Complex && opb == adjoint && continue
-                        A = rand(elty, 10, 10)
+                        m = 10
+                        n = 2
+                        A = rand(elty, m, m)
                         A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                         A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                         A = sparse(A)
-                        B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
+                        B = opb == identity ? rand(elty, m, n) : rand(elty, n, m)
                         dA = SparseMatrixType(A)
                         dB = CuArray(B)
                         ldiv!(triangle(opa(A)), opb(B))
                         ldiv!(triangle(opa(dA)), opb(dB))
                         @test B ≈ collect(dB)
+                        if CUSPARSE.version() < v"12.0"
+                            B_bad = opb == identity ? rand(elty, m+1, n) : rand(elty, n, m+1)
+                            error_str = opb == identity ? "first dimensions of A ($m) and X ($(m+1)) must match when transxy is 'N'" : "first dimension of A ($m) must match second dimension of X ($(m+1)) when transxy is not 'N'"
+                            @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(CuArray(B_bad)))
+                        end
                     end
                 end
             end
@@ -537,18 +566,25 @@ using LinearAlgebra, SparseArrays
                     @testset "opb = $opb" for opb in [identity, transpose, adjoint]
                         SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                         elty <: Complex && opb == adjoint && continue
-                        A = rand(elty, 10, 10)
+                        m = 10
+                        n = 2
+                        A = rand(elty, m, m)
                         A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                         A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                         A = sparse(A)
-                        B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
-                        C = rand(elty, 10, 2)
+                        B = opb == identity ? rand(elty, m, n) : rand(elty, n, m)
+                        C = rand(elty, m, n)
                         dA = SparseMatrixType(A)
                         dB = CuArray(B)
                         dC = CuArray(C)
                         ldiv!(C, triangle(opa(A)), opb(B))
                         ldiv!(dC, triangle(opa(dA)), opb(dB))
                         @test C ≈ collect(dC)
+                        if CUSPARSE.version() < v"12.0"
+                            B_bad = opb == identity ? rand(elty, m+1, n) : rand(elty, n, m+1)
+                            error_str = opb == identity ? "first dimensions of A ($m) and X ($(m+1)) must match when transxy is 'N'" : "first dimension of A ($m) must match second dimension of X ($(m+1)) when transxy is not 'N'"
+                            @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(CuArray(B_bad)))
+                        end
                     end
                 end
             end
@@ -558,16 +594,23 @@ using LinearAlgebra, SparseArrays
                     @testset "opb = $opb" for opb in [identity, transpose, adjoint]
                         SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                         elty <: Complex && opb == adjoint && continue
-                        A = rand(elty, 10, 10)
+                        m = 10
+                        n = 2
+                        A = rand(elty, m, m)
                         A = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
                         A = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
                         A = sparse(A)
-                        B = opb == identity ? rand(elty, 10, 2) : rand(elty, 2, 10)
+                        B = opb == identity ? rand(elty, m, n) : rand(elty, n, m)
                         dA = SparseMatrixType(A)
                         dB = CuArray(B)
                         C = triangle(opa(A)) \ opb(B)
                         dC = triangle(opa(dA)) \ opb(dB)
                         @test C ≈ collect(dC)
+                        if CUSPARSE.version() < v"12.0"
+                            B_bad = opb == identity ? rand(elty, m+1, n) : rand(elty, n, m+1)
+                            error_str = opb == identity ? "first dimensions of A ($m) and X ($(m+1)) must match when transxy is 'N'" : "first dimension of A ($m) must match second dimension of X ($(m+1)) when transxy is not 'N'"
+                            @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(CuArray(B_bad)))
+                        end
                     end
                 end
             end
