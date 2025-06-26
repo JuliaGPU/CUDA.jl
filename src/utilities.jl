@@ -41,18 +41,21 @@ end
 function versioninfo(io::IO=stdout)
     @assert functional(true)
 
-    print(io, "CUDA runtime $(runtime_version().major).$(runtime_version().minor), ")
+    println(io, "CUDA toolchain: ")
+
+    print(io, "- runtime $(runtime_version().major).$(runtime_version().minor), ")
     if local_toolkit
         println(io, "local installation")
     else
         println(io, "artifact installation")
     end
-    println(io, "CUDA driver $(driver_version().major).$(driver_version().minor)")
     if has_nvml()
-        println(io, "NVIDIA driver $(NVML.driver_version())")
+        print(io, "- driver $(NVML.driver_version())")
     else
-        println(io, "Unknown NVIDIA driver")
+        print(io, "- unknown driver")
     end
+    println(io, " for $(driver_version().major).$(driver_version().minor)")
+    println(io, "- compiler $(compiler_version().major).$(compiler_version().minor)")
     println(io)
 
     println(io, "CUDA libraries: ")

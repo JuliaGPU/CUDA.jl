@@ -293,14 +293,15 @@ function llvm_compat(version=LLVM.version())
     return (cap=cap_support, ptx=ptx_support)
 end
 
-function cuda_compat(driver=driver_version(), runtime=runtime_version())
+function cuda_compat(driver=driver_version(), compiler=compiler_version())
+    # devices have to be supported by both the compiler and the driver
     driver_cap_support = cuda_cap_support(driver)
-    toolkit_cap_support = cuda_cap_support(runtime)
-    cap_support = sort(collect(driver_cap_support ∩ toolkit_cap_support))
+    compiler_cap_support = cuda_cap_support(compiler)
+    cap_support = sort(collect(driver_cap_support ∩ compiler_cap_support))
 
-    driver_ptx_support = cuda_ptx_support(driver)
-    toolkit_ptx_support = cuda_ptx_support(runtime)
-    ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
+    # PTX code only has to be supported by the compiler
+    compiler_ptx_support = cuda_ptx_support(compiler)
+    ptx_support = cuda_ptx_support(compiler)
 
     return (cap=cap_support, ptx=ptx_support)
 end
