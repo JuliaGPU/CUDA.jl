@@ -7,10 +7,12 @@ m = 10
     B  = sprand(T, m, m, 0.3)
     ZA = spzeros(T, m, m)
     C  = I(div(m, 2))
+    D = Diagonal(rand(T, m))
     @testset "type = $typ" for typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
         dA = typ(A)
         dB = typ(B)
         dZA = typ(ZA)
+        dD = Diagonal(CuArray(D.diag))
         @testset "opnorm and norm" begin
             @test opnorm(A, Inf) ≈ opnorm(dA, Inf)
             @test opnorm(A, 1)   ≈ opnorm(dA, 1)
@@ -41,6 +43,12 @@ m = 10
             @test collect(kron(C, opa(dA))) ≈ kron(C, opa(A)) 
             @test collect(kron(opa(dZA), C)) ≈ kron(opa(ZA), C)
             @test collect(kron(C, opa(dZA))) ≈ kron(C, opa(ZA))
+        end
+        @testset "kronecker product with Diagonal opa = $opa" for opa in (identity, transpose, adjoint) 
+            @test collect(kron(opa(dA), dD)) ≈ kron(opa(A), D)
+            @test collect(kron(dD, opa(dA))) ≈ kron(D, opa(A))
+            @test collect(kron(opa(dZA), dD)) ≈ kron(opa(ZA), D)
+            @test collect(kron(dD, opa(dZA))) ≈ kron(D, opa(ZA))
         end
     end
 end
