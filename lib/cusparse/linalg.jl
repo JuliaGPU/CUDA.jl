@@ -82,7 +82,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::CuSparseMatrixCOO{T,
     sparse(row, col, data, out_shape..., fmt = :coo)
 end
 
-function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::Diagonal) where {Ti, T}
+function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::Diagonal{TB}) where {Ti, T, TB}
     mA,nA = size(A)
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
@@ -102,12 +102,13 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::Diagonal) where {Ti,
     row .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
     col .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
 
-    data .*= repeat(CUDA.ones(T, nB), outer = Annz)
+    Bdiag = (TB == Bool) ? CUDA.ones(T, nB) : B.diag
+    data .*= repeat(Bdiag, outer = Annz)
 
     sparse(row, col, data, out_shape..., fmt = :coo)
 end
 
-function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T, Ti}) where {Ti, T}
+function LinearAlgebra.kron(A::Diagonal{TA}, B::CuSparseMatrixCOO{T, Ti}) where {Ti, T, TA}
     mA,nA = size(A)
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
@@ -122,7 +123,8 @@ function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T, Ti}) where {Ti,
     row = CuVector(repeat(row, inner = Bnnz))
     col = (0:nA-1) .* nB
     col = CuVector(repeat(col, inner = Bnnz))
-    data = repeat(CUDA.ones(T, nA), inner = Bnnz)
+    Adiag = (TA == Bool) ? CUDA.ones(T, nA) : A.diag
+    data = repeat(Adiag, inner = Bnnz)
 
     row .+= repeat(B.rowInd .- 1, outer = Annz) .+ 1
     col .+= repeat(B.colInd .- 1, outer = Annz) .+ 1
