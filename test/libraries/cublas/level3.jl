@@ -127,7 +127,7 @@ k = 13
                     uplotype in (UpperTriangular, UnitUpperTriangular, LowerTriangular, UnitLowerTriangular)
 
                 A = triu(rand(elty, m, m))
-                dA = CuArray(A) 
+                dA = CuArray(A)
                 Br = rand(elty,m,n)
                 Bl = rand(elty,n,m)
                 d_Br = CuArray(Br)
@@ -136,16 +136,16 @@ k = 13
                 @test Bl/adjtype(uplotype(A)) ≈ Array(d_Bl/adjtype(uplotype(dA)))
             end
             # Check also that scaling parameter works
-            alpha = rand(elty) 
+            alpha = rand(elty)
             A = triu(rand(elty, m, m))
-            dA = CuArray(A) 
+            dA = CuArray(A)
             Br = rand(elty,m,n)
             d_Br = CuArray(Br)
             @test BLAS.trsm('L','U','N','N',alpha,A,Br) ≈ Array(CUBLAS.trsm('L','U','N','N',alpha,dA,d_Br))
         end
 
         @testset "trsm_batched!" begin
-            alpha = rand(elty) 
+            alpha = rand(elty)
             bA = [rand(elty,m,m) for i in 1:10]
             map!((x) -> triu(x), bA, bA)
             bB = [rand(elty,m,n) for i in 1:10]
@@ -288,7 +288,7 @@ k = 13
             B = Diagonal(rand(elty, m))
 
             dA = CuArray(A)
-            dB = CuArray(B)
+            dB = adapt(CuArray, B)
 
             C = A / B
             d_C = dA / dB
@@ -297,7 +297,7 @@ k = 13
             @test C ≈ Array(dA)
             @test C ≈ h_C
 
-            B_bad = Diagonal(rand(elty, m+1))
+            B_bad = Diagonal(CuArray(rand(elty, m+1)))
             @test_throws DimensionMismatch("left hand side has $m columns but D is $(m+1) by $(m+1)") rdiv!(dA, B_bad)
         end
 
@@ -483,12 +483,12 @@ k = 13
 
             @test A ≈ h_A
             @test B ≈ h_B
-            
+
             diagA = diagm(m, m, 0 => d_A)
             diagind_A = diagind(diagA, 0)
             h_A = Array(diagA[diagind_A])
             @test A ≈ h_A
-            
+
             diagA = diagm(m, m, d_A)
             diagind_A = diagind(diagA, 0)
             h_A = Array(diagA[diagind_A])
