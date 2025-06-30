@@ -1,5 +1,3 @@
-using CUDA
-using Adapt
 using CUDA.CUSPARSE
 using LinearAlgebra, SparseArrays
 

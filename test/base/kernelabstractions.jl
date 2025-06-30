@@ -1,7 +1,6 @@
 import KernelAbstractions
 import KernelAbstractions as KA
 using SparseArrays
-using Adapt
 
 include(joinpath(dirname(pathof(KernelAbstractions)), "..", "test", "testsuite.jl"))
 
