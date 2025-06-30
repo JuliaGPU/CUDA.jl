@@ -223,10 +223,13 @@ nB = 2
                             @test z ≈ collect(dz)
                         end
                     end
-                    @testset "\\ -- CuVector" begin
-                        x  = triangle(opa(A)) \ y
-                        dx = triangle(opa(dA)) \ dy
-                        @test x ≈ collect(dx)
+                    # seems to be a library bug in CUDAs 12.0-12.2, only fp64 types are supported
+                    if SparseMatrixType == CuSparseMatrixBSR || elty ∈ (Float64, ComplexF64) || CUSPARSE.version() < v"12.0" || v"12.2" < CUSPARSE.version()
+                        @testset "\\ -- CuVector" begin
+                            x  = triangle(opa(A)) \ y
+                            dx = triangle(opa(dA)) \ dy
+                            @test x ≈ collect(dx)
+                        end
                     end
                     @testset "opb = $opb" for opb in [identity, transpose, adjoint]
                         elty <: Complex && opb == adjoint && continue
