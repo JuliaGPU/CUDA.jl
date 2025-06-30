@@ -1,5 +1,3 @@
-import Adapt
-
 dummy() = return
 
 @testset "@cuda" begin

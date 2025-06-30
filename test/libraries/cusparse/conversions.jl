@@ -1,8 +1,6 @@
 using LinearAlgebra
-using Adapt
 using CUDA.CUSPARSE
 using SparseArrays
-using CUDA
 
 @testset "sparse" begin
     n, m = 4, 4
