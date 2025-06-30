@@ -12,7 +12,7 @@ m = 10
         dA = typ(A)
         dB = typ(B)
         dZA = typ(ZA)
-        dD = Diagonal(CuArray(D.diag))
+        dD = adapt(CuArray, D)
         @testset "opnorm and norm" begin
             @test opnorm(A, Inf) ≈ opnorm(dA, Inf)
             @test opnorm(A, 1)   ≈ opnorm(dA, 1)
