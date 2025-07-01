@@ -332,7 +332,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n = size(csr)
-            colPtr = CUDA.zeros(Cint, n+1)
+            colPtr = (index == 'O') ? CUDA.ones(Cint, n+1) : CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
             nzVal = CUDA.zeros($elty, nnz(csr))
             function bufferSize()
@@ -352,7 +352,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
 
         function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n    = size(csc)
-            rowPtr = CUDA.zeros(Cint,m+1)
+            rowPtr = (index == 'O') ? CUDA.ones(Cint, m+1) : CUDA.zeros(Cint, m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
             nzVal  = CUDA.zeros($elty,nnz(csc))
             function bufferSize()
@@ -379,7 +379,7 @@ for (elty, welty) in ((:Float16, :Float32),
     @eval begin
         function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n = size(csr)
-            colPtr = CUDA.zeros(Cint, n+1)
+            colPtr = (index == 'O') ? CUDA.ones(Cint, n+1) : CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, nnz(csr))
             nzVal = CUDA.zeros($elty, nnz(csr))
             if $elty == Float16 #broken for ComplexF16?
@@ -405,7 +405,7 @@ for (elty, welty) in ((:Float16, :Float32),
 
         function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1)
             m,n    = size(csc)
-            rowPtr = CUDA.zeros(Cint,m+1)
+            rowPtr = (index == 'O') ? CUDA.ones(Cint, m+1) : CUDA.zeros(Cint, m+1)
             colVal = CUDA.zeros(Cint,nnz(csc))
             nzVal  = CUDA.zeros($elty,nnz(csc))
             if $elty == Float16 #broken for ComplexF16?
