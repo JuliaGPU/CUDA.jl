@@ -215,7 +215,7 @@ nB = 2
                         @test z ≈ collect(dz)
                     end
                     # seems to be a library bug in CUDAs 12.0-12.2, only fp64 types are supported
-                    if SparseMatrixType != CuSparseMatrixBSR || elty ∈ (Float64, ComplexF64) || CUSPARSE.version() < v"12.0" || v"12.2" < CUSPARSE.version()
+                    if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || CUSPARSE.version() < v"12.0" || v"12.2" < CUSPARSE.version())
                         @testset "ldiv! -- (CuVector, CuVector)" begin
                             z  = rand(elty, m)
                             dz = CuArray(z)
@@ -246,7 +246,7 @@ nB = 2
                                 @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
                             end
                         end
-                        if SparseMatrixType != CuSparseMatrixBSR || elty ∈ (Float64, ComplexF64) || CUSPARSE.version() != v"12.0"
+                        if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || CUSPARSE.version() != v"12.0")
                             @testset "ldiv! -- (CuMatrix, CuMatrix)" begin
                                 C = rand(elty, m, nB)
                                 dC = CuArray(C)
