@@ -214,7 +214,8 @@ nB = 2
                         ldiv!(triangle(opa(dA)), dz)
                         @test z ≈ collect(dz)
                     end
-                    if SparseMatrixType != CuSparseMatrixBSR
+                    # seems to be a library bug in CUDAs 12.0-12.2, only fp64 types are supported
+                    if SparseMatrixType != CuSparseMatrixBSR || elty ∈ (Float64, ComplexF64) || CUSPARSE.version() < v"12.0" || v"12.2" < CUSPARSE.version()
                         @testset "ldiv! -- (CuVector, CuVector)" begin
                             z  = rand(elty, m)
                             dz = CuArray(z)
@@ -222,9 +223,6 @@ nB = 2
                             ldiv!(dz, triangle(opa(dA)), dy)
                             @test z ≈ collect(dz)
                         end
-                    end
-                    # seems to be a library bug in CUDAs 12.0-12.2, only fp64 types are supported
-                    if SparseMatrixType == CuSparseMatrixBSR || elty ∈ (Float64, ComplexF64) || CUSPARSE.version() < v"12.0" || v"12.2" < CUSPARSE.version()
                         @testset "\\ -- CuVector" begin
                             x  = triangle(opa(A)) \ y
                             dx = triangle(opa(dA)) \ dy
@@ -248,7 +246,7 @@ nB = 2
                                 @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
                             end
                         end
-                        if SparseMatrixType != CuSparseMatrixBSR
+                        if SparseMatrixType != CuSparseMatrixBSR || elty ∈ (Float64, ComplexF64) || CUSPARSE.version() != v"12.0"
                             @testset "ldiv! -- (CuMatrix, CuMatrix)" begin
                                 C = rand(elty, m, nB)
                                 dC = CuArray(C)
@@ -259,13 +257,13 @@ nB = 2
                                     @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
                                 end
                             end
-                        end
-                        @testset "\\ -- CuMatrix" begin
-                            C  = triangle(opa(A)) \ opb(B)
-                            dC = triangle(opa(dA)) \ opb(dB)
-                            @test C ≈ collect(dC)
-                            if CUSPARSE.version() < v"12.0"
-                                @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
+                            @testset "\\ -- CuMatrix" begin
+                                C  = triangle(opa(A)) \ opb(B)
+                                dC = triangle(opa(dA)) \ opb(dB)
+                                @test C ≈ collect(dC)
+                                if CUSPARSE.version() < v"12.0"
+                                    @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
+                                end
                             end
                         end
                     end
