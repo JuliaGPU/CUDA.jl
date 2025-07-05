@@ -90,6 +90,16 @@ function reset_runtime_version!()
     @info "Reset CUDA.jl toolkit preference, please re-start Julia for this to take effect."
 end
 
+"""
+    compiler_version()
+
+Returns the CUDA toolkit version that is used to provide the CUDA compiler (`ptxas`) and
+other tools. This is version separately from the CUDA Runtime, in order to ensure
+compatibility with the driver, and make sure we use the latest compatible version regardless
+of the selected runtime.
+"""
+compiler_version() = CUDA_Compiler_jll.cuda_version
+
 
 ## helpers
 
