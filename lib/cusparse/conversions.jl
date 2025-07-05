@@ -609,10 +609,10 @@ end
 
 # need both typevars for compatibility with GPUArrays
 function CuSparseMatrixCSR{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
-    m,n = size(coo)
-    nnz(coo) == 0 && return CuSparseMatrixCSR{Tv,Cint}(CUDA.ones(Cint, m+1), coo.colInd, nonzeros(coo), size(coo))
+    m, n = size(coo)
+    csrRowPtr = (index == 'O') ? CUDA.ones(Cint, m + 1) : CUDA.zeros(Cint, m + 1)
+    nnz(coo) == 0 && return CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
     coo = sort_coo(coo, 'R')
-    csrRowPtr = CuVector{Cint}(undef, m+1)
     cusparseXcoo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, index)
     CuSparseMatrixCSR{Tv,Cint}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
@@ -632,10 +632,10 @@ CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv, Ti}; index::SparseChar='O') where {
 ### CSC to COO and viceversa
 
 function CuSparseMatrixCSC{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
-    m,n = size(coo)
-    nnz(coo) == 0 && return CuSparseMatrixCSC{Tv}(CUDA.ones(Cint, n+1), coo.rowInd, nonzeros(coo), size(coo))
+    m, n = size(coo)
+    cscColPtr = (index == 'O') ? CUDA.ones(Cint, n + 1) : CUDA.zeros(Cint, n + 1)
+    nnz(coo) == 0 && return CuSparseMatrixCSC{Tv}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
     coo = sort_coo(coo, 'C')
-    cscColPtr = CuVector{Cint}(undef, n+1)
     cusparseXcoo2csr(handle(), coo.colInd, nnz(coo), n, cscColPtr, index)
     CuSparseMatrixCSC{Tv,Cint}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
 end
