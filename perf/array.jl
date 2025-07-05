@@ -2,14 +2,18 @@ group = addgroup!(SUITE, "array")
 
 const m = 512
 const n = 1000
+const m_long = 3
+const n_long = 1_000_000
 
 # generate some arrays
 cpu_mat = rand(rng, Float32, m, n)
-gpu_mat = CuArray{Float32}(undef, size(cpu_mat))
+gpu_mat = CuArray{Float32}(cpu_mat)
+gpu_mat_long = CuArray{Float32}(rand(rng, Float32, m_long, n_long))
 gpu_vec = reshape(gpu_mat, length(gpu_mat))
 gpu_arr_3d = reshape(gpu_mat, (m, 40, 25))
 gpu_arr_4d = reshape(gpu_mat, (m, 10, 10, 10))
-gpu_mat_ints = CuArray(rand(rng, Int, m, n))
+gpu_mat_ints = CuArray(rand(rng, -10:10, m, n))
+gpu_mat_long_ints = CuArray(rand(rng, -10:10, m_long, n_long))
 gpu_vec_ints = reshape(gpu_mat_ints, length(gpu_mat_ints))
 gpu_mat_bools = CuArray(rand(rng, Bool, m, n))
 gpu_vec_bools = reshape(gpu_mat_bools, length(gpu_mat_bools))
@@ -57,19 +61,57 @@ group["broadcast"] = @async_benchmarkable $gpu_mat .= 0f0
 
 # no need to test inplace version, which performs the same operation (but with an alloc)
 let group = addgroup!(group, "accumulate")
-    group["1d"] = @async_benchmarkable accumulate(+, $gpu_vec)
-    group["2d"] = @async_benchmarkable accumulate(+, $gpu_mat; dims=1)
+    let group = addgroup!(group, "Float32")
+        group["1d"] = @async_benchmarkable accumulate(+, $gpu_vec)
+        group["dims=1"] = @async_benchmarkable accumulate(+, $gpu_mat; dims=1)
+        group["dims=2"] = @async_benchmarkable accumulate(+, $gpu_mat; dims=2)
+
+        group["dims=1L"] = @async_benchmarkable accumulate(+, $gpu_mat_long; dims=1)
+        group["dims=2L"] = @async_benchmarkable accumulate(+, $gpu_mat_long; dims=2)
+    end
+    let group = addgroup!(group, "Int64")
+        group["1d"] = @async_benchmarkable accumulate(+, $gpu_vec_ints)
+        group["dims=1"] = @async_benchmarkable accumulate(+, $gpu_mat_ints; dims=1)
+        group["dims=2"] = @async_benchmarkable accumulate(+, $gpu_mat_ints; dims=2)
+
+        group["dims=1L"] = @async_benchmarkable accumulate(+, $gpu_mat_long_ints; dims=1)
+        group["dims=2L"] = @async_benchmarkable accumulate(+, $gpu_mat_long_ints; dims=2)
+    end
 end
 
 let group = addgroup!(group, "reductions")
     let group = addgroup!(group, "reduce")
-        group["1d"] = @async_benchmarkable reduce(+, $gpu_vec)
-        group["2d"] = @async_benchmarkable reduce(+, $gpu_mat; dims=1)
+        let group = addgroup!(group, "Float32")
+            group["1d"] = @async_benchmarkable reduce(+, $gpu_vec)
+            group["dims=1"] = @async_benchmarkable reduce(+, $gpu_mat; dims=1)
+            group["dims=2"] = @async_benchmarkable reduce(+, $gpu_mat; dims=2)
+            group["dims=1L"] = @async_benchmarkable reduce(+, $gpu_mat_long; dims=1)
+            group["dims=2L"] = @async_benchmarkable reduce(+, $gpu_mat_long; dims=2)
+        end
+        let group = addgroup!(group, "Int64")
+            group["1d"] = @async_benchmarkable reduce(+, $gpu_vec_ints)
+            group["dims=1"] = @async_benchmarkable reduce(+, $gpu_mat_ints; dims=1)
+            group["dims=2"] = @async_benchmarkable reduce(+, $gpu_mat_ints; dims=2)
+            group["dims=1L"] = @async_benchmarkable reduce(+, $gpu_mat_long_ints; dims=1)
+            group["dims=2L"] = @async_benchmarkable reduce(+, $gpu_mat_long_ints; dims=2)
+        end
     end
 
     let group = addgroup!(group, "mapreduce")
-        group["1d"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_vec)
-        group["2d"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat; dims=1)
+        let group = addgroup!(group, "Float32")
+            group["1d"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_vec)
+            group["dims=1"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat; dims=1)
+            group["dims=2"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat; dims=2)
+            group["dims=1L"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat_long; dims=1)
+            group["dims=2L"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat_long; dims=2)
+        end
+        let group = addgroup!(group, "Int64")
+            group["1d"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_vec_ints)
+            group["dims=1"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat_ints; dims=1)
+            group["dims=2"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat_ints; dims=2)
+            group["dims=1L"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat_long_ints; dims=1)
+            group["dims=2L"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat_long_ints; dims=2)
+        end
     end
 
     # used by sum, prod, minimum, maximum, all, any, count
@@ -88,12 +130,10 @@ let group = addgroup!(group, "random")
 
     let group = addgroup!(group, "randn")
         group["Float32"] = @async_benchmarkable CUDA.randn(Float32, m*n)
-        #group["Int64"] = @async_benchmarkable CUDA.randn(Int64, m*n)
     end
 
     let group = addgroup!(group, "randn!")
         group["Float32"] = @async_benchmarkable CUDA.randn!($gpu_vec)
-        #group["Int64"] = @async_benchmarkable CUDA.randn!($gpu_vec_ints)
     end
 end
 
