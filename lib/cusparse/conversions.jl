@@ -586,10 +586,10 @@ end
 ## CSR to COO and vice-versa
 
 function CuSparseMatrixCSR{Tv}(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv}
-    m,n = size(coo)
-    nnz(coo) == 0 && return CuSparseMatrixCSR{Tv}(CUDA.ones(Cint, m+1), coo.colInd, nonzeros(coo), size(coo))
+    m, n = size(coo)
+    csrRowPtr = (index == 'O') ? CUDA.ones(Cint, m + 1) : CUDA.zeros(Cint, m + 1)
+    nnz(coo) == 0 && return CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
     coo = sort_coo(coo, 'R')
-    csrRowPtr = CuVector{Cint}(undef, m+1)
     cusparseXcoo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, index)
     CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
@@ -605,10 +605,10 @@ end
 ### CSC to COO and viceversa
 
 function CuSparseMatrixCSC{Tv}(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv}
-    m,n = size(coo)
-    nnz(coo) == 0 && return CuSparseMatrixCSC{Tv}(CUDA.ones(Cint, n+1), coo.rowInd, nonzeros(coo), size(coo))
+    m, n = size(coo)
+    cscColPtr = (index == 'O') ? CUDA.ones(Cint, n + 1) : CUDA.zeros(Cint, n + 1)
+    nnz(coo) == 0 && return CuSparseMatrixCSC{Tv}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
     coo = sort_coo(coo, 'C')
-    cscColPtr = CuVector{Cint}(undef, n+1)
     cusparseXcoo2csr(handle(), coo.colInd, nnz(coo), n, cscColPtr, index)
     CuSparseMatrixCSC{Tv}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
 end
