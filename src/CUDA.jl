@@ -24,6 +24,8 @@ using LLVMLoopInfo
 
 using CUDA_Driver_jll
 
+using CUDA_Compiler_jll
+
 import CUDA_Runtime_jll
 const local_toolkit = CUDA_Runtime_jll.host_platform["cuda_local"] == "true"
 const toolkit_version = if CUDA_Runtime_jll.host_platform["cuda"] == "none"
