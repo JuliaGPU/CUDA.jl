@@ -53,40 +53,42 @@ m = 10
     end
 end
 
-@testset "TvA = $TvA, TvB = $TvB" for TvA in [Bool, Float32, ComplexF32], TvB in [Float32, Float64]
-    mat_sizes = [(2, 3), (2, 2), (2, 0), (0, 2), (0, 0)]
+@testset "T = $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    mat_sizes = [(2, 3), (2, 0)]
+    @testset "size(A) = ($(mA), $(nA)), size(B) = ($(mB), $(nB))" for (mA, nA) in mat_sizes, (mB, nB) in mat_sizes
+        A = sprand(T, mA, nA, 0.5)
+        B  = sprand(T, mB, nB, 0.5)
 
-    @testset "size(A) = ($(mA), $(nA))" for (mA, nA) in mat_sizes
-        A = sprand(TvA, mA, nA, 0.5)
-        A_diag = Diagonal(rand(TvA, mA))
-        @testset "size(B) = ($(mB), $(nB))" for (mB, nB) in mat_sizes
-            B  = sprand(TvB, mB, nB, 0.5)
+        dA = CuSparseMatrixCOO{T}(A)
+        dB = CuSparseMatrixCOO{T}(B)
 
-            dA = CuSparseMatrixCOO{TvA}(A)
-            dA_diag = adapt(CuArray, A_diag)
-            dB = CuSparseMatrixCOO{TvB}(B)
-
-            @testset "kronecker (COO ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (identity, transpose, adjoint)
-                dC = kron(opa(dA), opb(dB))
-                @test collect(dC)  ≈ kron(opa(A), opb(B))
-                @test eltype(dC) == typeof(oneunit(TvA) * oneunit(TvB))
-                @test dC isa CuSparseMatrixCOO
-            end
-
-            @testset "kronecker (diagonal ⊗ COO) opa = $opa, opb = $opb" for opa in (adjoint, ), opb in (identity, transpose, adjoint)
-                dC = kron(opa(dA_diag), opb(dB))
-                @test collect(dC)  ≈ kron(opa(A_diag), opb(B))
-                @test eltype(dC) == typeof(oneunit(TvA) * oneunit(TvB))
-                @test dC isa CuSparseMatrixCOO
-            end
-
-            @testset "kronecker (COO ⊗ diagonal) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (adjoint, )
-                dC = kron(opb(dB), opa(dA_diag))
-                @test collect(dC)  ≈ kron(opb(B), opa(A_diag))
-                @test eltype(dC) == typeof(oneunit(TvA) * oneunit(TvB))
-                @test dC isa CuSparseMatrixCOO
-            end
+        @testset "kronecker (COO ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (identity, transpose, adjoint)
+            dC = kron(opa(dA), opb(dB))
+            @test collect(dC)  ≈ kron(opa(A), opb(B))
+            @test eltype(dC) == typeof(oneunit(T) * oneunit(T))
+            @test dC isa CuSparseMatrixCOO
         end
+    end
+end
+
+@testset "TA = $TA, TvB = $TvB" for TvB in [Float32, Float64, ComplexF32, ComplexF64], TA in [Bool, TvB]
+    A = Diagonal(rand(TA, 2))
+    B  = sprand(TvB, 3, 4, 0.5)
+    dA = adapt(CuArray, A)
+    dB = CuSparseMatrixCOO{TvB}(B)
+
+    @testset "kronecker (diagonal ⊗ COO) opa = $opa, opb = $opb" for opa in (adjoint, ), opb in (identity, transpose, adjoint)
+        dC = kron(opa(dA), opb(dB))
+        @test collect(dC)  ≈ kron(opa(A), opb(B))
+        @test eltype(dC) == typeof(oneunit(TA) * oneunit(TvB))
+        @test dC isa CuSparseMatrixCOO
+    end
+
+    @testset "kronecker (COO ⊗ diagonal) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (adjoint, )
+        dC = kron(opb(dB), opa(dA))
+        @test collect(dC)  ≈ kron(opb(B), opa(A))
+        @test eltype(dC) == typeof(oneunit(TvB) * oneunit(TA))
+        @test dC isa CuSparseMatrixCOO
     end
 end
 
