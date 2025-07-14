@@ -20,6 +20,8 @@ using LLVM.Interop: assume
 
 using CEnum: @cenum
 
+using Adapt: adapt
+
 
 const cudaDataType_t = cudaDataType
 

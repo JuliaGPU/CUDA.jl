@@ -328,8 +328,35 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
 end
 
 # Diagonal
-Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Diagonal(Array(D.diag))
-CuArray(D::Diagonal{T, <:Vector{T}}) where {T} = Diagonal(CuArray(D.diag))
+
+# conversions to dense matrices
+Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Array(Diagonal(Array(D.diag)))
+CUDA.CuArray(D::Diagonal{T}) where {T} = CuMatrix(D)
+function CUDA.CuMatrix{T}(D::Diagonal) where {T}
+    n = size(D, 1)
+    B = CUDA.zeros(T, n, n)
+    n == 0 && return B
+
+    gpu_diag = adapt(CuArray, D.diag)
+    ## COV_EXCL_START
+    function fill_diagonal()
+        i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+        grid_stride = gridDim().x * blockDim().x
+        while i <= n
+            @inbounds B[i,i] = gpu_diag[i]
+            i += grid_stride
+        end
+        return
+    end
+    ## COV_EXCL_STOP
+    kernel = @cuda launch = false fill_diagonal()
+    config = launch_configuration(kernel.fun)
+    threads = min(config.threads, n)
+    blocks = min(config.blocks, cld(n, threads))
+    @cuda threads blocks fill_diagonal()
+
+    return B
+end
 
 function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
     Di = map(inv, D.diag)

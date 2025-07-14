@@ -1,5 +1,4 @@
 using LinearAlgebra
-import Adapt
 using ChainRulesCore: add!!, is_inplaceable_destination
 
 @testset "constructors" begin

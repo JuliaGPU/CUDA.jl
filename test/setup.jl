@@ -14,6 +14,8 @@ testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 using Random
 
+using Adapt
+
 # detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI)
 const sanitize = any(contains("NV_SANITIZER"), keys(ENV))
 
