@@ -1,5 +1,5 @@
 using CUDA.CUSPARSE
-using LinearAlgebra, SparseArrays
+using LinearAlgebra, SparseArrays, Adapt
 
 m = 10
 @testset "T = $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
@@ -49,6 +49,43 @@ m = 10
             @test collect(kron(dD, opa(dA))) ≈ kron(D, opa(A))
             @test collect(kron(opa(dZA), dD)) ≈ kron(opa(ZA), D)
             @test collect(kron(dD, opa(dZA))) ≈ kron(D, opa(ZA))
+        end
+    end
+end
+
+@testset "TvA = $TvA, TvB = $TvB" for TvA in [Bool, Float32, ComplexF32], TvB in [Float32, Float64]
+    mat_sizes = [(2, 3), (2, 2), (2, 0), (0, 2), (0, 0)]
+
+    @testset "size(A) = ($(mA), $(nA))" for (mA, nA) in mat_sizes
+        A = sprand(TvA, mA, nA, 0.5)
+        A_diag = Diagonal(rand(TvA, mA))
+        @testset "size(B) = ($(mB), $(nB))" for (mB, nB) in mat_sizes
+            B  = sprand(TvB, mB, nB, 0.5)
+
+            dA = CuSparseMatrixCOO{TvA}(A)
+            dA_diag = adapt(CuArray, A_diag)
+            dB = CuSparseMatrixCOO{TvB}(B)
+
+            @testset "kronecker (COO ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (identity, transpose, adjoint)
+                dC = kron(opa(dA), opb(dB))
+                @test collect(dC)  ≈ kron(opa(A), opb(B))
+                @test eltype(dC) == typeof(oneunit(TvA) * oneunit(TvB))
+                @test dC isa CuSparseMatrixCOO
+            end
+
+            @testset "kronecker (diagonal ⊗ COO) opa = $opa, opb = $opb" for opa in (adjoint, ), opb in (identity, transpose, adjoint)
+                dC = kron(opa(dA_diag), opb(dB))
+                @test collect(dC)  ≈ kron(opa(A_diag), opb(B))
+                @test eltype(dC) == typeof(oneunit(TvA) * oneunit(TvB))
+                @test dC isa CuSparseMatrixCOO
+            end
+
+            @testset "kronecker (COO ⊗ diagonal) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (adjoint, )
+                dC = kron(opb(dB), opa(dA_diag))
+                @test collect(dC)  ≈ kron(opb(B), opa(A_diag))
+                @test eltype(dC) == typeof(oneunit(TvA) * oneunit(TvB))
+                @test dC isa CuSparseMatrixCOO
+            end
         end
     end
 end
