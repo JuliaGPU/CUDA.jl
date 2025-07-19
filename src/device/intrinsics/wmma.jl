@@ -27,7 +27,9 @@ const map_ptx_to_jl_frag = Dict(
                                 "f32" => Float32
                                )
 
-# Maps matrix & PTX types to fragment sizes
+# Maps matrix & PTX types to fragment sizes, information retrieved from 
+# https://docs.nvidia.com/cuda/parallel-thread-execution/index.html?highlight=wmma#matrix-fragments-for-wmma
+
 const map_frag_sizes = Dict(
                             # A
                             "a.u8.m16n16k16"  => 2,
@@ -491,7 +493,9 @@ julia> config = WMMA.Config{16, 16, 16, Float32}
 CUDA.WMMA.Config{16, 16, 16, Float32}
 ```
 """
-struct Config{M, N, K, d_type} end
+struct ConfigRounding{M, N, K, d_type, rounding} end
+
+Config{M, N, K, d_type} = ConfigRounding{M, N, K, d_type, RoundNearest}
 
 # ---------
 # Constants
