@@ -14,12 +14,16 @@ macro async_benchmarkable(ex...)
     end
 end
 
+if !@isdefined(BENCHOUT)
+    BENCHOUT = "benchmarkresults.json"
+end
+
 # before anything else, run latency benchmarks. these spawn subprocesses, so we don't want
 # to do so after regular benchmarks have caused the memory allocator to reserve memory.
 @info "Running latency benchmarks"
 latency_results = include("latency.jl")
 
-SUITE = BenchmarkGroup()
+SUITE = BenchmarkGroup([BENCHOUT])
 
 include("cuda.jl")
 include("kernel.jl")
@@ -50,4 +54,4 @@ results["latency"] = latency_results
 results["integration"] = integration_results
 
 # write out the results
-BenchmarkTools.save("benchmarkresults.json", median(results))
+BenchmarkTools.save(BENCHOUT, median(results))
