@@ -50,4 +50,5 @@ results["latency"] = latency_results
 results["integration"] = integration_results
 
 # write out the results
-BenchmarkTools.save("benchmarkresults.json", median(results))
+result_file = length(ARGS) >= 1 ? ARGS[1] : "benchmarkresults.json"
+BenchmarkTools.save(result_file, median(results))
