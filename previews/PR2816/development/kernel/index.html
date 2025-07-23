@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Kernel programming · CUDA.jl</title><meta name="title" content="Kernel programming · CUDA.jl"/><meta property="og:title" content="Kernel programming · CUDA.jl"/><meta property="twitter:title" content="Kernel programming · CUDA.jl"/><meta name="description" content="Documentation for CUDA.jl."/><meta property="og:description" content="Documentation for CUDA.jl."/><meta property="twitter:description" content="Documentation for CUDA.jl."/><meta property="og:url" content="https://cuda.juliagpu.org/stable/development/kernel/"/><meta property="twitter:url" content="https://cuda.juliagpu.org/stable/development/kernel/"/><link rel="canonical" href="https://cuda.juliagpu.org/stable/development/kernel/"/><script async src="https://www.googletagmanager.com/gtag/js?id=UA-154489943-2"></script><script>  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'UA-154489943-2', {'page_path': location.pathname + location.search + location.hash});
+</script><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script><link href="../../assets/favicon.ico" rel="icon" type="image/x-icon"/></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../../"><img src="../../assets/logo.png" alt="CUDA.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../../">CUDA.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Tutorials</span><ul><li><a class="tocitem" href="../../tutorials/introduction/">Introduction</a></li><li><a class="tocitem" href="../../tutorials/custom_structs/">Using custom structs</a></li><li><a class="tocitem" href="../../tutorials/performance/">Performance Tips</a></li></ul></li><li><span class="tocitem">Installation</span><ul><li><a class="tocitem" href="../../installation/overview/">Overview</a></li><li><a class="tocitem" href="../../installation/conditional/">Conditional use</a></li><li><a class="tocitem" href="../../installation/troubleshooting/">Troubleshooting</a></li></ul></li><li><span class="tocitem">Usage</span><ul><li><a class="tocitem" href="../../usage/overview/">Overview</a></li><li><a class="tocitem" href="../../usage/workflow/">Workflow</a></li><li><a class="tocitem" href="../../usage/array/">Array programming</a></li><li><a class="tocitem" href="../../usage/memory/">Memory management</a></li><li><a class="tocitem" href="../../usage/multitasking/">Tasks and threads</a></li><li><a class="tocitem" href="../../usage/multigpu/">Multiple GPUs</a></li></ul></li><li><span class="tocitem">Development</span><ul><li><a class="tocitem" href="../profiling/">Benchmarking &amp; profiling</a></li><li class="is-active"><a class="tocitem" href>Kernel programming</a><ul class="internal"><li><a class="tocitem" href="#Defining-and-launching-kernels"><span>Defining and launching kernels</span></a></li><li><a class="tocitem" href="#Kernel-inputs-and-outputs"><span>Kernel inputs and outputs</span></a></li><li><a class="tocitem" href="#Launch-configuration-and-indexing"><span>Launch configuration and indexing</span></a></li><li><a class="tocitem" href="#Kernel-compilation-requirements"><span>Kernel compilation requirements</span></a></li><li><a class="tocitem" href="#Synchronization"><span>Synchronization</span></a></li><li><a class="tocitem" href="#Device-arrays"><span>Device arrays</span></a></li><li><a class="tocitem" href="#Standard-output"><span>Standard output</span></a></li><li><a class="tocitem" href="#Random-numbers"><span>Random numbers</span></a></li><li><a class="tocitem" href="#Atomics"><span>Atomics</span></a></li><li><a class="tocitem" href="#Warp-intrinsics"><span>Warp intrinsics</span></a></li><li><a class="tocitem" href="#Dynamic-parallelism"><span>Dynamic parallelism</span></a></li><li><a class="tocitem" href="#Cooperative-groups"><span>Cooperative groups</span></a></li><li><a class="tocitem" href="#Warp-matrix-multiply-accumulate"><span>Warp matrix multiply-accumulate</span></a></li></ul></li><li><a class="tocitem" href="../troubleshooting/">Troubleshooting</a></li><li><a class="tocitem" href="../debugging/">Debugging</a></li></ul></li><li><span class="tocitem">API reference</span><ul><li><a class="tocitem" href="../../api/essentials/">Essentials</a></li><li><a class="tocitem" href="../../api/array/">Array programming</a></li><li><a class="tocitem" href="../../api/kernel/">Kernel programming</a></li><li><a class="tocitem" href="../../api/compiler/">Compiler</a></li></ul></li><li><span class="tocitem">Library reference</span><ul><li><a class="tocitem" href="../../lib/driver/">CUDA driver</a></li></ul></li><li><a class="tocitem" href="../../faq/">FAQ</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Development</a></li><li class="is-active"><a href>Kernel programming</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Kernel programming</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/JuliaGPU/CUDA.jl/blob/master/docs/src/development/kernel.md#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Kernel-programming"><a class="docs-heading-anchor" href="#Kernel-programming">Kernel programming</a><a id="Kernel-programming-1"></a><a class="docs-heading-anchor-permalink" href="#Kernel-programming" title="Permalink"></a></h1><p>When arrays operations are not flexible enough, you can write your own GPU kernels in Julia. CUDA.jl aims to expose the full power of the CUDA programming model, i.e., at the same level of abstraction as CUDA C/C++, albeit with some Julia-specific improvements.</p><p>As a result, writing kernels in Julia is very similar to writing kernels in CUDA C/C++. It should be possible to learn CUDA programming from existing CUDA C/C++ resources, and apply that knowledge to programming in Julia using CUDA.jl. Nontheless, this section will give a brief overview of the most important concepts and their syntax.</p><h2 id="Defining-and-launching-kernels"><a class="docs-heading-anchor" href="#Defining-and-launching-kernels">Defining and launching kernels</a><a id="Defining-and-launching-kernels-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-and-launching-kernels" title="Permalink"></a></h2><p>Kernels are written as ordinary Julia functions, returning <code>nothing</code>:</p><pre><code class="language-julia hljs">function my_kernel()
+    return
+end</code></pre><p>To launch this kernel, use the <code>@cuda</code> macro:</p><pre><code class="language-julia-repl hljs">julia&gt; @cuda my_kernel()</code></pre><p>This automatically (re)compiles the <code>my_kernel</code> function and launches it on the current GPU (selected by calling <code>device!</code>).</p><p>By passing the <code>launch=false</code> keyword argument to <code>@cuda</code>, it is possible to obtain a callable object representing the compiled kernel. This can be useful for reflection and introspection purposes:</p><pre><code class="language-julia-repl hljs">julia&gt; k = @cuda launch=false my_kernel()
+CUDA.HostKernel for my_kernel()
+
+julia&gt; CUDA.registers(k)
+4
+
+julia&gt; k()</code></pre><h2 id="Kernel-inputs-and-outputs"><a class="docs-heading-anchor" href="#Kernel-inputs-and-outputs">Kernel inputs and outputs</a><a id="Kernel-inputs-and-outputs-1"></a><a class="docs-heading-anchor-permalink" href="#Kernel-inputs-and-outputs" title="Permalink"></a></h2><p>GPU kernels cannot return values, and should always <code>return</code> or <code>return nothing</code> on all code paths. To communicate values from a kernel, you can use a <code>CuArray</code>:</p><pre><code class="language-julia hljs">function my_kernel(a)
+    a[1] = 42
+    return
+end</code></pre><pre><code class="language-julia-repl hljs">julia&gt; a = CuArray{Int}(undef, 1);
+
+julia&gt; @cuda my_kernel(a);
+
+julia&gt; a
+1-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 42</code></pre><h2 id="Launch-configuration-and-indexing"><a class="docs-heading-anchor" href="#Launch-configuration-and-indexing">Launch configuration and indexing</a><a id="Launch-configuration-and-indexing-1"></a><a class="docs-heading-anchor-permalink" href="#Launch-configuration-and-indexing" title="Permalink"></a></h2><p>Simply using <code>@cuda</code> only launches a single thread, which is not very useful. To launch more threads, use the <code>threads</code> and <code>blocks</code> keyword arguments to <code>@cuda</code>, while using indexing intrinsics in the kernel to differentiate the computation for each thread:</p><pre><code class="language-julia-repl hljs">julia&gt; function my_kernel(a)
+           i = threadIdx().x
+           a[i] = 42
+           return
+       end
+
+julia&gt; a = CuArray{Int}(undef, 5);
+
+julia&gt; @cuda threads=length(a) my_kernel(a);
+
+julia&gt; a
+5-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 42
+ 42
+ 42
+ 42
+ 42</code></pre><p>As shown above, the <code>threadIdx</code> etc. values from CUDA C are available as functions returning a <code>NamedTuple</code> with <code>x</code>, <code>y</code>, and <code>z</code> fields. The intrinsics return 1-based indices.</p><h2 id="Kernel-compilation-requirements"><a class="docs-heading-anchor" href="#Kernel-compilation-requirements">Kernel compilation requirements</a><a id="Kernel-compilation-requirements-1"></a><a class="docs-heading-anchor-permalink" href="#Kernel-compilation-requirements" title="Permalink"></a></h2><p>For custom kernels to work they need to need to meet certain requirements.</p><p>First, the memory must be accessible on the GPU. This can be enforced by using the correct types, e.g. CuArray&#39;s data with bits type. Custom structs can be ported as described in the <a href="https://cuda.juliagpu.org/dev/tutorials/custom_structs/">corresponding tutorial</a>.</p><p>Second, we are not allowed to have runtime dispatches. All function calls need to be determined at compile time. Here it is important to note that runtime dispatches can also be introduced by functions which are not fully specialized. Let us take this example:</p><pre><code class="language-julia-repl hljs">julia&gt; function my_inner_kernel!(f, t) # does not specialize
+           t .= f.(t)
+       end
+my_inner_kernel! (generic function with 1 method)
+
+julia&gt; function my_outer_kernel(f, a)
+           i = threadIdx().x
+           my_inner_kernel!(f, @view a[i, :])
+           return nothing
+       end
+my_outer_kernel (generic function with 1 method)
+
+julia&gt; a = CUDA.rand(Int, (2,2))
+2×2 CuArray{Int64, 2, CUDA.DeviceMemory}:
+ 5153094658246882343  -1636555237989902283
+ 2088126782868946458  -5701665962120018867
+
+julia&gt; id(x) = x
+id (generic function with 1 method)
+
+julia&gt; @cuda threads=size(a, 1) my_outer_kernel(id, a)
+ERROR: InvalidIRError: compiling MethodInstance for my_outer_kernel(::typeof(id), ::CuDeviceMatrix{Int64, 1}) resulted in invalid LLVM IR
+Reason: unsupported dynamic function invocation (call to my_inner_kernel!(f, t) @ Main REPL[27]:1)</code></pre><p>Here the function <code>my_inner_kernel!</code> is not specialized. We can force specialization in this case as follows:</p><pre><code class="language-julia-repl hljs">julia&gt; function my_inner_kernel2!(f::F, t::T) where {F,T} # forces specialization
+           t .= f.(t)
+       end
+my_inner_kernel2! (generic function with 1 method)
+
+julia&gt; function my_outer_kernel2(f, a)
+           i = threadIdx().x
+           my_inner_kernel2!(f, @view a[i, :])
+           return nothing
+       end
+my_outer_kernel2 (generic function with 1 method)
+
+julia&gt; a = CUDA.rand(Int, (2,2))
+2×2 CuArray{Int64, 2, CUDA.DeviceMemory}:
+  3193805011610800677  4871385510397812058
+ -9060544314843886881  8829083170181145736
+
+julia&gt; id(x) = x
+id (generic function with 1 method)
+
+julia&gt; @cuda threads=size(a, 1) my_outer_kernel2(id, a)
+CUDA.HostKernel for my_outer_kernel2(typeof(id), CuDeviceMatrix{Int64, 1})</code></pre><p>More cases and details on specialization can be found in <a href="https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing">the Julia manual</a>.</p><h2 id="Synchronization"><a class="docs-heading-anchor" href="#Synchronization">Synchronization</a><a id="Synchronization-1"></a><a class="docs-heading-anchor-permalink" href="#Synchronization" title="Permalink"></a></h2><p>To synchronize threads in a block, use the <code>sync_threads()</code> function. More advanced variants that take a predicate are also available:</p><ul><li><code>sync_threads_count(pred)</code>: returns the number of threads for which <code>pred</code> was true</li><li><code>sync_threads_and(pred)</code>: returns <code>true</code> if <code>pred</code> was true for all threads</li><li><code>sync_threads_or(pred)</code>: returns <code>true</code> if <code>pred</code> was true for any thread</li></ul><p>To maintain multiple thread synchronization barriers, use the <code>barrier_sync</code> function, which takes an integer argument to identify the barrier.</p><p>To synchronize lanes in a warp, use the <code>sync_warp()</code> function. This function takes a mask to select which lanes to participate (this defaults to <code>FULL_MASK</code>).</p><p>If only a memory barrier is required, and not an execution barrier, use fence intrinsics:</p><ul><li><code>threadfence_block</code>: ensure memory ordering for all threads in the block</li><li><code>threadfence</code>: the same, but for all threads on the device</li><li><code>threadfence_system</code>: the same, but including host threads and threads on peer devices</li></ul><h2 id="Device-arrays"><a class="docs-heading-anchor" href="#Device-arrays">Device arrays</a><a id="Device-arrays-1"></a><a class="docs-heading-anchor-permalink" href="#Device-arrays" title="Permalink"></a></h2><p>Although the <code>CuArray</code> type is the main array type used in CUDA.jl to represent GPU arrays and invoke operations on the device, it is a type that&#39;s only meant to be used from the host. For example, certain operations will call into the CUBLAS library, which is a library whose entrypoints are meant to be invoked from the CPU.</p><p>When passing a <code>CuArray</code> to a kernel, it will be converted to a <code>CuDeviceArray</code> object instead, representing the same memory but implemented with GPU-compatible operations. The API surface of this type is very limited, i.e., it only supports indexing and assignment, and some basic operations like <code>view</code>, <code>reinterpret</code>, <code>reshape</code>, etc. Implementing higher level operations like <code>map</code> would be a performance trap, as they would not make use of the GPU&#39;s parallelism, but execute slowly on a single GPU thread.</p><h3 id="Shared-memory"><a class="docs-heading-anchor" href="#Shared-memory">Shared memory</a><a id="Shared-memory-1"></a><a class="docs-heading-anchor-permalink" href="#Shared-memory" title="Permalink"></a></h3><p>To communicate between threads, device arrays that are backed by shared memory can be allocated using the <code>CuStaticSharedArray</code> function:</p><pre><code class="language-julia-repl hljs">julia&gt; function reverse_kernel(a::CuDeviceArray{T}) where T
+           i = threadIdx().x
+           b = CuStaticSharedArray(T, 2)
+           b[2-i+1] = a[i]
+           sync_threads()
+           a[i] = b[i]
+           return
+       end
+
+julia&gt; a = cu([1,2])
+2-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 1
+ 2
+
+julia&gt; @cuda threads=2 reverse_kernel(a)
+
+julia&gt; a
+2-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 2
+ 1</code></pre><p>When the amount of shared memory isn&#39;t known beforehand, and you don&#39;t want to recompile the kernel for each size, you can use the <code>CuDynamicSharedArray</code> type instead. This requires you to pass the size of the shared memory (in bytes) as an argument to the kernel:</p><pre><code class="language-julia-repl hljs">julia&gt; function reverse_kernel(a::CuDeviceArray{T}) where T
+           i = threadIdx().x
+           b = CuDynamicSharedArray(T, length(a))
+           b[length(a)-i+1] = a[i]
+           sync_threads()
+           a[i] = b[i]
+           return
+       end
+
+julia&gt; a = cu([1,2,3])
+3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 1
+ 2
+ 3
+
+julia&gt; @cuda threads=length(a) shmem=sizeof(a) reverse_kernel(a)
+
+julia&gt; a
+3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 3
+ 2
+ 1</code></pre><p>When needing multiple arrays of dynamic shared memory, pass an <code>offset</code> parameter to the subsequent <code>CuDynamicSharedArray</code> constructors indicating the offset in bytes from the start of the shared memory. The <code>shmem</code> keyword to <code>@cuda</code> should be the total amount of shared memory used by all arrays.</p><h3 id="Bounds-checking"><a class="docs-heading-anchor" href="#Bounds-checking">Bounds checking</a><a id="Bounds-checking-1"></a><a class="docs-heading-anchor-permalink" href="#Bounds-checking" title="Permalink"></a></h3><p>By default, indexing a <code>CuDeviceArray</code> will perform bounds checking, and throw an error when the index is out of bounds. This can be a costly operation, so make sure to use <code>@inbounds</code> when you know the index is in bounds.</p><h2 id="Standard-output"><a class="docs-heading-anchor" href="#Standard-output">Standard output</a><a id="Standard-output-1"></a><a class="docs-heading-anchor-permalink" href="#Standard-output" title="Permalink"></a></h2><p>CUDA.jl kernels do not yet integrate with Julia&#39;s standard input/output, but we provide some basic functions to print to the standard output from a kernel:</p><ul><li><code>@cuprintf</code>: print a formatted string to standard output</li><li><code>@cuprint</code> and <code>@cuprintln</code>: print a string and any values to standard output</li><li><code>@cushow</code>: print the name and value of an object</li></ul><p>The <code>@cuprintf</code> macro does not support all formatting options; refer to the NVIDIA documentation on <code>printf</code> for more details. It is often more convenient to use <code>@cuprintln</code> and rely on CUDA.jl to convert any values to their appropriate string representation:</p><pre><code class="language-julia-repl hljs">julia&gt; @cuda threads=2 (()-&gt;(@cuprintln(&quot;Hello, I&#39;m thread $(threadIdx().x)!&quot;); return))()
+Hello, I&#39;m thread 1!
+Hello, I&#39;m thread 2!</code></pre><p>To simply show a value, which can be useful during debugging, use <code>@cushow</code>:</p><pre><code class="language-julia-repl hljs">julia&gt; @cuda threads=2 (()-&gt;(@cushow threadIdx().x; return))()
+(threadIdx()).x = 1
+(threadIdx()).x = 2</code></pre><p>Note that these aren&#39;t full-blown implementations, and only support a very limited number of types. As such, they should only be used for debugging purposes.</p><h2 id="Random-numbers"><a class="docs-heading-anchor" href="#Random-numbers">Random numbers</a><a id="Random-numbers-1"></a><a class="docs-heading-anchor-permalink" href="#Random-numbers" title="Permalink"></a></h2><p>The <code>rand</code> and <code>randn</code> functions are available for use in kernels, and will return a random number sampled from a special GPU-compatible random number generator:</p><pre><code class="language-julia-repl hljs">julia&gt; @cuda (()-&gt;(@cushow rand(); return))()
+rand() = 0.191897</code></pre><p>Although the API is very similar to the random number generators used on the CPU, there are a few differences and considerations that stem from the design of a parallel RNG:</p><ul><li>the default RNG uses global state; it is undefined behavior to use multiple instances</li><li>kernels automatically seed the RNG with a unique seed passed from the host, ensuring that multiple invocations of the same kernel will produce different results</li><li>manual seeding is possible by calling <code>Random.seed!</code>, however, the RNG uses warp-shared state, so at least one thread per warp should seed, and all seeds within a warp should be identical</li><li>in the case that subsequent kernel invocations should continue the sequence of random numbers, not only the seed but also the counter value should be configured manually using <code>Random.seed!</code>; refer to CUDA.jl&#39;s host-side RNG for an example</li></ul><h2 id="Atomics"><a class="docs-heading-anchor" href="#Atomics">Atomics</a><a id="Atomics-1"></a><a class="docs-heading-anchor-permalink" href="#Atomics" title="Permalink"></a></h2><p>CUDA.jl provides atomic operations at two levels of abstraction:</p><ul><li>low-level, <code>atomic_</code> functions mapping directly on hardware instructions</li><li>high-level, <code>CUDA.@atomic</code> expressions for convenient element-wise operations</li></ul><p>The former is the safest way to use atomic operations, as it is stable and will not change behavior in the future. The interface is restrictive though, only supporting what the hardware provides, and requiring matching input types. The <code>CUDA.@atomic</code> API is much more user friendly, but will disappear at some point when it integrates with the <code>@atomic</code> macro in Julia Base.</p><h3 id="Low-level"><a class="docs-heading-anchor" href="#Low-level">Low-level</a><a id="Low-level-1"></a><a class="docs-heading-anchor-permalink" href="#Low-level" title="Permalink"></a></h3><p>The low-level atomic in trinsics take pointer inputs, which can be obtained from calling the <code>pointer</code> function on a <code>CuArray</code>:</p><pre><code class="language-julia-repl hljs">julia&gt; function atomic_kernel(a)
+           CUDA.atomic_add!(pointer(a), Int32(1))
+           return
+       end
+
+julia&gt; a = cu(Int32[1])
+1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+ 1
+
+julia&gt; @cuda atomic_kernel(a)
+
+julia&gt; a
+1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+ 2</code></pre><p>Supported atomic operations are:</p><ul><li>typical binary operations: <code>add</code>, <code>sub</code>, <code>and</code>, <code>or</code>, <code>xor</code>, <code>min</code>, <code>max</code>, <code>xchg</code></li><li>NVIDIA-specific binary operations: <code>inc</code>, <code>dec</code></li><li>compare-and-swap: <code>cas</code></li></ul><p>Refer to the documentation of these intrinsics for more information on the type support, and hardware requirements.</p><h3 id="High-level"><a class="docs-heading-anchor" href="#High-level">High-level</a><a id="High-level-1"></a><a class="docs-heading-anchor-permalink" href="#High-level" title="Permalink"></a></h3><p>For more convenient atomic operations on arrays, CUDA.jl provides the <code>CUDA.@atomic</code> macro which can be used with expressions that assign array elements:</p><pre><code class="language-julia-repl hljs">julia&gt; function atomic_kernel(a)
+           CUDA.@atomic a[1] += 1
+           return
+       end
+
+julia&gt; a = cu(Int32[1])
+1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+ 1
+
+julia&gt; @cuda atomic_kernel(a)
+
+julia&gt; a
+1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+ 2</code></pre><p>This macro is much more lenient, automatically converting inputs to the appropriate type, and falling back to an atomic compare-and-swap loop for unsupported operations. It however may disappear once CUDA.jl integrates with the <code>@atomic</code> macro in Julia Base.</p><h2 id="Warp-intrinsics"><a class="docs-heading-anchor" href="#Warp-intrinsics">Warp intrinsics</a><a id="Warp-intrinsics-1"></a><a class="docs-heading-anchor-permalink" href="#Warp-intrinsics" title="Permalink"></a></h2><p>Most of CUDA&#39;s warp intrinsics are available in CUDA.jl, under similar names. Their behavior is mostly identical as well, with the exception that they are 1-indexed, and that they support more types by automatically converting and splitting (to some extent) inputs:</p><ul><li>indexing: <code>laneid</code>, <code>lanemask</code>, <code>active_mask</code>, <code>warpsize</code></li><li>shuffle: <code>shfl_sync</code>, <code>shfl_up_sync</code>, <code>shfl_down_sync</code>, <code>shfl_xor_sync</code></li><li>voting: <code>vote_all_sync</code>, <code>vote_any_sync</code>, <code>vote_unisync</code>, <code>vote_ballot_sync</code></li></ul><p>Many of these intrinsics require a <code>mask</code> argument, which is a bit mask indicating which lanes should participate in the operation. To default to all lanes, use the <code>FULL_MASK</code> constant.</p><h2 id="Dynamic-parallelism"><a class="docs-heading-anchor" href="#Dynamic-parallelism">Dynamic parallelism</a><a id="Dynamic-parallelism-1"></a><a class="docs-heading-anchor-permalink" href="#Dynamic-parallelism" title="Permalink"></a></h2><p>Where kernels are normally launched from the host, using dynamic parallelism it is also possible to launch kernels from within a kernel. This is useful for recursive algorithms, or for algorithms that otherwise need to dynamically spawn new work.</p><p>Device-side launches are also done using the <code>@cuda</code> macro, but require setting the <code>dynamic</code> keyword argument to <code>true</code>:</p><pre><code class="language-julia-repl hljs">julia&gt; function outer()
+           @cuprint(&quot;Hello &quot;)
+           @cuda dynamic=true inner()
+           return
+       end
+
+julia&gt; function inner()
+           @cuprintln(&quot;World!&quot;)
+           return
+       end
+
+julia&gt; @cuda outer()
+Hello World!</code></pre><p>Within a kernel, only a very limited subset of the CUDA API is available:</p><ul><li>synchronization: <code>device_synchronize</code></li><li>streams: <code>CuDeviceStream</code> constructor, <code>unsafe_destroy!</code> destuctor; these streams can be passed to <code>@cuda</code> using the <code>stream</code> keyword argument</li></ul><h2 id="Cooperative-groups"><a class="docs-heading-anchor" href="#Cooperative-groups">Cooperative groups</a><a id="Cooperative-groups-1"></a><a class="docs-heading-anchor-permalink" href="#Cooperative-groups" title="Permalink"></a></h2><p>With cooperative groups, it is possible to write parallel kernels that are not tied to a specific thread configuration, instead making it possible to more dynamically partition threads and communicate between groups of threads. This functionality is relative new in CUDA.jl, and does not yet support all aspects of the cooperative groups programming model.</p><p>Essentially, instead of manually computing a thread index and using that to differentiate computation, kernel functionality now queries a group it is part of, and can query the size, rank, etc of that group:</p><pre><code class="language-julia-repl hljs">julia&gt; function reverse_kernel(d::CuDeviceArray{T}) where {T}
+           block = CG.this_thread_block()
+
+           n = length(d)
+           t = CG.thread_rank(block)
+           tr = n-t+1
+
+           s = @inbounds CuDynamicSharedArray(T, n)
+           @inbounds s[t] = d[t]
+           CG.sync(block)
+           @inbounds d[t] = s[tr]
+
+           return
+       end
+
+julia&gt; a = cu([1,2,3])
+3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 1
+ 2
+ 3
+
+julia&gt; @cuda threads=length(a) shmem=sizeof(a) reverse_kernel(a)
+
+julia&gt; a
+3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 3
+ 2
+ 1</code></pre><p>The following implicit groups are supported:</p><ul><li>thread blocks: <code>CG.this_thread_block()</code></li><li>grid group: <code>CG.this_grid()</code></li><li>warps: <code>CG.coalesced_threads()</code></li></ul><p>Support is currently lacking for the cluster and multi-grid implicit groups, as well as all explicit (tiled, partitioned) groups.</p><p>Thread blocks are supported by all devices, in all kernels. Grid groups (<code>CG.this_grid()</code>) can be used to synchronize the entire grid, which is normally not possible, but requires additional care: kernels need to be launched cooperatively, using <code>@cuda cooperative=true</code>, which is only supported on devices with compute capability 6.0 or higher. Also, cooperative kernels can only launch as many blocks as there are SMs on the device.</p><h3 id="Indexing"><a class="docs-heading-anchor" href="#Indexing">Indexing</a><a id="Indexing-1"></a><a class="docs-heading-anchor-permalink" href="#Indexing" title="Permalink"></a></h3><p>Every kind of thread group supports the following indexing operations:</p><ul><li><code>thread_rank</code>: returns the rank of the current thread within the group</li><li><code>num_threads</code>: returns the number of threads in the group</li></ul><p>In addition, some group kinds support additional indexing operations:</p><ul><li>thread blocks: <code>group_index</code>, <code>thread_index</code>, <code>dim_threads</code></li><li>grid group: <code>block_rank</code>, <code>num_blocks</code>, <code>dim_blocks</code>, <code>block_index</code></li><li>coalesced group: <code>meta_group_rank</code>, <code>meta_group_size</code></li></ul><p>Refer to the docstrings of these functions for more details.</p><h3 id="Synchronization-2"><a class="docs-heading-anchor" href="#Synchronization-2">Synchronization</a><a class="docs-heading-anchor-permalink" href="#Synchronization-2" title="Permalink"></a></h3><p>Group objects support the <code>CG.sync</code> operation to synchronize threads within a group.</p><p>In addition, thread and grid groups support more fine-grained synchronization using barriers: <code>CG.barrier_arrive</code> and <code>CG.barrier_wait</code>: Calling <code>barrier_arrive</code> returns a token that needs to be passed to <code>barrier_wait</code> to synchronize.</p><h3 id="Collective-operations"><a class="docs-heading-anchor" href="#Collective-operations">Collective operations</a><a id="Collective-operations-1"></a><a class="docs-heading-anchor-permalink" href="#Collective-operations" title="Permalink"></a></h3><p>Certain collective operations (i.e. operations that need to be performed by multiple threads) provide a more convenient API when using cooperative groups. For example, shuffle intrinsics normally require a thread mask, but this can be replaced by a group object:</p><pre><code class="language-julia hljs">function reverse_kernel(d)
+    cta = CG.this_thread_block()
+    I = CG.thread_rank(cta)
+
+    warp = CG.coalesced_threads()
+    i = CG.thread_rank(warp)
+    j = CG.num_threads(warp) - i + 1
+
+    d[I] = CG.shfl(warp, d[I], j)
+
+    return
+end</code></pre><p>The following collective operations are supported:</p><ul><li>shuffle: <code>shfl</code>, <code>shfl_down</code>, <code>shfl_up</code></li><li>voting: <code>vote_any</code>, <code>vote_all</code>, <code>vote_ballot</code></li></ul><h3 id="Data-transfer"><a class="docs-heading-anchor" href="#Data-transfer">Data transfer</a><a id="Data-transfer-1"></a><a class="docs-heading-anchor-permalink" href="#Data-transfer" title="Permalink"></a></h3><p>With thread blocks and coalesced groups, the <code>CG.memcpy_async</code> function is available to perform asynchronous memory copies. Currently, only copies from device to shared memory are accelerated, and only on devices with compute capability 8.0 or higher. However, the implementation degrades gracefully and will fall back to a synchronizing copy:</p><pre><code class="language-julia-repl hljs">julia&gt; function memcpy_kernel(input::AbstractArray{T}, output::AbstractArray{T},
+                              elements_per_copy) where {T}
+           tb = CG.this_thread_block()
+
+           local_smem = CuDynamicSharedArray(T, elements_per_copy)
+           bytes_per_copy = sizeof(local_smem)
+
+           i = 1
+           while i &lt;= length(input)
+               # this copy can sometimes be accelerated
+               CG.memcpy_async(tb, pointer(local_smem), pointer(input, i), bytes_per_copy)
+               CG.wait(tb)
+
+               # do something with the data here
+
+               # this copy is always a simple element-wise operation
+               CG.memcpy_async(tb, pointer(output, i), pointer(local_smem), bytes_per_copy)
+               CG.wait(tb)
+
+               i += elements_per_copy
+           end
+       end
+
+julia&gt; a = cu([1, 2, 3, 4]);
+julia&gt; b = similar(a);
+julia&gt; nb = 2;
+
+julia&gt; @cuda shmem=sizeof(eltype(a))*nb memcpy_kernel(a, b, nb)
+
+julia&gt; b
+4-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+ 1
+ 2
+ 3
+ 4</code></pre><p>The above example waits for the copy to complete before continuing, but it is also possible to have multiple copies in flight using the <code>CG.wait_prior</code> function, which waits for all but the last N copies to complete.</p><h2 id="Warp-matrix-multiply-accumulate"><a class="docs-heading-anchor" href="#Warp-matrix-multiply-accumulate">Warp matrix multiply-accumulate</a><a id="Warp-matrix-multiply-accumulate-1"></a><a class="docs-heading-anchor-permalink" href="#Warp-matrix-multiply-accumulate" title="Permalink"></a></h2><p>Warp matrix multiply-accumulate (WMMA) is a cooperative operation to perform mixed precision matrix multiply-accumulate on the tensor core hardware of recent GPUs. The CUDA.jl interface is split in two levels, both available in the WMMA submodule: low level wrappers around the LLVM intrinsics, and a higher-level API similar to that of CUDA C.</p><h3 id="Terminology"><a class="docs-heading-anchor" href="#Terminology">Terminology</a><a id="Terminology-1"></a><a class="docs-heading-anchor-permalink" href="#Terminology" title="Permalink"></a></h3><p>The WMMA operations perform a matrix multiply-accumulate. More concretely, it calculates <span>$D = A \cdot B + C$</span>, where <span>$A$</span> is a <span>$M \times K$</span> matrix, <span>$B$</span> is a <span>$K \times N$</span> matrix, and <span>$C$</span> and <span>$D$</span> are <span>$M \times N$</span> matrices.</p><p>However, not all values of <span>$M$</span>, <span>$N$</span> and <span>$K$</span> are allowed. The tuple <span>$(M, N, K)$</span> is often called the &quot;shape&quot; of the multiply accumulate operation.</p><p>The multiply-accumulate consists of the following steps:</p><ul><li>Load the matrices <span>$A$</span>, <span>$B$</span> and <span>$C$</span> from memory to registers using a WMMA load operation.</li><li>Perform the matrix multiply-accumulate of <span>$A$</span>, <span>$B$</span> and <span>$C$</span> to obtain <span>$D$</span> using a WMMA MMA operation. <span>$D$</span> is stored in hardware registers after this step.</li><li>Store the result <span>$D$</span> back to memory using a WMMA store operation.</li></ul><p>Note that WMMA is a warp-wide operation, which means that all threads in a warp must cooperate, and execute the WMMA operations in lockstep. Failure to do so will result in undefined behaviour.</p><p>Each thread in a warp will hold a part of the matrix in its registers. In WMMA parlance, this part is referred to as a &quot;fragment&quot;. Note that the exact mapping between matrix elements and fragment is unspecified, and subject to change in future versions.</p><p>Finally, it is important to note that the resultant <span>$D$</span> matrix can be used as a <span>$C$</span> matrix for a subsequent multiply-accumulate. This is useful if one needs to calculate a sum of the form <span>$\sum_{i=0}^{n} A_i B_i$</span>, where <span>$A_i$</span> and <span>$B_i$</span> are matrices of the correct dimension.</p><h3 id="LLVM-Intrinsics"><a class="docs-heading-anchor" href="#LLVM-Intrinsics">LLVM Intrinsics</a><a id="LLVM-Intrinsics-1"></a><a class="docs-heading-anchor-permalink" href="#LLVM-Intrinsics" title="Permalink"></a></h3><p>The LLVM intrinsics are accessible by using the one-to-one Julia wrappers. The return type of each wrapper is the Julia type that corresponds closest to the return type of the LLVM intrinsic. For example, LLVM&#39;s <code>[8 x &lt;2 x half&gt;]</code> becomes <code>NTuple{8, NTuple{2, VecElement{Float16}}}</code> in Julia. In essence, these wrappers return the SSA values returned by the LLVM intrinsic. Currently, all intrinsics that are available in LLVM 6, PTX 6.0 and SM 70 are implemented.</p><p>These LLVM intrinsics are then lowered to the correct PTX instructions by the LLVM NVPTX backend. For more information about the PTX instructions, please refer to the <a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions">PTX Instruction Set Architecture Manual</a>.</p><p>The LLVM intrinsics are subdivided in three categories:</p><ul><li>load: <code>WMMA.llvm_wmma_load</code></li><li>multiply-accumulate: <code>WMMA.llvm_wmma_mma</code></li><li>store: <code>WMMA.llvm_wmma_store</code></li></ul><h3 id="CUDA-C-like-API"><a class="docs-heading-anchor" href="#CUDA-C-like-API">CUDA C-like API</a><a id="CUDA-C-like-API-1"></a><a class="docs-heading-anchor-permalink" href="#CUDA-C-like-API" title="Permalink"></a></h3><p>The main difference between the CUDA C-like API and the lower level wrappers, is that the former enforces several constraints when working with WMMA. For example, it ensures that the <span>$A$</span> fragment argument to the MMA instruction was obtained by a <code>load_a</code> call, and not by a <code>load_b</code> or <code>load_c</code>. Additionally, it makes sure that the data type and storage layout of the load/store operations and the MMA operation match.</p><p>The CUDA C-like API heavily uses Julia&#39;s dispatch mechanism. As such, the method names are much shorter than the LLVM intrinsic wrappers, as most information is baked into the type of the arguments rather than the method name.</p><p>Note that, in CUDA C++, the fragment is responsible for both the storage of intermediate results and the WMMA configuration. All CUDA C++ WMMA calls are function templates that take the resultant fragment as a by-reference argument. As a result, the type of this argument can be used during overload resolution to select the correct WMMA instruction to call.</p><p>In contrast, the API in Julia separates the WMMA storage (<a href="../../api/kernel/#CUDA.WMMA.Fragment"><code>WMMA.Fragment</code></a>) and configuration (<a href="../../api/kernel/#CUDA.WMMA.Config"><code>WMMA.Config</code></a>). Instead of taking the resultant fragment by reference, the Julia functions just return it. This makes the dataflow clearer, but it also means that the type of that fragment cannot be used for selection of the correct WMMA instruction. Thus, there is still a limited amount of information that cannot be inferred from the argument types, but must nonetheless match for all WMMA operations, such as the overall shape of the MMA. This is accomplished by a separate &quot;WMMA configuration&quot; (see <a href="../../api/kernel/#CUDA.WMMA.Config"><code>WMMA.Config</code></a>) that you create once, and then give as an argument to all intrinsics.</p><ul><li>fragment: <code>WMMA.Fragment</code></li><li>configuration: <code>WMMA.Config</code></li><li>load: <code>WMMA.load_a</code>, <code>WMMA.load_b</code>, <code>WMMA.load_c</code></li><li>fill: <code>WMMA.fill_c</code></li><li>multiply-accumulate: <code>WMMA.mma</code></li><li>store: <code>WMMA.store_d</code></li></ul><h4 id="Element-access-and-broadcasting"><a class="docs-heading-anchor" href="#Element-access-and-broadcasting">Element access and broadcasting</a><a id="Element-access-and-broadcasting-1"></a><a class="docs-heading-anchor-permalink" href="#Element-access-and-broadcasting" title="Permalink"></a></h4><p>Similar to the CUDA C++ WMMA API, <a href="../../api/kernel/#CUDA.WMMA.Fragment"><code>WMMA.Fragment</code></a>s have an <code>x</code> member that can be used to access individual elements. Note that, in contrast to the values returned by the LLVM intrinsics, the <code>x</code> member is flattened. For example, while the <code>Float16</code> variants of the <code>load_a</code> instrinsics return <code>NTuple{8, NTuple{2, VecElement{Float16}}}</code>, the <code>x</code> member has type <code>NTuple{16, Float16}</code>.</p><p>Typically, you will only need to access the <code>x</code> member to perform elementwise operations. This can be more succinctly expressed using Julia&#39;s broadcast mechanism. For example, to double each element in a fragment, you can simply use:</p><pre><code class="language-julia hljs">frag = 2.0f0 .* frag</code></pre><div class="admonition is-info"><header class="admonition-header">Note</header><div class="admonition-body"></div></div><p>The WMMA instructions don&#39;t take advantage of <a href="https://leimao.github.io/blog/CUDA-Shared-Memory-Swizzling/">memory swizzling</a>.   The custom load/store operations for WMMA don&#39;t allow the programmer to control <em>how</em> data is loaded,   so register bank conflicts can only be reduced, but not entirely eliminated. In general, using the PTX   insstructions <a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-mma"><code>mma.sync</code></a>    and friends are preferred, as they give the programmer finer control over the memory access pattern.  </p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../profiling/">« Benchmarking &amp; profiling</a><a class="docs-footer-nextpage" href="../troubleshooting/">Troubleshooting »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.7.0 on <span class="colophon-date" title="Wednesday 23 July 2025 21:03">Wednesday 23 July 2025</span>. Using Julia version 1.11.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
