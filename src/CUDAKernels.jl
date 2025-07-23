@@ -1,7 +1,7 @@
 module CUDAKernels
 
 using ..CUDA
-using ..CUDA: @device_override, CUSPARSE
+using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory
 
 import KernelAbstractions as KA
 
@@ -21,15 +21,17 @@ end
 
 CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
-KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple) where T = CuArray{T}(undef, dims)
-KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.zeros(T, dims)
-KA.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.ones(T, dims)
+KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
+KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CUDA.zeros(T, dimsT, length(dims); unified)
+KA.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CUDA.ones(T, dimsT, length(dims); unified)
 
 KA.get_backend(::CuArray) = CUDABackend()
 KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
 KA.functional(::CUDABackend) = CUDA.functional()
+
+KA.supports_unified(::CUDABackend) = true
 
 Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,CUSPARSE.AbstractCuSparseArray}) = a
