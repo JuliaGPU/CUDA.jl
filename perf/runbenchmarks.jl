@@ -14,10 +14,6 @@ macro async_benchmarkable(ex...)
     end
 end
 
-if !@isdefined(BENCHOUT)
-    BENCHOUT = "benchmarkresults.json"
-end
-
 # before anything else, run latency benchmarks. these spawn subprocesses, so we don't want
 # to do so after regular benchmarks have caused the memory allocator to reserve memory.
 @info "Running latency benchmarks"
@@ -54,4 +50,5 @@ results["latency"] = latency_results
 results["integration"] = integration_results
 
 # write out the results
-BenchmarkTools.save(BENCHOUT, median(results))
+result_file = length(ARGS) >= 1 ? ARGS[1] : "benchmarkresults.json"
+BenchmarkTools.save(result_file, median(results))
