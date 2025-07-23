@@ -23,7 +23,7 @@ end
 @info "Running latency benchmarks"
 latency_results = include("latency.jl")
 
-SUITE = BenchmarkGroup([BENCHOUT])
+SUITE = BenchmarkGroup()
 
 include("cuda.jl")
 include("kernel.jl")
