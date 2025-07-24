@@ -121,15 +121,23 @@ julia> CUDA.set_runtime_version!(v"11.8")
 [ Info: Set CUDA.jl toolkit preference to use CUDA 11.8.0 from artifact sources, please re-start Julia for this to take effect.
 ```
 
-This generates the following `LocalPreferences.toml` file in your active environment:
+This preference is compatible with other CUDA JLLs, e.g., if you load `CUDNN_jll` it will
+only select artifacts that are compatible with the configured CUDA runtime.
+
+`CUDA.set_runtime_version!` performs the following two actions:
+
+1. Generates the following `LocalPreferences.toml` file in your active environment:
 
 ```
 [CUDA_Runtime_jll]
 version = "11.8"
 ```
 
-This preference is compatible with other CUDA JLLs, e.g., if you load `CUDNN_jll` it will
-only select artifacts that are compatible with the configured CUDA runtime.
+2. Ensures the following line is in the `[extras]` section of your active `Project.toml` file to allow `Preferences.jl` to find the `version` preference for `CUDA_Runtime_jll`:
+
+```
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+```
 
 ### Using a local CUDA
 
