@@ -128,16 +128,16 @@ only select artifacts that are compatible with the configured CUDA runtime.
 
 1. Generates the following `LocalPreferences.toml` file in your active environment:
 
-```
-[CUDA_Runtime_jll]
-version = "11.8"
-```
+   ```
+   [CUDA_Runtime_jll]
+   version = "11.8"
+   ```
 
 2. Ensures the following line is in the `[extras]` section of your active `Project.toml` file to allow `Preferences.jl` to find the `version` preference for `CUDA_Runtime_jll`:
 
-```
-CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
-```
+   ```
+   CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+   ```
 
 ### Using a local CUDA
 
