@@ -22,7 +22,7 @@ end
 CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
 KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
-KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CUDA.zeros(T, dimsT, length(dims); unified)
+KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CUDA.zeros(T, dims, length(dims); unified)
 KA.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CUDA.ones(T, dimsT, length(dims); unified)
 
 KA.get_backend(::CuArray) = CUDABackend()
