@@ -1,6 +1,7 @@
 module CUSPARSE
 
 using ..APIUtils
+using ..GPUToolbox
 
 using ..CUDA_Runtime
 

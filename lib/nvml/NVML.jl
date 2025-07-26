@@ -1,6 +1,7 @@
 module NVML
 
-using ..APIUtils
+
+using ..GPUToolbox
 
 using ..CUDA
 
