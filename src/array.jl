@@ -915,3 +915,39 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
 
   A
 end
+
+
+function fresize!(A::CuVector{T}, n::Integer) where T
+  n == length(A) && return A
+
+  # how to better choose the new size?
+  if n > length(A) || n < length(A) / 2
+    len = n > length(A) ? max(n, 2 * length(A)) : n
+
+    maxsize = len * aligned_sizeof(T)
+	  bufsize = if isbitstype(T)
+    		maxsize
+  	else
+    	# type tag array past the data
+   	 	maxsize + n
+  	end
+
+    new_data = context!(context(A)) do
+      mem = pool_alloc(memory_type(A), bufsize)
+      ptr = convert(CuPtr{T}, mem)
+      m = min(length(A), n)
+      if m > 0
+        GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
+      end
+      DataRef(pool_free, mem)
+    end
+    unsafe_free!(A)
+    A.data = new_data
+    A.maxsize = maxsize
+  end
+
+  A.dims = (n,)
+  A.offset = 0
+
+  A
+end
