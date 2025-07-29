@@ -77,14 +77,14 @@ end
     dA = adapt(CuArray, A)
     dB = CuSparseMatrixCOO{TvB}(B)
 
-    @testset "kronecker (diagonal ⊗ COO) opa = $opa, opb = $opb" for opa in (adjoint, ), opb in (identity, transpose, adjoint)
+    @testset "kronecker (diagonal ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, adjoint), opb in (identity, transpose, adjoint)
         dC = kron(opa(dA), opb(dB))
         @test collect(dC)  ≈ kron(opa(A), opb(B))
         @test eltype(dC) == typeof(oneunit(TA) * oneunit(TvB))
         @test dC isa CuSparseMatrixCOO
     end
 
-    @testset "kronecker (COO ⊗ diagonal) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (adjoint, )
+    @testset "kronecker (COO ⊗ diagonal) opa = $opa, opb = $opb" for opa in (identity, adjoint), opb in (identity, transpose, adjoint)
         dC = kron(opb(dB), opa(dA))
         @test collect(dC)  ≈ kron(opb(B), opa(A))
         @test eltype(dC) == typeof(oneunit(TvB) * oneunit(TA))
