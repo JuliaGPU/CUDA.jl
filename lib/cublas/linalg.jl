@@ -366,8 +366,6 @@ function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
     Diagonal(Di)
 end
 
-LinearAlgebra.adjoint(D::Diagonal{T, <:CuVector{T}}) where T <: Complex = Diagonal(map(adjoint, D.diag))
-
 LinearAlgebra.rdiv!(A::CuArray, D::Diagonal) =  _rdiv!(A, A, D)
 
 Base.:/(A::CuArray, D::Diagonal) = _rdiv!(similar(A, typeof(oneunit(eltype(A)) / oneunit(eltype(D)))), A, D)
