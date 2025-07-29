@@ -1,6 +1,7 @@
 module CUBLAS
 
 using ..APIUtils
+using ..GPUToolbox
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
