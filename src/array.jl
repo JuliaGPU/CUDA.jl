@@ -916,8 +916,8 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   A
 end
 
-
-function fresize!(A::CuVector{T}, n::Integer) where T
+# new version of resizing
+function new_resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
 
   # how to better choose the new size?
@@ -929,7 +929,7 @@ function fresize!(A::CuVector{T}, n::Integer) where T
     		maxsize
   	else
     	# type tag array past the data
-   	 	maxsize + n
+   	 	maxsize + len
   	end
 
     new_data = context!(context(A)) do
@@ -944,10 +944,9 @@ function fresize!(A::CuVector{T}, n::Integer) where T
     unsafe_free!(A)
     A.data = new_data
     A.maxsize = maxsize
+    A.offset = 0
   end
 
   A.dims = (n,)
-  A.offset = 0
-
   A
 end

@@ -574,6 +574,63 @@ end
     @test length(b) == 0
     resize!(b, 1)
     @test length(b) == 1
+
+    # new resizing
+    a = CuArray([1, 2, 3, 4, 5, 6])
+    CUDA.new_resize!(a, 6)
+    @test length(a) == 6
+    @test Array(a) == [1, 2, 3, 4, 5, 6]
+
+    CUDA.new_resize!(a, 5) # cut less than half
+    @test length(a) == 5
+    @test Array(a) == [1, 2, 3, 4, 5]
+    @test a.maxsize == 6 * sizeof(eltype(a))
+
+    CUDA.new_resize!(a, 2) # cut more than half
+    @test length(a) == 2
+    @test Array(a) == [1, 2]
+    @test a.maxsize == 2 * sizeof(eltype(a))
+
+    CUDA.new_resize!(a, 1) # cut to half
+    @test length(a) == 1
+    @test Array(a) == [1]
+    @test a.maxsize == 2 * sizeof(eltype(a))
+
+    CUDA.new_resize!(a, 2) # double the size
+    @test length(a) == 2
+    @test Array(a)[1:1] == [1]
+    @test a.maxsize == 2 * sizeof(eltype(a))
+
+    CUDA.new_resize!(a, 3) # add less than half
+    @test length(a) == 3
+    @test Array(a)[1:1] == [1]
+    @test a.maxsize == 4 * sizeof(eltype(a))
+
+    CUDA.new_resize!(a, 7) # add more than half
+    @test length(a) == 7
+    @test Array(a)[1:1] == [1]
+    @test a.maxsize == 7 * sizeof(eltype(a))
+
+    a = CuArray([1, 2])
+    # resizing an unsafe_wrapped array
+    b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
+    CUDA.new_resize!(b, 3)
+    @test length(b) == 3
+    @test Array(b)[1:2] == [1, 2]
+    @test b.maxsize == 4 * sizeof(eltype(b))
+
+    # corner cases
+    b = CuArray{Int}(undef, 0)
+    @test length(b) == 0
+    CUDA.new_resize!(b, 1)
+    @test length(b) == 1
+    @test b.maxsize == 1 * sizeof(eltype(b))
+
+    b = CuArray{Int}(undef, 1)
+    @test length(b) == 1
+    CUDA.new_resize!(b, 0)
+    @test length(b) == 0
+    @test b.maxsize == 0 * sizeof(eltype(b))
 end
 
 @testset "aliasing" begin
