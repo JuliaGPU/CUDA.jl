@@ -880,8 +880,8 @@ Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
   resize!(a::CuVector, n::Integer)
 
 Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
-the first `n` elements will be retained. If `n` is larger, the new elements are not
-guaranteed to be initialized.
+the first `n` elements will be retained. If `n` is larger, the new elements are initialized
+with undefined values.
 """
 function Base.resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
@@ -913,5 +913,40 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   A.maxsize = maxsize
   A.offset = 0
 
+  A
+end
+
+# new version of resizing
+function new_resize!(A::CuVector{T}, n::Integer) where T
+  n == length(A) && return A
+
+  # how to better choose the new size?
+  if n > length(A) || n < length(A) / 2
+    len = n > length(A) ? max(n, 2 * length(A)) : n
+
+    maxsize = len * aligned_sizeof(T)
+	  bufsize = if isbitstype(T)
+    		maxsize
+  	else
+    	# type tag array past the data
+   	 	maxsize + len
+  	end
+
+    new_data = context!(context(A)) do
+      mem = pool_alloc(memory_type(A), bufsize)
+      ptr = convert(CuPtr{T}, mem)
+      m = min(length(A), n)
+      if m > 0
+        GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
+      end
+      DataRef(pool_free, mem)
+    end
+    unsafe_free!(A)
+    A.data = new_data
+    A.maxsize = maxsize
+    A.offset = 0
+  end
+
+  A.dims = (n,)
   A
 end
