@@ -880,8 +880,8 @@ Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
   resize!(a::CuVector, n::Integer)
 
 Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
-the first `n` elements will be retained. If `n` is larger, the new elements are not
-guaranteed to be initialized.
+the first `n` elements will be retained. If `n` is larger, the new elements are initialized
+with undefined values.
 """
 function Base.resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
