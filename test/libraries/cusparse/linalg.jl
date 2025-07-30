@@ -59,8 +59,10 @@ end
         A = sprand(T, mA, nA, 0.5)
         B  = sprand(T, mB, nB, 0.5)
 
-        dA = CuSparseMatrixCOO{T}(A)
-        dB = CuSparseMatrixCOO{T}(B)
+        A_I, A_J, A_V = findnz(A)
+        dA = CuSparseMatrixCOO{T, Cint}(adapt(CuVector{Cint}, A_I), adapt(CuVector{Cint}, A_J), adapt(CuVector{T}, A_V), size(A))
+        B_I, B_J, B_V = findnz(B)
+        dB = CuSparseMatrixCOO{T, Cint}(adapt(CuVector{Cint}, B_I), adapt(CuVector{Cint}, B_J), adapt(CuVector{T}, B_V), size(B))
 
         @testset "kronecker (COO ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (identity, transpose, adjoint)
             dC = kron(opa(dA), opb(dB))
@@ -75,7 +77,9 @@ end
     A = Diagonal(rand(TA, 2))
     B  = sprand(TvB, 3, 4, 0.5)
     dA = adapt(CuArray, A)
-    dB = CuSparseMatrixCOO{TvB}(B)
+
+    B_I, B_J, B_V = findnz(B)
+    dB = CuSparseMatrixCOO{TvB, Cint}(adapt(CuVector{Cint}, B_I), adapt(CuVector{Cint}, B_J), adapt(CuVector{TvB}, B_V), size(B))
 
     @testset "kronecker (diagonal ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, adjoint), opb in (identity, transpose, adjoint)
         dC = kron(opa(dA), opb(dB))
