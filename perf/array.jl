@@ -138,9 +138,21 @@ let group = addgroup!(group, "random")
 end
 
 let group = addgroup!(group, "sorting")
-    group["1d"] = @async_benchmarkable sort($gpu_vec)
-    group["2d"] = @async_benchmarkable sort($gpu_mat; dims=1)
-    group["by"] = @async_benchmarkable sort($gpu_vec; by=sin)
+    let group = addgroup!(group, "Float32")
+        group["1d"] = @async_benchmarkable sort($gpu_vec)
+        group["by=sin"] = @async_benchmarkable sort($gpu_vec; by=sin)
+        group["dims=1"] = @async_benchmarkable sort($gpu_mat; dims=1)
+        group["dims=2"] = @async_benchmarkable sort($gpu_mat; dims=2)
+        group["dims=1L"] = @async_benchmarkable sort($gpu_mat_long; dims=1)
+        group["dims=2L"] = @async_benchmarkable sort($gpu_mat_long; dims=2)
+    end
+    let group = addgroup!(group, "Int64")
+        group["1d"] = @async_benchmarkable sort($gpu_vec_ints)
+        group["dims=1"] = @async_benchmarkable sort($gpu_mat_ints; dims=1)
+        group["dims=2"] = @async_benchmarkable sort($gpu_mat_ints; dims=2)
+        group["dims=1L"] = @async_benchmarkable sort($gpu_mat_long_ints; dims=1)
+        group["dims=2L"] = @async_benchmarkable sort($gpu_mat_long_ints; dims=2)
+    end
 end
 
 let group = addgroup!(group, "permutedims")
