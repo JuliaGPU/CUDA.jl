@@ -1,3 +1,6 @@
+using Pkg
+Pkg.add(url="https://github.com/christiangnrd/GPUArrays.jl", rev="reverse")
+
 using Distributed
 using Dates
 import REPL
