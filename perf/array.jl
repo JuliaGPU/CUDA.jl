@@ -52,9 +52,13 @@ end
 
 let group = addgroup!(group, "reverse")
     group["1d"] = @async_benchmarkable reverse($gpu_vec)
+    group["1dL"] = @async_benchmarkable reverse($gpu_vec_long)
     group["2d"] = @async_benchmarkable reverse($gpu_mat; dims=1)
+    group["2dL"] = @async_benchmarkable reverse($gpu_mat_long; dims=1)
     group["1d_inplace"] = @async_benchmarkable reverse!($gpu_vec)
+    group["1dL_inplace"] = @async_benchmarkable reverse!($gpu_vec_long)
     group["2d_inplace"] = @async_benchmarkable reverse!($gpu_mat; dims=1)
+    group["2dL_inplace"] = @async_benchmarkable reverse!($gpu_mat_long; dims=2)
 end
 
 group["broadcast"] = @async_benchmarkable $gpu_mat .= 0f0
