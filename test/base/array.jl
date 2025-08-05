@@ -550,87 +550,68 @@ end
 end
 
 @testset "resizing" begin
-    a = CuArray([1,2,3])
+  # 1) small arrays (<10 MiB): should still use doubling policy
+  a = CuArray([1, 2, 3])
 
-    resize!(a, 3)
-    @test length(a) == 3
-    @test Array(a) == [1,2,3]
+  # reallocation (add less than half)
+  CUDA.resize!(a, 4)
+  @test length(a) == 4
+  @test Array(a)[1:3] == [1, 2, 3]
+  @test a.maxsize == max(4, 2*3) * sizeof(eltype(a))
 
-    resize!(a, 5)
-    @test length(a) == 5
-    @test Array(a)[1:3] == [1,2,3]
+  # no reallocation 
+  CUDA.resize!(a, 5)
+  @test length(a) == 5
+  @test Array(a)[1:3] == [1, 2, 3]
+  @test a.maxsize == 6 * sizeof(eltype(a))
 
-    resize!(a, 2)
-    @test length(a) == 2
-    @test Array(a)[1:2] == [1,2]
+  # reallocation (add more than half)
+  CUDA.resize!(a, 12)
+  @test length(a) == 12
+  @test Array(a)[1:3] == [1, 2, 3]
+  @test a.maxsize == max(12, 2*5) * sizeof(eltype(a))
 
-    # we should be able to resize an unsafe_wrapped array too, as it replaces the buffer
-    b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
-    resize!(b, 3)
-    @test length(b) == 3
-    @test Array(b)[1:2] == [1,2]
+  # 2) large arrays (>10 MiB): should use 1 MiB increments
+  b = CUDA.fill(1, 2*1024^2)
+  maxsize = b.maxsize
 
-    b = CuArray{Int}(undef, 0)
-    @test length(b) == 0
-    resize!(b, 1)
-    @test length(b) == 1
+  # should bump by exactly 1 MiB
+  CUDA.resize!(b, 2*1024^2 + 1)
+  @test length(b) == 2*1024^2 + 1
+  @test b.maxsize == maxsize + CUDA.RESIZE_INCREMENT
+  @test all(Array(b)[1:2*1024^2] .== 1)
 
-    # new resizing
-    a = CuArray([1, 2, 3, 4, 5, 6])
-    CUDA.new_resize!(a, 6)
-    @test length(a) == 6
-    @test Array(a) == [1, 2, 3, 4, 5, 6]
+  b = CUDA.fill(1, 2*1024^2)
+  maxsize = b.maxsize
 
-    CUDA.new_resize!(a, 5) # cut less than half
-    @test length(a) == 5
-    @test Array(a) == [1, 2, 3, 4, 5]
-    @test a.maxsize == 6 * sizeof(eltype(a))
+  # should bump greater than 1 MiB
+  new = CUDA.RESIZE_INCREMENT ÷ sizeof(eltype(b))  
+  CUDA.resize!(b, 2*1024^2 + new + 1)
+  @test length(b) == 2*1024^2 + new + 1
+  @test b.maxsize > maxsize + CUDA.RESIZE_INCREMENT
+  @test all(Array(b)[1:2*1024^2] .== 1)
 
-    CUDA.new_resize!(a, 2) # cut more than half
-    @test length(a) == 2
-    @test Array(a) == [1, 2]
-    @test a.maxsize == 2 * sizeof(eltype(a))
+  b = CUDA.fill(1, 2*1024^2)
+  maxsize = b.maxsize
 
-    CUDA.new_resize!(a, 1) # cut to half
-    @test length(a) == 1
-    @test Array(a) == [1]
-    @test a.maxsize == 2 * sizeof(eltype(a))
+  # no reallocation
+  CUDA.resize!(b, 2*1024^2 - 1)
+  @test length(b) == 2*1024^2 - 1
+  @test b.maxsize == maxsize
+  @test all(Array(b)[1:2*1024^2 - 1] .== 1)
 
-    CUDA.new_resize!(a, 2) # double the size
-    @test length(a) == 2
-    @test Array(a)[1:1] == [1]
-    @test a.maxsize == 2 * sizeof(eltype(a))
+  # 3) corner cases
+  c = CuArray{Int}(undef, 0)
+  @test length(c) == 0
+  CUDA.resize!(c, 1)
+  @test length(c) == 1
+  @test c.maxsize == 1 * sizeof(eltype(c))
 
-    CUDA.new_resize!(a, 3) # add less than half
-    @test length(a) == 3
-    @test Array(a)[1:1] == [1]
-    @test a.maxsize == 4 * sizeof(eltype(a))
-
-    CUDA.new_resize!(a, 7) # add more than half
-    @test length(a) == 7
-    @test Array(a)[1:1] == [1]
-    @test a.maxsize == 7 * sizeof(eltype(a))
-
-    a = CuArray([1, 2])
-    # resizing an unsafe_wrapped array
-    b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
-    CUDA.new_resize!(b, 3)
-    @test length(b) == 3
-    @test Array(b)[1:2] == [1, 2]
-    @test b.maxsize == 4 * sizeof(eltype(b))
-
-    # corner cases
-    b = CuArray{Int}(undef, 0)
-    @test length(b) == 0
-    CUDA.new_resize!(b, 1)
-    @test length(b) == 1
-    @test b.maxsize == 1 * sizeof(eltype(b))
-
-    b = CuArray{Int}(undef, 1)
-    @test length(b) == 1
-    CUDA.new_resize!(b, 0)
-    @test length(b) == 0
-    @test b.maxsize == 0 * sizeof(eltype(b))
+  c = CuArray{Int}(undef, 1)
+  @test length(c) == 1
+  CUDA.resize!(c, 0)
+  @test length(c) == 0
+  @test c.maxsize == 1 * sizeof(eltype(c))
 end
 
 @testset "aliasing" begin
