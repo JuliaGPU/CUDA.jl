@@ -13,6 +13,7 @@ m = 10
         dB = typ(B)
         dZA = typ(ZA)
         dD = adapt(CuArray, D)
+        dC = adapt(CuArray, C)
         @testset "opnorm and norm" begin
             @test opnorm(A, Inf) ≈ opnorm(dA, Inf)
             @test opnorm(A, 1)   ≈ opnorm(dA, 1)
@@ -39,10 +40,10 @@ m = 10
             end
         end
         @testset "kronecker product with I opa = $opa" for opa in (identity, transpose, adjoint)
-            @test collect(kron(opa(dA), C)) ≈ kron(opa(A), C) 
-            @test collect(kron(C, opa(dA))) ≈ kron(C, opa(A)) 
-            @test collect(kron(opa(dZA), C)) ≈ kron(opa(ZA), C)
-            @test collect(kron(C, opa(dZA))) ≈ kron(C, opa(ZA))
+            @test collect(kron(opa(dA), dC)) ≈ kron(opa(A), C) 
+            @test collect(kron(dC, opa(dA))) ≈ kron(C, opa(A)) 
+            @test collect(kron(opa(dZA), dC)) ≈ kron(opa(ZA), C)
+            @test collect(kron(dC, opa(dZA))) ≈ kron(C, opa(ZA))
         end
         @testset "kronecker product with Diagonal opa = $opa" for opa in (identity, transpose, adjoint) 
             @test collect(kron(opa(dA), dD)) ≈ kron(opa(A), D)

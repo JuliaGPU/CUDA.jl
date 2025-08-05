@@ -57,10 +57,6 @@ function Base.reshape(A::CuSparseMatrixCOO, dims::Dims)
     sparse(new_row, new_col, A.nzVal, dims[1], length(dims) == 1 ? 1 : dims[2], fmt = :coo)
 end
 
-# deprecate? CUSPARSE should not do this internally.
-LinearAlgebra.kron(A::Union{CuSparseMatrixCOO{TvA, TiA}, Transpose{TvA, <:CuSparseMatrixCOO{TvA, TiA}}, Adjoint{TvA, <:CuSparseMatrixCOO{TvA, TiA}}}, B::Diagonal{TvB, <:Vector{TvB}}) where {TvA, TiA, TvB} = kron(A, adapt(CuArray, B))
-LinearAlgebra.kron(A::Diagonal{TvA, <:Vector{TvA}}, B::Union{CuSparseMatrixCOO{TvB, TiB}, Transpose{TvB, <:CuSparseMatrixCOO{TvB, TiB}}, Adjoint{TvB, <:CuSparseMatrixCOO{TvB, TiB}}}) where {TvA, TvB, TiB} = kron(adapt(CuArray, A), B)
-
 _kron_CuSparseMatrixCOO_components(A::CuSparseMatrixCOO) = A.rowInd, A.colInd, A.nzVal, identity, Int(A.nnz)
 _kron_CuSparseMatrixCOO_components(At::Transpose{<:Number, <:CuSparseMatrixCOO}) = parent(At).colInd, parent(At).rowInd, parent(At).nzVal, transpose, Int(parent(At).nnz)
 _kron_CuSparseMatrixCOO_components(Ah::Adjoint{<:Number, <:CuSparseMatrixCOO}) = parent(Ah).colInd, parent(Ah).rowInd, parent(Ah).nzVal, adjoint, Int(parent(Ah).nnz)
