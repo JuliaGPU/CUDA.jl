@@ -550,7 +550,7 @@ end
 end
 
 @testset "resizing" begin
-  # 1) small arrays (<10 MiB): should still use doubling policy
+  # 1) small arrays (<=10 MiB): should still use doubling policy
   a = CuArray([1, 2, 3])
 
   # reallocation (add less than half)

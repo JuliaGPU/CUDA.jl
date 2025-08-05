@@ -926,36 +926,3 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   A.dims = (n,)
   A
 end
-
-# function Base.resize!(A::CuVector{T}, n::Integer) where T
-#   n == length(A) && return A
-
-#   if n > length(A) || n < length(A) / 2
-#     len = n > length(A) ? max(n, 2 * length(A)) : n
-
-#     maxsize = len * aligned_sizeof(T)
-# 	  bufsize = if isbitstype(T)
-#     		maxsize
-#   	else
-#     	# type tag array past the data
-#    	 	maxsize + len
-#   	end
-
-#     new_data = context!(context(A)) do
-#       mem = pool_alloc(memory_type(A), bufsize)
-#       ptr = convert(CuPtr{T}, mem)
-#       m = min(length(A), n)
-#       if m > 0
-#         GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
-#       end
-#       DataRef(pool_free, mem)
-#     end
-#     unsafe_free!(A)
-#     A.data = new_data
-#     A.maxsize = maxsize
-#     A.offset = 0
-#   end
-
-#   A.dims = (n,)
-#   A
-# end
