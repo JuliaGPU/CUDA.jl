@@ -159,6 +159,13 @@ end
     @cuda stream=s dummy()
 end
 
+@testset "clusters" begin
+    if CUDA.capability(device()) >= v"9.0"
+        @cuda threads=64 clusters=2 dummy()
+    else
+        @test_throws ArgumentError @cuda threads=64 clusters=2 dummy()
+    end
+end
 
 @testset "external kernels" begin
     @eval module KernelModule
