@@ -87,9 +87,6 @@ SparseArrays = "1"
 SparseMatricesCSR = "0.6.9"
 SpecialFunctions = "2.4"
 Statistics = "1"
-StaticArraysCore = "1.4"
-UnsafeAtomics = "0.3"
-UnsafeAtomicsLLVM = "0.2"
 julia = "1.10"
   
 [extras]
