@@ -160,7 +160,7 @@ function __init__()
     end
 
     # if we're not running under an external profiler, let CUPTI handle NVTX events
-    if !NVTX.isactive() && toolkit_version < v"13" # NVIDIA/NVTX#125
+    if !NVTX.isactive() && CUPTI.version() != v"13.0" # NVIDIA/NVTX#125
         ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
         NVTX.activate()
     end
