@@ -28,3 +28,12 @@ macro CUPTI_PROFILER_STRUCT_SIZE(type, lastfield)
         $struct_size($type, $lastfield)
     end
 end
+
+macro CUPTI_CALLBACK_STRUCT_SIZE(type, lastfield)
+    type = esc(type)
+    lastfield = QuoteNode(lastfield)
+    quote
+        $struct_size($type, $lastfield)
+    end
+end
+

@@ -2,6 +2,11 @@
 library_name = "libcusolverMg"
 output_file_path = "../../lib/cusolver/libcusolverMg.jl"
 
+output_ignorelist = [
+    # generates bad code
+    "CUSOLVERMG_CPP_VERSION",
+]
+
 
 [codegen]
 use_ccall_macro = true
