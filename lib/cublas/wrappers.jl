@@ -1991,6 +1991,7 @@ for (smname, smname_64, elty) in
          (:cublasStrsm_v2, :cublasStrsm_v2_64, :Float32),
          (:cublasZtrsm_v2, :cublasZtrsm_v2_64, :ComplexF64),
          (:cublasCtrsm_v2, :cublasCtrsm_v2_64, :ComplexF32))
+    @eval begin
         function trsm!(side::Char,
                        uplo::Char,
                        transa::Char,
