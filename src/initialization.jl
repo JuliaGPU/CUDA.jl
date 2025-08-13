@@ -214,6 +214,15 @@ function __init__()
                              "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
         for lib in Libdl.dllist()
             contains(lib, "artifacts") && continue
+            
+            # skip NVIDIA driver store directories on Windows - these contain legitimate
+            # CUDA runtime libraries that are part of the display driver installation.
+            # this issue only occurs with CUDA >= 13.
+            if Sys.iswindows() && runtime >= v"13" && contains(lib, "DriverStore\\FileRepository") && 
+               contains(lib, "\\nv") && contains(lib, ".inf_")
+                continue
+            end
+            
             if any(rtlib -> contains(lib, rtlib), runtime_libraries)
                 @warn """CUDA runtime library `$(basename(lib))` was loaded from a system path, `$lib`.
                          This may cause errors.
