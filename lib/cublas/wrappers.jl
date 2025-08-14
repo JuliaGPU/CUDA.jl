@@ -400,8 +400,8 @@ for (fname, fname_64, elty) in ((:cublasSrotm_v2, :cublasSrotm_v2_64, :Float32),
 end
 
 ## rotmg
-for (fname, fname_64, elty) in ((:cublasSrotmg_v2, :cublasSrotmg_v2_64, :Float32),
-                                (:cublasDrotmg_v2, :cublasSrotmg_v2_64, :Float64))
+for (fname, elty) in ((:cublasSrotmg_v2, :Float32),
+                      (:cublasDrotmg_v2, :Float64))
     @eval begin
         function rotmg!(d1::$elty,
                         d2::$elty,
@@ -412,11 +412,7 @@ for (fname, fname_64, elty) in ((:cublasSrotmg_v2, :cublasSrotmg_v2_64, :Float32
             ref_d2 = CuRef(d2)
             ref_x  = CuRef(x)
             ref_y  = CuRef(y)
-            if CUBLAS.version() >= v"12.0"
-                $fname_64(handle(), ref_d1, ref_d2, ref_x, ref_y, param)
-            else
-                $fname(handle(), ref_d1, ref_d2, ref_x, ref_y, param)
-            end
+            $fname(handle(), ref_d1, ref_d2, ref_x, ref_y, param)
             ref_d1[], ref_d2[], ref_x[], ref_y[], param
         end
     end
