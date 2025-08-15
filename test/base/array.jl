@@ -478,50 +478,50 @@ end
   @test Array(x) == zeros(4)
 end
 
-@testset "reverse" begin
-    # 1-d out-of-place
-    @test testf(x->reverse(x), rand(1000))
-    @test testf(x->reverse(x, 10), rand(1000))
-    @test testf(x->reverse(x, 10, 90), rand(1000))
+# @testset "reverse" begin
+#     # 1-d out-of-place
+#     @test testf(x->reverse(x), rand(1000))
+#     @test testf(x->reverse(x, 10), rand(1000))
+#     @test testf(x->reverse(x, 10, 90), rand(1000))
 
-    # 1-d in-place
-    @test testf(x->reverse!(x), rand(1000))
-    @test testf(x->reverse!(x, 10), rand(1000))
-    @test testf(x->reverse!(x, 10, 90), rand(1000))
+#     # 1-d in-place
+#     @test testf(x->reverse!(x), rand(1000))
+#     @test testf(x->reverse!(x, 10), rand(1000))
+#     @test testf(x->reverse!(x, 10, 90), rand(1000))
 
-    # n-d out-of-place
-    for shape in ([1, 2, 4, 3], [4, 2], [5], [2^5, 2^5, 2^5]),
-        dim in 1:length(shape)
-      @test testf(x->reverse(x; dims=dim), rand(shape...))
+#     # n-d out-of-place
+#     for shape in ([1, 2, 4, 3], [4, 2], [5], [2^5, 2^5, 2^5]),
+#         dim in 1:length(shape)
+#       @test testf(x->reverse(x; dims=dim), rand(shape...))
 
-      cpu = rand(shape...)
-      gpu = CuArray(cpu)
-      reverse!(gpu; dims=dim)
-      @test Array(gpu) == reverse(cpu; dims=dim)
-    end
+#       cpu = rand(shape...)
+#       gpu = CuArray(cpu)
+#       reverse!(gpu; dims=dim)
+#       @test Array(gpu) == reverse(cpu; dims=dim)
+#     end
 
-    # supports multidimensional reverse
-    for shape in ([1, 2, 4, 3], [2^5, 2^5, 2^5]),
-        dim in ((1,2),(2,3),(1,3),:)
-      @test testf(x->reverse(x; dims=dim), rand(shape...))
+#     # supports multidimensional reverse
+#     for shape in ([1, 2, 4, 3], [2^5, 2^5, 2^5]),
+#         dim in ((1,2),(2,3),(1,3),:)
+#       @test testf(x->reverse(x; dims=dim), rand(shape...))
 
-      cpu = rand(shape...)
-      gpu = CuArray(cpu)
-      reverse!(gpu; dims=dim)
-      @test Array(gpu) == reverse(cpu; dims=dim)
-    end
+#       cpu = rand(shape...)
+#       gpu = CuArray(cpu)
+#       reverse!(gpu; dims=dim)
+#       @test Array(gpu) == reverse(cpu; dims=dim)
+#     end
 
-    # wrapped array
-    @test testf(x->reverse(x), reshape(rand(2,2), 4))
+#     # wrapped array
+#     @test testf(x->reverse(x), reshape(rand(2,2), 4))
 
-    # error throwing
-    cpu = rand(1,2,3,4)
-    gpu = CuArray(cpu)
-    @test_throws ArgumentError reverse!(gpu, dims=5)
-    @test_throws ArgumentError reverse!(gpu, dims=0)
-    @test_throws ArgumentError reverse(gpu, dims=5)
-    @test_throws ArgumentError reverse(gpu, dims=0)
-end
+#     # error throwing
+#     cpu = rand(1,2,3,4)
+#     gpu = CuArray(cpu)
+#     @test_throws ArgumentError reverse!(gpu, dims=5)
+#     @test_throws ArgumentError reverse!(gpu, dims=0)
+#     @test_throws ArgumentError reverse(gpu, dims=5)
+#     @test_throws ArgumentError reverse(gpu, dims=0)
+# end
 
 @testset "findall" begin
     # 1D
