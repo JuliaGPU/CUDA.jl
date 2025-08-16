@@ -158,3 +158,9 @@ function Base.convert(::Type{Type}, T::cudaDataType)
         throw(ArgumentError("Julia type equivalent for input type $T does not exist!"))
     end
 end
+
+@enum cudaEmulationStrategy_t::Cint begin
+    CUDA_EMULATION_STRATEGY_DEFAULT = 0
+    CUDA_EMULATION_STRATEGY_PERFORMANT = 1
+    CUDA_EMULATION_STRATEGY_EAGER = 2
+end
