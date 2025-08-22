@@ -33,9 +33,18 @@ struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
         new(ptr, maxsize, dims, prod(dims))
 end
 
-const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
-const CuDeviceMatrix = CuDeviceArray{T,2,A} where {T,A}
+const CuDeviceScalar{T} = CuDeviceArray{T,0,A} where {A}
+const CuDeviceVector{T} = CuDeviceArray{T,1,A} where {A}
+const CuDeviceMatrix{T} = CuDeviceArray{T,2,A} where {A}
 
+# anything that's (secretly) backed by a CuDeviceArray
+export AnyCuDeviceArray, AnyCuDeviceScalar, AnyCuDeviceVector, AnyCuDeviceMatrix, AnyCuDeviceVecOrMat
+
+const AnyCuDeviceArray{T,N} = Union{CuDeviceArray{T,N},WrappedArray{T,N,CuDeviceArray,CuDeviceArray{T,N,A}}} where {A}
+const AnyCuDeviceScalar{T} = AnyCuDeviceArray{T,0}
+const AnyCuDeviceVector{T} = AnyCuDeviceArray{T,1}
+const AnyCuDeviceMatrix{T} = AnyCuDeviceArray{T,2}
+const AnyCuDeviceVecOrMat{T} = Union{AnyCuDeviceVector{T},AnyCuDeviceMatrix{T}}
 
 ## array interface
 
