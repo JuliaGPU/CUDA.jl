@@ -49,3 +49,9 @@ end
                                           captureStatus_out::Ptr{CUstreamCaptureStatus},
                                           id_out::Ptr{cuuint64_t})::CUresult
 end
+
+## removed in CUDA 13.0
+
+@checked function cuDeviceGetUuid(uuid, dev)
+    @gcsafe_ccall libcuda.cuDeviceGetUuid(uuid::Ptr{CUuuid}, dev::CUdevice)::CUresult
+end
