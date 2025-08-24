@@ -68,3 +68,14 @@ end
     @gcsafe_ccall libcuda.cuEventElapsedTime(pMilliseconds::Ptr{Cfloat}, hStart::CUevent,
                                              hEnd::CUevent)::CUresult
 end
+
+@checked function cuMemAdvise(devPtr, count, advice, device)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuMemAdvise(devPtr::CUdeviceptr, count::Csize_t,
+                                      advice::CUmem_advise, device::CUdevice)::CUresult
+end
+
+@checked function cuCtxCreate_v2(pctx, flags, dev)
+    @gcsafe_ccall libcuda.cuCtxCreate_v2(pctx::Ptr{CUcontext}, flags::Cuint,
+                                         dev::CUdevice)::CUresult
+end
