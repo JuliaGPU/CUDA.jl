@@ -62,3 +62,9 @@ end
                                              dstDevice::CUdevice,
                                              hStream::CUstream)::CUresult
 end
+
+@checked function cuEventElapsedTime(pMilliseconds, hStart, hEnd)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuEventElapsedTime(pMilliseconds::Ptr{Cfloat}, hStart::CUevent,
+                                             hEnd::CUevent)::CUresult
+end
