@@ -55,3 +55,10 @@ end
 @checked function cuDeviceGetUuid(uuid, dev)
     @gcsafe_ccall libcuda.cuDeviceGetUuid(uuid::Ptr{CUuuid}, dev::CUdevice)::CUresult
 end
+
+@checked function cuMemPrefetchAsync(devPtr, count, dstDevice, hStream)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuMemPrefetchAsync(devPtr::CUdeviceptr, count::Csize_t,
+                                             dstDevice::CUdevice,
+                                             hStream::CUstream)::CUresult
+end
