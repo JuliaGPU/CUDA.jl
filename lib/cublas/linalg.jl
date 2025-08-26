@@ -412,6 +412,14 @@ function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoin
     return C
 end
 
+function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector}, B::CuMatrix{T}) where {T<:CublasFloat}
+    return dgmm!('L', B, A.diag, B)
+end
+
+function LinearAlgebra.rmul!(A::CuMatrix{T}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
+    return dgmm!('R', A, B.diag, A)
+end
+
 # diagm
 
 LinearAlgebra.diagm(kv::Pair{<:Integer,<:CuVector}...) = _cuda_diagm(nothing, kv...)
