@@ -25,6 +25,7 @@ k = 13
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
+        @test testf(LinearAlgebra.norm2, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
 
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
@@ -163,6 +164,7 @@ k = 13
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
+        @test testf(LinearAlgebra.norm2, rand(T, m))
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
         @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
 
