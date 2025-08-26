@@ -1,6 +1,6 @@
 # interfacing with LinearAlgebra standard library
 
-using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular
+using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!, lmul!
 
 #
 # BLAS 1
@@ -411,6 +411,14 @@ function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoin
     C .= B
     C .*= A.diag
     return C
+end
+
+function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix{T}) where {T<:CublasFloat}
+    return dgmm!('L', B, A.diag, B)
+end
+
+function LinearAlgebra.rmul!(A::CuMatrix{T}, B::Diagonal{T,<:CuVector{T}}) where {T<:CublasFloat}
+    return dgmm!('R', A, B.diag, A)
 end
 
 # diagm

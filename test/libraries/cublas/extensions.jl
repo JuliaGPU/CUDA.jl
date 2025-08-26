@@ -531,18 +531,30 @@ k = 13
             h_C = Array(d_C)
             @test C ≈ h_C
         end
-        @testset "diagonal -- mul!" begin
+        @testset "diagonal -- mul!, rmul!, lmul!" begin
             XA = rand(elty,m,n)
             d_XA = CuArray(XA)
             d_X = Diagonal(d_x)
             mul!(d_XA, d_X, d_A)
             Array(d_XA) ≈ Diagonal(x) * A
+            
+            XA = rand(elty,m,n)
+            d_XA = CuArray(XA)
+            d_X = Diagonal(d_x)
+            lmul!(d_X, d_XA)
+            Array(d_XA) ≈ Diagonal(x) * XA
 
             AY = rand(elty,m,n)
             d_AY = CuArray(AY)
             d_Y = Diagonal(d_y)
             mul!(d_AY, d_A, d_Y)
             Array(d_AY) ≈ A * Diagonal(y)
+            
+            AY = rand(elty,m,n)
+            d_AY = CuArray(AY)
+            d_Y = Diagonal(d_y)
+            rmul!(d_AY, d_Y)
+            Array(d_AY) ≈ AY * Diagonal(y)
 
             YA = rand(elty,n,m)
             d_YA = CuArray(YA)
