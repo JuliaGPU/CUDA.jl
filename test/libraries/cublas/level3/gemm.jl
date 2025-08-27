@@ -25,6 +25,13 @@ k = 13
             mul!(C, f(A), g(B), Ts(1), Ts(2))
             @test Array(dC) ≈ C
         end
+        @testset "mul! C = $f(A) *  $f($g(B)) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+            C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
+            dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
+            mul!(dC, f(dA), f(g(dB)), Ts(1), Ts(2))
+            mul!(C, f(A), f(g(B)), Ts(1), Ts(2))
+            @test Array(dC) ≈ C
+        end
 
         @testset "hermitian" begin
             C, A, B = rand(elty, 5, 5), Hermitian(rand(elty, 5, 5)), rand(elty, 5, 5)
