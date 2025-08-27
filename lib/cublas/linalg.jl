@@ -121,6 +121,7 @@ function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasF
         return invoke(norm, Tuple{AbstractGPUArray, Real}, x, p)
     end
 end
+LinearAlgebra.norm(x::Diagonal{T, DenseCuArray{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, CublasFloat}} = norm(x.diag, p)
 LinearAlgebra.norm2(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
 
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
