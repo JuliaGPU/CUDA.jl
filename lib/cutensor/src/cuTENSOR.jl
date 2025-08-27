@@ -2,7 +2,7 @@ module cuTENSOR
 
 using CUDA
 using CUDA.APIUtils
-using CUDA: CUstream, cudaDataType
+using CUDA: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
 using CUDA: retry_reclaim, initialize_context, isdebug
 
 using CEnum: @cenum
