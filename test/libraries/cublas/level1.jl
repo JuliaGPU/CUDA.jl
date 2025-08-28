@@ -152,6 +152,14 @@ k = 13
             CUBLAS.nrm2(dx, result)
             @test norm(x) ≈ result[]
         end
+        @testset "norm of Diagonal" begin
+            x = rand(T, m)
+            dDx = Diagonal(CuArray(x))
+            Dx = Diagonal(x)
+            @test norm(dDx, 1) ≈ norm(Dx, 1)
+            @test norm(dDx, 2) ≈ norm(Dx, 2)
+            @test norm(dDx, Inf) ≈ norm(Dx, Inf)
+        end
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]
         A = CuVector(rand(T, m)) # CUDA.rand doesn't work with 16 bit types yet
