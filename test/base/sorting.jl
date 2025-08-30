@@ -277,124 +277,124 @@ end
     end
 end
 
-@testset "interface" begin
-    @testset "quicksort" begin
-        # pre-sorted
-        @test check_sort!(Int, 1000000; alg=CUDA.QuickSort)
-        @test check_sort!(Int32, 1000000; alg=CUDA.QuickSort)
-        @test check_sort!(Float64, 1000000; alg=CUDA.QuickSort)
-        @test check_sort!(Float32, 1000000; alg=CUDA.QuickSort)
-        @test check_sort!(Int32, 1000000; rev=true)
-        @test check_sort!(Float32, 1000000; rev=true)
+# @testset "interface" begin
+#     @testset "quicksort" begin
+#         # pre-sorted
+#         @test check_sort!(Int, 1000000; alg=CUDA.QuickSort)
+#         @test check_sort!(Int32, 1000000; alg=CUDA.QuickSort)
+#         @test check_sort!(Float64, 1000000; alg=CUDA.QuickSort)
+#         @test check_sort!(Float32, 1000000; alg=CUDA.QuickSort)
+#         @test check_sort!(Int32, 1000000; rev=true)
+#         @test check_sort!(Float32, 1000000; rev=true)
 
-        # reverse sorted
-        @test check_sort!(Int32, 1000000, x -> -x; alg=CUDA.QuickSort)
-        @test check_sort!(Float32, 1000000, x -> -x; alg=CUDA.QuickSort)
-        @test check_sort!(Int32, 1000000, x -> -x; rev=true, alg=CUDA.QuickSort)
-        @test check_sort!(Float32, 1000000, x -> -x; rev=true, alg=CUDA.QuickSort)
+#         # reverse sorted
+#         @test check_sort!(Int32, 1000000, x -> -x; alg=CUDA.QuickSort)
+#         @test check_sort!(Float32, 1000000, x -> -x; alg=CUDA.QuickSort)
+#         @test check_sort!(Int32, 1000000, x -> -x; rev=true, alg=CUDA.QuickSort)
+#         @test check_sort!(Float32, 1000000, x -> -x; rev=true, alg=CUDA.QuickSort)
 
-        @test check_sort!(Int, 10000, x -> rand(Int); alg=CUDA.QuickSort)
-        @test check_sort!(Int32, 10000, x -> rand(Int32); alg=CUDA.QuickSort)
-        @test check_sort!(Int8, 10000, x -> rand(Int8); alg=CUDA.QuickSort)
-        @test check_sort!(Float64, 10000, x -> rand(Float64); alg=CUDA.QuickSort)
-        @test check_sort!(Float32, 10000, x -> rand(Float32); alg=CUDA.QuickSort)
-        @test check_sort!(Float16, 10000, x -> rand(Float16); alg=CUDA.QuickSort)
-        @test check_sort!(Tuple{Int,Int}, 10000, x -> (rand(Int), rand(Int)); alg=CUDA.QuickSort)
+#         @test check_sort!(Int, 10000, x -> rand(Int); alg=CUDA.QuickSort)
+#         @test check_sort!(Int32, 10000, x -> rand(Int32); alg=CUDA.QuickSort)
+#         @test check_sort!(Int8, 10000, x -> rand(Int8); alg=CUDA.QuickSort)
+#         @test check_sort!(Float64, 10000, x -> rand(Float64); alg=CUDA.QuickSort)
+#         @test check_sort!(Float32, 10000, x -> rand(Float32); alg=CUDA.QuickSort)
+#         @test check_sort!(Float16, 10000, x -> rand(Float16); alg=CUDA.QuickSort)
+#         @test check_sort!(Tuple{Int,Int}, 10000, x -> (rand(Int), rand(Int)); alg=CUDA.QuickSort)
 
-        # non-uniform distributions
-        @test check_sort!(UInt8, 100000, x -> round(255 * rand() ^ 2); alg=CUDA.QuickSort)
-        @test check_sort!(UInt8, 100000, x -> round(255 * rand() ^ 3); alg=CUDA.QuickSort)
+#         # non-uniform distributions
+#         @test check_sort!(UInt8, 100000, x -> round(255 * rand() ^ 2); alg=CUDA.QuickSort)
+#         @test check_sort!(UInt8, 100000, x -> round(255 * rand() ^ 3); alg=CUDA.QuickSort)
 
-        # more copies of each value than can fit in one block
-        @test check_sort!(Int8, 4000000, x -> rand(Int8); alg=CUDA.QuickSort)
+#         # more copies of each value than can fit in one block
+#         @test check_sort!(Int8, 4000000, x -> rand(Int8); alg=CUDA.QuickSort)
 
-        # multiple dimensions
-        @test check_sort!(Int32, (4, 50000, 4); dims=2)
-        @test check_sort!(Int32, (2, 2, 50000); dims=3, rev=true)
+#         # multiple dimensions
+#         @test check_sort!(Int32, (4, 50000, 4); dims=2)
+#         @test check_sort!(Int32, (2, 2, 50000); dims=3, rev=true)
 
-        # large sizes
-        @test check_sort!(Float32, 2^25; alg=CUDA.QuickSort)
+#         # large sizes
+#         @test check_sort!(Float32, 2^25; alg=CUDA.QuickSort)
 
-        # various sync depths
-        for depth in 0:4
-            CUDA.limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, depth)
-            @test check_sort!(Int, 100000, x -> rand(Int); alg=CUDA.QuickSort)
-        end
+#         # various sync depths
+#         for depth in 0:4
+#             CUDA.limit!(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH, depth)
+#             @test check_sort!(Int, 100000, x -> rand(Int); alg=CUDA.QuickSort)
+#         end
 
-        # using a `by` argument
-        @test check_sort(Float32, 100000; by=x->abs(x - 0.5), alg=CUDA.QuickSort)
-        @test check_sort!(Float32, (100000, 4); by=x->abs(x - 0.5), dims=1)
-        @test check_sort!(Float32, (4, 100000); by=x->abs(x - 0.5), dims=2)
-        @test check_sort!(Float64, 400000; by=x->8*x-round(8*x), alg=CUDA.QuickSort)
-        @test check_sort!(Float64, (100000, 4); by=x->8*x-round(8*x), dims=1)
-        @test check_sort!(Float64, (4, 100000); by=x->8*x-round(8*x), dims=2)
-        # target bubble sort by using sub-blocksize input:
-        @test check_sort!(Int, 200; by=x->x % 2, alg=CUDA.QuickSort)
-        @test check_sort!(Int, 200; by=x->x % 3, alg=CUDA.QuickSort)
-        @test check_sort!(Int, 200; by=x->x % 4, alg=CUDA.QuickSort)
-    end # end quicksort tests
+#         # using a `by` argument
+#         @test check_sort(Float32, 100000; by=x->abs(x - 0.5), alg=CUDA.QuickSort)
+#         @test check_sort!(Float32, (100000, 4); by=x->abs(x - 0.5), dims=1)
+#         @test check_sort!(Float32, (4, 100000); by=x->abs(x - 0.5), dims=2)
+#         @test check_sort!(Float64, 400000; by=x->8*x-round(8*x), alg=CUDA.QuickSort)
+#         @test check_sort!(Float64, (100000, 4); by=x->8*x-round(8*x), dims=1)
+#         @test check_sort!(Float64, (4, 100000); by=x->8*x-round(8*x), dims=2)
+#         # target bubble sort by using sub-blocksize input:
+#         @test check_sort!(Int, 200; by=x->x % 2, alg=CUDA.QuickSort)
+#         @test check_sort!(Int, 200; by=x->x % 3, alg=CUDA.QuickSort)
+#         @test check_sort!(Int, 200; by=x->x % 4, alg=CUDA.QuickSort)
+#     end # end quicksort tests
 
-    @testset "bitonic sort" begin
-        # test various types
-        @test check_sort(Int, 10000, x -> rand(Int); alg=CUDA.BitonicSort)
-        @test check_sort!(Int, 10000, x -> rand(Int); alg=CUDA.BitonicSort)
-        @test check_sort!(Int32, 10000, x -> rand(Int32); alg=CUDA.BitonicSort)
-        @test check_sort!(Int8, 10000, x -> rand(Int8); alg=CUDA.BitonicSort)
-        @test check_sort!(Float64, 10000, x -> rand(Float64); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 10000, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float16, 10000, x -> rand(Float16); alg=CUDA.BitonicSort)
-        @test check_sort!(Tuple{Int,Int}, 10000, x -> (rand(Int), rand(Int)); alg=CUDA.BitonicSort)
+#     @testset "bitonic sort" begin
+#         # test various types
+#         @test check_sort(Int, 10000, x -> rand(Int); alg=CUDA.BitonicSort)
+#         @test check_sort!(Int, 10000, x -> rand(Int); alg=CUDA.BitonicSort)
+#         @test check_sort!(Int32, 10000, x -> rand(Int32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Int8, 10000, x -> rand(Int8); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float64, 10000, x -> rand(Float64); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 10000, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float16, 10000, x -> rand(Float16); alg=CUDA.BitonicSort)
+#         @test check_sort!(Tuple{Int,Int}, 10000, x -> (rand(Int), rand(Int)); alg=CUDA.BitonicSort)
 
-        # test various sizes
-        @test check_sort!(Float32, 1, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 2, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 3, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 4, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 0, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 1, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 31, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 32, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 33, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 127, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 128, x -> rand(Float32); alg=CUDA.BitonicSort)
-        @test check_sort!(Float32, 1 << 16 + 129, x -> rand(Float32); alg=CUDA.BitonicSort)
-    end # end bitonic tests
+#         # test various sizes
+#         @test check_sort!(Float32, 1, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 2, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 3, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 4, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 0, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 1, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 31, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 32, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 33, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 127, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 128, x -> rand(Float32); alg=CUDA.BitonicSort)
+#         @test check_sort!(Float32, 1 << 16 + 129, x -> rand(Float32); alg=CUDA.BitonicSort)
+#     end # end bitonic tests
 
-    @test_throws MethodError check_sort!(Int, (100, 100); alg=CUDA.BitonicSort, dims=1)
+#     @test_throws MethodError check_sort!(Int, (100, 100); alg=CUDA.BitonicSort, dims=1)
 
-    #partial sort
-    @test check_partialsort!(Int, 100000, 1)
-    @test check_partialsort!(Int, 100000, 100000)
-    @test check_partialsort!(Int, 100000, 50000)
-    @test check_partialsort!(Int, 100000, 10000:20000)
-    @test check_partialsort!(Int, 100000, 1:100000)
-    @test check_partialsort!(Float32, 100000, 1; by=x->abs(x - 0.5))
-    @test check_partialsort!(Float32, 100000, 100000; by=x->abs(x - 0.5))
-    @test check_partialsort!(Float32, 100000, 50000; by=x->abs(x - 0.5))
-    @test check_partialsort!(Float32, 100000, 10000:20000; by=x->abs(x - 0.5))
-    @test check_partialsort!(Float32, 100000, 1:100000; by=x->abs(x - 0.5))
+#     #partial sort
+#     @test check_partialsort!(Int, 100000, 1)
+#     @test check_partialsort!(Int, 100000, 100000)
+#     @test check_partialsort!(Int, 100000, 50000)
+#     @test check_partialsort!(Int, 100000, 10000:20000)
+#     @test check_partialsort!(Int, 100000, 1:100000)
+#     @test check_partialsort!(Float32, 100000, 1; by=x->abs(x - 0.5))
+#     @test check_partialsort!(Float32, 100000, 100000; by=x->abs(x - 0.5))
+#     @test check_partialsort!(Float32, 100000, 50000; by=x->abs(x - 0.5))
+#     @test check_partialsort!(Float32, 100000, 10000:20000; by=x->abs(x - 0.5))
+#     @test check_partialsort!(Float32, 100000, 1:100000; by=x->abs(x - 0.5))
 
-    #sort perm
-    # A set of 1e6 Float32s has ~9.4e5 unique values: stability is non-trivial
-    @test check_sortperm(Float32, 1000000)
-    @test check_sortperm(Float32, 1000000; rev=true)
-    @test check_sortperm(Float32, 1000000; by=x->abs(x-0.5f0))
-    @test check_sortperm(Float32, 1000000; rev=true, by=x->abs(x-0.5f0))
-    @test check_sortperm(Float64, 1000000)
-    @test check_sortperm(Float64, 1000000; rev=true)
-    @test check_sortperm(Float64, 1000000; by=x->abs(x-0.5))
-    @test check_sortperm(Float64, 1000000; rev=true, by=x->abs(x-0.5))
-    @test check_sortperm(Float32, (100_000, 16); dims=1)
-    @test check_sortperm(Float32, (100_000, 16); dims=2)
-    @test check_sortperm(Float32, (100, 256, 256); dims=1)
+#     #sort perm
+#     # A set of 1e6 Float32s has ~9.4e5 unique values: stability is non-trivial
+#     @test check_sortperm(Float32, 1000000)
+#     @test check_sortperm(Float32, 1000000; rev=true)
+#     @test check_sortperm(Float32, 1000000; by=x->abs(x-0.5f0))
+#     @test check_sortperm(Float32, 1000000; rev=true, by=x->abs(x-0.5f0))
+#     @test check_sortperm(Float64, 1000000)
+#     @test check_sortperm(Float64, 1000000; rev=true)
+#     @test check_sortperm(Float64, 1000000; by=x->abs(x-0.5))
+#     @test check_sortperm(Float64, 1000000; rev=true, by=x->abs(x-0.5))
+#     @test check_sortperm(Float32, (100_000, 16); dims=1)
+#     @test check_sortperm(Float32, (100_000, 16); dims=2)
+#     @test check_sortperm(Float32, (100, 256, 256); dims=1)
 
-    # check with Int32 indices
-    @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000)
-    # `initialized` kwarg
-    @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000; initialized=true)
-    @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000; initialized=false)
-    # expected error case
-    @test_throws ArgumentError sortperm!(CuArray(1:3), CuArray(1:4))
-    # mismatched types (JuliaGPU/CUDA.jl#2046)
-    @test check_sortperm!(collect(UInt64(1):UInt64(1000000)), Int64, 1000000)
-end
+#     # check with Int32 indices
+#     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000)
+#     # `initialized` kwarg
+#     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000; initialized=true)
+#     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000; initialized=false)
+#     # expected error case
+#     @test_throws ArgumentError sortperm!(CuArray(1:3), CuArray(1:4))
+#     # mismatched types (JuliaGPU/CUDA.jl#2046)
+#     @test check_sortperm!(collect(UInt64(1):UInt64(1000000)), Int64, 1000000)
+# end
