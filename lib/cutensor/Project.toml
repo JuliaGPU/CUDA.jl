@@ -14,7 +14,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDA = "~5.8"
-CUDA_Runtime_Discovery = "0.2, 0.3"
+CUDA_Runtime_Discovery = "0.2, 0.3, 1"
 CUTENSOR_jll = "2.2"
 LinearAlgebra = "1"
 julia = "1.10"
