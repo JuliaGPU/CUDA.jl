@@ -70,28 +70,25 @@ nB = 2
                     @test c_vec ≈ collect(dc_vec)
                 end
             end
-            if CUSPARSE.version() >= v"11.7.4"
-                @testset "opb = $opb" for opb in (identity, transpose, adjoint)
-                    B  = opb == identity ? sprand(elty, k, n, 0.2) : sprand(elty, n, k, 0.2)
-                    for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
-                        dB = SparseMatrixType(B)
-                        if SparseMatrixType == CuSparseMatrixCOO
-                            dB = sort_coo(dB, 'C')
+            @testset "opb = $opb" for opb in (identity, transpose, adjoint)
+                B  = opb == identity ? sprand(elty, k, n, 0.2) : sprand(elty, n, k, 0.2)
+                for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+                    dB = SparseMatrixType(B)
+                    if SparseMatrixType == CuSparseMatrixCOO
+                        dB = sort_coo(dB, 'C')
+                    end
+                    @testset "CuMatrix * $SparseMatrixType" begin
+                        @testset "A * B" begin
+                            C  = opa(A) * opb(B)
+                            dC = opa(dA) * opb(dB)
+                            @test C ≈ collect(dC)
                         end
-                        @testset "CuMatrix * $SparseMatrixType" begin
-                            CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && elty <: Complex && opb == adjoint && continue
-                            @testset "A * B" begin
-                                C  = opa(A) * opb(B)
-                                dC = opa(dA) * opb(dB)
-                                @test C ≈ collect(dC)
-                            end
-                            @testset "mul!(C, A, B)" begin
-                                C  = rand(elty, m, n)
-                                dC = CuArray(C)
-                                mul!(C, opa(A), opb(B), alpha, beta)
-                                mul!(dC, opa(dA), opb(dB), alpha, beta)
-                                @test C ≈ collect(dC)
-                            end
+                        @testset "mul!(C, A, B)" begin
+                            C  = rand(elty, m, n)
+                            dC = CuArray(C)
+                            mul!(C, opa(A), opb(B), alpha, beta)
+                            mul!(dC, opa(dA), opb(dB), alpha, beta)
+                            @test C ≈ collect(dC)
                         end
                     end
                 end
@@ -140,35 +137,33 @@ nB = 2
                                 @test collect(dC) ≈ C
                             end
                         end
-                        if !(CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint)
-                            @testset "A * CuVector" begin
-                                @testset "A * b" begin
-                                    c = opa(geam_A) * b_vec
-                                    dc = opa(d_geam_A) * db_vec
-                                    @test c ≈ collect(dc)
-                                end
-                                @testset "mul!(c, A, b)" begin
-                                    c = rand(elty, n)
-                                    dc = CuArray(c)
-
-                                    mul!(c, opa(geam_A), b_vec, alpha, beta)
-                                    mul!(dc, opa(d_geam_A), db_vec, alpha, beta)
-                                    @test c ≈ collect(dc)
-                                end
+                        @testset "A * CuVector" begin
+                            @testset "A * b" begin
+                                c = opa(geam_A) * b_vec
+                                dc = opa(d_geam_A) * db_vec
+                                @test c ≈ collect(dc)
                             end
-                            @testset "A * CuSparseVector" begin
-                                @testset "A * b" begin
-                                    c  = opa(geam_A) * b_spvec
-                                    dc = opa(d_geam_A) * db_spvec
-                                    @test c ≈ collect(dc)
-                                end
-                                @testset "mul!(c, A, b)" begin
-                                    c = rand(elty, n)
-                                    dc = CuArray(c)
-                                    mul!(c, opa(geam_A), b_spvec, alpha, beta)
-                                    mul!(dc, opa(d_geam_A), db_spvec, alpha, beta)
-                                    @test c ≈ collect(dc)
-                                end
+                            @testset "mul!(c, A, b)" begin
+                                c = rand(elty, n)
+                                dc = CuArray(c)
+
+                                mul!(c, opa(geam_A), b_vec, alpha, beta)
+                                mul!(dc, opa(d_geam_A), db_vec, alpha, beta)
+                                @test c ≈ collect(dc)
+                            end
+                        end
+                        @testset "A * CuSparseVector" begin
+                            @testset "A * b" begin
+                                c  = opa(geam_A) * b_spvec
+                                dc = opa(d_geam_A) * db_spvec
+                                @test c ≈ collect(dc)
+                            end
+                            @testset "mul!(c, A, b)" begin
+                                c = rand(elty, n)
+                                dc = CuArray(c)
+                                mul!(c, opa(geam_A), b_spvec, alpha, beta)
+                                mul!(dc, opa(d_geam_A), db_spvec, alpha, beta)
+                                @test c ≈ collect(dc)
                             end
                         end
                     end
@@ -176,7 +171,6 @@ nB = 2
                     @testset "CuSparseMatrix * CuMatrix $elty" begin
                         (CUSPARSE.version() < v"12.5.1") && (SparseMatrixType == CuSparseMatrixBSR) && continue
                         (opa != identity) && (SparseMatrixType == CuSparseMatrixBSR) && continue
-                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                         @testset "A * B" begin
                             C  = opa(A) * opb(B_dense)
                             dC = opa(dA) * opb(dB_dense)
@@ -204,7 +198,6 @@ nB = 2
             dx = CuArray(x)
             @testset "opa = $opa" for opa in (identity, transpose, adjoint)
                 @testset "type = $SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCOO, CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR)
-                    SparseMatrixType == CuSparseMatrixCOO && CUSPARSE.version() < v"12.0" && continue
                     SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
                     dA = SparseMatrixType == CuSparseMatrixBSR ? CuSparseMatrixBSR(A, 1) : SparseMatrixType(A)
                     @testset "ldiv! -- CuVector" begin
@@ -215,7 +208,7 @@ nB = 2
                         @test z ≈ collect(dz)
                     end
                     # seems to be a library bug in CUDAs 12.0-12.2, only fp64 types are supported
-                    if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || CUSPARSE.version() < v"12.0" || v"12.2" < CUSPARSE.version())
+                    if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || v"12.2" < CUSPARSE.version())
                         @testset "ldiv! -- (CuVector, CuVector)" begin
                             z  = rand(elty, m)
                             dz = CuArray(z)
@@ -242,9 +235,6 @@ nB = 2
                             ldiv!(triangle(opa(A)), opb(D))
                             ldiv!(triangle(opa(dA)), opb(dD))
                             @test B ≈ collect(dB)
-                            if CUSPARSE.version() < v"12.0"
-                                @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
-                            end
                         end
                         if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || CUSPARSE.version() != v"12.0")
                             @testset "ldiv! -- (CuMatrix, CuMatrix)" begin
@@ -253,17 +243,11 @@ nB = 2
                                 ldiv!(C, triangle(opa(A)), opb(B))
                                 ldiv!(dC, triangle(opa(dA)), opb(dB))
                                 @test C ≈ collect(dC)
-                                if CUSPARSE.version() < v"12.0"
-                                    @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
-                                end
                             end
                             @testset "\\ -- CuMatrix" begin
                                 C  = triangle(opa(A)) \ opb(B)
                                 dC = triangle(opa(dA)) \ opb(dB)
                                 @test C ≈ collect(dC)
-                                if CUSPARSE.version() < v"12.0"
-                                    @test_throws DimensionMismatch(error_str) ldiv!(triangle(opa(dA)), opb(dB_bad))
-                                end
                             end
                         end
                     end
