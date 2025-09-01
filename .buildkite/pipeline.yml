@@ -66,6 +66,7 @@ steps:
         matrix:
           setup:
             cuda:
+              - "13.0"
               - "12.9"
               - "12.8"
               - "12.6"
@@ -80,6 +81,10 @@ steps:
               - "11.6"
               - "11.5"
               - "11.4"
+          adjustments:
+            - with:
+                cuda: "13.0"
+              soft_fail: true
         commands: |
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
           echo -e "[CUDA_Driver_jll]\ncompat = \"false\"" >>LocalPreferences.toml
