@@ -531,42 +531,54 @@ k = 13
             h_C = Array(d_C)
             @test C ≈ h_C
         end
-        @testset "diagonal -- mul!" begin
+        @testset "diagonal -- mul!, rmul!, lmul!" begin
             XA = rand(elty,m,n)
             d_XA = CuArray(XA)
             d_X = Diagonal(d_x)
             mul!(d_XA, d_X, d_A)
-            Array(d_XA) ≈ Diagonal(x) * A
+            @test Array(d_XA) ≈ Diagonal(x) * A
+            
+            XA = rand(elty,m,n)
+            d_XA = CuArray(XA)
+            d_X = Diagonal(d_x)
+            lmul!(d_X, d_XA)
+            @test Array(d_XA) ≈ Diagonal(x) * XA
 
             AY = rand(elty,m,n)
             d_AY = CuArray(AY)
             d_Y = Diagonal(d_y)
             mul!(d_AY, d_A, d_Y)
-            Array(d_AY) ≈ A * Diagonal(y)
+            @test Array(d_AY) ≈ A * Diagonal(y)
+            
+            AY = rand(elty,m,n)
+            d_AY = CuArray(AY)
+            d_Y = Diagonal(d_y)
+            rmul!(d_AY, d_Y)
+            @test Array(d_AY) ≈ AY * Diagonal(y)
 
             YA = rand(elty,n,m)
             d_YA = CuArray(YA)
             d_Y = Diagonal(d_y)
             mul!(d_YA, d_Y, transpose(d_A))
-            Array(d_YA) ≈ Diagonal(y) * transpose(A)
+            @test Array(d_YA) ≈ Diagonal(y) * transpose(A)
 
             AX = rand(elty,n,m)
             d_AX = CuArray(AX)
             d_X = Diagonal(d_x)
             mul!(d_AX, transpose(d_A), d_X)
-            Array(d_AX) ≈ transpose(A) * Diagonal(x)
+            @test Array(d_AX) ≈ transpose(A) * Diagonal(x)
 
             YA = rand(elty,n,m)
             d_YA = CuArray(YA)
             d_Y = Diagonal(d_y)
             mul!(d_YA, d_Y, d_A')
-            Array(d_YA) ≈ Diagonal(y) * A'
+            @test Array(d_YA) ≈ Diagonal(y) * A'
 
             AX = rand(elty,n,m)
             d_AX = CuArray(AX)
             d_X = Diagonal(d_x)
             mul!(d_AX, d_A', d_X)
-            Array(d_AX) ≈ A' * Diagonal(x)
+            @test Array(d_AX) ≈ A' * Diagonal(x)
 
             @test Array(d_X) == Diagonal(Array(d_x))
         end
@@ -580,3 +592,21 @@ k = 13
        @test Array(C) ≈ hC
     end
 end # elty
+
+@testset "rmul/lmul with mixed eltypes ($Tr, $Tc)" for (Tr, Tc) in ((Float32, ComplexF32), (Float64, ComplexF64))
+    x = rand(Tr,m)
+    d_x = CuArray(x)
+    XA = rand(Tc,m,n)
+    d_XA = CuArray(XA)
+    d_X = Diagonal(d_x)
+    lmul!(d_X, d_XA)
+    @test Array(d_XA) ≈ Diagonal(x) * XA
+            
+    y = rand(Tr,n)
+    d_y = CuArray(y)
+    AY = rand(Tc,m,n)
+    d_AY = CuArray(AY)
+    d_Y = Diagonal(d_y)
+    rmul!(d_AY, d_Y)
+    @test Array(d_AY) ≈ AY * Diagonal(y)
+end

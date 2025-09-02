@@ -1,6 +1,6 @@
 # interfacing with LinearAlgebra standard library
 
-using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular
+using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!, lmul!
 
 #
 # BLAS 1
@@ -121,6 +121,8 @@ function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasF
         return invoke(norm, Tuple{AbstractGPUArray, Real}, x, p)
     end
 end
+LinearAlgebra.norm(x::Diagonal{T, <:StridedCuVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, CublasFloat}} = norm(x.diag, p)
+LinearAlgebra.norm2(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
 
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
@@ -269,6 +271,12 @@ function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::Strid
     GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
 
+# fallback for weird Complex edge cases
+const AdjOrTransOrCuMatrix{T} = Union{StridedCuMatrix{T}, AdjOrTrans{<:T,<:StridedCuMatrix{T}}}
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::AdjOrTransOrCuMatrix{T}, B::Adjoint{T, <:Transpose{T, <:StridedCuMatrix{T}}}, α::Number, β::Number) where {T<:Complex} = mul!(C, A, conj(parent(parent(B))), α, β)
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::AdjOrTransOrCuMatrix{T}, B::Transpose{T, <:Adjoint{T, <:StridedCuMatrix{T}}}, α::Number, β::Number) where {T<:Complex} = mul!(C, A, conj(parent(parent(B))), α, β)
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Adjoint{T, <:Transpose{T, <:StridedCuMatrix{T}}}, B::AdjOrTransOrCuMatrix{T}, α::Number, β::Number) where {T<:Complex} = mul!(C, conj(parent(parent(A))), B, α, β)
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Transpose{T, <:Adjoint{T, <:StridedCuMatrix{T}}}, B::AdjOrTransOrCuMatrix{T}, α::Number, β::Number) where {T<:Complex} = mul!(C, conj(parent(parent(A))), B, α, β)
 
 # triangular
 
@@ -278,7 +286,6 @@ LinearAlgebra.generic_mattrimul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Fu
     trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, A, C)
 
 ## tri-tri-mul!
-const AdjOrTransOrCuMatrix{T} = Union{StridedCuMatrix{T}, AdjOrTrans{<:T,<:StridedCuMatrix}}
 function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::StridedCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
     uplocB = LinearAlgebra.uplo_char(triB)
     isunitcB = LinearAlgebra.isunit_char(triB)
@@ -411,6 +418,32 @@ function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoin
     C .*= A.diag
     return C
 end
+
+function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix{T}) where {T<:CublasFloat}
+    return dgmm!('L', B, A.diag, B)
+end
+
+function LinearAlgebra.rmul!(A::CuMatrix{T}, B::Diagonal{T,<:CuVector{T}}) where {T<:CublasFloat}
+    return dgmm!('R', A, B.diag, A)
+end
+
+# eltypes do not match
+function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix) where {T<:CublasFloat}
+    @. B = A.diag * B
+    return B
+end
+function LinearAlgebra.lmul!(A::Diagonal{Td,<:CuVector{Td}}, B::Transpose{Tt, <:CuMatrix{Tt}}) where {Td<:CublasFloat, Tt<:CublasFloat}
+    @. B = A.diag * B
+    return B
+end
+function LinearAlgebra.lmul!(A::Diagonal{Td,<:CuVector{Td}}, B::Adjoint{Tt, <:CuMatrix{Tt}}) where {Td<:CublasFloat, Tt<:CublasFloat}
+    @. B = A.diag * B
+    return B
+end
+# eltypes do not match
+LinearAlgebra.rmul!(A::CuMatrix, B::Diagonal{T,<:CuVector{T}}) where {T<:CublasFloat} = lmul!(B, transpose(A))
+LinearAlgebra.rmul!(A::Transpose{Tt, <:CuMatrix{Tt}}, B::Diagonal{Td,<:CuVector{Td}}) where {Td<:CublasFloat, Tt<:CublasFloat} = lmul!(B, A)
+LinearAlgebra.rmul!(A::Adjoint{Tt, <:CuMatrix{Tt}}, B::Diagonal{Td,<:CuVector{Td}}) where {Td<:CublasFloat, Tt<:CublasFloat} = conj!(lmul!(B, conj!(A)))
 
 # diagm
 
