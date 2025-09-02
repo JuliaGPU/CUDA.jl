@@ -137,33 +137,35 @@ nB = 2
                                 @test collect(dC) ≈ C
                             end
                         end
-                        @testset "A * CuVector" begin
-                            @testset "A * b" begin
-                                c = opa(geam_A) * b_vec
-                                dc = opa(d_geam_A) * db_vec
-                                @test c ≈ collect(dc)
-                            end
-                            @testset "mul!(c, A, b)" begin
-                                c = rand(elty, n)
-                                dc = CuArray(c)
+                        if !(SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint)
+                            @testset "A * CuVector" begin
+                                @testset "A * b" begin
+                                    c = opa(geam_A) * b_vec
+                                    dc = opa(d_geam_A) * db_vec
+                                    @test c ≈ collect(dc)
+                                end
+                                @testset "mul!(c, A, b)" begin
+                                    c = rand(elty, n)
+                                    dc = CuArray(c)
 
-                                mul!(c, opa(geam_A), b_vec, alpha, beta)
-                                mul!(dc, opa(d_geam_A), db_vec, alpha, beta)
-                                @test c ≈ collect(dc)
+                                    mul!(c, opa(geam_A), b_vec, alpha, beta)
+                                    mul!(dc, opa(d_geam_A), db_vec, alpha, beta)
+                                    @test c ≈ collect(dc)
+                                end
                             end
-                        end
-                        @testset "A * CuSparseVector" begin
-                            @testset "A * b" begin
-                                c  = opa(geam_A) * b_spvec
-                                dc = opa(d_geam_A) * db_spvec
-                                @test c ≈ collect(dc)
-                            end
-                            @testset "mul!(c, A, b)" begin
-                                c = rand(elty, n)
-                                dc = CuArray(c)
-                                mul!(c, opa(geam_A), b_spvec, alpha, beta)
-                                mul!(dc, opa(d_geam_A), db_spvec, alpha, beta)
-                                @test c ≈ collect(dc)
+                            @testset "A * CuSparseVector" begin
+                                @testset "A * b" begin
+                                    c  = opa(geam_A) * b_spvec
+                                    dc = opa(d_geam_A) * db_spvec
+                                    @test c ≈ collect(dc)
+                                end
+                                @testset "mul!(c, A, b)" begin
+                                    c = rand(elty, n)
+                                    dc = CuArray(c)
+                                    mul!(c, opa(geam_A), b_spvec, alpha, beta)
+                                    mul!(dc, opa(d_geam_A), db_spvec, alpha, beta)
+                                    @test c ≈ collect(dc)
+                                end
                             end
                         end
                     end

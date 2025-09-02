@@ -45,7 +45,7 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     end
 
     # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
-    if runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+    if capability(device()) <= v"3.7"
         @error """SASS code generation is not supported on this device.
                   Please use a more recent device."""
         return
@@ -82,7 +82,7 @@ end
 
 function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
     # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
-    if runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+    if capability(device()) <= v"3.7"
         @error """SASS code generation is not supported on this device.
                   Please use a more recent device."""
         return
