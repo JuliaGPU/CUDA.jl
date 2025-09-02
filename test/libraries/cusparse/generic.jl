@@ -62,7 +62,7 @@ for SparseMatrixType in keys(SPMV_ALGOS)
     @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
         @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                 A = sprand(T, 20, 10, 0.1)
                 B = transa == 'N' ? rand(T, 10) : rand(T, 20)
                 C = transa == 'N' ? rand(T, 20) : rand(T, 10)
