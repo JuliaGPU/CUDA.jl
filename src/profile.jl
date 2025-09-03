@@ -23,9 +23,6 @@ slowest 25%, while entries colored in red are among the slowest 5% of all operat
 
 !!! compat "Julia 1.9" This functionality is only available on Julia 1.9 and later.
 
-!!! compat "CUDA 11.2" Older versions of CUDA, before 11.2, contain bugs that may prevent
-    the `CUDA.@profile` macro to work. It is recommended to use a newer runtime.
-
 ## External profilers (`external=true`, when an external profiler is detected)
 
 For more advanced profiling, it is possible to use an external profiling tool, such as
@@ -495,7 +492,7 @@ function capture(cfg)
                                    size=record.bytes); cols=:union)
 
         # memory allocations
-        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2 && cuda_version >= v"11.2"
+        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2
             # XXX: we'd prefer to postpone processing (i.e. calling format_bytes),
             #      but cannot realistically add a column for every API call
 

@@ -43,9 +43,7 @@ function math_mode!(handle, mode)
     flags = 0
 
     # https://github.com/facebookresearch/faiss/issues/1385
-    if version() > v"11"
-        flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
-    end
+    flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
 
     flags |= if mode == CUDA.PEDANTIC_MATH
         # prevent use of tensor cores

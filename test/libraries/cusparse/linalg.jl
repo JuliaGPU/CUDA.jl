@@ -26,9 +26,7 @@ m = 10
             @test Array(triu(dA, 1)) ≈ triu(A, 1)
             @test Array(tril(dA)) ≈ tril(A)
             @test Array(tril(dA, 1)) ≈ tril(A, 1)
-            if CUSPARSE.version() > v"11.4.1"
-                @test Array(exp(dA)) ≈ exp(collect(A))
-            end
+            @test Array(exp(dA)) ≈ exp(collect(A))
         end
         @testset "kronecker product opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (identity, transpose, adjoint)
             if !(opa == transpose && opb == adjoint) && !(opa == adjoint && opb == transpose)

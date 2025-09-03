@@ -158,12 +158,7 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
 
-    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
-        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *
-                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
-    end
-
-    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+    if isa(A, CuSparseMatrixCSC)
         # cusparseSpMV completely supports CSC matrices with CUSPARSE.version() ≥ v"12.0".
         # We use Aᵀ to model them as CSR matrices for older versions of CUSPARSE.
         descA = CuSparseMatrixDescriptor(A, index, transposed=true)
@@ -186,9 +181,9 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
     # operations with 16-bit numbers always imply mixed-precision computation
     # TODO: we should better model the supported combinations here,
     #       and error if using an unsupported one (like with gemmEx!)
-    compute_type = if version() >= v"11.4" && T == Float16
+    compute_type = if T == Float16
         Float32
-    elseif version() >= v"11.7.2" && T == ComplexF16
+    elseif T == ComplexF16
         ComplexF32
     else
         T
@@ -216,21 +211,8 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
-    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
-        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSC matrix" *
-                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
-    end
-
-    if CUSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
-        # cusparseSpMM completely supports CSC matrices with CUSPARSE.version() ≥ v"12.0".
-        # We use Aᵀ to model them as CSR matrices for older versions of CUSPARSE.
-        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
-        k,m = size(A)
-        transa = transa == 'N' ? 'T' : 'N'
-    else
-        descA = CuSparseMatrixDescriptor(A, index)
-        m,k = size(A)
-    end
+    descA = CuSparseMatrixDescriptor(A, index)
+    m,k = size(A)
     n = size(C)[2]
 
     if transa == 'N' && transb == 'N'
@@ -288,10 +270,6 @@ end
 function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,3},
               B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti}
 
-    if CUSPARSE.version() < v"11.7.2"
-        throw(ErrorException("Batched dense-matrix times batched sparse-matrix (bmm!) requires a CUSPARSE version ≥ 11.7.2 (yours: $(CUSPARSE.version()))."))
-    end
-
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
@@ -341,7 +319,7 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     end
     with_workspace(bufferSize) do buffer
         # We should find a way to reuse the buffer (issue #1362)
-        if !(A isa CuSparseMatrixCOO) && (CUSPARSE.version() ≥ v"11.7.2")
+        if !(A isa CuSparseMatrixCOO)
             cusparseSpMM_preprocess(
                 handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
                 descC, T, algo, buffer)
@@ -357,8 +335,6 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
              B::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, beta::Number,
              C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
 
-    CUSPARSE.version() < v"11.7.4" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
@@ -368,11 +344,6 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     # Cc = α * Ac * Bᵀ + β * Cc → α * B  * Ar + β * Cr
     # Cc = α * Ac * Bᴴ + β * Cc → α * B̅  * Ar + β * Cr
     # where B is a sparse matrix, Ac and Cc indicate column-major layout, while Ar and Cr refer to row-major layout.
-
-    if CUSPARSE.version() < v"12.0" && isa(B, CuSparseMatrixCSR) && transb == 'C' && T <: Complex
-        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSR matrix" *
-                            " is not supported by the current CUDA version. Use a CSC or COO matrix instead."))
-    end
 
     m,k = size(A)
     n = size(C)[2]
@@ -402,7 +373,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     end
     with_workspace(bufferSize) do buffer
         # We should find a way to reuse the buffer (issue #1362)
-        if !(B isa CuSparseMatrixCOO) && (CUSPARSE.version() ≥ v"11.7.2")
+        if !(B isa CuSparseMatrixCOO)
             cusparseSpMM_preprocess(
                 handle(), transb, transa, Ref{T}(alpha), descB, descA, Ref{T}(beta),
                 descC, T, algo, buffer)
@@ -824,7 +795,6 @@ end
 function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
                 beta::Number, C::Union{CuSparseMatrixCSR{T},CuSparseMatrixBSR{T}}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
 
-    CUSPARSE.version() < v"11.4.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     (C isa CuSparseMatrixBSR) && (CUSPARSE.version() < v"12.1.0") && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' and `transb = 'C' for real matrices
