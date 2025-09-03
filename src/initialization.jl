@@ -215,11 +215,9 @@ function __init__()
         for lib in Libdl.dllist()
             contains(lib, "artifacts") && continue
             
-            # skip NVIDIA driver store directories on Windows - these contain legitimate
-            # CUDA runtime libraries that are part of the display driver installation.
-            # this issue only occurs with CUDA >= 13.
-            if Sys.iswindows() && runtime >= v"13" && contains(lib, "DriverStore\\FileRepository") && 
-               contains(lib, "\\nv") && contains(lib, ".inf_")
+            # skip driver store directories on Windows - these contain legitimate libraries
+            # that are part of the display driver installation (at least on CUDA 13+)
+            if Sys.iswindows() && contains(lib, "DriverStore")
                 continue
             end
             
