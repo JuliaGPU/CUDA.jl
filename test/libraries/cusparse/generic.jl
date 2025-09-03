@@ -33,7 +33,6 @@ SPMV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT],
                                         CUSPARSE.CUSPARSE_SPMV_CSR_ALG2],
                   CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
                                         CUSPARSE.CUSPARSE_SPMV_COO_ALG1,
-                                        CUSPARSE.CUSPARSE_SPMV_COO_ALG2,
                                        ],
                  )
 
