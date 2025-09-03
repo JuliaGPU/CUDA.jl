@@ -214,6 +214,13 @@ function __init__()
                              "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
         for lib in Libdl.dllist()
             contains(lib, "artifacts") && continue
+            
+            # skip driver store directories on Windows - these contain legitimate libraries
+            # that are part of the display driver installation (at least on CUDA 13+)
+            if Sys.iswindows() && contains(lib, "DriverStore")
+                continue
+            end
+            
             if any(rtlib -> contains(lib, rtlib), runtime_libraries)
                 @warn """CUDA runtime library `$(basename(lib))` was loaded from a system path, `$lib`.
                          This may cause errors.
