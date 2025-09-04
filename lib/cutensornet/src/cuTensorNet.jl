@@ -5,6 +5,7 @@ using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, cudaDataType
 using CUDA: retry_reclaim, initialize_context, isdebug, cuDoubleComplex
+using CUDA: @checked, @gcsafe_ccall
 
 using cuTENSOR
 using cuTENSOR: CuTensor
