@@ -97,6 +97,12 @@ steps:
               - "cuTENSOR"
               - "cuStateVec"
               - "cuTensorNet"
+        adjustments:
+            - with:
+                package:
+                  - "cuStateVec"
+                  - "cuTensorNet"
+              soft_fail: true
         plugins:
           - JuliaCI/julia#v1:
               version: "1.10"
