@@ -4,6 +4,7 @@ using CUDA
 using CUDA.APIUtils
 using CUDA: CUstream, cudaDataType, cudaEvent_t, libraryPropertyType
 using CUDA: unsafe_free!, retry_reclaim, initialize_context, isdebug
+using CUDA: @checked, @gcsafe_ccall
 
 using CEnum: @cenum
 
