@@ -127,3 +127,23 @@ channel of the [Julia Slack](https://julialang.org/community/).
 
 Contributions are very welcome, as are feature requests and suggestions. Please open an
 [issue](https://github.com/JuliaGPU/CUDA.jl/issues) if you encounter any problems.
+
+### Note for contributors about CI usage
+
+You can pass special flags to Buildkite to avoid overburdening the GPU CI agents, which
+are a shared resource. The flag should be added to your top level commit message (**not**
+the extended message). 
+
+Available flags are:
+  - `[only julia]`: test only on the various Julia versions CUDA.jl supports, skipping testing subpackages and the various CUDA toolkits
+  - `[only tests]`: don't run the benchmark or documentation steps
+  - `[only subpackages]`: skip all the Julia and CUDA toolkit version runs, only test `cuTENSOR`, `cuStateVec`, `cuTensorNet`, and `CUDNN`
+  - `[only docs]`: only build the documentation, skip all tests and benchmarks
+  - `[only special]`: only test the special cases of multi-GPU, the various default memory locations, compute sanitizer, and the GPU-less environment
+  - `[only downstream]`: test only the "downstream" packages which depend on CUDA.jl and its libraries, such as Enzyme.jl
+  - `[skip downstream]`: don't the "downstream" packages
+  - `[skip special]`: don't run the above described special tests 
+  - `[skip tests]`: skip all tests, only run benchmarks and documentation
+  - `[skip benchmarks]`: don't run the benchmarks
+ 
+If you use these flags, make sure you don't exclude tests your changes could actually impact.
