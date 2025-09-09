@@ -570,11 +570,11 @@ CuSparseMatrixCSC(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuS
 CuSparseMatrixCOO(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCOO(_spadjoint(parent(x)))
 
 # gpu to cpu
-SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
-SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
-SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_CSR -> gpu_CSC -> cpu_CSC)
-SparseMatrixCSC(x::CuSparseMatrixBSR) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion (gpu_BSR -> gpu_CSR -> gpu_CSC -> cpu_CSC)
-SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_COO -> gpu_CSC -> cpu_CSC)
+SparseArrays.SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
+SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
+SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_CSR -> gpu_CSC -> cpu_CSC)
+SparseArrays.SparseMatrixCSC(x::CuSparseMatrixBSR) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion (gpu_BSR -> gpu_CSR -> gpu_CSC -> cpu_CSC)
+SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_COO -> gpu_CSC -> cpu_CSC)
 
 # collect to Array
 Base.collect(x::CuSparseVector) = collect(SparseVector(x))
