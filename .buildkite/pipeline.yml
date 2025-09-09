@@ -323,7 +323,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "12.9"
+          cuda: "*"
         env:
           JULIA_CUDA_MEMORY_POOL: 'none'
         if: |
@@ -333,6 +333,10 @@ steps:
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
         timeout_in_minutes: 30
+        matrix:
+          setup:
+            cuda:
+              - "12.9"
 
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
@@ -347,7 +351,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "12.9"
+          cuda: "*"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only special\]/ ||
@@ -360,6 +364,8 @@ steps:
             memory:
               - "unified"
               - "host"
+            cuda:
+              - "12.9"
         commands: |
           echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
