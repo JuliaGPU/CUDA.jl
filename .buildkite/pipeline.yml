@@ -323,7 +323,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "*"
+          cuda: "12.9"
         env:
           JULIA_CUDA_MEMORY_POOL: 'none'
         if: |
@@ -347,7 +347,7 @@ steps:
                 - examples
         agents:
           queue: "juliagpu"
-          cuda: "*"
+          cuda: "12.9"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only special\]/ ||
