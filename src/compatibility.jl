@@ -56,6 +56,9 @@ const cuda_cap_db = Dict(
     v"8.7"   => between(v"11.4", highest),
     v"8.9"   => between(v"11.8", highest),
     v"9.0"   => between(v"11.8", highest),
+    v"10.0"  => between(v"12.8", highest),
+    v"10.3"  => between(v"12.8", highest),
+    v"11.0"  => between(v"12.8", highest),
     v"12.0"  => between(v"12.8", highest),
     v"12.1"  => between(v"12.9", highest),
 )
