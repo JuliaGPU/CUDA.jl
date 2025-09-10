@@ -1,7 +1,6 @@
 ## COV_EXCL_START
 
 # TODO
-# - serial version for lower latency
 # - block-stride loop to delay need for second kernel launch
 
 # Reduce a value across a warp
@@ -134,7 +133,7 @@ function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R::Abs
     return
 end
 
-function big_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
+function serial_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
     grid_idx = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
     @inbounds if grid_idx <= length(Rother)
         Iother = Rother[grid_idx]
@@ -160,7 +159,7 @@ end
 ## COV_EXCL_STOP
 
 # factored out for use in tests
-function big_mapreduce_threshold(dev)
+function serial_mapreduce_threshold(dev)
     max_concurrency = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK) *
                       attribute(dev, DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
     return max_concurrency
@@ -197,9 +196,9 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     @assert length(Rother) > 0
 
     # If `Rother` is large enough, then a naive loop is more efficient than partial reductions.
-    if length(Rother) >= big_mapreduce_threshold(dev)
+    if length(Rother) >= serial_mapreduce_threshold(dev)
         args = (f, op, init, Rreduce, Rother, R, A)
-        kernel = @cuda launch=false big_mapreduce_kernel(args...)
+        kernel = @cuda launch=false serial_mapreduce_kernel(args...)
         kernel_config = launch_configuration(kernel.fun)
         threads = kernel_config.threads
         blocks = cld(length(Rother), threads)
@@ -232,13 +231,62 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     reduce_threads = compute_threads(kernel_config.threads)
     reduce_shmem = compute_shmem(reduce_threads)
 
+    # how many blocks should we launch?
+    #
+    # even though we can always reduce each slice in a single thread block, that may not be
+    # optimal as it might not saturate the GPU. we already launch some blocks to process
+    # independent dimensions in parallel; pad that number to ensure full occupancy.
+    other_blocks = length(Rother)
+    reduce_blocks = if other_blocks >= kernel_config.blocks
+        1
+    else
+        min(cld(length(Rreduce), reduce_threads),       # how many we need at most
+            cld(kernel_config.blocks, other_blocks))    # maximize occupancy
+    end
+
     # determine the launch configuration
     threads = reduce_threads
     shmem = reduce_shmem
-    blocks = length(Rother)
+    blocks = reduce_blocks*other_blocks
 
     # perform the actual reduction
-    kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; threads, blocks, shmem)
+    if reduce_blocks == 1
+        # we can cover the dimensions to reduce using a single block
+        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; threads, blocks, shmem)
+    else
+        # TODO: provide a version that atomically reduces from different blocks
+
+        # temporary empty array whose type will match the final partial array
+	    partial = similar(R, ntuple(_ -> 0, Val(ndims(R)+1)))
+
+        # NOTE: we can't use the previously-compiled kernel, or its launch configuration,
+        #       since the type of `partial` might not match the original output container
+        #       (e.g. if that was a view).
+        partial_kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), partial, A)
+        partial_kernel_config = launch_configuration(partial_kernel.fun; shmem=compute_shmem∘compute_threads)
+        partial_reduce_threads = compute_threads(partial_kernel_config.threads)
+        partial_reduce_shmem = compute_shmem(partial_reduce_threads)
+        partial_reduce_blocks = if other_blocks >= partial_kernel_config.blocks
+            1
+        else
+            min(cld(length(Rreduce), partial_reduce_threads),
+                cld(partial_kernel_config.blocks, other_blocks))
+        end
+        partial_threads = partial_reduce_threads
+        partial_shmem = partial_reduce_shmem
+        partial_blocks = partial_reduce_blocks*other_blocks
+
+        partial = similar(R, (size(R)..., partial_blocks))
+        if init === nothing
+            # without an explicit initializer we need to copy from the output container
+            partial .= R
+        end
+
+        partial_kernel(f, op, init, Rreduce, Rother, Val(shuffle), partial, A;
+                       threads=partial_threads, blocks=partial_blocks, shmem=partial_shmem)
+
+        GPUArrays.mapreducedim!(identity, op, R, partial; init)
+    end
 
     return R
 end
