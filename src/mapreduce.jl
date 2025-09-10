@@ -255,8 +255,8 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         # we can cover the dimensions to reduce using a single block
         kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; threads, blocks, shmem)
     else
-        # we need multiple steps to cover all values to reduce
-        partial = similar(R, (size(R)..., reduce_blocks))
+        # Temporary empty array of the same type for kernel definition
+	partial = similar(R, ntuple(_ -> 0, Val(ndims(R)+1)))
 
         # NOTE: we can't use the previously-compiled kernel, since the type of `partial`
         #       might not match the original output container (e.g. if that was a view).
@@ -278,9 +278,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         partial_shmem = partial_reduce_shmem
         partial_blocks = partial_reduce_blocks*other_blocks
 
-        if reduce_blocks != partial_blocks
-            partial = similar(R, (size(R)..., partial_blocks))
-        end
+        partial = similar(R, (size(R)..., partial_blocks))
 
         if init === nothing
             # without an explicit initializer we need to copy from the output container
