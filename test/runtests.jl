@@ -442,7 +442,7 @@ println("Testing finished in $elapsed")
 # construct a testset to render the test results
 completed_tests = Set{String}()
 o_ts = Test.DefaultTestSet("Overall")
-if VERSION < v"1.13.0-DEV.1044"
+@static if VERSION < v"1.13.0-DEV.1044"
     Test.push_testset(o_ts)
     for (testname, (resp,)) in results
         push!(completed_tests, testname)
