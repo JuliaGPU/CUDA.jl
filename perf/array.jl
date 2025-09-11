@@ -10,6 +10,7 @@ cpu_mat = rand(rng, Float32, m, n)
 gpu_mat = CuArray{Float32}(cpu_mat)
 gpu_mat_long = CuArray{Float32}(rand(rng, Float32, m_long, n_long))
 gpu_vec = reshape(gpu_mat, length(gpu_mat))
+gpu_vec_long = reshape(gpu_mat_long, length(gpu_mat_long))
 gpu_arr_3d = reshape(gpu_mat, (m, 40, 25))
 gpu_arr_4d = reshape(gpu_mat, (m, 10, 10, 10))
 gpu_mat_ints = CuArray(rand(rng, -10:10, m, n))
@@ -52,9 +53,13 @@ end
 
 let group = addgroup!(group, "reverse")
     group["1d"] = @async_benchmarkable reverse($gpu_vec)
+    group["1dL"] = @async_benchmarkable reverse($gpu_vec_long)
     group["2d"] = @async_benchmarkable reverse($gpu_mat; dims=1)
+    group["2dL"] = @async_benchmarkable reverse($gpu_mat_long; dims=1)
     group["1d_inplace"] = @async_benchmarkable reverse!($gpu_vec)
+    group["1dL_inplace"] = @async_benchmarkable reverse!($gpu_vec_long)
     group["2d_inplace"] = @async_benchmarkable reverse!($gpu_mat; dims=1)
+    group["2dL_inplace"] = @async_benchmarkable reverse!($gpu_mat_long; dims=2)
 end
 
 group["broadcast"] = @async_benchmarkable $gpu_mat .= 0f0
