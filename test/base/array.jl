@@ -718,7 +718,7 @@ end
 @testset "large map reduce" begin
   dev = device()
 
-  big_size = CUDA.big_mapreduce_threshold(dev) + 5
+  big_size = CUDA.serial_mapreduce_threshold(dev) + 5
   a = rand(Float32, big_size, 31)
   c = CuArray(a)
 
