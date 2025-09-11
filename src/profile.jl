@@ -660,15 +660,15 @@ function Base.show(io::IO, results::ProfileResults)
         p75 = quantile(relevant_times, 0.75)
         p95 = quantile(relevant_times, 0.95)
 
-        highlight_p95 = Highlighter((data, i, j) -> (names(data)[j] == "time") &&
-                                                    (data[i,j] >= p95),
-                                    crayon"red")
-        highlight_p75 = Highlighter((data, i, j) -> (names(data)[j] == "time") &&
-                                                    (data[i,j] >= p75),
-                                    crayon"yellow")
-        highlight_bold = Highlighter((data, i, j) -> (names(data)[j] == "name") &&
-                                                     (data[!, :time][i] >= p75),
-                                    crayon"bold")
+        highlight_p95 = TextHighlighter((data, i, j) -> (names(data)[j] == "time") &&
+                                                        (data[i,j] >= p95),
+                                        crayon"red")
+        highlight_p75 = TextHighlighter((data, i, j) -> (names(data)[j] == "time") &&
+                                                        (data[i,j] >= p75),
+                                        crayon"yellow")
+        highlight_bold = TextHighlighter((data, i, j) -> (names(data)[j] == "name") &&
+                                                         (data[!, :time][i] >= p75),
+                                         crayon"bold")
 
         (highlight_p95, highlight_p75, highlight_bold)
     end
@@ -981,7 +981,7 @@ function Base.show(io::IO, results::ProfileResults)
             for color in unique(df.color)
                 if color !== nothing
                     ids = df[df.color .== color, :id]
-                    highlighter = Highlighter(Crayon(; foreground=color)) do data, i, j
+                    highlighter = TextHighlighter(Crayon(; foreground=color)) do data, i, j
                         names(data)[j] in ["name", "domain"] && data[!, :id][i] in ids
                     end
                     push!(color_highlighters, highlighter)
