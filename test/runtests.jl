@@ -549,7 +549,7 @@ end
 for test in tests
     (test in completed_tests) && continue
     fake = Test.DefaultTestSet(test)
-    if VERSION < v"1.13.0-DEV.1044"
+    @static if VERSION < v"1.13.0-DEV.1044"
         Test.record(fake, Test.Error(:test_interrupted, test, nothing,
                                         [("skipped", [])], LineNumberNode(1)))
         Test.push_testset(fake)
