@@ -844,7 +844,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
         end
     end
 
