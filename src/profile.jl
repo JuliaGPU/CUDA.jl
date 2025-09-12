@@ -929,7 +929,7 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop,
+            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters),
                                  body_hlines=trace_divisions)
         else
             df = summarize_trace(results.device)
@@ -944,7 +944,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
         end
     end
 
