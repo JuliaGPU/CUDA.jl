@@ -4,6 +4,9 @@ import REPL
 using Printf: @sprintf
 using Base.Filesystem: path_separator
 
+using Pkg
+Pkg.add(url="https://github.com/christiangnrd/GPUArrays.jl", rev="accumulatetests")
+
 # parse some command-line arguments
 function extract_flag!(args, flag, default=nothing; typ=typeof(default))
     for f in args
