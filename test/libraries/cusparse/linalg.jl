@@ -1,5 +1,5 @@
 using CUDA.CUSPARSE
-using LinearAlgebra, SparseArrays
+using LinearAlgebra, SparseArrays, Adapt
 
 m = 10
 @testset "T = $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
@@ -7,10 +7,13 @@ m = 10
     B  = sprand(T, m, m, 0.3)
     ZA = spzeros(T, m, m)
     C  = I(div(m, 2))
+    D = Diagonal(rand(T, m))
     @testset "type = $typ" for typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
         dA = typ(A)
         dB = typ(B)
         dZA = typ(ZA)
+        dD = adapt(CuArray, D)
+        dC = adapt(CuArray, C)
         @testset "opnorm and norm" begin
             @test opnorm(A, Inf) ≈ opnorm(dA, Inf)
             @test opnorm(A, 1)   ≈ opnorm(dA, 1)
@@ -35,11 +38,60 @@ m = 10
             end
         end
         @testset "kronecker product with I opa = $opa" for opa in (identity, transpose, adjoint)
-            @test collect(kron(opa(dA), C)) ≈ kron(opa(A), C) 
-            @test collect(kron(C, opa(dA))) ≈ kron(C, opa(A)) 
-            @test collect(kron(opa(dZA), C)) ≈ kron(opa(ZA), C)
-            @test collect(kron(C, opa(dZA))) ≈ kron(C, opa(ZA))
+            @test collect(kron(opa(dA), dC)) ≈ kron(opa(A), C) 
+            @test collect(kron(dC, opa(dA))) ≈ kron(C, opa(A)) 
+            @test collect(kron(opa(dZA), dC)) ≈ kron(opa(ZA), C)
+            @test collect(kron(dC, opa(dZA))) ≈ kron(C, opa(ZA))
         end
+        @testset "kronecker product with Diagonal opa = $opa" for opa in (identity, transpose, adjoint) 
+            @test collect(kron(opa(dA), dD)) ≈ kron(opa(A), D)
+            @test collect(kron(dD, opa(dA))) ≈ kron(D, opa(A))
+            @test collect(kron(opa(dZA), dD)) ≈ kron(opa(ZA), D)
+            @test collect(kron(dD, opa(dZA))) ≈ kron(D, opa(ZA))
+        end
+    end
+end
+
+@testset "T = $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    mat_sizes = [(2, 3), (2, 0)]
+    @testset "size(A) = ($(mA), $(nA)), size(B) = ($(mB), $(nB))" for (mA, nA) in mat_sizes, (mB, nB) in mat_sizes
+        A = sprand(T, mA, nA, 0.5)
+        B  = sprand(T, mB, nB, 0.5)
+
+        A_I, A_J, A_V = findnz(A)
+        dA = CuSparseMatrixCOO{T, Cint}(adapt(CuVector{Cint}, A_I), adapt(CuVector{Cint}, A_J), adapt(CuVector{T}, A_V), size(A))
+        B_I, B_J, B_V = findnz(B)
+        dB = CuSparseMatrixCOO{T, Cint}(adapt(CuVector{Cint}, B_I), adapt(CuVector{Cint}, B_J), adapt(CuVector{T}, B_V), size(B))
+
+        @testset "kronecker (COO ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (identity, transpose, adjoint)
+            dC = kron(opa(dA), opb(dB))
+            @test collect(dC)  ≈ kron(opa(A), opb(B))
+            @test eltype(dC) == typeof(oneunit(T) * oneunit(T))
+            @test dC isa CuSparseMatrixCOO
+        end
+    end
+end
+
+@testset "TA = $TA, TvB = $TvB" for TvB in [Float32, Float64, ComplexF32, ComplexF64], TA in [Bool, TvB]
+    A = Diagonal(rand(TA, 2))
+    B  = sprand(TvB, 3, 4, 0.5)
+    dA = adapt(CuArray, A)
+
+    B_I, B_J, B_V = findnz(B)
+    dB = CuSparseMatrixCOO{TvB, Cint}(adapt(CuVector{Cint}, B_I), adapt(CuVector{Cint}, B_J), adapt(CuVector{TvB}, B_V), size(B))
+
+    @testset "kronecker (diagonal ⊗ COO) opa = $opa, opb = $opb" for opa in (identity, adjoint), opb in (identity, transpose, adjoint)
+        dC = kron(opa(dA), opb(dB))
+        @test collect(dC)  ≈ kron(opa(A), opb(B))
+        @test eltype(dC) == typeof(oneunit(TA) * oneunit(TvB))
+        @test dC isa CuSparseMatrixCOO
+    end
+
+    @testset "kronecker (COO ⊗ diagonal) opa = $opa, opb = $opb" for opa in (identity, adjoint), opb in (identity, transpose, adjoint)
+        dC = kron(opb(dB), opa(dA))
+        @test collect(dC)  ≈ kron(opb(B), opa(A))
+        @test eltype(dC) == typeof(oneunit(TvB) * oneunit(TA))
+        @test dC isa CuSparseMatrixCOO
     end
 end
 
