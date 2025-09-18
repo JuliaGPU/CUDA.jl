@@ -740,17 +740,6 @@ function Base.show(io::IO, results::ProfileResults)
         end
     end
 
-    crop = if get(io, :is_pluto, false) || get(io, :jupyter, false)
-        # Pluto.jl and IJulia.jl both indicate they want to limit output,
-        # but they have scrollbars, so let's ignore that
-        :none
-    elseif io isa Base.TTY || get(io, :limit, false)::Bool
-        # crop horizonally to fit the terminal
-        :horizontal
-    else
-        :none
-    end
-
     # host-side activity
     let
         # to determine the time the host was active, we should look at threads separately
@@ -829,8 +818,7 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop,
-                                 body_hlines=trace_divisions)
+            pretty_table(io, df; column_labels=header, alignment, formatters, highlighters)
         else
             df = summarize_trace(df)
 
@@ -843,8 +831,9 @@ function Base.show(io::IO, results::ProfileResults)
 
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
+            formatters = summary_formatter(df)
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters, highlighters)
         end
     end
 
@@ -929,8 +918,7 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop,
-                                 body_hlines=trace_divisions)
+            pretty_table(io, df; column_labels=header, alignment, formatters, highlighters)
         else
             df = summarize_trace(results.device)
 
@@ -943,8 +931,9 @@ function Base.show(io::IO, results::ProfileResults)
 
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
+            formatters = summary_formatter(df)
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters, highlighters)
         end
     end
 
@@ -1002,7 +991,7 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = tuple(color_highlighters..., time_highlighters(df)...)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters, highlighters)
         else
             # merge the domain and name into a single column
             nvtx_ranges.name = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
@@ -1024,8 +1013,9 @@ function Base.show(io::IO, results::ProfileResults)
 
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
+            formatters = summary_formatter(df)
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters, highlighters)
         end
     end
 
