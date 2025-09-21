@@ -830,7 +830,7 @@ function Base.show(io::IO, results::ProfileResults)
             end
             highlighters = time_highlighters(df)
             highlighters = isempty(highlighters) ? PrettyTables.TextHighlighter[] : collect(highlighters)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters)#,
+            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters, fit_table_in_display_horizontally = (crop==:horizontal), fit_table_in_display_vertically=false)#,
                                  #body_hlines=trace_divisions)
         else
             df = summarize_trace(df)
@@ -845,7 +845,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         end
     end
 
@@ -930,7 +930,7 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters),)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
                                  #body_hlines=trace_divisions)
         else
             df = summarize_trace(results.device)
@@ -945,7 +945,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         end
     end
 
@@ -1003,7 +1003,7 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = tuple(color_highlighters..., time_highlighters(df)...)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters))
+            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         else
             # merge the domain and name into a single column
             nvtx_ranges.name = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
@@ -1026,7 +1026,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         end
     end
 

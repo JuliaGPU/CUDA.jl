@@ -53,25 +53,25 @@ end
 let
     str = string(CUDA.@profile trace=true raw=true @cuda identity(nothing))
 
-    @test_broken occursin("cuLaunchKernel", str)
-    @test_broken occursin("identity()", str)
+    @test occursin("cuLaunchKernel", str)
+    @test occursin("identity()", str)
 
     @test occursin("ID", str)
 
-    @test_broken occursin("cuCtxSynchronize", str)
+    @test occursin("cuCtxSynchronize", str)
 end
 
 # benchmarked profile
 let
     str = string(CUDA.@bprofile @cuda identity(nothing))
-    @test_broken occursin("cuLaunchKernel", str)
-    @test_broken occursin("identity()", str)
+    @test occursin("cuLaunchKernel", str)
+    @test occursin("identity()", str)
     @test !occursin("cuCtxGetCurrent", str)
 
     str = string(CUDA.@bprofile raw=true @cuda identity(nothing))
-    @test_broken occursin("cuLaunchKernel", str)
-    @test_broken occursin("identity()", str)
-    @test_broken occursin("cuCtxGetCurrent", str)
+    @test occursin("cuLaunchKernel", str)
+    @test occursin("identity()", str)
+    @test occursin("cuCtxGetCurrent", str)
 end
 
 if CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
