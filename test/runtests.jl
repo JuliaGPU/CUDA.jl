@@ -220,7 +220,7 @@ function addworker(X; kwargs...)
         test_exename
     end
 
-    withenv("JULIA_NUM_THREADS" => 1, "OPENBLAS_NUM_THREADS" => 1) do
+    withenv("OPENBLAS_NUM_THREADS" => 1) do
         procs = addprocs(X; exename=exename, exeflags=test_exeflags, kwargs...)
         @everywhere procs include($(joinpath(@__DIR__, "setup.jl")))
         procs
