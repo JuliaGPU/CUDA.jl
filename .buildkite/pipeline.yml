@@ -22,7 +22,7 @@ steps:
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
 
           # for non-nightly, use Resolver.jl to install the oldest package versions
-          if [[ "{{ matrix.julia }}" != "nightly" ]]; then
+          if [[ "{{ matrix.julia }}" != "nightly" && "{{ matrix.julia }}" =~ ^[0-9]+\.[0-9]+$ ]]; then
             git clone https://github.com/StefanKarpinski/Resolver.jl /tmp/Resolver
             julia -e 'using Pkg; Pkg.activate("/tmp/Resolver/bin"); Pkg.instantiate()'
             julia /tmp/Resolver/bin/resolve.jl . --min=@alldeps --julia="{{matrix.julia}}"
