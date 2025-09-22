@@ -130,11 +130,11 @@ function __init__()
     end
 
     # ensure the loaded runtime is supported
-    if runtime < v"12.0"
+    if runtime < v"12"
         @error "This version of CUDA.jl only supports CUDA 12 or higher (your toolkit provides CUDA $runtime)"
     end
-    if runtime.major > driver.major
-        @warn """You are using CUDA $runtime with a driver that only supports up to $(driver.major).x.
+    if runtime.major != driver.major
+        @warn """You are using CUDA $runtime with a driver for CUDA $(driver.major).x.
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
 
