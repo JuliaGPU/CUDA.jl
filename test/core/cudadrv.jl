@@ -6,9 +6,7 @@ synchronize()
 
 ctx = current_context()
 @test CUDA.isvalid(ctx)
-if CUDA.driver_version() >= v"12"
-    @test unique_id(ctx) > 0
-end
+@test unique_id(ctx) > 0
 
 dev = current_device()
 exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
@@ -47,7 +45,6 @@ end
 end
 
 
-if CUDA.driver_version() >= v"12"
 @testset "primary context" begin
 
 # we need to start from scratch for these tests
@@ -105,7 +102,6 @@ let
     unsafe_reset!(pctx)
 end
 
-end
 end
 
 
@@ -848,7 +844,7 @@ end
 @testset "pool" begin
 
 dev = device()
-if CUDA.driver_version() >= v"11.2" && attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+if attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
 
 pool = memory_pool(dev)
 
@@ -878,9 +874,7 @@ end
 s = CuStream()
 synchronize(s)
 @test CUDA.isdone(s)
-if CUDA.driver_version() >= v"12"
-    @test unique_id(s) > 0
-end
+@test unique_id(s) > 0
 
 let s2 = CuStream()
     @test s != s2

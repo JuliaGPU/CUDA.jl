@@ -10,7 +10,6 @@ n = 15
 k = 25
 p = 0.5
 
-if CUSPARSE.version() ≥ v"11.7.2"
 @testset "Sparse-Dense $elty bmm!" for elty in (Float64, Float32, ComplexF64, ComplexF32)
     α = rand(elty) 
     β = rand(elty) 
@@ -248,5 +247,4 @@ p = 1.
 
         @test D ≈ C
     end
-end
 end

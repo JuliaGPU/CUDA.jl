@@ -216,20 +216,14 @@ function context(dev::CuDevice)
     end
 
     # check if the device isn't too old
-    if capability(dev) < v"3.5"
+    if capability(dev) < v"5.0"
         @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA.jl.
-                  Please use a device with at least capability 3.5.""",
+                  Please use a device with at least capability 5.0, or downgrade CUDA.jl (see the README for compatibility details).""",
                maxlog=1, _id=devidx)
-    elseif runtime_version() >= v"12" && capability(dev) <= v"3.7"
-        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported on CUDA 12+.
-                  Please use CUDA 11.8 or earlier (by calling `CUDA.set_runtime_version!`), or switch to a different device.""",
+    elseif runtime_version() >= v"13" && capability(dev) <= v"7.5"
+        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported on CUDA 13+.
+                  Please use a device with at least capability 7.5, or downgrade your NVIDIA driver to below v580.""",
                maxlog=1, _id=devidx)
-    elseif runtime_version() >= v"11" && capability(dev) <= v"3.7"
-        # XXX: the 10.2 release notes mention that even sm_50 is deprecated,
-        #      but that isn't repeated in more recent release notes...
-        @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is deprecated on CUDA 11+.
-                  Some functionality may be broken; It's recommended to switch to a different device.""",
-              maxlog=1, _id=devidx)
     end
     # ... or too new
     if !in(capability(dev), cuda_compat().cap)

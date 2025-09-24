@@ -74,6 +74,8 @@ let
     @test occursin("cuCtxGetCurrent", str)
 end
 
+if CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
+
 # NVTX markers
 let
     str = string(CUDA.@profile trace=true NVTX.@mark "a marker")
@@ -86,6 +88,8 @@ let
     str = string(CUDA.@profile trace=true NVTX.@range "a range" identity(nothing))
     @test occursin("NVTX ranges", str)
     @test occursin("a range", str)
+end
+
 end
 
 end
