@@ -23,7 +23,7 @@ Base.length(g::CuSparseDeviceVector) = g.len
 Base.size(g::CuSparseDeviceVector) = (g.len,)
 SparseArrays.nnz(g::CuSparseDeviceVector) = g.nnz
 
-struct CuSparseDeviceMatrixCSC{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
+struct CuSparseDeviceMatrixCSC{Tv,Ti,A} <: SparseArrays.AbstractSparseMatrixCSC{Tv,Ti}
     colPtr::CuDeviceVector{Ti, A}
     rowVal::CuDeviceVector{Ti, A}
     nzVal::CuDeviceVector{Tv, A}
