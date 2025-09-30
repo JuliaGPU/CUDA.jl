@@ -54,6 +54,7 @@ function SparseArrays.nonzeroinds(x::CuSparseDeviceColumnView)
     @inbounds y = view(SparseArrays.rowvals(A), SparseArrays.nzrange(A, colidx))
     return y
 end
+SparseArrays.rowvals(x::CuSparseDeviceColumnView) = SparseArrays.nonzeroinds(x)
 
 function SparseArrays.nnz(x::CuSparseDeviceColumnView)
     rowidx, colidx = parentindices(x)
