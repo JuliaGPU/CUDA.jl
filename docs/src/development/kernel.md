@@ -99,7 +99,7 @@ a `NamedTuple` with `x`, `y`, and `z` fields. The intrinsics return 1-based indi
 
 ## Kernel compilation requirements
 
-For custom kernels to work they need to need to meet certain requirements.
+For custom kernels to work they need to meet certain requirements.
 
 First, the memory must be accessible on the GPU. This can be enforced by using the correct
 types, e.g. CuArray's data with bits type. Custom structs can be ported as described in the
