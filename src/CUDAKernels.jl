@@ -64,7 +64,7 @@ function KA.device(::CUDABackend)
     deviceid(CUDA.active_state().device) + 1
 end
 
-function KA.device!(::CUDABackend, id::Int32)
+function KA.device!(::CUDABackend, id::Int)
     device!(id - 1)
 end
 
