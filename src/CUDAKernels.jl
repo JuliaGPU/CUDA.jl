@@ -60,7 +60,7 @@ function KA.ndevices(::CUDABackend)
     return Int(ndevices())
 end
 
-function KA.device(::CUDABackend)
+function KA.device(::CUDABackend)::Int
     deviceid(CUDA.active_state().device) + 1
 end
 
