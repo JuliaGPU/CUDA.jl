@@ -65,6 +65,9 @@ function KA.device(::CUDABackend)::Int
 end
 
 function KA.device!(::CUDABackend, id::Int)
+    if !(0 < id <= ndevices(backend))
+        throw(ArgumentError("Device id $id out of bounds."))
+    end
     device!(id - 1)
 end
 
