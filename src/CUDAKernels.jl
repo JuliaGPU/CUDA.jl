@@ -57,7 +57,7 @@ end
 ## device operations
 
 function KA.ndevices(::CUDABackend)
-    return ndevices()
+    return Int(ndevices())
 end
 
 function KA.device(::CUDABackend)
