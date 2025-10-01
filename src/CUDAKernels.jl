@@ -64,7 +64,7 @@ function KA.device(::CUDABackend)::Int
     deviceid(CUDA.active_state().device) + 1
 end
 
-function KA.device!(::CUDABackend, id::Int)
+function KA.device!(backend::CUDABackend, id::Int)
     if !(0 < id <= ndevices(backend))
         throw(ArgumentError("Device id $id out of bounds."))
     end
