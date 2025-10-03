@@ -110,6 +110,13 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     return LinearAlgebra._cut_B(BB, 1:n)
 end
 
+# make copyto! for Hermitian and Symmetric dispatch to the Base implementation
+# instead of being overridden by GPUArrays' dense copy (because of AnyGPUArray)
+Base.copyto!(dst::Symmetric{<:Any,<:CuMatrix}, src::Symmetric{<:Any,<:CuMatrix}) =
+    @invoke copyto!(dst::Symmetric, src::Symmetric)
+Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix}) =
+    @invoke copyto!(dst::Hermitian, src::Hermitian)
+
 # eigenvalues
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
