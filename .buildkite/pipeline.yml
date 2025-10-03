@@ -33,7 +33,7 @@ steps:
           build.message !~ /\[only/ &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip julia\]/
-        timeout_in_minutes: 60
+        timeout_in_minutes: 90
         matrix:
           setup:
             julia:
