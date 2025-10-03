@@ -168,7 +168,10 @@ end
 function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
                                  A::Union{AbstractArray,Broadcast.Broadcasted};
                                  init=nothing) where {F, OP, T}
-    Base.check_reducedims(R, A)
+    if !isa(A, Broadcast.Broadcasted)
+        # XXX: Base.axes isn't defined anymore for Broadcasted, breaking this check
+        Base.check_reducedims(R, A)
+    end
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
     dev = device()
 

@@ -13,6 +13,9 @@ end
                        ComplexF16, ComplexF32, ComplexF64]
         @test testf(dot, rand(T, 256), rand(Bool, 256))
         @test testf(dot, rand(Bool, 256), rand(T, 256))
+
+        @test testf(dot, rand(T, 256), rand(T, 256, 256), rand(Bool, 256))
+        @test testf(dot, rand(Bool, 256), rand(T, 256, 256), rand(T, 256))
     end
 
     @test testf(dot, rand(Bool, 1024, 1024), rand(Float64, 1024, 1024))
