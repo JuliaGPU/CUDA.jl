@@ -123,16 +123,12 @@ steps:
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
               Pkg.activate(joinpath("lib", lowercase("{{matrix.package}}")))
-              try
-                Pkg.instantiate()
-              catch
-                # if we fail to instantiate, assume that we need newer dependencies
-                deps = [PackageSpec(path=".")]
-                if "{{matrix.package}}" == "cuTensorNet"
-                  push!(deps, PackageSpec(path="lib/cutensor"))
-                end
-                Pkg.develop(deps)
+
+              deps = [PackageSpec(path=".")]
+              if "{{matrix.package}}" == "cuTensorNet"
+                push!(deps, PackageSpec(path="lib/cutensor"))
               end
+              Pkg.develop(deps)
 
               Pkg.add("CUDA_Runtime_jll")
               write(joinpath("lib", lowercase("{{matrix.package}}"), "LocalPreferences.toml"),
