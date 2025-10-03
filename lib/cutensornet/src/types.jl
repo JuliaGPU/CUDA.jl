@@ -110,12 +110,12 @@ mutable struct CuTensorNetwork{T}
     desc::CuTensorNetworkDescriptor
     input_modes::Vector{Vector{Int32}}
     input_extents::Vector{Vector{Int32}}
-    input_strides::Vector{<:Union{Ptr{Nothing}, Vector{Int32}}}
+    input_strides::Vector{<:Union{Ptr{Nothing}, Vector{Int64}}}
     input_qualifiers::Vector{cutensornetTensorQualifiers_t}
     input_arrs::Vector{CuArray{T}}
     output_modes::Vector{Int32}
     output_extents::Vector{Int32}
-    output_strides::Union{Ptr{Nothing}, Vector{Int32}}
+    output_strides::Union{Ptr{Nothing}, Vector{Int64}}
     output_arr::CuArray{T}
 end
 function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_qualifiers, output_modes, output_extents, output_strides)
