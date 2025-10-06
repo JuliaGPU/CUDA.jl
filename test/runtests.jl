@@ -440,16 +440,27 @@ elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
 println("Testing finished in $elapsed")
 
 # construct a testset to render the test results
-completed_tests = Set{String}()
 o_ts = Test.DefaultTestSet("Overall")
-@static if VERSION < v"1.13.0-DEV.1044"
-    Test.push_testset(o_ts)
+function with_testset(f, testset)
+    @static if VERSION >= v"1.13.0-DEV.1044"
+        Test.@with_testset testset f()
+    else
+        Test.push_testset(testset)
+        try
+            f()
+        finally
+            Test.pop_testset()
+        end
+    end
+end
+with_testset(o_ts) do
+    completed_tests = Set{String}()
     for (testname, (resp,)) in results
         push!(completed_tests, testname)
         if isa(resp, Test.DefaultTestSet)
-            Test.push_testset(resp)
-            Test.record(o_ts, resp)
-            Test.pop_testset()
+            with_testset(resp) do
+                Test.record(o_ts, resp)
+            end
         elseif isa(resp, Tuple{Int,Int})
             fake = Test.DefaultTestSet(testname)
             for i in 1:resp[1]
@@ -458,9 +469,9 @@ o_ts = Test.DefaultTestSet("Overall")
             for i in 1:resp[2]
                 Test.record(fake, Test.Broken(:test, nothing))
             end
-            Test.push_testset(fake)
-            Test.record(o_ts, fake)
-            Test.pop_testset()
+            with_testset(fake) do
+                Test.record(o_ts, fake)
+            end
         elseif isa(resp, RemoteException) && isa(resp.captured.ex, Test.TestSetException)
             println("Worker $(resp.pid) failed running test $(testname):")
             Base.showerror(stdout, resp.captured)
@@ -475,9 +486,9 @@ o_ts = Test.DefaultTestSet("Overall")
             for t in resp.captured.ex.errors_and_fails
                 Test.record(fake, t)
             end
-            Test.push_testset(fake)
-            Test.record(o_ts, fake)
-            Test.pop_testset()
+            with_testset(fake) do
+                Test.record(o_ts, fake)
+            end
         else
             if !isa(resp, Exception)
                 resp = ErrorException(string("Unknown result type : ", typeof(resp)))
@@ -487,84 +498,25 @@ o_ts = Test.DefaultTestSet("Overall")
             # the test runner itself had some problem, so we may have hit a segfault,
             # deserialization errors or something similar.  Record this testset as Errored.
             fake = Test.DefaultTestSet(testname)
-            Test.record(fake, Test.Error(:nontest_error, testname, nothing, Any[(resp, [])], LineNumberNode(1)))
-            Test.push_testset(fake)
-            Test.record(o_ts, fake)
-            Test.pop_testset()
-        end
-    end
-else
-    Test.@with_testset o_ts begin
-        for (testname, (resp,)) in results
-            push!(completed_tests, testname)
-            if isa(resp, Test.DefaultTestSet)
-                Test.@with_testset resp begin 
-                    Test.record(o_ts, resp)
-                end 
-            elseif isa(resp, Tuple{Int,Int})
-                fake = Test.DefaultTestSet(testname)
-                for i in 1:resp[1]
-                    Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-                end
-                for i in 1:resp[2]
-                    Test.record(fake, Test.Broken(:test, nothing))
-                end
-                Test.@with_testset fake begin
-                    Test.record(o_ts, fake)
-                end
-            elseif isa(resp, RemoteException) && isa(resp.captured.ex, Test.TestSetException)
-                println("Worker $(resp.pid) failed running test $(testname):")
-                Base.showerror(stdout, resp.captured)
-                println()
-                fake = Test.DefaultTestSet(testname)
-                for i in 1:resp.captured.ex.pass
-                    Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-                end
-                for i in 1:resp.captured.ex.broken
-                    Test.record(fake, Test.Broken(:test, nothing))
-                end
-                for t in resp.captured.ex.errors_and_fails
-                    Test.record(fake, t)
-                end
-                Test.@with_testset fake begin
-                    Test.record(o_ts, fake)
-                end
-            else
-                if !isa(resp, Exception)
-                    resp = ErrorException(string("Unknown result type : ", typeof(resp)))
-                end
-                # If this test raised an exception that is not a remote testset exception,
-                # i.e. not a RemoteException capturing a TestSetException that means
-                # the test runner itself had some problem, so we may have hit a segfault,
-                # deserialization errors or something similar.  Record this testset as Errored.
-                fake = Test.DefaultTestSet(testname)
-                Test.record(fake, Test.Error(:nontest_error, testname, nothing, Base.ExceptionStack([(exception=resp,backtrace=[])]), LineNumberNode(1)))
-                Test.@with_testset fake begin
-                    Test.record(o_ts, fake)
-                end
+            Test.record(fake, Test.Error(:nontest_error, testname, nothing, Base.ExceptionStack([(exception=resp,backtrace=[])]), LineNumberNode(1)))
+            with_testset(fake) do
+                Test.record(o_ts, fake)
             end
         end
     end
-end
-for test in tests
-    (test in completed_tests) && continue
-    fake = Test.DefaultTestSet(test)
-    @static if VERSION < v"1.13.0-DEV.1044"
-        Test.record(fake, Test.Error(:test_interrupted, test, nothing,
-                                        [("skipped", [])], LineNumberNode(1)))
-        Test.push_testset(fake)
-        Test.record(o_ts, fake)
-        Test.pop_testset()
-    else
+    for test in tests
+        (test in completed_tests) && continue
+        fake = Test.DefaultTestSet(test)
         Test.record(fake, Test.Error(:test_interrupted, test, nothing, Base.ExceptionStack([(exception="skipped",backtrace=[])]), LineNumberNode(1)))
-        Test.@with_testset fake begin
+        with_testset(fake) do
             Test.record(o_ts, fake)
         end
     end
 end
 println()
 Test.print_test_results(o_ts, 1)
-if !o_ts.anynonpass
+if (VERSION >= v"1.13.0-DEV.1037" && !Test.anynonpass(o_ts)) ||
+   (VERSION < v"1.13.0-DEV.1037" && !o_ts.anynonpass)
     println("    \033[32;1mSUCCESS\033[0m")
 else
     println("    \033[31;1mFAILURE\033[0m\n")
