@@ -192,7 +192,7 @@ function return_type(@nospecialize(func), @nospecialize(tt))
     job = CompilerJob(source, config)
     interp = GPUCompiler.get_interpreter(job)
     sig = Base.signature_type(func, tt)
-    Core.Compiler.return_type(interp, sig)
+    Core.Compiler._return_type(interp, sig)
 end
 
 
