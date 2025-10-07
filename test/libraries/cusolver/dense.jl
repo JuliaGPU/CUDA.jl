@@ -148,8 +148,8 @@ k = 1
             A = diag == 'N' ? A : A - Diagonal(A) + I
             dA = triangle(view(CuArray(A), 1:2:n, 1:2:n)) # without this view, we are hitting the CUBLAS method!
             dA⁻¹ = inv(dA)
-            dI = CuArray(dA) * CuArray(dA⁻¹)
-            @test Array(dI) ≈ I
+            hI = triangle(Array(parent(dA))) * Array(parent(dA⁻¹))
+            @test hI ≈ I
         end
     end
 
