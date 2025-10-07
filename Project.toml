@@ -53,7 +53,7 @@ SpecialFunctionsExt = "SpecialFunctions"
 [compat]
 AbstractFFTs = "0.5, 1.0"
 Adapt = "4"
-BFloat16s = "0.5"
+BFloat16s = "0.5, 0.6"
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDA_Compiler_jll = "0.2"
 CUDA_Driver_jll = "13"
