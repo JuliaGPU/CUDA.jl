@@ -5787,6 +5787,7 @@ end
     CUSPARSE_SPMV_COO_ALG1 = 1
     CUSPARSE_SPMV_COO_ALG2 = 4
     CUSPARSE_SPMV_SELL_ALG1 = 5
+    CUSPARSE_SPMV_BSR_ALG1 = 6
 end
 
 @checked function cusparseSpMV(handle, opA, alpha, matA, vecX, beta, vecY, computeType, alg,
