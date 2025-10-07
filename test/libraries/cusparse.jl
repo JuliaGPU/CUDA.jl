@@ -950,7 +950,7 @@ end
                         T = uplo == 'L' ? tril(T) : triu(T)
                         T = diag == 'N' ? T : T - Diagonal(T) + I
                         T = sparse(T)
-                        d_T = SparseMatrixType(CuSparseMatrixCSR(T), blockdim)
+                        d_T = CuSparseMatrixBSR(CuSparseMatrixCSR(T), blockdim)
                         x = rand(elty,n)
                         d_x = CuVector{elty}(x)
                         d_y = CUSPARSE.sv2(trans, uplo, diag, d_T, d_x, 'O')
@@ -971,7 +971,7 @@ end
                                 T = uplo == 'L' ? tril(T) : triu(T)
                                 T = diag == 'N' ? T : T - Diagonal(T) + I
                                 T = sparse(T)
-                                d_T = SparseMatrixType(CuSparseMatrixCSR(T), blockdim)
+                                d_T = CuSparseMatrixBSR(CuSparseMatrixCSR(T), blockdim)
                                 X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
                                 d_X = CuMatrix{elty}(X)
                                 d_Y = CUSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
