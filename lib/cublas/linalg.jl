@@ -4,6 +4,7 @@ using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!,
 @static if VERSION ≥ v"1.12.0-rc"
     # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
     using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag
+    import LinearAlgebra: symm!, herm!
 end
 #
 # BLAS 1
