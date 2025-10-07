@@ -276,6 +276,7 @@ the API calls that have been made:
 
 !["NVIDIA Nsight Compute - API inspection"](nsight_compute-api.png)
 
+Note that command line execution of Julia scripts also works. Run `ncu julia myscript.jl` without `--mode=launch` to profile the entire script. Use the ncu command linge arguments if desired.
 
 #### Troubleshooting Nsight Compute
 
@@ -352,6 +353,14 @@ distribution's documentation for details.
 
 Make sure `Break On API Error` is disabled in the `Debug` menu, as CUDA.jl purposefully
 triggers some API errors as part of its normal operation.
+
+##### NaN values as output in NSight Compute.
+
+Incompatibility between ncu and julia CUDA version. Run `ncu --version` to find which CUDA toolkit is being used. In Julia set `CUDA.set_runtime_version!(v"xx.x")` to the same version. This version may be lower than the driver version output in `nvidia-smi`, but not higher.
+
+##### "Profiling is not supported on this device" error
+
+Nsight Compute does not support the GPU you have. Run `ncu --list-chips` to verify. Either delete newer versions of CUDA Toolkit and set the environment variable `CUDA_PATH` to a previous version, or install a newer version. 
 
 
 ## Source-code annotations
