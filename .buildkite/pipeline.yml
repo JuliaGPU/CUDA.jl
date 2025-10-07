@@ -94,7 +94,6 @@ steps:
               soft_fail: true
         commands: |
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
-          echo -e "[CUDA_Driver_jll]\ncompat = \"false\"" >>LocalPreferences.toml
 
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
@@ -337,7 +336,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
-        timeout_in_minutes: 60
+        timeout_in_minutes: 90
 
       - label: "Legacy memory allocator"
         plugins:
@@ -414,6 +413,9 @@ steps:
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
         timeout_in_minutes: 45
+        # the multi-GPU runners contain a RTX 5000 that's incompatible with CUDA 13
+        commands: |
+          echo -e "[CUDA_Runtime_jll]\nversion = \"12.9\"" >LocalPreferences.toml
 
   - wait: ~
     continue_on_failure: true
