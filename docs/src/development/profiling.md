@@ -356,7 +356,7 @@ triggers some API errors as part of its normal operation.
 
 ##### NaN values as output in NSight Compute.
 
-Incompatibility between ncu and julia CUDA version. Run `ncu --version` to find which CUDA toolkit is being used. In Julia set `CUDA.set_runtime_version!(v"xx.x")` to the same version. This version may be lower than the driver version output in `nvidia-smi`, but not higher.
+Incompatibility between the ncu and Julia CUDA version. Run `ncu --version` to find which CUDA toolkit is being used. In Julia set `CUDA.set_runtime_version!(v"xx.x")` to the same version. This version may be lower than the driver version output in `nvidia-smi`, but not higher.
 
 ##### "Profiling is not supported on this device" error
 
