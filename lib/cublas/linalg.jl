@@ -3,8 +3,7 @@
 using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!, lmul!
 @static if VERSION ≥ v"1.12.0-rc"
     # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
-    using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag
-    import LinearAlgebra: symm!, herm!
+    using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
 end
 #
 # BLAS 1
@@ -319,6 +318,22 @@ end
 @static if VERSION ≥ v"1.12.0-rc"
     function LinearAlgebra.generic_matmatmul_wrapper!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}, alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:CublasFloat}
         LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
+    end
+    function LinearAlgebra._symm_hemm_generic!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}, alpha, beta, ::Val{BlasFlag.SYMM}) where {T}
+        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
+        if lrchar == 'L'
+            symm!(lrchar, ulchar, alpha, A, B, beta, C)
+        else
+            symm!(lrchar, ulchar, alpha, B, A, beta, C)
+        end
+    end
+    function LinearAlgebra._symm_hemm_generic!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}, alpha, beta, ::Val{BlasFlag.HEMM}) where {T}
+        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
+        if lrchar == 'L'
+            hemm!(lrchar, ulchar, alpha, A, B, beta, C)
+        else
+            hemm!(lrchar, ulchar, alpha, B, A, beta, C)
+        end
     end
 end
 
