@@ -757,8 +757,7 @@ end
         alpha = rand(elty)
         beta = rand(elty)
         @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
-                                              CuSparseMatrixCSC(A),
-                                              CuSparseMatrixBSR(A, blockdim)]
+                                              CuSparseMatrixCSC(A)]
             d_x = CuArray(x)
             d_y = CuArray(y)
             @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
@@ -767,9 +766,16 @@ end
             h_z = collect(d_y)
             z = alpha * A * x + beta * y
             @test z ≈ h_z
-            #if d_A isa CuSparseMatrixCSR
-            #    @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
-            #end
+        end
+        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixBSR(A, blockdim)]
+            d_x = CuArray(x)
+            d_y = CuArray(y)
+            @test_throws DimensionMismatch CUSPARSE.mv2!('T',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch CUSPARSE.mv2!('N',alpha,d_A,d_y,beta,d_x,'O')
+            CUSPARSE.mv2!('N',alpha,d_A,d_x,beta,d_y,'O')
+            h_z = collect(d_y)
+            z = alpha * A * x + beta * y
+            @test z ≈ h_z
         end
     end
 
