@@ -25,7 +25,6 @@ const SparseChar = Char
 
 # core library
 include("libcusparse.jl")
-include("libcusparse_deprecated.jl")
 
 include("error.jl")
 include("array.jl")
