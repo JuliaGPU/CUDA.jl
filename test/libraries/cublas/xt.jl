@@ -26,6 +26,7 @@ k = 13
             dB = CuArray(B)
             dC = CuArray(C)
             C = alpha*A*B
+            synchronize()
             CUBLAS.xt_trmm!('L','U','N','N',alpha,dA,dB,dC)
             # move to host and compare
             h_C = Array(dC)
@@ -40,6 +41,7 @@ k = 13
             CUBLAS.xt_trmm!('L','U','N','N',alpha,copy(A),copy(B),h_C)
             @test C ≈ h_C
         end
+
         @testset "xt_trmm gpu" begin
             alpha = rand(elty)
             A = triu(rand(elty, m, m))
@@ -49,6 +51,7 @@ k = 13
             dB = CuArray(B)
             dC = CuArray(C)
             C = alpha*A*B
+            synchronize()
             d_C = CUBLAS.xt_trmm('L','U','N','N',alpha,dA,dB)
             # move to host and compare
             @test d_C isa CuArray
@@ -79,6 +82,16 @@ k = 13
             h_C = Array(dC)
             @test C ≈ h_C
         end
+        @testset "xt_trsm! cpu" begin
+            alpha = rand(elty)
+            A = triu(rand(elty, m, m))
+            B = rand(elty,m,n)
+            C = alpha*(A\B)
+            h_C = copy(B)
+            CUBLAS.xt_trsm!('L','U','N','N',alpha,copy(A),h_C)
+            @test C ≈ h_C
+        end
+
         @testset "xt_symm! gpu" begin
             alpha = rand(elty)
             beta = rand(elty)
@@ -90,6 +103,7 @@ k = 13
             Bbad = rand(elty,m+1,n+1)
             d_B = CuArray(B)
             d_C = CuArray(C)
+            synchronize()
             CUBLAS.xt_symm!('L','U',alpha,dsA,d_B,beta,d_C)
             C = (alpha*sA)*B + beta*C
             # compare
@@ -103,7 +117,7 @@ k = 13
             sA = sA + transpose(sA)
             B = rand(elty,m,n)
             C = rand(elty,m,n)
-            h_C = copy(C) 
+            h_C = copy(C)
             CUBLAS.xt_symm!('L','U',alpha,copy(sA),copy(B),beta,h_C)
             C = (alpha*sA)*B + beta*C
             # compare
@@ -120,6 +134,7 @@ k = 13
             dsA = CuArray(sA)
             B = rand(elty,m,n)
             d_B = CuArray(B)
+            synchronize()
             d_C = CUBLAS.xt_symm('L','U',dsA,d_B)
             C = sA*B
             # compare
@@ -137,13 +152,14 @@ k = 13
             @test h_C isa Array
             @test C ≈ h_C
         end
+
         @testset "xt_gemm! gpu" begin
             alpha = rand(elty)
             beta = rand(elty)
             A = rand(elty,m,k)
             B = rand(elty,k,n)
             C1  = rand(elty,m,n)
-            C2  = copy(C1) 
+            C2  = copy(C1)
             d_A = CuArray(A)
             d_B = CuArray(B)
             Bbad = rand(elty,k+1,n+1)
@@ -179,6 +195,7 @@ k = 13
             @test C1 ≈ C3
             @test C2 ≈ C4
         end
+
         @testset "xt_gemm gpu" begin
             A = rand(elty,m,k)
             B = rand(elty,k,n)
@@ -205,16 +222,7 @@ k = 13
             @test C ≈ A*B
             @test C ≈ C2
         end
-        @testset "xt_trsm! cpu" begin
-            alpha = rand(elty)
-            A = triu(rand(elty, m, m))
-            B = rand(elty,m,n)
-            C = alpha*(A\B)
-            h_C = copy(B)
-            synchronize()
-            CUBLAS.xt_trsm!('L','U','N','N',alpha,copy(A),h_C)
-            @test C ≈ h_C
-        end
+
         @testset "xt_trsm gpu" begin
             alpha = rand(elty)
             A = triu(rand(elty, m, m))
@@ -239,6 +247,7 @@ k = 13
             @test h_C isa Array
             @test C ≈ h_C
         end
+
         @testset "xt_syrkx! gpu" begin
             alpha = rand(elty)
             beta = rand(elty)
@@ -277,6 +286,7 @@ k = 13
             # move to host and compare
             @test triu(final_C) ≈ triu(syrkx_C)
         end
+
         @testset "xt_syrkx gpu" begin
             # generate matrices
             syrkx_A = rand(elty, n, k)
@@ -300,10 +310,12 @@ k = 13
             @test h_C isa Array
             @test triu(final_C) ≈ triu(h_C)
         end
+
         @testset "xt_syrk gpu" begin
             # C = A*transpose(A)
             A = rand(elty,m,k)
             d_A = CuArray(A)
+            synchronize()
             d_C = CUBLAS.xt_syrk('U','N',d_A)
             C = A*transpose(A)
             C = triu(C)
@@ -324,6 +336,7 @@ k = 13
             h_C = triu(C)
             @test C ≈ h_C
         end
+
         if elty <: Complex
             @testset "xt_hemm! gpu" begin
                 alpha = rand(elty)
@@ -335,6 +348,7 @@ k = 13
                 C = rand(elty,m,n)
                 d_B = CuArray(B)
                 d_C = CuArray(C)
+                synchronize()
                 # compute
                 C = alpha*(hA*B) + beta*C
                 CUBLAS.xt_hemm!('L','L',alpha,dhA,d_B,beta,d_C)
@@ -355,12 +369,14 @@ k = 13
                 CUBLAS.xt_hemm!('L','L',alpha,copy(hA),copy(B),beta,h_C)
                 @test C ≈ h_C
             end
+
             @testset "xt_hemm gpu" begin
                 hA  = rand(elty,m,m)
                 hA  = hA + hA'
                 dhA = CuArray(hA)
                 B   = rand(elty,m,n)
                 d_B = CuArray(B)
+                synchronize()
                 C   = hA*B
                 d_C = CUBLAS.xt_hemm('L','U',dhA, d_B)
                 # move to host and compare
@@ -378,6 +394,7 @@ k = 13
                 @test h_C isa Array
                 @test C ≈ h_C
             end
+
             @testset "xt_herk! gpu" begin
                 alpha = rand(elty)
                 beta = rand(elty)
@@ -407,6 +424,7 @@ k = 13
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
+
             @testset "xt_herk gpu" begin
                 A = rand(elty,m,m)
                 d_A = CuArray(A)
@@ -430,6 +448,7 @@ k = 13
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
+
             @testset "xt_her2k! gpu" begin
                 elty1 = elty
                 elty2 = real(elty)
@@ -475,6 +494,7 @@ k = 13
                 C = rand(elty,m,m)
                 @test_throws DimensionMismatch CUBLAS.xt_her2k!('U','N',α,A,B,β,h_C)
             end
+
             @testset "xt_her2k gpu" begin
                 # generate parameters
                 A = rand(elty,m,k)
@@ -507,6 +527,7 @@ k = 13
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
+
             @testset "her2k" begin
                 A = rand(elty,m,k)
                 B = rand(elty,m,k)

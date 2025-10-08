@@ -1,3 +1,6 @@
+# XXX: these tests occasionally hang under compute-sanitizer
+if !sanitize
+
 host_error_re = r"ERROR: (KernelException: exception thrown during kernel execution on device|CUDA error: an illegal instruction was encountered|CUDA error: unspecified launch failure)"
 device_error_re = r"ERROR: a \w+ was thrown during kernel execution"
 
@@ -74,6 +77,8 @@ let (proc, out, err) = julia_exec(`-g2 -e $script`)
     @test occursin(device_error_re, out)
     @test occursin("foo at $(joinpath(".", "none"))", out)
     @test occursin("bar at $(joinpath(".", "none"))", out)
+end
+
 end
 
 end
