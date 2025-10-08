@@ -121,11 +121,6 @@ if isempty(ARGS)
         return false
     end
 
-    if sanitize && test == "base/exceptions"
-        # XXX: these tests occasionally hang under compute-sanitizer
-        return false
-    end
-
     return true
   end
 else
