@@ -238,7 +238,7 @@ nB = 2
                             ldiv!(triangle(opa(dA)), opb(dD))
                             @test B ≈ collect(dB)
                         end
-                        if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || CUSPARSE.version() != v"12.0")
+                        if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || v"12.2" < CUSPARSE.version())
                             @testset "ldiv! -- (CuMatrix, CuMatrix)" begin
                                 C = rand(elty, m, nB)
                                 dC = CuArray(C)
