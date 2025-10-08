@@ -944,8 +944,8 @@ if length(devices()) > 1
 
     # now do the same, but with the other context active when copying
     device!(dev)
-    data = rand(5, 5)
-    a = CuArray(data)
+    rand!(data)
+    copyto!(a, data)
 
     copyto!(b, a)
 
