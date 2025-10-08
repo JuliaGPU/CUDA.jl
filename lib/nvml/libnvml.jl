@@ -488,14 +488,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#270"
+struct var"##Ctag#272"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#270"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#272"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -504,14 +504,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#270"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#270", f::Symbol)
-    r = Ref{var"##Ctag#270"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#270"}, r)
+function Base.getproperty(x::var"##Ctag#272", f::Symbol)
+    r = Ref{var"##Ctag#272"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#272"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#270"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#272"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -521,7 +521,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#270"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#272"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1006,6 +1006,10 @@ end
 
 const nvmlPlatformInfo_t = nvmlPlatformInfo_v2_t
 
+struct nvmlHostname_v1_t
+    value::NTuple{64,Cchar}
+end
+
 struct nvmlEccSramUniqueUncorrectedErrorEntry_v1_t
     unit::Cuint
     location::Cuint
@@ -1039,13 +1043,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#268"
+struct var"##Ctag#270"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#268"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#270"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1053,14 +1057,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#268"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#268", f::Symbol)
-    r = Ref{var"##Ctag#268"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#268"}, r)
+function Base.getproperty(x::var"##Ctag#270", f::Symbol)
+    r = Ref{var"##Ctag#270"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#270"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#268"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#270"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1070,7 +1074,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#268"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#270"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1351,8 +1355,8 @@ struct nvmlVgpuSchedulerParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#266"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#267"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#268"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#269"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1459,8 +1463,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#271"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#272"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#273"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#274"}(x + 0)
     return getfield(x, f)
 end
 
@@ -3300,6 +3304,18 @@ end
                                                pdi::Ptr{nvmlPdi_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceSetHostname_v1(device, hostname)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceSetHostname_v1(device::nvmlDevice_t,
+                                                       hostname::Ptr{nvmlHostname_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetHostname_v1(device, hostname)
+    initialize_context()
+    @gcsafe_ccall (libnvml()).nvmlDeviceGetHostname_v1(device::nvmlDevice_t,
+                                                       hostname::Ptr{nvmlHostname_v1_t})::nvmlReturn_t
+end
+
 @checked function nvmlUnitSetLedState(unit, color)
     initialize_context()
     @gcsafe_ccall (libnvml()).nvmlUnitSetLedState(unit::nvmlUnit_t,
@@ -4876,26 +4892,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#269"
+struct var"##Ctag#271"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#269"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#271"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#269", f::Symbol)
-    r = Ref{var"##Ctag#269"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#269"}, r)
+function Base.getproperty(x::var"##Ctag#271", f::Symbol)
+    r = Ref{var"##Ctag#271"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#271"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#269"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#271"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -4907,7 +4923,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#269"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#271"}(x + 16)
     return getfield(x, f)
 end
 
@@ -5270,83 +5286,83 @@ end
                                                        pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#266"
+struct var"##Ctag#268"
     avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#266"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#268"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :timeslice && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#266", f::Symbol)
-    r = Ref{var"##Ctag#266"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#266"}, r)
+function Base.getproperty(x::var"##Ctag#268", f::Symbol)
+    r = Ref{var"##Ctag#268"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#268"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#266"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#268"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#267"
+struct var"##Ctag#269"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#267"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#269"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#267", f::Symbol)
-    r = Ref{var"##Ctag#267"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#267"}, r)
+function Base.getproperty(x::var"##Ctag#269", f::Symbol)
+    r = Ref{var"##Ctag#269"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#269"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#267"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#269"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#271"
+struct var"##Ctag#273"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#271"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#273"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#271", f::Symbol)
-    r = Ref{var"##Ctag#271"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#271"}, r)
+function Base.getproperty(x::var"##Ctag#273", f::Symbol)
+    r = Ref{var"##Ctag#273"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#273"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#271"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#273"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#272"
+struct var"##Ctag#274"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#272"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#274"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#272", f::Symbol)
-    r = Ref{var"##Ctag#272"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#272"}, r)
+function Base.getproperty(x::var"##Ctag#274", f::Symbol)
+    r = Ref{var"##Ctag#274"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#274"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#272"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#274"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -5435,6 +5451,8 @@ const nvmlEccSramErrorStatus_v1 = @NVML_STRUCT_VERSION(EccSramErrorStatus, 1)
 const nvmlPlatformInfo_v1 = @NVML_STRUCT_VERSION(PlatformInfo, 1)
 
 const nvmlPlatformInfo_v2 = @NVML_STRUCT_VERSION(PlatformInfo, 2)
+
+const NVML_DEVICE_HOSTNAME_BUFFER_SIZE = 64
 
 const nvmlEccSramUniqueUncorrectedErrorCounts_v1 = @NVML_STRUCT_VERSION(EccSramUniqueUncorrectedErrorCounts,
                                                                         1)
@@ -6128,55 +6146,55 @@ const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_14 = 249
 
 const NVML_FI_DEV_NVLINK_COUNT_FEC_HISTORY_15 = 250
 
+const NVML_FI_PWR_SMOOTHING_ENABLED = 251
+
+const NVML_FI_PWR_SMOOTHING_PRIV_LVL = 252
+
+const NVML_FI_PWR_SMOOTHING_IMM_RAMP_DOWN_ENABLED = 253
+
+const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_CEIL = 254
+
+const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_FLOOR = 255
+
+const NVML_FI_PWR_SMOOTHING_MAX_PERCENT_TMP_FLOOR_SETTING = 256
+
+const NVML_FI_PWR_SMOOTHING_MIN_PERCENT_TMP_FLOOR_SETTING = 257
+
+const NVML_FI_PWR_SMOOTHING_HW_CIRCUITRY_PERCENT_LIFETIME_REMAINING = 258
+
+const NVML_FI_PWR_SMOOTHING_MAX_NUM_PRESET_PROFILES = 259
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_PERCENT_TMP_FLOOR = 260
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_UP_RATE = 261
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_RATE = 262
+
+const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_HYST_VAL = 263
+
+const NVML_FI_PWR_SMOOTHING_ACTIVE_PRESET_PROFILE = 264
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_PERCENT_TMP_FLOOR = 265
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_UP_RATE = 266
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_RATE = 267
+
+const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_HYST_VAL = 268
+
 const NVML_FI_DEV_CLOCKS_EVENT_REASON_SW_POWER_CAP = NVML_FI_DEV_PERF_POLICY_POWER
 
 const NVML_FI_DEV_CLOCKS_EVENT_REASON_SYNC_BOOST = NVML_FI_DEV_PERF_POLICY_SYNC_BOOST
 
-const NVML_FI_DEV_CLOCKS_EVENT_REASON_SW_THERM_SLOWDOWN = 251
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_SW_THERM_SLOWDOWN = 269
 
-const NVML_FI_DEV_CLOCKS_EVENT_REASON_HW_THERM_SLOWDOWN = 252
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_HW_THERM_SLOWDOWN = 270
 
-const NVML_FI_DEV_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN = 253
+const NVML_FI_DEV_CLOCKS_EVENT_REASON_HW_POWER_BRAKE_SLOWDOWN = 271
 
-const NVML_FI_DEV_POWER_SYNC_BALANCING_FREQ = 254
+const NVML_FI_DEV_POWER_SYNC_BALANCING_FREQ = 272
 
-const NVML_FI_DEV_POWER_SYNC_BALANCING_AF = 255
-
-const NVML_FI_PWR_SMOOTHING_ENABLED = 256
-
-const NVML_FI_PWR_SMOOTHING_PRIV_LVL = 257
-
-const NVML_FI_PWR_SMOOTHING_IMM_RAMP_DOWN_ENABLED = 258
-
-const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_CEIL = 259
-
-const NVML_FI_PWR_SMOOTHING_APPLIED_TMP_FLOOR = 260
-
-const NVML_FI_PWR_SMOOTHING_MAX_PERCENT_TMP_FLOOR_SETTING = 261
-
-const NVML_FI_PWR_SMOOTHING_MIN_PERCENT_TMP_FLOOR_SETTING = 262
-
-const NVML_FI_PWR_SMOOTHING_HW_CIRCUITRY_PERCENT_LIFETIME_REMAINING = 263
-
-const NVML_FI_PWR_SMOOTHING_MAX_NUM_PRESET_PROFILES = 264
-
-const NVML_FI_PWR_SMOOTHING_PROFILE_PERCENT_TMP_FLOOR = 265
-
-const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_UP_RATE = 266
-
-const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_RATE = 267
-
-const NVML_FI_PWR_SMOOTHING_PROFILE_RAMP_DOWN_HYST_VAL = 268
-
-const NVML_FI_PWR_SMOOTHING_ACTIVE_PRESET_PROFILE = 269
-
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_PERCENT_TMP_FLOOR = 270
-
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_UP_RATE = 271
-
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_RATE = 272
-
-const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_RAMP_DOWN_HYST_VAL = 273
+const NVML_FI_DEV_POWER_SYNC_BALANCING_AF = 273
 
 const NVML_FI_MAX = 274
 
@@ -6415,6 +6433,10 @@ const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCORRECT_CHASSIS_SN =
 const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_NO_PARTITION = 4
 
 const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INSUFFICIENT_NVLINKS = 5
+
+const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCOMPATIBLE_GPU_FW = 6
+
+const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION = 7
 
 const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION = 8
 

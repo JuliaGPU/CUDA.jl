@@ -762,7 +762,8 @@ end
     CUBLASLT_MATMUL_STAGES_64xAUTO = 35
     CUBLASLT_MATMUL_STAGES_128xAUTO = 36
     CUBLASLT_MATMUL_STAGES_256xAUTO = 37
-    CUBLASLT_MATMUL_STAGES_END = 38
+    CUBLASLT_MATMUL_STAGES_768xAUTO = 38
+    CUBLASLT_MATMUL_STAGES_END = 39
 end
 
 @cenum cublasLtClusterShape_t::UInt32 begin
@@ -1343,7 +1344,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2520:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2521:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t

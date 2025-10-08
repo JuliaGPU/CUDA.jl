@@ -5918,11 +5918,13 @@ end
 @checked function cublasHSHgemvBatched_64(handle, trans, m, n, alpha, Aarray, lda, xarray,
                                           incx, beta, yarray, incy, batchCount)
     initialize_context()
-    @ccall libcublas.cublasHSHgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
+    @ccall libcublas.cublasHSHgemvBatched_64(handle::cublasHandle_t,
+                                             trans::cublasOperation_t,
                                              m::Int64, n::Int64, alpha::CuRef{Cfloat},
                                              Aarray::CuPtr{Ptr{Float16}}, lda::Int64,
                                              xarray::CuPtr{Ptr{Float16}}, incx::Int64,
-                                             beta::CuRef{Cfloat}, yarray::CuPtr{Ptr{Float16}},
+                                             beta::CuRef{Cfloat},
+                                             yarray::CuPtr{Ptr{Float16}},
                                              incy::Int64, batchCount::Int64)::cublasStatus_t
 end
 
@@ -5940,11 +5942,13 @@ end
 @checked function cublasHSSgemvBatched_64(handle, trans, m, n, alpha, Aarray, lda, xarray,
                                           incx, beta, yarray, incy, batchCount)
     initialize_context()
-    @ccall libcublas.cublasHSSgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
+    @ccall libcublas.cublasHSSgemvBatched_64(handle::cublasHandle_t,
+                                             trans::cublasOperation_t,
                                              m::Int64, n::Int64, alpha::CuRef{Cfloat},
                                              Aarray::CuPtr{Ptr{Float16}}, lda::Int64,
                                              xarray::CuPtr{Ptr{Float16}}, incx::Int64,
-                                             beta::CuRef{Cfloat}, yarray::CuPtr{Ptr{Cfloat}},
+                                             beta::CuRef{Cfloat},
+                                             yarray::CuPtr{Ptr{Cfloat}},
                                              incy::Int64, batchCount::Int64)::cublasStatus_t
 end
 
@@ -5962,7 +5966,8 @@ end
 @checked function cublasTSTgemvBatched_64(handle, trans, m, n, alpha, Aarray, lda, xarray,
                                           incx, beta, yarray, incy, batchCount)
     initialize_context()
-    @ccall libcublas.cublasTSTgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
+    @ccall libcublas.cublasTSTgemvBatched_64(handle::cublasHandle_t,
+                                             trans::cublasOperation_t,
                                              m::Int64, n::Int64, alpha::Ptr{Cfloat},
                                              Aarray::Ptr{Ptr{BFloat16}}, lda::Int64,
                                              xarray::Ptr{Ptr{BFloat16}}, incx::Int64,
@@ -5984,7 +5989,8 @@ end
 @checked function cublasTSSgemvBatched_64(handle, trans, m, n, alpha, Aarray, lda, xarray,
                                           incx, beta, yarray, incy, batchCount)
     initialize_context()
-    @ccall libcublas.cublasTSSgemvBatched_64(handle::cublasHandle_t, trans::cublasOperation_t,
+    @ccall libcublas.cublasTSSgemvBatched_64(handle::cublasHandle_t,
+                                             trans::cublasOperation_t,
                                              m::Int64, n::Int64, alpha::Ptr{Cfloat},
                                              Aarray::Ptr{Ptr{BFloat16}}, lda::Int64,
                                              xarray::Ptr{Ptr{BFloat16}}, incx::Int64,
@@ -6007,12 +6013,14 @@ end
                                                  batchCount::Cint)::cublasStatus_t
 end
 
-@checked function cublasHSHgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda, strideA,
+@checked function cublasHSHgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda,
+                                                 strideA,
                                                  x, incx, stridex, beta, y, incy, stridey,
                                                  batchCount)
     initialize_context()
     @ccall libcublas.cublasHSHgemvStridedBatched_64(handle::cublasHandle_t,
-                                                    trans::cublasOperation_t, m::Int64, n::Int64,
+                                                    trans::cublasOperation_t, m::Int64,
+                                                    n::Int64,
                                                     alpha::CuRef{Cfloat}, A::CuPtr{Float16},
                                                     lda::Int64, strideA::Clonglong,
                                                     x::CuPtr{Float16}, incx::Int64,
@@ -6037,12 +6045,14 @@ end
                                                  batchCount::Cint)::cublasStatus_t
 end
 
-@checked function cublasHSSgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda, strideA,
+@checked function cublasHSSgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda,
+                                                 strideA,
                                                  x, incx, stridex, beta, y, incy, stridey,
                                                  batchCount)
     initialize_context()
     @ccall libcublas.cublasHSSgemvStridedBatched_64(handle::cublasHandle_t,
-                                                    trans::cublasOperation_t, m::Int64, n::Int64,
+                                                    trans::cublasOperation_t, m::Int64,
+                                                    n::Int64,
                                                     alpha::CuRef{Cfloat}, A::CuPtr{Float16},
                                                     lda::Int64, strideA::Clonglong,
                                                     x::CuPtr{Float16}, incx::Int64,
@@ -6067,13 +6077,16 @@ end
                                                  batchCount::Cint)::cublasStatus_t
 end
 
-@checked function cublasTSTgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda, strideA,
+@checked function cublasTSTgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda,
+                                                 strideA,
                                                  x, incx, stridex, beta, y, incy, stridey,
                                                  batchCount)
     initialize_context()
     @ccall libcublas.cublasTSTgemvStridedBatched_64(handle::cublasHandle_t,
-                                                    trans::cublasOperation_t, m::Int64, n::Int64,
-                                                    alpha::CuRef{Cfloat}, A::CuPtr{BFloat16},
+                                                    trans::cublasOperation_t, m::Int64,
+                                                    n::Int64,
+                                                    alpha::CuRef{Cfloat},
+                                                    A::CuPtr{BFloat16},
                                                     lda::Int64, strideA::Clonglong,
                                                     x::CuPtr{BFloat16}, incx::Int64,
                                                     stridex::Clonglong, beta::CuRef{Cfloat},
@@ -6097,13 +6110,16 @@ end
                                                  batchCount::Cint)::cublasStatus_t
 end
 
-@checked function cublasTSSgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda, strideA,
+@checked function cublasTSSgemvStridedBatched_64(handle, trans, m, n, alpha, A, lda,
+                                                 strideA,
                                                  x, incx, stridex, beta, y, incy, stridey,
                                                  batchCount)
     initialize_context()
     @ccall libcublas.cublasTSSgemvStridedBatched_64(handle::cublasHandle_t,
-                                                    trans::cublasOperation_t, m::Int64, n::Int64,
-                                                    alpha::CuRef{Cfloat}, A::CuPtr{BFloat16},
+                                                    trans::cublasOperation_t, m::Int64,
+                                                    n::Int64,
+                                                    alpha::CuRef{Cfloat},
+                                                    A::CuPtr{BFloat16},
                                                     lda::Int64, strideA::Clonglong,
                                                     x::CuPtr{BFloat16}, incx::Int64,
                                                     stridex::Clonglong, beta::CuRef{Cfloat},
@@ -6122,7 +6138,8 @@ end
                                  C::Ptr{Float16}, ldc::Cint)::cublasStatus_t
 end
 
-@checked function cublasHgemm_64(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta,
+@checked function cublasHgemm_64(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
+                                 beta,
                                  C, ldc)
     initialize_context()
     @ccall libcublas.cublasHgemm_64(handle::cublasHandle_t, transa::cublasOperation_t,
@@ -6148,7 +6165,8 @@ end
 @checked function cublasHgemmBatched_64(handle, transa, transb, m, n, k, alpha, Aarray, lda,
                                         Barray, ldb, beta, Carray, ldc, batchCount)
     initialize_context()
-    @ccall libcublas.cublasHgemmBatched_64(handle::cublasHandle_t, transa::cublasOperation_t,
+    @ccall libcublas.cublasHgemmBatched_64(handle::cublasHandle_t,
+                                           transa::cublasOperation_t,
                                            transb::cublasOperation_t, m::Int64, n::Int64,
                                            k::Int64, alpha::CuRef{Float16},
                                            Aarray::CuPtr{Ptr{Float16}}, lda::Int64,
@@ -6174,13 +6192,16 @@ end
                                                batchCount::Cint)::cublasStatus_t
 end
 
-@checked function cublasHgemmStridedBatched_64(handle, transa, transb, m, n, k, alpha, A, lda,
-                                               strideA, B, ldb, strideB, beta, C, ldc, strideC,
+@checked function cublasHgemmStridedBatched_64(handle, transa, transb, m, n, k, alpha, A,
+                                               lda,
+                                               strideA, B, ldb, strideB, beta, C, ldc,
+                                               strideC,
                                                batchCount)
     initialize_context()
     @ccall libcublas.cublasHgemmStridedBatched_64(handle::cublasHandle_t,
                                                   transa::cublasOperation_t,
-                                                  transb::cublasOperation_t, m::Int64, n::Int64,
+                                                  transb::cublasOperation_t, m::Int64,
+                                                  n::Int64,
                                                   k::Int64, alpha::CuRef{Float16},
                                                   A::CuPtr{Float16}, lda::Int64,
                                                   strideA::Clonglong, B::CuPtr{Float16},
