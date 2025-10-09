@@ -23,7 +23,7 @@ Base.length(g::CuSparseDeviceVector) = g.len
 Base.size(g::CuSparseDeviceVector) = (g.len,)
 SparseArrays.nnz(g::CuSparseDeviceVector) = g.nnz
 
-struct CuSparseDeviceMatrixCSC{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
+struct CuSparseDeviceMatrixCSC{Tv,Ti,A} <: SparseArrays.AbstractSparseMatrixCSC{Tv,Ti}
     colPtr::CuDeviceVector{Ti, A}
     rowVal::CuDeviceVector{Ti, A}
     nzVal::CuDeviceVector{Tv, A}
@@ -38,6 +38,29 @@ SparseArrays.rowvals(g::CuSparseDeviceMatrixCSC) = g.rowVal
 SparseArrays.getcolptr(g::CuSparseDeviceMatrixCSC) = g.colPtr
 SparseArrays.getnzval(g::CuSparseDeviceMatrixCSC) = g.nzVal
 SparseArrays.nzrange(g::CuSparseDeviceMatrixCSC, col::Integer) = SparseArrays.getcolptr(g)[col]:(SparseArrays.getcolptr(g)[col+1]-1)
+SparseArrays.nonzeros(g::CuSparseDeviceMatrixCSC) = g.nzVal
+
+const CuSparseDeviceColumnView{Tv, Ti} = SubArray{Tv, 1, <:CuSparseDeviceMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
+function SparseArrays.nonzeros(x::CuSparseDeviceColumnView)
+    rowidx, colidx = parentindices(x)
+    A = parent(x)
+    @inbounds y = view(SparseArrays.nonzeros(A), SparseArrays.nzrange(A, colidx))
+    return y
+end
+
+function SparseArrays.nonzeroinds(x::CuSparseDeviceColumnView)
+    rowidx, colidx = parentindices(x)
+    A = parent(x)
+    @inbounds y = view(SparseArrays.rowvals(A), SparseArrays.nzrange(A, colidx))
+    return y
+end
+SparseArrays.rowvals(x::CuSparseDeviceColumnView) = SparseArrays.nonzeroinds(x)
+
+function SparseArrays.nnz(x::CuSparseDeviceColumnView)
+    rowidx, colidx = parentindices(x)
+    A = parent(x)
+    return length(SparseArrays.nzrange(A, colidx))
+end
 
 struct CuSparseDeviceMatrixCSR{Tv,Ti,A} <: AbstractSparseMatrix{Tv,Ti}
     rowPtr::CuDeviceVector{Ti, A}
