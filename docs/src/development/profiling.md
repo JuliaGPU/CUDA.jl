@@ -244,7 +244,7 @@ to the running session by selecting it in the list in the `Attach` pane:
 !["NVIDIA Nsight Compute - Attaching to a session"](nsight_compute-attach.png)
 
 Note that this even works with remote systems, i.e., you can have Nsight Compute connect
-over ssh to a remote system where you run Julia under `ncu`.
+over ssh to a remote system where you run Julia under `ncu`. (If allowed by the remote system administrator, see  [the NVIDIA documentation issue webpage](https://developer.nvidia.com/ERR_NVGPUCTRPERM) for more details.  )
 
 Once you've successfully attached to a Julia process, you will see that the tool has stopped
 execution on the call to `cuInit`. Now check `Profile > Auto Profile` to make Nsight Compute
@@ -361,6 +361,9 @@ Incompatibility between the ncu and Julia CUDA version. Run `ncu --version` to f
 ##### "Profiling is not supported on this device" error
 
 Nsight Compute does not support the GPU you have. Run `ncu --list-chips` to verify. Either delete newer versions of CUDA Toolkit and set the environment variable `CUDA_PATH` to a previous version, or install a newer version. 
+
+##### ==ERROR== ERR_NVGPUCTRPERM 
+Run the terminal as administrator. Refer to [the NVIDIA documentation issue webpage](https://developer.nvidia.com/ERR_NVGPUCTRPERM) for more details. 
 
 
 ## Source-code annotations
