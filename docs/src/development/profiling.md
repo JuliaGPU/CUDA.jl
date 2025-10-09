@@ -276,7 +276,7 @@ the API calls that have been made:
 
 !["NVIDIA Nsight Compute - API inspection"](nsight_compute-api.png)
 
-Note that command line execution of Julia scripts also works. Run `ncu julia myscript.jl` without `--mode=launch` to profile the entire script. Use the `ncu` command line arguments if desired. Refer to https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html for detailed documentation.
+Note that command line execution of Julia scripts also works. Run `ncu julia myscript.jl` without `--mode=launch` to profile the entire script. Use the `ncu` command line arguments if desired. Refer to [the NVIDIA documentation](https://docs.nvidia.com/nsight-compute/NsightComputeCli/index.html) for more details.
 
 #### Troubleshooting Nsight Compute
 
