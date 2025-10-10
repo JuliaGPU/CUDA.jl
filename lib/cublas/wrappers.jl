@@ -1306,9 +1306,8 @@ function gemmStridedBatchedEx!(
                  @nospecialize(beta),
                  @nospecialize(C::AbstractArray{Tc, 3});
                  algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT) where {Ta, Tb, Tc}
-    if size(A, 3) != size(C, 3)
-        throw(DimensionMismatch("Batch sizes must be equal for all inputs"))
-    end
+    @assert size(A, 3) == size(C, 3) || size(A, 3) == 1 "batch size mismatch: A != C"
+    @assert size(B, 3) == size(C, 3) || size(B, 3) == 1 "batch size mismatch: B != C"
     m = size(A, transA == 'N' ? 1 : 2)
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
