@@ -876,42 +876,53 @@ Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
 
 ## resizing
 
+const RESIZE_THRESHOLD = 10 * 1024^2    # 10 MiB
+const RESIZE_INCREMENT = 1 * 1024^2     # 1 MiB
 """
   resize!(a::CuVector, n::Integer)
 
 Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
-the first `n` elements will be retained. If `n` is larger, the new elements are not
-guaranteed to be initialized.
+the first `n` elements will be retained. If `n` is larger, the new elements are initialized
+with undefined values.
 """
 function Base.resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
 
-  # TODO: add additional space to allow for quicker resizing
-  maxsize = n * aligned_sizeof(T)
-  bufsize = if isbitstype(T)
-    maxsize
-  else
-    # type tag array past the data
-    maxsize + n
-  end
+  cap = A.maxsize ÷ aligned_sizeof(T)
 
-  # replace the data with a new one. this 'unshares' the array.
-  # as a result, we can safely support resizing unowned buffers.
-  new_data = context!(context(A)) do
-    mem = pool_alloc(memory_type(A), bufsize)
-    ptr = convert(CuPtr{T}, mem)
-    m = min(length(A), n)
-    if m > 0
-      GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
+  # do nothing when new length is smaller than maxsize
+  if n > cap # n > length(A)
+    
+    # if maxsize is larger than 10 MiB
+    if A.maxsize > RESIZE_THRESHOLD
+      len = max(cap + RESIZE_INCREMENT ÷ aligned_sizeof(T), n) # add at least 1 MiB
+    else 
+      len = max(n, 2 * length(A))
     end
-    DataRef(pool_free, mem)
+
+    maxsize = len * aligned_sizeof(T)
+    bufsize = if isbitstype(T)
+        maxsize
+    else
+      # type tag array past the data
+      maxsize + len
+    end
+
+    new_data = context!(context(A)) do
+      mem = pool_alloc(memory_type(A), bufsize)
+      ptr = convert(CuPtr{T}, mem)
+      m = min(length(A), n)
+      if m > 0
+        GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
+      end
+      DataRef(pool_free, mem)
+    end
+    unsafe_free!(A)
+    A.data = new_data
+    A.maxsize = maxsize
+    A.offset = 0
   end
-  unsafe_free!(A)
 
-  A.data = new_data
   A.dims = (n,)
-  A.maxsize = maxsize
-  A.offset = 0
-
   A
 end
