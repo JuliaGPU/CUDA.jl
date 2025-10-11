@@ -1,4 +1,4 @@
-export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
+export CuArray, CuScalar, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
 
 
 ## array type
@@ -123,6 +123,7 @@ end
 
 ## convenience constructors
 
+const CuScalar{T} = CuArray{T,0}
 const CuVector{T} = CuArray{T,1}
 const CuMatrix{T} = CuArray{T,2}
 const CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
@@ -371,7 +372,7 @@ is_host(a::CuArray) = memory_type(a) == HostMemory
 
 export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
        StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
-       AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
+       AnyCuArray, AnyCuScalar, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
 
 # dense arrays: stored contiguously in memory
 #
@@ -426,6 +427,7 @@ end
 
 # anything that's (secretly) backed by a CuArray
 const AnyCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
+const AnyCuScalar{T} = AnyCuArray{T,0}
 const AnyCuVector{T} = AnyCuArray{T,1}
 const AnyCuMatrix{T} = AnyCuArray{T,2}
 const AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
