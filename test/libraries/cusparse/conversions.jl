@@ -251,32 +251,32 @@ if !(v"12.0" <= CUSPARSE.version() < v"12.1")
             vals_Z  = [5, 6, 7] |> cu
             csr_Z   = CuSparseMatrixCSR{Float64}(crows_Z, cols_Z, vals_Z, (2,3))
 
-            csr_to_csc_Z = CuSparseMatrixCSC{Float64}(csr_Z, index='Z')
+            csr_to_csc_Z = CuSparseMatrixCSC{Float64,Cint}(csr_Z, index='Z')
             @test csr_to_csc_Z.colPtr ≈ csc_Z.colPtr
             @test csr_to_csc_Z.rowVal ≈ csc_Z.rowVal
             @test csr_to_csc_Z.nzVal  ≈ csc_Z.nzVal
 
-            csc_to_csr_Z = CuSparseMatrixCSR{Float64}(csc_Z, index='Z')
+            csc_to_csr_Z = CuSparseMatrixCSR{Float64,Cint}(csc_Z, index='Z')
             @test csc_to_csr_Z.rowPtr ≈ csr_Z.rowPtr
             @test csc_to_csr_Z.colVal ≈ csr_Z.colVal
             @test csc_to_csr_Z.nzVal  ≈ csr_Z.nzVal
 
-            csr_to_coo_Z = CuSparseMatrixCOO{Float64}(csr_Z, index='Z')
+            csr_to_coo_Z = CuSparseMatrixCOO{Float64,Cint}(csr_Z, index='Z')
             @test csr_to_coo_Z.rowInd ≈ coo_Z.rowInd
             @test csr_to_coo_Z.colInd ≈ coo_Z.colInd
             @test csr_to_coo_Z.nzVal  ≈ coo_Z.nzVal
 
-            coo_to_csr_Z = CuSparseMatrixCSR{Float64}(coo_Z, index='Z')
+            coo_to_csr_Z = CuSparseMatrixCSR{Float64,Cint}(coo_Z, index='Z')
             @test coo_to_csr_Z.rowPtr ≈ csr_Z.rowPtr
             @test coo_to_csr_Z.colVal ≈ csr_Z.colVal
             @test coo_to_csr_Z.nzVal  ≈ csr_Z.nzVal
 
-            csc_to_coo_Z = CuSparseMatrixCOO{Float64}(csc_Z, index='Z')
+            csc_to_coo_Z = CuSparseMatrixCOO{Float64,Cint}(csc_Z, index='Z')
             @test csc_to_coo_Z.rowInd ≈ coo_Z.rowInd
             @test csc_to_coo_Z.colInd ≈ coo_Z.colInd
             @test csc_to_coo_Z.nzVal  ≈ coo_Z.nzVal
 
-            coo_to_csc_Z = CuSparseMatrixCSC{Float64}(coo_Z, index='Z')
+            coo_to_csc_Z = CuSparseMatrixCSC{Float64,Cint}(coo_Z, index='Z')
             @test coo_to_csc_Z.colPtr ≈ csc_Z.colPtr
             @test coo_to_csc_Z.rowVal ≈ csc_Z.rowVal
             @test coo_to_csc_Z.nzVal  ≈ csc_Z.nzVal
