@@ -1,7 +1,7 @@
 module CUDAKernels
 
 using ..CUDA
-using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory
+using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory, GPUArrays
 
 import KernelAbstractions as KA
 
@@ -26,7 +26,9 @@ CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blo
 @inline KA.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), one(T))
 
 KA.get_backend(::CuArray) = CUDABackend()
-KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
+KA.get_backend(::CUSPARSE.CuSparseVector)    = CUDABackend()
+KA.get_backend(::CUSPARSE.CuSparseMatrixCSC) = CUDABackend()
+KA.get_backend(::CUSPARSE.CuSparseMatrixCSR) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
 KA.functional(::CUDABackend) = CUDA.functional()
@@ -34,8 +36,8 @@ KA.functional(::CUDABackend) = CUDA.functional()
 KA.supports_unified(::CUDABackend) = true
 
 Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
-Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,CUSPARSE.AbstractCuSparseArray}) = a
-Adapt.adapt_storage(::KA.CPU, a::Union{CuArray,CUSPARSE.AbstractCuSparseArray}) = Adapt.adapt(Array, a)
+Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}) = a
+Adapt.adapt_storage(::KA.CPU, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}) = Adapt.adapt(Array, a)
 
 ## memory operations
 
