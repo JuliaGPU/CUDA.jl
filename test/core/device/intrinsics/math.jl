@@ -109,7 +109,7 @@ using SpecialFunctions
         g(x) = @fastmath log1p(x)
         @test Array(map(f, cu([0.1,0.2]))) ≈ Array(map(g, cu([0.1,0.2])))
 
-        # JuliaGPU/CUDA.jl#2886: LLVM 18-20 emit non-existing min.NaN.f64/max.NaN.f64 instructions
+        # JuliaGPU/CUDA.jl#2886: LLVM 18 emit non-existing min.NaN.f64/max.NaN.f64 instructions
         f(a, b) = @fastmath max(a, b)
         @test Array(map(f, CuArray([1.0, 2.0]), CuArray([4.0, 3.0]))) == [4.0, 3.0]
     end
