@@ -876,8 +876,8 @@ Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
 
 ## resizing
 
-const RESIZE_THRESHOLD = 10 * 1024^2    # 10 MiB
-const RESIZE_INCREMENT = 1 * 1024^2     # 1 MiB
+const RESIZE_THRESHOLD = 100 * 1024^2     # 100 MiB
+const RESIZE_INCREMENT = 32  * 1024^2     # 32  MiB
 
 """
   resize!(a::CuVector, n::Integer)
