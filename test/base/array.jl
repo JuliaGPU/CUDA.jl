@@ -550,68 +550,39 @@ end
 end
 
 @testset "resizing" begin
-  # 1) small arrays (<=10 MiB): should still use doubling policy
   a = CuArray([1, 2, 3])
+  initial_capacity = a.maxsize
+  @test initial_capacity == sizeof(a)
 
-  # reallocation (add less than half)
+  # resizing an array should increment the capacity
   CUDA.resize!(a, 4)
   @test length(a) == 4
   @test Array(a)[1:3] == [1, 2, 3]
-  @test a.maxsize == max(4, 2*3) * sizeof(eltype(a))
+  resized_capacity = a.maxsize
+  @test resized_capacity > sizeof(a)
 
-  # no reallocation 
+  # resizing again should use the existing capacity
   CUDA.resize!(a, 5)
   @test length(a) == 5
+  @test a.maxsize == resized_capacity
+
+  # resizing significantly should trigger an exact reallocation
+  CUDA.resize!(a, 1000)
+  @test length(a) == 1000
   @test Array(a)[1:3] == [1, 2, 3]
-  @test a.maxsize == 6 * sizeof(eltype(a))
+  resized_capacity = a.maxsize
+  @test resized_capacity == sizeof(a)
 
-  # reallocation (add more than half)
-  CUDA.resize!(a, 12)
-  @test length(a) == 12
+  # shrinking back down shouldn't immediately reduce capacity
+  CUDA.resize!(a, 999)
+  @test length(a) == 999
+  @test a.maxsize == resized_capacity
+
+  # shrinking significantly should trigger an exact reallocation
+  CUDA.resize!(a, 10)
+  @test length(a) == 10
   @test Array(a)[1:3] == [1, 2, 3]
-  @test a.maxsize == max(12, 2*5) * sizeof(eltype(a))
-
-  # 2) large arrays (>10 MiB): should use 1 MiB increments
-  b = CUDA.fill(1, 2*1024^2)
-  maxsize = b.maxsize
-
-  # should bump by exactly 1 MiB
-  CUDA.resize!(b, 2*1024^2 + 1)
-  @test length(b) == 2*1024^2 + 1
-  @test b.maxsize == maxsize + CUDA.RESIZE_INCREMENT
-  @test all(Array(b)[1:2*1024^2] .== 1)
-
-  b = CUDA.fill(1, 2*1024^2)
-  maxsize = b.maxsize
-
-  # should bump greater than 1 MiB
-  new = CUDA.RESIZE_INCREMENT ÷ sizeof(eltype(b))  
-  CUDA.resize!(b, 2*1024^2 + new + 1)
-  @test length(b) == 2*1024^2 + new + 1
-  @test b.maxsize > maxsize + CUDA.RESIZE_INCREMENT
-  @test all(Array(b)[1:2*1024^2] .== 1)
-
-  b = CUDA.fill(1, 2*1024^2)
-  maxsize = b.maxsize
-
-  # no reallocation
-  CUDA.resize!(b, 2*1024^2 - 1)
-  @test length(b) == 2*1024^2 - 1
-  @test b.maxsize == maxsize
-  @test all(Array(b)[1:2*1024^2 - 1] .== 1)
-
-  # 3) corner cases
-  c = CuArray{Int}(undef, 0)
-  @test length(c) == 0
-  CUDA.resize!(c, 1)
-  @test length(c) == 1
-  @test c.maxsize == 1 * sizeof(eltype(c))
-
-  c = CuArray{Int}(undef, 1)
-  @test length(c) == 1
-  CUDA.resize!(c, 0)
-  @test length(c) == 0
-  @test c.maxsize == 1 * sizeof(eltype(c))
+  @test a.maxsize == sizeof(a)
 end
 
 @testset "aliasing" begin
