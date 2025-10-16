@@ -411,9 +411,6 @@ steps:
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
         timeout_in_minutes: 45
-        # the multi-GPU runners contain a RTX 5000 that's incompatible with CUDA 13
-        commands: |
-          echo -e "[CUDA_Runtime_jll]\nversion = \"12.9\"" >LocalPreferences.toml
 
   - wait: ~
     continue_on_failure: true

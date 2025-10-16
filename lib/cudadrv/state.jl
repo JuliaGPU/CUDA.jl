@@ -220,7 +220,7 @@ function context(dev::CuDevice)
         @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA.jl.
                   Please use a device with at least capability 5.0, or downgrade CUDA.jl (see the README for compatibility details).""",
                maxlog=1, _id=devidx)
-    elseif runtime_version() >= v"13" && capability(dev) <= v"7.5"
+    elseif runtime_version() >= v"13" && capability(dev) < v"7.5"
         @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported on CUDA 13+.
                   Please use a device with at least capability 7.5, or downgrade your NVIDIA driver to below v580.""",
                maxlog=1, _id=devidx)
