@@ -932,10 +932,12 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
 
     # copy existing elements and type tags
     m = min(length(A), n)
-    context!(context(A)) do
-      unsafe_copyto!(new_pointer, old_pointer, m; async=true)
-      if Base.isbitsunion(T)
-        unsafe_copyto!(new_typetagdata, old_typetagdata, m; async=true)
+    if m > 0
+      context!(context(A)) do
+        unsafe_copyto!(new_pointer, old_pointer, m; async=true)
+        if Base.isbitsunion(T)
+          unsafe_copyto!(new_typetagdata, old_typetagdata, m; async=true)
+        end
       end
     end
     unsafe_free!(old_data)
