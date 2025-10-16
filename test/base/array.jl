@@ -550,39 +550,41 @@ end
 end
 
 @testset "resizing" begin
-  a = CuArray([1, 2, 3])
-  initial_capacity = a.maxsize
-  @test initial_capacity == sizeof(a)
+  for data in ([1, 2, 3], [1, nothing, 3])
+    a = CuArray(data)
+    initial_capacity = a.maxsize
+    @test initial_capacity == sizeof(a)
 
-  # resizing an array should increment the capacity
-  CUDA.resize!(a, 4)
-  @test length(a) == 4
-  @test Array(a)[1:3] == [1, 2, 3]
-  resized_capacity = a.maxsize
-  @test resized_capacity > sizeof(a)
+    # resizing an array should increment the capacity
+    CUDA.resize!(a, 4)
+    @test length(a) == 4
+    @test Array(a)[1:3] == data
+    resized_capacity = a.maxsize
+    @test resized_capacity > sizeof(a)
 
-  # resizing again should use the existing capacity
-  CUDA.resize!(a, 5)
-  @test length(a) == 5
-  @test a.maxsize == resized_capacity
+    # resizing again should use the existing capacity
+    CUDA.resize!(a, 5)
+    @test length(a) == 5
+    @test a.maxsize == resized_capacity
 
-  # resizing significantly should trigger an exact reallocation
-  CUDA.resize!(a, 1000)
-  @test length(a) == 1000
-  @test Array(a)[1:3] == [1, 2, 3]
-  resized_capacity = a.maxsize
-  @test resized_capacity == sizeof(a)
+    # resizing significantly should trigger an exact reallocation
+    CUDA.resize!(a, 1000)
+    @test length(a) == 1000
+    @test Array(a)[1:3] == data
+    resized_capacity = a.maxsize
+    @test resized_capacity == sizeof(a)
 
-  # shrinking back down shouldn't immediately reduce capacity
-  CUDA.resize!(a, 999)
-  @test length(a) == 999
-  @test a.maxsize == resized_capacity
+    # shrinking back down shouldn't immediately reduce capacity
+    CUDA.resize!(a, 999)
+    @test length(a) == 999
+    @test a.maxsize == resized_capacity
 
-  # shrinking significantly should trigger an exact reallocation
-  CUDA.resize!(a, 10)
-  @test length(a) == 10
-  @test Array(a)[1:3] == [1, 2, 3]
-  @test a.maxsize == sizeof(a)
+    # shrinking significantly should trigger an exact reallocation
+    CUDA.resize!(a, 10)
+    @test length(a) == 10
+    @test Array(a)[1:3] == data
+    @test a.maxsize == sizeof(a)
+  end
 end
 
 @testset "aliasing" begin
