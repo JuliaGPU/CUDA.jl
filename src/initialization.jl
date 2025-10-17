@@ -66,9 +66,9 @@ function __init__()
         return
     end
 
-    if !(v"12" <= driver < v"14-")
-        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 12.x or 13.x (yours is for CUDA $driver)"
-        _initialization_error[] = "CUDA driver unsupported"
+    if driver < v"12"
+        @error "This version of CUDA.jl requires an NVIDIA driver for CUDA 12.x or higher (yours only supports up to CUDA $driver)"
+        _initialization_error[] = "NVIDIA driver too old"
         return
     end
 
