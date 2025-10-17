@@ -66,9 +66,9 @@ function __init__()
         return
     end
 
-    if !(v"12" <= driver < v"14-")
-        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 12.x or 13.x (yours is for CUDA $driver)"
-        _initialization_error[] = "CUDA driver unsupported"
+    if driver < v"12"
+        @error "This version of CUDA.jl requires an NVIDIA driver for CUDA 12.x or higher (yours only supports up to CUDA $driver)"
+        _initialization_error[] = "NVIDIA driver too old"
         return
     end
 
@@ -132,10 +132,6 @@ function __init__()
     # ensure the loaded runtime is supported
     if runtime < v"12"
         @error "This version of CUDA.jl only supports CUDA 12 or higher (your toolkit provides CUDA $runtime)"
-    end
-    if runtime.major != driver.major
-        @warn """You are using CUDA $runtime with a driver for CUDA $(driver.major).x.
-                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
 
     # ensure the loaded runtime matches what we precompiled for.
