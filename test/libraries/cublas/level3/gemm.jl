@@ -268,11 +268,14 @@ k = 13
         bA = rand(elty, m, k, nbatch)
         bB = rand(elty, k, n, nbatch)
         bC = rand(elty, m, n, nbatch)
+        sB = rand(elty, k, n)
         bbad = rand(elty, m+1, n+1, nbatch)
         # move to device
         bd_A = CuArray{elty, 3}(bA)
         bd_B = CuArray{elty, 3}(bB)
         bd_C = CuArray{elty, 3}(bC)
+        sd_B = CuArray{elty, 2}(sB)
+        sdr_B = reshape(sd_B, size(sd_B)..., 1)
         bd_bad = CuArray{elty, 3}(bbad)
 
         @testset "gemm_strided_batched!" begin
@@ -282,6 +285,14 @@ k = 13
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+
+            CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, sdr_B, beta, bd_C)
+            for i in 1:nbatch
+                bC[:, :, i] = (alpha * bA[:, :, i]) * sB + beta * bC[:, :, i]
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+
             @test_throws DimensionMismatch CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
@@ -292,6 +303,14 @@ k = 13
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+
+            CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, sdr_B, beta, bd_C)
+            for i in 1:nbatch
+                bC[:, :, i] = (alpha * bA[:, :, i]) * sB + beta * bC[:, :, i]
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+
             @test_throws DimensionMismatch CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
@@ -303,6 +322,14 @@ k = 13
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+
+            bd_C = CUBLAS.gemm_strided_batched('N', 'N', bd_A, sdr_B)
+            for i in 1:nbatch
+                bC[:, :, i] = bA[:, :, i] * sB
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+
             # generate matrices
             bA = rand(elty, k, m, nbatch)
             bB = rand(elty, k, n, nbatch)
