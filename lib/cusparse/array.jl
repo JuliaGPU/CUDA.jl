@@ -9,6 +9,7 @@ export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCO
 
 using LinearAlgebra: BlasFloat
 using SparseArrays
+using SparseArrays: nonzeroinds, nonzeros, rowvals, getcolptr
 abstract type AbstractCuSparseVector{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 1} end
 abstract type AbstractCuSparseMatrix{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 2} end
 
