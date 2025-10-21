@@ -47,9 +47,6 @@ include("generic.jl")
 # high-level integrations
 include("interfaces.jl")
 
-# native functionality
-include("device.jl")
-
 include("batched.jl")
 
 
