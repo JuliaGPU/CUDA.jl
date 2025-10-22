@@ -255,7 +255,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # perform the actual reduction
     if reduce_blocks == 1
         # we can cover the dimensions to reduce using a single block
-        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; ; workgroupsize=partial_threads, numworkgroups=partial_blocks, shmem)
+        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; workgroupsize=partial_threads, numworkgroups=partial_blocks, shmem)
     else
         # TODO: provide a version that atomically reduces from different blocks
 
