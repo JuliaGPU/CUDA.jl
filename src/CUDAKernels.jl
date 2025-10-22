@@ -204,7 +204,7 @@ end
     return (; x = Int((blockDim().x-1)*blockDim().x + threadIdx().x), y = Int((blockDim().y-1)*blockDim().y + threadIdx().y), z = Int((blockDim().z-1)*blockDim().z + threadIdx().z))
 end
 
-@device_override @inline function KI.get_num_grouups()
+@device_override @inline function KI.get_num_groups()
     return (; x = Int(gridDim().x), y = Int(gridDim().y), z = Int(gridDim().z))
 end
 
