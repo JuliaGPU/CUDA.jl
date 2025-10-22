@@ -209,7 +209,7 @@ end
 end
 
 @device_override @inline function KI.get_global_size()
-    return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(lockDim().z * gridDim().z))
+    return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(blockDim().z * gridDim().z))
 end
 
 @device_override @inline function KA.__validindex(ctx)
