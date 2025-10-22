@@ -63,6 +63,8 @@ end
 @inline Philox2x32() = Philox2x32{7}()
 
 @inline function Base.getproperty(rng::Philox2x32, field::Symbol)
+    threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
+                               (threadIdx().z - 1i32) * blockDim().x * blockDim().y
     warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
 
     if field === :key
