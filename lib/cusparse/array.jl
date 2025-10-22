@@ -95,25 +95,25 @@ function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
     return
 end
 
-GPUArrays._sparse_array_type(sa::CuSparseMatrixCSC) = CuSparseMatrixCSC
-GPUArrays._sparse_array_type(::Type{<:CuSparseMatrixCSC}) = CuSparseMatrixCSC
-GPUArrays._sparse_array_type(sa::CuSparseMatrixCSR) = CuSparseMatrixCSR
-GPUArrays._sparse_array_type(::Type{<:CuSparseMatrixCSR}) = CuSparseMatrixCSR
-GPUArrays._sparse_array_type(sa::CuSparseVector) = CuSparseVector
-GPUArrays._sparse_array_type(::Type{<:CuSparseVector}) = CuSparseVector
-GPUArrays._dense_array_type(sa::CuSparseVector) = CuArray 
-GPUArrays._dense_array_type(::Type{<:CuSparseVector}) = CuArray 
-GPUArrays._dense_array_type(sa::CuSparseMatrixCSC) = CuArray 
-GPUArrays._dense_array_type(::Type{<:CuSparseMatrixCSC}) = CuArray 
-GPUArrays._dense_array_type(sa::CuSparseMatrixCSR) = CuArray 
-GPUArrays._dense_array_type(::Type{<:CuSparseMatrixCSR}) = CuArray 
+GPUArrays.sparse_array_type(sa::CuSparseMatrixCSC) = CuSparseMatrixCSC
+GPUArrays.sparse_array_type(::Type{<:CuSparseMatrixCSC}) = CuSparseMatrixCSC
+GPUArrays.sparse_array_type(sa::CuSparseMatrixCSR) = CuSparseMatrixCSR
+GPUArrays.sparse_array_type(::Type{<:CuSparseMatrixCSR}) = CuSparseMatrixCSR
+GPUArrays.sparse_array_type(sa::CuSparseVector) = CuSparseVector
+GPUArrays.sparse_array_type(::Type{<:CuSparseVector}) = CuSparseVector
+GPUArrays.dense_array_type(sa::CuSparseVector) = CuArray
+GPUArrays.dense_array_type(::Type{<:CuSparseVector}) = CuArray
+GPUArrays.dense_array_type(sa::CuSparseMatrixCSC) = CuArray
+GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSC}) = CuArray
+GPUArrays.dense_array_type(sa::CuSparseMatrixCSR) = CuArray
+GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSR}) = CuArray
 
-GPUArrays._csc_type(sa::CuSparseMatrixCSR) = CuSparseMatrixCSC
-GPUArrays._csr_type(sa::CuSparseMatrixCSC) = CuSparseMatrixCSR
-GPUArrays._coo_type(sa::Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}) = CuSparseMatrixCOO
-GPUArrays._coo_type(sa::Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}) = CuSparseMatrixCOO
-GPUArrays._coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}} = CuSparseMatrixCOO
-GPUArrays._coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}} = CuSparseMatrixCOO
+GPUArrays.csc_type(sa::CuSparseMatrixCSR) = CuSparseMatrixCSC
+GPUArrays.csr_type(sa::CuSparseMatrixCSC) = CuSparseMatrixCSR
+GPUArrays.coo_type(sa::Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}) = CuSparseMatrixCOO
+GPUArrays.coo_type(sa::Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}) = CuSparseMatrixCOO
+GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}} = CuSparseMatrixCOO
+GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}} = CuSparseMatrixCOO
 
 """
 Container to hold sparse matrices in block compressed sparse row (BSR) format on
