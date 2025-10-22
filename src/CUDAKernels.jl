@@ -4,6 +4,7 @@ using ..CUDA
 using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory
 
 import KernelAbstractions as KA
+import KernelAbstractions: KernelIntrinsics as KI
 
 import StaticArrays
 import SparseArrays: AbstractSparseArray
@@ -157,37 +158,61 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
     return nothing
 end
 
+
+function KI.KIKernel(::CUDABackend, f, args...; kwargs...)
+    kern = eval(quote
+        @cuda launch=false $(kwargs...) $(f)($(args...))
+    end)
+    KI.KIKernel{CUDABackend, typeof(kern)}(CUDABackend(), kern)
+end
+
+function (obj::KI.KIKernel{CUDABackend})(args...; numworkgroups=nothing, workgroupsize=nothing)
+    threadsPerThreadgroup = isnothing(workgroupsize) ? 1 : workgroupsize
+    threadgroupsPerGrid = isnothing(numworkgroups) ? 1 : numworkgroups
+
+    obj.kern(args...; threads=threadsPerThreadgroup, blocks=threadgroupsPerGrid)
+end
+
+
+function KI.kernel_max_work_group_size(::CUDABackend, kikern::KI.KIKernel{<:CUDABackend}; max_work_items::Int=typemax(Int))::Int
+    Int(min(kikern.kern.pipeline.maxTotalThreadsPerThreadgroup, max_work_items))
+end
+function KI.max_work_group_size(::CUDABackend)::Int
+    Int(attribute(device(), DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
+end
+function KI.multiprocessor_count(::CUDABackend)::Int
+    Int(attribute(device(), DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
+end
+
 ## indexing
 
 ## COV_EXCL_START
-@device_override @inline function KA.__index_Local_Linear(ctx)
-    return threadIdx().x
+@device_override @inline function KI.get_local_id()
+    return (; x = Int(threadIdx().x), y = Int(threadIdx().y), z = Int(threadIdx().z))
 end
 
 
-@device_override @inline function KA.__index_Group_Linear(ctx)
-    return blockIdx().x
+@device_override @inline function KI.get_group_id()
+    return (; x = Int(blockIdx().x), y = Int(blockIdx().y), z = Int(blockIdx().z))
 end
 
-@device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
-    # TODO: This is unfortunate, can we get the linear index cheaper
-    @inbounds LinearIndices(KA.__ndrange(ctx))[I]
+@device_override @inline function KI.get_global_id()
+    return (; x = Int(blockDim().x), y = Int(blockDim().y), z = Int(blockDim().z))
 end
 
-@device_override @inline function KA.__index_Local_Cartesian(ctx)
-    @inbounds KA.workitems(KA.__iterspace(ctx))[threadIdx().x]
+@device_override @inline function KI.get_local_size()
+    return (; x = Int((blockDim().x-1)*blockDim().x + threadIdx().x), y = Int((blockDim().y-1)*blockDim().y + threadIdx().y), z = Int((blockDim().z-1)*blockDim().z + threadIdx().z))
 end
 
-@device_override @inline function KA.__index_Group_Cartesian(ctx)
-    @inbounds KA.blocks(KA.__iterspace(ctx))[blockIdx().x]
+@device_override @inline function KI.get_num_grouups()
+    return (; x = Int(gridDim().x), y = Int(gridDim().y), z = Int(gridDim().z))
 end
 
-@device_override @inline function KA.__index_Global_Cartesian(ctx)
-    return @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
+@device_override @inline function KI.get_global_size()
+    return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(lockDim().z * gridDim().z))
 end
 
-@device_override @inline function KA.__validindex(ctx)
+@device_override @inline function KI.__validindex(ctx)
     if KA.__dynamic_checkbounds(ctx)
         I = @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
         return I in KA.__ndrange(ctx)
@@ -198,7 +223,8 @@ end
 
 ## shared and scratch memory
 
-@device_override @inline function KA.SharedMemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
+# @device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
+@device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
     CuStaticSharedArray(T, Dims)
 end
 
@@ -208,7 +234,7 @@ end
 
 ## synchronization and printing
 
-@device_override @inline function KA.__synchronize()
+@device_override @inline function KI.barrier()
     sync_threads()
 end
 
