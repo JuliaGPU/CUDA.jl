@@ -197,11 +197,11 @@ end
 end
 
 @device_override @inline function KI.get_global_id()
-    return (; x = Int(blockDim().x), y = Int(blockDim().y), z = Int(blockDim().z))
+    return (; x = Int((blockIdx().x-1)*blockDim().x + threadIdx().x), y = Int((blockIdx().y-1)*blockDim().y + threadIdx().y), z = Int((blockIdx().z-1)*blockDim().z + threadIdx().z))
 end
 
 @device_override @inline function KI.get_local_size()
-    return (; x = Int((blockDim().x-1)*blockDim().x + threadIdx().x), y = Int((blockDim().y-1)*blockDim().y + threadIdx().y), z = Int((blockDim().z-1)*blockDim().z + threadIdx().z))
+    return (; x = Int(blockDim().x), y = Int(blockDim().y), z = Int(blockDim().z))
 end
 
 @device_override @inline function KI.get_num_groups()
