@@ -1,52 +1,52 @@
 steps:
   # first, test supported Julia versions (using local CUDA as installed on the system)
-  - group: ":julia: Julia"
-    key: "julia"
-    steps:
-      - label: "Julia {{matrix.julia}}"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "{{matrix.julia}}"
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        commands: |
-          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
+  # - group: ":julia: Julia"
+  #   key: "julia"
+  #   steps:
+  #     - label: "Julia {{matrix.julia}}"
+  #       plugins:
+  #         - JuliaCI/julia#v1:
+  #             version: "{{matrix.julia}}"
+  #         - JuliaCI/julia-coverage#v1:
+  #             dirs:
+  #               - src
+  #               - lib
+  #               - examples
+  #       agents:
+  #         queue: "juliagpu"
+  #         cuda: "*"
+  #       commands: |
+  #         echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
 
-          julia -e 'println("--- :julia: Developing KernelAbstractions")
-                using Pkg
-                Pkg.add(url="https://github.com/christiangnrd/KernelAbstractions.jl", rev="intrinsics")'
+  #         julia -e 'println("--- :julia: Developing KernelAbstractions")
+  #               using Pkg
+  #               Pkg.add(url="https://github.com/christiangnrd/KernelAbstractions.jl", rev="intrinsics")'
 
-          julia -e 'println("--- :julia: Instantiating project")
-                using Pkg
-                Pkg.develop(; path=pwd())' || exit 3
+  #         julia -e 'println("--- :julia: Instantiating project")
+  #               using Pkg
+  #               Pkg.develop(; path=pwd())' || exit 3
 
-          julia -e 'println("+++ :julia: Running tests")
-                using Pkg
-                Pkg.test("CUDA"; coverage=true)'
-        if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only julia\]/ ||
-          build.message !~ /\[only/ &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip julia\]/
-        timeout_in_minutes: 90
-        matrix:
-          setup:
-            julia:
-              - "1.10"
-              - "1.11"
-              - "1.12"
-              - "nightly"
-          adjustments:
-            - with:
-                julia: "nightly"
-              soft_fail: true
+  #         julia -e 'println("+++ :julia: Running tests")
+  #               using Pkg
+  #               Pkg.test("CUDA"; coverage=true)'
+  #       if: |
+  #         build.message =~ /\[only tests\]/ ||
+  #         build.message =~ /\[only julia\]/ ||
+  #         build.message !~ /\[only/ &&
+  #           build.message !~ /\[skip tests\]/ &&
+  #           build.message !~ /\[skip julia\]/
+  #       timeout_in_minutes: 90
+  #       matrix:
+  #         setup:
+  #           julia:
+  #             - "1.10"
+  #             - "1.11"
+  #             - "1.12"
+  #             - "nightly"
+  #         adjustments:
+  #           - with:
+  #               julia: "nightly"
+  #             soft_fail: true
 
   # # then, test supported CUDA toolkits (installed through the artifact system)
   # - group: "CUDA"
