@@ -212,7 +212,7 @@ end
     return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(lockDim().z * gridDim().z))
 end
 
-@device_override @inline function KI.__validindex(ctx)
+@device_override @inline function KA.__validindex(ctx)
     if KA.__dynamic_checkbounds(ctx)
         I = @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
         return I in KA.__ndrange(ctx)
