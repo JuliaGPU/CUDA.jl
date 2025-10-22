@@ -286,7 +286,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         end
 
         partial_kernel(f, op, init, Rreduce, Rother, Val(shuffle), partial, A;
-                       ; workgroupsize=partial_threads, numworkgroups=partial_blocks, shmem=partial_shmem)
+                    workgroupsize=partial_threads, numworkgroups=partial_blocks, shmem=partial_shmem)
 
         GPUArrays.mapreducedim!(identity, op, R, partial; init)
     end
