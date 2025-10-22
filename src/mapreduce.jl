@@ -265,8 +265,8 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         # NOTE: we can't use the previously-compiled kernel, or its launch configuration,
         #       since the type of `partial` might not match the original output container
         #       (e.g. if that was a view).
-        partial_kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), partial, A)
-        partial_kernel_config = launch_configuration(partial_kernel.fun; shmem=compute_shmem∘compute_threads)
+        partial_kernel = KI.KIKernel(backend, partial_mapreduce_grid, f, op, init, Rreduce, Rother, Val(shuffle), partial, A)
+        partial_kernel_config = launch_configuration(partial_kernel.kern.fun; shmem=compute_shmem∘compute_threads)
         partial_reduce_threads = compute_threads(partial_kernel_config.threads)
         partial_reduce_shmem = compute_shmem(partial_reduce_threads)
         partial_reduce_blocks = if other_blocks >= partial_kernel_config.blocks
