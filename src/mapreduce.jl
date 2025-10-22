@@ -202,7 +202,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     if length(Rother) >= serial_mapreduce_threshold(dev)
         args = (f, op, init, Rreduce, Rother, R, A)
         kernel = KI.KIKernel(backend, serial_mapreduce_kernel, args...)
-        kernel_config = launch_configuration(kernel.fun)
+        kernel_config = launch_configuration(kernel.kern.fun)
         threads = kernel_config.threads
         blocks = cld(length(Rother), threads)
         kernel(args...; workgroupsize=threads, numworkgroups=blocks)
@@ -255,7 +255,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # perform the actual reduction
     if reduce_blocks == 1
         # we can cover the dimensions to reduce using a single block
-        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; workgroupsize=partial_threads, numworkgroups=partial_blocks, shmem)
+        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; workgroupsize=threads, numworkgroups=blocks, shmem)
     else
         # TODO: provide a version that atomically reduces from different blocks
 
