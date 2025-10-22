@@ -166,11 +166,11 @@ function KI.KIKernel(::CUDABackend, f, args...; kwargs...)
     KI.KIKernel{CUDABackend, typeof(kern)}(CUDABackend(), kern)
 end
 
-function (obj::KI.KIKernel{CUDABackend})(args...; numworkgroups=nothing, workgroupsize=nothing)
+function (obj::KI.KIKernel{CUDABackend})(args...; numworkgroups=nothing, workgroupsize=nothing, kwargs...)
     threadsPerThreadgroup = isnothing(workgroupsize) ? 1 : workgroupsize
     threadgroupsPerGrid = isnothing(numworkgroups) ? 1 : numworkgroups
 
-    obj.kern(args...; threads=threadsPerThreadgroup, blocks=threadgroupsPerGrid)
+    obj.kern(args...; threads=threadsPerThreadgroup, blocks=threadgroupsPerGrid, kwargs...)
 end
 
 
