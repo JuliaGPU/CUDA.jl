@@ -178,10 +178,10 @@ function KI.kernel_max_work_group_size(::CUDABackend, kikern::KI.KIKernel{<:CUDA
     Int(min(kikern.kern.pipeline.maxTotalThreadsPerThreadgroup, max_work_items))
 end
 function KI.max_work_group_size(::CUDABackend)::Int
-    Int(attribute(device(), DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
+    Int(attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
 end
 function KI.multiprocessor_count(::CUDABackend)::Int
-    Int(attribute(device(), DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
+    Int(attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
 end
 
 ## indexing
