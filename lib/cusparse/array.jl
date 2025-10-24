@@ -567,19 +567,6 @@ SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMat
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixBSR) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion (gpu_BSR -> gpu_CSR -> gpu_CSC -> cpu_CSC)
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_COO -> gpu_CSC -> cpu_CSC)
 
-# collect to Array
-Base.collect(x::CuSparseVector) = collect(SparseVector(x))
-Base.collect(x::CuSparseMatrixCSC) = collect(SparseMatrixCSC(x))
-Base.collect(x::CuSparseMatrixCSR) = collect(SparseMatrixCSC(x))
-Base.collect(x::CuSparseMatrixBSR) = collect(SparseMatrixCSC(x))
-Base.collect(x::CuSparseMatrixCOO) = collect(SparseMatrixCSC(x))
-
-Base.Array(x::CuSparseVector)    = collect(SparseVector(x))
-Base.Array(x::CuSparseMatrixCSC) = collect(SparseMatrixCSC(x))
-Base.Array(x::CuSparseMatrixCSR) = collect(SparseMatrixCSC(x))
-Base.Array(x::CuSparseMatrixBSR) = collect(SparseMatrixCSC(x))
-Base.Array(x::CuSparseMatrixCOO) = collect(SparseMatrixCSC(x))
-
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseVector) = CuSparseVector(xs)
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs)
 Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
@@ -595,32 +582,6 @@ Adapt.adapt_storage(::Type{Array}, xs::CuSparseMatrixCSC) = SparseMatrixCSC(xs)
 
 
 ## copying between sparse GPU arrays
-
-function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
-    if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent Sparse Vector size"))
-    end
-    resize!(nonzeroinds(dst), length(nonzeroinds(src)))
-    resize!(nonzeros(dst), length(nonzeros(src)))
-    copyto!(nonzeroinds(dst), nonzeroinds(src))
-    copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = src.nnz
-    dst
-end
-
-function Base.copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
-    if size(dst) != size(src)
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
-    end
-    resize!(dst.colPtr, length(src.colPtr))
-    resize!(rowvals(dst), length(rowvals(src)))
-    resize!(nonzeros(dst), length(nonzeros(src)))
-    copyto!(dst.colPtr, src.colPtr)
-    copyto!(rowvals(dst), rowvals(src))
-    copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = src.nnz
-    dst
-end
 
 function Base.copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     if size(dst) != size(src)
