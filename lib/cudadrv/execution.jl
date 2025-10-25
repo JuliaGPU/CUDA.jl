@@ -44,11 +44,14 @@ end
 
 """
     launch(f::CuFunction; args...; blocks::CuDim=1, threads::CuDim=1,
-           cooperative=false, shmem=0, stream=stream())
+           clusters::CuDim=1, cooperative=false, shmem=0, stream=stream())
 
 Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
 respectively the grid and block configuration. Dynamic shared memory is allocated according
-to `shmem`, and the kernel is launched on stream `stream`.
+to `shmem`, and the kernel is launched on stream `stream`. If `clusters > 1` and compute
+capability is `>= 9.0`, [thread block clusters](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#thread-block-clusters)
+are launched. If `clusters > 1` and compute capability is `< 9.0`, an error is thrown, as
+thread block clusters are not supported.
 
 Arguments to a kernel should either be bitstype, in which case they will be copied to the
 internal kernel parameter buffer, or a pointer to device memory.
@@ -56,10 +59,14 @@ internal kernel parameter buffer, or a pointer to device memory.
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
 function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
-                cooperative::Bool=false, shmem::Integer=0,
+                clusters::CuDim=1, cooperative::Bool=false, shmem::Integer=0,
                 stream::CuStream=stream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
+    clusterdim = CuDim3(clusters)
+    if CUDA.capability(device()) < v"9.0" && (clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.y != 1)
+        throw(ArgumentError("devices with compute capability under 9.0 do not support thread block clusters!"))
+    end
 
     try
         pack_arguments(args...) do kernelParams
@@ -68,11 +75,22 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
                                           blockdim.x, blockdim.y, blockdim.z,
                                           threaddim.x, threaddim.y, threaddim.z,
                                           shmem, stream, kernelParams)
-            else
+            elseif clusterdim.x == 1 && clusterdim.y == 1 && clusterdim.z == 1
                 cuLaunchKernel(f,
                                blockdim.x, blockdim.y, blockdim.z,
                                threaddim.x, threaddim.y, threaddim.z,
                                shmem, stream, kernelParams, C_NULL)
+            else
+                attr_val = CUlaunchAttributeValue()
+                attr_val.clusterDim.x = clusterdim.x
+                attr_val.clusterDim.y = clusterdim.y
+                attr_val.clusterDim.z = clusterdim.z
+                attr = CUlaunchAttribute(CUlaunchAttributeID.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION, (0,0,0,0), attr_val)
+                config = CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
+                                        threaddim.x, threaddim.y, threaddim.z,
+                                        shmem, stream, Ref(attr), Cuint(1))
+
+                cuLaunchKernelEx(config, f, kernelParams, C_NULL) 
             end
         end
     catch err
