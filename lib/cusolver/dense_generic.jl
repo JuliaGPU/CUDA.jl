@@ -505,13 +505,13 @@ function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: Bla
 end
 
 # XsyevBatched
-function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T,3}) where {T <: BlasFloat}
+function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T <: BlasFloat}
     CUSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     chkuplo(uplo)
     n = checksquare(A)
-    batch_size = size(A,3)
+    batch_size = size(A, 3)
     R = real(T)
-    lda = max(1, stride(A,2))
+    lda = max(1, stride(A, 2))
     W = CuMatrix{R}(undef, n, batch_size)
     params = CuSolverParameters()
     dh = dense_handle()
@@ -520,18 +520,22 @@ function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T,3}) where {T 
     function bufferSize()
         out_cpu = Ref{Csize_t}(0)
         out_gpu = Ref{Csize_t}(0)
-        cusolverDnXsyevBatched_bufferSize(dh, params, jobz, uplo, n,
-                                          T, A, lda, R, W, T, out_gpu, out_cpu, batch_size)
-        out_gpu[], out_cpu[]
+        cusolverDnXsyevBatched_bufferSize(
+            dh, params, jobz, uplo, n,
+            T, A, lda, R, W, T, out_gpu, out_cpu, batch_size
+        )
+        return out_gpu[], out_cpu[]
     end
     with_workspaces(dh.workspace_gpu, dh.workspace_cpu, bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXsyevBatched(dh, params, jobz, uplo, n, T, A,
-                               lda, R, W, T, buffer_gpu, sizeof(buffer_gpu),
-                               buffer_cpu, sizeof(buffer_cpu), dh.info, batch_size)
+        cusolverDnXsyevBatched(
+            dh, params, jobz, uplo, n, T, A,
+            lda, R, W, T, buffer_gpu, sizeof(buffer_gpu),
+            buffer_cpu, sizeof(buffer_cpu), dh.info, batch_size
+        )
     end
 
     info = @allowscalar collect(dh.info)
-    for i = 1:batch_size
+    for i in 1:batch_size
         chkargsok(info[i] |> BlasInt)
     end
 

@@ -39,21 +39,21 @@ p = 5
 
                 A = rand(elty, n, n, batch_size)
                 B = rand(elty, n, n, batch_size)
-                for i = 1:batch_size
-                    S = rand(elty,n,n)
+                for i in 1:batch_size
+                    S = rand(elty, n, n)
                     S = S * S' + I
-                    B[:,:,i] .= S
+                    B[:, :, i] .= S
                     S = uplo == 'L' ? tril(S) : triu(S)
-                    A[:,:,i] .= S
+                    A[:, :, i] .= S
                 end
                 d_A = CuArray(A)
                 d_W, d_V = CUSOLVER.XsyevBatched!('V', uplo, d_A)
                 W = collect(d_W)
                 V = collect(d_V)
-                for i = 1:batch_size
-                    Bᵢ = B[:,:,i]
-                    Wᵢ = Diagonal(W[:,i])
-                    Vᵢ = V[:,:,i]
+                for i in 1:batch_size
+                    Bᵢ = B[:, :, i]
+                    Wᵢ = Diagonal(W[:, i])
+                    Vᵢ = V[:, :, i]
                     @test Bᵢ * Vᵢ ≈ Vᵢ * Diagonal(Wᵢ)
                 end
 
