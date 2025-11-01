@@ -67,7 +67,7 @@ jobs:
 
       - name: Comment formatting suggestions
         if: steps.runic.outputs.exit_code == 1
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -89,7 +89,7 @@ jobs:
 
       - name: Update stale comment
         if: steps.runic.outputs.exit_code == 0 && steps.find-comment.outputs.comment-id
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
