@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.7"
+julia_version = "1.11.6"
 manifest_format = "2.0"
 project_hash = "5b3c7158524d47009a2aa20dc74e938a8cbc2050"
 
@@ -29,33 +29,33 @@ version = "3.4.3"
 
 [[deps.CUDA_Driver_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "12621de83838b5ce6a185050db5a184f4540679b"
+git-tree-sha1 = "2023be0b10c56d259ea84a94dbfc021aa452f2c6"
 uuid = "4ee394cb-3365-5eb0-8335-949819d2adfc"
-version = "13.0.0+0"
+version = "13.0.2+0"
 
 [[deps.CUDA_Runtime_jll]]
 deps = ["Artifacts", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "cc727d90c9769db27945219f9ba149dbddc74f06"
+git-tree-sha1 = "92cd84e2b760e471d647153ea5efc5789fc5e8b2"
 uuid = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
-version = "0.19.0+0"
+version = "0.19.2+0"
 
 [[deps.CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "5339fb33822050be94823965725915c1beada4f8"
+git-tree-sha1 = "8c546633bdb21b7b806276c0677a5656b4f675bc"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "13.0.1+1"
+version = "13.0.2+1"
 
 [[deps.CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "12ab2a3e7d1e5f523e95b94cd9334ebcf5be220e"
+git-tree-sha1 = "cf92130f820a5c92607e2a333d2d86d9bf30a694"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "9.10.0+0"
+version = "9.13.0+0"
 
 [[deps.CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "2c885279d0da51f9f43b6e868f5c54502ce17b7e"
+git-tree-sha1 = "70d3e03b381c8ed5ea385930078d6240b575cd8a"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "2.2.0+0"
+version = "2.3.1+0"
 
 [[deps.Clang]]
 deps = ["CEnum", "Clang_jll", "Downloads", "Pkg", "TOML"]
@@ -282,9 +282,9 @@ version = "1.2.13+1"
 
 [[deps.cuQuantum_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CUTENSOR_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "3192cef0d0cac365833c334bb5b4baf6d26dc5cb"
+git-tree-sha1 = "3e7921e233c7126e31f0353b8167f283e357ad79"
 uuid = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
-version = "25.3.0+0"
+version = "25.9.0+0"
 
 [[deps.libLLVM_jll]]
 deps = ["Artifacts", "Libdl"]
