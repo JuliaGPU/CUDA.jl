@@ -175,7 +175,9 @@ end
 
 
 function KI.kernel_max_work_group_size(::CUDABackend, kikern::KI.KIKernel{<:CUDABackend}; max_work_items::Int=typemax(Int))::Int
-    Int(min(kikern.kern.pipeline.maxTotalThreadsPerThreadgroup, max_work_items))
+    kernel_config = launch_configuration(kikern.kern.fun)
+
+    Int(min(kernel_config.threads, max_work_items))
 end
 function KI.max_work_group_size(::CUDABackend)::Int
     Int(attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
