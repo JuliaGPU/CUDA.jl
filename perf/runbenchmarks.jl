@@ -1,6 +1,4 @@
 # benchmark suite execution and codespeed submission
-using Pkg
-Pkg.add(url="https://github.com/christiangnrd/GPUArrays.jl", rev="reverse")
 
 using CUDA
 

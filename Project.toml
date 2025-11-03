@@ -44,6 +44,10 @@ EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
+[sources]
+GPUArrays = {rev = "reverse", url = "https://github.com/christiangnrd/GPUArrays.jl"}
+KernelAbstractions = {rev = "intrinsics", url = "https://github.com/christiangnrd/KernelAbstractions.jl"}
+
 [extensions]
 ChainRulesCoreExt = "ChainRulesCore"
 EnzymeCoreExt = "EnzymeCore"
