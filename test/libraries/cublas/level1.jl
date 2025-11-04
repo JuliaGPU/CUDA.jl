@@ -41,6 +41,12 @@ k = 13
             @test dz ≈ z
         end
 
+        @testset "rmul! strong zero" begin
+            @test testf(rmul!, fill(NaN, 3), false)
+            @test testf(rmul!, rand(3), false)
+            @test testf(rmul!, rand(3), true)
+        end
+
         @testset "rotate!" begin
             @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
             @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(T))

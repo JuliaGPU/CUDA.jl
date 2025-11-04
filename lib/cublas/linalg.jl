@@ -9,6 +9,12 @@ end
 # BLAS 1
 #
 
+function LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Bool)
+    # explicitly fill x with zero to comply with julias "false = strong zero"
+    !k && fill!(x, zero(eltype(x)))
+    return x
+end
+
 LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
   scal!(length(x), k, x)
 
