@@ -362,7 +362,7 @@ function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::Strid
         if size(C) != (mA, nB)
             throw(DimensionMismatch("C has dimensions $(size(C)), should have ($mA,$nB)"))
         end
-        return LinearAlgebra.rmul!(C, 0)
+        return LinearAlgebra.rmul!(C, beta)
     end
 
     if all(in(('N', 'T', 'C')), (tA, tB))
