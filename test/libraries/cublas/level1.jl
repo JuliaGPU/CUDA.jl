@@ -42,9 +42,9 @@ k = 13
         end
 
         @testset "rmul! strong zero" begin
-            @test testf(rmul!, fill(NaN, 3), false)
-            @test testf(rmul!, rand(3), false)
-            @test testf(rmul!, rand(3), true)
+            @test testf(rmul!, fill(T(NaN), 3), false)
+            @test testf(rmul!, rand(T, 3), false)
+            @test testf(rmul!, rand(T, 3), true)
         end
 
         @testset "rotate!" begin
