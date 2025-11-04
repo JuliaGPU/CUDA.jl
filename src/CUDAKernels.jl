@@ -1,7 +1,7 @@
 module CUDAKernels
 
 using ..CUDA
-using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory
+using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory, cufunction, cudaconvert
 
 import KernelAbstractions as KA
 import KernelAbstractions: KernelIntrinsics as KI
@@ -158,11 +158,10 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
     return nothing
 end
 
+KI.kiconvert(::CUDABackend, arg) = cudaconvert(arg)
 
-function KI.KIKernel(::CUDABackend, f, args...; kwargs...)
-    kern = eval(quote
-        @cuda launch=false $(kwargs...) $(f)($(args...))
-    end)
+function KI.kifunction(::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    kern = cufunction(f, tt; name, kwargs...)
     KI.KIKernel{CUDABackend, typeof(kern)}(CUDABackend(), kern)
 end
 
