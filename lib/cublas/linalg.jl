@@ -273,7 +273,7 @@ function LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, 
     end
 
     if nA == 0
-        return rmul!(Y, 0)
+        return rmul!(Y, beta)
     end
 
     T = eltype(Y)
