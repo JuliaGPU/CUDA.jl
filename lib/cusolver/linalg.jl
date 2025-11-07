@@ -140,6 +140,30 @@ function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     ishermitian(A) ? Eigen(heevd!('V', 'U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
 end
 
+# matrix functions
+for func in (:(Base.exp), :(Base.cos), :(Base.sin), :(Base.tan), :(Base.cosh), :(Base.sinh), :(Base.tanh), :(Base.atan), :(Base.asinh), :(Base.atanh), :(Base.cbrt))
+    @eval begin
+        function ($func)(A::Symmetric{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            return Symmetric((F.vectors * Diagonal(($func).(F.values))) * F.vectors')
+        end
+        function ($func)(A::Hermitian{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            return Hermitian((F.vectors * Diagonal(($func).(F.values))) * F.vectors')
+        end
+        function ($func)(A::Hermitian{<:Complex, <:StridedCuMatrix})
+            F = eigen(A)
+            retmat = (F.vectors * Diagonal(($func).(F.values))) * F.vectors'
+            @static if VERSION >= v"1.11"
+                d_ixs = diagind(retmat, IndexStyle(retmat))
+            else
+                d_ixs = diagind(retmat)
+            end
+            @. retmat[d_ixs] = real(retmat[d_ixs])
+            return Hermitian(retmat)
+        end
+    end
+end
 
 # factorizations
 
