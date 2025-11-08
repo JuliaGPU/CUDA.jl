@@ -425,3 +425,268 @@ function run_and_collect(cmd)
 
     return proc, log
 end
+
+
+
+## opaque closures
+
+# TODO: once stabilised, move bits of this into GPUCompiler.jl
+
+using Core.Compiler: IRCode
+using Core: CodeInfo, MethodInstance, CodeInstance, LineNumberNode
+
+# helpers
+
+function compute_ir_rettype(ir::IRCode)
+    rt = Union{}
+    for i = 1:length(ir.stmts)
+        stmt = ir[Core.SSAValue(i)][:stmt]
+        if isa(stmt, Core.Compiler.ReturnNode) && isdefined(stmt, :val)
+            rt = Core.Compiler.tmerge(Core.Compiler.argextype(stmt.val, ir), rt)
+        end
+    end
+    return Core.Compiler.widenconst(rt)
+end
+
+function compute_oc_signature(ir::IRCode, nargs::Int)
+    argtypes = Vector{Any}(undef, nargs)
+    for i = 1:nargs
+        argtypes[i] = Core.Compiler.widenconst(ir.argtypes[i+1])
+    end
+    return Tuple{argtypes...}
+end
+
+function make_oc_codeinfo(ir::IRCode, @nospecialize env...; slotnames=nothing)
+    # NOTE: we need ir.argtypes[1] == typeof(env)
+    ir = Core.Compiler.copy(ir)
+    # if the user didn't specify a definition MethodInstance or filename Symbol to use
+    # for the debuginfo, set a filename now
+    if ir.debuginfo.def === nothing
+        ir.debuginfo.def = Symbol("IR for opaque gpu closure")
+    end
+    nargtypes = length(ir.argtypes)
+    nargs = nargtypes-1
+    sig = compute_oc_signature(ir, nargs)
+    rt = compute_ir_rettype(ir)
+    src = ccall(:jl_new_code_info_uninit, Ref{CodeInfo}, ())
+    if slotnames === nothing
+        src.slotnames = Base.fill(:none, nargtypes)
+    else
+        length(slotnames) == nargtypes || error("mismatched `argtypes` and `slotnames`")
+        src.slotnames = slotnames
+    end
+    src.slotflags = Base.fill(zero(UInt8), nargtypes)
+    src.slottypes = copy(ir.argtypes)
+    Core.Compiler.ir_to_codeinf!(src, ir)
+end
+
+# create a method (like `jl_make_oc_method`)
+function make_oc_method(nargs; file=nothing, line=0, world=GPUCompiler.tls_world_age())
+    meth = ccall(:jl_new_method_uninit, Ref{Method}, (Any,), Main)
+    meth.sig = Tuple
+    meth.isva = false
+    meth.is_for_opaque_closure = 0
+    meth.name = Symbol("opaque gpu closure")
+    meth.nargs = nargs + 1
+    meth.file = something(file, Symbol())
+    meth.line = line
+    Base.@atomic meth.primary_world = world
+    Base.@atomic meth.deleted_world = typemax(UInt)
+    return meth
+end
+
+function make_oc_codeinstance(mi::MethodInstance, src::CodeInfo; interp, world, rt)
+    owner = Core.Compiler.cache_owner(interp)
+    exctype = Any
+    inferred_const = C_NULL
+    inferred = src
+    const_flags = Int32(0)
+    min_world = world
+    max_world = typemax(UInt)
+    ipo_effects = UInt32(0)
+    effects = UInt32(0)
+    analysis_results = nothing
+    relocatability = UInt8(0)
+    CodeInstance(mi, owner, rt, exctype, inferred_const, inferred,
+                    const_flags, min_world, max_world, ipo_effects, effects,
+                    analysis_results, relocatability, src.debuginfo)
+end
+
+# generated function `ccall`, working around the restriction that ccall type
+# tuples need to be literals. this relies on ccall internals...
+@inline @generated function generated_ccall(f::Ptr, _rettyp, _types, vals...)
+    ex = quote end
+
+    rettyp = _rettyp.parameters[1]
+    types = _types.parameters[1].parameters
+    args = [:(vals[$i]) for i in 1:length(vals)]
+
+    # cconvert
+    cconverted = [Symbol("cconverted_$i") for i in 1:length(vals)]
+    for (dst, typ, src) in zip(cconverted, types, args)
+      append!(ex.args, (quote
+         $dst = Base.cconvert($typ, $src)
+      end).args)
+    end
+
+    # unsafe_convert
+    unsafe_converted = [Symbol("unsafe_converted_$i") for i in 1:length(vals)]
+    for (dst, typ, src) in zip(unsafe_converted, types, cconverted)
+      append!(ex.args, (quote
+         $dst = Base.unsafe_convert($typ, $src)
+      end).args)
+    end
+
+    call = Expr(:foreigncall, :f, rettyp, Core.svec(types...), 0,
+                QuoteNode(:ccall), unsafe_converted..., cconverted...)
+    push!(ex.args, call)
+    return ex
+end
+
+# static opaque closures
+
+# XXX: because we can't call functions from other CUDA modules, we effectively need to
+#      recompile when the target function changes. this, and because of how GPUCompiler's
+#      deferred compilation mechanism currently works, is why we have `F` as a type param.
+
+# XXX: because of GPU code requiring specialized signatures, we also need to recompile
+#      when the environment or argument types change. together with the above, this
+#      negates much of the benefit of opaque closures.
+
+# TODO: support for constructing an opaque closure from source code
+
+# TODO: complete support for passing an environment. this probably requires a split into
+#       host and device structures to, e.g., root a CuArray and pass a CuDeviceArray.
+
+struct OpaqueClosure{F, E, A, R}    # func, env, args, ret
+    env::E
+end
+
+function OpaqueClosure(ir::IRCode, @nospecialize env...;
+                       slotnames::Union{Nothing,Vector{Symbol}}=nothing)
+    nargtypes = length(ir.argtypes)
+    nargs = nargtypes-1
+    sig = compute_oc_signature(ir, nargs)
+    rt = compute_ir_rettype(ir)
+    src = make_oc_codeinfo(ir, env...; slotnames)
+    return create_static_oc(src, sig, rt, nargs, env...)
+end
+
+function OpaqueClosure(src::CodeInfo, @nospecialize env...; rettype, sig, nargs)
+    return create_static_oc(src, sig, rettype, nargs, env...)
+end
+
+function create_static_oc(src, @nospecialize(sig), @nospecialize(rt), nargs::Int,
+                          @nospecialize env...; file=nothing, line=0)
+    config = compiler_config(device(); kernel=false)
+    meth = make_oc_method(nargs; file, line)
+
+    # look up a method instance and create a compiler job
+    full_sig = Tuple{typeof(env), sig.parameters...}
+    mi = ccall(:jl_specializations_get_linfo, Ref{MethodInstance},
+               (Any, Any, Any), meth, full_sig, Core.svec())
+    job = CompilerJob(mi, config, meth.primary_world)
+
+    # create a callable object
+    id = length(GPUCompiler.deferred_codegen_jobs) + 1
+    GPUCompiler.deferred_codegen_jobs[id] = job
+    oc = OpaqueClosure{id, typeof(env), sig, rt}(env)
+
+    opaque_closure_jobs[job] = (; oc, src, rt)
+    return oc
+end
+
+# device-side call
+(oc::OpaqueClosure)(args...) = call(oc, args...)
+## NOTE: split into two to make `SciML.isinplace(oc)` work.
+##       it also resembles how kernels are called.
+@inline function call(oc::OpaqueClosure{F,E,A,R}, args...) where {F,E,A,R}
+    ptr = ccall("extern deferred_codegen", llvmcall, Ptr{Cvoid}, (Int,), F)
+    assume(ptr != C_NULL)
+    #ccall(ptr, R, (A...), args...)
+    generated_ccall(ptr, R, A, args...)
+end
+
+# dynamic opaque closures
+
+const jit_opaque_closures = Dict()
+
+struct JITOpaqueClosure{B, T}
+    builder::B
+    tfunc::T
+
+    function JITOpaqueClosure(builder, tfunc=Returns(nothing); nargs)
+        # the device and world are captured at closure construction time, but we only need
+        # them when creating the CompilerJob. as we cannot simply encode them in the
+        # JITOpaqueClosure object, we store them in a global dictionary instead.
+        config = compiler_config(device(); kernel=false)
+        meth = make_oc_method(nargs)
+
+        # create a callable object
+        oc = new{typeof(builder), typeof(tfunc)}(builder, tfunc)
+        jit_opaque_closures[typeof(oc)] = (; env=(), meth, config, oc)
+
+        return oc
+    end
+end
+
+# device-side call
+function (oc::JITOpaqueClosure)(args...)
+    rt = oc.tfunc(map(Core.Typeof, args)...)
+    call(oc, rt, args...)
+end
+@inline @generated function call(oct::JITOpaqueClosure{B,T}, ::Type{R}, args...) where {B,T,R}
+    rt = R
+    (; env, meth, config, oc) = jit_opaque_closures[oct]
+
+    # look up a method instance and create a compiler job
+    full_sig = Tuple{typeof(env), args...}
+    mi = ccall(:jl_specializations_get_linfo, Ref{MethodInstance},
+               (Any, Any, Any), meth, full_sig, Core.svec())
+    job = CompilerJob(mi, config, meth.primary_world)
+    opaque_closure_jobs[job] = (; oc, args, rt)
+
+    # generate a deferred compilation call
+    id = length(GPUCompiler.deferred_codegen_jobs) + 1
+    GPUCompiler.deferred_codegen_jobs[id] = job
+    quote
+        ptr = ccall("extern deferred_codegen", llvmcall, Ptr{Cvoid}, (Int,), $id)
+        assume(ptr != C_NULL)
+        #ccall(ptr, R, (A...), args...)
+        generated_ccall(ptr, $rt, $(Tuple{args...}), args...)
+    end
+end
+
+# compilation of opaque closures
+
+const opaque_closure_jobs = Dict{CompilerJob,Any}()
+
+function GPUCompiler.prepare_job!(@nospecialize(job::CUDACompilerJob))
+    if haskey(opaque_closure_jobs, job)
+        rt = opaque_closure_jobs[job].rt
+        oc = opaque_closure_jobs[job].oc
+        if oc isa JITOpaqueClosure
+            args = opaque_closure_jobs[job].args
+            nargs = length(args)
+
+            src = oc.builder(args...)
+            if src isa IRCode
+                nargtypes = length(src.argtypes)
+                nargs = nargtypes-1
+                sig = compute_oc_signature(src, nargs)
+                @assert compute_ir_rettype(src) == rt "Inferred return type does not match the provided return type"
+                src = make_oc_codeinfo(src)
+            end
+        else
+            src = opaque_closure_jobs[job].src
+        end
+        @assert src isa CodeInfo
+
+        # create a code instance and store it in the cache
+        interp = GPUCompiler.get_interpreter(job)
+        ci = make_oc_codeinstance(job.source, src; interp, job.world, rt)
+        Core.Compiler.setindex!(GPUCompiler.ci_cache(job), ci, job.source)
+    end
+
+    return
+end
