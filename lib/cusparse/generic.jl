@@ -158,16 +158,8 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},C
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
 
-    if isa(A, CuSparseMatrixCSC)
-        # cusparseSpMV completely supports CSC matrices with CUSPARSE.version() ≥ v"12.0".
-        # We use Aᵀ to model them as CSR matrices for older versions of CUSPARSE.
-        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
-        n,m = size(A)
-        transa = transa == 'N' ? 'T' : 'N'
-    else
-        descA = CuSparseMatrixDescriptor(A, index)
-        m,n = size(A)
-    end
+    descA = CuSparseMatrixDescriptor(A, index)
+    m,n = size(A)
 
     if transa == 'N'
         chkmvdims(X,n,Y,m)
