@@ -9,6 +9,12 @@ end
 # BLAS 1
 #
 
+function LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Bool)
+    # explicitly fill x with zero to comply with julias "false = strong zero"
+    !k && fill!(x, zero(eltype(x)))
+    return x
+end
+
 LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
   scal!(length(x), k, x)
 
@@ -267,7 +273,7 @@ function LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, 
     end
 
     if nA == 0
-        return rmul!(Y, 0)
+        return rmul!(Y, beta)
     end
 
     T = eltype(Y)
@@ -356,7 +362,7 @@ function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::Strid
         if size(C) != (mA, nB)
             throw(DimensionMismatch("C has dimensions $(size(C)), should have ($mA,$nB)"))
         end
-        return LinearAlgebra.rmul!(C, 0)
+        return LinearAlgebra.rmul!(C, beta)
     end
 
     if all(in(('N', 'T', 'C')), (tA, tB))
