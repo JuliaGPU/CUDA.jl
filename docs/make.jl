@@ -1,5 +1,7 @@
 using Documenter, Literate
 using CUDA
+using CUDA: CUBLAS, CUFFT, CUPTI, CURAND, CUSOLVER, CUSPARSE, NVML, APIUtils
+import cuDNN, cuStateVec, cuTENSOR, cuTensorNet
 
 const src = "https://github.com/JuliaGPU/CUDA.jl"
 const dst = "https://cuda.juliagpu.org/stable/"
@@ -9,17 +11,23 @@ function main()
 
     @info "Building Literate.jl documentation"
     cd(@__DIR__) do
-        Literate.markdown("src/tutorials/introduction.jl", "src/tutorials";
-                          repo_root_url="$src/blob/master/docs")
-        Literate.markdown("src/tutorials/custom_structs.jl", "src/tutorials";
-                          repo_root_url="$src/blob/master/docs")
-        Literate.markdown("src/tutorials/performance.jl", "src/tutorials";
-                          repo_root_url="$src/blob/master/docs")
+        Literate.markdown(
+            "src/tutorials/introduction.jl", "src/tutorials";
+            repo_root_url = "$src/blob/master/docs"
+        )
+        Literate.markdown(
+            "src/tutorials/custom_structs.jl", "src/tutorials";
+            repo_root_url = "$src/blob/master/docs"
+        )
+        Literate.markdown(
+            "src/tutorials/performance.jl", "src/tutorials";
+            repo_root_url = "$src/blob/master/docs"
+        )
     end
     println()
 
     @info "Generating Documenter.jl site"
-    DocMeta.setdocmeta!(CUDA, :DocTestSetup, :(using CUDA); recursive=true)
+    DocMeta.setdocmeta!(CUDA, :DocTestSetup, :(using CUDA); recursive = true)
     makedocs(
         sitename = "CUDA.jl",
         authors = "Tim Besard",
@@ -33,13 +41,27 @@ function main()
         ),
         doctest = true,
         warnonly = [:missing_docs],
-        modules = [CUDA],
+        modules = [
+            CUDA,
+            CUBLAS,
+            CUFFT,
+            CUPTI,
+            CURAND,
+            CUSOLVER,
+            CUSPARSE,
+            NVML,
+            APIUtils,
+            cuDNN,
+            cuStateVec,
+            cuTENSOR,
+            cuTensorNet,
+        ],
         pages = Any[
             "Home" => "index.md",
             "Tutorials" => Any[
                 "tutorials/introduction.md",
                 "tutorials/custom_structs.md",
-                "tutorials/performance.md"
+                "tutorials/performance.md",
             ],
             "Installation" => Any[
                 "installation/overview.md",
@@ -67,13 +89,25 @@ function main()
                 "api/compiler.md",
             ],
             "Library reference" => Any[
-                "lib/driver.md",
+                "lib/cublas.md",
+                "lib/cudadrv.md",
+                "lib/cudnn.md",
+                "lib/cufft.md",
+                "lib/cupti.md",
+                "lib/curand.md",
+                "lib/cusolver.md",
+                "lib/cusparse.md",
+                "lib/custatevec.md",
+                "lib/cutensor.md",
+                "lib/cutensornet.md",
+                "lib/nvml.md",
+                "lib/utils.md",
             ],
             "FAQ" => "faq.md",
         ]
     )
 
-    if ci
+    return if ci
         @info "Deploying to GitHub"
         deploydocs(
             repo = "github.com/JuliaGPU/CUDA.jl.git",
