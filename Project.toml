@@ -98,4 +98,4 @@ SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [sources]
-GPUArrays = {url = "https://github.com/JuliaGPU/GPUArrays.jl", rev = "master"}
+GPUArrays = {url = "https://github.com/JuliaGPU/GPUArrays.jl", rev = "ksh/opnorm"}
