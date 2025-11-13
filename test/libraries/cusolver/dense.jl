@@ -329,6 +329,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         end
     end
 
+    # Note: Xgeev was introduced in CUDA 12.6.2 / CUSOLVER 11.7.1
     if CUSOLVER.version() >= v"11.7.1"
         @testset "geev!" begin
             local d_W, d_V
@@ -401,11 +402,9 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         A             += A'
         d_A            = CuArray(A)
         Eig            = eigen(LinearAlgebra.Hermitian(A))
-        if CUSOLVER.version() >= v"11.7.1"
-            d_eig          = eigen(d_A)
-            sorteig!(d_eig.values, d_eig.vectors)
-            @test Eig.values ≈ collect(d_eig.values)
-        end
+        d_eig          = eigen(d_A)
+        sorteig!(d_eig.values, d_eig.vectors)
+        @test Eig.values ≈ collect(d_eig.values)
         d_eig          = eigen(LinearAlgebra.Hermitian(d_A))
         @test Eig.values ≈ collect(d_eig.values)
         h_V            = collect(d_eig.vectors)
@@ -422,11 +421,9 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         A             += A'
         d_A            = CuArray(A)
         W              = eigvals(LinearAlgebra.Hermitian(A))
-        if CUSOLVER.version() >= v"11.7.1"
-            d_W            = eigvals(d_A)
-            sorteig!(d_W)
-            @test W        ≈ collect(d_W)
-        end
+        d_W            = eigvals(d_A)
+        sorteig!(d_W)
+        @test W        ≈ collect(d_W)
         d_W            = eigvals(LinearAlgebra.Hermitian(d_A))
         @test W        ≈ collect(d_W)
         if elty <: Real
@@ -439,13 +436,11 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         A             += A'
         d_A            = CuArray(A)
         V              = eigvecs(LinearAlgebra.Hermitian(A))
-        if CUSOLVER.version() >= v"11.7.1"
-            d_W            = eigvals(d_A)
-            d_V            = eigvecs(d_A)
-            sorteig!(d_W, d_V)
-            h_V            = collect(d_V)
-            @test abs.(V'*h_V) ≈ I
-        end
+        d_W            = eigvals(d_A)
+        d_V            = eigvecs(d_A)
+        sorteig!(d_W, d_V)
+        h_V            = collect(d_V)
+        @test abs.(V'*h_V) ≈ I
         d_V            = eigvecs(LinearAlgebra.Hermitian(d_A))
         h_V            = collect(d_V)
         @test abs.(V'*h_V) ≈ I
