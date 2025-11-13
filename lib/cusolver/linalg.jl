@@ -133,27 +133,35 @@ end
 
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
-    W, _, VR = Xgeev!('N', 'V', A2)
-    C = Complex{T}
-    U = CuMatrix{C}([1.0 1.0; im -im])
-    VR = CuMatrix{C}(VR)
-    h_W = collect(W)
-    n = length(W)
-    j = 1
-    while j <= n
-        if imag(h_W[j]) == 0
-            j += 1
-        else
-            VR[:, j:(j + 1)] .= VR[:, j:(j + 1)] * U
-            j += 2
+    if issymmetric(A)
+        return Eigen(syevd!('V', 'U', A2)...)
+    else
+        W, _, VR = Xgeev!('N', 'V', A2)
+        C = Complex{T}
+        U = CuMatrix{C}([1.0 1.0; im -im])
+        VR = CuMatrix{C}(VR)
+        h_W = collect(W)
+        n = length(W)
+        j = 1
+        while j <= n
+            if imag(h_W[j]) == 0
+                j += 1
+            else
+                VR[:, j:(j + 1)] .= VR[:, j:(j + 1)] * U
+                j += 2
+            end
         end
+        return Eigen(W, VR)
     end
-    return Eigen(W, VR)
 end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
-    r = Xgeev!('N', 'V', A2)
-    return Eigen(r[1], r[3])
+    if ishermitian(A)
+        return Eigen(heevd!('V', 'U', A2)...)
+    else
+        r = Xgeev!('N', 'V', A2)
+        return Eigen(r[1], r[3])
+    end
 end
 
 # eigvals
@@ -172,11 +180,19 @@ end
 
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
     A2 = copy(A)
-    return Xgeev!('N', 'N', A2)[1]
+    if issymmetric(A)
+        return syevd!('N', 'U', A2)
+    else
+        return Xgeev!('N', 'N', A2)[1]
+    end
 end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
     A2 = copy(A)
-    return Xgeev!('N', 'N', A2)[1]
+    if ishermitian(A)
+        return heevd!('N', 'U', A2)
+    else
+        return Xgeev!('N', 'N', A2)[1]
+    end
 end
 
 # eigvecs
