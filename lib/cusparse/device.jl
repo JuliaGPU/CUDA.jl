@@ -37,7 +37,7 @@ SparseArrays.nnz(g::CuSparseDeviceMatrixCSC) = g.nnz
 SparseArrays.rowvals(g::CuSparseDeviceMatrixCSC) = g.rowVal
 SparseArrays.getcolptr(g::CuSparseDeviceMatrixCSC) = g.colPtr
 SparseArrays.getnzval(g::CuSparseDeviceMatrixCSC) = g.nzVal
-SparseArrays.nzrange(g::CuSparseDeviceMatrixCSC, col::Integer) = SparseArrays.getcolptr(g)[col]:(SparseArrays.getcolptr(g)[col+1]-1)
+SparseArrays.nzrange(g::CuSparseDeviceMatrixCSC, col::Integer) = @inbounds SparseArrays.getcolptr(g)[col]:(SparseArrays.getcolptr(g)[col+1]-1)
 SparseArrays.nonzeros(g::CuSparseDeviceMatrixCSC) = g.nzVal
 
 const CuSparseDeviceColumnView{Tv, Ti} = SubArray{Tv, 1, <:CuSparseDeviceMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
