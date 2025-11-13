@@ -9,6 +9,7 @@ steps:
               version: "{{matrix.julia}}"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail"
+              allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -25,12 +26,13 @@ steps:
           build.message !~ /\[only/ &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip julia\]/
-        timeout_in_minutes: 60
+        timeout_in_minutes: 90
         matrix:
           setup:
             julia:
               - "1.10"
               - "1.11"
+              - "1.12"
               - "nightly"
           adjustments:
             - with:
@@ -62,10 +64,11 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip cuda\]/
-        timeout_in_minutes: 45
+        timeout_in_minutes: 60
         matrix:
           setup:
             cuda:
+              - "13.0"
               - "12.9"
               - "12.8"
               - "12.6"
@@ -75,14 +78,12 @@ steps:
               - "12.2"
               - "12.1"
               - "12.0"
-              - "11.8"
-              - "11.7"
-              - "11.6"
-              - "11.5"
-              - "11.4"
+          adjustments:
+            - with:
+                cuda: "13.0"
+              soft_fail: true
         commands: |
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
-          echo -e "[CUDA_Driver_jll]\ncompat = \"false\"" >>LocalPreferences.toml
 
   - group: ":nesting_dolls: Subpackages"
     depends_on: "cuda"
@@ -91,13 +92,30 @@ steps:
         matrix:
           setup:
             cuda:
-              - "11.4"
               - "12.0"
+              - "13.0"
             package:
               - "cuDNN"
               - "cuTENSOR"
               - "cuStateVec"
               - "cuTensorNet"
+          adjustments:
+            - with:
+                package: "cuStateVec"
+                cuda: "12.0"
+              soft_fail: true
+            - with:
+                package: "cuTensorNet"
+                cuda: "12.0"
+              soft_fail: true
+            - with:
+                package: "cuStateVec"
+                cuda: "13.0"
+              soft_fail: true
+            - with:
+                package: "cuTensorNet"
+                cuda: "13.0"
+              soft_fail: true
         plugins:
           - JuliaCI/julia#v1:
               version: "1.10"
@@ -300,8 +318,6 @@ steps:
         agents:
           queue: "juliagpu"
           cuda: "*"
-        env:
-          JULIA_CUDA_USE_COMPAT: 'false'  # NVIDIA bug #3418723: injection tools prevent probing libcuda
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only special\]/ ||
@@ -368,7 +384,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.11"
           - JuliaCI/julia-test#v1:
-              test_args: "--gpu=0,1 core base libraries"
+              test_args: "--gpu=0,1 --quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -385,6 +401,33 @@ steps:
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
         timeout_in_minutes: 45
+
+      - label: ":older_man: Old dependencies"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.10" # use the oldest supported Julia version (and update below)
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail core base"
+              allow_reresolve: false
+          - JuliaCI/julia-coverage#v1:
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        commands: |
+          git clone https://github.com/StefanKarpinski/Resolver.jl /tmp/Resolver
+          julia -e 'using Pkg; Pkg.activate("/tmp/Resolver/bin"); Pkg.instantiate()'
+          julia /tmp/Resolver/bin/resolve.jl . --min=@alldeps --julia="1.10"
+        if: |
+          build.message =~ /\[only tests\]/ ||
+          build.message =~ /\[only special\]/ ||
+          build.message !~ /\[only/ && !build.pull_request.draft &&
+            build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip special\]/
+        timeout_in_minutes: 30
 
   - wait: ~
     continue_on_failure: true

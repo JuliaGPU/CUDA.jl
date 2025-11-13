@@ -1,10 +1,19 @@
 # interfacing with LinearAlgebra standard library
 
-using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular
-
+using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!, lmul!
+@static if VERSION ≥ v"1.12.0-rc"
+    # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
+    using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
+end
 #
 # BLAS 1
 #
+
+function LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Bool)
+    # explicitly fill x with zero to comply with julias "false = strong zero"
+    !k && fill!(x, zero(eltype(x)))
+    return x
+end
 
 LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
   scal!(length(x), k, x)
@@ -105,6 +114,92 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     end
 end
 
+# three-argument dot: avoid materializing A*y
+function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T3}) where {T1,T2,T3}
+    nx = length(x)
+    ny = length(y)
+    mA, nA = size(A)
+
+    nx == mA || throw(DimensionMismatch("length of x, $nx, does not match first dimension of A, $mA"))
+    ny == nA || throw(DimensionMismatch("length of y, $ny, does not match second dimension of A, $nA"))
+
+    # custom kernel using simple linear indexing and atomic additions
+    # COV_EXCL_START
+    function kernel(x, A, y, res::AbstractArray{T}, shuffle) where {T}
+        local_val = zero(T)
+
+        # grid-stride loop over rows
+        i = threadIdx().x + (blockIdx().x - 1i32)*blockDim().x
+        while i <= mA
+            row_val = zero(T)
+            for j in 1:nA
+                # XXX: this is slow, but the focus is on avoiding materializing A*y
+                @inbounds row_val += A[i, j] * y[j]
+            end
+            @inbounds local_val += LinearAlgebra.dot(x[i], row_val)
+            i += blockDim().x * gridDim().x
+        end
+
+        val = CUDA.reduce_block(+, local_val, zero(T), shuffle)
+        if threadIdx().x == 1i32
+            # NOTE: introduces nondeterminism
+            @inbounds CUDA.@atomic res[] += val
+        end
+
+        return
+    end
+    # COV_EXCL_STOP
+
+    dev = device()
+    let T = promote_type(T1, T2, T3)
+        # only use the above kernel if we don't care about determinism
+        # and if atomic operations are supported on these inputs
+        atomic = if capability(device()) >= v"7.0"
+            T <: Union{Int16, Int32, Int64, Float16, Float32, Float64}
+        else
+            T <: Union{Int32, Int64, Float32, Float64}
+        end
+        if CUDA.math_mode() == CUDA.PEDANTIC_MATH || !atomic
+            bc = Base.Broadcast.broadcasted(A, Base.CartesianIndices(A)) do a, I
+                i, j = Tuple(I)
+                LinearAlgebra.dot(x[i], a * y[j])
+            end
+            return sum(bc)
+        end
+
+        res = CUDA.zeros(T, 1)
+
+        # be conservative about using shuffle instructions
+        shuffle = T <: Union{Bool,
+                             UInt8, UInt16, UInt32, UInt64, UInt128,
+                             Int8, Int16, Int32, Int64, Int128,
+                             Float16, Float32, Float64,
+                             ComplexF16, ComplexF32, ComplexF64}
+
+        # how many threads do we want?
+        # reduce_block(shuffle=true) requires the block to consist of full warps.
+        wanted_threads = shuffle ? nextwarp(dev, mA) : mA
+        function compute_threads(max_threads)
+            if wanted_threads > max_threads
+                shuffle ? prevwarp(dev, max_threads) : max_threads
+            else
+                wanted_threads
+            end
+        end
+
+        # how many threads can we launch?
+        kernel_func = @cuda launch=false kernel(x, A, y, res, Val(shuffle))
+        compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
+        config = launch_configuration(kernel_func.fun; shmem=compute_shmem∘compute_threads)
+        threads = compute_threads(config.threads)
+        blocks = min(config.blocks, cld(mA, config.blocks))
+        shmem = compute_shmem(threads)
+        kernel_func(x, A, y, res, Val(shuffle); threads, blocks, shmem)
+
+        CUDA.@allowscalar res[]
+    end
+end
+
 function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}},
                             y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
     x = transx.parent
@@ -121,6 +216,8 @@ function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasF
         return invoke(norm, Tuple{AbstractGPUArray, Real}, x, p)
     end
 end
+LinearAlgebra.norm(x::Diagonal{T, <:StridedCuVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, CublasFloat}} = norm(x.diag, p)
+LinearAlgebra.norm2(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
 
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
@@ -176,7 +273,7 @@ function LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, 
     end
 
     if nA == 0
-        return rmul!(Y, 0)
+        return rmul!(Y, beta)
     end
 
     T = eltype(Y)
@@ -223,6 +320,29 @@ end
 #
 
 # GEMM
+
+@static if VERSION ≥ v"1.12.0-rc"
+    function LinearAlgebra.generic_matmatmul_wrapper!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}, alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:CublasFloat}
+        LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, alpha, beta)
+    end
+    function LinearAlgebra._symm_hemm_generic!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}, alpha, beta, ::Val{BlasFlag.SYMM}) where {T}
+        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
+        if lrchar == 'L'
+            symm!(lrchar, ulchar, alpha, A, B, beta, C)
+        else
+            symm!(lrchar, ulchar, alpha, B, A, beta, C)
+        end
+    end
+    function LinearAlgebra._symm_hemm_generic!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}, alpha, beta, ::Val{BlasFlag.HEMM}) where {T}
+        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
+        if lrchar == 'L'
+            hemm!(lrchar, ulchar, alpha, A, B, beta, C)
+        else
+            hemm!(lrchar, ulchar, alpha, B, A, beta, C)
+        end
+    end
+end
+
 LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
 function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, alpha::Number, beta::Number)
@@ -242,7 +362,7 @@ function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::Strid
         if size(C) != (mA, nB)
             throw(DimensionMismatch("C has dimensions $(size(C)), should have ($mA,$nB)"))
         end
-        return LinearAlgebra.rmul!(C, 0)
+        return LinearAlgebra.rmul!(C, beta)
     end
 
     if all(in(('N', 'T', 'C')), (tA, tB))
@@ -269,6 +389,12 @@ function LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::Strid
     GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
 end
 
+# fallback for weird Complex edge cases
+const AdjOrTransOrCuMatrix{T} = Union{StridedCuMatrix{T}, AdjOrTrans{<:T,<:StridedCuMatrix{T}}}
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::AdjOrTransOrCuMatrix{T}, B::Adjoint{T, <:Transpose{T, <:StridedCuMatrix{T}}}, α::Number, β::Number) where {T<:Complex} = mul!(C, A, conj(parent(parent(B))), α, β)
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::AdjOrTransOrCuMatrix{T}, B::Transpose{T, <:Adjoint{T, <:StridedCuMatrix{T}}}, α::Number, β::Number) where {T<:Complex} = mul!(C, A, conj(parent(parent(B))), α, β)
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Adjoint{T, <:Transpose{T, <:StridedCuMatrix{T}}}, B::AdjOrTransOrCuMatrix{T}, α::Number, β::Number) where {T<:Complex} = mul!(C, conj(parent(parent(A))), B, α, β)
+LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Transpose{T, <:Adjoint{T, <:StridedCuMatrix{T}}}, B::AdjOrTransOrCuMatrix{T}, α::Number, β::Number) where {T<:Complex} = mul!(C, conj(parent(parent(A))), B, α, β)
 
 # triangular
 
@@ -278,7 +404,6 @@ LinearAlgebra.generic_mattrimul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Fu
     trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, A, C)
 
 ## tri-tri-mul!
-const AdjOrTransOrCuMatrix{T} = Union{StridedCuMatrix{T}, AdjOrTrans{<:T,<:StridedCuMatrix}}
 function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::StridedCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
     uplocB = LinearAlgebra.uplo_char(triB)
     isunitcB = LinearAlgebra.isunit_char(triB)
@@ -328,8 +453,35 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
 end
 
 # Diagonal
-Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Diagonal(Array(D.diag))
-CuArray(D::Diagonal{T, <:Vector{T}}) where {T} = Diagonal(CuArray(D.diag))
+
+# conversions to dense matrices
+Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Array(Diagonal(Array(D.diag)))
+CUDA.CuArray(D::Diagonal{T}) where {T} = CuMatrix(D)
+function CUDA.CuMatrix{T}(D::Diagonal) where {T}
+    n = size(D, 1)
+    B = CUDA.zeros(T, n, n)
+    n == 0 && return B
+
+    gpu_diag = adapt(CuArray, D.diag)
+    ## COV_EXCL_START
+    function fill_diagonal()
+        i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+        grid_stride = gridDim().x * blockDim().x
+        while i <= n
+            @inbounds B[i,i] = gpu_diag[i]
+            i += grid_stride
+        end
+        return
+    end
+    ## COV_EXCL_STOP
+    kernel = @cuda launch = false fill_diagonal()
+    config = launch_configuration(kernel.fun)
+    threads = min(config.threads, n)
+    blocks = min(config.blocks, cld(n, threads))
+    @cuda threads blocks fill_diagonal()
+
+    return B
+end
 
 function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
     Di = map(inv, D.diag)
@@ -383,6 +535,44 @@ function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoin
     C .= B
     C .*= A.diag
     return C
+end
+
+function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix{T}) where {T<:CublasFloat}
+    return dgmm!('L', B, A.diag, B)
+end
+
+function LinearAlgebra.rmul!(A::CuMatrix{T}, B::Diagonal{T,<:CuVector{T}}) where {T<:CublasFloat}
+    return dgmm!('R', A, B.diag, A)
+end
+
+# eltypes do not match
+function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix) where {T<:CublasFloat}
+    @. B = A.diag * B
+    return B
+end
+function LinearAlgebra.lmul!(A::Diagonal{Td,<:CuVector{Td}}, B::Transpose{Tt, <:CuMatrix{Tt}}) where {Td<:CublasFloat, Tt<:CublasFloat}
+    @. B = A.diag * B
+    return B
+end
+function LinearAlgebra.lmul!(A::Diagonal{Td,<:CuVector{Td}}, B::Adjoint{Tt, <:CuMatrix{Tt}}) where {Td<:CublasFloat, Tt<:CublasFloat}
+    @. B = A.diag * B
+    return B
+end
+# eltypes do not match
+function LinearAlgebra.rmul!(A::CuMatrix, B::Diagonal{T,<:CuVector{T}}) where {T<:CublasFloat}
+    At = transpose(A)
+    @. At = B.diag * At
+    return A
+end
+function LinearAlgebra.rmul!(A::Transpose{Tt, <:CuMatrix{Tt}}, B::Diagonal{Td,<:CuVector{Td}}) where {Td<:CublasFloat, Tt<:CublasFloat}
+    At = parent(A)
+    @. At = B.diag * At
+    return transpose(At)
+end
+function LinearAlgebra.rmul!(A::Adjoint{Tt, <:CuMatrix{Tt}}, B::Diagonal{Td,<:CuVector{Td}}) where {Td<:CublasFloat, Tt<:CublasFloat}
+    At = parent(A)
+    @. At = adjoint(B.diag) * At
+    return adjoint(At)
 end
 
 # diagm

@@ -41,23 +41,26 @@ const cuda_cap_db = Dict(
     v"3.0"   => between(v"4.2", v"10.2"),
     v"3.2"   => between(v"6.0", v"10.2"),
     v"3.5"   => between(v"5.0", v"11.8"),
-    v"3.7"   => between(v"6.5", highest),
-    v"5.0"   => between(v"6.0", highest),
-    v"5.2"   => between(v"7.0", highest),
-    v"5.3"   => between(v"7.5", highest),
-    v"6.0"   => between(v"8.0", highest),
-    v"6.1"   => between(v"8.0", highest),
-    v"6.2"   => between(v"8.0", highest),
-    v"7.0"   => between(v"9.0", highest),
-    v"7.2"   => between(v"9.2", highest),
+    v"3.7"   => between(v"6.5", v"11.8"),
+    v"5.0"   => between(v"6.0", v"12.9"),
+    v"5.2"   => between(v"7.0", v"12.9"),
+    v"5.3"   => between(v"7.5", v"12.9"),
+    v"6.0"   => between(v"8.0", v"12.9"),
+    v"6.1"   => between(v"8.0", v"12.9"),
+    v"6.2"   => between(v"8.0", v"12.9"),
+    v"7.0"   => between(v"9.0", v"12.9"),
+    v"7.2"   => between(v"9.2", v"12.9"),
     v"7.5"   => between(v"10.0", highest),
     v"8.0"   => between(v"11.0", highest),
     v"8.6"   => between(v"11.1", highest),
     v"8.7"   => between(v"11.4", highest),
     v"8.9"   => between(v"11.8", highest),
     v"9.0"   => between(v"11.8", highest),
-    v"12.0" => between(v"12.8", highest),
-    v"12.1" => between(v"12.9", highest),
+    v"10.0"  => between(v"12.8", highest),
+    v"10.3"  => between(v"12.8", highest),
+    v"11.0"  => between(v"12.8", highest),
+    v"12.0"  => between(v"12.8", highest),
+    v"12.1"  => between(v"12.9", highest),
 )
 
 function cuda_cap_support(ver::VersionNumber)
@@ -293,14 +296,19 @@ function llvm_compat(version=LLVM.version())
     return (cap=cap_support, ptx=ptx_support)
 end
 
-function cuda_compat(driver=driver_version(), runtime=runtime_version())
-    driver_cap_support = cuda_cap_support(driver)
-    toolkit_cap_support = cuda_cap_support(runtime)
-    cap_support = sort(collect(driver_cap_support ∩ toolkit_cap_support))
+function cuda_compat(version=runtime_version())
+    # we don't have to check the driver version, because it offers backwards compatbility
+    # beyond the CUDA toolkit version (e.g. R580 for CUDA 13 still supports Volta as
+    # deprecated in CUDA 13), and we don't have a reliable way to query the actual version
+    # as NVML isn't available on all platforms. let's instead simply assume that unsupported
+    # devices will not be exposed to the CUDA runtime and thus won't be visible to us.
 
-    driver_ptx_support = cuda_ptx_support(driver)
-    toolkit_ptx_support = cuda_ptx_support(runtime)
-    ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
+    # we also don't have to check the compiler version, because CUDA_Compiler_jll is
+    # guaranteed to have the same major version as CUDA_Runtime_jll, meaning that the
+    # compiler will always support at least the same devices as the runtime.
+
+    cap_support = sort(collect(cuda_cap_support(version)))
+    ptx_support = sort(collect(cuda_ptx_support(version)))
 
     return (cap=cap_support, ptx=ptx_support)
 end

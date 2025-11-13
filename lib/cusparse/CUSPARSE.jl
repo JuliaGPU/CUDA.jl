@@ -1,6 +1,7 @@
 module CUSPARSE
 
 using ..APIUtils
+using ..GPUToolbox
 
 using ..CUDA_Runtime
 
@@ -24,7 +25,6 @@ const SparseChar = Char
 
 # core library
 include("libcusparse.jl")
-include("libcusparse_deprecated.jl")
 
 include("error.jl")
 include("array.jl")

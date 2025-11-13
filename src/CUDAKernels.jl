@@ -1,7 +1,7 @@
 module CUDAKernels
 
 using ..CUDA
-using ..CUDA: @device_override, CUSPARSE
+using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory
 
 import KernelAbstractions as KA
 
@@ -21,15 +21,17 @@ end
 
 CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
-KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple) where T = CuArray{T}(undef, dims)
-KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.zeros(T, dims)
-KA.ones(::CUDABackend, ::Type{T}, dims::Tuple) where T = CUDA.ones(T, dims)
+@inline KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
+@inline KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), zero(T))
+@inline KA.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), one(T))
 
 KA.get_backend(::CuArray) = CUDABackend()
 KA.get_backend(::CUSPARSE.AbstractCuSparseArray) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
 KA.functional(::CUDABackend) = CUDA.functional()
+
+KA.supports_unified(::CUDABackend) = true
 
 Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,CUSPARSE.AbstractCuSparseArray}) = a
@@ -55,14 +57,17 @@ end
 ## device operations
 
 function KA.ndevices(::CUDABackend)
-    return ndevices()
+    return Int(ndevices())
 end
 
-function KA.device(::CUDABackend)
+function KA.device(::CUDABackend)::Int
     deviceid(CUDA.active_state().device) + 1
 end
 
-function KA.device!(::CUDABackend, id::Int32)
+function KA.device!(backend::CUDABackend, id::Int)
+    if !(0 < id <= KA.ndevices(backend))
+        throw(ArgumentError("Device id $id out of bounds."))
+    end
     device!(id - 1)
 end
 

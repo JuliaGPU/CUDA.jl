@@ -1,7 +1,6 @@
 ## COV_EXCL_START
 
 # TODO
-# - serial version for lower latency
 # - block-stride loop to delay need for second kernel launch
 
 # Reduce a value across a warp
@@ -134,7 +133,7 @@ function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R::Abs
     return
 end
 
-function big_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
+function serial_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
     grid_idx = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
     @inbounds if grid_idx <= length(Rother)
         Iother = Rother[grid_idx]
@@ -160,7 +159,7 @@ end
 ## COV_EXCL_STOP
 
 # factored out for use in tests
-function big_mapreduce_threshold(dev)
+function serial_mapreduce_threshold(dev)
     max_concurrency = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK) *
                       attribute(dev, DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
     return max_concurrency
@@ -169,7 +168,10 @@ end
 function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
                                  A::Union{AbstractArray,Broadcast.Broadcasted};
                                  init=nothing) where {F, OP, T}
-    Base.check_reducedims(R, A)
+    if !isa(A, Broadcast.Broadcasted)
+        # XXX: Base.axes isn't defined anymore for Broadcasted, breaking this check
+        Base.check_reducedims(R, A)
+    end
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
     dev = device()
 
@@ -197,9 +199,9 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     @assert length(Rother) > 0
 
     # If `Rother` is large enough, then a naive loop is more efficient than partial reductions.
-    if length(Rother) >= big_mapreduce_threshold(dev)
+    if length(Rother) >= serial_mapreduce_threshold(dev)
         args = (f, op, init, Rreduce, Rother, R, A)
-        kernel = @cuda launch=false big_mapreduce_kernel(args...)
+        kernel = @cuda launch=false serial_mapreduce_kernel(args...)
         kernel_config = launch_configuration(kernel.fun)
         threads = kernel_config.threads
         blocks = cld(length(Rother), threads)
@@ -255,18 +257,38 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         # we can cover the dimensions to reduce using a single block
         kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; threads, blocks, shmem)
     else
-        # we need multiple steps to cover all values to reduce
-        partial = similar(R, (size(R)..., reduce_blocks))
+        # TODO: provide a version that atomically reduces from different blocks
+
+        # temporary empty array whose type will match the final partial array
+	    partial = similar(R, ntuple(_ -> 0, Val(ndims(R)+1)))
+
+        # NOTE: we can't use the previously-compiled kernel, or its launch configuration,
+        #       since the type of `partial` might not match the original output container
+        #       (e.g. if that was a view).
+        partial_kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), partial, A)
+        partial_kernel_config = launch_configuration(partial_kernel.fun; shmem=compute_shmem∘compute_threads)
+        partial_reduce_threads = compute_threads(partial_kernel_config.threads)
+        partial_reduce_shmem = compute_shmem(partial_reduce_threads)
+        partial_reduce_blocks = if other_blocks >= partial_kernel_config.blocks
+            1
+        else
+            min(cld(length(Rreduce), partial_reduce_threads),
+                cld(partial_kernel_config.blocks, other_blocks))
+        end
+        partial_threads = partial_reduce_threads
+        partial_shmem = partial_reduce_shmem
+        partial_blocks = partial_reduce_blocks*other_blocks
+
+        partial = similar(R, (size(R)..., partial_reduce_blocks))
         if init === nothing
             # without an explicit initializer we need to copy from the output container
             partial .= R
         end
-        # NOTE: we can't use the previously-compiled kernel, since the type of `partial`
-        #       might not match the original output container (e.g. if that was a view).
-        @cuda(threads, blocks, shmem,
-              partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), partial, A))
 
-        GPUArrays.mapreducedim!(identity, op, R, partial; init=init)
+        partial_kernel(f, op, init, Rreduce, Rother, Val(shuffle), partial, A;
+                       threads=partial_threads, blocks=partial_blocks, shmem=partial_shmem)
+
+        GPUArrays.mapreducedim!(identity, op, R, partial; init)
     end
 
     return R

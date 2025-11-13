@@ -137,7 +137,7 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         # only emitting `.loc` instructions...
         #
         # according to NVIDIA, "it is fine for PTX producers to produce debug info but not
-        # set `.target debug` and if `--device-debug` isn't passed, PTXAS will compile in
+        # set `.target debug` and if `--device-debug` isn't passed, ptxas will compile in
         # release mode".
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
@@ -204,7 +204,7 @@ end
             error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
         llvm_ptx = maximum(llvm_ptxs)
         isempty(cuda_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA $(runtime_version())")
         cuda_ptx = maximum(cuda_ptxs)
     end
 
@@ -229,7 +229,7 @@ end
         ## use the highest capability supported by CUDA
         cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
         isempty(cuda_caps) &&
-            error("Compute capability $(requested_cap) is not supported by CUDA driver $(driver_version()) / runtime $(runtime_version())")
+            error("Compute capability $(requested_cap) is not supported by CUDA $(runtime_version())")
         cuda_cap = maximum(cuda_caps)
     end
 

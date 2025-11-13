@@ -42,8 +42,8 @@ Base.eltype(::Type{<:CuPtr{T}}) where {T} = T
 Base.convert(::Type{T}, x::CuPtr) where {T<:Integer} = T(UInt(x))
 ## integer to pointer
 Base.convert(::Type{CuPtr{T}}, x::Union{Int,UInt}) where {T} = CuPtr{T}(x)
-Int(x::CuPtr)  = Base.bitcast(Int, x)
-UInt(x::CuPtr) = Base.bitcast(UInt, x)
+Base.Int(x::CuPtr)  = Base.bitcast(Int, x)
+Base.UInt(x::CuPtr) = Base.bitcast(UInt, x)
 
 # between regular and CUDA pointers
 Base.convert(::Type{<:Ptr}, p::CuPtr) =
@@ -167,8 +167,8 @@ Base.eltype(::Type{<:CuArrayPtr{T}}) where {T} = T
 Base.convert(::Type{T}, x::CuArrayPtr) where {T<:Integer} = T(UInt(x))
 ## integer to pointer
 Base.convert(::Type{CuArrayPtr{T}}, x::Union{Int,UInt}) where {T} = CuArrayPtr{T}(x)
-Int(x::CuArrayPtr)  = Base.bitcast(Int, x)
-UInt(x::CuArrayPtr) = Base.bitcast(UInt, x)
+Base.Int(x::CuArrayPtr)  = Base.bitcast(Int, x)
+Base.UInt(x::CuArrayPtr) = Base.bitcast(UInt, x)
 
 # between regular and CUDA pointers
 Base.convert(::Type{<:Ptr}, p::CuArrayPtr) =

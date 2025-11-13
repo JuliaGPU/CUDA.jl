@@ -110,6 +110,13 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     return LinearAlgebra._cut_B(BB, 1:n)
 end
 
+# make copyto! for Hermitian and Symmetric dispatch to the Base implementation
+# instead of being overridden by GPUArrays' dense copy (because of AnyGPUArray)
+Base.copyto!(dst::Symmetric{<:Any,<:CuMatrix}, src::Symmetric{<:Any,<:CuMatrix}) =
+    @invoke copyto!(dst::Symmetric, src::Symmetric)
+Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix}) =
+    @invoke copyto!(dst::Hermitian, src::Hermitian)
+
 # eigen
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
@@ -204,10 +211,10 @@ using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPack
 LinearAlgebra.qr!(A::CuMatrix{T}) where T = QR(geqrf!(A::CuMatrix{T})...)
 
 # conversions
-CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
-CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
-CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
-CuArray(F::QRPivoted) = CuMatrix(F)
+CUDA.CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
+CUDA.CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
+CUDA.CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
+CUDA.CuArray(F::QRPivoted) = CuMatrix(F)
 
 function LinearAlgebra.ldiv!(_qr::QR, b::CuVector)
     m,n = size(_qr)
@@ -235,16 +242,16 @@ end
 # AbstractQ's `size` is the size of the full matrix,
 # while `Matrix(Q)` only gives the compact Q.
 # See JuliaLang/julia#26591 and JuliaGPU/CUDA.jl#969.
-CuArray(Q::AbstractQ) = CuMatrix(Q)
-CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
-CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
-CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
+CUDA.CuArray(Q::AbstractQ) = CuMatrix(Q)
+CUDA.CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
+CUDA.CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
+CUDA.CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
     CuMatrix{T}(lmul!(Q, CuMatrix{S}(I, size(Q, 1), min(size(Q.factors)...))))
-CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)
-CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not supported")
+CUDA.CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)
+CUDA.CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not supported")
 # avoid the CPU array in the above mul!
-Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
-Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
+Base.Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
+Base.Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 
 function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
     y = CUDA.zeros(eltype(Q), size(Q, 2))

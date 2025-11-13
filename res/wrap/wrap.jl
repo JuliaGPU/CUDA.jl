@@ -56,6 +56,8 @@ function wrap(name, headers; targets=headers, defines=[], include_dirs=[])
             append!(args, ["-D", "$define"])
         end
     end
+    # XXX: Clang.jl stumbles without stubbing out this attribute (where is it normally defined?)
+    push!(args, "-D__device_builtin__=__attribute__((unused))")
 
     options = load_options(joinpath(@__DIR__, "$(name).toml"))
 

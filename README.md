@@ -86,14 +86,15 @@ The latest version of CUDA.jl also has certain requirements that cannot be enfor
 package manager:
 
 - Host platform: only 64-bit Linux and Windows are supported;
-- Device hardware: only NVIDIA GPUs with **compute capability 3.5** (Kepler) or higher are
+- Device hardware: only NVIDIA GPUs with **compute capability 5.0** (Maxwell) or higher are
   supported;
-- NVIDIA driver: a driver for **CUDA 11.0** or newer is required;
-- CUDA toolkit (in case you need to use your own): only **CUDA toolkit 11.4** or newer are
+- NVIDIA driver: a driver for **CUDA 12** or newer is required;
+- CUDA toolkit (in case you need to use your own): only **CUDA toolkit 12.0** or newer are
   supported.
 
 If you cannot meet these requirements, you may need to install an older version of CUDA.jl:
 
+* CUDA.jl v5.8 is the last version with support for CUDA 11, and consequently Kepler GPUs (removed in v5.9)
 * CUDA.jl v5.3 is the last version with support for PowerPC (removed in v5.4)
 * CUDA.jl v4.4 is the last version with support for CUDA 11.0-11.3 (deprecated in v5.0)
 * CUDA.jl v4.0 is the last version to work with CUDA 10.2 (removed in v4.1)
@@ -126,3 +127,23 @@ channel of the [Julia Slack](https://julialang.org/community/).
 
 Contributions are very welcome, as are feature requests and suggestions. Please open an
 [issue](https://github.com/JuliaGPU/CUDA.jl/issues) if you encounter any problems.
+
+### Note for contributors about CI usage
+
+You can pass special flags to Buildkite to avoid overburdening the GPU CI agents, which
+are a shared resource. The flag should be added to your top level commit message (**not**
+the extended message). 
+
+Available flags are:
+  - `[only julia]`: test only on the various Julia versions CUDA.jl supports, skipping testing subpackages and the various CUDA toolkits
+  - `[only tests]`: don't run the benchmark or documentation steps
+  - `[only subpackages]`: skip all the Julia and CUDA toolkit version runs, only test `cuTENSOR`, `cuStateVec`, `cuTensorNet`, and `CUDNN`
+  - `[only docs]`: only build the documentation, skip all tests and benchmarks
+  - `[only special]`: only test the special cases of multi-GPU, the various default memory locations, compute sanitizer, and the GPU-less environment
+  - `[only downstream]`: test only the "downstream" packages which depend on CUDA.jl and its libraries, such as Enzyme.jl
+  - `[skip downstream]`: don't the "downstream" packages
+  - `[skip special]`: don't run the above described special tests 
+  - `[skip tests]`: skip all tests, only run benchmarks and documentation
+  - `[skip benchmarks]`: don't run the benchmarks
+ 
+If you use these flags, make sure you don't exclude tests your changes could actually impact.

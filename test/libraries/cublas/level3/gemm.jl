@@ -18,11 +18,27 @@ k = 13
 @testset "level 3" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
 
-        @testset "mul! C = $f(A) *  $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+        @testset "mul! C = $f(A) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
             dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
             mul!(dC, f(dA), g(dB), Ts(1), Ts(2))
             mul!(C, f(A), g(B), Ts(1), Ts(2))
+            @test Array(dC) ≈ C
+        end
+
+        @testset "mul! C = $f(A) * $f($g(B)) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+            C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
+            dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
+            mul!(dC, f(dA), f(g(dB)), Ts(1), Ts(2))
+            mul!(C, f(A), f(g(B)), Ts(1), Ts(2))
+            @test Array(dC) ≈ C
+        end
+
+        @testset "mul! C = $g($f(A)) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+            C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
+            dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
+            mul!(dC, g(f(dA)), g(dB), Ts(1), Ts(2))
+            mul!(C, g(f(A)), g(B), Ts(1), Ts(2))
             @test Array(dC) ≈ C
         end
 
@@ -252,11 +268,14 @@ k = 13
         bA = rand(elty, m, k, nbatch)
         bB = rand(elty, k, n, nbatch)
         bC = rand(elty, m, n, nbatch)
+        sB = rand(elty, k, n)
         bbad = rand(elty, m+1, n+1, nbatch)
         # move to device
         bd_A = CuArray{elty, 3}(bA)
         bd_B = CuArray{elty, 3}(bB)
         bd_C = CuArray{elty, 3}(bC)
+        sd_B = CuArray{elty, 2}(sB)
+        sdr_B = reshape(sd_B, size(sd_B)..., 1)
         bd_bad = CuArray{elty, 3}(bbad)
 
         @testset "gemm_strided_batched!" begin
@@ -266,6 +285,14 @@ k = 13
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+
+            CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, sdr_B, beta, bd_C)
+            for i in 1:nbatch
+                bC[:, :, i] = (alpha * bA[:, :, i]) * sB + beta * bC[:, :, i]
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+
             @test_throws DimensionMismatch CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
@@ -276,6 +303,14 @@ k = 13
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+
+            CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, sdr_B, beta, bd_C)
+            for i in 1:nbatch
+                bC[:, :, i] = (alpha * bA[:, :, i]) * sB + beta * bC[:, :, i]
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+
             @test_throws DimensionMismatch CUBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
@@ -287,6 +322,14 @@ k = 13
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+
+            bd_C = CUBLAS.gemm_strided_batched('N', 'N', bd_A, sdr_B)
+            for i in 1:nbatch
+                bC[:, :, i] = bA[:, :, i] * sB
+            end
+            h_C = Array(bd_C)
+            @test bC ≈ h_C
+
             # generate matrices
             bA = rand(elty, k, m, nbatch)
             bB = rand(elty, k, n, nbatch)

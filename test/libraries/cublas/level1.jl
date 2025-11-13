@@ -25,6 +25,7 @@ k = 13
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
+        @test testf(LinearAlgebra.norm2, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
 
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
@@ -38,6 +39,12 @@ k = 13
             dz = dot(dx, dy)
             z = dot(x, y)
             @test dz ≈ z
+        end
+
+        @testset "rmul! strong zero" begin
+            @test testf(rmul!, fill(T(NaN), 3), false)
+            @test testf(rmul!, rand(T, 3), false)
+            @test testf(rmul!, rand(T, 3), true)
         end
 
         @testset "rotate!" begin
@@ -139,7 +146,7 @@ k = 13
             ca = CuArray(a)
             @test BLAS.iamax(a) == CUBLAS.iamax(ca)
             @test CUBLAS.iamin(ca) == 3
-            result_type = CUBLAS.version() >= v"12.0" ? Int64 : Cint
+            result_type = Int64
             result = CuRef{result_type}(0)
             CUBLAS.iamax(ca, result)
             @test BLAS.iamax(a) == result[]
@@ -150,6 +157,14 @@ k = 13
             result = CuRef{real(T)}(zero(real(T)))
             CUBLAS.nrm2(dx, result)
             @test norm(x) ≈ result[]
+        end
+        @testset "norm of Diagonal" begin
+            x = rand(T, m)
+            dDx = Diagonal(CuArray(x))
+            Dx = Diagonal(x)
+            @test norm(dDx, 1) ≈ norm(Dx, 1)
+            @test norm(dDx, 2) ≈ norm(Dx, 2)
+            @test norm(dDx, Inf) ≈ norm(Dx, Inf)
         end
     end # level 1 testset
     @testset for T in [Float16, ComplexF16]
@@ -163,6 +178,7 @@ k = 13
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
+        @test testf(LinearAlgebra.norm2, rand(T, m))
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
         @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
 

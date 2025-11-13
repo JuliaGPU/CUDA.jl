@@ -66,15 +66,10 @@ function __init__()
         return
     end
 
-    if !(v"11" <= driver < v"13-")
-        @error "This version of CUDA.jl only supports NVIDIA drivers for CUDA 11.x or 12.x (yours is for CUDA $driver)"
-        _initialization_error[] = "CUDA driver unsupported"
+    if driver < v"12"
+        @error "This version of CUDA.jl requires an NVIDIA driver for CUDA 12.x or higher (yours only supports up to CUDA $driver)"
+        _initialization_error[] = "NVIDIA driver too old"
         return
-    end
-
-    if driver < v"11.3"
-        @warn """The NVIDIA driver on this system only supports up to CUDA $driver.
-                 For performance reasons, it is recommended to upgrade to a driver that supports CUDA 11.3 or higher."""
     end
 
     # check that we have a runtime
@@ -135,12 +130,8 @@ function __init__()
     end
 
     # ensure the loaded runtime is supported
-    if runtime < v"10.2"
-        @error "This version of CUDA.jl only supports CUDA 11 or higher (your toolkit provides CUDA $runtime)"
-    end
-    if runtime.major > driver.major
-        @warn """You are using CUDA $runtime with a driver that only supports up to $(driver.major).x.
-                 It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+    if runtime < v"12"
+        @error "This version of CUDA.jl only supports CUDA 12 or higher (your toolkit provides CUDA $runtime)"
     end
 
     # ensure the loaded runtime matches what we precompiled for.
@@ -160,7 +151,7 @@ function __init__()
     end
 
     # if we're not running under an external profiler, let CUPTI handle NVTX events
-    if !NVTX.isactive()
+    if !NVTX.isactive() && CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
         ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
         NVTX.activate()
     end
@@ -214,6 +205,13 @@ function __init__()
                              "cublas", "cupti", "cusparse", "cufft", "curand", "cusolver"]
         for lib in Libdl.dllist()
             contains(lib, "artifacts") && continue
+
+            # skip driver store directories on Windows - these contain legitimate libraries
+            # that are part of the display driver installation (at least on CUDA 13+)
+            if Sys.iswindows() && contains(lib, "DriverStore")
+                continue
+            end
+
             if any(rtlib -> contains(lib, rtlib), runtime_libraries)
                 @warn """CUDA runtime library `$(basename(lib))` was loaded from a system path, `$lib`.
                          This may cause errors.

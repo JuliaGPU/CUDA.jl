@@ -1,185 +1,203 @@
-using CUDA
-using Adapt
 using CUDA.CUSPARSE
 using SparseArrays
 using LinearAlgebra
 
-if CUSPARSE.version() >= v"11.4.1"
-    @testset "generic mv!" for T in [Float32, Float64]
-        A = sprand(T, 10, 10, 0.1)
-        x = rand(Complex{T}, 10)
-        y = similar(x)
-        dx = adapt(CuArray, x)
-        dy = adapt(CuArray, y)
+@testset "generic mv!" for T in [Float32, Float64]
+    m = 10
+    A = sprand(T, m, m, 0.1)
+    x = rand(Complex{T}, m)
+    y = similar(x)
+    dx = adapt(CuArray, x)
+    dy = adapt(CuArray, y)
 
-        dA = adapt(CuArray, A)
-        mv!('N', T(1.0), dA, dx, T(0.0), dy, 'O')
-        @test Array(dy) ≈ A * x
+    dA = adapt(CuArray, A)
+    mv!('N', one(T), dA, dx, zero(T), dy, 'O')
+    @test Array(dy) ≈ A * x
 
-        dA = CuSparseMatrixCSR(dA)
-        mv!('N', T(1.0), dA, dx, T(0.0), dy, 'O')
-        @test Array(dy) ≈ A * x
+    dA = CuSparseMatrixCSR(dA)
+    mv!('N', one(T), dA, dx, zero(T), dy, 'O')
+    @test Array(dy) ≈ A * x
+    
+    A_bad = sprand(T, m+1, m, 0.1)
+    dA_bad = adapt(CuArray, A_bad)
+    @test_throws DimensionMismatch("Y must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy, 'O')
+
+    A_bad = sprand(T, m, m+1, 0.1)
+    dA_bad = adapt(CuArray, A_bad)
+    @test_throws DimensionMismatch("X must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy, 'O')
+end
+
+SPMV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT],
+                  CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
+                                        CUSPARSE.CUSPARSE_SPMV_CSR_ALG1,
+                                        CUSPARSE.CUSPARSE_SPMV_CSR_ALG2],
+                  CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
+                                        CUSPARSE.CUSPARSE_SPMV_COO_ALG1,
+                                       ],
+                 )
+
+SPMM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
+                  CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                        CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
+                                        CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
+                                        CUSPARSE.CUSPARSE_SPMM_CSR_ALG3],
+                  CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                        CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
+                                        CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
+                                        CUSPARSE.CUSPARSE_SPMM_COO_ALG4]
+                 )
+
+
+if CUSPARSE.version() >= v"12.1.3"
+    push!(SPMV_ALGOS[CuSparseMatrixCOO], CUSPARSE.CUSPARSE_SPMV_COO_ALG2)
+end
+
+if CUSPARSE.version() >= v"12.5.1"
+    SPMM_ALGOS[CuSparseMatrixBSR] = [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                     CUSPARSE.CUSPARSE_SPMM_BSR_ALG1]
+end
+
+for SparseMatrixType in keys(SPMV_ALGOS)
+    @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
+        @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                A = sprand(T, 20, 10, 0.1)
+                B = transa == 'N' ? rand(T, 10) : rand(T, 20)
+                C = transa == 'N' ? rand(T, 20) : rand(T, 10)
+                dA = SparseMatrixType(A)
+                dB = CuArray(B)
+                dC = CuArray(C)
+
+                alpha = rand(T)
+                beta = rand(T)
+                mv!(transa, alpha, dA, dB, beta, dC, 'O', algo)
+                @test alpha * opa(A) * B + beta * C ≈ collect(dC)
+            end
+        end
     end
 end
 
-if CUSPARSE.version() >= v"11.4.1" # lower CUDA version doesn't support these algorithms
-
-    SPMV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT],
-                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMV_CSR_ALG1,
-                                            CUSPARSE.CUSPARSE_SPMV_CSR_ALG2])
-
-    SPMM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
-                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG3])
-
-    if CUSPARSE.version() >= v"11.7.2"
-        SPMV_ALGOS[CuSparseMatrixCOO] = [CUSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
-                                         CUSPARSE.CUSPARSE_SPMV_COO_ALG1]
-
-        SPMM_ALGOS[CuSparseMatrixCOO] = [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                         CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
-                                         CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
-                                         CUSPARSE.CUSPARSE_SPMM_COO_ALG4]
-    end
-
-    if CUSPARSE.version() >= v"11.7.4"
-        push!(SPMM_ALGOS[CuSparseMatrixCOO], CUSPARSE.CUSPARSE_SPMM_COO_ALG2)
-    end
-
-    if CUSPARSE.version() >= v"12.1.3"
-        push!(SPMV_ALGOS[CuSparseMatrixCOO], CUSPARSE.CUSPARSE_SPMV_COO_ALG2)
-    end
-
-    if CUSPARSE.version() >= v"12.5.1"
-        SPMM_ALGOS[CuSparseMatrixBSR] = [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                         CUSPARSE.CUSPARSE_SPMM_BSR_ALG1]
-    end
-
-    for SparseMatrixType in keys(SPMV_ALGOS)
-        @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
-            @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-                @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+for SparseMatrixType in keys(SPMM_ALGOS)
+    @testset "$SparseMatrixType * CuMatrix -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
+        @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
-                    A = sprand(T, 20, 10, 0.1)
-                    B = transa == 'N' ? rand(T, 10) : rand(T, 20)
-                    C = transa == 'N' ? rand(T, 20) : rand(T, 10)
-                    dA = SparseMatrixType(A)
+                    algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
+                    (SparseMatrixType == CuSparseMatrixBSR) && (transa != 'N') && continue
+                    A = sprand(T, 10, 10, 0.1)
+                    B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
+                    C = rand(T, 10, 2)
+                    dA = SparseMatrixType == CuSparseMatrixBSR ? SparseMatrixType(A,1) : SparseMatrixType(A)
                     dB = CuArray(B)
                     dC = CuArray(C)
 
                     alpha = rand(T)
                     beta = rand(T)
-                    mv!(transa, alpha, dA, dB, beta, dC, 'O', algo)
-                    @test alpha * opa(A) * B + beta * C ≈ collect(dC)
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
                 end
             end
         end
     end
+end
 
-    for SparseMatrixType in keys(SPMM_ALGOS)
-        @testset "$SparseMatrixType * CuMatrix -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
-            @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-                @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
-                        algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
-                        (SparseMatrixType == CuSparseMatrixBSR) && (transa != 'N') && continue
-                        A = sprand(T, 10, 10, 0.1)
-                        B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
-                        C = rand(T, 10, 2)
-                        dA = SparseMatrixType == CuSparseMatrixBSR ? SparseMatrixType(A,1) : SparseMatrixType(A)
+# Algorithms for CSC and CSR matrices are swapped
+SPMM_ALGOS = Dict(CuSparseMatrixBSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
+                  CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
+                  CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                        CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
+                                        CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
+                                        CUSPARSE.CUSPARSE_SPMM_CSR_ALG3],
+                  CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
+                                        CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
+                                        CUSPARSE.CUSPARSE_SPMM_COO_ALG2,
+                                        CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
+                                        CUSPARSE.CUSPARSE_SPMM_COO_ALG4])
+
+for SparseMatrixType in keys(SPMM_ALGOS)
+    (SparseMatrixType == CuSparseMatrixBSR) && continue
+    @testset "CuMatrix * $SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
+        @testset "$T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                    CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
+                    algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
+                    A = rand(T, 10, 10)
+                    B = transb == 'N' ? sprand(T, 10, 5, 0.5) : sprand(T, 5, 10, 0.5)
+                    C = rand(T, 10, 5)
+                    dA = CuArray(A)
+                    dB = SparseMatrixType(B)
+                    if SparseMatrixType == CuSparseMatrixCOO
+                        dB = sort_coo(dB, 'C')
+                    end
+                    dC = CuArray(C)
+
+                    alpha = rand(T)
+                    beta = rand(T)
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
+
+                    # add tests for very small matrices (see #2296)
+                    # skip conjugate transpose - causes errors with 1x1 matrices
+                    # CUSPARSE_SPMM_CSR_ALG3 also fails
+                    (algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 || transa == 'C') && continue
+                    A = rand(T, 1, 1)
+                    B = sprand(T, 1, 1, 1.)
+                    C = rand(T, 1, 1)
+                    dA = CuArray(A)
+                    dB = SparseMatrixType(B)
+                    dC = CuArray(C)
+
+                    alpha = rand(T)
+                    beta = rand(T)
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
+                end
+            end
+        end
+    end
+end
+
+SPSV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
+                  CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
+                  CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT])
+
+SPSM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT],
+                  CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT],
+                  CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT])
+
+for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
+    @testset "$SparseMatrixType -- sv! algo=$algo" for algo in SPSV_ALGOS[SparseMatrixType]
+        @testset "sv! $T" for T in [Float64, ComplexF64]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                @testset "uplo = $uplo" for uplo in ('L', 'U')
+                    @testset "diag = $diag" for diag in ('U', 'N')
+                        A = rand(T, 10, 10)
+                        A = uplo == 'L' ? tril(A) : triu(A)
+                        A = diag == 'U' ? A - Diagonal(A) + I : A
+                        A = sparse(A)
+                        dA = SparseMatrixType(A)
+                        B = rand(T, 10)
+                        C = rand(T, 10)
                         dB = CuArray(B)
                         dC = CuArray(C)
-
                         alpha = rand(T)
-                        beta = rand(T)
-                        mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
-                        @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
+                        sv!(transa, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                        @test opa(A) \ (alpha * B) ≈ collect(dC)
                     end
                 end
             end
         end
     end
-end
 
-if CUSPARSE.version() >= v"11.7.4"
-
-    # Algorithms for CSC and CSR matrices are swapped
-    SPMM_ALGOS = Dict(CuSparseMatrixBSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
-                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
-                      CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG1,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMM_CSR_ALG3],
-                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPMM_ALG_DEFAULT,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG1,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG2,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG3,
-                                            CUSPARSE.CUSPARSE_SPMM_COO_ALG4])
-
-    for SparseMatrixType in keys(SPMM_ALGOS)
-        (SparseMatrixType == CuSparseMatrixBSR) && continue
-        @testset "CuMatrix * $SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
-            @testset "$T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-                @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                        CUSPARSE.version() < v"12.0" && SparseMatrixType == CuSparseMatrixCSR && T <: Complex && transb == 'C' && continue
-                        algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
-                        A = rand(T, 10, 10)
-                        B = transb == 'N' ? sprand(T, 10, 5, 0.5) : sprand(T, 5, 10, 0.5)
-                        C = rand(T, 10, 5)
-                        dA = CuArray(A)
-                        dB = SparseMatrixType(B)
-                        if SparseMatrixType == CuSparseMatrixCOO
-                            dB = sort_coo(dB, 'C')
-                        end
-                        dC = CuArray(C)
-
-                        alpha = rand(T)
-                        beta = rand(T)
-                        mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
-                        @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
-
-                        # add tests for very small matrices (see #2296)
-                        # skip conjugate transpose - causes errors with 1x1 matrices
-                        # CUSPARSE_SPMM_CSR_ALG3 also fails
-                        (algo == CUSPARSE.CUSPARSE_SPMM_CSR_ALG3 || transa == 'C') && continue
-                        A = rand(T, 1, 1)
-                        B = sprand(T, 1, 1, 1.)
-                        C = rand(T, 1, 1)
-                        dA = CuArray(A)
-                        dB = SparseMatrixType(B)
-                        dC = CuArray(C)
-
-                        alpha = rand(T)
-                        beta = rand(T)
-                        mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
-                        @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
-                    end
-                end
-            end
-        end
-    end
-end
-
-if CUSPARSE.version() >= v"12.0"
-
-    SPSV_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
-                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT],
-                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPSV_ALG_DEFAULT])
-
-    SPSM_ALGOS = Dict(CuSparseMatrixCSC => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT],
-                      CuSparseMatrixCSR => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT],
-                      CuSparseMatrixCOO => [CUSPARSE.CUSPARSE_SPSM_ALG_DEFAULT])
-
-    for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
-        @testset "$SparseMatrixType -- sv! algo=$algo" for algo in SPSV_ALGOS[SparseMatrixType]
-            @testset "sv! $T" for T in [Float64, ComplexF64]
-                @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+    @testset "$SparseMatrixType -- sm! algo=$algo" for algo in SPSM_ALGOS[SparseMatrixType]
+        @testset "sm! $T" for T in [Float64, ComplexF64]
+            @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
+                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose)]
                     @testset "uplo = $uplo" for uplo in ('L', 'U')
                         @testset "diag = $diag" for diag in ('U', 'N')
                             A = rand(T, 10, 10)
@@ -187,46 +205,20 @@ if CUSPARSE.version() >= v"12.0"
                             A = diag == 'U' ? A - Diagonal(A) + I : A
                             A = sparse(A)
                             dA = SparseMatrixType(A)
-                            B = rand(T, 10)
-                            C = rand(T, 10)
+                            B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
+                            C = rand(T, 10, 2)
                             dB = CuArray(B)
                             dC = CuArray(C)
                             alpha = rand(T)
-                            sv!(transa, uplo, diag, alpha, dA, dB, dC, 'O', algo)
-                            @test opa(A) \ (alpha * B) ≈ collect(dC)
-                        end
-                    end
-                end
-            end
-        end
-
-        @testset "$SparseMatrixType -- sm! algo=$algo" for algo in SPSM_ALGOS[SparseMatrixType]
-            @testset "sm! $T" for T in [Float64, ComplexF64]
-                @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                    SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
-                    @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose)]
-                        @testset "uplo = $uplo" for uplo in ('L', 'U')
-                            @testset "diag = $diag" for diag in ('U', 'N')
-                                A = rand(T, 10, 10)
-                                A = uplo == 'L' ? tril(A) : triu(A)
-                                A = diag == 'U' ? A - Diagonal(A) + I : A
-                                A = sparse(A)
-                                dA = SparseMatrixType(A)
-                                B = transb == 'N' ? rand(T, 10, 2) : rand(T, 2, 10)
-                                C = rand(T, 10, 2)
-                                dB = CuArray(B)
-                                dC = CuArray(C)
-                                alpha = rand(T)
-                                sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
-                                @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
-                            end
+                            sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                            @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
                         end
                     end
                 end
             end
         end
     end
-end # CUSPARSE.version >= 12.0
+end
 
 fmt = Dict(CuSparseMatrixCSC => :csc,
            CuSparseMatrixCSR => :csr,

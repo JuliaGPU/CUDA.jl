@@ -1,6 +1,7 @@
 module CUBLAS
 
 using ..APIUtils
+using ..GPUToolbox
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, i32
@@ -19,6 +20,8 @@ import LLVM
 using LLVM.Interop: assume
 
 using CEnum: @cenum
+
+using Adapt: adapt
 
 
 const cudaDataType_t = cudaDataType
@@ -40,9 +43,7 @@ function math_mode!(handle, mode)
     flags = 0
 
     # https://github.com/facebookresearch/faiss/issues/1385
-    if version() > v"11"
-        flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
-    end
+    flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
 
     flags |= if mode == CUDA.PEDANTIC_MATH
         # prevent use of tensor cores
