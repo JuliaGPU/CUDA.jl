@@ -970,93 +970,93 @@ end
 
 # Base interface implementation
 
-using .BitonicSortImpl
-using .QuickSortImpl
+# using .BitonicSortImpl
+# using .QuickSortImpl
 
 
-abstract type SortingAlgorithm end
-struct QuickSortAlg <: SortingAlgorithm end
-struct BitonicSortAlg <: SortingAlgorithm end
+# abstract type SortingAlgorithm end
+# struct QuickSortAlg <: SortingAlgorithm end
+# struct BitonicSortAlg <: SortingAlgorithm end
 
-const QuickSort = QuickSortAlg()
-const BitonicSort = BitonicSortAlg()
+# const QuickSort = QuickSortAlg()
+# const BitonicSort = BitonicSortAlg()
 
 
-function Base.sort!(c::AnyCuVector, alg::QuickSortAlg; lt=isless, by=identity, rev=false)
-    # for reverse sorting, invert the less-than function
-    if rev
-        lt = !lt
-    end
+# function Base.sort!(c::AnyCuVector, alg::QuickSortAlg; lt=isless, by=identity, rev=false)
+#     # for reverse sorting, invert the less-than function
+#     if rev
+#         lt = !lt
+#     end
 
-    quicksort!(c; lt, by, dims=1)
-    return c
-end
+#     quicksort!(c; lt, by, dims=1)
+#     return c
+# end
 
-function Base.sort!(c::AnyCuArray, alg::BitonicSortAlg; kwargs...)
-    return bitonic_sort!(c; kwargs...)
-end
+# function Base.sort!(c::AnyCuArray, alg::BitonicSortAlg; kwargs...)
+#     return bitonic_sort!(c; kwargs...)
+# end
 
-function Base.sort!(c::AnyCuArray; alg::SortingAlgorithm = BitonicSort, kwargs...)
-    return sort!(c, alg; kwargs...)
-end
+# function Base.sort!(c::AnyCuArray; alg::SortingAlgorithm = BitonicSort, kwargs...)
+#     return sort!(c, alg; kwargs...)
+# end
 
-function Base.sort(c::AnyCuArray; kwargs...)
-    return sort!(copy(c); kwargs...)
-end
+# function Base.sort(c::AnyCuArray; kwargs...)
+#     return sort!(copy(c); kwargs...)
+# end
 
-function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange},
-                           alg::BitonicSortAlg; lt=isless, by=identity, rev=false)
+# function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange},
+#                            alg::BitonicSortAlg; lt=isless, by=identity, rev=false)
 
-    sort!(c, alg; lt, by, rev)
-    return @allowscalar copy(c[k])
-end
+#     sort!(c, alg; lt, by, rev)
+#     return @allowscalar copy(c[k])
+# end
 
-function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange},
-                           alg::QuickSortAlg; lt=isless, by=identity, rev=false)
-    # for reverse sorting, invert the less-than function
-    if rev
-        lt = !lt
-    end
+# function Base.partialsort!(c::AnyCuVector, k::Union{Integer, OrdinalRange},
+#                            alg::QuickSortAlg; lt=isless, by=identity, rev=false)
+#     # for reverse sorting, invert the less-than function
+#     if rev
+#         lt = !lt
+#     end
 
-    function out(k::OrdinalRange)
-        return copy(c[k])
-    end
+#     function out(k::OrdinalRange)
+#         return copy(c[k])
+#     end
 
-    # work around disallowed scalar index
-    function out(k::Integer)
-        return Array(c[k:k])[1]
-    end
+#     # work around disallowed scalar index
+#     function out(k::Integer)
+#         return Array(c[k:k])[1]
+#     end
 
-    quicksort!(c; lt, by, dims=1, partial_k=k)
-    return out(k)
-end
+#     quicksort!(c; lt, by, dims=1, partial_k=k)
+#     return out(k)
+# end
 
-function Base.partialsort!(c::AnyCuArray, k::Union{Integer, OrdinalRange};
-                           alg::SortingAlgorithm=BitonicSort, kwargs...)
-    return partialsort!(c, k, alg; kwargs...)
-end
+# function Base.partialsort!(c::AnyCuArray, k::Union{Integer, OrdinalRange};
+#                            alg::SortingAlgorithm=BitonicSort, kwargs...)
+#     return partialsort!(c, k, alg; kwargs...)
+# end
 
-function Base.partialsort(c::AnyCuArray, k::Union{Integer, OrdinalRange}; kwargs...)
-    return partialsort!(copy(c), k; kwargs...)
-end
+# function Base.partialsort(c::AnyCuArray, k::Union{Integer, OrdinalRange}; kwargs...)
+#     return partialsort!(copy(c), k; kwargs...)
+# end
 
-function Base.sortperm!(ix::AnyCuArray, A::AnyCuArray; initialized=false, kwargs...)
-    if axes(ix) != axes(A)
-        throw(ArgumentError("index array must have the same size/axes as the source array, $(axes(ix)) != $(axes(A))"))
-    end
+# function Base.sortperm!(ix::AnyCuArray, A::AnyCuArray; initialized=false, kwargs...)
+#     if axes(ix) != axes(A)
+#         throw(ArgumentError("index array must have the same size/axes as the source array, $(axes(ix)) != $(axes(A))"))
+#     end
 
-    if !initialized
-        ix .= LinearIndices(A)
-    end
-    bitonic_sort!((A, ix); kwargs...)
-    return ix
-end
+#     if !initialized
+#         ix .= LinearIndices(A)
+#     end
+#     bitonic_sort!((A, ix); kwargs...)
+#     return ix
+# end
 
-function Base.sortperm(c::AnyCuVector; kwargs...)
-    sortperm!(CuArray(1:length(c)), c; initialized=true, kwargs...)
-end
+# function Base.sortperm(c::AnyCuVector; kwargs...)
+#     sortperm!(CuArray(1:length(c)), c; initialized=true, kwargs...)
+# end
 
-function Base.sortperm(c::AnyCuArray; dims, kwargs...)
-    # Base errors for Matrices without dims arg, we should too
-    sortperm!(reshape(CuArray(1:length(c)), size(c)), c; initialized=true, dims, kwargs...)
-end
+# function Base.sortperm(c::AnyCuArray; dims, kwargs...)
+#     # Base errors for Matrices without dims arg, we should too
+#     sortperm!(reshape(CuArray(1:length(c)), size(c)), c; initialized=true, dims, kwargs...)
+# end
