@@ -1,5 +1,9 @@
 # cuTENSOR
 
+```@meta
+CurrentModule = cuTENSOR
+```
+
 ## Public
 
 ```@autodocs

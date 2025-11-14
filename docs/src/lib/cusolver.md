@@ -1,5 +1,9 @@
 # CUSOLVER
 
+```@meta
+CurrentModule = CUSOLVER
+```
+
 ## Public
 
 ```@autodocs

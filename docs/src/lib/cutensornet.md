@@ -1,5 +1,9 @@
 # cuTensorNet
 
+```@meta
+CurrentModule = cuTensorNet
+```
+
 ## Public
 
 ```@autodocs

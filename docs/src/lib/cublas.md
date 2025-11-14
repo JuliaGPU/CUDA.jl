@@ -1,5 +1,9 @@
 # CUBLAS
 
+```@meta
+CurrentModule = CUBLAS
+```
+
 ## Public
 
 ```@autodocs

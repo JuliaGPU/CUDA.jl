@@ -1,5 +1,9 @@
 # NVML
 
+```@meta
+CurrentModule = NVML
+```
+
 ## Public
 
 ```@autodocs
