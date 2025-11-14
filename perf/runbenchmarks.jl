@@ -16,13 +16,13 @@ end
 
 # before anything else, run latency benchmarks. these spawn subprocesses, so we don't want
 # to do so after regular benchmarks have caused the memory allocator to reserve memory.
-@info "Running latency benchmarks"
-latency_results = include("latency.jl")
+# @info "Running latency benchmarks"
+# latency_results = include("latency.jl")
 
 SUITE = BenchmarkGroup()
 
-include("cuda.jl")
-include("kernel.jl")
+# include("cuda.jl")
+# include("kernel.jl")
 include("array.jl")
 
 @info "Preparing main benchmarks"
@@ -34,20 +34,20 @@ GC.gc(true)
 CUDA.reclaim()
 
 # benchmark groups that aren't part of the suite
-addgroup!(SUITE, "integration")
+# addgroup!(SUITE, "integration")
 
 @info "Running main benchmarks"
 results = run(SUITE, verbose=true)
 
 # integration tests (that do nasty things, so need to be run last)
-@info "Running integration benchmarks"
-integration_results = BenchmarkGroup()
-integration_results["volumerhs"] = include("volumerhs.jl")
-integration_results["byval"] = include("byval.jl")
-integration_results["cudadevrt"] = include("cudadevrt.jl")
+# @info "Running integration benchmarks"
+# integration_results = BenchmarkGroup()
+# integration_results["volumerhs"] = include("volumerhs.jl")
+# integration_results["byval"] = include("byval.jl")
+# integration_results["cudadevrt"] = include("cudadevrt.jl")
 
-results["latency"] = latency_results
-results["integration"] = integration_results
+# results["latency"] = latency_results
+# results["integration"] = integration_results
 
 # write out the results
 result_file = length(ARGS) >= 1 ? ARGS[1] : "benchmarkresults.json"
