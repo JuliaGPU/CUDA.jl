@@ -3,6 +3,7 @@ module CUDA
 using GPUCompiler
 
 using GPUArrays
+using KernelAbstractions
 
 using GPUToolbox
 
