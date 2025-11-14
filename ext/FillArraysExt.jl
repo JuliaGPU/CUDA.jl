@@ -4,8 +4,7 @@ using CUDA
 using CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
-
-isdefined(Base, :get_extension) ? (using FillArrays) : (using ..FillArrays)
+using FillArrays
 
 # kron between CuSparseMatrixCOO and Diagonal{T, AbstractFill}
 # This is optimized for FillArrays since the diagonal is a constant value
