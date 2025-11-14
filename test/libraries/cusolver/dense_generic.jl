@@ -37,6 +37,36 @@ p = 5
             for uplo in ('L', 'U')
                 (CUSOLVER.version() < v"11.7.2") && (uplo == 'L') && (elty == ComplexF32) && continue
 
+                A = rand(elty, n, n, batch_size)
+                B = rand(elty, n, n, batch_size)
+                for i in 1:batch_size
+                    S = rand(elty, n, n)
+                    S = S * S' + I
+                    B[:, :, i] .= S
+                    S = uplo == 'L' ? tril(S) : triu(S)
+                    A[:, :, i] .= S
+                end
+                d_A = CuArray(A)
+                d_W, d_V = CUSOLVER.XsyevBatched!('V', uplo, d_A)
+                W = collect(d_W)
+                V = collect(d_V)
+                for i in 1:batch_size
+                    Bᵢ = B[:, :, i]
+                    Wᵢ = Diagonal(W[:, i])
+                    Vᵢ = V[:, :, i]
+                    @test Bᵢ * Vᵢ ≈ Vᵢ * Diagonal(Wᵢ)
+                end
+
+                d_A = CuArray(A)
+                d_W = CUSOLVER.XsyevBatched!('N', uplo, d_A)
+            end
+        end
+
+        @testset "syevBatched! updated" begin
+            batch_size = 5
+            for uplo in ('L', 'U')
+                (CUSOLVER.version() < v"11.7.2") && (uplo == 'L') && (elty == ComplexF32) && continue
+
                 A = rand(elty, n, n * batch_size)
                 B = rand(elty, n, n * batch_size)
                 for i = 1:batch_size
