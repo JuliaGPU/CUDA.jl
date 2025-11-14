@@ -91,7 +91,6 @@ p = 5
                 d_W = CUSOLVER.XsyevBatched!('N', uplo, d_A)
             end
         end
-
     end
 
     if CUSOLVER.version() >= v"11.6.0"

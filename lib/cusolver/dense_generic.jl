@@ -506,7 +506,9 @@ end
 
 # XsyevBatched
 function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T <: BlasFloat}
-    CUSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    minimum_version = v"11.7.1"
+    CUSOLVER.version() < minimum_version && throw(ErrorException("This operation requires cuSOLVER
+        $(minimum_version) or later. Current cuSOLVER version: $(CUSOLVER.version())."))
     chkuplo(uplo)
     n = checksquare(A)
     batch_size = size(A, 3)
@@ -547,7 +549,9 @@ function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T
 end
 
 function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    CUSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    minimum_version = v"11.7.1"
+    CUSOLVER.version() < minimum_version && throw(ErrorException("This operation requires cuSOLVER
+        $(minimum_version) or later. Current cuSOLVER version: $(CUSOLVER.version())."))
     chkuplo(uplo)
     n, num_matrices = size(A)
     batch_size = num_matrices ÷ n
