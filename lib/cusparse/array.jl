@@ -34,6 +34,16 @@ function CUDA.unsafe_free!(xs::CuSparseVector)
     return
 end
 
+"""
+    CuSparseMatrixCSC
+
+Container to hold sparse matrices in compressed sparse column (CSC) format on the
+GPU.
+
+!!! note
+    Most CUSPARSE operations work with CSR formatted matrices, rather
+    than CSC.
+"""
 mutable struct CuSparseMatrixCSC{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     colPtr::CuVector{Ti}
     rowVal::CuVector{Ti}
@@ -92,6 +102,8 @@ function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
 end
 
 """
+    CuSparseMatrixBSR
+
 Container to hold sparse matrices in block compressed sparse row (BSR) format on
 the GPU. BSR format is also used in Intel MKL, and is suited to matrices that are
 "block" sparse - rare blocks of non-sparse regions.
@@ -122,6 +134,8 @@ function CUDA.unsafe_free!(xs::CuSparseMatrixBSR)
 end
 
 """
+    CuSparseMatrixCOO
+
 Container to hold sparse matrices in coordinate (COO) format on the GPU. COO
 format is mainly useful to initially construct sparse matrices, afterwards
 switch to [`CuSparseMatrixCSR`](@ref) for more functionality.
@@ -782,4 +796,3 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseArrayCSR)
         size(x), x.nnz
     )
 end
-
