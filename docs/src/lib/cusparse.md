@@ -1,5 +1,9 @@
 # CUSPARSE
 
+```@meta
+CurrentModule = CUSPARSE
+```
+
 ## Public
 
 ```@autodocs

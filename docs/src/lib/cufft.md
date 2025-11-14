@@ -1,5 +1,9 @@
 # CUFFT
 
+```@meta
+CurrentModule = CUFFT
+```
+
 ## Public
 
 ```@autodocs

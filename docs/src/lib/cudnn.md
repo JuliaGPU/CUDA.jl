@@ -1,5 +1,9 @@
 # cuDNN
 
+```@meta
+CurrentModule = cuDNN
+```
+
 ## Public
 
 ```@autodocs

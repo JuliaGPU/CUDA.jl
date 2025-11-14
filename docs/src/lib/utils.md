@@ -1,5 +1,9 @@
 # APIUtils
 
+```@meta
+CurrentModule = APIUtils
+```
+
 ## Public
 
 ```@autodocs

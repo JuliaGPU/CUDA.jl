@@ -1,5 +1,9 @@
 # CURAND
 
+```@meta
+CurrentModule = CURAND
+```
+
 ## Public
 
 ```@autodocs

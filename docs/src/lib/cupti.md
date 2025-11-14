@@ -1,5 +1,9 @@
 # CUPTI
 
+```@meta
+CurrentModule = CUPTI
+```
+
 ## Public
 
 ```@autodocs

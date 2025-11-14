@@ -1,5 +1,9 @@
 # cuStateVec
 
+```@meta
+CurrentModule = cuStateVec
+```
+
 ## Public
 
 ```@autodocs
