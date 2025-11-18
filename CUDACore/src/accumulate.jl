@@ -15,16 +15,16 @@
 function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArray,
                       Rdim, Rpre, Rpost, Rother, neutral, init,
                       ::Val{inclusive}=Val(true)) where {T, inclusive}
-    threads = blockDim().x
-    thread = threadIdx().x
-    block = blockIdx().x
+    threads = KI.get_local_size().x
+    thread = KI.get_local_id().x
+    block = KI.get_group_id().x
 
     temp = CuDynamicSharedArray(T, (2*threads,))
 
     # iterate the main dimension using threads and the first block dimension
-    i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
+    i = (KI.get_group_id().x-1i32) * KI.get_local_size().x + KI.get_local_id().x
     # iterate the other dimensions using the remaining block dimensions
-    j = (blockIdx().z-1i32) * gridDim().y + blockIdx().y
+    j = (KI.get_group_id().z-1i32) * KI.get_num_groups().y + KI.get_group_id().y
 
     if j > length(Rother)
         return
@@ -47,7 +47,7 @@ function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArr
     offset = 1
     d = threads>>1
     while d > 0
-        sync_threads()
+        KI.barrier()
         @inbounds if thread <= d
             ai = offset * (2*thread-1)
             bi = offset * (2*thread)
@@ -66,7 +66,7 @@ function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArr
     d = 1
     while d < threads
         offset >>= 1
-        sync_threads()
+        KI.barrier()
         @inbounds if thread <= d
             ai = offset * (2*thread-1)
             bi = offset * (2*thread)
@@ -78,7 +78,7 @@ function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArr
         d *= 2
     end
 
-    sync_threads()
+    KI.barrier()
 
     # write results to device memory
     @inbounds if i <= length(Rdim)
@@ -100,14 +100,14 @@ end
 function aggregate_partial_scan(op::Function, output::AbstractArray,
                                 aggregates::AbstractArray, Rdim, Rpre, Rpost, Rother,
                                 init)
-    threads = blockDim().x
-    thread = threadIdx().x
-    block = blockIdx().x
+    threads = KI.get_local_size().x
+    thread = KI.get_local_id().x
+    block = KI.get_group_id().x
 
     # iterate the main dimension using threads and the first block dimension
-    i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
+    i = (KI.get_group_id().x-1i32) * KI.get_local_size().x + KI.get_local_id().x
     # iterate the other dimensions using the remaining block dimensions
-    j = (blockIdx().z-1i32) * gridDim().y + blockIdx().y
+    j = (KI.get_group_id().z-1i32) * KI.get_num_groups().y + KI.get_group_id().y
 
     @inbounds if i <= length(Rdim) && j <= length(Rother)
         I = Rother[j]
