@@ -4,6 +4,8 @@ using GPUCompiler
 
 using GPUArrays
 
+import KernelAbstractions.KernelIntrinsics as KI
+
 using GPUToolbox
 
 using LLVM
