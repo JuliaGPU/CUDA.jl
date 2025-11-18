@@ -72,9 +72,9 @@ end
     elseif field === :ctr1
         @inbounds global_random_counters()[warpId]
     elseif field === :ctr2
-        blockId = blockIdx().x + (blockIdx().y - 1i32) * gridDim().x +
-                                 (blockIdx().z - 1i32) * gridDim().x * gridDim().y
-        globalId = threadId + (blockId - 1i32) * (blockDim().x * blockDim().y * blockDim().z)
+        globalId = KI.get_global_id().x +
+                   (KI.get_global_id().y - 1i32) * KI.get_global_size().x +
+                   (KI.get_global_id().z - 1i32) * KI.get_global_size().x * KI.get_global_size().y
         globalId%UInt32
     end::UInt32
 end
