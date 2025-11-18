@@ -537,6 +537,12 @@ function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoin
     return C
 end
 
+function LinearAlgebra.mul!(C::Diagonal{T, <:CuVector}, A::Union{<:CuMatrix{T}, Adjoint{T, <:CuMatrix}, Transpose{T, <:CuMatrix}}, B::Union{<:CuMatrix{T}, Adjoint{T, <:CuMatrix}, Transpose{T, <:CuMatrix}}) where {T<:CublasFloat}
+    Cfull   = A*B
+    C.diag .= diag(Cfull)
+    return C
+end
+
 function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix{T}) where {T<:CublasFloat}
     return dgmm!('L', B, A.diag, B)
 end
