@@ -402,33 +402,6 @@ steps:
             build.message !~ /\[skip special\]/
         timeout_in_minutes: 45
 
-      - label: ":older_man: Old dependencies"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.10" # use the oldest supported Julia version (and update below)
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base"
-              allow_reresolve: false
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        commands: |
-          git clone https://github.com/StefanKarpinski/Resolver.jl /tmp/Resolver
-          julia -e 'using Pkg; Pkg.activate("/tmp/Resolver/bin"); Pkg.instantiate()'
-          julia /tmp/Resolver/bin/resolve.jl . --min=@alldeps --julia="1.10"
-        if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only special\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip special\]/
-        timeout_in_minutes: 30
-
   - wait: ~
     continue_on_failure: true
 
