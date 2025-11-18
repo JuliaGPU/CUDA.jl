@@ -531,6 +531,10 @@ k = 13
             h_C = Array(d_C)
             @test C ≈ h_C
         end
+        @testset "diagm" begin
+            d_fX = LinearAlgebra.diagm(d_x)
+            @test eltype(d_fX) == eltype(d_x)
+        end
         @testset "diagonal -- mul!, rmul!, lmul!" begin
             XA = rand(elty,m,n)
             d_XA = CuArray(XA)

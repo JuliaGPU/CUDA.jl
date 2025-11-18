@@ -594,7 +594,7 @@ end
 function LinearAlgebra.diagm_container(size, kv::Pair{<:Integer,<:CuVector}...)
     T = promote_type(map(x -> eltype(x.second), kv)...)
     U = promote_type(T, typeof(zero(T)))
-    return cu(zeros(U, LinearAlgebra.diagm_size(size, kv...)...))
+    return CUDA.zeros(U, LinearAlgebra.diagm_size(size, kv...)...)
 end
 
 function LinearAlgebra.diagm_size(size::Nothing, kv::Pair{<:Integer,<:CuVector}...)
