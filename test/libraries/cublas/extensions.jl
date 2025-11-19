@@ -585,6 +585,15 @@ k = 13
             @test Array(d_AX) ≈ A' * Diagonal(x)
 
             @test Array(d_X) == Diagonal(Array(d_x))
+            
+            d_X = Diagonal(copy(d_x))
+            diagA = diagm(rand(elty, m))
+            d_diagA = CuArray(diagA)
+            diagB = diagm(rand(elty, m))
+            d_diagB = CuArray(diagB)
+            diagAdiagB  = diagA * diagB'
+            mul!(d_X, d_diagA, d_diagB')
+            @test Diagonal(collect(d_X.diag)) ≈ Diagonal(diagAdiagB)
         end
     end # extensions
 
