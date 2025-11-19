@@ -6,7 +6,9 @@ m = 10
     A  = sprand(T, m, m, 0.2)
     B  = sprand(T, m, m, 0.3)
     ZA = spzeros(T, m, m)
-    C  = I(div(m, 2))
+    C  = Diagonal(rand(T, div(m, 2)))
+
+    dC = adapt(CuArray, C)
     @testset "type = $typ" for typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
         dA = typ(A)
         dB = typ(B)
@@ -35,11 +37,31 @@ m = 10
             end
         end
         @testset "kronecker product with I opa = $opa" for opa in (identity, transpose, adjoint)
-            @test collect(kron(opa(dA), C)) ≈ kron(opa(A), C) 
-            @test collect(kron(C, opa(dA))) ≈ kron(C, opa(A)) 
-            @test collect(kron(opa(dZA), C)) ≈ kron(opa(ZA), C)
-            @test collect(kron(C, opa(dZA))) ≈ kron(C, opa(ZA))
+            @test collect(kron(opa(dA), dC)) ≈ kron(opa(A), C)
+            @test collect(kron(dC, opa(dA))) ≈ kron(C, opa(A)) 
+            @test collect(kron(opa(dZA), dC)) ≈ kron(opa(ZA), C)
+            @test collect(kron(dC, opa(dZA))) ≈ kron(C, opa(ZA))
         end
+    end
+    
+    # Test type promotion for kron with Diagonal
+    @testset "Type promotion - T1 = $T1, T2 = $T2" for (T1, T2) in [(Float32, Float64), (Float64, ComplexF64)]
+        A_T1 = sprand(T1, m, m, 0.2)
+        dA_T1 = CuSparseMatrixCSR(A_T1)
+        dC_T2 = Diagonal(CUDA.rand(T2, div(m, 2)))
+        C_T2 = collect(dC_T2)
+        
+        # Test kron(sparse_T1, diagonal_T2)
+        result_gpu = kron(dA_T1, dC_T2)
+        result_cpu = kron(A_T1, C_T2)
+        @test eltype(result_gpu) == promote_type(T1, T2)
+        @test collect(result_gpu) ≈ result_cpu
+        
+        # Test kron(diagonal_T2, sparse_T1)
+        result_gpu = kron(dC_T2, dA_T1)
+        result_cpu = kron(C_T2, A_T1)
+        @test eltype(result_gpu) == promote_type(T1, T2)
+        @test collect(result_gpu) ≈ result_cpu
     end
 end
 
