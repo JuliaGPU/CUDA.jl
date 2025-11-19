@@ -581,40 +581,6 @@ function LinearAlgebra.rmul!(A::Adjoint{Tt, <:CuMatrix{Tt}}, B::Diagonal{Td,<:Cu
     return adjoint(At)
 end
 
-# diagm
-
-LinearAlgebra.diagm(kv::Pair{<:Integer,<:CuVector}...) = _cuda_diagm(nothing, kv...)
-LinearAlgebra.diagm(m::Integer, n::Integer, kv::Pair{<:Integer,<:CuVector}...) = _cuda_diagm((Int(m),Int(n)), kv...)
-LinearAlgebra.diagm(v::CuVector) = LinearAlgebra.diagm(0 => v)
-LinearAlgebra.diagm(m::Integer, n::Integer, v::CuVector) = LinearAlgebra.diagm(m, n, 0 => v)
-
-function _cuda_diagm(size, kv::Pair{<:Integer,<:CuVector}...)
-    A = LinearAlgebra.diagm_container(size, kv...)
-    for p in kv
-        inds = LinearAlgebra.diagind(A, p.first)
-        copyto!(view(A, inds), p.second)
-    end
-    return A
-end
-
-function LinearAlgebra.diagm_container(size, kv::Pair{<:Integer,<:CuVector}...)
-    T = promote_type(map(x -> eltype(x.second), kv)...)
-    U = promote_type(T, typeof(zero(T)))
-    return CUDA.zeros(U, LinearAlgebra.diagm_size(size, kv...)...)
-end
-
-function LinearAlgebra.diagm_size(size::Nothing, kv::Pair{<:Integer,<:CuVector}...)
-    mnmax = mapreduce(x -> length(x.second) + abs(Int(x.first)), max, kv; init=0)
-    return mnmax, mnmax
-end
-function LinearAlgebra.diagm_size(size::Tuple{Int,Int}, kv::Pair{<:Integer,<:CuVector}...)
-    mmax = mapreduce(x -> length(x.second) - min(0,Int(x.first)), max, kv; init=0)
-    nmax = mapreduce(x -> length(x.second) + max(0,Int(x.first)), max, kv; init=0)
-    m, n = size
-    (m ≥ mmax && n ≥ nmax) || throw(DimensionMismatch(lazy"invalid size=$size"))
-    return m, n
-end
-
 # symmetric mul!
 
 op_wrappers = ((identity, T -> 'N', identity),
