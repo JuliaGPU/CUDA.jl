@@ -69,7 +69,8 @@ function versioninfo(io::IO=stdout)
 
     println(io, "Julia packages: ")
     println(io, "- CUDA: $(Base.pkgversion(CUDA))")
-    for name in [:CUDA_Driver_jll, :CUDA_Compiler_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery]
+    for name in [:CUDA_Driver_jll, :CUDA_Compiler_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery,
+                    :GPUArrays, :GPUCompiler, :KernelAbstractions]
         isdefined(CUDA, name) || continue
         mod = getfield(CUDA, name)
         println(io, "- $(name): $(Base.pkgversion(mod))")
