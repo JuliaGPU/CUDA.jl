@@ -24,6 +24,84 @@ function mm! end
 
 ## API functions
 
+# implement Int conversions using reinterpreted Float
+for (elty, felty) in ((:Int16, :Float16),
+                      (:Int32, :Float32),
+                      (:Int64, :Float64),
+                      (:Int128, :ComplexF64))
+    @eval begin
+        function sparsetodense(coo::CuSparseMatrixCOO{$elty}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+            m,n = size(coo)
+            coo_compat = CuSparseMatrixCOO(
+                coo.rowInd,
+                coo.colInd,
+                reinterpret($felty, coo.nzVal),
+                size(coo)
+            )
+            B = CuMatrix{$felty}(undef, m, n)
+            desc_sparse = CuSparseMatrixDescriptor(coo_compat, index)
+            desc_dense = CuDenseMatrixDescriptor(B)
+
+            function bufferSize()
+                out = Ref{Csize_t}()
+                cusparseSparseToDense_bufferSize(handle(), desc_sparse, desc_dense, algo, out)
+                return out[]
+            end
+            with_workspace(bufferSize) do buffer
+                cusparseSparseToDense(handle(), desc_sparse, desc_dense, algo, buffer)
+            end
+            return reinterpret($elty, B)
+        end
+        function sparsetodense(bsr::CuSparseMatrixBSR{$elty}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+            m,n = size(bsr)
+            bsr_compat = CuSparseMatrixBSR(
+                bsr.rowPtr,
+                bsr.colVal,
+                reinterpret($felty, bsr.nzVal),
+                bsr.blockDim,
+                bsr.dir,
+                bsr.nnzb,
+                size(bsr)
+            )
+            B = CuMatrix{$felty}(undef, m, n)
+            desc_sparse = CuSparseMatrixDescriptor(bsr_compat, index)
+            desc_dense = CuDenseMatrixDescriptor(B)
+
+            function bufferSize()
+                out = Ref{Csize_t}()
+                cusparseSparseToDense_bufferSize(handle(), desc_sparse, desc_dense, algo, out)
+                return out[]
+            end
+            with_workspace(bufferSize) do buffer
+                cusparseSparseToDense(handle(), desc_sparse, desc_dense, algo, buffer)
+            end
+            return reinterpret($elty, B)
+        end
+        function sparsetodense(csr::CuSparseMatrixCSR{$elty}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+            m,n = size(csr)
+            csr_compat = CuSparseMatrixCSR(
+                csr.rowPtr,
+                csr.colVal,
+                reinterpret($felty, csr.nzVal),
+                size(csr)
+            )
+            B = CuMatrix{$felty}(undef, m, n)
+            desc_sparse = CuSparseMatrixDescriptor(csr_compat, index)
+            desc_dense = CuDenseMatrixDescriptor(B)
+
+            function bufferSize()
+                out = Ref{Csize_t}()
+                cusparseSparseToDense_bufferSize(handle(), desc_sparse, desc_dense, algo, out)
+                return out[]
+            end
+            with_workspace(bufferSize) do buffer
+                cusparseSparseToDense(handle(), desc_sparse, desc_dense, algo, buffer)
+            end
+            return reinterpret($elty, B)
+        end
+    end
+end
+
 function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT) where {T}
     m,n = size(A)
     B = CuMatrix{T}(undef, m, n)
