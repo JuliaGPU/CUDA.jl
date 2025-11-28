@@ -1,12 +1,16 @@
+using BFloat16s: BFloat16
+
 # For low level cudnn functions that require a pointer to a number
 cptr(x,a::DenseCuArray{Float64})=Float64[x]
 cptr(x,a::DenseCuArray{Float32})=Float32[x]
 cptr(x,a::DenseCuArray{Float16})=Float32[x]
+cptr(x,a::DenseCuArray{BFloat16})=Float32[x]
 
 # Conversion between Julia and cuDNN datatypes
 cudnnDataType(::Type{Float16})=CUDNN_DATA_HALF
 cudnnDataType(::Type{Float32})=CUDNN_DATA_FLOAT
 cudnnDataType(::Type{Float64})=CUDNN_DATA_DOUBLE
+cudnnDataType(::Type{BFloat16})=CUDNN_DATA_BFLOAT16
 cudnnDataType(::Type{Int8}) = CUDNN_DATA_INT8
 cudnnDataType(::Type{UInt8}) = CUDNN_DATA_UINT8
 cudnnDataType(::Type{Int32}) = CUDNN_DATA_INT32
@@ -17,6 +21,7 @@ cudnnDataType(::Type{Int32}) = CUDNN_DATA_INT32
 juliaDataType(a)=(a==CUDNN_DATA_HALF ? Float16 :
                   a==CUDNN_DATA_FLOAT ? Float32 :
                   a==CUDNN_DATA_DOUBLE ? Float64 :
+                  a==CUDNN_DATA_BFLOAT16 ? BFloat16 :
                   a==CUDNN_DATA_INT8 ? Int8 :
                   a==CUDNN_DATA_UINT8 ? UInt8 :
                   a==CUDNN_DATA_INT32 ? Int32 : error())
@@ -35,6 +40,7 @@ scalingParameter(T, val) = error("Unknown tensor type $T")
 scalingParameter(::Type{Float16}, val) = Ref{Float32}(val)
 scalingParameter(::Type{Float32}, val) = Ref{Float32}(val)
 scalingParameter(::Type{Float64}, val) = Ref{Float64}(val)
+scalingParameter(::Type{BFloat16}, val) = Ref{Float32}(val)
 
 
 # Create temporary reserveSpace. Use 128 to avoid alignment issues.
