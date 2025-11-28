@@ -1,3 +1,4 @@
+using BFloat16s: BFloat16
 using cuDNN:
     cudnnSoftmaxForward,
     cudnnSoftmaxForward!,
@@ -42,4 +43,10 @@ softmaxtest(mode=CUDNN_SOFTMAX_MODE_INSTANCE)
 softmaxtest(mode=CUDNN_SOFTMAX_MODE_CHANNEL)
 softmaxtest(algo=CUDNN_SOFTMAX_FAST)
 softmaxtest(algo=CUDNN_SOFTMAX_ACCURATE)
+softmaxtest(algo=CUDNN_SOFTMAX_LOG)
+
+# BFloat16 tests
+ax,ay = randn(BFloat16,10,10),randn(BFloat16,10,10)
+cx,cy = CuArray.((ax,ay))
+softmaxtest()
 softmaxtest(algo=CUDNN_SOFTMAX_LOG)

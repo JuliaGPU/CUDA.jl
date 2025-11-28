@@ -1,4 +1,5 @@
 using CUDA, Random
+using BFloat16s: BFloat16
 import NNlib
 using cuDNN:
     cudnnPoolingForward,
@@ -87,5 +88,6 @@ pooltest(padding = 1)
 pooltest(stride = 1)
 pooltest(format = CUDNN_TENSOR_NHWC)
 pooltest(dataType = Float16)
+pooltest(dataType = BFloat16)
 pooltest(alpha = 2)
 pooltest(beta = 2)
