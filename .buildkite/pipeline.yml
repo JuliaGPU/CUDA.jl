@@ -105,15 +105,7 @@ steps:
                 cuda: "12.0"
               soft_fail: true
             - with:
-                package: "cuTensorNet"
-                cuda: "12.0"
-              soft_fail: true
-            - with:
                 package: "cuStateVec"
-                cuda: "13.0"
-              soft_fail: true
-            - with:
-                package: "cuTensorNet"
                 cuda: "13.0"
               soft_fail: true
         plugins:
