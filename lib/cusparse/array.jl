@@ -539,11 +539,11 @@ CuSparseMatrixCOO{T}(Mat::Transpose{Tv, <:SparseMatrixCSC}) where {T, Tv} = CuSp
 CuSparseMatrixCOO{T}(Mat::Adjoint{Tv, <:SparseMatrixCSC}) where {T, Tv} = CuSparseMatrixCOO{T}(CuSparseMatrixCSR{T}(Mat))
 
 # untyped variants
-CuSparseVector(x::AbstractSparseArray{Tv, Ti}) where {Tv, Ti} = CuSparseVector{Tv}(x)
-CuSparseMatrixCSC(x::AbstractSparseArray{Tv, Ti}) where {Tv, Ti} = CuSparseMatrixCSC{Tv}(x)
-CuSparseMatrixCSR(x::AbstractSparseArray{Tv, Ti}) where {Tv, Ti} = CuSparseMatrixCSR{Tv}(x)
-CuSparseMatrixBSR(x::AbstractSparseArray{Tv, Ti}, blockdim) where {Tv, Ti} = CuSparseMatrixBSR{Tv}(x, blockdim)
-CuSparseMatrixCOO(x::AbstractSparseArray{Tv, Ti}) where {Tv, Ti} = CuSparseMatrixCOO{Tv}(x)
+CuSparseVector(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseVector{Tv}(x)
+CuSparseMatrixCSC(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseMatrixCSC{Tv}(x)
+CuSparseMatrixCSR(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseMatrixCSR{Tv}(x)
+CuSparseMatrixBSR(x::AbstractSparseArray{Tv}, blockdim) where {Tv} = CuSparseMatrixBSR{Tv}(x, blockdim)
+CuSparseMatrixCOO(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseMatrixCOO{Tv}(x)
 
 # adjoint / transpose
 CuSparseMatrixCSR(x::Transpose{T}) where {T} = CuSparseMatrixCSR{T}(x)
