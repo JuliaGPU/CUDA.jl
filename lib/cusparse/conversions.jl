@@ -607,7 +607,8 @@ end
 
 ## CSR to COO and vice-versa
 
-function CuSparseMatrixCSR{Tv}(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv}
+# need both typevars for compatibility with GPUArrays
+function CuSparseMatrixCSR{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
     m,n = size(coo)
     nnz(coo) == 0 && return CuSparseMatrixCSR{Tv,Cint}(CUDA.ones(Cint, m+1), coo.colInd, nonzeros(coo), size(coo))
     coo = sort_coo(coo, 'R')
@@ -615,20 +616,22 @@ function CuSparseMatrixCSR{Tv}(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O'
     cusparseXcoo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, index)
     CuSparseMatrixCSR{Tv,Cint}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
-CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv} = CuSparseMatrixCSR{Tv}(coo; index)
+CuSparseMatrixCSR{Tv}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCSR{Tv, Ti}(coo; index)
+CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCSR{Tv, Ti}(coo; index)
 
-function CuSparseMatrixCOO{Tv}(csr::CuSparseMatrixCSR{Tv}; index::SparseChar='O') where {Tv}
+function CuSparseMatrixCOO{Tv, Ti}(csr::CuSparseMatrixCSR{Tv}; index::SparseChar='O') where {Tv, Ti}
     m,n = size(csr)
     nnz(csr) == 0 && return CuSparseMatrixCOO{Tv,Cint}(CUDA.zeros(Cint, 0), CUDA.zeros(Cint, 0), nonzeros(csr), size(csr))
     cooRowInd = CuVector{Cint}(undef, nnz(csr))
     cusparseXcsr2coo(handle(), csr.rowPtr, nnz(csr), m, cooRowInd, index)
     CuSparseMatrixCOO{Tv,Cint}(cooRowInd, csr.colVal, nonzeros(csr), size(csr))
 end
-CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}; index::SparseChar='O') where {Tv} = CuSparseMatrixCOO{Tv}(csr; index)
+CuSparseMatrixCOO{Tv}(csr::CuSparseMatrixCSR{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCOO{Tv, Ti}(csr; index)
+CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCOO{Tv, Ti}(csr; index)
 
 ### CSC to COO and viceversa
 
-function CuSparseMatrixCSC{Tv}(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv}
+function CuSparseMatrixCSC{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
     m,n = size(coo)
     nnz(coo) == 0 && return CuSparseMatrixCSC{Tv}(CUDA.ones(Cint, n+1), coo.rowInd, nonzeros(coo), size(coo))
     coo = sort_coo(coo, 'C')
@@ -636,9 +639,10 @@ function CuSparseMatrixCSC{Tv}(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O'
     cusparseXcoo2csr(handle(), coo.colInd, nnz(coo), n, cscColPtr, index)
     CuSparseMatrixCSC{Tv,Cint}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
 end
-CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv}; index::SparseChar='O') where {Tv} = CuSparseMatrixCSC{Tv}(coo; index)
+CuSparseMatrixCSC{Tv}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(coo; index)
+CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(coo; index)
 
-function CuSparseMatrixCOO{Tv}(csc::CuSparseMatrixCSC{Tv}; index::SparseChar='O') where {Tv}
+function CuSparseMatrixCOO{Tv, Ti}(csc::CuSparseMatrixCSC{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
     m,n = size(csc)
     nnz(csc) == 0 && return CuSparseMatrixCOO{Tv,Cint}(CUDA.zeros(Cint, 0), CUDA.zeros(Cint, 0), nonzeros(csc), size(csc))
     cooColInd = CuVector{Cint}(undef, nnz(csc))
@@ -646,7 +650,8 @@ function CuSparseMatrixCOO{Tv}(csc::CuSparseMatrixCSC{Tv}; index::SparseChar='O'
     coo = CuSparseMatrixCOO{Tv,Cint}(csc.rowVal, cooColInd, nonzeros(csc), size(csc))
     coo = sort_coo(coo, 'R')
 end
-CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv}; index::SparseChar='O') where {Tv} = CuSparseMatrixCOO{Tv}(csc; index)
+CuSparseMatrixCOO{Tv}(csc::CuSparseMatrixCSC{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCOO{Tv, Ti}(csc; index)
+CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCOO{Tv, Ti}(csc; index)
 
 ### BSR to COO and vice-versa
 
