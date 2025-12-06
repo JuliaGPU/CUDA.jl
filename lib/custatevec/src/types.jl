@@ -46,7 +46,7 @@ mutable struct CuStateVec{T}
     nbits::UInt32
 end
 function CuStateVec(T, n_qubits::Int; sv_type::custatevecStateVectorType_t=CUSTATEVEC_STATE_VECTOR_TYPE_ZERO)
-    data = CUDA.zeros(T, 2^n_qubits)
+    data = CuVector{T}(undef, 2^n_qubits)
     # in most cases, taking the hit here for setting one element
     # is cheaper than building the entire thing on the CPU and
     # copying it over

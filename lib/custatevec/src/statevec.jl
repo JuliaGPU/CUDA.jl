@@ -115,17 +115,19 @@ function batchMeasureWithOffset!(sv::CuStateVec, bitordering::Vector{<:Integer},
 end
 
 function expectation(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, basis_bits::Vector{<:Integer})
+    CT = compute_type(eltype(sv), eltype(matrix))
     function bufferSize()
         out = Ref{Csize_t}()
-        custatevecComputeExpectationGetWorkspaceSize(handle(), eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, length(basis_bits), compute_type(eltype(sv), eltype(matrix)), out)
+        custatevecComputeExpectationGetWorkspaceSize(handle(), eltype(sv), sv.nbits, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, length(basis_bits), CT, out)
         out[]
     end
-    expVal = Ref{Float64}()
-    residualNorm = Ref{Float64}()
+    expVal = Ref{Float64}(0.0)
+    residualNorm = Ref{Float64}(0.0)
     with_workspace(handle().cache, bufferSize) do buffer
-        custatevecComputeExpectation(handle(), sv.data, eltype(sv), sv.nbits, expVal, Float64, residualNorm, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, convert(Vector{Int32}, basis_bits), length(basis_bits), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
+        custatevecComputeExpectation(handle(), sv.data, eltype(sv), sv.nbits, expVal, Float64, residualNorm, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, convert(Vector{Int32}, basis_bits), length(basis_bits), CT, buffer, sizeof(buffer))
+        synchronize()
     end
-    return expVal[], residualNorm[]
+    return expVal, residualNorm
 end
 
 function expectationsOnPauliBasis(sv::CuStateVec, pauliOps::Vector{Vector{Pauli}}, basisInds::Vector{Vector{Int}})
