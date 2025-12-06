@@ -3048,6 +3048,7 @@ end
     CUBLAS_PEDANTIC_MATH = 2
     CUBLAS_TF32_TENSOR_OP_MATH = 3
     CUBLAS_FP32_EMULATED_BF16X9_MATH = 4
+    CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH = 8
     CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION = 16
 end
 
@@ -3064,6 +3065,7 @@ const cublasDataType_t = cudaDataType
     CUBLAS_COMPUTE_32F_EMULATED_16BFX9 = 78
     CUBLAS_COMPUTE_64F = 70
     CUBLAS_COMPUTE_64F_PEDANTIC = 71
+    CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT = 79
     CUBLAS_COMPUTE_32I = 72
     CUBLAS_COMPUTE_32I_PEDANTIC = 73
 end
@@ -3132,6 +3134,70 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasSetEmulationStrategy(handle::cublasHandle_t,
                                                        emulationStrategy::cublasEmulationStrategy_t)::cublasStatus_t
+end
+
+@checked function cublasGetEmulationSpecialValuesSupport(handle, mask)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasGetEmulationSpecialValuesSupport(handle::cublasHandle_t,
+                                                                   mask::Ptr{cudaEmulationSpecialValuesSupport})::cublasStatus_t
+end
+
+@checked function cublasSetEmulationSpecialValuesSupport(handle, mask)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSetEmulationSpecialValuesSupport(handle::cublasHandle_t,
+                                                                   mask::cudaEmulationSpecialValuesSupport)::cublasStatus_t
+end
+
+@checked function cublasGetFixedPointEmulationMantissaControl(handle, mantissaControl)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasGetFixedPointEmulationMantissaControl(handle::cublasHandle_t,
+                                                                        mantissaControl::Ptr{cudaEmulationMantissaControl})::cublasStatus_t
+end
+
+@checked function cublasSetFixedPointEmulationMantissaControl(handle, mantissaControl)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSetFixedPointEmulationMantissaControl(handle::cublasHandle_t,
+                                                                        mantissaControl::cudaEmulationMantissaControl)::cublasStatus_t
+end
+
+@checked function cublasGetFixedPointEmulationMaxMantissaBitCount(handle,
+                                                                  maxMantissaBitCount)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasGetFixedPointEmulationMaxMantissaBitCount(handle::cublasHandle_t,
+                                                                            maxMantissaBitCount::Ptr{Cint})::cublasStatus_t
+end
+
+@checked function cublasSetFixedPointEmulationMaxMantissaBitCount(handle,
+                                                                  maxMantissaBitCount)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSetFixedPointEmulationMaxMantissaBitCount(handle::cublasHandle_t,
+                                                                            maxMantissaBitCount::Cint)::cublasStatus_t
+end
+
+@checked function cublasGetFixedPointEmulationMantissaBitOffset(handle, mantissaBitOffset)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasGetFixedPointEmulationMantissaBitOffset(handle::cublasHandle_t,
+                                                                          mantissaBitOffset::Ptr{Cint})::cublasStatus_t
+end
+
+@checked function cublasSetFixedPointEmulationMantissaBitOffset(handle, mantissaBitOffset)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSetFixedPointEmulationMantissaBitOffset(handle::cublasHandle_t,
+                                                                          mantissaBitOffset::Cint)::cublasStatus_t
+end
+
+@checked function cublasGetFixedPointEmulationMantissaBitCountPointer(handle,
+                                                                      mantissaBitCount)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasGetFixedPointEmulationMantissaBitCountPointer(handle::cublasHandle_t,
+                                                                                mantissaBitCount::Ptr{Ptr{Cint}})::cublasStatus_t
+end
+
+@checked function cublasSetFixedPointEmulationMantissaBitCountPointer(handle,
+                                                                      mantissaBitCount)
+    initialize_context()
+    @gcsafe_ccall libcublas.cublasSetFixedPointEmulationMantissaBitCountPointer(handle::cublasHandle_t,
+                                                                                mantissaBitCount::Ptr{Cint})::cublasStatus_t
 end
 
 function cublasGetStatusName(status)

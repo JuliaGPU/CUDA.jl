@@ -26,36 +26,7 @@ end
     end
 end
 
-@cenum cutensorDataType_t::UInt32 begin
-    CUTENSOR_R_16F = 2
-    CUTENSOR_C_16F = 6
-    CUTENSOR_R_16BF = 14
-    CUTENSOR_C_16BF = 15
-    CUTENSOR_R_32F = 0
-    CUTENSOR_C_32F = 4
-    CUTENSOR_R_64F = 1
-    CUTENSOR_C_64F = 5
-    CUTENSOR_R_4I = 16
-    CUTENSOR_C_4I = 17
-    CUTENSOR_R_4U = 18
-    CUTENSOR_C_4U = 19
-    CUTENSOR_R_8I = 3
-    CUTENSOR_C_8I = 7
-    CUTENSOR_R_8U = 8
-    CUTENSOR_C_8U = 9
-    CUTENSOR_R_16I = 20
-    CUTENSOR_C_16I = 21
-    CUTENSOR_R_16U = 22
-    CUTENSOR_C_16U = 23
-    CUTENSOR_R_32I = 10
-    CUTENSOR_C_32I = 11
-    CUTENSOR_R_32U = 12
-    CUTENSOR_C_32U = 13
-    CUTENSOR_R_64I = 24
-    CUTENSOR_C_64I = 25
-    CUTENSOR_R_64U = 26
-    CUTENSOR_C_64U = 27
-end
+const cutensorDataType_t = cudaDataType_t
 
 @cenum cutensorOperator_t::UInt32 begin
     CUTENSOR_OP_IDENTITY = 1
@@ -187,6 +158,10 @@ mutable struct cutensorTensorDescriptor end
 
 const cutensorTensorDescriptor_t = Ptr{cutensorTensorDescriptor}
 
+mutable struct cutensorBlockSparseTensorDescriptor end
+
+const cutensorBlockSparseTensorDescriptor_t = Ptr{cutensorBlockSparseTensorDescriptor}
+
 # typedef void ( * cutensorLoggerCallback_t ) ( int32_t logLevel , const char * functionName , const char * message )
 const cutensorLoggerCallback_t = Ptr{Cvoid}
 
@@ -239,7 +214,7 @@ end
                                                              numModes::UInt32,
                                                              extent::Ptr{Int64},
                                                              stride::Ptr{Int64},
-                                                             dataType::cutensorDataType_t,
+                                                             dataType::cudaDataType_t,
                                                              alignmentRequirement::UInt32)::cutensorStatus_t
 end
 
@@ -513,16 +488,74 @@ end
                                                       stream::cudaStream_t)::cutensorStatus_t
 end
 
+@checked function cutensorCreateBlockSparseTensorDescriptor(handle, desc, numModes,
+                                                            numNonZeroBlocks,
+                                                            numSectionsPerMode, extent,
+                                                            nonZeroCoordinates, stride,
+                                                            dataType)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorCreateBlockSparseTensorDescriptor(handle::cutensorHandle_t,
+                                                                        desc::Ptr{cutensorBlockSparseTensorDescriptor_t},
+                                                                        numModes::UInt32,
+                                                                        numNonZeroBlocks::UInt64,
+                                                                        numSectionsPerMode::Ptr{UInt32},
+                                                                        extent::Ptr{Int64},
+                                                                        nonZeroCoordinates::Ptr{Int32},
+                                                                        stride::Ptr{Int64},
+                                                                        dataType::cudaDataType_t)::cutensorStatus_t
+end
+
+@checked function cutensorDestroyBlockSparseTensorDescriptor(desc)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorDestroyBlockSparseTensorDescriptor(desc::cutensorBlockSparseTensorDescriptor_t)::cutensorStatus_t
+end
+
+@checked function cutensorCreateBlockSparseContraction(handle, desc, descA, modeA, opA,
+                                                       descB, modeB, opB, descC, modeC, opC,
+                                                       descD, modeD, descCompute)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorCreateBlockSparseContraction(handle::cutensorHandle_t,
+                                                                   desc::Ptr{cutensorOperationDescriptor_t},
+                                                                   descA::cutensorBlockSparseTensorDescriptor_t,
+                                                                   modeA::Ptr{Int32},
+                                                                   opA::cutensorOperator_t,
+                                                                   descB::cutensorBlockSparseTensorDescriptor_t,
+                                                                   modeB::Ptr{Int32},
+                                                                   opB::cutensorOperator_t,
+                                                                   descC::cutensorBlockSparseTensorDescriptor_t,
+                                                                   modeC::Ptr{Int32},
+                                                                   opC::cutensorOperator_t,
+                                                                   descD::cutensorBlockSparseTensorDescriptor_t,
+                                                                   modeD::Ptr{Int32},
+                                                                   descCompute::cutensorComputeDescriptor_t)::cutensorStatus_t
+end
+
+@checked function cutensorBlockSparseContract(handle, plan, alpha, A, B, beta, C, D,
+                                              workspace, workspaceSize, stream)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorBlockSparseContract(handle::cutensorHandle_t,
+                                                          plan::cutensorPlan_t,
+                                                          alpha::Ptr{Cvoid},
+                                                          A::Ptr{Ptr{Cvoid}},
+                                                          B::Ptr{Ptr{Cvoid}},
+                                                          beta::Ptr{Cvoid},
+                                                          C::Ptr{Ptr{Cvoid}},
+                                                          D::Ptr{Ptr{Cvoid}},
+                                                          workspace::Ptr{Cvoid},
+                                                          workspaceSize::UInt64,
+                                                          stream::cudaStream_t)::cutensorStatus_t
+end
+
 function cutensorGetErrorString(error)
     @gcsafe_ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
 
-# no prototype is found for this function at cutensor.h:1102:8, please use with caution
+# no prototype is found for this function at cutensor.h:1401:8, please use with caution
 function cutensorGetVersion()
     @gcsafe_ccall libcutensor.cutensorGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensor.h:1108:8, please use with caution
+# no prototype is found for this function at cutensor.h:1407:8, please use with caution
 function cutensorGetCudartVersion()
     @gcsafe_ccall libcutensor.cutensorGetCudartVersion()::Csize_t
 end
@@ -552,7 +585,7 @@ end
     @gcsafe_ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
-# no prototype is found for this function at cutensor.h:1159:18, please use with caution
+# no prototype is found for this function at cutensor.h:1458:18, please use with caution
 @checked function cutensorLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t
