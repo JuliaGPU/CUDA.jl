@@ -199,7 +199,7 @@ function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,T
         # and we have the following error in the tests:
         # "Out of GPU memory trying to allocate 127.781 TiB".
         # We set 0 as default value to avoid it.
-        out = Ref{Csize_t}(0)
+        out = Ref{Csize_t}(1)
         cusparseXcoosort_bufferSizeExt(handle(), m, n, nnz(A), A.rowInd, A.colInd, out)
         return out[]
     end
@@ -626,8 +626,10 @@ end
 # need both typevars for compatibility with GPUArrays
 function CuSparseMatrixCSR{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
     m, n = size(coo)
-    csrRowPtr = (index == 'O') ? CUDA.ones(Cint, m + 1) : CUDA.zeros(Cint, m + 1)
-    nnz(coo) == 0 && return CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
+    csrRowPtr = CuArray{Ti}(undef, m + 1)
+    if iszero(m)
+        csrRowPtr .= (index == 'O') ? 1 : 0 # cusparseXcoo2csr does not initialize csrRowPtr correctly if m == 0
+    end
     coo = sort_coo(coo, 'R')
     cusparseXcoo2csr(handle(), coo.rowInd, nnz(coo), m, csrRowPtr, index)
     CuSparseMatrixCSR{Tv,Cint}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
@@ -637,7 +639,6 @@ CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {
 
 function CuSparseMatrixCOO{Tv, Ti}(csr::CuSparseMatrixCSR{Tv}; index::SparseChar='O') where {Tv, Ti}
     m,n = size(csr)
-    nnz(csr) == 0 && return CuSparseMatrixCOO{Tv,Cint}(CUDA.zeros(Cint, 0), CUDA.zeros(Cint, 0), nonzeros(csr), size(csr))
     cooRowInd = CuVector{Cint}(undef, nnz(csr))
     cusparseXcsr2coo(handle(), csr.rowPtr, nnz(csr), m, cooRowInd, index)
     CuSparseMatrixCOO{Tv,Cint}(cooRowInd, csr.colVal, nonzeros(csr), size(csr))
@@ -649,8 +650,10 @@ CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv, Ti}; index::SparseChar='O') where {
 
 function CuSparseMatrixCSC{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
     m, n = size(coo)
-    cscColPtr = (index == 'O') ? CUDA.ones(Cint, n + 1) : CUDA.zeros(Cint, n + 1)
-    nnz(coo) == 0 && return CuSparseMatrixCSC{Tv}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
+    cscColPtr = CuArray{Ti}(undef, n + 1)
+    if iszero(n)
+        cscColPtr .= (index == 'O') ? 1 : 0 # cusparseXcoo2csr does not initialize cscColPtr correctly if n == 0
+    end
     coo = sort_coo(coo, 'C')
     cusparseXcoo2csr(handle(), coo.colInd, nnz(coo), n, cscColPtr, index)
     CuSparseMatrixCSC{Tv,Cint}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
@@ -660,7 +663,6 @@ CuSparseMatrixCSC(coo::CuSparseMatrixCOO{Tv, Ti}; index::SparseChar='O') where {
 
 function CuSparseMatrixCOO{Tv, Ti}(csc::CuSparseMatrixCSC{Tv, Ti}; index::SparseChar='O') where {Tv, Ti}
     m,n = size(csc)
-    nnz(csc) == 0 && return CuSparseMatrixCOO{Tv,Cint}(CUDA.zeros(Cint, 0), CUDA.zeros(Cint, 0), nonzeros(csc), size(csc))
     cooColInd = CuVector{Cint}(undef, nnz(csc))
     cusparseXcsr2coo(handle(), csc.colPtr, nnz(csc), n, cooColInd, index)
     coo = CuSparseMatrixCOO{Tv,Cint}(csc.rowVal, cooColInd, nonzeros(csc), size(csc))

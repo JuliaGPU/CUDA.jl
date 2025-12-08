@@ -113,6 +113,23 @@ if !(v"12.0" <= CUSPARSE.version() < v"12.1")
     end
 end
 
+function __test_valid_ptr(A::CuSparseMatrixCSC)
+    colPtr = collect(A.colPtr)
+    @test length(A.colPtr) >= 1
+    @test colPtr[1] == 1 # assuming one based indexing (index='O')
+    @test issorted(colPtr)
+end
+
+function __test_valid_ptr(A::CuSparseMatrixCSR)
+    rowPtr = collect(A.rowPtr)
+    @test length(A.rowPtr) >= 1
+    @test rowPtr[1] == 1 # assuming one based indexing (index='O')
+    @test issorted(rowPtr)
+end
+
+__test_valid_ptr(::CuSparseMatrixCOO) = nothing
+__test_valid_ptr(::CuSparseMatrixBSR) = nothing
+
 for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)]
     v"12.0" <= CUSPARSE.version() < v"12.1" && n == 4 && continue
     @testset "conversions between CuSparseMatrices (n, bd, p) = ($n, $bd, $p)" begin
@@ -122,6 +139,7 @@ for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)]
             if CuSparseMatrixType1 == CuSparseMatrixBSR && n == 0 continue end # TODO: conversion to CuSparseMatrixBSR breaks with (0x0) matrices
             dA1 = CuSparseMatrixType1 == CuSparseMatrixBSR ? CuSparseMatrixType1(A, blockdim) : CuSparseMatrixType1(A)
             @testset "conversion $CuSparseMatrixType1 --> SparseMatrixCSC" begin
+                __test_valid_ptr(dA1)
                 @test SparseMatrixCSC(dA1) ≈ A
             end
             for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
@@ -129,6 +147,7 @@ for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)]
                 CuSparseMatrixType1 == CuSparseMatrixType2 && continue
                 dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
                 @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
+                    __test_valid_ptr(dA2)
                     @test collect(dA1) ≈ collect(dA2)
                 end
             end
