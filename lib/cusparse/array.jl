@@ -8,13 +8,10 @@ export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR, CuSparseMatrixCO
        CuSparseVecOrMat
 
 using LinearAlgebra: BlasFloat
-using SparseArrays: nonzeroinds, dimlub
-
-abstract type AbstractCuSparseArray{Tv, Ti, N} <: AbstractSparseArray{Tv, Ti, N} end
-const AbstractCuSparseVector{Tv, Ti} = AbstractCuSparseArray{Tv, Ti, 1}
-const AbstractCuSparseMatrix{Tv, Ti} = AbstractCuSparseArray{Tv, Ti, 2}
-
-Base.convert(T::Type{<:AbstractCuSparseArray}, m::AbstractArray) = m isa T ? m : T(m)
+using SparseArrays
+using SparseArrays: nonzeroinds, nonzeros, rowvals, getcolptr, dimlub
+abstract type AbstractCuSparseVector{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 1} end
+abstract type AbstractCuSparseMatrix{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 2} end
 
 mutable struct CuSparseVector{Tv, Ti} <: AbstractCuSparseVector{Tv, Ti}
     iPtr::CuVector{Ti}
@@ -44,7 +41,7 @@ GPU.
     Most CUSPARSE operations work with CSR formatted matrices, rather
     than CSC.
 """
-mutable struct CuSparseMatrixCSC{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
+mutable struct CuSparseMatrixCSC{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSC{Tv, Ti}
     colPtr::CuVector{Ti}
     rowVal::CuVector{Ti}
     nzVal::CuVector{Tv}
@@ -56,6 +53,12 @@ mutable struct CuSparseMatrixCSC{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
         new{Tv, Ti}(colPtr, rowVal, nzVal, dims, length(nzVal))
     end
 end
+CuSparseMatrixCSC{Tv, Ti}(csc::CuSparseMatrixCSC{Tv, Ti}) where {Tv, Ti} = csc
+
+SparseArrays.rowvals(g::T) where {T<:CuSparseVector} = nonzeroinds(g)
+
+SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
+SparseArrays.getcolptr(S::CuSparseMatrixCSC) = S.colPtr
 
 CuSparseMatrixCSC(A::CuSparseMatrixCSC) = A
 
@@ -79,7 +82,7 @@ GPU.
 !!! compat "CUDA 11"
     Support of indices type rather than `Cint` (`Int32`) requires at least CUDA 11.
 """
-mutable struct CuSparseMatrixCSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
+mutable struct CuSparseMatrixCSR{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSR{Tv, Ti}
     rowPtr::CuVector{Ti}
     colVal::CuVector{Ti}
     nzVal::CuVector{Tv}
@@ -92,6 +95,7 @@ mutable struct CuSparseMatrixCSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     end
 end
 
+CuSparseMatrixCSR{Tv, Ti}(csr::CuSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} = csr
 CuSparseMatrixCSR(A::CuSparseMatrixCSR) = A
 
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
@@ -100,6 +104,26 @@ function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
     unsafe_free!(nonzeros(xs))
     return
 end
+
+GPUArrays.sparse_array_type(sa::CuSparseMatrixCSC) = CuSparseMatrixCSC
+GPUArrays.sparse_array_type(::Type{<:CuSparseMatrixCSC}) = CuSparseMatrixCSC
+GPUArrays.sparse_array_type(sa::CuSparseMatrixCSR) = CuSparseMatrixCSR
+GPUArrays.sparse_array_type(::Type{<:CuSparseMatrixCSR}) = CuSparseMatrixCSR
+GPUArrays.sparse_array_type(sa::CuSparseVector) = CuSparseVector
+GPUArrays.sparse_array_type(::Type{<:CuSparseVector}) = CuSparseVector
+GPUArrays.dense_array_type(sa::CuSparseVector) = CuArray
+GPUArrays.dense_array_type(::Type{<:CuSparseVector}) = CuArray
+GPUArrays.dense_array_type(sa::CuSparseMatrixCSC) = CuArray
+GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSC}) = CuArray
+GPUArrays.dense_array_type(sa::CuSparseMatrixCSR) = CuArray
+GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSR}) = CuArray
+
+GPUArrays.csc_type(sa::CuSparseMatrixCSR) = CuSparseMatrixCSC
+GPUArrays.csr_type(sa::CuSparseMatrixCSC) = CuSparseMatrixCSR
+GPUArrays.coo_type(sa::Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}) = CuSparseMatrixCOO
+GPUArrays.coo_type(sa::Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}) = CuSparseMatrixCOO
+GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}} = CuSparseMatrixCOO
+GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}} = CuSparseMatrixCOO
 
 """
     CuSparseMatrixBSR
@@ -156,7 +180,7 @@ end
 
 CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
 
-mutable struct CuSparseArrayCSR{Tv, Ti, N} <: AbstractCuSparseArray{Tv, Ti, N}
+mutable struct CuSparseArrayCSR{Tv, Ti, N} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, N}
     rowPtr::CuArray{Ti}
     colVal::CuArray{Ti}
     nzVal::CuArray{Tv}
@@ -322,30 +346,6 @@ end
 
 ## sparse array interface
 
-SparseArrays.nnz(g::AbstractCuSparseArray) = g.nnz
-SparseArrays.nonzeros(g::AbstractCuSparseArray) = g.nzVal
-
-SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
-SparseArrays.rowvals(g::AbstractCuSparseVector) = nonzeroinds(g)
-
-SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
-SparseArrays.getcolptr(S::CuSparseMatrixCSC) = S.colPtr
-
-function SparseArrays.findnz(S::MT) where {MT <: AbstractCuSparseMatrix}
-    S2 = CuSparseMatrixCOO(S)
-    I = S2.rowInd
-    J = S2.colInd
-    V = S2.nzVal
-
-    # To make it compatible with the SparseArrays.jl version
-    idxs = sortperm(J)
-    I = I[idxs]
-    J = J[idxs]
-    V = V[idxs]
-
-    return (I, J, V)
-end
-
 function SparseArrays.sparsevec(I::CuArray{Ti}, V::CuArray{Tv}, n::Integer) where {Ti,Tv}
     CuSparseVector(I, V, n)
 end
@@ -400,16 +400,6 @@ function _cuda_spdiagm_internal(kv::Pair{T,<:CuVector}...) where {T<:Integer}
     end
     return I, J, V, m, n
 end
-
-LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - transpose(M), Inf) == 0 : false
-LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = size(M, 1) == size(M, 2) ? norm(M - adjoint(M), Inf) == 0 : false
-
-LinearAlgebra.istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractCuSparseMatrix, Adjoint{<:Any, <:AbstractCuSparseMatrix}, Transpose{<:Any, <:AbstractCuSparseMatrix}}} = true
-LinearAlgebra.istril(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractCuSparseMatrix, Adjoint{<:Any, <:AbstractCuSparseMatrix}, Transpose{<:Any, <:AbstractCuSparseMatrix}}} = false
-LinearAlgebra.istriu(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractCuSparseMatrix, Adjoint{<:Any, <:AbstractCuSparseMatrix}, Transpose{<:Any, <:AbstractCuSparseMatrix}}} = false
-LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:Union{<:AbstractCuSparseMatrix, Adjoint{<:Any, <:AbstractCuSparseMatrix}, Transpose{<:Any, <:AbstractCuSparseMatrix}}} = true
-
-Hermitian{T}(Mat::CuSparseMatrix{T}) where {T} = Hermitian{eltype(Mat),typeof(Mat)}(Mat,'U')
 
 SparseArrays.nnz(g::CuSparseMatrixBSR) = g.nnzb * g.blockDim * g.blockDim
 
@@ -555,6 +545,7 @@ CuSparseMatrixCSR{T}(Mat::Adjoint{Tv, <:SparseMatrixCSC}) where {T, Tv} =
                          CuVector{T}(conj.(parent(Mat).nzval)), size(Mat))
 CuSparseMatrixCSC{T}(Mat::Union{Transpose{Tv, <:SparseMatrixCSC}, Adjoint{Tv, <:SparseMatrixCSC}}) where {T, Tv} = CuSparseMatrixCSC(CuSparseMatrixCSR{T}(Mat))
 CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCSR(CuSparseMatrixCSC{T}(Mat))
+CuSparseMatrixCSR{Tv, Ti}(Mat::SparseMatrixCSC) where {Tv, Ti} = CuSparseMatrixCSR(CuSparseMatrixCSC{Tv}(Mat))
 CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = CuSparseMatrixBSR(CuSparseMatrixCSR{T}(Mat), blockdim)
 CuSparseMatrixCOO{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCOO(CuSparseMatrixCSR{T}(Mat))
 
@@ -562,11 +553,11 @@ CuSparseMatrixCOO{T}(Mat::Transpose{Tv, <:SparseMatrixCSC}) where {T, Tv} = CuSp
 CuSparseMatrixCOO{T}(Mat::Adjoint{Tv, <:SparseMatrixCSC}) where {T, Tv} = CuSparseMatrixCOO{T}(CuSparseMatrixCSR{T}(Mat))
 
 # untyped variants
-CuSparseVector(x::AbstractSparseArray{T}) where {T} = CuSparseVector{T}(x)
-CuSparseMatrixCSC(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSC{T}(x)
-CuSparseMatrixCSR(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSR{T}(x)
-CuSparseMatrixBSR(x::AbstractSparseArray{T}, blockdim) where {T} = CuSparseMatrixBSR{T}(x, blockdim)
-CuSparseMatrixCOO(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCOO{T}(x)
+CuSparseVector(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseVector{Tv}(x)
+CuSparseMatrixCSC(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseMatrixCSC{Tv}(x)
+CuSparseMatrixCSR(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseMatrixCSR{Tv}(x)
+CuSparseMatrixBSR(x::AbstractSparseArray{Tv}, blockdim) where {Tv} = CuSparseMatrixBSR{Tv}(x, blockdim)
+CuSparseMatrixCOO(x::AbstractSparseArray{Tv}) where {Tv} = CuSparseMatrixCOO{Tv}(x)
 
 # adjoint / transpose
 CuSparseMatrixCSR(x::Transpose{T}) where {T} = CuSparseMatrixCSR{T}(x)
@@ -576,26 +567,19 @@ CuSparseMatrixCSC(x::Adjoint{T}) where {T} = CuSparseMatrixCSC{T}(x)
 CuSparseMatrixCOO(x::Transpose{T}) where {T} = CuSparseMatrixCOO{T}(x)
 CuSparseMatrixCOO(x::Adjoint{T}) where {T} = CuSparseMatrixCOO{T}(x)
 
-CuSparseMatrixCSR(x::Transpose{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSR(_sptranspose(parent(x)))
-CuSparseMatrixCSC(x::Transpose{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSC(_sptranspose(parent(x)))
-CuSparseMatrixCOO(x::Transpose{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCOO(_sptranspose(parent(x)))
-CuSparseMatrixCSR(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSR(_spadjoint(parent(x)))
-CuSparseMatrixCSC(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSC(_spadjoint(parent(x)))
-CuSparseMatrixCOO(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCOO(_spadjoint(parent(x)))
+CuSparseMatrixCSR(x::Transpose{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSR(GPUArrays._sptranspose(parent(x)))
+CuSparseMatrixCSC(x::Transpose{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSC(GPUArrays._sptranspose(parent(x)))
+CuSparseMatrixCOO(x::Transpose{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCOO(GPUArrays._sptranspose(parent(x)))
+CuSparseMatrixCSR(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSR(GPUArrays._spadjoint(parent(x)))
+CuSparseMatrixCSC(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSC(GPUArrays._spadjoint(parent(x)))
+CuSparseMatrixCOO(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCOO(GPUArrays._spadjoint(parent(x)))
 
 # gpu to cpu
-SparseArrays.SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
-SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
+SparseArrays.SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(SparseArrays.nonzeroinds(x)), Array(SparseArrays.nonzeros(x)))
+SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(SparseArrays.rowvals(x)), Array(SparseArrays.nonzeros(x)))
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_CSR -> gpu_CSC -> cpu_CSC)
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixBSR) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion (gpu_BSR -> gpu_CSR -> gpu_CSC -> cpu_CSC)
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_COO -> gpu_CSC -> cpu_CSC)
-
-# collect to Array
-Base.collect(x::CuSparseVector) = collect(SparseVector(x))
-Base.collect(x::CuSparseMatrixCSC) = collect(SparseMatrixCSC(x))
-Base.collect(x::CuSparseMatrixCSR) = collect(SparseMatrixCSC(x))
-Base.collect(x::CuSparseMatrixBSR) = collect(SparseMatrixCSC(x))
-Base.collect(x::CuSparseMatrixCOO) = collect(SparseMatrixCSC(x))
 
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseVector) = CuSparseVector(xs)
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs)
@@ -612,32 +596,6 @@ Adapt.adapt_storage(::Type{Array}, xs::CuSparseMatrixCSC) = SparseMatrixCSC(xs)
 
 
 ## copying between sparse GPU arrays
-
-function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
-    if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent Sparse Vector size"))
-    end
-    resize!(nonzeroinds(dst), length(nonzeroinds(src)))
-    resize!(nonzeros(dst), length(nonzeros(src)))
-    copyto!(nonzeroinds(dst), nonzeroinds(src))
-    copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = src.nnz
-    dst
-end
-
-function Base.copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
-    if size(dst) != size(src)
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
-    end
-    resize!(dst.colPtr, length(src.colPtr))
-    resize!(rowvals(dst), length(rowvals(src)))
-    resize!(nonzeros(dst), length(nonzeros(src)))
-    copyto!(dst.colPtr, src.colPtr)
-    copyto!(rowvals(dst), rowvals(src))
-    copyto!(nonzeros(dst), nonzeros(src))
-    dst.nnz = src.nnz
-    dst
-end
 
 function Base.copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     if size(dst) != size(src)
@@ -743,16 +701,31 @@ end
 
 # interop with device arrays
 
+function GPUArrays.GPUSparseDeviceVector(iPtr::CuDeviceVector{Ti, A},
+                                         nzVal::CuDeviceVector{Tv, A},
+                                         len::Int,
+                                         nnz::Ti) where {Ti, Tv, A}
+    GPUArrays.GPUSparseDeviceVector{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(iPtr, nzVal, len, nnz)
+end
+
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseVector)
-    return CuSparseDeviceVector(
+    return GPUArrays.GPUSparseDeviceVector(
         adapt(to, x.iPtr),
         adapt(to, x.nzVal),
         length(x), x.nnz
     )
 end
 
+function GPUArrays.GPUSparseDeviceMatrixCSR(rowPtr::CuDeviceVector{Ti, A},
+                                            colVal::CuDeviceVector{Ti, A},
+                                            nzVal::CuDeviceVector{Tv, A},
+                                            dims::NTuple{2, Int},
+                                            nnz::Ti) where {Ti, Tv, A}
+    GPUArrays.GPUSparseDeviceMatrixCSR{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowPtr, colVal, nzVal, dims, nnz)
+end
+
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSR)
-    return CuSparseDeviceMatrixCSR(
+    return GPUArrays.GPUSparseDeviceMatrixCSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
         adapt(to, x.nzVal),
@@ -760,8 +733,16 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSR)
     )
 end
 
+function GPUArrays.GPUSparseDeviceMatrixCSC(colPtr::CuDeviceVector{Ti, A},
+                                            rowVal::CuDeviceVector{Ti, A},
+                                            nzVal::CuDeviceVector{Tv, A},
+                                            dims::NTuple{2, Int},
+                                            nnz::Ti) where {Ti, Tv, A}
+    GPUArrays.GPUSparseDeviceMatrixCSC{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(colPtr, rowVal, nzVal, dims, nnz)
+end
+
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSC)
-    return CuSparseDeviceMatrixCSC(
+    return GPUArrays.GPUSparseDeviceMatrixCSC(
         adapt(to, x.colPtr),
         adapt(to, x.rowVal),
         adapt(to, x.nzVal),
@@ -769,8 +750,18 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSC)
     )
 end
 
+function GPUArrays.GPUSparseDeviceMatrixBSR(rowPtr::CuDeviceVector{Ti, A},
+                                            colVal::CuDeviceVector{Ti, A},
+                                            nzVal::CuDeviceVector{Tv, A},
+                                            dims::NTuple{2, Int},
+                                            blockDim::Ti,
+                                            dir::Char,
+                                            nnz::Ti) where {Ti, Tv, A}
+    GPUArrays.GPUSparseDeviceMatrixBSR{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
+end
+
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixBSR)
-    return CuSparseDeviceMatrixBSR(
+    return GPUArrays.GPUSparseDeviceMatrixBSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
         adapt(to, x.nzVal),
@@ -779,8 +770,16 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixBSR)
     )
 end
 
+function GPUArrays.GPUSparseDeviceMatrixCOO(rowInd::CuDeviceVector{Ti, A},
+                                            colInd::CuDeviceVector{Ti, A},
+                                            nzVal::CuDeviceVector{Tv, A},
+                                            dims::NTuple{2, Int},
+                                            nnz::Ti) where {Ti, Tv, A}
+    GPUArrays.GPUSparseDeviceMatrixCOO{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowInd, colInd, nzVal, dims, nnz)
+end
+
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCOO)
-    return CuSparseDeviceMatrixCOO(
+    return GPUArrays.GPUSparseDeviceMatrixCOO(
         adapt(to, x.rowInd),
         adapt(to, x.colInd),
         adapt(to, x.nzVal),
@@ -789,7 +788,7 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCOO)
 end
 
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseArrayCSR)
-    return CuSparseDeviceArrayCSR(
+    return GPUArrays.GPUSparseDeviceArrayCSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
         adapt(to, x.nzVal),

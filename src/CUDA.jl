@@ -10,6 +10,8 @@ using LLVM
 using LLVM.Interop
 using Core: LLVMPtr
 
+import KernelAbstractions
+
 using Adapt: Adapt, adapt, WrappedArray
 
 using Requires: @require

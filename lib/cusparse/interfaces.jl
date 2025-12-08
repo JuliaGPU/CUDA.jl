@@ -2,29 +2,29 @@
 
 using LinearAlgebra
 using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, MulAddMul, AdjOrTrans
-export _spadjoint, _sptranspose
+using GPUArrays: _spadjoint, _sptranspose
 
-function _spadjoint(A::CuSparseMatrixCSR)
+function GPUArrays._spadjoint(A::CuSparseMatrixCSR)
     Aᴴ = CuSparseMatrixCSC(A.rowPtr, A.colVal, conj(A.nzVal), reverse(size(A)))
     CuSparseMatrixCSR(Aᴴ)
 end
-function _sptranspose(A::CuSparseMatrixCSR)
+function GPUArrays._sptranspose(A::CuSparseMatrixCSR)
     Aᵀ = CuSparseMatrixCSC(A.rowPtr, A.colVal, A.nzVal, reverse(size(A)))
     CuSparseMatrixCSR(Aᵀ)
 end
-function _spadjoint(A::CuSparseMatrixCSC)
+function GPUArrays._spadjoint(A::CuSparseMatrixCSC)
     Aᴴ = CuSparseMatrixCSR(A.colPtr, A.rowVal, conj(A.nzVal), reverse(size(A)))
     CuSparseMatrixCSC(Aᴴ)
 end
-function _sptranspose(A::CuSparseMatrixCSC)
+function GPUArrays._sptranspose(A::CuSparseMatrixCSC)
     Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
     CuSparseMatrixCSC(Aᵀ)
 end
-function _spadjoint(A::CuSparseMatrixCOO)
+function GPUArrays._spadjoint(A::CuSparseMatrixCOO)
     # we use sparse instead of CuSparseMatrixCOO because we want to sort the matrix.
     sparse(A.colInd, A.rowInd, conj(A.nzVal), reverse(size(A))..., fmt = :coo)
 end
-function _sptranspose(A::CuSparseMatrixCOO)
+function GPUArrays._sptranspose(A::CuSparseMatrixCOO)
     # we use sparse instead of CuSparseMatrixCOO because we want to sort the matrix.
     sparse(A.colInd, A.rowInd, A.nzVal, reverse(size(A))..., fmt = :coo)
 end
