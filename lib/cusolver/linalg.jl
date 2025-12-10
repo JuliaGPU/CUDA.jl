@@ -165,6 +165,29 @@ for func in (:(Base.exp), :(Base.cos), :(Base.sin), :(Base.tan), :(Base.cosh), :
     end
 end
 
+for wrap_T in (:Hermitian, :Symmetric)
+    @eval begin
+        function Base.log(A::$wrap_T{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            if all(λ -> λ ≥ 0, F.values)
+                retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+                return $wrap_T(retmat)
+            else
+                return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+            end
+        end
+    end
+end
+function Base.log(A::Hermitian{T, <:StridedCuMatrix{T}}) where {T<:Complex}
+    F = eigen(A)
+    if all(λ -> λ ≥ 0, F.values)
+        retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+        return Hermitian(retmat)
+    else
+        return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+    end
+end
+
 # factorizations
 
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
