@@ -953,9 +953,9 @@ end
     @testset for func in (exp, cos, sin, tan, cosh, sinh, tanh, atan, asinh)
         @test Array(func(d_Ah)) ≈ func(Ah)
     end
-    @test Array(log(Hermitian(d_Ah))) ≈ log(Hermitian(Ah))
+    @test Array(parent(log(Hermitian(d_Ah)))) ≈ log(Hermitian(Ah))
     if elty <: Real
-        @test Array(log(Symmetric(d_Ah))) ≈ log(Symmetric(Ah))
+        @test Array(parent(log(Symmetric(d_Ah)))) ≈ log(Symmetric(Ah))
     end
     @static if VERSION >= v"1.11.0" # not supported on 1.10 or for Complex
         if elty <: Real
