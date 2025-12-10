@@ -165,6 +165,25 @@ for func in (:(Base.exp), :(Base.cos), :(Base.sin), :(Base.tan), :(Base.cosh), :
     end
 end
 
+function Base.log(A::Symmetric{T, <:StridedCuMatrix}) where {T<:BlasReal}
+    F = eigen(A)
+    if all(λ -> λ ≥ 0, F.values)
+        retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+        return Symmetric(retmat)
+    else
+        return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+    end
+end
+function Base.log(A::Hermitian{T, <:StridedCuMatrix}) where {T}
+    F = eigen(A)
+    if all(λ -> λ ≥ 0, F.values)
+        retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+        return Hermitian(retmat)
+    else
+        return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+    end
+end
+
 # factorizations
 
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ
