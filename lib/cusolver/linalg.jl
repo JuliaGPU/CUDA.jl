@@ -165,16 +165,20 @@ for func in (:(Base.exp), :(Base.cos), :(Base.sin), :(Base.tan), :(Base.cosh), :
     end
 end
 
-function Base.log(A::Symmetric{T, <:StridedCuMatrix}) where {T<:BlasReal}
-    F = eigen(A)
-    if all(λ -> λ ≥ 0, F.values)
-        retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
-        return Symmetric(retmat)
-    else
-        return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+for wrap_T in (:Hermitian, :Symmetric)
+    @eval begin
+        function Base.log(A::$wrap_T{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            if all(λ -> λ ≥ 0, F.values)
+                retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+                return $wrap_T(retmat)
+            else
+                return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+            end
+        end
     end
 end
-function Base.log(A::Hermitian{T, <:StridedCuMatrix}) where {T}
+function Base.log(A::Hermitian{T, <:StridedCuMatrix{T}}) where {T<:Complex}
     F = eigen(A)
     if all(λ -> λ ≥ 0, F.values)
         retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
