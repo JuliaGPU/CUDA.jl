@@ -422,6 +422,7 @@ steps:
 
         println("--- :julia: Instantiating project")
         Pkg.develop([PackageSpec(path=pwd())])
+        Pkg.add(url="https://github.com/christiangnrd/GPUArrays.jl", rev="accumulatetests")
 
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
