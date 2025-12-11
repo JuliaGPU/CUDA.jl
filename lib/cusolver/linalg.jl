@@ -218,6 +218,54 @@ function LinearAlgebra.eigvecs(A::CuMatrix{T}) where {T <: BlasComplex}
     return E.vectors
 end
 
+# matrix functions
+for func in (:(Base.exp), :(Base.cos), :(Base.sin), :(Base.tan), :(Base.cosh), :(Base.sinh), :(Base.tanh), :(Base.atan), :(Base.asinh), :(Base.atanh), :(Base.cbrt))
+    @eval begin
+        function ($func)(A::Symmetric{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            return Symmetric((F.vectors * Diagonal(($func).(F.values))) * F.vectors')
+        end
+        function ($func)(A::Hermitian{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            return Hermitian((F.vectors * Diagonal(($func).(F.values))) * F.vectors')
+        end
+        function ($func)(A::Hermitian{<:Complex, <:StridedCuMatrix})
+            F = eigen(A)
+            retmat = (F.vectors * Diagonal(($func).(F.values))) * F.vectors'
+            @static if VERSION >= v"1.11"
+                d_ixs = diagind(retmat, IndexStyle(retmat))
+            else
+                d_ixs = diagind(retmat)
+            end
+            @. retmat[d_ixs] = real(retmat[d_ixs])
+            return Hermitian(retmat)
+        end
+    end
+end
+
+for wrap_T in (:Hermitian, :Symmetric)
+    @eval begin
+        function Base.log(A::$wrap_T{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            if all(λ -> λ ≥ 0, F.values)
+                retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+                return $wrap_T(retmat)
+            else
+                return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+            end
+        end
+    end
+end
+function Base.log(A::Hermitian{T, <:StridedCuMatrix{T}}) where {T<:Complex}
+    F = eigen(A)
+    if all(λ -> λ ≥ 0, F.values)
+        retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+        return Hermitian(retmat)
+    else
+        return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+    end
+end
+
 # factorizations
 
 using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPackedQ

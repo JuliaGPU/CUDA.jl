@@ -1,5 +1,4 @@
 using CUDA.CUSPARSE
-
 using LinearAlgebra
 using SparseArrays
 using SparseArrays: rowvals, nonzeroinds, getcolptr
@@ -272,30 +271,32 @@ end
             @test similar(d_x, Float32, n, m) isa CuSparseMatrixCSR{Float32}
             @test similar(d_x, Float32, (n, m)) isa CuSparseMatrixCSR{Float32}
         end
-        
-        @testset "COO" begin
-            x = sprand(elty,m,n, 0.2)
-            d_x  = CuSparseMatrixCOO(x)
-            @test collect(d_x) == collect(x)
-            @test similar(d_x) isa CuSparseMatrixCOO{elty}
-            @test similar(d_x, (3, 4)) isa CuSparseMatrixCOO{elty}
-            @test size(similar(d_x, (3, 4))) == (3, 4)
-            @test size(similar(d_x, Float64, (3, 4))) == (3, 4)
-            @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
-            @test CuSparseMatrixCOO(d_x) === d_x
+       
+        if elty <: Union{Float32, Float64, ComplexF32, ComplexF64} 
+            @testset "COO" begin
+                x = sprand(elty,m,n, 0.2)
+                d_x  = CuSparseMatrixCOO(x)
+                @test collect(d_x) == collect(x)
+                @test similar(d_x) isa CuSparseMatrixCOO{elty}
+                @test similar(d_x, (3, 4)) isa CuSparseMatrixCOO{elty}
+                @test size(similar(d_x, (3, 4))) == (3, 4)
+                @test size(similar(d_x, Float64, (3, 4))) == (3, 4)
+                @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
+                @test CuSparseMatrixCOO(d_x) === d_x
+            end
         end
 
         @testset "BSR" begin
-            x = sprand(elty,m,n, 0.2)
-            d_x  = CuSparseMatrixBSR(x, blockdim)
+            x   = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixBSR(x, blockdim)
             @test collect(d_x) == collect(x)
             @test similar(d_x) isa CuSparseMatrixBSR{elty}
             @test similar(d_x, Float32) isa CuSparseMatrixBSR{Float32}
         end
 
         @testset "COO" begin
-            x = sprand(elty,m,n, 0.2)
-            d_x  = CuSparseMatrixCOO(x)
+            x   = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCOO(x)
             @test collect(d_x) == collect(x)
             @test similar(d_x) isa CuSparseMatrixCOO{elty}
             @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
