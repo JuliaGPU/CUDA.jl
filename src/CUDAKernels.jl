@@ -226,7 +226,7 @@ end
 ## shared and scratch memory
 
 # @device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
-@device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
+@device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
     CuStaticSharedArray(T, Dims)
 end
 
