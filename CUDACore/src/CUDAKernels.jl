@@ -183,6 +183,9 @@ end
 function KI.max_work_group_size(::CUDABackend)::Int
     Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
 end
+function KI.sub_group_size(::CUDABackend)::Int
+    warpsize(device())
+end
 function KI.multiprocessor_count(::CUDABackend)::Int
     Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
 end
@@ -214,6 +217,16 @@ end
     return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(blockDim().z * gridDim().z))
 end
 
+@device_override KI.get_sub_group_size() = UInt32(warpsize())
+
+@device_override KI.get_max_sub_group_size() = UInt32(warpsize())
+
+@device_override KI.get_num_sub_groups() = UInt32(prod(blockDim()) ÷ warpsize())
+
+@device_override KI.get_sub_group_id() = UInt32(((threadIdx().x - 1) + blockDim().x * (threadIdx().y - 1) + blockDim().x * blockDim().y * (threadIdx().z - 1)) ÷ warpsize()) + 0x1
+
+@device_override KI.get_sub_group_local_id() = UInt32(laneid())
+
 @device_override @inline function KA.__validindex(ctx)
     if KA.__dynamic_checkbounds(ctx)
         I = @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
@@ -238,6 +251,10 @@ end
 
 @device_override @inline function KI.barrier()
     sync_threads()
+end
+
+@device_override @inline function KI.sub_group_barrier()
+    sync_warp()
 end
 
 @device_override @inline function KI._print(args...)
