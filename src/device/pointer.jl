@@ -33,7 +33,7 @@ for T in LDGTypes
     typ = Symbol(class, width)
 
     intr = "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
-    @eval @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Integer,
+    @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Integer,
                                           ::Val{align}) where align
         offset = i-one(i) # in elements
         ptr = base_ptr + offset*sizeof($T)
@@ -52,7 +52,7 @@ for (N, T) in ((4, Float32), (2, Float64), (4, Int8), (4, Int16), (4, Int32), (2
     typ = Symbol(class, width)
 
     intr = "llvm.nvvm.ldg.global.$class.v$N$typ.p1v$N$typ"
-    @eval @inline function pointerref_ldg(base_ptr::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer,
+    @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer,
                                           ::Val{align}) where align
         offset = i-one(i) # in elements
         ptr = base_ptr + offset*$N*sizeof($T)
