@@ -170,7 +170,7 @@ end
 
 # ### Writing your first GPU kernel
 
-# Using the high-level GPU array functionality made it easy to perform this computation
+# Using the high-level GPU array functionality `CuArray` made it easy to perform this computation
 # on the GPU. However, we didn't learn about what's going on under the hood, and that's the
 # main goal of this tutorial. So let's implement the same functionality with a GPU kernel:
 
