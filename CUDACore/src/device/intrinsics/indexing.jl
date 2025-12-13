@@ -5,7 +5,7 @@ export
     linearBlockIdxInCluster, linearClusterSize,
     laneid, lanemask, warpsize, active_mask, FULL_MASK
 
-@generated function _index(::Val{name}, ::Val{range}) where {name, range}
+@device_function @generated function _index(::Val{name}, ::Val{range}) where {name, range}
     @dispose ctx=Context() begin
         T_int32 = LLVM.Int32Type()
 

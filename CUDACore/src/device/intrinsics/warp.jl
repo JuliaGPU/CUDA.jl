@@ -26,7 +26,7 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
     for (T,typ) in ((Int32, "i32"), (UInt32, "i32"), (Float32, "f32"))
         intrinsic = "llvm.nvvm.shfl.sync.$mode.$typ"
         @eval begin
-            @inline $fname(mask, val::$T, src, width=$ws) =
+            @device_function @inline $fname(mask, val::$T, src, width=$ws) =
                 ccall($intrinsic, llvmcall, $T,
                       (UInt32, $T, UInt32, UInt32),
                       mask, val, $(offset(:src)), pack(width, $mask))
@@ -109,7 +109,7 @@ for mode in (:all, :any, :uni)
     @eval export $fname
 
     intrinsic = "llvm.nvvm.vote.$mode.sync"
-    @eval @inline $fname(mask, pred) =
+    @eval @device_function @inline $fname(mask, pred) =
         @typed_ccall($intrinsic, llvmcall, Bool, (UInt32, Bool), mask, pred)
 end
 
@@ -119,7 +119,7 @@ for mode in (:ballot, )
     @eval export $fname
 
     intrinsic = "llvm.nvvm.vote.$mode.sync"
-    @eval @inline $fname(mask, pred) =
+    @eval @device_function @inline $fname(mask, pred) =
         @typed_ccall($intrinsic, llvmcall, UInt32, (UInt32, Bool), mask, pred)
 end
 
