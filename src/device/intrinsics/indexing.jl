@@ -4,7 +4,7 @@ export
     threadIdx, blockDim, blockIdx, gridDim,
     laneid, lanemask, warpsize, active_mask, FULL_MASK
 
-@generated function _index(::Val{name}, ::Val{range}) where {name, range}
+@device_function @generated function _index(::Val{name}, ::Val{range}) where {name, range}
     @dispose ctx=Context() begin
         T_int32 = LLVM.Int32Type()
 
@@ -43,7 +43,7 @@ for dim in (:x, :y, :z)
     # Thread index
     fn = Symbol("threadIdx_$dim")
     intr = Symbol("tid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_block_size[dim]-1))) + 1i32
+    @eval @device_function @inline $fn() = _index($(Val(intr)), $(Val(0:max_block_size[dim]-1))) + 1i32
 
     # Block size (#threads per block)
     fn = Symbol("blockDim_$dim")
