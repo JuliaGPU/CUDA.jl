@@ -1,9 +1,22 @@
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
+cuStateVec = "92f7fd98-d22e-4c0d-85a8-6ade11b672fb"
+cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
+cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
+
+[sources]
+CUDA = {path = ".."}
+cuDNN = {path = "../lib/cudnn"}
+cuStateVec = {path = "../lib/custatevec"}
+cuTENSOR = {path = "../lib/cutensor"}
+cuTensorNet = {path = "../lib/cutensornet"}
 
 [compat]
 Documenter = "1"
