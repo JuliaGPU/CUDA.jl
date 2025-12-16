@@ -77,6 +77,7 @@ CuSparseMatrixBSR3(A) = CuSparseMatrixBSR(A, 3)
 
 @testset "iszero for sparse arrays, type = $typ" for 
     typ in [CuSparseVectorvec, CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR3]
+    
     A = sprand(Float32, 10, 10, 0.5)
     dA = typ(A)
     @test iszero(dA) == iszero(A)
