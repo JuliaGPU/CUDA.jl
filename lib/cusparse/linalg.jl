@@ -218,9 +218,6 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
     return sum(result)
 end
 
-# iszero for sparse arrays - GPU compatible implementation
-# This avoids scalar indexing that would occur with the default Base.iszero fallback
-# See: https://github.com/SciML/SciMLOperators.jl/issues/338
 Base.iszero(A::CuSparseVector) = nnz(A) == 0 || all(iszero, nonzeros(A))
 Base.iszero(A::CuSparseMatrixCSC) = nnz(A) == 0 || all(iszero, nonzeros(A))
 Base.iszero(A::CuSparseMatrixCSR) = nnz(A) == 0 || all(iszero, nonzeros(A))
