@@ -71,3 +71,55 @@ end
     @test dot(x, A, y) ≈ dot(x2, A2, y2)
     @test_throws DimensionMismatch("dimensions must match") dot(CUDA.rand(elty, N1+1), A2, y2)
 end
+
+@testset "iszero for sparse arrays" begin
+    # Test iszero without scalar indexing (GPU-compatible)
+    # See: https://github.com/SciML/SciMLOperators.jl/issues/338
+    @testset "CuSparseVector" begin
+        v = sprand(Float32, 10, 0.5)
+        dv = CuSparseVector(v)
+        @test iszero(dv) == iszero(v)
+
+        v_zero = spzeros(Float32, 10)
+        dv_zero = CuSparseVector(v_zero)
+        @test iszero(dv_zero) == true
+    end
+
+    @testset "type = $typ" for typ in [CuSparseMatrixCSC, CuSparseMatrixCSR]
+        A = sprand(Float32, 10, 10, 0.5)
+        dA = typ(A)
+        @test iszero(dA) == iszero(A)
+
+        A_zero = spzeros(Float32, 10, 10)
+        dA_zero = typ(A_zero)
+        @test iszero(dA_zero) == true
+    end
+
+    @testset "CuSparseMatrixCOO" begin
+        A = sprand(Float32, 10, 10, 0.5)
+        dA = CuSparseMatrixCOO(A)
+        @test iszero(dA) == iszero(A)
+
+        A_zero = spzeros(Float32, 10, 10)
+        dA_zero = CuSparseMatrixCOO(A_zero)
+        @test iszero(dA_zero) == true
+    end
+
+    @testset "CuSparseMatrixBSR" begin
+        A = sprand(Float32, 12, 12, 0.5)
+        dA_csr = CuSparseMatrixCSR(A)
+        dA = CuSparseMatrixBSR(dA_csr, 3)
+        @test iszero(dA) == iszero(A)
+    end
+
+    # Test with scalar indexing disabled to ensure GPU compatibility
+    @testset "no scalar indexing" begin
+        A = sprand(Float32, 10, 10, 0.5)
+        CUDA.@allowscalar false begin
+            for typ in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
+                dA = typ(A)
+                @test iszero(dA) == false
+            end
+        end
+    end
+end
