@@ -73,8 +73,6 @@ end
 end
 
 @testset "iszero for sparse arrays" begin
-    # Test iszero without scalar indexing (GPU-compatible)
-    # See: https://github.com/SciML/SciMLOperators.jl/issues/338
     @testset "CuSparseVector" begin
         v = sprand(Float32, 10, 0.5)
         dv = CuSparseVector(v)
