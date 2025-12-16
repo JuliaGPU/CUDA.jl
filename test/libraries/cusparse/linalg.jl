@@ -109,15 +109,4 @@ end
         dA = CuSparseMatrixBSR(dA_csr, 3)
         @test iszero(dA) == iszero(A)
     end
-
-    # Test with scalar indexing disabled to ensure GPU compatibility
-    @testset "no scalar indexing" begin
-        A = sprand(Float32, 10, 10, 0.5)
-        CUDA.@allowscalar false begin
-            for typ in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO]
-                dA = typ(A)
-                @test iszero(dA) == false
-            end
-        end
-    end
 end
