@@ -3,7 +3,7 @@
 export compute_capability, ptx_isa_version
 
 for var in ["sm_major", "sm_minor", "ptx_major", "ptx_minor"]
-    @eval @inline $(Symbol(var))() =
+    @eval @device_function @inline $(Symbol(var))() =
         Base.llvmcall(
             $("""@$var = external global i32
                  define i32 @entry() #0 {
