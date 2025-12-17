@@ -171,18 +171,6 @@ function __init__()
                  Please consider using an official build from https://julialang.org/downloads/."""
     end
 
-    @static if !isdefined(Base, :get_extension)
-        @require ChainRulesCore="d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4" begin
-            include("../ext/ChainRulesCoreExt.jl")
-        end
-        @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" begin
-            include("../ext/SpecialFunctionsExt.jl")
-        end
-        @require EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869" begin
-            include("../ext/EnzymeCoreExt.jl")
-        end
-    end
-
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
 

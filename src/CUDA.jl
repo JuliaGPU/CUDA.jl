@@ -14,8 +14,6 @@ import KernelAbstractions
 
 using Adapt: Adapt, adapt, WrappedArray
 
-using Requires: @require
-
 using LinearAlgebra
 
 using BFloat16s: BFloat16
