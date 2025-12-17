@@ -72,11 +72,18 @@ end
     @test_throws DimensionMismatch("dimensions must match") dot(CUDA.rand(elty, N1+1), A2, y2)
 end
 
-CuSparseVectorvec(A) = CuSparseVector(vec(A))
-CuSparseMatrixBSR3(A) = CuSparseMatrixBSR(A, 3)
+@testset "izzero for CuSparseVector" begin
+    v = sprand(Float32, 10, 0.5)
+    dv = CuSparseVector(v)
+    @test iszero(dv) == iszero(v)
+    v_zero = spzeros(Float32, 10)
+    dv_zero = CuSparseVector(v_zero)
+    @test iszero(dv_zero) == true
+end
 
+CuSparseMatrixBSR3(A) = CuSparseMatrixBSR(A, 3)
 @testset "iszero for sparse arrays, type = $typ" for 
-    typ in [CuSparseVectorvec, CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR3]
+    typ in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR3]
     
     A = sprand(Float32, 10, 10, 0.5)
     dA = typ(A)
