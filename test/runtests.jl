@@ -1,4 +1,4 @@
-@static if VERSION < v"1.11"
+@static if VERSION < v"1.11" && get(ENV, "BUILDKITE_PIPELINE_NAME", "CUDA.jl") == "CUDA.jl"
     using Pkg
     Pkg.add(url="https://github.com/JuliaGPU/KernelAbstractions.jl", rev="main")
 end
