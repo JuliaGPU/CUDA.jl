@@ -1,7 +1,5 @@
 export clock, nanosleep
 
-@device_functions begin
-
 """
     exit()
 
@@ -38,5 +36,3 @@ Puts a thread for a given amount `t`(in nanoseconds).
     @asmcall("nanosleep.u32 \$0;", "r", true,
              Cvoid, Tuple{UInt32}, convert(UInt32, t))
 end
-
-end # @device_functions
