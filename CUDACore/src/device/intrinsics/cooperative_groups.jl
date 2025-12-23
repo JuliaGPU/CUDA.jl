@@ -561,7 +561,8 @@ end
 
 ## pipeline operations
 
-@device_function pipeline_commit() = ccall("llvm.nvvm.cp.async.commit.group", llvmcall, Cvoid, ())
+@device_function pipeline_commit() =
+    ccall("llvm.nvvm.cp.async.commit.group", llvmcall, Cvoid, ())
 
 @device_function pipeline_wait_prior(n) =
     ccall("llvm.nvvm.cp.async.wait.group", llvmcall, Cvoid, (Int32,), n)

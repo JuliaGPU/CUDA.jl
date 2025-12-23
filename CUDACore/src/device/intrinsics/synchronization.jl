@@ -6,6 +6,8 @@
 export sync_threads, sync_warp
 export sync_threads_count, sync_threads_and, sync_threads_or
 
+@device_functions begin
+
 """
     sync_threads()
 
@@ -59,12 +61,15 @@ the warp.
 @inline sync_warp(mask=FULL_MASK) =
     ccall("llvm.nvvm.bar.warp.sync", llvmcall, Cvoid, (UInt32,), mask)
 
+end # @device_functions
+
 
 ## generalized synchronization (barrier)
 
 export barrier_sync
 
-@inline barrier_sync(id=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
+@device_function barrier_sync(id=0) =
+    ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
 
 export cluster_arrive, cluster_arrive_relaxed, cluster_wait
 
@@ -76,6 +81,8 @@ cluster_wait() = ccall("llvm.nvvm.barrier.cluster.wait", llvmcall, Cvoid, ())
 ## memory barriers (membar)
 
 export threadfence, threadfence_block, threadfence_system
+
+@device_functions begin
 
 """
     threadfence_block()
@@ -114,4 +121,4 @@ memory made by the calling thread after the call to `threadfence_system()`.
 """
 @inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())
 
-end
+end # @device_functions

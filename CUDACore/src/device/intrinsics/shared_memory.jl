@@ -68,7 +68,7 @@ macro cuDynamicSharedMem(T, dims, offset=0)
     end
 end
 
-dynamic_smem_size() =
+@device_function dynamic_smem_size() =
     @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
 @inline function CuDistributedSharedArray(shared_array::CuDeviceArray{T,N,AS.Shared}, blockidx::Integer) where {T,N}
