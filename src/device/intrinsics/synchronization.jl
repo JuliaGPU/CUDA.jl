@@ -1,6 +1,5 @@
 # Synchronization (B.6)
 
-@device_functions begin
 ## simple synchronization (bar)
 
 export sync_threads, sync_warp
