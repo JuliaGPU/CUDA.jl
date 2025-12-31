@@ -80,7 +80,7 @@ using FillArrays
         
         # Test type promotion
         @testset "Type promotion" begin
-            @testset "T1 = $T1, T2 = $T2" for (T1, T2) in [(Float32, Float64), (Float64, ComplexF64), (Float32, ComplexF32)]
+            @testset "T1 = $T1, T2 = $T2" for (T1, T2) in [(Float64, Float32), (ComplexF64, Float64), (ComplexF32, Float32)]
                 A_T1 = sprand(T1, m, n, 0.2)
                 dA_T1 = CuSparseMatrixCSR(A_T1)
                 C_fill_T2 = Diagonal(Fill(T2(2.5), 5))

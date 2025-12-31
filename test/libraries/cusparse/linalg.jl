@@ -45,7 +45,7 @@ m = 10
     end
     
     # Test type promotion for kron with Diagonal
-    @testset "Type promotion - T1 = $T1, T2 = $T2" for (T1, T2) in [(Float32, Float64), (Float64, ComplexF64)]
+    @testset "Type promotion - T1 = $T1, T2 = $T2" for (T1, T2) in [(Float64, Float32), (ComplexF64, Float64)]
         A_T1 = sprand(T1, m, m, 0.2)
         dA_T1 = CuSparseMatrixCSR(A_T1)
         dC_T2 = Diagonal(CUDA.rand(T2, div(m, 2)))
