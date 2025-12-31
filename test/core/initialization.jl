@@ -33,35 +33,33 @@ context!(ctx)
 
 # setting flags is only possible on a new context
 @test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
-if CUDA.driver_version() >= v"12"
-    device_reset!()
-    device!(0, CUDA.CU_CTX_SCHED_YIELD)
+device_reset!()
+device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
-    # reset on a different task
-    let ctx = context()
-        @test CUDA.isvalid(ctx)
-        @test ctx == fetch(@async context())
+# reset on a different task
+let ctx = context()
+    @test CUDA.isvalid(ctx)
+    @test ctx == fetch(@async context())
 
-        @sync @async device_reset!()
+    @sync @async device_reset!()
 
-        @test CUDA.isvalid(context())
-        @test ctx != context()
-    end
+    @test CUDA.isvalid(context())
+    @test ctx != context()
+end
 
-    # ensure that resetting the device really does get rid of the context
-    if has_nvml()
-        pid = getpid()
-        try
-            cuda_dev = device()
-            mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
-            nvml_dev = NVML.Device(uuid(cuda_dev); mig)
-            @test haskey(NVML.compute_processes(nvml_dev), pid)
-            device_reset!()
-            @test !haskey(NVML.compute_processes(nvml_dev), pid)
-        catch err
-            isa(err, NVML.NVMLError) || rethrow()
-            err.code in [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION] || rethrow()
-        end
+# ensure that resetting the device really does get rid of the context
+if has_nvml()
+    pid = getpid()
+    try
+        cuda_dev = device()
+        mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
+        nvml_dev = NVML.Device(uuid(cuda_dev); mig)
+        @test haskey(NVML.compute_processes(nvml_dev), pid)
+        device_reset!()
+        @test !haskey(NVML.compute_processes(nvml_dev), pid)
+    catch err
+        isa(err, NVML.NVMLError) || rethrow()
+        err.code in [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION] || rethrow()
     end
 end
 
@@ -90,15 +88,13 @@ if length(devices()) > 1
 
     @test device() == CuDevice(0)
 
-    if CUDA.driver_version() >= v"12"
-        # reset on a task
-        task = @async begin
-            device!(1)
-            device_reset!()
-        end
-        fetch(task)
-        @test device() == CuDevice(0)
+    # reset on a task
+    task = @async begin
+        device!(1)
+        device_reset!()
     end
+    fetch(task)
+    @test device() == CuDevice(0)
 
     # math_mode
     old_mm = CUDA.math_mode()
@@ -180,14 +176,4 @@ end
 
     proc, out, err = julia_exec(`-e $script`, "CUDA_VISIBLE_DEVICES"=>"-1")
     @test success(proc)
-end
-
-
-## allocations
-
-let broken = v"1.11.3" <= VERSION < v"1.11.5" && Base.JLOptions().code_coverage != 0
-    @test @allocated(current_context()) == 0 broken=broken
-    @test @allocated(context()) == 0 broken=broken
-    @test @allocated(stream()) == 0 broken=broken
-    @test @allocated(device()) == 0 broken=broken
 end

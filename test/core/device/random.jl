@@ -18,8 +18,12 @@ function apply_seed(seed)
     end
 end
 
-@testset "rand($T), seed $seed" for T in (Int32, UInt32, Int64, UInt64, Int128, UInt128,
-                                          Float16, Float32, Float64),
+@testset "rand($T), seed $seed" for T in (Int16, Int32, Int64, Int128,
+                                          UInt16, UInt32, UInt64, UInt128,
+                                          Float16, Float32, Float64,
+                                          ComplexF16, ComplexF32, ComplexF64,
+                                          Complex{Int16}, Complex{Int32}, Complex{Int64},
+                                          Complex{UInt16}, Complex{UInt32}, Complex{UInt64}),
                                     seed in (nothing, #=missing,=# 1234)
     # different kernel invocations should get different numbers
     @testset "across launches" begin
@@ -82,7 +86,8 @@ end
     end
 end
 
-@testset "basic randn($T), seed $seed" for T in (Float16, Float32, Float64),
+@testset "basic randn($T), seed $seed" for T in (Float16, Float32, Float64,
+                                                 ComplexF16, ComplexF32, ComplexF64),
                                            seed in (nothing, #=missing,=# 1234)
     function kernel(A::AbstractArray{T}, seed) where {T}
         apply_seed(seed)

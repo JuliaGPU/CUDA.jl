@@ -1,7 +1,44 @@
+# https://docs.nvidia.com/cupti/api/group__CUPTI__VERSION__API.html
+const cupti_versions = [
+    v"4.0",
+    v"4.1",
+    v"5.0",
+    v"5.5",
+    v"6.0",
+    v"6.5",
+    v"6.5.1", # with sm_52 support
+    v"7.0",
+    v"8.0",
+    v"9.0",
+    v"9.1",
+    v"10.0", # and v10.1 and v10.2
+    v"11.0",
+    v"11.1",
+    v"11.2", # and v11.3 and v11.4
+    v"11.5",
+    v"11.6",
+    v"11.8",
+    v"12.0",
+    v"12.2",
+    v"12.3",
+    v"12.4",
+    v"12.5",
+    v"12.6",
+    v"12.7",
+    v"12.8",
+    v"12.9",
+    v"12.9.1"]
+
 function version()
     version_ref = Ref{Cuint}()
     cuptiGetVersion(version_ref)
-    VersionNumber(version_ref[])
+    if CUDA.runtime_version() < v"13"
+        cupti_versions[version_ref[]]
+    else
+        major, ver = divrem(version_ref[], 10000)
+        minor, patch = divrem(ver, 100)
+        VersionNumber(major, minor, patch)
+    end
 end
 
 # XXX: `cuptiGetVersion` returns something more like the API version, and doesn't change
@@ -245,46 +282,16 @@ function process(f, cfg::ActivityConfig)
     cuda_version = CUDA.runtime_version()
     ## kernel activities
     activity_types[CUPTI_ACTIVITY_KIND_KERNEL] =
-        if cuda_version >= v"12.0"
-            CUpti_ActivityKernel9
-        elseif cuda_version >= v"11.8"
-            CUpti_ActivityKernel8
-        elseif cuda_version >= v"11.6"
-            CUpti_ActivityKernel7
-        elseif cuda_version >= v"11.2"
-            CUpti_ActivityKernel6
-        elseif cuda_version >= v"11.1"
-            CUpti_ActivityKernel5
-        else # v"11.0"
-            CUpti_ActivityKernel4
-        end
+        CUpti_ActivityKernel9
     activity_types[CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL] =
         activity_types[CUPTI_ACTIVITY_KIND_KERNEL]
     ## memcpy activities
     activity_types[CUPTI_ACTIVITY_KIND_MEMCPY] =
-        if cuda_version >= v"11.6"
-            CUpti_ActivityMemcpy5
-        elseif cuda_version >= v"11.1"
-            CUpti_ActivityMemcpy4
-        else # v"11.0"
-            CUpti_ActivityMemcpy3
-        end
+        CUpti_ActivityMemcpy5
     activity_types[CUPTI_ACTIVITY_KIND_MEMSET] =
-        if cuda_version >= v"11.6"
-            CUpti_ActivityMemset4
-        elseif cuda_version >= v"11.1"
-            CUpti_ActivityMemset3
-        else # v"11.0"
-            CUpti_ActivityMemset2
-        end
+        CUpti_ActivityMemset4
     activity_types[CUPTI_ACTIVITY_KIND_MEMORY2] =
-        if cuda_version >= v"11.6"
-            CUpti_ActivityMemory3
-        elseif cuda_version >= v"11.2"
-            CUpti_ActivityMemory2
-        else # v"9.0"
-            CUpti_ActivityMemory
-        end
+        CUpti_ActivityMemory3
 
     # extract typed activity records
     for (ctx_handle, stream_id, buf_ptr, sz, valid_sz) in cfg.results

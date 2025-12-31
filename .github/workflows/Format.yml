@@ -16,7 +16,7 @@ jobs:
     if: github.event.pull_request.draft == false
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
@@ -58,7 +58,7 @@ jobs:
           [ $EXIT_CODE -eq 2 ] && exit 1 || exit 0
 
       - name: Find comment
-        uses: peter-evans/find-comment@v3
+        uses: peter-evans/find-comment@v4
         id: find-comment
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -67,7 +67,7 @@ jobs:
 
       - name: Comment formatting suggestions
         if: steps.runic.outputs.exit_code == 1
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -89,7 +89,7 @@ jobs:
 
       - name: Update stale comment
         if: steps.runic.outputs.exit_code == 0 && steps.find-comment.outputs.comment-id
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find-comment.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}

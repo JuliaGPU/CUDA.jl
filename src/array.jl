@@ -61,8 +61,8 @@ function valid_type(@nospecialize(T))
   return false
 end
 
-@inline function check_eltype(name, T)                      
-  if !valid_type(T) 
+@inline function check_eltype(name, T)
+  if !valid_type(T)
     explanation = explain_eltype(T)
     error("""
       $name only supports element types that are allocated inline.
@@ -876,6 +876,9 @@ Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
 
 ## resizing
 
+const RESIZE_THRESHOLD = 100 * 1024^2     # 100 MiB
+const RESIZE_INCREMENT = 32  * 1024^2     # 32  MiB
+
 """
   resize!(a::CuVector, n::Integer)
 
@@ -886,32 +889,60 @@ guaranteed to be initialized.
 function Base.resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
 
-  # TODO: add additional space to allow for quicker resizing
-  maxsize = n * aligned_sizeof(T)
-  bufsize = if isbitstype(T)
-    maxsize
-  else
-    # type tag array past the data
-    maxsize + n
-  end
+  # only resize when the new length exceeds the capacity or is much smaller
+  cap = A.maxsize ÷ aligned_sizeof(T)
+  if n > cap || n < cap ÷ 4
+    len = if n < cap
+      # shrink to fit
+      n
+    elseif A.maxsize > RESIZE_THRESHOLD
+      # large arrays grown by fixed increments
+      max(n, cap + RESIZE_INCREMENT ÷ aligned_sizeof(T))
+    else
+      # small arrays are doubled in size
+      max(n, 2 * length(A))
+    end
 
-  # replace the data with a new one. this 'unshares' the array.
-  # as a result, we can safely support resizing unowned buffers.
-  new_data = context!(context(A)) do
-    mem = pool_alloc(memory_type(A), bufsize)
-    ptr = convert(CuPtr{T}, mem)
+    # determine the new buffer size
+    maxsize = len * aligned_sizeof(T)
+    bufsize = if isbitstype(T)
+        maxsize
+    else
+      # type tag array past the data
+      maxsize + len
+    end
+
+    # allocate new data
+    old_data = A.data
+    new_data = context!(context(A)) do
+      mem = pool_alloc(memory_type(A), bufsize)
+      ptr = convert(CuPtr{T}, mem)
+      DataRef(pool_free, mem)
+    end
+
+    # replace the data with a new one. this 'unshares' the array.
+    # as a result, we can safely support resizing unowned buffers.
+    old_pointer = pointer(A)
+    old_typetagdata = typetagdata(A)
+    A.data = new_data
+    A.maxsize = maxsize
+    A.offset = 0
+    new_pointer = pointer(A)
+    new_typetagdata = typetagdata(A)
+
+    # copy existing elements and type tags
     m = min(length(A), n)
     if m > 0
-      GC.@preserve A unsafe_copyto!(ptr, pointer(A), m)
+      context!(context(A)) do
+        unsafe_copyto!(new_pointer, old_pointer, m; async=true)
+        if Base.isbitsunion(T)
+          unsafe_copyto!(new_typetagdata, old_typetagdata, m; async=true)
+        end
+      end
     end
-    DataRef(pool_free, mem)
+    unsafe_free!(old_data)
   end
-  unsafe_free!(A)
 
-  A.data = new_data
   A.dims = (n,)
-  A.maxsize = maxsize
-  A.offset = 0
-
-  A
+  return A
 end

@@ -23,9 +23,6 @@ slowest 25%, while entries colored in red are among the slowest 5% of all operat
 
 !!! compat "Julia 1.9" This functionality is only available on Julia 1.9 and later.
 
-!!! compat "CUDA 11.2" Older versions of CUDA, before 11.2, contain bugs that may prevent
-    the `CUDA.@profile` macro to work. It is recommended to use a newer runtime.
-
 ## External profilers (`external=true`, when an external profiler is detected)
 
 For more advanced profiling, it is possible to use an external profiling tool, such as
@@ -495,7 +492,7 @@ function capture(cfg)
                                    size=record.bytes); cols=:union)
 
         # memory allocations
-        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2 && cuda_version >= v"11.2"
+        elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2
             # XXX: we'd prefer to postpone processing (i.e. calling format_bytes),
             #      but cannot realistically add a column for every API call
 
@@ -663,15 +660,15 @@ function Base.show(io::IO, results::ProfileResults)
         p75 = quantile(relevant_times, 0.75)
         p95 = quantile(relevant_times, 0.95)
 
-        highlight_p95 = Highlighter((data, i, j) -> (names(data)[j] == "time") &&
-                                                    (data[i,j] >= p95),
-                                    crayon"red")
-        highlight_p75 = Highlighter((data, i, j) -> (names(data)[j] == "time") &&
-                                                    (data[i,j] >= p75),
-                                    crayon"yellow")
-        highlight_bold = Highlighter((data, i, j) -> (names(data)[j] == "name") &&
-                                                     (data[!, :time][i] >= p75),
-                                    crayon"bold")
+        highlight_p95 = TextHighlighter((data, i, j) -> (names(data)[j] == "time") &&
+                                                        (data[i,j] >= p95),
+                                        crayon"red")
+        highlight_p75 = TextHighlighter((data, i, j) -> (names(data)[j] == "time") &&
+                                                        (data[i,j] >= p75),
+                                        crayon"yellow")
+        highlight_bold = TextHighlighter((data, i, j) -> (names(data)[j] == "name") &&
+                                                         (data[!, :time][i] >= p75),
+                                         crayon"bold")
 
         (highlight_p95, highlight_p75, highlight_bold)
     end
@@ -832,8 +829,9 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop,
-                                 body_hlines=trace_divisions)
+            highlighters = isempty(highlighters) ? PrettyTables.TextHighlighter[] : collect(highlighters)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters, fit_table_in_display_horizontally = (crop==:horizontal), fit_table_in_display_vertically=false)#,
+                                 #body_hlines=trace_divisions)
         else
             df = summarize_trace(df)
 
@@ -847,7 +845,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         end
     end
 
@@ -932,8 +930,8 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop,
-                                 body_hlines=trace_divisions)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
+                                 #body_hlines=trace_divisions)
         else
             df = summarize_trace(results.device)
 
@@ -947,7 +945,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         end
     end
 
@@ -984,7 +982,7 @@ function Base.show(io::IO, results::ProfileResults)
             for color in unique(df.color)
                 if color !== nothing
                     ids = df[df.color .== color, :id]
-                    highlighter = Highlighter(Crayon(; foreground=color)) do data, i, j
+                    highlighter = TextHighlighter(Crayon(; foreground=color)) do data, i, j
                         names(data)[j] in ["name", "domain"] && data[!, :id][i] in ids
                     end
                     push!(color_highlighters, highlighter)
@@ -1005,7 +1003,7 @@ function Base.show(io::IO, results::ProfileResults)
                 end
             end
             highlighters = tuple(color_highlighters..., time_highlighters(df)...)
-            pretty_table(io, df; header, alignment, formatters, highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         else
             # merge the domain and name into a single column
             nvtx_ranges.name = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
@@ -1028,7 +1026,7 @@ function Base.show(io::IO, results::ProfileResults)
             header = [summary_column_names[name] for name in names(df)]
             alignment = [name in ["name", "time_dist"] ? :l : :r for name in names(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; header, alignment, formatters=summary_formatter(df), highlighters, crop)
+            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
         end
     end
 

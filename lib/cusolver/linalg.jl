@@ -110,29 +110,161 @@ function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
     return LinearAlgebra._cut_B(BB, 1:n)
 end
 
-# eigenvalues
+# make copyto! for Hermitian and Symmetric dispatch to the Base implementation
+# instead of being overridden by GPUArrays' dense copy (because of AnyGPUArray)
+Base.copyto!(dst::Symmetric{<:Any,<:CuMatrix}, src::Symmetric{<:Any,<:CuMatrix}) =
+    @invoke copyto!(dst::Symmetric, src::Symmetric)
+Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix}) =
+    @invoke copyto!(dst::Hermitian, src::Hermitian)
+
+# eigen
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A.data)
-    Eigen(syevd!('V', 'U', A2)...)
+    return Eigen(syevd!('V', 'U', A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasComplex}
     A2 = copy(A.data)
-    Eigen(heevd!('V', 'U', A2)...)
+    return Eigen(heevd!('V', 'U', A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasReal}
-    eigen(Symmetric(A))
+    return eigen(Symmetric(A))
 end
 
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
-    issymmetric(A) ? Eigen(syevd!('V', 'U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+    if issymmetric(A)
+        return Eigen(syevd!('V', 'U', A2)...)
+    else
+        W, _, VR = Xgeev!('N', 'V', A2)
+        C = Complex{T}
+        U = CuMatrix{C}([1.0 1.0; im -im])
+        VR = CuMatrix{C}(VR)
+        h_W = collect(W)
+        n = length(W)
+        j = 1
+        while j <= n
+            if imag(h_W[j]) == 0
+                j += 1
+            else
+                VR[:, j:(j + 1)] .= VR[:, j:(j + 1)] * U
+                j += 2
+            end
+        end
+        return Eigen(W, VR)
+    end
 end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
-    ishermitian(A) ? Eigen(heevd!('V', 'U', A2)...) : error("GPU eigensolver supports only Hermitian or Symmetric matrices.")
+    if ishermitian(A)
+        return Eigen(heevd!('V', 'U', A2)...)
+    else
+        r = Xgeev!('N', 'V', A2)
+        return Eigen(r[1], r[3])
+    end
 end
 
+# eigvals
+
+function LinearAlgebra.eigvals(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
+    A2 = copy(A.data)
+    return syevd!('N', 'U', A2)
+end
+function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
+    A2 = copy(A.data)
+    return heevd!('N', 'U', A2)
+end
+function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
+    return eigvals(Symmetric(A))
+end
+
+function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
+    A2 = copy(A)
+    if issymmetric(A)
+        return syevd!('N', 'U', A2)
+    else
+        return Xgeev!('N', 'N', A2)[1]
+    end
+end
+function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
+    A2 = copy(A)
+    if ishermitian(A)
+        return heevd!('N', 'U', A2)
+    else
+        return Xgeev!('N', 'N', A2)[1]
+    end
+end
+
+# eigvecs
+
+function LinearAlgebra.eigvecs(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
+    E = eigen(A)
+    return E.vectors
+end
+function LinearAlgebra.eigvecs(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
+    E = eigen(A)
+    return E.vectors
+end
+function LinearAlgebra.eigvecs(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
+    return eigvecs(Symmetric(A))
+end
+
+function LinearAlgebra.eigvecs(A::CuMatrix{T}) where {T <: BlasReal}
+    E = eigen(A)
+    return E.vectors
+end
+function LinearAlgebra.eigvecs(A::CuMatrix{T}) where {T <: BlasComplex}
+    E = eigen(A)
+    return E.vectors
+end
+
+# matrix functions
+for func in (:(Base.exp), :(Base.cos), :(Base.sin), :(Base.tan), :(Base.cosh), :(Base.sinh), :(Base.tanh), :(Base.atan), :(Base.asinh), :(Base.atanh), :(Base.cbrt))
+    @eval begin
+        function ($func)(A::Symmetric{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            return Symmetric((F.vectors * Diagonal(($func).(F.values))) * F.vectors')
+        end
+        function ($func)(A::Hermitian{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            return Hermitian((F.vectors * Diagonal(($func).(F.values))) * F.vectors')
+        end
+        function ($func)(A::Hermitian{<:Complex, <:StridedCuMatrix})
+            F = eigen(A)
+            retmat = (F.vectors * Diagonal(($func).(F.values))) * F.vectors'
+            @static if VERSION >= v"1.11"
+                d_ixs = diagind(retmat, IndexStyle(retmat))
+            else
+                d_ixs = diagind(retmat)
+            end
+            @. retmat[d_ixs] = real(retmat[d_ixs])
+            return Hermitian(retmat)
+        end
+    end
+end
+
+for wrap_T in (:Hermitian, :Symmetric)
+    @eval begin
+        function Base.log(A::$wrap_T{T, <:StridedCuMatrix}) where {T<:BlasReal}
+            F = eigen(A)
+            if all(λ -> λ ≥ 0, F.values)
+                retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+                return $wrap_T(retmat)
+            else
+                return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+            end
+        end
+    end
+end
+function Base.log(A::Hermitian{T, <:StridedCuMatrix{T}}) where {T<:Complex}
+    F = eigen(A)
+    if all(λ -> λ ≥ 0, F.values)
+        retmat = (F.vectors * Diagonal(log.(F.values))) * F.vectors'
+        return Hermitian(retmat)
+    else
+        return (F.vectors * Diagonal(log.(complex.(F.values)))) * F.vectors'
+    end
+end
 
 # factorizations
 
@@ -143,10 +275,10 @@ using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPack
 LinearAlgebra.qr!(A::CuMatrix{T}) where T = QR(geqrf!(A::CuMatrix{T})...)
 
 # conversions
-CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
-CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
-CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
-CuArray(F::QRPivoted) = CuMatrix(F)
+CUDA.CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
+CUDA.CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
+CUDA.CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
+CUDA.CuArray(F::QRPivoted) = CuMatrix(F)
 
 function LinearAlgebra.ldiv!(_qr::QR, b::CuVector)
     m,n = size(_qr)
@@ -174,16 +306,16 @@ end
 # AbstractQ's `size` is the size of the full matrix,
 # while `Matrix(Q)` only gives the compact Q.
 # See JuliaLang/julia#26591 and JuliaGPU/CUDA.jl#969.
-CuArray(Q::AbstractQ) = CuMatrix(Q)
-CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
-CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
-CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
+CUDA.CuArray(Q::AbstractQ) = CuMatrix(Q)
+CUDA.CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
+CUDA.CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
+CUDA.CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
     CuMatrix{T}(lmul!(Q, CuMatrix{S}(I, size(Q, 1), min(size(Q.factors)...))))
-CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)
-CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not supported")
+CUDA.CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)
+CUDA.CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not supported")
 # avoid the CPU array in the above mul!
-Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
-Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
+Base.Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
+Base.Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 
 function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
     y = CUDA.zeros(eltype(Q), size(Q, 2))

@@ -10,6 +10,8 @@ using LLVM
 using LLVM.Interop
 using Core: LLVMPtr
 
+import KernelAbstractions
+
 using Adapt: Adapt, adapt, WrappedArray
 
 using Requires: @require
@@ -54,12 +56,8 @@ using Printf
 # - Base.aligned_sizeof is the size of an object in an array/inline alloced
 # Both of them are equivalent for immutable objects, but differ for mutable singtons and Symbol
 # We use `aligned_sizeof` since we care about the size of a type in an array
-@static if VERSION < v"1.11.0"
-   @generated function aligned_sizeof(::Type{T}) where T
-        return :($(Base.aligned_sizeof(T)))
-   end
-else
-    import Base: aligned_sizeof
+@generated function aligned_sizeof(::Type{T}) where T
+    return :($(Base.aligned_sizeof(T)))
 end
 
 ## source code includes

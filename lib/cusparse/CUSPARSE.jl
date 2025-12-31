@@ -25,7 +25,6 @@ const SparseChar = Char
 
 # core library
 include("libcusparse.jl")
-include("libcusparse_deprecated.jl")
 
 include("error.jl")
 include("array.jl")
@@ -47,11 +46,6 @@ include("generic.jl")
 
 # high-level integrations
 include("interfaces.jl")
-
-# native functionality
-include("device.jl")
-include("broadcast.jl")
-include("reduce.jl")
 
 include("batched.jl")
 
