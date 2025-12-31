@@ -22,11 +22,14 @@ k = 13
 
         @test testf(rmul!, rand(T, 6, 9, 3), rand())
         @test testf(dot, rand(T, m), rand(T, m))
+        @test testf(dot, rand(T, 0), rand(T, 0))
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
+        @test testf(norm, rand(T, 0))
         @test testf(LinearAlgebra.norm2, rand(T, m))
         @test testf(BLAS.asum, rand(T, m))
+        @test testf(BLAS.asum, rand(T, 0))
 
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
         @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
@@ -175,9 +178,11 @@ k = 13
 
         @test testf(rmul!, rand(T, 6, 9, 3), rand())
         @test testf(dot, rand(T, m), rand(T, m))
+        @test testf(dot, rand(T, 0), rand(T, 0))
         @test testf(*, transpose(rand(T, m)), rand(T, m))
         @test testf(*, rand(T, m)', rand(T, m))
         @test testf(norm, rand(T, m))
+        @test testf(norm, rand(T, 0))
         @test testf(LinearAlgebra.norm2, rand(T, m))
         @test testf(axpy!, rand(), rand(T, m), rand(T, m))
         @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
@@ -203,5 +208,11 @@ k = 13
             z = dot(x, y)
             @test dz ≈ z
         end
+    end
+    @testset "dot with mixed types" begin
+        T1 = Float32
+        T2 = Float64
+        @test testf(dot, rand(T1, m), rand(T2, m))
+        @test testf(dot, rand(T1, 0), rand(T2, 0))
     end
 end # level 1 testset

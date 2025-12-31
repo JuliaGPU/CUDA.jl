@@ -47,11 +47,6 @@ include("generic.jl")
 # high-level integrations
 include("interfaces.jl")
 
-# native functionality
-include("device.jl")
-include("broadcast.jl")
-include("reduce.jl")
-
 include("batched.jl")
 
 
