@@ -45,8 +45,9 @@ softmaxtest(algo=CUDNN_SOFTMAX_FAST)
 softmaxtest(algo=CUDNN_SOFTMAX_ACCURATE)
 softmaxtest(algo=CUDNN_SOFTMAX_LOG)
 
-# BFloat16 tests
-ax,ay = randn(BFloat16,10,10),randn(BFloat16,10,10)
-cx,cy = CuArray.((ax,ay))
-softmaxtest()
-softmaxtest(algo=CUDNN_SOFTMAX_LOG)
+if capability(device()) >= v"8.0"
+    ax,ay = randn(BFloat16,10,10),randn(BFloat16,10,10)
+    cx,cy = CuArray.((ax,ay))
+    softmaxtest()
+    softmaxtest(algo=CUDNN_SOFTMAX_LOG)
+end

@@ -88,6 +88,9 @@ pooltest(padding = 1)
 pooltest(stride = 1)
 pooltest(format = CUDNN_TENSOR_NHWC)
 pooltest(dataType = Float16)
-pooltest(dataType = BFloat16)
 pooltest(alpha = 2)
 pooltest(beta = 2)
+
+if capability(device()) >= v"8.0"
+    pooltest(dataType = BFloat16)
+end
