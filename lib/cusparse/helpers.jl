@@ -103,6 +103,8 @@ mutable struct CuDenseMatrixDescriptor
         obj
     end
 
+    CuDenseMatrixDescriptor(At::Transpose{<:Any, <:DenseCuMatrix}) = CuDenseMatrixDescriptor(parent(At), transposed=true) 
+
     function CuDenseMatrixDescriptor(A::DenseCuArray{T, 3}; transposed::Bool=false) where T
         desc_ref = Ref{cusparseDnMatDescr_t}()
         if transposed
