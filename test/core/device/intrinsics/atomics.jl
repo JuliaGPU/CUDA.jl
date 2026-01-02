@@ -10,7 +10,7 @@ using BFloat16s: BFloat16
     types = [Int32, Int64, UInt32, UInt64, Float32]
     capability(device()) >= v"6.0" && push!(types, Float64)
     capability(device()) >= v"7.0" && push!(types, Float16)
-    capability(device()) >= v"8.0" && push!(types, BFloat16)
+    capability(device()) >= v"9.0" && push!(types, BFloat16)
 
     @testset for T in types
         a = CuArray(T[0])
@@ -214,7 +214,7 @@ end
 @testset "add" begin
     types = [Int32, Int64, UInt32, UInt64, Float32, Float64]
     capability(device()) >= v"7.0" && append!(types, [Int16, UInt16, Float16])
-    capability(device()) >= v"8.0" && push!(types, BFloat16)
+    capability(device()) >= v"9.0" && push!(types, BFloat16)
 
     @testset for T in types
         a = CuArray([zero(T)])
