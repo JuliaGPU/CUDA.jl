@@ -45,16 +45,16 @@ using FillArrays
             dA = CuSparseMatrixCSR(A)
             
             # Test kron(sparse, diagonal)
-            result_gpu = collect(kron(dA, C_zeros))
+            result_gpu = kron(dA, C_zeros)
             result_cpu = kron(A, collect(C_zeros))
-            @test result_gpu ≈ result_cpu
-            @test nnz(kron(dA, C_zeros)) == 0
+            @test SparseMatrixCSC(result_gpu) ≈ result_cpu
+            @test nnz(result_gpu) == 0
             
             # Test kron(diagonal, sparse)
-            result_gpu = collect(kron(C_zeros, dA))
+            result_gpu = kron(C_zeros, dA)
             result_cpu = kron(collect(C_zeros), A)
-            @test result_gpu ≈ result_cpu
-            @test nnz(kron(C_zeros, dA)) == 0
+            @test SparseMatrixCSC(result_gpu) ≈ result_cpu
+            @test nnz(result_gpu) == 0
         end
         
         # Test with transpose and adjoint wrappers

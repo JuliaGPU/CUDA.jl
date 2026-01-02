@@ -63,6 +63,26 @@ m = 10
         @test eltype(result_gpu) == promote_type(T1, T2)
         @test collect(result_gpu) ≈ result_cpu
     end
+    
+    # Test kron with zero diagonal matrices
+    @testset "kron with zero Diagonal" begin
+        A = sprand(T, m, m, 0.2)
+        dA = CuSparseMatrixCSR(A)
+        dC_zeros = Diagonal(CUDA.zeros(T, div(m, 2)))
+        C_zeros = collect(dC_zeros)
+        
+        # Test kron(sparse, zero_diagonal)
+        result_gpu = kron(dA, dC_zeros)
+        result_cpu = kron(A, C_zeros)
+        @test SparseMatrixCSC(result_gpu) ≈ result_cpu
+        @test nnz(result_gpu) == 0
+        
+        # Test kron(zero_diagonal, sparse)
+        result_gpu = kron(dC_zeros, dA)
+        result_cpu = kron(C_zeros, A)
+        @test SparseMatrixCSC(result_gpu) ≈ result_cpu
+        @test nnz(result_gpu) == 0
+    end
 end
 
 @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for

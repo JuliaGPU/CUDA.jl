@@ -64,11 +64,19 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T1, Ti}, B::Diagonal{T2, <:CuVe
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
     Annz = Int64(A.nnz)
-    Bnnz = nB
+
+    # Find non-zero diagonal elements
+    nz_mask = map(!iszero, B.diag)
+    nz_indices = findall(nz_mask)
+    Bnnz = length(nz_indices)
 
     if Annz == 0 || Bnnz == 0
         return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
     end
+
+    # Only process non-zero diagonal elements
+    nz_diag = B.diag[nz_indices]
+    nz_offsets = CuVector(nz_indices .- 1)
 
     row = (A.rowInd .- 1) .* mB
     row = repeat(row, inner = Bnnz)
@@ -76,10 +84,10 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T1, Ti}, B::Diagonal{T2, <:CuVe
     col = repeat(col, inner = Bnnz)
     data = repeat(convert(CuVector{T}, A.nzVal), inner = Bnnz)
 
-    row .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
-    col .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
+    row .+= repeat(nz_offsets, outer = Annz) .+ 1
+    col .+= repeat(nz_offsets, outer = Annz) .+ 1
 
-    data .*= repeat(B.diag, outer = Annz)
+    data .*= repeat(nz_diag, outer = Annz)
 
     sparse(row, col, data, out_shape..., fmt = :coo)
 end
@@ -89,18 +97,26 @@ function LinearAlgebra.kron(A::Diagonal{T1, <:CuVector{T1}}, B::CuSparseMatrixCO
     mA,nA = size(A)
     mB,nB = size(B)
     out_shape = (mA * mB, nA * nB)
-    Annz = nA
     Bnnz = Int64(B.nnz)
 
-    if Annz == 0 || Bnnz == 0
+    # Find non-zero diagonal elements
+    nz_mask = map(!iszero, A.diag)
+    nz_indices = findall(nz_mask)
+    Annz = length(nz_indices)
+
+    if Bnnz == 0 || Annz == 0
         return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
     end
 
-    row = (0:nA-1) .* mB
-    row = CuVector(repeat(row, inner = Bnnz))
-    col = (0:nA-1) .* nB
-    col = CuVector(repeat(col, inner = Bnnz))
-    data = repeat(convert(CuVector{T}, A.diag), inner = Bnnz)
+    # Only process non-zero diagonal elements
+    nz_diag = A.diag[nz_indices]
+    nz_offsets = CuVector(nz_indices .- 1)
+
+    row = nz_offsets .* mB
+    row = repeat(row, inner = Bnnz)
+    col = nz_offsets .* nB
+    col = repeat(col, inner = Bnnz)
+    data = repeat(convert(CuVector{T}, nz_diag), inner = Bnnz)
 
     row .+= repeat(B.rowInd .- 1, outer = Annz) .+ 1
     col .+= repeat(B.colInd .- 1, outer = Annz) .+ 1
