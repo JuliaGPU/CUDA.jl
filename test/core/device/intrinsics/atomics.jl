@@ -10,6 +10,7 @@ using BFloat16s: BFloat16
     types = [Int32, Int64, UInt32, UInt64, Float32]
     capability(device()) >= v"6.0" && push!(types, Float64)
     capability(device()) >= v"7.0" && push!(types, Float16)
+    capability(device()) >= v"8.0" && push!(types, BFloat16)
 
     @testset for T in types
         a = CuArray(T[0])
@@ -19,8 +20,9 @@ using BFloat16s: BFloat16
             return
         end
 
-        @cuda threads=1024 kernel(a, one(T))
-        @test Array(a)[1] == 1024
+        nthreads = T == BFloat16 ? 128 : 1024 # BFloat16(256) + 1 == 256
+        @cuda threads=nthreads kernel(a, one(T))
+        @test Array(a)[1] == nthreads
     end
 end
 
@@ -212,6 +214,7 @@ end
 @testset "add" begin
     types = [Int32, Int64, UInt32, UInt64, Float32, Float64]
     capability(device()) >= v"7.0" && append!(types, [Int16, UInt16, Float16])
+    capability(device()) >= v"8.0" && push!(types, BFloat16)
 
     @testset for T in types
         a = CuArray([zero(T)])
@@ -222,8 +225,9 @@ end
             return
         end
 
-        @cuda threads=1024 kernel(T, a)
-        @test Array(a)[1] == 2048
+        nthreads = T == BFloat16 ? 64 : 1024
+        @cuda threads=nthreads kernel(T, a)
+        @test Array(a)[1] == 2 * nthreads
     end
 end
 
