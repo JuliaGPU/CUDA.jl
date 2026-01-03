@@ -205,7 +205,7 @@ end
             # Account for half and int/subint/bf16 mma different naming conventions
             # Int/subint and bf16 mma functions are distinguished by the a/b element type
             mma_sym = (d_ty == Int32 || ab_elem_type == "bf16") ? Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(ab_elem_type)") :
-                                                                  Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(d_elem_type)_$(c_elem_type)")
+                                      Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(d_elem_type)_$(c_elem_type)")
             mma_func = getfield(Main, mma_sym)
             std_func = getfield(Main, Symbol("llvm_wmma_store_d_col_$(shape)_global_stride_$(d_elem_type)"))
 
@@ -374,10 +374,68 @@ if capability(device()) >= v"8.0"
         c_dev = CuArray(c)
         d_dev = CuArray(d)
 
+        # Note: BFloat16 fragment broadcasting (alpha .* a_frag) requires native bf16
+        # scalar ops which aren't available on all architectures, so we skip scaling
+        @eval function kernel_bf16(a_dev, b_dev, c_dev, d_dev)
+            conf = Config{16, 16, 16, Float32}
+
+            a_frag = load_a(pointer(a_dev), 16, $a_layout, conf)
+            b_frag = load_b(pointer(b_dev), 16, $b_layout, conf)
+
+            if $do_mac
+                c_frag = load_c(pointer(c_dev), 16, $c_layout, conf)
+            else
+                c_frag = fill_c(Float32(0), conf)
+            end
+
+            d_frag = mma(a_frag, b_frag, c_frag, conf)
+
+            store_d(pointer(d_dev), d_frag, 16, $d_layout, conf)
+
+            return
+        end
+
+        @cuda threads=32 kernel_bf16(a_dev, b_dev, c_dev, d_dev)
+        d = Array(d_dev)
+
+        new_a = (a_layout == ColMajor) ? a : transpose(a)
+        new_b = (b_layout == ColMajor) ? b : transpose(b)
+        new_c = (c_layout == ColMajor) ? c : transpose(c)
+        new_d = (d_layout == ColMajor) ? d : transpose(d)
+
+        if do_mac
+            @test Float32.(new_a) * Float32.(new_b) + new_c ≈ new_d rtol=Base.rtoldefault(BFloat16)
+        else
+            @test Float32.(new_a) * Float32.(new_b) ≈ new_d rtol=Base.rtoldefault(BFloat16)
+        end
+    end
+end
+end
+
+# BFloat16 fragment broadcasting requires native bf16 scalar ops (CC 8.9+)
+# On earlier architectures, frag[i] returns UInt32 (packed), causing type mismatch
+if capability(device()) >= v"8.9"
+@testset "CUDA C-style API (BFloat16 with scaling)" begin
+    @testset "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout" for a_layout in [ColMajor, RowMajor],
+        b_layout in [ColMajor, RowMajor],
+        c_layout in [ColMajor, RowMajor],
+        d_layout in [ColMajor, RowMajor],
+        do_mac in [true, false]
+
+        a     = rand(BFloat16, (16, 16))
+        b     = rand(BFloat16, (16, 16))
+        c     = rand(Float32, (16, 16))
+        d     = Array{Float32}(undef, (16, 16))
+
+        a_dev = CuArray(a)
+        b_dev = CuArray(b)
+        c_dev = CuArray(c)
+        d_dev = CuArray(d)
+
         alpha = rand(BFloat16)
         beta  = rand(Float32)
 
-        @eval function kernel_bf16(a_dev, b_dev, c_dev, d_dev, alpha, beta)
+        @eval function kernel_bf16_scaled(a_dev, b_dev, c_dev, d_dev, alpha, beta)
             conf = Config{16, 16, 16, Float32}
 
             a_frag = load_a(pointer(a_dev), 16, $a_layout, conf)
@@ -399,7 +457,7 @@ if capability(device()) >= v"8.0"
             return
         end
 
-        @cuda threads=32 kernel_bf16(a_dev, b_dev, c_dev, d_dev, alpha, beta)
+        @cuda threads=32 kernel_bf16_scaled(a_dev, b_dev, c_dev, d_dev, alpha, beta)
         d = Array(d_dev)
 
         new_a = (a_layout == ColMajor) ? a : transpose(a)
