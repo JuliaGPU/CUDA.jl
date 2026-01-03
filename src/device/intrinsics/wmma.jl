@@ -4,6 +4,7 @@ module WMMA
 import ..LLVM
 using ..CUDA: AS
 using Core: LLVMPtr
+using BFloat16s: BFloat16
 
 ################################################################################
 # CONSTANTS
@@ -15,6 +16,7 @@ const map_ptx_to_jl_array = Dict(
                                  "s8"  => Int8,
                                  "s32" => Int32,
                                  "f16" => Float16,
+                                 "bf16" => BFloat16,
                                  "f32" => Float32
                                 )
 
@@ -24,6 +26,7 @@ const map_ptx_to_jl_frag = Dict(
                                 "s8"  => UInt32,
                                 "s32" => Int32,
                                 "f16" => NTuple{2, VecElement{Float16}},
+                                "bf16" => UInt32,
                                 "f32" => Float32
                                )
 
@@ -41,6 +44,10 @@ const map_frag_sizes = Dict(
                             "a.f16.m16n16k16" => 8,
                             "a.f16.m8n32k16"  => 8,
                             "a.f16.m32n8k16"  => 8,
+
+                            "a.bf16.m16n16k16" => 4,
+                            "a.bf16.m8n32k16"  => 2,
+                            "a.bf16.m32n8k16"  => 8,
                             # B
                             "b.u8.m16n16k16"  => 2,
                             "b.u8.m8n32k16"   => 4,
@@ -53,6 +60,10 @@ const map_frag_sizes = Dict(
                             "b.f16.m16n16k16" => 8,
                             "b.f16.m8n32k16"  => 8,
                             "b.f16.m32n8k16"  => 8,
+
+                            "b.bf16.m16n16k16" => 4,
+                            "b.bf16.m8n32k16"  => 8,
+                            "b.bf16.m32n8k16"  => 2,
                             # C
                             "c.s32.m16n16k16" => 8,
                             "c.s32.m8n32k16"  => 8,
@@ -96,10 +107,13 @@ const wmma_half_ops    = [(16,16,16), (32,8,16), (8,32,16)], ["f16"], ["f16", "f
 const ldst_int_ab_ops = [(16,16,16), (32,8,16), (8,32,16)], ["a", "b"], ["u8", "s8"]
 const ldst_int_cd_ops = [(16,16,16), (32,8,16), (8,32,16)], ["c", "d"], ["s32"]
 const wmma_int_ops    = [(16,16,16), (32,8,16), (8,32,16)], ["s8", "u8"], ["s32"], ["s32"]
+# BFloat16 (requires Ampere+, only f32 accumulator supported)
+const ldst_bf16_ab_ops = [(16,16,16), (32,8,16), (8,32,16)], ["a", "b"], ["bf16"]
+const wmma_bf16_ops    = [(16,16,16), (32,8,16), (8,32,16)], ["bf16"], ["f32"], ["f32"]
 
 const all_ldst_ops = vcat(ldst_half_ab_ops, ldst_half_cd_ops,
-                          ldst_int_ab_ops,  ldst_int_cd_ops)
-const all_wmma_ops = vcat(wmma_half_ops, wmma_int_ops)
+                          ldst_int_ab_ops,  ldst_int_cd_ops, ldst_bf16_ab_ops)
+const all_wmma_ops = vcat(wmma_half_ops, wmma_int_ops, wmma_bf16_ops)
 
 # Valid WMMA operation shapes
 const valid_shapes = [(16, 16, 16), (32, 8, 16), (8, 32, 16)]
@@ -319,12 +333,12 @@ for ops in all_wmma_ops,
     shape = get_hl_shape(mnk[1], mnk[2], mnk[3])
 
     # Name of the LLVM intrinsic
-    # If integer/sub-byte/bit A/B types, name is determined by A/B types
-    if d_elem_type == "s32"
+    # If integer/sub-byte/bit/bf16 A/B types, name is determined by A/B types
+    if d_elem_type == "s32" || a_elem_type == "bf16"
         llvm_intr = "llvm.nvvm.wmma.$shape.mma.$a_layout.$b_layout.$a_elem_type"
         # Name of the Julia wrapper function
         func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, a_elem_type]), "_"))
-    else # Name defined by D/C types
+    else # f16: Name defined by D/C types
         llvm_intr = "llvm.nvvm.wmma.$shape.mma.$a_layout.$b_layout.$d_elem_type.$c_elem_type"
         # Name of the Julia wrapper function
         func_name = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, d_elem_type, c_elem_type]), "_"))
@@ -392,6 +406,28 @@ end
 
 @generated flatten(x::typ) where typ = Expr(:tuple, flatten_recurse(typ, :x)...)
 @generated unflatten(::Type{typ}, x) where typ = unflatten_recurse(typ, :x, 1)[1]
+
+# BFloat16 packing/unpacking (UInt32 contains 2x BFloat16)
+@inline function unpack_bf16(x::UInt32)
+    lo = reinterpret(BFloat16, UInt16(x & 0xFFFF))
+    hi = reinterpret(BFloat16, UInt16(x >> 16))
+    return (lo, hi)
+end
+
+@inline function pack_bf16(lo::BFloat16, hi::BFloat16)
+    return UInt32(reinterpret(UInt16, lo)) | (UInt32(reinterpret(UInt16, hi)) << 16)
+end
+
+@inline function flatten_bf16(x::NTuple{N, UInt32}) where N
+    ntuple(i -> begin
+        lo, hi = unpack_bf16(x[(i+1)÷2])
+        isodd(i) ? lo : hi
+    end, Val(2N))
+end
+
+@inline function unflatten_bf16(x::NTuple{N, BFloat16}) where N
+    ntuple(i -> pack_bf16(x[2i-1], x[2i]), Val(N÷2))
+end
 
 ################################################################################
 # HIGH LEVEL (CUDA-STYLE API)
@@ -513,6 +549,8 @@ const map_layout_ty_to_str = Dict(
 const map_num_elems = Dict(
                            ("a", Float16) => 16,
                            ("b", Float16) => 16,
+                           ("a", BFloat16) => 8,
+                           ("b", BFloat16) => 8,
                            ("c", Float16) => 8,
                            ("c", Float32) => 8,
                            ("d", Float16) => 8,
@@ -614,8 +652,9 @@ for mat in ["a", "b", "c"]
         # Name of the Julia wrapper
         wrapper = Symbol(join(filter(!isempty, ["llvm", "wmma", "load", $mat, layout, shape, as_str, "stride", arr_str]), "_"))
 
+        _flatten = T == BFloat16 ? flatten_bf16 : flatten
         return quote
-            x = flatten($wrapper(addr, stride))
+            x = $_flatten($wrapper(addr, stride))
             return Fragment{$M, $N, $K, $num_els, $T, $L_ret, $U}(x)
         end
     end
@@ -656,19 +695,22 @@ mma
     b_layout = get_hl_layout(B_L)
     shape = get_hl_shape(M, N, K)
 
-    _, a_frag_sz, a_frag_ty, _         = get_hl_frag_info("a", A_T, shape)
+    _, a_frag_sz, a_frag_ty, a_arr_str = get_hl_frag_info("a", A_T, shape)
     _, b_frag_sz, b_frag_ty, _         = get_hl_frag_info("b", B_T, shape)
     _, c_frag_sz, c_frag_ty, c_arr_str = get_hl_frag_info("c", C_T, shape)
     d_num_els, _, _, d_arr_str         = get_hl_frag_info("d", D_T, shape)
 
+    names = ["llvm", "wmma", "mma", a_layout, b_layout, shape]
+    # bf16 uses input type in intrinsic name, f16 uses d/c types
+    A_T === BFloat16 ? push!(names, a_arr_str) : push!(names, d_arr_str, c_arr_str)
+    wrapper = Symbol(join(filter(!isempty, names), "_"))
 
-
-    # Name of the Julia wrapper
-    wrapper = Symbol(join(filter(!isempty, ["llvm", "wmma", "mma", a_layout, b_layout, shape, d_arr_str, c_arr_str]), "_"))
+    a_unfl_expr = A_T === BFloat16 ? :(unflatten_bf16(a.x)) : :(unflatten(NTuple{$a_frag_sz, $a_frag_ty}, a.x))
+    b_unfl_expr = B_T === BFloat16 ? :(unflatten_bf16(b.x)) : :(unflatten(NTuple{$b_frag_sz, $b_frag_ty}, b.x))
 
     return quote
-        a_unfl = unflatten(NTuple{$a_frag_sz, $a_frag_ty}, a.x)
-        b_unfl = unflatten(NTuple{$b_frag_sz, $b_frag_ty}, b.x)
+        a_unfl = $a_unfl_expr
+        b_unfl = $b_unfl_expr
         c_unfl = unflatten(NTuple{$c_frag_sz, $c_frag_ty}, c.x)
 
         x = flatten($wrapper(a_unfl, b_unfl, c_unfl))
