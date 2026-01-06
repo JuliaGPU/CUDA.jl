@@ -7,6 +7,7 @@ Terminate a thread.
 """
 exit() = @asmcall("exit;")
 
+@device_functions begin
 """
     clock(UInt32)
 
@@ -21,6 +22,7 @@ Returns the value of a per-multiprocessor counter that is incremented every cloc
 """
 clock(::Type{UInt64}) = ccall("llvm.nvvm.read.ptx.sreg.clock64", llvmcall, UInt64, ())
 
+end
 
 """
     nanosleep(t)
