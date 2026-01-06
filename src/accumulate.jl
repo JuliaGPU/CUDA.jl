@@ -200,17 +200,17 @@ end
 
 ## Base interface
 
-Base._accumulate!(op, output::AnyCuArray, input::AnyCuVector, dims::Nothing, init::Nothing) =
-    scan!(op, output, input; dims=1)
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuVector, dims::Nothing, init::Nothing, kwargs...) =
+    scan!(op, output, input; dims=1, kwargs...)
 
-Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Nothing) =
-    scan!(op, output, input; dims=dims)
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Nothing, kwargs...) =
+    scan!(op, output, input; dims=dims, kwargs...)
 
-Base._accumulate!(op, output::AnyCuArray, input::CuVector, dims::Nothing, init::Some) =
-    scan!(op, output, input; dims=1, init=init)
+Base._accumulate!(op, output::AnyCuArray, input::CuVector, dims::Nothing, init::Some, kwargs...) =
+    scan!(op, output, input; dims=1, init=init, kwargs...)
 
-Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Some) =
-    scan!(op, output, input; dims=dims, init=init)
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Some, kwargs...) =
+    scan!(op, output, input; dims=dims, init=init, kwargs...)
 
 Base.accumulate_pairwise!(op, result::AnyCuVector, v::AnyCuVector) = accumulate!(op, result, v)
 
