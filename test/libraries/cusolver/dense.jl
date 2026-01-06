@@ -9,6 +9,20 @@ p = 5
 l = 13
 k = 1
 
+# Adapted from LinearAlgebra.sorteig!().
+# Warning: not very efficient, but works.
+eigsortby(λ::Real) = λ
+eigsortby(λ::Complex) = (real(λ), imag(λ))
+function sorteig!(λ::AbstractVector, X::AbstractMatrix, sortby::Union{Function, Nothing} = eigsortby)
+    if sortby !== nothing # && !issorted(λ, by=sortby)
+        p = sortperm(λ; by = sortby)
+        λ .= λ[p] # permute!(λ, p)
+        X .= X[:, p] # Base.permutecols!!(X, p)
+    end
+    return λ, X
+end
+sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sortby === nothing ? λ : sort!(λ, by = sortby)
+
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "gesv!" begin
         @testset "irs_precision = AUTO" begin
@@ -315,6 +329,39 @@ k = 1
         end
     end
 
+    # Note: Xgeev was introduced in CUDA 12.6.2 / CUSOLVER 11.7.1
+    if CUSOLVER.version() >= v"11.7.1"
+        @testset "geev!" begin
+            local d_W, d_V
+
+            A              = rand(elty,m,m)
+            d_A            = CuArray(A)
+            Eig            = eigen(A)
+            d_eig          = eigen(d_A)
+            sorteig!(d_eig.values, d_eig.vectors)
+            @test Eig.values ≈ collect(d_eig.values)
+            h_V            = collect(d_eig.vectors)
+            h_V⁻¹          = inv(h_V)
+            @test abs.(h_V⁻¹*Eig.vectors) ≈ I
+
+            A              = rand(elty,m,m)
+            d_A            = CuArray(A)
+            W              = eigvals(A)
+            d_W            = eigvals(d_A)
+            sorteig!(d_W)
+            @test W        ≈ collect(d_W)
+
+            A              = rand(elty,m,m)
+            d_A            = CuArray(A)
+            V              = eigvecs(A)
+            d_W            = eigvals(d_A)
+            d_V            = eigvecs(d_A)
+            sorteig!(d_W, d_V)
+            V⁻¹            = inv(V)
+            @test abs.(V⁻¹*collect(d_V)) ≈ I
+        end
+    end
+
     @testset "syevd!" begin
         A              = rand(elty,m,m)
         A             += A'
@@ -356,6 +403,7 @@ k = 1
         d_A            = CuArray(A)
         Eig            = eigen(LinearAlgebra.Hermitian(A))
         d_eig          = eigen(d_A)
+        sorteig!(d_eig.values, d_eig.vectors)
         @test Eig.values ≈ collect(d_eig.values)
         d_eig          = eigen(LinearAlgebra.Hermitian(d_A))
         @test Eig.values ≈ collect(d_eig.values)
@@ -369,6 +417,39 @@ k = 1
             @test abs.(Eig.vectors'*h_V) ≈ I
         end
 
+        A              = rand(elty,m,m)
+        A             += A'
+        d_A            = CuArray(A)
+        W              = eigvals(LinearAlgebra.Hermitian(A))
+        d_W            = eigvals(d_A)
+        sorteig!(d_W)
+        @test W        ≈ collect(d_W)
+        d_W            = eigvals(LinearAlgebra.Hermitian(d_A))
+        @test W        ≈ collect(d_W)
+        if elty <: Real
+            W              = eigvals(LinearAlgebra.Symmetric(A))
+            d_W            = eigvals(LinearAlgebra.Symmetric(d_A))
+            @test W        ≈ collect(d_W)
+        end
+
+        A              = rand(elty,m,m)
+        A             += A'
+        d_A            = CuArray(A)
+        V              = eigvecs(LinearAlgebra.Hermitian(A))
+        d_W            = eigvals(d_A)
+        d_V            = eigvecs(d_A)
+        sorteig!(d_W, d_V)
+        h_V            = collect(d_V)
+        @test abs.(V'*h_V) ≈ I
+        d_V            = eigvecs(LinearAlgebra.Hermitian(d_A))
+        h_V            = collect(d_V)
+        @test abs.(V'*h_V) ≈ I
+        if elty <: Real
+            V              = eigvecs(LinearAlgebra.Symmetric(A))
+            d_V            = eigvecs(LinearAlgebra.Symmetric(d_A))
+            h_V            = collect(d_V)
+            @test abs.(V'*h_V) ≈ I
+        end
     end
 
     @testset "sygvd!" begin
@@ -952,6 +1033,10 @@ end
     d_Ah = CuArray(Ah)
     @testset for func in (exp, cos, sin, tan, cosh, sinh, tanh, atan, asinh)
         @test Array(func(d_Ah)) ≈ func(Ah)
+    end
+    @test Array(parent(log(Hermitian(d_Ah)))) ≈ log(Hermitian(Ah))
+    if elty <: Real
+        @test Array(parent(log(Symmetric(d_Ah)))) ≈ log(Symmetric(Ah))
     end
     @static if VERSION >= v"1.11.0" # not supported on 1.10 or for Complex
         if elty <: Real

@@ -45,6 +45,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
 
+    n == 0 && return zero(promote_type(T1, T2))
     # custom kernel using simple linear indexing and atomic additions,
     # resulting in about 10% speed-up compared to a simple mapreduce.
     # COV_EXCL_START

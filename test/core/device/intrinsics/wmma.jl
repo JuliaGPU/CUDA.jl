@@ -2,12 +2,15 @@ if capability(device()) >= v"7.0"
 
 using CUDA.WMMA
 
+using BFloat16s: BFloat16
+
 map_ptx_to_jl_frag = Dict(
                             "u8"  => reinterpret(Int32, UInt8(42) * ones(UInt8, 4))[1],
                             "s8"  => reinterpret(Int32, UInt8(42) * ones(UInt8, 4))[1],
                             "u32" => UInt32(42),
                             "s32" => Int32(42),
                             "f16" => ntuple(i -> VecElement{Float16}(42), 2),
+                            "bf16" => reinterpret(UInt32, BFloat16(42) * ones(BFloat16, 2))[1],
                             "f32" => Float32(42)
                             )
 # Return specific matrix shape given operation configuration
@@ -46,6 +49,10 @@ end
             # Skip integer WMMA on older devices
             if capability(device()) < v"7.5" && (startswith(elem_type, "s") ||
                                                  startswith(elem_type, "u"))
+                continue
+            end
+            # Skip BFloat16 WMMA on pre-Ampere devices
+            if capability(device()) < v"8.0" && elem_type == "bf16"
                 continue
             end
 
@@ -115,6 +122,10 @@ end
                                                  startswith(elem_type, "u"))
                 continue
             end
+            # Skip BFloat16 WMMA on pre-Ampere devices
+            if capability(device()) < v"8.0" && elem_type == "bf16"
+                continue
+            end
 
             shape = CUDA.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
 
@@ -175,6 +186,10 @@ end
                                                  startswith(ab_elem_type, "u"))
                 continue
             end
+            # Skip BFloat16 WMMA on pre-Ampere devices
+            if capability(device()) < v"8.0" && ab_elem_type == "bf16"
+                continue
+            end
 
             # Type-dependent variables
             d_ty  = CUDA.WMMA.map_ptx_to_jl_array[d_elem_type]
@@ -187,9 +202,9 @@ end
             lda_func = getfield(Main, Symbol("llvm_wmma_load_a_$(a_layout)_$(shape)_global_stride_$(ab_elem_type)"))
             ldb_func = getfield(Main, Symbol("llvm_wmma_load_b_$(b_layout)_$(shape)_global_stride_$(ab_elem_type)"))
             ldc_func = getfield(Main, Symbol("llvm_wmma_load_c_col_$(shape)_global_stride_$(c_elem_type)"))
-            # Account for half and int/subint mma different naming conventions
-            # Int/subint mma functions are distinguished by the a/b element type
-            mma_sym = d_ty == Int32 ? Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(ab_elem_type)") :
+            # Account for half and int/subint/bf16 mma different naming conventions
+            # Int/subint and bf16 mma functions are distinguished by the a/b element type
+            mma_sym = (d_ty == Int32 || ab_elem_type == "bf16") ? Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(ab_elem_type)") :
                                       Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(d_elem_type)_$(c_elem_type)")
             mma_func = getfield(Main, mma_sym)
             std_func = getfield(Main, Symbol("llvm_wmma_store_d_col_$(shape)_global_stride_$(d_elem_type)"))
@@ -227,6 +242,8 @@ end
             # Alter test depending on a/b element Type
             if ab_ty == Float16
                 @test new_a * new_b + c ≈ Array(d_dev) rtol=Base.rtoldefault(Float16)
+            elseif ab_ty == BFloat16
+                @test Float32.(new_a) * Float32.(new_b) + c ≈ Array(d_dev) rtol=Base.rtoldefault(BFloat16)
             else # Cast a and b to prevent UInt8 rollover of resultant data
                 @test Int32.(new_a) * Int32.(new_b) + c == Array(d_dev)
             end
@@ -256,12 +273,20 @@ end
         @test WMMA.unflatten(NTuple{8, NTuple{2, Int64}}, ntuple(i -> i, 2 * 8))                        == ntuple(i -> ntuple(j -> (i-1) * 2 + j, 2), 8)
         @test WMMA.unflatten(NTuple{8, NTuple{2, VecElement{Float16}}}, ntuple(i -> Float16(i), 2 * 8)) == ntuple(i -> ntuple(j -> VecElement{Float16}((i-1) * 2 + j), 2), 8)
     end
+
+    @testset "BFloat16 packing/unpacking" begin
+        bf_vals = ntuple(i -> BFloat16(i), 8)
+        packed = WMMA.unflatten_bf16(bf_vals)
+        @test length(packed) == 4
+        unpacked = WMMA.flatten_bf16(packed)
+        @test unpacked == bf_vals
+    end
 end
 
 ################################################################################
 
 @testset "Broadcasting over fragments: size=$sz, type=$ty" for sz = [1, 2, 5],
-        ty = [Float16, Float32]
+        ty = [Float16, Float32, BFloat16]
         @test ty(5) .* Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(i), sz)) == Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(5 * i), sz))
         @test ty(5) .+ Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(i), sz)) == Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(5 + i), sz))
 end
@@ -327,6 +352,126 @@ end
         end
     end
 
+end
+
+################################################################################
+
+if capability(device()) >= v"8.0"
+@testset "CUDA C-style API (BFloat16)" begin
+    @testset "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout" for a_layout in [ColMajor, RowMajor],
+        b_layout in [ColMajor, RowMajor],
+        c_layout in [ColMajor, RowMajor],
+        d_layout in [ColMajor, RowMajor],
+        do_mac in [true, false]
+
+        a     = rand(BFloat16, (16, 16))
+        b     = rand(BFloat16, (16, 16))
+        c     = rand(Float32, (16, 16))
+        d     = Array{Float32}(undef, (16, 16))
+
+        a_dev = CuArray(a)
+        b_dev = CuArray(b)
+        c_dev = CuArray(c)
+        d_dev = CuArray(d)
+
+        # Note: BFloat16 fragment broadcasting (alpha .* a_frag) requires native bf16
+        # scalar ops which aren't available on all architectures, so we skip scaling
+        @eval function kernel_bf16(a_dev, b_dev, c_dev, d_dev)
+            conf = Config{16, 16, 16, Float32}
+
+            a_frag = load_a(pointer(a_dev), 16, $a_layout, conf)
+            b_frag = load_b(pointer(b_dev), 16, $b_layout, conf)
+
+            if $do_mac
+                c_frag = load_c(pointer(c_dev), 16, $c_layout, conf)
+            else
+                c_frag = fill_c(Float32(0), conf)
+            end
+
+            d_frag = mma(a_frag, b_frag, c_frag, conf)
+
+            store_d(pointer(d_dev), d_frag, 16, $d_layout, conf)
+
+            return
+        end
+
+        @cuda threads=32 kernel_bf16(a_dev, b_dev, c_dev, d_dev)
+        d = Array(d_dev)
+
+        new_a = (a_layout == ColMajor) ? a : transpose(a)
+        new_b = (b_layout == ColMajor) ? b : transpose(b)
+        new_c = (c_layout == ColMajor) ? c : transpose(c)
+        new_d = (d_layout == ColMajor) ? d : transpose(d)
+
+        if do_mac
+            @test Float32.(new_a) * Float32.(new_b) + new_c ≈ new_d rtol=Base.rtoldefault(BFloat16)
+        else
+            @test Float32.(new_a) * Float32.(new_b) ≈ new_d rtol=Base.rtoldefault(BFloat16)
+        end
+    end
+end
+end
+
+# BFloat16 fragment broadcasting requires native bf16 scalar ops (CC 8.9+)
+# On earlier architectures, frag[i] returns UInt32 (packed), causing type mismatch
+if capability(device()) >= v"8.9"
+@testset "CUDA C-style API (BFloat16 with scaling)" begin
+    @testset "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout" for a_layout in [ColMajor, RowMajor],
+        b_layout in [ColMajor, RowMajor],
+        c_layout in [ColMajor, RowMajor],
+        d_layout in [ColMajor, RowMajor],
+        do_mac in [true, false]
+
+        a     = rand(BFloat16, (16, 16))
+        b     = rand(BFloat16, (16, 16))
+        c     = rand(Float32, (16, 16))
+        d     = Array{Float32}(undef, (16, 16))
+
+        a_dev = CuArray(a)
+        b_dev = CuArray(b)
+        c_dev = CuArray(c)
+        d_dev = CuArray(d)
+
+        alpha = rand(BFloat16)
+        beta  = rand(Float32)
+
+        @eval function kernel_bf16_scaled(a_dev, b_dev, c_dev, d_dev, alpha, beta)
+            conf = Config{16, 16, 16, Float32}
+
+            a_frag = load_a(pointer(a_dev), 16, $a_layout, conf)
+            b_frag = load_b(pointer(b_dev), 16, $b_layout, conf)
+
+            if $do_mac
+                c_frag = load_c(pointer(c_dev), 16, $c_layout, conf)
+            else
+                c_frag = fill_c(Float32(0), conf)
+            end
+
+            a_frag = alpha .* a_frag
+            c_frag = beta .* c_frag
+
+            d_frag = mma(a_frag, b_frag, c_frag, conf)
+
+            store_d(pointer(d_dev), d_frag, 16, $d_layout, conf)
+
+            return
+        end
+
+        @cuda threads=32 kernel_bf16_scaled(a_dev, b_dev, c_dev, d_dev, alpha, beta)
+        d = Array(d_dev)
+
+        new_a = (a_layout == ColMajor) ? a : transpose(a)
+        new_b = (b_layout == ColMajor) ? b : transpose(b)
+        new_c = (c_layout == ColMajor) ? c : transpose(c)
+        new_d = (d_layout == ColMajor) ? d : transpose(d)
+
+        if do_mac
+            @test Float32(alpha) * Float32.(new_a) * Float32.(new_b) + beta * new_c ≈ new_d rtol=Base.rtoldefault(BFloat16)
+        else
+            @test Float32(alpha) * Float32.(new_a) * Float32.(new_b) ≈ new_d rtol=Base.rtoldefault(BFloat16)
+        end
+    end
+end
 end
 
 ################################################################################

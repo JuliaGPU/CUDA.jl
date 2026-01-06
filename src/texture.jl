@@ -353,7 +353,7 @@ Currently, that is not being enforced.
 CuTexture(x::CuArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N}(x; kwargs...)
 
-memory_source(::Any) = error("Unknown texture source $(typeof(t))")
+memory_source(t::Any) = error("Unknown texture source $(typeof(t))")
 memory_source(::CuArray) = LinearMemorySource()
 memory_source(::CuTextureArray) = ArrayMemorySource()
 
