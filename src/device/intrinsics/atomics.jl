@@ -180,9 +180,9 @@ end
 
 ## PTX
 
-# half-precision atomics using PTX instruction
+# half-precision and bfloat16 atomics using PTX instructions
 
-for A in (AS.Generic, AS.Global, AS.Shared), T in (:Float16,)
+for A in (AS.Generic, AS.Global, AS.Shared), T in (:Float16, :BFloat16)
     if A == AS.Global
         scope = ".global"
     elseif A == AS.Shared
@@ -190,8 +190,9 @@ for A in (AS.Generic, AS.Global, AS.Shared), T in (:Float16,)
     else
         scope = ""
     end
+    name = T == :Float16 ? "f16" : "bf16"
 
-    intr = "atom$scope.add.noftz.f16 \$0, [\$1], \$2;"
+    intr = "atom$scope.add.noftz.$name \$0, [\$1], \$2;"
     @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
         @asmcall($intr, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val)
 end
@@ -441,7 +442,7 @@ end
     atomic_arrayset(A, Base._to_linear_index(A, Is...), op, convert(T, val))
 
 # native atomics
-for (op,impl,typ) in [(:(+), :(atomic_add!), [:UInt32,:Int32,:UInt64,:Int64,:Float32]),
+for (op,impl,typ) in [(:(+), :(atomic_add!), [:UInt32,:Int32,:UInt64,:Int64,:Float32,:Float16,:BFloat16]),
                       (:(-), :(atomic_sub!), [:UInt32,:Int32,:UInt64,:Int64,:Float32]),
                       (:(&), :(atomic_and!), [:UInt32,:Int32,:UInt64,:Int64]),
                       (:(|), :(atomic_or!),  [:UInt32,:Int32,:UInt64,:Int64]),
