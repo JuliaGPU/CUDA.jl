@@ -71,6 +71,7 @@ end
     CUTENSORNET_NETWORK_INPUT_TENSORS_CONJUGATED = 11
     CUTENSORNET_NETWORK_INPUT_TENSORS_NUM_REQUIRE_GRAD = 20
     CUTENSORNET_NETWORK_INPUT_TENSORS_REQUIRE_GRAD = 21
+    CUTENSORNET_NETWORK_COMPUTE_TYPE = 30
 end
 
 @cenum cutensornetGraphAlgo_t::UInt32 begin
@@ -86,7 +87,6 @@ end
 @cenum cutensornetOptimizerCost_t::UInt32 begin
     CUTENSORNET_OPTIMIZER_COST_FLOPS = 0
     CUTENSORNET_OPTIMIZER_COST_TIME = 1
-    CUTENSORNET_OPTIMIZER_COST_TIME_TUNED = 2
 end
 
 @cenum cutensornetSmartOption_t::UInt32 begin
@@ -137,6 +137,11 @@ end
 @cenum cutensornetContractionAutotunePreferenceAttributes_t::UInt32 begin
     CUTENSORNET_CONTRACTION_AUTOTUNE_MAX_ITERATIONS = 0
     CUTENSORNET_CONTRACTION_AUTOTUNE_INTERMEDIATE_MODES = 1
+end
+
+@cenum cutensornetNetworkAutotunePreferenceAttributes_t::UInt32 begin
+    CUTENSORNET_NETWORK_AUTOTUNE_MAX_ITERATIONS = 0
+    CUTENSORNET_NETWORK_AUTOTUNE_INTERMEDIATE_MODES = 1
 end
 
 const cutensornetNetworkDescriptor_t = Ptr{Cvoid}
@@ -217,6 +222,8 @@ const cutensornetContractionOptimizerConfig_t = Ptr{Cvoid}
 const cutensornetContractionOptimizerInfo_t = Ptr{Cvoid}
 
 const cutensornetContractionAutotunePreference_t = Ptr{Cvoid}
+
+const cutensornetNetworkAutotunePreference_t = Ptr{Cvoid}
 
 const cutensornetSliceGroup_t = Ptr{Cvoid}
 
@@ -334,6 +341,8 @@ end
 
 const cutensornetStateSampler_t = Ptr{Cvoid}
 
+const cutensornetStateProjectionMPS_t = Ptr{Cvoid}
+
 @cenum cutensornetSamplerAttributes_t::UInt32 begin
     CUTENSORNET_SAMPLER_OPT_NUM_HYPER_SAMPLES = 0
     CUTENSORNET_SAMPLER_CONFIG_NUM_HYPER_SAMPLES = 1
@@ -385,6 +394,20 @@ const cutensornetLoggerCallbackData_t = Ptr{Cvoid}
     CUTENSORNET_STATE_MPS_GAUGE_SIMPLE = 1
 end
 
+struct cutensornetMPSEnvBounds_t
+    lowerBound::Int32
+    upperBound::Int32
+end
+
+@cenum cutensornetStateProjectionMPSOrthoOption_t::UInt32 begin
+    CUTENSORNET_STATE_PROJECTION_MPS_ORTHO_AUTO = 0
+end
+
+@cenum cutensornetStateProjectionMPSAttributes_t::UInt32 begin
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_ORTHO_OPTION = 0
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_NUM_HYPER_SAMPLES = 10
+end
+
 @checked function cutensornetCreate(handle)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetCreate(handle::Ptr{cutensornetHandle_t})::cutensornetStatus_t
@@ -399,7 +422,7 @@ end
                                                      extentsIn, stridesIn, modesIn,
                                                      qualifiersIn, numModesOut, extentsOut,
                                                      stridesOut, modesOut, dataType,
-                                                     computeType, descNet)
+                                                     computeType, networkDesc)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetCreateNetworkDescriptor(handle::cutensornetHandle_t,
                                                                     numInputs::Int32,
@@ -414,39 +437,73 @@ end
                                                                     modesOut::Ptr{Int32},
                                                                     dataType::cudaDataType_t,
                                                                     computeType::cutensornetComputeType_t,
-                                                                    descNet::Ptr{cutensornetNetworkDescriptor_t})::cutensornetStatus_t
+                                                                    networkDesc::Ptr{cutensornetNetworkDescriptor_t})::cutensornetStatus_t
 end
 
-@checked function cutensornetDestroyNetworkDescriptor(desc)
+@checked function cutensornetCreateNetwork(handle, networkDesc)
     initialize_context()
-    @gcsafe_ccall libcutensornet.cutensornetDestroyNetworkDescriptor(desc::cutensornetNetworkDescriptor_t)::cutensornetStatus_t
+    @gcsafe_ccall libcutensornet.cutensornetCreateNetwork(handle::cutensornetHandle_t,
+                                                          networkDesc::Ptr{cutensornetNetworkDescriptor_t})::cutensornetStatus_t
 end
 
-@checked function cutensornetNetworkGetAttribute(handle, networkDesc, attr, buf,
+@checked function cutensornetDestroyNetworkDescriptor(networkDesc)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetDestroyNetworkDescriptor(networkDesc::cutensornetNetworkDescriptor_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyNetwork(networkDesc)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetDestroyNetwork(networkDesc::cutensornetNetworkDescriptor_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkAppendTensor(handle, networkDesc, numModes, extents,
+                                                 modeLabels, qualifiers, dataType, tensorId)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkAppendTensor(handle::cutensornetHandle_t,
+                                                                networkDesc::cutensornetNetworkDescriptor_t,
+                                                                numModes::Int32,
+                                                                extents::Ptr{Int64},
+                                                                modeLabels::Ptr{Int32},
+                                                                qualifiers::Ptr{cutensornetTensorQualifiers_t},
+                                                                dataType::cudaDataType_t,
+                                                                tensorId::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkSetOutputTensor(handle, networkDesc, numModes,
+                                                    modeLabels, dataType)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkSetOutputTensor(handle::cutensornetHandle_t,
+                                                                   networkDesc::cutensornetNetworkDescriptor_t,
+                                                                   numModes::Int32,
+                                                                   modeLabels::Ptr{Int32},
+                                                                   dataType::cudaDataType_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkGetAttribute(handle, networkDesc, attr, buffer,
                                                  sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetNetworkGetAttribute(handle::cutensornetHandle_t,
                                                                 networkDesc::cutensornetNetworkDescriptor_t,
                                                                 attr::cutensornetNetworkAttributes_t,
-                                                                buf::Ptr{Cvoid},
+                                                                buffer::Ptr{Cvoid},
                                                                 sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetNetworkSetAttribute(handle, networkDesc, attr, buf,
+@checked function cutensornetNetworkSetAttribute(handle, networkDesc, attr, buffer,
                                                  sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetNetworkSetAttribute(handle::cutensornetHandle_t,
                                                                 networkDesc::cutensornetNetworkDescriptor_t,
                                                                 attr::cutensornetNetworkAttributes_t,
-                                                                buf::Ptr{Cvoid},
+                                                                buffer::Ptr{Cvoid},
                                                                 sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetGetOutputTensorDetails(handle, descNet, numModes, dataSize,
+@checked function cutensornetGetOutputTensorDetails(handle, networkDesc, numModes, dataSize,
                                                     modeLabels, extents, strides)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetGetOutputTensorDetails(handle::cutensornetHandle_t,
-                                                                   descNet::cutensornetNetworkDescriptor_t,
+                                                                   networkDesc::cutensornetNetworkDescriptor_t,
                                                                    numModes::Ptr{Int32},
                                                                    dataSize::Ptr{Csize_t},
                                                                    modeLabels::Ptr{Int32},
@@ -454,10 +511,11 @@ end
                                                                    strides::Ptr{Int64})::cutensornetStatus_t
 end
 
-@checked function cutensornetGetOutputTensorDescriptor(handle, descNet, outputTensorDesc)
+@checked function cutensornetGetOutputTensorDescriptor(handle, networkDesc,
+                                                       outputTensorDesc)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetGetOutputTensorDescriptor(handle::cutensornetHandle_t,
-                                                                      descNet::cutensornetNetworkDescriptor_t,
+                                                                      networkDesc::cutensornetNetworkDescriptor_t,
                                                                       outputTensorDesc::Ptr{cutensornetTensorDescriptor_t})::cutensornetStatus_t
 end
 
@@ -479,19 +537,20 @@ end
                                                                       workDesc::Ptr{cutensornetWorkspaceDescriptor_t})::cutensornetStatus_t
 end
 
-@checked function cutensornetWorkspaceComputeSizes(handle, descNet, optimizerInfo, workDesc)
+@checked function cutensornetWorkspaceComputeSizes(handle, networkDesc, optimizerInfo,
+                                                   workDesc)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetWorkspaceComputeSizes(handle::cutensornetHandle_t,
-                                                                  descNet::cutensornetNetworkDescriptor_t,
+                                                                  networkDesc::cutensornetNetworkDescriptor_t,
                                                                   optimizerInfo::cutensornetContractionOptimizerInfo_t,
                                                                   workDesc::cutensornetWorkspaceDescriptor_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetWorkspaceComputeContractionSizes(handle, descNet,
+@checked function cutensornetWorkspaceComputeContractionSizes(handle, networkDesc,
                                                               optimizerInfo, workDesc)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetWorkspaceComputeContractionSizes(handle::cutensornetHandle_t,
-                                                                             descNet::cutensornetNetworkDescriptor_t,
+                                                                             networkDesc::cutensornetNetworkDescriptor_t,
                                                                              optimizerInfo::cutensornetContractionOptimizerInfo_t,
                                                                              workDesc::cutensornetWorkspaceDescriptor_t)::cutensornetStatus_t
 end
@@ -566,9 +625,9 @@ end
                                                                 memSpace::cutensornetMemspace_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetDestroyWorkspaceDescriptor(desc)
+@checked function cutensornetDestroyWorkspaceDescriptor(workDesc)
     initialize_context()
-    @gcsafe_ccall libcutensornet.cutensornetDestroyWorkspaceDescriptor(desc::cutensornetWorkspaceDescriptor_t)::cutensornetStatus_t
+    @gcsafe_ccall libcutensornet.cutensornetDestroyWorkspaceDescriptor(workDesc::cutensornetWorkspaceDescriptor_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetCreateContractionOptimizerConfig(handle, optimizerConfig)
@@ -583,22 +642,24 @@ end
 end
 
 @checked function cutensornetContractionOptimizerConfigGetAttribute(handle, optimizerConfig,
-                                                                    attr, buf, sizeInBytes)
+                                                                    attr, buffer,
+                                                                    sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetContractionOptimizerConfigGetAttribute(handle::cutensornetHandle_t,
                                                                                    optimizerConfig::cutensornetContractionOptimizerConfig_t,
                                                                                    attr::cutensornetContractionOptimizerConfigAttributes_t,
-                                                                                   buf::Ptr{Cvoid},
+                                                                                   buffer::Ptr{Cvoid},
                                                                                    sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetContractionOptimizerConfigSetAttribute(handle, optimizerConfig,
-                                                                    attr, buf, sizeInBytes)
+                                                                    attr, buffer,
+                                                                    sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetContractionOptimizerConfigSetAttribute(handle::cutensornetHandle_t,
                                                                                    optimizerConfig::cutensornetContractionOptimizerConfig_t,
                                                                                    attr::cutensornetContractionOptimizerConfigAttributes_t,
-                                                                                   buf::Ptr{Cvoid},
+                                                                                   buffer::Ptr{Cvoid},
                                                                                    sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
@@ -607,40 +668,48 @@ end
     @gcsafe_ccall libcutensornet.cutensornetDestroyContractionOptimizerInfo(optimizerInfo::cutensornetContractionOptimizerInfo_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetCreateContractionOptimizerInfo(handle, descNet, optimizerInfo)
+@checked function cutensornetCreateContractionOptimizerInfo(handle, networkDesc,
+                                                            optimizerInfo)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetCreateContractionOptimizerInfo(handle::cutensornetHandle_t,
-                                                                           descNet::cutensornetNetworkDescriptor_t,
+                                                                           networkDesc::cutensornetNetworkDescriptor_t,
                                                                            optimizerInfo::Ptr{cutensornetContractionOptimizerInfo_t})::cutensornetStatus_t
 end
 
-@checked function cutensornetContractionOptimize(handle, descNet, optimizerConfig,
+@checked function cutensornetContractionOptimize(handle, networkDesc, optimizerConfig,
                                                  workspaceSizeConstraint, optimizerInfo)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetContractionOptimize(handle::cutensornetHandle_t,
-                                                                descNet::cutensornetNetworkDescriptor_t,
+                                                                networkDesc::cutensornetNetworkDescriptor_t,
                                                                 optimizerConfig::cutensornetContractionOptimizerConfig_t,
                                                                 workspaceSizeConstraint::UInt64,
                                                                 optimizerInfo::cutensornetContractionOptimizerInfo_t)::cutensornetStatus_t
 end
 
+@checked function cutensornetNetworkSetOptimizerInfo(handle, networkDesc, optimizerInfo)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkSetOptimizerInfo(handle::cutensornetHandle_t,
+                                                                    networkDesc::cutensornetNetworkDescriptor_t,
+                                                                    optimizerInfo::cutensornetContractionOptimizerInfo_t)::cutensornetStatus_t
+end
+
 @checked function cutensornetContractionOptimizerInfoGetAttribute(handle, optimizerInfo,
-                                                                  attr, buf, sizeInBytes)
+                                                                  attr, buffer, sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetContractionOptimizerInfoGetAttribute(handle::cutensornetHandle_t,
                                                                                  optimizerInfo::cutensornetContractionOptimizerInfo_t,
                                                                                  attr::cutensornetContractionOptimizerInfoAttributes_t,
-                                                                                 buf::Ptr{Cvoid},
+                                                                                 buffer::Ptr{Cvoid},
                                                                                  sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetContractionOptimizerInfoSetAttribute(handle, optimizerInfo,
-                                                                  attr, buf, sizeInBytes)
+                                                                  attr, buffer, sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetContractionOptimizerInfoSetAttribute(handle::cutensornetHandle_t,
                                                                                  optimizerInfo::cutensornetContractionOptimizerInfo_t,
                                                                                  attr::cutensornetContractionOptimizerInfoAttributes_t,
-                                                                                 buf::Ptr{Cvoid},
+                                                                                 buffer::Ptr{Cvoid},
                                                                                  sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
@@ -661,13 +730,14 @@ end
                                                                              sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetCreateContractionOptimizerInfoFromPackedData(handle, descNet,
+@checked function cutensornetCreateContractionOptimizerInfoFromPackedData(handle,
+                                                                          networkDesc,
                                                                           buffer,
                                                                           sizeInBytes,
                                                                           optimizerInfo)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetCreateContractionOptimizerInfoFromPackedData(handle::cutensornetHandle_t,
-                                                                                         descNet::cutensornetNetworkDescriptor_t,
+                                                                                         networkDesc::cutensornetNetworkDescriptor_t,
                                                                                          buffer::Ptr{Cvoid},
                                                                                          sizeInBytes::Csize_t,
                                                                                          optimizerInfo::Ptr{cutensornetContractionOptimizerInfo_t})::cutensornetStatus_t
@@ -683,14 +753,21 @@ end
                                                                                          optimizerInfo::cutensornetContractionOptimizerInfo_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetCreateContractionPlan(handle, descNet, optimizerInfo, workDesc,
-                                                   plan)
+@checked function cutensornetCreateContractionPlan(handle, networkDesc, optimizerInfo,
+                                                   workDesc, plan)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetCreateContractionPlan(handle::cutensornetHandle_t,
-                                                                  descNet::cutensornetNetworkDescriptor_t,
+                                                                  networkDesc::cutensornetNetworkDescriptor_t,
                                                                   optimizerInfo::cutensornetContractionOptimizerInfo_t,
                                                                   workDesc::cutensornetWorkspaceDescriptor_t,
                                                                   plan::Ptr{cutensornetContractionPlan_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkPrepareContraction(handle, networkDesc, workDesc)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkPrepareContraction(handle::cutensornetHandle_t,
+                                                                      networkDesc::cutensornetNetworkDescriptor_t,
+                                                                      workDesc::cutensornetWorkspaceDescriptor_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetDestroyContractionPlan(plan)
@@ -710,39 +787,82 @@ end
                                                                 stream::cudaStream_t)::cutensornetStatus_t
 end
 
+@checked function cutensornetNetworkAutotuneContraction(handle, networkDesc, workDesc, pref,
+                                                        stream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkAutotuneContraction(handle::cutensornetHandle_t,
+                                                                       networkDesc::cutensornetNetworkDescriptor_t,
+                                                                       workDesc::cutensornetWorkspaceDescriptor_t,
+                                                                       pref::cutensornetNetworkAutotunePreference_t,
+                                                                       stream::cudaStream_t)::cutensornetStatus_t
+end
+
 @checked function cutensornetCreateContractionAutotunePreference(handle, autotunePreference)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetCreateContractionAutotunePreference(handle::cutensornetHandle_t,
                                                                                 autotunePreference::Ptr{cutensornetContractionAutotunePreference_t})::cutensornetStatus_t
 end
 
+@checked function cutensornetCreateNetworkAutotunePreference(handle, autotunePreference)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetCreateNetworkAutotunePreference(handle::cutensornetHandle_t,
+                                                                            autotunePreference::Ptr{cutensornetNetworkAutotunePreference_t})::cutensornetStatus_t
+end
+
 @checked function cutensornetContractionAutotunePreferenceGetAttribute(handle,
                                                                        autotunePreference,
-                                                                       attr, buf,
+                                                                       attr, buffer,
                                                                        sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetContractionAutotunePreferenceGetAttribute(handle::cutensornetHandle_t,
                                                                                       autotunePreference::cutensornetContractionAutotunePreference_t,
                                                                                       attr::cutensornetContractionAutotunePreferenceAttributes_t,
-                                                                                      buf::Ptr{Cvoid},
+                                                                                      buffer::Ptr{Cvoid},
                                                                                       sizeInBytes::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkAutotunePreferenceGetAttribute(handle,
+                                                                   autotunePreference, attr,
+                                                                   buffer, sizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkAutotunePreferenceGetAttribute(handle::cutensornetHandle_t,
+                                                                                  autotunePreference::cutensornetNetworkAutotunePreference_t,
+                                                                                  attr::cutensornetNetworkAutotunePreferenceAttributes_t,
+                                                                                  buffer::Ptr{Cvoid},
+                                                                                  sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetContractionAutotunePreferenceSetAttribute(handle,
                                                                        autotunePreference,
-                                                                       attr, buf,
+                                                                       attr, buffer,
                                                                        sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetContractionAutotunePreferenceSetAttribute(handle::cutensornetHandle_t,
                                                                                       autotunePreference::cutensornetContractionAutotunePreference_t,
                                                                                       attr::cutensornetContractionAutotunePreferenceAttributes_t,
-                                                                                      buf::Ptr{Cvoid},
+                                                                                      buffer::Ptr{Cvoid},
                                                                                       sizeInBytes::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkAutotunePreferenceSetAttribute(handle,
+                                                                   autotunePreference, attr,
+                                                                   buf, sizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkAutotunePreferenceSetAttribute(handle::cutensornetHandle_t,
+                                                                                  autotunePreference::cutensornetNetworkAutotunePreference_t,
+                                                                                  attr::cutensornetNetworkAutotunePreferenceAttributes_t,
+                                                                                  buf::Ptr{Cvoid},
+                                                                                  sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetDestroyContractionAutotunePreference(autotunePreference)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetDestroyContractionAutotunePreference(autotunePreference::cutensornetContractionAutotunePreference_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyNetworkAutotunePreference(autotunePreference)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetDestroyNetworkAutotunePreference(autotunePreference::cutensornetNetworkAutotunePreference_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetContraction(handle, plan, rawDataIn, rawDataOut, workDesc,
@@ -794,35 +914,90 @@ end
                                                            stream::cudaStream_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetComputeGradientsBackward(handle, plan, rawDataIn,
-                                                      outputGradient, gradients,
-                                                      accumulateOutput, workDesc, stream)
+@checked function cutensornetNetworkSetInputTensorMemory(handle, networkDesc, tensorId,
+                                                         buffer, strides)
     initialize_context()
-    @gcsafe_ccall libcutensornet.cutensornetComputeGradientsBackward(handle::cutensornetHandle_t,
-                                                                     plan::cutensornetContractionPlan_t,
-                                                                     rawDataIn::Ptr{Ptr{Cvoid}},
-                                                                     outputGradient::Ptr{Cvoid},
-                                                                     gradients::Ptr{Ptr{Cvoid}},
-                                                                     accumulateOutput::Int32,
-                                                                     workDesc::cutensornetWorkspaceDescriptor_t,
-                                                                     stream::cudaStream_t)::cutensornetStatus_t
+    @gcsafe_ccall libcutensornet.cutensornetNetworkSetInputTensorMemory(handle::cutensornetHandle_t,
+                                                                        networkDesc::cutensornetNetworkDescriptor_t,
+                                                                        tensorId::Int64,
+                                                                        buffer::Ptr{Cvoid},
+                                                                        strides::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkSetOutputTensorMemory(handle, networkDesc, buffer,
+                                                          strides)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkSetOutputTensorMemory(handle::cutensornetHandle_t,
+                                                                         networkDesc::cutensornetNetworkDescriptor_t,
+                                                                         buffer::Ptr{Cvoid},
+                                                                         strides::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkSetGradientTensorMemory(handle, networkDesc,
+                                                            correspondingTensorId, buffer,
+                                                            strides)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkSetGradientTensorMemory(handle::cutensornetHandle_t,
+                                                                           networkDesc::cutensornetNetworkDescriptor_t,
+                                                                           correspondingTensorId::Int64,
+                                                                           buffer::Ptr{Cvoid},
+                                                                           strides::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkSetAdjointTensorMemory(handle, networkDesc, buffer,
+                                                           strides)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkSetAdjointTensorMemory(handle::cutensornetHandle_t,
+                                                                          networkDesc::cutensornetNetworkDescriptor_t,
+                                                                          buffer::Ptr{Cvoid},
+                                                                          strides::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkContract(handle, networkDesc, accumulateOutput,
+                                             workDesc, sliceGroup, stream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkContract(handle::cutensornetHandle_t,
+                                                            networkDesc::cutensornetNetworkDescriptor_t,
+                                                            accumulateOutput::Int32,
+                                                            workDesc::cutensornetWorkspaceDescriptor_t,
+                                                            sliceGroup::cutensornetSliceGroup_t,
+                                                            stream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkPrepareGradientsBackward(handle, networkDesc, workDesc)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkPrepareGradientsBackward(handle::cutensornetHandle_t,
+                                                                            networkDesc::cutensornetNetworkDescriptor_t,
+                                                                            workDesc::cutensornetWorkspaceDescriptor_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetNetworkComputeGradientsBackward(handle, networkDesc,
+                                                             accumulateOutput, workDesc,
+                                                             sliceGroup, stream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetNetworkComputeGradientsBackward(handle::cutensornetHandle_t,
+                                                                            networkDesc::cutensornetNetworkDescriptor_t,
+                                                                            accumulateOutput::Int32,
+                                                                            workDesc::cutensornetWorkspaceDescriptor_t,
+                                                                            sliceGroup::cutensornetSliceGroup_t,
+                                                                            stream::cudaStream_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetCreateTensorDescriptor(handle, numModes, extents, strides,
-                                                    modes, dataType, descTensor)
+                                                    modeLabels, dataType, tensorDesc)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetCreateTensorDescriptor(handle::cutensornetHandle_t,
                                                                    numModes::Int32,
                                                                    extents::Ptr{Int64},
                                                                    strides::Ptr{Int64},
-                                                                   modes::Ptr{Int32},
+                                                                   modeLabels::Ptr{Int32},
                                                                    dataType::cudaDataType_t,
-                                                                   descTensor::Ptr{cutensornetTensorDescriptor_t})::cutensornetStatus_t
+                                                                   tensorDesc::Ptr{cutensornetTensorDescriptor_t})::cutensornetStatus_t
 end
 
-@checked function cutensornetDestroyTensorDescriptor(descTensor)
+@checked function cutensornetDestroyTensorDescriptor(tensorDesc)
     initialize_context()
-    @gcsafe_ccall libcutensornet.cutensornetDestroyTensorDescriptor(descTensor::cutensornetTensorDescriptor_t)::cutensornetStatus_t
+    @gcsafe_ccall libcutensornet.cutensornetDestroyTensorDescriptor(tensorDesc::cutensornetTensorDescriptor_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetCreateTensorSVDConfig(handle, svdConfig)
@@ -836,23 +1011,23 @@ end
     @gcsafe_ccall libcutensornet.cutensornetDestroyTensorSVDConfig(svdConfig::cutensornetTensorSVDConfig_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetTensorSVDConfigGetAttribute(handle, svdConfig, attr, buf,
+@checked function cutensornetTensorSVDConfigGetAttribute(handle, svdConfig, attr, buffer,
                                                          sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetTensorSVDConfigGetAttribute(handle::cutensornetHandle_t,
                                                                         svdConfig::cutensornetTensorSVDConfig_t,
                                                                         attr::cutensornetTensorSVDConfigAttributes_t,
-                                                                        buf::Ptr{Cvoid},
+                                                                        buffer::Ptr{Cvoid},
                                                                         sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
-@checked function cutensornetTensorSVDConfigSetAttribute(handle, svdConfig, attr, buf,
+@checked function cutensornetTensorSVDConfigSetAttribute(handle, svdConfig, attr, buffer,
                                                          sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetTensorSVDConfigSetAttribute(handle::cutensornetHandle_t,
                                                                         svdConfig::cutensornetTensorSVDConfig_t,
                                                                         attr::cutensornetTensorSVDConfigAttributes_t,
-                                                                        buf::Ptr{Cvoid},
+                                                                        buffer::Ptr{Cvoid},
                                                                         sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
@@ -883,13 +1058,13 @@ end
                                                                 svdInfo::Ptr{cutensornetTensorSVDInfo_t})::cutensornetStatus_t
 end
 
-@checked function cutensornetTensorSVDInfoGetAttribute(handle, svdInfo, attr, buf,
+@checked function cutensornetTensorSVDInfoGetAttribute(handle, svdInfo, attr, buffer,
                                                        sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetTensorSVDInfoGetAttribute(handle::cutensornetHandle_t,
                                                                       svdInfo::cutensornetTensorSVDInfo_t,
                                                                       attr::cutensornetTensorSVDInfoAttributes_t,
-                                                                      buf::Ptr{Cvoid},
+                                                                      buffer::Ptr{Cvoid},
                                                                       sizeInBytes::Csize_t)::cutensornetStatus_t
 end
 
@@ -1009,17 +1184,17 @@ end
     @gcsafe_ccall libcutensornet.cutensornetLoggerSetMask(mask::Int32)::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1269:21, please use with caution
+# no prototype is found for this function at cutensornet.h:1586:21, please use with caution
 @checked function cutensornetLoggerForceDisable()
     @gcsafe_ccall libcutensornet.cutensornetLoggerForceDisable()::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1274:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1591:8, please use with caution
 function cutensornetGetVersion()
     @gcsafe_ccall libcutensornet.cutensornetGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensornet.h:1280:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1597:8, please use with caution
 function cutensornetGetCudartVersion()
     @gcsafe_ccall libcutensornet.cutensornetGetCudartVersion()::Csize_t
 end
@@ -1555,6 +1730,122 @@ end
 @checked function cutensornetDestroySampler(tensorNetworkSampler)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetDestroySampler(tensorNetworkSampler::cutensornetStateSampler_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateStateProjectionMPS(handle, numStates,
+                                                      tensorNetworkStates, coeffs,
+                                                      symmetric, numEnvs, specEnvs,
+                                                      boundaryCondition, numTensors,
+                                                      quditsPerTensor, extentsOut,
+                                                      stridesOut, dualTensorsDataOut,
+                                                      orthoSpec, tensorNetworkProjection)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetCreateStateProjectionMPS(handle::cutensornetHandle_t,
+                                                                     numStates::Int32,
+                                                                     tensorNetworkStates::Ptr{cutensornetState_t},
+                                                                     coeffs::Ptr{cuDoubleComplex},
+                                                                     symmetric::Int32,
+                                                                     numEnvs::Int32,
+                                                                     specEnvs::Ptr{cutensornetMPSEnvBounds_t},
+                                                                     boundaryCondition::cutensornetBoundaryCondition_t,
+                                                                     numTensors::Int32,
+                                                                     quditsPerTensor::Ptr{Int32},
+                                                                     extentsOut::Ptr{Ptr{Int64}},
+                                                                     stridesOut::Ptr{Ptr{Int64}},
+                                                                     dualTensorsDataOut::Ptr{Ptr{Cvoid}},
+                                                                     orthoSpec::Ptr{cutensornetMPSEnvBounds_t},
+                                                                     tensorNetworkProjection::Ptr{cutensornetStateProjectionMPS_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateProjectionMPSConfigure(handle, tensorNetworkProjection,
+                                                         attribute, attributeValue,
+                                                         attributeSize)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSConfigure(handle::cutensornetHandle_t,
+                                                                        tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                        attribute::cutensornetStateProjectionMPSAttributes_t,
+                                                                        attributeValue::Ptr{Cvoid},
+                                                                        attributeSize::Csize_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetStateProjectionMPSPrepare(handle, tensorNetworkProjection,
+                                                       maxWorkspaceSizeDevice, workDesc,
+                                                       cudaStream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSPrepare(handle::cutensornetHandle_t,
+                                                                      tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                      maxWorkspaceSizeDevice::Csize_t,
+                                                                      workDesc::cutensornetWorkspaceDescriptor_t,
+                                                                      cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetStateProjectionMPSComputeTensorEnv(handle,
+                                                                tensorNetworkProjection,
+                                                                envSpec, stridesIn,
+                                                                envTensorDataIn, stridesOut,
+                                                                envTensorDataOut,
+                                                                applyInvMetric,
+                                                                reResolveChannels, workDesc,
+                                                                cudaStream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSComputeTensorEnv(handle::cutensornetHandle_t,
+                                                                               tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                               envSpec::Ptr{cutensornetMPSEnvBounds_t},
+                                                                               stridesIn::Ptr{Int64},
+                                                                               envTensorDataIn::Ptr{Cvoid},
+                                                                               stridesOut::Ptr{Int64},
+                                                                               envTensorDataOut::Ptr{Cvoid},
+                                                                               applyInvMetric::Int32,
+                                                                               reResolveChannels::Int32,
+                                                                               workDesc::cutensornetWorkspaceDescriptor_t,
+                                                                               cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetStateProjectionMPSGetTensorInfo(handle,
+                                                             tensorNetworkProjection,
+                                                             envSpec, extents,
+                                                             recommendedStrides)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSGetTensorInfo(handle::cutensornetHandle_t,
+                                                                            tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                            envSpec::Ptr{cutensornetMPSEnvBounds_t},
+                                                                            extents::Ptr{Int64},
+                                                                            recommendedStrides::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateProjectionMPSExtractTensor(handle,
+                                                             tensorNetworkProjection,
+                                                             envSpec, strides,
+                                                             envTensorData, workDesc,
+                                                             cudaStream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSExtractTensor(handle::cutensornetHandle_t,
+                                                                            tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                            envSpec::Ptr{cutensornetMPSEnvBounds_t},
+                                                                            strides::Ptr{Int64},
+                                                                            envTensorData::Ptr{Cvoid},
+                                                                            workDesc::cutensornetWorkspaceDescriptor_t,
+                                                                            cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetStateProjectionMPSInsertTensor(handle, tensorNetworkProjection,
+                                                            envSpec, orthoSpec, strides,
+                                                            envTensorData, workDesc,
+                                                            cudaStream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSInsertTensor(handle::cutensornetHandle_t,
+                                                                           tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                           envSpec::Ptr{cutensornetMPSEnvBounds_t},
+                                                                           orthoSpec::Ptr{cutensornetMPSEnvBounds_t},
+                                                                           strides::Ptr{Int64},
+                                                                           envTensorData::Ptr{Cvoid},
+                                                                           workDesc::cutensornetWorkspaceDescriptor_t,
+                                                                           cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetDestroyStateProjectionMPS(tensorNetworkProjection)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetDestroyStateProjectionMPS(tensorNetworkProjection::cutensornetStateProjectionMPS_t)::cutensornetStatus_t
 end
 
 const CUTENSORNET_ALLOCATOR_NAME_LEN = 64
