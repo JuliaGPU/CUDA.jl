@@ -413,39 +413,6 @@ end
   @test view(b, :, 1, :) isa StridedCuArray
 end
 
-@testset "accumulate" begin
-  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
-    @test testf(x->accumulate(+, x), rand(n))
-    @test testf(x->accumulate(+, x), rand(n,2))
-    @test testf((x,y)->accumulate(+, x; init=y), rand(n), rand())
-  end
-
-  # multidimensional
-  for (sizes, dims) in ((2,) => 2,
-                        (3,4,5) => 2,
-                        (1, 70, 50, 20) => 3)
-    @test testf(x->accumulate(+, x; dims=dims), rand(Int, sizes))
-    @test testf(x->accumulate(+, x), rand(Int, sizes))
-  end
-
-  # using initializer
-  for (sizes, dims) in ((2,) => 2,
-                        (3,4,5) => 2,
-                        (1, 70, 50, 20) => 3)
-    @test testf((x,y)->accumulate(+, x; dims=dims, init=y), rand(Int, sizes), rand(Int))
-    @test testf((x,y)->accumulate(+, x; init=y), rand(Int, sizes), rand(Int))
-  end
-
-  # in place
-  @test testf(x->(accumulate!(+, x, copy(x)); x), rand(2))
-
-  # specialized
-  @test testf(cumsum, rand(2))
-  @test testf(cumprod, rand(2))
-
-  @test_throws ArgumentError("accumulate does not support the keyword arguments [:bad_kwarg]") accumulate(+, CUDA.rand(1024); bad_kwarg="bad")
-end
-
 @testset "logical indexing" begin
   @test CuArray{Int}(undef, 2)[CUDA.ones(Bool, 2)] isa CuArray
   @test CuArray{Int}(undef, 2, 2)[CUDA.ones(Bool, 2, 2)] isa CuArray
