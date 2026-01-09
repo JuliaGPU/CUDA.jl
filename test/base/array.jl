@@ -979,6 +979,16 @@ end
   @test c === a
 end
 
+@testset "transpose!" begin
+    for T in [Float32, Float64, ComplexF32, ComplexF64]
+        a = CUDA.rand(T, 10, 20)
+        b = similar(a, reverse(size(a)))
+        c = similar(a)
+        @test Array(transpose!(b, a)) == transpose(Array(a))
+        @test_throws DimensionMismatch transpose!(c, a)
+    end
+end
+
 @testset "issue 2595" begin
   # mixed-type reductions resulted in a deadlock because of union splitting over shfl
   a = CUDA.zeros(Float32, 1)

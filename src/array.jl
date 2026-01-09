@@ -946,3 +946,11 @@ function Base.resize!(A::CuVector{T}, n::Integer) where T
   A.dims = (n,)
   return A
 end
+
+
+# CUBLAS.geam! is much faster than the generic implementation of transpose! in GPUArrays:
+function LinearAlgebra.transpose!(dest::CuMatrix{T}, src::CuMatrix{T}) where {T <: Union{Float32, Float64, ComplexF32, ComplexF64}}
+    axes(dest) == reverse(axes(src)) || throw(DimensionMismatch("axes of the destination are incompatible with that of the source"))
+    CUDA.CUBLAS.geam!('T', 'T', one(T), src, zero(T), src, dest)
+    return dest
+end
