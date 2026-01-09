@@ -670,7 +670,9 @@ end
     mem
 end
 @inline function _pool_alloc(::Type{UnifiedMemory}, sz)
-  alloc(UnifiedMemory, sz)
+  mem = alloc(UnifiedMemory, sz)
+  account!(memory_stats(), sz)
+  mem
 end
 @inline function _pool_alloc(::Type{HostMemory}, sz)
   alloc(HostMemory, sz)
@@ -724,7 +726,10 @@ end
     end
     account!(memory_stats(mem.dev), -sizeof(mem))
 end
-@inline _pool_free(mem::UnifiedMemory, stream::CuStream) = free(mem)
+@inline function _pool_free(mem::UnifiedMemory, stream::CuStream)
+  account!(memory_stats(), -sizeof(mem))
+  free(mem)
+end
 @inline _pool_free(mem::HostMemory, stream::CuStream) = free(mem)
 
 """
