@@ -7,7 +7,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 
 const MACRO_KWARGS = [:dynamic, :launch]
 const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx]
-const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clusters, :shmem, :stream]
+const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clustersize, :shmem, :stream]
 
 
 """
@@ -224,10 +224,10 @@ The following keyword arguments are supported:
 - `blocks` (default: `1`): Number of thread blocks to launch, or a 1-, 2- or 3-tuple of
   dimensions (e.g. `blocks=(2, 4, 2)` for a 3D grid of blocks).
   Use [`blockIdx()`](@ref) and [`gridDim()`](@ref) to query from within the kernel.
-- `clusters` (default: `0`): Number of thread blocks to launch as a cooperative cluster,
-  or a 1-, 2- or 3-tuple of dimensions (e.g. `clusters=(2, 2, 2)` for a 3D grid).
+- `clustersize` (default: `0`): Number of thread blocks to launch as a cooperative cluster,
+  or a 1-, 2- or 3-tuple of dimensions (e.g. `clustersize=(2, 2, 2)` for a 3D grid).
   Use [`clusterIdx()`](@ref) and [`clusterDim()`](@ref) to query from within the kernel.
-  Only supported on compute capability 9.0 and above. If `clusters=0`, no clusters are launched.
+  Only supported on compute capability 9.0 and above. If `clustersize=0`, no clusters are launched.
 - `shmem`(default: `0`): Amount of dynamic shared memory in bytes to allocate per thread block;
   used by [`CuDynamicSharedArray`](@ref).
 - `stream` (default: [`stream()`](@ref)): [`CuStream`](@ref) to launch the kernel on.

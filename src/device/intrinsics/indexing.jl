@@ -58,7 +58,7 @@ for dim in (:x, :y, :z)
     intr = Symbol("ctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_grid_size[dim]-1))) + 1i32
 
-    # Grid size (#blocks per grid)
+    # Grid size (#clusters per grid)
     fn = Symbol("gridDim_$dim")
     intr = Symbol("nctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim])))
@@ -68,7 +68,7 @@ for dim in (:x, :y, :z)
     intr = Symbol("clusterid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_cluster_size[dim]-1))) + 1i32
 
-    # Cluster size in grid (#clusters per grid)
+    # Cluster size in grid (#blocks per cluster)
     fn = Symbol("clusterDim_$dim")
     intr = Symbol("nclusterid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_cluster_size[dim])))

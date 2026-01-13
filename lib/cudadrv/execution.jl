@@ -44,13 +44,13 @@ end
 
 """
     launch(f::CuFunction; args...; blocks::CuDim=1, threads::CuDim=1,
-           clusters::CuDim=1, cooperative=false, shmem=0, stream=stream())
+           clustersize::CuDim=1, cooperative=false, shmem=0, stream=stream())
 
 Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
 respectively the grid and block configuration. Dynamic shared memory is allocated according
-to `shmem`, and the kernel is launched on stream `stream`. If `clusters > 1` and compute
+to `shmem`, and the kernel is launched on stream `stream`. If `clustersize > 1` and compute
 capability is `>= 9.0`, [thread block clusters](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#thread-block-clusters)
-are launched. If `clusters > 1` and compute capability is `< 9.0`, an error is thrown, as
+are launched. If `clustersize > 1` and compute capability is `< 9.0`, an error is thrown, as
 thread block clusters are not supported.
 
 Arguments to a kernel should either be bitstype, in which case they will be copied to the
@@ -59,13 +59,13 @@ internal kernel parameter buffer, or a pointer to device memory.
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
 function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
-                clusters::CuDim=1, cooperative::Bool=false, shmem::Integer=0,
+                clustersize::CuDim=1, cooperative::Bool=false, shmem::Integer=0,
                 stream::CuStream=stream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
-    clusterdim = CuDim3(clusters)
+    clusterdim = CuDim3(clustersize)
     if CUDA.capability(device()) < v"9.0" && (clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.y != 1)
-        throw(ArgumentError("devices with compute capability under 9.0 do not support thread block clusters!"))
+        throw(ArgumentError("devices with compute capability less than 9.0 do not support thread block clusters!"))
     end
 
     try
