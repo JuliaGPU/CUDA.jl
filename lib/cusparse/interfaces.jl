@@ -34,18 +34,6 @@ function mv_wrapper(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::Den
     mv!(transa, alpha, A, X, beta, Y, 'O')
 end
 
-function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
-                    A::CuSparseMatrix{T}, B::CuMatrix{T}, beta::Number, C::CuMatrix{T}) where {T}
-    n_A, m_A = (transa != 'N') ? reverse(size(A)) : size(A)
-    n_B, m_B = (transb != 'N') ? reverse(size(B)) : size(B)
-    n_C, m_C = size(C)
-    m_A == n_B || throw(DimensionMismatch())
-    n_A == n_C || throw(DimensionMismatch())
-    m_B == m_C || throw(DimensionMismatch())
-    isempty(B) && return CUDA.zeros(eltype(B), size(A, 1), 0)
-    mm!(transa, transb, alpha, A, B, beta, C, 'O')
-end
-
 LinearAlgebra.dot(x::CuSparseVector{T}, y::DenseCuVector{T}) where {T <: BlasReal} = vv!('N', x, y, 'O')
 LinearAlgebra.dot(x::DenseCuVector{T}, y::CuSparseVector{T}) where {T <: BlasReal} = dot(y, x)
 
@@ -82,7 +70,7 @@ end
 function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::CuSparseMatrix{T}, B::DenseCuMatrix{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm_wrapper(tA, tB, alpha, A, B, beta, C)
+    mm!(tA, tB, alpha, A, B, beta, C, 'O')
 end
 
 for (wrapa, transa, unwrapa) in op_wrappers
