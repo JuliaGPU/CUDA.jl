@@ -1,7 +1,7 @@
 # Indexing and dimensions (B.4)
 
 export
-    threadIdx, blockDim, blockIdx, gridDim, clusterIdx, clusterDim,
+    threadIdx, blockDim, blockIdx, gridDim, clusterIdx, clusterDim, blockIdxInCluster,
     laneid, lanemask, warpsize, active_mask, FULL_MASK
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
