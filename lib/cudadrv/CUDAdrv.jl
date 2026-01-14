@@ -7,12 +7,12 @@ using Printf
 using LazyArtifacts
 
 # low-level wrappers
-include("types.jl")
 include("libcuda.jl")
 include("libcuda_deprecated.jl")
 
 # high-level wrappers
 include("error.jl")
+include("types.jl")
 include("version.jl")
 include("devices.jl")
 include("context.jl")
