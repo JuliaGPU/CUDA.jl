@@ -83,7 +83,7 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
             else
                 attr_ref = Ref{CUDA.CUlaunchAttribute}()
                 GC.@preserve attr_ref begin
-                    attr = Ptr{CUDA.CUlaunchAttribute}(pointer_from_objref(attr))
+                    attr = Ptr{CUDA.CUlaunchAttribute}(pointer_from_objref(attr_ref))
                     attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
                     attr.value.clusterDim = clusterdim
                     config = CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
