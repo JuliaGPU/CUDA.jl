@@ -86,9 +86,9 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
                     attr = Ptr{CUDA.CUlaunchAttribute}(pointer_from_objref(attr_ref))
                     attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
                     attr.value.clusterDim = clusterdim
-                    config = CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
-                                            threaddim.x, threaddim.y, threaddim.z,
-                                            shmem, pointer_from_objref(stream), attr, Cuint(1))
+                    config = Ref(CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
+                                                threaddim.x, threaddim.y, threaddim.z,
+                                                shmem, pointer_from_objref(stream), attr, Cuint(1)))
                     GC.@preserve config begin
                         cuLaunchKernelEx(pointer_from_objref(config), f, kernelParams, C_NULL)
                     end
