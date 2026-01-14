@@ -2258,7 +2258,7 @@ function Base.getproperty(x::Ptr{CUlaunchAttributeValue_union}, f::Symbol)
     f === :accessPolicyWindow && return Ptr{CUaccessPolicyWindow}(x + 0)
     f === :cooperative && return Ptr{Cint}(x + 0)
     f === :syncPolicy && return Ptr{CUsynchronizationPolicy}(x + 0)
-    f === :clusterDim && return Ptr{var"##Ctag#247"}(x + 0)
+    f === :clusterDim && return Ptr{CuDim3}(x + 0)
     f === :clusterSchedulingPolicyPreference && return Ptr{CUclusterSchedulingPolicy}(x + 0)
     f === :programmaticStreamSerializationAllowed && return Ptr{Cint}(x + 0)
     f === :programmaticEvent && return Ptr{var"##Ctag#248"}(x + 0)
@@ -2266,7 +2266,7 @@ function Base.getproperty(x::Ptr{CUlaunchAttributeValue_union}, f::Symbol)
     f === :priority && return Ptr{Cint}(x + 0)
     f === :memSyncDomainMap && return Ptr{CUlaunchMemSyncDomainMap}(x + 0)
     f === :memSyncDomain && return Ptr{CUlaunchMemSyncDomain}(x + 0)
-    f === :preferredClusterDim && return Ptr{var"##Ctag#250"}(x + 0)
+    f === :preferredClusterDim && return Ptr{CuDim3}(x + 0)
     f === :deviceUpdatableKernelNode && return Ptr{var"##Ctag#251"}(x + 0)
     f === :sharedMemCarveout && return Ptr{Cuint}(x + 0)
     f === :nvlinkUtilCentricScheduling && return Ptr{Cuint}(x + 0)
@@ -6678,26 +6678,14 @@ function Base.setproperty!(x::Ptr{var"##Ctag#242"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#247"
-    x::Cuint
-    y::Cuint
-    z::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#247"}, f::Symbol)
+function Base.getproperty(x::Ptr{CuDim3}, f::Symbol)
     f === :x && return Ptr{Cuint}(x + 0)
     f === :y && return Ptr{Cuint}(x + 4)
     f === :z && return Ptr{Cuint}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#247", f::Symbol)
-    r = Ref{var"##Ctag#247"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#247"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#247"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CuDim3}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -6742,29 +6730,6 @@ function Base.getproperty(x::var"##Ctag#249", f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{var"##Ctag#249"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#250"
-    x::Cuint
-    y::Cuint
-    z::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#250"}, f::Symbol)
-    f === :x && return Ptr{Cuint}(x + 0)
-    f === :y && return Ptr{Cuint}(x + 4)
-    f === :z && return Ptr{Cuint}(x + 8)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#250", f::Symbol)
-    r = Ref{var"##Ctag#250"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#250"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#250"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
