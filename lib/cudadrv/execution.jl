@@ -90,6 +90,7 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
                                             threaddim.x, threaddim.y, threaddim.z,
                                             shmem, stream, attr, Cuint(1))
                     cuLaunchKernelEx(config, f, kernelParams, C_NULL)
+                end
             end
         end
     catch err
