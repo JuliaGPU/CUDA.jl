@@ -125,14 +125,14 @@ Returns the block index within the cluster.
 """
 @inline function blockIdxInCluster()
     gd = gridDim()
-    bd = blockIdx()
+    bi = blockIdx()
     cd = clusterDim()
 
     # linearize global block index (CUDA row-major order)
     linear =
-        bd.x +
-        bd.y * gd.x +
-        bd.z * gd.x * gd.y
+        (bi.x - 1i32) +
+        (bi.y - 1i32) * gd.x +
+        (bi.z - 1i32) * gd.x * gd.y
 
     # blocks per cluster
     bpc = cd.x * cd.y * cd.z
@@ -141,11 +141,11 @@ Returns the block index within the cluster.
     r = linear % bpc
 
     # de-linearize rank into (x,y,z) within clusterDim (row-major)
-    cx = r % cd.x
+    cx = 1i32 + r % cd.x
     r ÷= cd.x
-    cy = r % cd.y
+    cy = 1i32 + r % cd.y
     r ÷= cd.y
-    cz = r
+    cz = 1i32 + r
 
     return (x = cx, y = cy, z = cz)
 end
