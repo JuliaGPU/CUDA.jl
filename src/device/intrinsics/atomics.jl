@@ -151,7 +151,7 @@ for A in (AS.Generic, AS.Global, AS.Shared), T in (:Int16, :UInt16)
     end
 
     intr = "atom$scope.cas.b16 \$0, [\$1], \$2, \$3;"
-    @eval @inline atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T) =
+    @eval @device_function @inline atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T) =
         @asmcall($intr, "=h,l,h,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
 end
 
@@ -172,7 +172,7 @@ for A in (AS.Generic, AS.Global, AS.Shared)
         nb = sizeof(T)*8
         fn = Symbol("atomic_$(op)!")
         intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
-        @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T) =
+        @eval @device_function @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T) =
             @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
     end
 end
@@ -192,7 +192,7 @@ for A in (AS.Generic, AS.Global, AS.Shared), T in (:Float16,)
     end
 
     intr = "atom$scope.add.noftz.f16 \$0, [\$1], \$2;"
-    @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
+    @eval @device_function @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
         @asmcall($intr, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val)
 end
 
