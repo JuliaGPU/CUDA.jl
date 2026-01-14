@@ -20,6 +20,12 @@ dummy() = return
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
+
+    clustersize = 1
+    @cuda clustersize dummy()
+    @cuda clustersize=1 dummy()
+    @cuda clustersize=(1,1) dummy()
+    @cuda clustersize=(1,1,1) dummy()
 end
 
 
