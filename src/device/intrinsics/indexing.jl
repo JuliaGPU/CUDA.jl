@@ -147,7 +147,7 @@ Returns the block index within the cluster.
     r ÷= cd.y
     cz = 1i32 + r
 
-    return (x = cx, y = cy, z = cz)
+    return (x=cx, y=cy, z=cz)
 end
 
 """

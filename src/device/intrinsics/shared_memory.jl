@@ -181,3 +181,25 @@ export malloc
         call_function(llvm_f, Ptr{Cvoid}, Tuple{Csize_t}, :sz)
     end
 end
+
+export map_shared_rank
+
+"""
+    map_shared_rank(local_addr, blockidx)
+
+Find remote memory addresses of other blocks in our thread block
+cluster.
+
+Each block in a thread block cluster uses the same shared memory
+layout. However, the shared memory regions are distinct.
+`map_shared_rank` converts the *local* shared memory address
+`local_addr` into the corresponding *remote* shared memory address in
+block `blockidx`. This allows accessing remote shared memory.
+
+This function corresponds to `map_shared_rank` in C++ CUDA.
+"""
+@inline function map_shared_rank(local_addr::LLVMPtr{T,AS.Shared}, blockidx::Integer) where {T}
+    # declare ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %p, i32 %rank)
+    @typed_ccall("llvm.nvvm.mapa.shared.cluster", llvmcall,
+                 LLVMPtr{T,AS.DistributedShared}, (LLVMPtr{T,AS.Shared}, Cint), local_addr, blockidx - 1i32)
+end
