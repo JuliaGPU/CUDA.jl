@@ -64,9 +64,6 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
-    if CUDA.capability(device()) < v"9.0" && (clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.y != 1)
-        throw(ArgumentError("devices with compute capability less than 9.0 do not support thread block clusters!"))
-    end
 
     try
         pack_arguments(args...) do kernelParams
