@@ -99,7 +99,7 @@ Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, dims, blockidx) whe
         local_addr, Cint(blockidx - 1i32),
     )
     llvmcall("llvm.nvvm.mapa.shared.cluster", 
-             LLVMPtr{T,AS.DistributedShared}, (LLVMPtr{T,AS.Shared}, Cint), local_addr, Cint(blockidx - 1i32))
+             LLVMPtr{T,AS.DistributedShared}, Tuple{LLVMPtr{T,AS.Shared}, Cint}, local_addr, Cint(blockidx - 1i32))
 end
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
