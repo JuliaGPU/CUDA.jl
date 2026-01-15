@@ -81,7 +81,8 @@ end
 
 Returns the dimensions (in blocks) of the grid.
 """
-@inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+# @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
 
 """
     clusterIdx()::NamedTuple
