@@ -82,7 +82,7 @@ for dim in (:x, :y, :z)
     # Grid size in clusters (#clusters per grid)
     fn = Symbol("gridClusterDim_$dim")
     intr = Symbol("cluster.nctaid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim]÷max_grid_size[dim])))
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim]÷max_cluster_size[dim])))
 end
 
 @doc """
