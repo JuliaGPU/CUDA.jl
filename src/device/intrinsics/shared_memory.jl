@@ -71,7 +71,7 @@ end
 dynamic_smem_size() =
     @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
-@inline Base.@propagate_inbounds function CuDistributedSharedArray(::Type{T}, dims::Tuple, blockidx::Integer, offset) where {T}
+@inline function CuDistributedSharedArray(shared_array::CuDeviceArray{T,N,AS.Shared}, blockidx::Integer) where {T,N}
     # Distributed shared memory has address space 7 (SharedCluster).
     # This is only supported in LLVM >= 21 which we can't yet use with
     # Julia. We therefore need to map it to address space 0 (Generic).
@@ -79,19 +79,9 @@ dynamic_smem_size() =
     # We should change this to be address space 7 (SharedCluster) if
     # we're using LLVM >=21.
 
-    N = length(dims)
-    local_arr = CuDynamicSharedArray(T, dims)
-    local_ptr = local_arr.ptr
-    local_ptr::LLVMPtr{T,AS.Shared}
-    ptr = map_shared_rank(local_ptr, blockidx)
-    ptr::LLVMPtr{T,AS.Generic}
+    ptr = map_shared_rank(shared_array.ptr, blockidx)
     CuDeviceArray{T,N,AS.Generic}(ptr, dims)
 end
-Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, len::Integer, blockidx, offset) where {T} =
-    CuDistributedSharedArray(T, (len,), blockidx, offset)
-# Default argument-generated methods do not propagate inboundsness
-Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, dims, blockidx) where {T} =
-    CuDistributedSharedArray(T, dims, blockidx, 0)
 
 @inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
     # This requires LLVM >=20 (i.e. Julia >= 1.13)
