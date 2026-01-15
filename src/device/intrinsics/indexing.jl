@@ -43,7 +43,7 @@ const max_grid_size  = (x=2^31-1, y=65535, z=65535)
 const max_cluster_size = (x=8, y=8, z=8)
 
 for dim in (:x, :y, :z)
-    # Thread index
+    # Thread index in block
     fn = Symbol("threadIdx_$dim")
     intr = Symbol("tid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_block_size[dim]-1))) + 1i32
@@ -53,7 +53,7 @@ for dim in (:x, :y, :z)
     intr = Symbol("ntid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_block_size[dim])))
 
-    # Block index
+    # Block index in grid
     fn = Symbol("blockIdx_$dim")
     intr = Symbol("ctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_grid_size[dim]-1))) + 1i32
@@ -63,51 +63,26 @@ for dim in (:x, :y, :z)
     intr = Symbol("nctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim])))
     
-    # Cluster index
-    fn = Symbol("clusterIdx_$dim")
-    intr = Symbol("clusterid.$dim")
+    # Block index in cluster
+    fn = Symbol("blockIdxInCluster_$dim")
+    intr = Symbol("cluster_ctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_cluster_size[dim]-1))) + 1i32
 
-    # Cluster size in grid (#blocks per cluster)
+    # Cluster size (#blocks per cluster)
     fn = Symbol("clusterDim_$dim")
     intr = Symbol("nclusterid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_cluster_size[dim])))
+
+    # Cluster index in grid
+    fn = Symbol("clusterIdx_$dim")
+    intr = Symbol("clusterid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_grid_size[dim]÷max_cluster_size[dim]-1))) + 1i32
+
+    # Grid size (#clusters per grid)
+    fn = Symbol("GridClusterDim_$dim")
+    intr = Symbol("cluster_nctaid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim]÷max_grid_size[dim])))
 end
-
-@doc """
-    gridDim()::NamedTuple
-
-Returns the dimensions (in blocks) of the grid.
-""" gridDim
-@device_function @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
-
-@doc """
-    clusterIdx()::NamedTuple
-
-Returns the cluster index within the grid.
-""" clusterIdx
-@device_function @inline clusterIdx() = (x=clusterIdx_x(), y=clusterIdx_y(), z=clusterIdx_z())
-
-@doc """
-    clusterDim()::NamedTuple
-
-Returns the dimensions (in blocks) of the cluster
-""" clusterDim
-@device_function @inline clusterDim() = (x=clusterDim_x(), y=clusterDim_y(), z=clusterDim_z())
-
-@doc """
-    blockIdx()::NamedTuple
-
-Returns the block index within the grid.
-""" blockIdx
-@device_function @inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
-
-@doc """
-    blockDim()::NamedTuple
-
-Returns the dimensions (in threads) of the block.
-""" blockDim
-@device_function @inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
 
 @doc """
     threadIdx()::NamedTuple
@@ -117,36 +92,53 @@ Returns the thread index within the block.
 @device_function @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
 
 @doc """
+    blockDim()::NamedTuple
+
+Returns the dimensions (in threads) of the block.
+""" blockDim
+@device_function @inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
+
+@doc """
+    blockIdx()::NamedTuple
+
+Returns the block index within the grid.
+""" blockIdx
+@device_function @inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
+
+@doc """
+    gridDim()::NamedTuple
+
+Returns the dimensions (in blocks) of the grid.
+""" gridDim
+@device_function @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+
+@doc """
     blockIdxInCluster()::NamedTuple
 
 Returns the block index within the cluster.
 """ blockIdxInCluster
-@device_function @inline function blockIdxInCluster()
-    gd = gridDim()
-    bi = blockIdx()
-    cd = clusterDim()
+@device_function @inline blockIdxInCluster() = (x=blockIdxInCluster_x(), y=blockIdxInCluster_y(), z=blockIdxInCluster_z())
 
-    # linearize global block index (CUDA row-major order)
-    linear =
-        (bi.x - 1i32) +
-        (bi.y - 1i32) * gd.x +
-        (bi.z - 1i32) * gd.x * gd.y
+@doc """
+    clusterDim()::NamedTuple
 
-    # blocks per cluster
-    bpc = cd.x * cd.y * cd.z
+Returns the dimensions (in blocks) of the cluster
+""" clusterDim
+@device_function @inline clusterDim() = (x=clusterDim_x(), y=clusterDim_y(), z=clusterDim_z())
 
-    # rank of this block within its cluster
-    r = linear % bpc
+@doc """
+    clusterIdx()::NamedTuple
 
-    # de-linearize rank into (x,y,z) within clusterDim (row-major)
-    cx = 1i32 + r % cd.x
-    r ÷= cd.x
-    cy = 1i32 + r % cd.y
-    r ÷= cd.y
-    cz = 1i32 + r
+Returns the cluster index within the grid.
+""" clusterIdx
+@device_function @inline clusterIdx() = (x=clusterIdx_x(), y=clusterIdx_y(), z=clusterIdx_z())
 
-    return (x=cx, y=cy, z=cz)
-end
+@doc """
+    gridClusterDim()::NamedTuple
+
+Returns the dimensions (in clusters) of the grid
+""" gridClusterDim
+@device_function @inline gridClusterDim() = (x=gridClusterDim_x(), y=gridClusterDim_y(), z=gridClusterDim_z())
 
 @doc """
     warpsize()::Int32

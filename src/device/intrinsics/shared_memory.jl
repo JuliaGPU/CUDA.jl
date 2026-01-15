@@ -72,12 +72,17 @@ dynamic_smem_size() =
     @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
 @inline Base.@propagate_inbounds function CuDistributedSharedArray(::Type{T}, dims::Tuple, blockidx::Integer, offset) where {T}
+    # Distributed shared memory has address space 7. This is only
+    # supported in LLVM >= 21 which we can't yet use with Julia. We
+    # therefore need to map it to address space 0.
+    #
+    # We should change this to be address space 7 if we're using LLVM >=21.
+    N = length(dims)
     local_arr = CuDynamicSharedArray(T, dims)
     local_ptr = local_arr.ptr
     local_ptr::LLVMPtr{T,AS.Shared}
     ptr = map_shared_rank(local_ptr, blockidx)
-    #TODO CuDeviceArray{T,N,AS.DistributedShared}(ptr, dims)
-    CuDeviceArray{T,N,AS.Shared}(ptr, dims)
+    CuDeviceArray{T,N,AS.Generic}(ptr, dims)
 end
 Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, len::Integer, blockidx, offset) where {T} =
     CuDistributedSharedArray(T, (len,), blockidx, offset)
@@ -85,30 +90,23 @@ Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, len::Integer, block
 Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, dims, blockidx) where {T} =
     CuDistributedSharedArray(T, dims, blockidx, 0)
 
-@inline function map_shared_rank(local_addr::LLVMPtr{T,AS.Shared}, blockidx::Integer) where {T}
-    # declare ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %p, i32 %rank)
+@inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
     # This requires LLVM >=20
-    # @typed_ccall("llvm.nvvm.mapa.shared.cluster", llvmcall,
-    #              LLVMPtr{T,AS.DistributedShared}, (LLVMPtr{T,AS.Shared}, Cint), local_addr, blockidx - 1i32)
-    # llvmcall("llvm.nvvm.mapa.shared.cluster", 
-    #          LLVMPtr{T,AS.DistributedShared}, Tuple{LLVMPtr{T,AS.Shared}, Cint}, local_addr, Cint(blockidx - 1i32))
-    return Core.Intrinsics.llvmcall(
-        (
-            """
-            declare ptr addrspace(3) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3), i32)
-            """,
-            """
-            %2 = call ptr addrspace(3) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %0, i32 %1)
-            #TODO %3 = addrspacecast ptr addrspace(3) %2 to ptr addrspace(7)
-            #TODO ret ptr addrspace(3) %3
-            ret ptr addrspace(3) %2
-            """,
-        ),
-        #TODO LLVMPtr{T,AS.DistributedShared},
-        LLVMPtr{T,AS.Shared},
-        Tuple{LLVMPtr{T,AS.Shared}, Cint},
-        local_addr, Cint(blockidx - 1i32),
+    ptr7 = @asmcall(
+        "mapa.shared::cluster.u64 \$0, \$1, \$2;",
+        "=l,l,r",
+        LLVMPtr{Int32,AS.SharedCluster},
+        Tuple{Core.LLVMPtr{Int32,AS.Shared}, UInt32},
+        ptr_shared, Cuint(rank - 1i32),
     )
+    ptr0 = @asmcall(
+        "cvta.shared::cluster.u64 \$0, \$1;",
+        "=l,l",
+        LLVMPtr{Int32,AS.Global},
+        Tuple{Core.LLVMPtr{Int32,AS.SharedCluster}},
+        ptr7,
+    )
+    return ptr0
 end
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
@@ -221,26 +219,3 @@ export malloc
         call_function(llvm_f, Ptr{Cvoid}, Tuple{Csize_t}, :sz)
     end
 end
-
-#TODO export map_shared_rank
-#TODO 
-#TODO """
-#TODO     map_shared_rank(local_addr, blockidx)
-#TODO 
-#TODO Find remote memory addresses of other blocks in our thread block
-#TODO cluster.
-#TODO 
-#TODO Each block in a thread block cluster uses the same shared memory
-#TODO layout. However, the shared memory regions are distinct.
-#TODO `map_shared_rank` converts the *local* shared memory address
-#TODO `local_addr` into the corresponding *remote* shared memory address in
-#TODO block `blockidx`. This allows accessing remote shared memory.
-#TODO 
-#TODO This function corresponds to `map_shared_rank` in C++ CUDA.
-#TODO """
-#TODO @inline function map_shared_rank(local_addr::LLVMPtr{T,AS.Shared}, blockidx::Integer) where {T}
-#TODO     # declare ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %p, i32 %rank)
-#TODO     # This requires LLVM >=20
-#TODO     @typed_ccall("llvm.nvvm.mapa.shared.cluster", llvmcall,
-#TODO                  LLVMPtr{T,AS.DistributedShared}, (LLVMPtr{T,AS.Shared}, Cint), local_addr, blockidx - 1i32)
-#TODO end
