@@ -74,59 +74,54 @@ for dim in (:x, :y, :z)
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_cluster_size[dim])))
 end
 
-@device_functions begin
-
 """
     gridDim()::NamedTuple
 
 Returns the dimensions (in blocks) of the grid.
 """
-# @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
-gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+@device_function @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
 
 """
     clusterIdx()::NamedTuple
 
 Returns the cluster index within the grid.
 """
-@inline function clusterIdx()
-    (x=clusterIdx_x(), y=clusterIdx_y(), z=clusterIdx_z())
-end
+@device_function @inline clusterIdx() = (x=clusterIdx_x(), y=clusterIdx_y(), z=clusterIdx_z())
 
 """
     clusterDim()::NamedTuple
 
 Returns the dimensions (in blocks) of the cluster
 """
-@inline clusterDim() = (x=clusterDim_x(), y=clusterDim_y(), z=clusterDim_z())
+@device_function @inline clusterDim() = (x=clusterDim_x(), y=clusterDim_y(), z=clusterDim_z())
 
 """
     blockIdx()::NamedTuple
 
 Returns the block index within the grid.
 """
-@inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
+@device_function @inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
 
 """
     blockDim()::NamedTuple
 
 Returns the dimensions (in threads) of the block.
 """
-@inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
+@device_function @inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
 
 """
     threadIdx()::NamedTuple
 
 Returns the thread index within the block.
 """
-@inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
+@device_function @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
 
 """
     blockIdxInCluster()::NamedTuple
 
 Returns the block index within the cluster.
 """
-@inline function blockIdxInCluster()
+@device_function @inline function blockIdxInCluster()
     gd = gridDim()
     bi = blockIdx()
     cd = clusterDim()
@@ -158,14 +153,14 @@ end
 
 Returns the warp size (in threads).
 """
-@inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
+@device_function @inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
 
 """
     laneid()::Int32
 
 Returns the thread's lane within the warp.
 """
-@inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
+@device_function @inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
 
 """
     lanemask(pred)::UInt32
@@ -173,7 +168,7 @@ Returns the thread's lane within the warp.
 Returns a 32-bit mask indicating which threads in a warp satisfy the given predicate.
 Supported predicates are `==`, `<`, `<=`, `>=`, and `>`.
 """
-@inline function lanemask(pred::F) where F
+@device_function @inline function lanemask(pred::F) where F
     if pred === Base.:(==)
         ccall("llvm.nvvm.read.ptx.sreg.lanemask.eq", llvmcall, UInt32, ())
     elseif pred === Base.:(<)
@@ -195,8 +190,6 @@ end
 Returns a 32-bit mask indicating which threads in a warp are active with the current
 executing thread.
 """
-@inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
-
-end
+@device_function @inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
 
 const FULL_MASK = 0xffffffff
