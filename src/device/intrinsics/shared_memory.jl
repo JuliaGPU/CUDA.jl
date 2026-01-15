@@ -89,17 +89,17 @@ Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, dims, blockidx) whe
     # This requires LLVM >=20
     # @typed_ccall("llvm.nvvm.mapa.shared.cluster", llvmcall,
     #              LLVMPtr{T,AS.DistributedShared}, (LLVMPtr{T,AS.Shared}, Cint), local_addr, blockidx - 1i32)
+    # llvmcall("llvm.nvvm.mapa.shared.cluster", 
+    #          LLVMPtr{T,AS.DistributedShared}, Tuple{LLVMPtr{T,AS.Shared}, Cint}, local_addr, Cint(blockidx - 1i32))
     return Core.Intrinsics.llvmcall(
         """
         %remote_ptr = call ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %0, i32 %1)
         ret ptr addrspace(7) %remote_ptr
         """,
         LLVMPtr{T,AS.DistributedShared},
-        (LLVMPtr{T,AS.Shared}, Cint),
+        Tuple{LLVMPtr{T,AS.Shared}, Cint},
         local_addr, Cint(blockidx - 1i32),
     )
-    llvmcall("llvm.nvvm.mapa.shared.cluster", 
-             LLVMPtr{T,AS.DistributedShared}, Tuple{LLVMPtr{T,AS.Shared}, Cint}, local_addr, Cint(blockidx - 1i32))
 end
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
