@@ -89,7 +89,9 @@ gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
 
 Returns the cluster index within the grid.
 """
-@inline clusterIdx() = (x=clusterIdx_x(), y=clusterIdx_y(), z=clusterIdx_z())
+@inline function clusterIdx()
+    (x=clusterIdx_x(), y=clusterIdx_y(), z=clusterIdx_z())
+end
 
 """
     clusterDim()::NamedTuple
