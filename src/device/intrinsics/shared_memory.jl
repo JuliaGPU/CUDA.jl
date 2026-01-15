@@ -200,6 +200,7 @@ This function corresponds to `map_shared_rank` in C++ CUDA.
 """
 @inline function map_shared_rank(local_addr::LLVMPtr{T,AS.Shared}, blockidx::Integer) where {T}
     # declare ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %p, i32 %rank)
+    # This requires LLVM >=20
     @typed_ccall("llvm.nvvm.mapa.shared.cluster", llvmcall,
-                 LLVMPtr{T,AS.DistributedShared}, (LLVMPtr{T,AS.Shared}, Cint), local_addr, blockidx - 1i32)
+                 LLVMPtr{T,AS.SharedCluster}, (LLVMPtr{T,AS.Shared}, Cint), local_addr, blockidx - 1i32)
 end

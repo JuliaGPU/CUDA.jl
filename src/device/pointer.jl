@@ -6,14 +6,14 @@ export AS
 
 module AS
 
-const Generic           = 0
-const Global            = 1
-# const Constant          = 2       # the actual "Constant" space, not used here
-const Shared            = 3
-const Constant          = 4         # actually "Parameter", but we call it "Constant"
-const Local             = 5
-# const Texture           = 6       # aka "Surface", not used here
-const DistributedShared = 7
+const Generic       = 0
+const Global        = 1
+# const Constant      = 2       # the actual "Constant" space, not used here
+const Shared        = 3
+const Constant      = 4         # actually "Parameter", but we call it "Constant"
+const Local         = 5
+# const Texture       = 6       # aka "Surface", not used here
+const SharedCluster = 7
 
 end
 
