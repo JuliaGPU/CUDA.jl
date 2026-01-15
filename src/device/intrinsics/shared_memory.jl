@@ -94,7 +94,7 @@ Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, dims, blockidx) whe
     return Core.Intrinsics.llvmcall(
         (
             """
-            declare ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %p, i32 %rank)
+            declare ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3), i32)
             """,
             """
             %2 = call ptr addrspace(7) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %0, i32 %1)
