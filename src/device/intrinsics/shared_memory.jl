@@ -76,7 +76,8 @@ dynamic_smem_size() =
     local_ptr = local_arr.ptr
     local_ptr::LLVMPtr{T,AS.Shared}
     ptr = map_shared_rank(local_ptr, blockidx)
-    CuDeviceArray{T,N,AS.DistributedShared}(ptr, dims)
+    #TODO CuDeviceArray{T,N,AS.DistributedShared}(ptr, dims)
+    CuDeviceArray{T,N,AS.Shared}(ptr, dims)
 end
 Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, len::Integer, blockidx, offset) where {T} =
     CuDistributedSharedArray(T, (len,), blockidx, offset)
@@ -98,11 +99,13 @@ Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, dims, blockidx) whe
             """,
             """
             %2 = call ptr addrspace(3) @llvm.nvvm.mapa.shared.cluster(ptr addrspace(3) %0, i32 %1)
-            %3 = addrspacecast ptr addrspace(3) %2 to ptr addrspace(7)
-            ret ptr addrspace(7) %3
+            #TODO %3 = addrspacecast ptr addrspace(3) %2 to ptr addrspace(7)
+            #TODO ret ptr addrspace(3) %3
+            ret ptr addrspace(3) %2
             """,
         ),
-        LLVMPtr{T,AS.DistributedShared},
+        #TODO LLVMPtr{T,AS.DistributedShared},
+        LLVMPtr{T,AS.Shared},
         Tuple{LLVMPtr{T,AS.Shared}, Cint},
         local_addr, Cint(blockidx - 1i32),
     )
