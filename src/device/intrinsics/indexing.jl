@@ -1,7 +1,8 @@
 # Indexing and dimensions (B.4)
 
 export
-    threadIdx, blockDim, blockIdx, gridDim, clusterIdx, clusterDim, blockIdxInCluster,
+    threadIdx, blockDim, blockIdx, gridDim, blockIdxInCluster, clusterDim, clusterIdx, gridClusterDim,
+    linearBlockIdxInCluster, linearClusterSize,
     laneid, lanemask, warpsize, active_mask, FULL_MASK
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
@@ -65,7 +66,7 @@ for dim in (:x, :y, :z)
     
     # Block index in cluster
     fn = Symbol("blockIdxInCluster_$dim")
-    intr = Symbol("cluster_ctaid.$dim")
+    intr = Symbol("cluster.ctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_cluster_size[dim]-1))) + 1i32
 
     # Cluster size (#blocks per cluster)
@@ -78,9 +79,9 @@ for dim in (:x, :y, :z)
     intr = Symbol("clusterid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_grid_size[dim]÷max_cluster_size[dim]-1))) + 1i32
 
-    # Grid size (#clusters per grid)
-    fn = Symbol("GridClusterDim_$dim")
-    intr = Symbol("cluster_nctaid.$dim")
+    # Grid size in clusters (#clusters per grid)
+    fn = Symbol("gridClusterDim_$dim")
+    intr = Symbol("cluster.nctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim]÷max_grid_size[dim])))
 end
 
@@ -139,6 +140,21 @@ Returns the cluster index within the grid.
 Returns the dimensions (in clusters) of the grid
 """ gridClusterDim
 @device_function @inline gridClusterDim() = (x=gridClusterDim_x(), y=gridClusterDim_y(), z=gridClusterDim_z())
+
+@doc """
+    linearBlockIdxInCluster()::Int32
+
+Returns the linear block index within the cluster.
+""" linearBlockIdxInCluster
+@eval @device_function @inline $(:linearBlockIdxInCluster)() =
+    _index($(Val(Symbol("cluster.ctarank"))), $(Val(0:prod(max_cluster_size)-1))) + 1i32
+
+@doc """
+    linearClusterSize()::Int32
+
+Returns the linear cluster size (in blocks).
+""" linearClusterSize
+@eval @device_function @inline $(:linearClusterSize)() = _index($(Val(Symbol("cluster.nctarank"))), $(Val(1:prod(max_cluster_size))))
 
 @doc """
     warpsize()::Int32
