@@ -72,16 +72,19 @@ dynamic_smem_size() =
     @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
 @inline Base.@propagate_inbounds function CuDistributedSharedArray(::Type{T}, dims::Tuple, blockidx::Integer, offset) where {T}
-    # Distributed shared memory has address space 7. This is only
-    # supported in LLVM >= 21 which we can't yet use with Julia. We
-    # therefore need to map it to address space 0.
+    # Distributed shared memory has address space 7 (SharedCluster).
+    # This is only supported in LLVM >= 21 which we can't yet use with
+    # Julia. We therefore need to map it to address space 0 (Generic).
     #
-    # We should change this to be address space 7 if we're using LLVM >=21.
+    # We should change this to be address space 7 (SharedCluster) if
+    # we're using LLVM >=21.
+
     N = length(dims)
     local_arr = CuDynamicSharedArray(T, dims)
     local_ptr = local_arr.ptr
     local_ptr::LLVMPtr{T,AS.Shared}
     ptr = map_shared_rank(local_ptr, blockidx)
+    ptr::LLVMPtr{T,AS.Generic}
     CuDeviceArray{T,N,AS.Generic}(ptr, dims)
 end
 Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, len::Integer, blockidx, offset) where {T} =
@@ -91,19 +94,19 @@ Base.@propagate_inbounds CuDistributedSharedArray(::Type{T}, dims, blockidx) whe
     CuDistributedSharedArray(T, dims, blockidx, 0)
 
 @inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
-    # This requires LLVM >=20
+    # This requires LLVM >=20 (i.e. Julia >= 1.13)
     ptr7 = @asmcall(
         "mapa.shared::cluster.u64 \$0, \$1, \$2;",
         "=l,l,r",
-        LLVMPtr{Int32,AS.SharedCluster},
-        Tuple{Core.LLVMPtr{Int32,AS.Shared}, UInt32},
-        ptr_shared, Cuint(rank - 1i32),
+        LLVMPtr{T,AS.SharedCluster},
+        Tuple{Core.LLVMPtr{T,AS.Shared}, Int32},
+        ptr_shared, Int32(rank - 1i32),
     )
     ptr0 = @asmcall(
         "cvta.shared::cluster.u64 \$0, \$1;",
         "=l,l",
-        LLVMPtr{Int32,AS.Global},
-        Tuple{Core.LLVMPtr{Int32,AS.SharedCluster}},
+        LLVMPtr{T,AS.Generic},
+        Tuple{Core.LLVMPtr{T,AS.SharedCluster}},
         ptr7,
     )
     return ptr0
