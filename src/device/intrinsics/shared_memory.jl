@@ -80,7 +80,7 @@ dynamic_smem_size() =
     # we're using LLVM >=21.
 
     ptr = map_shared_rank(shared_array.ptr, blockidx)
-    CuDeviceArray{T,N,AS.Generic}(ptr, dims)
+    CuDeviceArray{T,N,AS.Generic}(ptr, shared_array.dims, shared_array.maxsize)
 end
 
 @inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
