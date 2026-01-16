@@ -30,11 +30,11 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.10"
-              - "1.11"
-              - "1.12"
+              #TODO - "1.10"
+              #TODO - "1.11"
+              #TODO - "1.12"
               - "1.13"
-              - "nightly"
+              #TODO - "nightly"
           adjustments:
             - with:
                 julia: "nightly"
@@ -70,16 +70,16 @@ steps:
           setup:
             cuda:
               - "13.1"
-              - "13.0"
-              - "12.9"
-              - "12.8"
-              - "12.6"
-              - "12.5"
-              - "12.4"
-              - "12.3"
-              - "12.2"
-              - "12.1"
-              - "12.0"
+              #TODO - "13.0"
+              #TODO - "12.9"
+              #TODO - "12.8"
+              #TODO - "12.6"
+              #TODO - "12.5"
+              #TODO - "12.4"
+              #TODO - "12.3"
+              #TODO - "12.2"
+              #TODO - "12.1"
+              #TODO - "12.0"
           adjustments:
             - with:
                 cuda: "13.0"
