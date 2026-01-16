@@ -38,7 +38,7 @@ function has_nvml()
             return false
         end
 
-        if Libdl.dlopen(libnvml(); throw_error=false) === nothing
+        if Libdl.dlopen(libnvml; throw_error=false) === nothing
             return false
         end
 
