@@ -86,6 +86,12 @@ end
 
 const cublasLtMatmulPreference_t = Ptr{cublasLtMatmulPreferenceOpaque_t}
 
+struct cublasLtEmulationDescOpaque_t
+    data::NTuple{8,UInt64}
+end
+
+const cublasLtEmulationDesc_t = Ptr{cublasLtEmulationDescOpaque_t}
+
 @cenum cublasLtMatmulTile_t::UInt32 begin
     CUBLASLT_MATMUL_TILE_UNDEFINED = 0
     CUBLASLT_MATMUL_TILE_8x8 = 1
@@ -998,6 +1004,7 @@ end
     CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_MODE = 35
     CUBLASLT_MATMUL_DESC_D_OUT_SCALE_POINTER = 36
     CUBLASLT_MATMUL_DESC_D_OUT_SCALE_MODE = 37
+    CUBLASLT_MATMUL_DESC_EMULATION_DESCRIPTOR = 38
 end
 
 @checked function cublasLtMatmulDescInit_internal(matmulDesc, size, computeType, scaleType)
@@ -1093,6 +1100,54 @@ end
                                                                       buf::Ptr{Cvoid},
                                                                       sizeInBytes::Csize_t,
                                                                       sizeWritten::Ptr{Csize_t})::cublasStatus_t
+end
+
+@cenum cublasLtEmulationDescAttributes_t::UInt32 begin
+    CUBLASLT_EMULATION_DESC_STRATEGY = 0
+    CUBLASLT_EMULATION_DESC_SPECIAL_VALUES_SUPPORT = 1
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_CONTROL = 2
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MAX_MANTISSA_BIT_COUNT = 3
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_OFFSET = 4
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_COUNT_POINTER = 5
+end
+
+@checked function cublasLtEmulationDescInit_internal(emulationDesc, size)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescInit_internal(emulationDesc::cublasLtEmulationDesc_t,
+                                                                 size::Csize_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescInit(emulationDesc)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescInit(emulationDesc::cublasLtEmulationDesc_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescCreate(emulationDesc)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescCreate(emulationDesc::Ptr{cublasLtEmulationDesc_t})::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescDestroy(emulationDesc)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescDestroy(emulationDesc::cublasLtEmulationDesc_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescSetAttribute(emulationDesc, attr, buf, sizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescSetAttribute(emulationDesc::cublasLtEmulationDesc_t,
+                                                                attr::cublasLtEmulationDescAttributes_t,
+                                                                buf::Ptr{Cvoid},
+                                                                sizeInBytes::Csize_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescGetAttribute(emulationDesc, attr, buf, sizeInBytes,
+                                                    sizeWritten)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescGetAttribute(emulationDesc::cublasLtEmulationDesc_t,
+                                                                attr::cublasLtEmulationDescAttributes_t,
+                                                                buf::Ptr{Cvoid},
+                                                                sizeInBytes::Csize_t,
+                                                                sizeWritten::Ptr{Csize_t})::cublasStatus_t
 end
 
 @cenum cublasLtReductionScheme_t::UInt32 begin
@@ -1344,7 +1399,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2521:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2670:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t
