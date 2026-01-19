@@ -33,6 +33,7 @@ steps:
               - "1.10"
               - "1.11"
               - "1.12"
+              - "1.13"
               - "nightly"
           adjustments:
             - with:
@@ -47,7 +48,7 @@ steps:
       - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
@@ -68,6 +69,7 @@ steps:
         matrix:
           setup:
             cuda:
+              - "13.1"
               - "13.0"
               - "12.9"
               - "12.8"
@@ -78,10 +80,10 @@ steps:
               - "12.2"
               - "12.1"
               - "12.0"
-          adjustments:
-            - with:
-                cuda: "13.0"
-              soft_fail: true
+          #TODO adjustments:
+          #TODO   - with:
+          #TODO       cuda: "13.0"
+          #TODO     soft_fail: true
         commands: |
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
 
@@ -149,7 +151,7 @@ steps:
       #- label: "NNlib.jl"
       #  plugins:
       #    - JuliaCI/julia#v1:
-      #        version: "1.11"
+      #        version: "1.12"
       #    - JuliaCI/julia-coverage#v1:
       #        dirs:
       #          - src
@@ -258,7 +260,7 @@ steps:
       - label: "GPU-less environment"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -290,7 +292,7 @@ steps:
       - label: "Compute sanitizer"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--sanitize core base"
           - JuliaCI/julia-coverage#v1:
@@ -312,7 +314,7 @@ steps:
       - label: "Legacy memory allocator"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base"
           - JuliaCI/julia-coverage#v1:
@@ -336,7 +338,7 @@ steps:
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
@@ -365,7 +367,7 @@ steps:
       - label: "MultiGPU"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--gpu=0,1 --quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
@@ -391,7 +393,7 @@ steps:
   - label: ":books: Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.11"
+          version: "1.12"
     command: |
       julia --project -e '
         println("--- :julia: Instantiating project")
@@ -415,7 +417,7 @@ steps:
   - label: ":racehorse: Benchmarks"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.11"
+          version: "1.12"
     command: |
       julia --project=perf -e '
         using Pkg
