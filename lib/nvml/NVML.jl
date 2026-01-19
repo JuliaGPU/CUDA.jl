@@ -12,21 +12,17 @@ import Libdl
 
 export has_nvml
 
-function libnvml()
-    @memoize begin
-        if Sys.iswindows()
-            # the NVSMI dir isn't added to PATH by the installer
-            nvsmi = joinpath(ENV["ProgramFiles"], "NVIDIA Corporation", "NVSMI")
-            if isdir(nvsmi)
-                joinpath(nvsmi, "nvml.dll")
-            else
-                # let's just hope for the best
-                "nvml"
-            end
-        else
-            "libnvidia-ml.so.1"
+# Compile-time constant for `ccall` (Julia 1.13 needs this)
+const libnvml::String = @static Sys.iswindows() ? "nvml" : "libnvidia-ml.so.1"
+
+function __init__()
+    if Sys.iswindows()
+        # NVSMI dir isn't added to PATH by the installer; add it to Julia's DLL search path.
+        nvsmi = joinpath(get(ENV, "ProgramFiles", raw"C:\Program Files"), "NVIDIA Corporation", "NVSMI")
+        if isdir(nvsmi) && !(nvsmi in Libdl.DL_LOAD_PATH)
+            pushfirst!(Libdl.DL_LOAD_PATH, nvsmi)
         end
-    end::String
+    end
 end
 
 function has_nvml()
@@ -37,7 +33,7 @@ function has_nvml()
             return false
         end
 
-        if Libdl.dlopen(libnvml(); throw_error=false) === nothing
+        if Libdl.dlopen(libnvml; throw_error=false) === nothing
             return false
         end
 
