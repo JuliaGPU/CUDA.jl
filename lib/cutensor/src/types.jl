@@ -164,7 +164,8 @@ mutable struct CuTensorPlan
         cutensorPlanGetAttribute(handle(), plan_ref[], CUTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
         workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
 
-        obj = new(context(), plan_ref[], workspace, required_scalar_type[])
+        # obj = new(context(), plan_ref[], workspace, required_scalar_type[])
+        obj = new(context(), plan_ref[], workspace, convert(Type, required_scalar_type[]))
         finalizer(CUDA.unsafe_free!, obj)
         return obj
     end

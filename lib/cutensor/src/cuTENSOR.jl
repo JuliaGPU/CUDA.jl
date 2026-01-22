@@ -5,6 +5,8 @@ using CUDA.APIUtils
 using CUDA: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
 using CUDA: retry_reclaim, initialize_context, isdebug
 
+using CUDA.GPUToolbox
+
 using CEnum: @cenum
 
 using Printf: @printf
@@ -33,8 +35,14 @@ include("utils.jl")
 include("types.jl")
 include("operations.jl")
 
+
+# Block sparse wrappers
+include("blocksparse/types.jl")
+include("blocksparse/operations.jl")
+
 # high-level integrations
 include("interfaces.jl")
+include("blocksparse/interfaces.jl")
 
 
 ## handles
@@ -116,7 +124,10 @@ function __init__()
             precompiling || @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
             return
         end
-        libcutensor = CUTENSOR_jll.libcutensor
+        ## TODO add a comment about this in the docs
+        #libcutensor = "/home/kpierce/dev/libcutensor/lib/13/libcutensor.so"
+        libcutensor = "/mnt/home/kpierce/Software/libcutensor-linux-x86_64-2.3.1.0_cuda13-archive/lib/libcutensor.so"
+        #libcutensor = CUTENSOR_jll.libcutensor
     end
 
     # register a log callback
