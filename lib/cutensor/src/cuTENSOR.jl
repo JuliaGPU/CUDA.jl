@@ -124,10 +124,7 @@ function __init__()
             precompiling || @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
             return
         end
-        ## TODO add a comment about this in the docs
-        #libcutensor = "/home/kpierce/dev/libcutensor/lib/13/libcutensor.so"
-        libcutensor = "/mnt/home/kpierce/Software/libcutensor-linux-x86_64-2.3.1.0_cuda13-archive/lib/libcutensor.so"
-        #libcutensor = CUTENSOR_jll.libcutensor
+        libcutensor = CUTENSOR_jll.libcutensor
     end
 
     # register a log callback
