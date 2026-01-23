@@ -95,31 +95,6 @@ function Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::cutensorComputeDe
 end
 
 
-function Base.convert(::Type{cutensorDataType_t}, T::DataType)
-    if T == Float16
-        return CUTENSOR_R_16F
-    elseif T == ComplexF16
-        return CUTENSOR_C_16F
-    elseif T == Float32
-        return CUTENSOR_R_32F
-    elseif T == ComplexF32
-        return CUTENSOR_C_32F
-    elseif T == Float64
-        return CUTENSOR_R_64F
-    elseif T == ComplexF64
-        return CUTENSOR_C_64F
-    elseif T == Int8
-        return CUTENSOR_R_8I
-    elseif T == Int32
-        return CUTENSOR_R_32I
-    elseif T == UInt8
-        return CUTENSOR_R_8U
-    elseif T == UInt32
-        return CUTENSOR_R_32U
-    else
-        throw(ArgumentError("cutensorDataType equivalent for input type $T does not exist!"))
-    end
-end
 
 function Base.convert(::DataType, T::cutensorDataType_t)
     if T == CUTENSOR_R_16F
