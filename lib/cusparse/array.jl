@@ -53,6 +53,9 @@ mutable struct CuSparseMatrixCSC{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSC
         new{Tv, Ti}(colPtr, rowVal, nzVal, dims, length(nzVal))
     end
 end
+function GPUSparseMatrixCSC(colPtr::CuVector{Ti, 1}, rowVal::CuVector{Ti, 1}, nzVal::CuVector{Tv, 1}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+    return CuSparseMatrixCSC{Tv, Ti}(colPtr, rowVal, nzVal, dims)
+end
 CuSparseMatrixCSC{Tv, Ti}(csc::CuSparseMatrixCSC{Tv, Ti}) where {Tv, Ti} = csc
 
 SparseArrays.rowvals(g::T) where {T<:CuSparseVector} = nonzeroinds(g)
@@ -94,7 +97,9 @@ mutable struct CuSparseMatrixCSR{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSR
         new{Tv, Ti}(rowPtr, colVal, nzVal, dims, length(nzVal))
     end
 end
-
+function GPUSparseMatrixCSR(rowPtr::CuVector{Ti, 1}, colVal::CuVector{Ti, 1}, nzVal::CuVector{Tv, 1}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+    return CuSparseMatrixCSR{Tv, Ti}(rowPtr, colVal, nzVal, dims)
+end
 CuSparseMatrixCSR{Tv, Ti}(csr::CuSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} = csr
 CuSparseMatrixCSR(A::CuSparseMatrixCSR) = A
 
@@ -147,6 +152,9 @@ mutable struct CuSparseMatrixBSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
         new{Tv, Ti}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
     end
 end
+function GPUSparseMatrixBSR(rowPtr::CuVector{Ti, 1}, colVal::CuVector{Ti, 1}, nzVal::CuVector{Tv, 1}, dims::NTuple{2,<:Integer}, blockDim::Integer, args...) where {Tv, Ti <: Integer}
+    return CuSparseMatrixBSR{Tv, Ti}(rowPtr, colVal, nzVal, dims, blockDim, args...)
+end
 
 CuSparseMatrixBSR(A::CuSparseMatrixBSR) = A
 
@@ -177,7 +185,9 @@ mutable struct CuSparseMatrixCOO{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
         new{Tv, Ti}(rowInd,colInd,nzVal,dims,nnz)
     end
 end
-
+function GPUSparseMatrixCOO(rowInd::CuVector{Ti, 1}, colInd::CuVector{Ti, 1}, nzVal::CuVector{Tv, 1}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+    return CuSparseMatrixCOO{Tv, Ti}(rowInd, colInd, nzVal, dims)
+end
 CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
 
 mutable struct CuSparseArrayCSR{Tv, Ti, N} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, N}
