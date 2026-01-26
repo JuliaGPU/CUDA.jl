@@ -23,10 +23,12 @@ export
             intr = LLVM.Function(mod, "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
             idx = call!(builder, intr_typ, intr)
 
-            # attach range metadata
-            range_metadata = MDNode([ConstantInt(Int32(range.start)),
-                                     ConstantInt(Int32(range.stop + 1))])
-            metadata(idx)[LLVM.MD_range] = range_metadata
+            # attach range metadata if possible
+            if range.stop < typemax(Int32)
+                range_metadata = MDNode([ConstantInt(Int32(range.start)),
+                                         ConstantInt(Int32(range.stop + 1))])
+                metadata(idx)[LLVM.MD_range] = range_metadata
+            end
 
             ret!(builder, idx)
         end
