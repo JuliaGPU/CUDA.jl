@@ -23,10 +23,10 @@ export
             intr = LLVM.Function(mod, "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
             idx = call!(builder, intr_typ, intr)
 
-            # attach range metadata
-            range_metadata = MDNode([ConstantInt(Int32(range.start)),
-                                     ConstantInt(Int32(range.stop))])
-            metadata(idx)[LLVM.MD_range] = range_metadata
+            #TODO # attach range metadata
+            #TODO range_metadata = MDNode([ConstantInt(Int32(range.start)),
+            #TODO                          ConstantInt(Int32(range.stop))])
+            #TODO metadata(idx)[LLVM.MD_range] = range_metadata
 
             ret!(builder, idx)
         end
@@ -38,10 +38,12 @@ end
 # XXX: these depend on the compute capability
 #      https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities
 const max_block_size = (x=1024, y=1024, z=64)
+const max_block_length = 1024
 const max_grid_size  = (x=2^31-1, y=65535, z=65535)
-# maximum total "linear" dimension is 8, 16 on Hopper
+# maximum guaranteed linear dimension is 8, but 16 is possible on Hopper
 # https://forums.developer.nvidia.com/t/cluster-size-limitation/279795
-const max_cluster_size = (x=8, y=8, z=8)
+const max_cluster_size = (x=16, y=16, z=16)
+const max_cluster_length = 16
 
 for dim in (:x, :y, :z)
     # Thread index in block
@@ -147,14 +149,14 @@ Returns the dimensions (in clusters) of the grid
 Returns the linear block index within the cluster.
 """ linearBlockIdxInCluster
 @eval @device_function @inline $(:linearBlockIdxInCluster)() =
-    _index($(Val(Symbol("cluster.ctarank"))), $(Val(0:prod(max_cluster_size)-1))) + 1i32
+    _index($(Val(Symbol("cluster.ctarank"))), $(Val(0:max_cluster_length-1))) + 1i32
 
 @doc """
     linearClusterSize()::Int32
 
 Returns the linear cluster size (in blocks).
 """ linearClusterSize
-@eval @device_function @inline $(:linearClusterSize)() = _index($(Val(Symbol("cluster.nctarank"))), $(Val(1:prod(max_cluster_size))))
+@eval @device_function @inline $(:linearClusterSize)() = _index($(Val(Symbol("cluster.nctarank"))), $(Val(1:max_cluster_length)))
 
 @doc """
     warpsize()::Int32
