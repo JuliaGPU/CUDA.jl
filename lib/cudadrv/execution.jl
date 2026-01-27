@@ -93,11 +93,11 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
             end
         end
     catch err
-        diagnose_launch_failure(f, err; blockdim, threaddim, shmem)
+        diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
     end
 end
 
-@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, shmem)
+@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, clusterdim, shmem)
     if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
                                             ERROR_LAUNCH_OUT_OF_RESOURCES])
         rethrow()
@@ -105,9 +105,13 @@ end
 
     # essentials
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
-        error("Grid dimensions should be non-null")
+        error("Grid dimensions $blockdim are not positive")
     (threaddim.x>0 && threaddim.y>0 && threaddim.z>0) ||
-        error("Block dimensions should be non-null")
+        error("Block dimensions $threaddim are not positive")
+    (clusterdim.x>0 && clusterdim.y>0 && clusterdim.z>0) ||
+        error("Cluster dimensions $clusterdim are not positive")
+    (blockdim.x % clusterdim.x == 0 && blockdim.y % clusterdim.y == 0 && blockdim.z % clusterdim.z == 0) ||
+        error("Block dimensions $blockdim are not multiples of the cluster dimensions $clusterdim")
 
     # check device limits
     dev = device()
