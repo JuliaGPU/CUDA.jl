@@ -372,6 +372,10 @@ end
             @device_override @inline Base.FastMath.minmax_fast(x::$T, y::$T) = ifelse(y > x, (x, y), (y, x))
         end
     end
+
+    # For Float16, this even happens with a non-fastmath @llvm.maximum.f16
+    @device_override @inline Base.max(x::Float16, y::Float16) = ifelse(y > x, y, x)
+
 end
 
 @device_function saturate(x::Float32) = ccall("extern __nv_saturatef", llvmcall, Cfloat, (Cfloat,), x)
