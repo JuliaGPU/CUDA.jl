@@ -1049,7 +1049,7 @@ end
                                                                                     nIndexBits::UInt32,
                                                                                     nSVs::UInt32,
                                                                                     svStride::custatevecIndex_t,
-                                                                                    matrices::Ptr{Cvoid},
+                                                                                    matrices::PtrOrCuPtr{Cvoid},
                                                                                     matrixDataType::cudaDataType_t,
                                                                                     layout::custatevecMatrixLayout_t,
                                                                                     nMatrices::UInt32,
@@ -1067,20 +1067,20 @@ end
                                                       extraWorkspaceSizeInBytes)
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecComputeExpectationBatched(handle::custatevecHandle_t,
-                                                                    batchedSv::Ptr{Cvoid},
+                                                                    batchedSv::CuPtr{Cvoid},
                                                                     svDataType::cudaDataType_t,
                                                                     nIndexBits::UInt32,
                                                                     nSVs::UInt32,
                                                                     svStride::custatevecIndex_t,
-                                                                    expectationValues::Ptr{ComplexF64},
-                                                                    matrices::Ptr{Cvoid},
+                                                                    expectationValues::PtrOrCuPtr{ComplexF64},
+                                                                    matrices::PtrOrCuPtr{Cvoid},
                                                                     matrixDataType::cudaDataType_t,
                                                                     layout::custatevecMatrixLayout_t,
                                                                     nMatrices::UInt32,
                                                                     basisBits::Ptr{Int32},
                                                                     nBasisBits::UInt32,
                                                                     computeType::custatevecComputeType_t,
-                                                                    extraWorkspace::Ptr{Cvoid},
+                                                                    extraWorkspace::CuPtr{Cvoid},
                                                                     extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 
