@@ -375,6 +375,7 @@ end
 
     # For Float16, this even happens with a non-fastmath @llvm.maximum.f16
     @device_override @inline Base.max(x::Float16, y::Float16) = ifelse(y > x, y, x)
+    @device_override @inline Base.min(x::Float16, y::Float16) = ifelse(y > x, x, y)
 
 end
 
