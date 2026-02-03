@@ -24,7 +24,7 @@ export
 
             # attach range metadata
             range_metadata = MDNode([ConstantInt(Int32(range.start)),
-                                     ConstantInt(Int32(range.stop))])
+                                     ConstantInt(Int32(range.stop+1))])
             metadata(idx)[LLVM.MD_range] = range_metadata
 
             ret!(builder, idx)
