@@ -27,8 +27,8 @@ jobs:
 
     strategy:
       matrix:
-        julia: ["1.10", "1.11"]
-        cuda: ["11.8", "12.6"]
+        julia: ["1.10", "1.11", "1.12", "1.13-nightly"]
+        cuda: ["11.8", "12.6", "13.1"]
         platform: ["linux/amd64"]
         os: ["ubuntu-24.04"]
         include:

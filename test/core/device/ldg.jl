@@ -1,6 +1,11 @@
 @testset "ldg" begin
     ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}))
-    @test occursin("@llvm.nvvm.ldg", ir)
+    if Base.libllvm_version >= v"20"
+        @test occursin("load i64, ptr addrspace(1)", ir)
+    else
+        # `@llvm.nvvm.ldg` only exists in LLVM <20
+        @test occursin("@llvm.nvvm.ldg", ir)
+    end
 end
 
 
