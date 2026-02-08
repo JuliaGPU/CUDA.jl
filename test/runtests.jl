@@ -340,7 +340,7 @@ try
         end
     end
     @sync begin
-        function recycle_worker(p)
+        function recycle_worker(p, timeout=0)
             if isdefined(CUDA, :to)
                 to = remotecall_fetch(p) do
                     CUDA.to
@@ -348,7 +348,7 @@ try
                 push!(timings, to)
             end
 
-            rmprocs(p, waitfor=30)
+            rmprocs(p, waitfor=timeout)
 
             return nothing
         end
@@ -398,10 +398,10 @@ try
                     # resetting the context breaks certain CUDA libraries,
                     # so spawn a new worker when the test did so
                     if test in ["core/initialization", "core/cudadrv"]
-                        p = recycle_worker(p)
+                        p = recycle_worker(p, 30)
                     end
                 end
-
+                # is this actually needed at the end of the run?
                 if p !== nothing
                     recycle_worker(p)
                 end
