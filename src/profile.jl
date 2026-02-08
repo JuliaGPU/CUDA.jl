@@ -531,9 +531,6 @@ function capture(cfg)
             local_mem = (thread=Int64(record.localMemoryPerThread),
                          total=Int64(record.localMemoryTotal))
 
-            # demangle the kernel name
-            name = chomp(read(`$(demumble()) $name`, String))
-
             push_row!(device_trace, (; id, start=t0, stop=t1, name,
                                       device=record.deviceId,
                                       context=record.contextId,
@@ -593,6 +590,13 @@ function capture(cfg)
         end
     end
 
+    # Batch-demangle all kernel names in a single demumble invocation. This is
+    # much faster than demangling them one-by-one.
+    if !isempty(device_trace.name)
+        input = join(device_trace.name, '\n')
+        demangled = split(readchomp(pipeline(IOBuffer(input), `$(demumble())`)), '\n')
+        copy!(device_trace.name, demangled)
+    end
 
     # add details column via Dict lookup (replaces leftjoin)
     host_details = Union{Missing,String}[get(details, id, missing) for id in host_trace.id]
