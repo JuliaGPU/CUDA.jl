@@ -1,7 +1,7 @@
 # Indexing and dimensions (B.4)
 
 export
-    threadIdx, blockDim, blockIdx, gridDim,
+    threadIdx, blockDim, blockIdx, gridDim, clusterIdx, clusterDim,
     laneid, lanemask, warpsize, active_mask, FULL_MASK
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
@@ -38,6 +38,9 @@ end
 #      https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities
 const max_block_size = (x=1024, y=1024, z=64)
 const max_grid_size  = (x=2^31-1, y=65535, z=65535)
+# maximum total "linear" dimension is 8, 16 on Hopper
+# https://forums.developer.nvidia.com/t/cluster-size-limitation/279795
+const max_cluster_size = (x=8, y=8, z=8)
 
 for dim in (:x, :y, :z)
     # Thread index
@@ -59,6 +62,16 @@ for dim in (:x, :y, :z)
     fn = Symbol("gridDim_$dim")
     intr = Symbol("nctaid.$dim")
     @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim])))
+    
+    # Cluster index
+    fn = Symbol("clusterIdx_$dim")
+    intr = Symbol("clusterid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_cluster_size[dim]-1))) + 1i32
+
+    # Cluster size in grid (#clusters per grid)
+    fn = Symbol("clusterDim_$dim")
+    intr = Symbol("nclusterid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_cluster_size[dim])))
 end
 
 @device_functions begin
@@ -69,6 +82,20 @@ end
 Returns the dimensions of the grid.
 """
 @inline gridDim() =   (x=gridDim_x(),   y=gridDim_y(),   z=gridDim_z())
+
+"""
+    clusterIdx()::NamedTuple
+
+Returns the cluster index within the grid.
+"""
+@inline clusterIdx() =  (x=clusterIdx_x(),  y=clusterIdx_y(),  z=clusterIdx_z())
+
+"""
+    clusterDim()::NamedTuple
+
+Returns the dimensions of the cluster.
+"""
+@inline clusterDim() =  (x=clusterDim_x(),  y=clusterDim_y(),  z=clusterDim_z())
 
 """
     blockIdx()::NamedTuple
