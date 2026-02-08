@@ -1,3 +1,6 @@
+using Pkg
+Pkg.add(url="https://github.com/christiangnrd/GPUArrays.jl", rev="sort")
+
 using Distributed
 using Dates
 import REPL
