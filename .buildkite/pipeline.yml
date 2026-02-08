@@ -206,7 +206,8 @@ steps:
       - label: "Enzyme.jl"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10" # XXX: Enzyme.jl is broken on 1.11
+              version: "1.10"
+              version: "1.11"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -250,7 +251,8 @@ steps:
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip downstream\]/
         timeout_in_minutes: 60
-        soft_fail: true
+        soft_fail:
+          - exit_status: 3
 
   - group: ":eyes: Special"
     depends_on: "cuda"
