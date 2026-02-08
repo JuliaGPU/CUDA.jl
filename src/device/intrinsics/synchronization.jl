@@ -12,8 +12,15 @@ export sync_threads_count, sync_threads_and, sync_threads_or
 Waits until all threads in the thread block have reached this point and all global and
 shared memory accesses made by these threads prior to `sync_threads()` are visible to all
 threads in the block.
+
+!!! note
+
+    CUDA.jl's behavior slightly differs from CUDA C here: This barrier is allowed to be
+    resolved from divergent branches, i.e., the barrier is not aligned and does not require
+    all threads in the block to execute the same barrier instruction. This is necessary
+    because the Julia compiler can introduce divergent branches, e.g., when union-splitting.
 """
-@inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
+@inline sync_threads(id::Int=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
 
 """
     sync_threads_count(predicate)
