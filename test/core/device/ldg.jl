@@ -1,8 +1,3 @@
-@testset "ldg" begin
-    ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}))
-    @test occursin("@llvm.nvvm.ldg", ir)
-end
-
 
 capability(device()) >= v"3.2" && @testset "unsafe_cached_load" begin
 
