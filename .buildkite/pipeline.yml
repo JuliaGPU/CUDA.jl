@@ -417,7 +417,7 @@ steps:
   - label: ":racehorse: Benchmarks"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.11"
+          version: "1.12"
     command: |
       julia --project=perf -e '
         using Pkg
