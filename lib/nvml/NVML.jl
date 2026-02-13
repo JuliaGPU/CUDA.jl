@@ -12,22 +12,23 @@ import Libdl
 
 export has_nvml
 
-function libnvml()
-    @memoize begin
-        if Sys.iswindows()
-            # the NVSMI dir isn't added to PATH by the installer
-            nvsmi = joinpath(ENV["ProgramFiles"], "NVIDIA Corporation", "NVSMI")
-            if isdir(nvsmi)
-                joinpath(nvsmi, "nvml.dll")
-            else
-                # let's just hope for the best
-                "nvml"
-            end
-        else
-            "libnvidia-ml.so.1"
-        end
-    end::String
-end
+#TODO function libnvml()
+#TODO     @memoize begin
+#TODO         if Sys.iswindows()
+#TODO             # the NVSMI dir isn't added to PATH by the installer
+#TODO             nvsmi = joinpath(ENV["ProgramFiles"], "NVIDIA Corporation", "NVSMI")
+#TODO             if isdir(nvsmi)
+#TODO                 joinpath(nvsmi, "nvml.dll")
+#TODO             else
+#TODO                 # let's just hope for the best
+#TODO                 "nvml"
+#TODO             end
+#TODO         else
+#TODO             "libnvidia-ml.so.1"
+#TODO         end
+#TODO     end::String
+#TODO end
+const libnvml::String = "libnvidia-ml.so.1"
 
 function has_nvml()
     @memoize begin
@@ -37,7 +38,7 @@ function has_nvml()
             return false
         end
 
-        if Libdl.dlopen(libnvml(); throw_error=false) === nothing
+        if Libdl.dlopen(libnvml; throw_error=false) === nothing
             return false
         end
 

@@ -6,11 +6,12 @@ export AS
 
 module AS
 
-const Generic  = 0
-const Global   = 1
-const Shared   = 3
-const Constant = 4
-const Local    = 5
+const Generic       = 0
+const Global        = 1
+const Shared        = 3
+const Constant      = 4
+const Local         = 5
+const SharedCluster = 7
 
 end
 

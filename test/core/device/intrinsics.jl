@@ -14,6 +14,18 @@
     @on_device blockIdx().z
     @on_device gridDim().z
 
+    if capability(device()) >= v"9.0"
+        @on_device clusterIdx().x
+        @on_device clusterIdx().y
+        @on_device clusterIdx().z
+        @on_device clusterDim().x
+        @on_device clusterDim().y
+        @on_device clusterDim().z
+        @on_device blockIdxInCluster().x
+        @on_device blockIdxInCluster().y
+        @on_device blockIdxInCluster().z
+    end
+
     @on_device warpsize()
     @on_device laneid()
     @on_device active_mask()
