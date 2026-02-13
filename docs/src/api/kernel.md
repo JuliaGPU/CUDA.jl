@@ -10,6 +10,11 @@ certain intrinsics, refer to the aforementioned NVIDIA documentation.
 
 ## Indexing and dimensions
 
+!!! note "Differences with corresponding C/C++ indexing variables"
+    The indexing functions [`blockIdx`](@ref) and [`threadIdx`](@ref) have different
+    starting index from the corresponding variables in the C/C++ extensions.
+    Be careful when literally porting code from C/C++.
+
 ```@docs
 gridDim
 blockIdx
@@ -19,7 +24,6 @@ warpsize
 laneid
 active_mask
 ```
-
 
 ## Device arrays
 

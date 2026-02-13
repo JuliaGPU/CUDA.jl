@@ -66,28 +66,32 @@ end
 """
     gridDim()::NamedTuple
 
-Returns the dimensions of the grid.
+Returns the dimensions of the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
+These dimensions have the same starting index as the `gridDim` built-in variable in the C/C++ extension.
 """
 @inline gridDim() =   (x=gridDim_x(),   y=gridDim_y(),   z=gridDim_z())
 
 """
     blockIdx()::NamedTuple
 
-Returns the block index within the grid.
+Returns the block index within the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
+These indices are 1-based, unlike the `blockIdx` built-in variable in the C/C++ extension which is 0-based.
 """
 @inline blockIdx() =  (x=blockIdx_x(),  y=blockIdx_y(),  z=blockIdx_z())
 
 """
     blockDim()::NamedTuple
 
-Returns the dimensions of the block.
+Returns the dimensions of the block as a `NamedTuple` with keys `x`, `y`, and `z`.
+These dimensions have the same starting index as the `blockDim` built-in variable in the C/C++ extension.
 """
 @inline blockDim() =  (x=blockDim_x(),  y=blockDim_y(),  z=blockDim_z())
 
 """
     threadIdx()::NamedTuple
 
-Returns the thread index within the block.
+Returns the thread index within the block as a `NamedTuple` with keys `x`, `y`, and `z`.
+These indices are 1-based, unlike the `threadIdx` built-in variable in the C/C++ extension which is 0-based.
 """
 @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
 
@@ -95,6 +99,7 @@ Returns the thread index within the block.
     warpsize()::Int32
 
 Returns the warp size (in threads).
+This corresponds to the `warpSize` built-in variable in the C/C++ extension.
 """
 @inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
 
@@ -102,6 +107,7 @@ Returns the warp size (in threads).
     laneid()::Int32
 
 Returns the thread's lane within the warp.
+This ID is 1-based.
 """
 @inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
 
