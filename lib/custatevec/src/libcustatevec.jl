@@ -100,6 +100,7 @@ end
 @cenum custatevecCollapseOp_t::UInt32 begin
     CUSTATEVEC_COLLAPSE_NONE = 0
     CUSTATEVEC_COLLAPSE_NORMALIZE_AND_ZERO = 1
+    CUSTATEVEC_COLLAPSE_RESET = 2
 end
 
 @cenum custatevecComputeType_t::UInt32 begin
@@ -170,7 +171,7 @@ end
                                                       value::Ptr{Int32})::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:532:8, please use with caution
+# no prototype is found for this function at custatevec.h:533:8, please use with caution
 function custatevecGetVersion()
     @gcsafe_ccall libcustatevec.custatevecGetVersion()::Csize_t
 end
@@ -214,7 +215,7 @@ end
     @gcsafe_ccall libcustatevec.custatevecLoggerSetMask(mask::Int32)::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:632:1, please use with caution
+# no prototype is found for this function at custatevec.h:633:1, please use with caution
 @checked function custatevecLoggerForceDisable()
     @gcsafe_ccall libcustatevec.custatevecLoggerForceDisable()::custatevecStatus_t
 end

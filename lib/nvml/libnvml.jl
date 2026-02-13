@@ -488,14 +488,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#272"
+struct var"##Ctag#317"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#272"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#317"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -504,14 +504,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#272"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#272", f::Symbol)
-    r = Ref{var"##Ctag#272"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#272"}, r)
+function Base.getproperty(x::var"##Ctag#317", f::Symbol)
+    r = Ref{var"##Ctag#317"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#317"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#272"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#317"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -521,7 +521,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#272"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#317"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1043,13 +1043,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#270"
+struct var"##Ctag#315"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#270"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#315"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1057,14 +1057,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#270"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#270", f::Symbol)
-    r = Ref{var"##Ctag#270"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#270"}, r)
+function Base.getproperty(x::var"##Ctag#315", f::Symbol)
+    r = Ref{var"##Ctag#315"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#315"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#270"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#315"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1074,7 +1074,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#270"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#315"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1355,8 +1355,8 @@ struct nvmlVgpuSchedulerParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#268"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#269"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#313"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#314"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1463,8 +1463,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#273"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#274"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#318"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#319"}(x + 0)
     return getfield(x, f)
 end
 
@@ -4892,26 +4892,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#271"
+struct var"##Ctag#316"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#271"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#316"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#271", f::Symbol)
-    r = Ref{var"##Ctag#271"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#271"}, r)
+function Base.getproperty(x::var"##Ctag#316", f::Symbol)
+    r = Ref{var"##Ctag#316"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#316"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#271"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#316"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -4923,7 +4923,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#271"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#316"}(x + 16)
     return getfield(x, f)
 end
 
@@ -5286,83 +5286,83 @@ end
                                                        pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#268"
+struct var"##Ctag#313"
     avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#268"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#313"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :timeslice && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#268", f::Symbol)
-    r = Ref{var"##Ctag#268"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#268"}, r)
+function Base.getproperty(x::var"##Ctag#313", f::Symbol)
+    r = Ref{var"##Ctag#313"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#313"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#268"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#313"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#269"
+struct var"##Ctag#314"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#269"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#314"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#269", f::Symbol)
-    r = Ref{var"##Ctag#269"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#269"}, r)
+function Base.getproperty(x::var"##Ctag#314", f::Symbol)
+    r = Ref{var"##Ctag#314"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#314"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#269"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#314"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#273"
+struct var"##Ctag#318"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#273"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#273", f::Symbol)
-    r = Ref{var"##Ctag#273"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#273"}, r)
+function Base.getproperty(x::var"##Ctag#318", f::Symbol)
+    r = Ref{var"##Ctag#318"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#318"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#273"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#318"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#274"
+struct var"##Ctag#319"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#274"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#319"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#274", f::Symbol)
-    r = Ref{var"##Ctag#274"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#274"}, r)
+function Base.getproperty(x::var"##Ctag#319", f::Symbol)
+    r = Ref{var"##Ctag#319"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#319"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#274"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#319"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
