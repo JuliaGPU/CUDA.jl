@@ -1,3 +1,4 @@
+using BFloat16s: BFloat16
 using cuDNN:
     cudnnActivationForward,
     cudnnActivationForward!,
@@ -59,3 +60,11 @@ activationtest(coef=2,mode=CUDNN_ACTIVATION_CLIPPED_RELU)
 activationtest(coef=2,mode=CUDNN_ACTIVATION_ELU)
 activationtest(alpha=2)
 activationtest(beta=2)
+
+if capability(device()) >= v"8.0"
+    (ax,ay) = randn.(BFloat16, (10,10))
+    (cx,cy) = CuArray.((ax,ay))
+    activationtest(mode=CUDNN_ACTIVATION_SIGMOID)
+    activationtest(mode=CUDNN_ACTIVATION_RELU)
+    activationtest(mode=CUDNN_ACTIVATION_TANH)
+end
