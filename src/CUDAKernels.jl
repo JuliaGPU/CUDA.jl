@@ -17,9 +17,10 @@ export CUDABackend
 struct CUDABackend <: KA.GPU
     prefer_blocks::Bool
     always_inline::Bool
+    fastmath::Bool
 end
 
-CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
+CUDABackend(; prefer_blocks=false, always_inline=false, fastmath=false) = CUDABackend(prefer_blocks, always_inline, fastmath)
 
 @inline KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
 @inline KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), zero(T))
@@ -126,7 +127,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    kernel = @cuda launch=false always_inline=backend.always_inline maxthreads=maxthreads obj.f(ctx, args...)
+    kernel = @cuda launch=false always_inline=backend.always_inline fastmath=backend.fastmath maxthreads=maxthreads obj.f(ctx, args...)
 
     # figure out the optimal workgroupsize automatically
     if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
