@@ -74,9 +74,6 @@ nB = 2
                 B  = opb == identity ? sprand(elty, k, n, 0.2) : sprand(elty, n, k, 0.2)
                 for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
                     dB = SparseMatrixType(B)
-                    if SparseMatrixType == CuSparseMatrixCOO
-                        dB = sort_coo(dB, 'C')
-                    end
                     @testset "CuMatrix * $SparseMatrixType" begin
                         @testset "A * B" begin
                             C  = opa(A) * opb(B)
