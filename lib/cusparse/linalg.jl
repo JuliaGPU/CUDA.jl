@@ -33,79 +33,83 @@ function Base.reshape(A::CuSparseMatrixCOO, dims::Dims)
     sparse(new_row, new_col, A.nzVal, dims[1], length(dims) == 1 ? 1 : dims[2], fmt = :coo)
 end
 
-function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::CuSparseMatrixCOO{T, Ti}) where {Ti, T}
-    mA,nA = size(A)
-    mB,nB = size(B)
-    out_shape = (mA * mB, nA * nB)
-    Annz = Int64(A.nnz)
-    Bnnz = Int64(B.nnz)
+_kron_CuSparseMatrixCOO_components(A::CuSparseMatrixCOO) = A.rowInd, A.colInd, A.nzVal, identity, Int(A.nnz)
+_kron_CuSparseMatrixCOO_components(At::Transpose{<:Number, <:CuSparseMatrixCOO}) = parent(At).colInd, parent(At).rowInd, parent(At).nzVal, transpose, Int(parent(At).nnz)
+_kron_CuSparseMatrixCOO_components(Ah::Adjoint{<:Number, <:CuSparseMatrixCOO}) = parent(Ah).colInd, parent(Ah).rowInd, parent(Ah).nzVal, adjoint, Int(parent(Ah).nnz)
 
-    if Annz == 0 || Bnnz == 0
-        return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
+function LinearAlgebra.kron(
+    A::Union{CuSparseMatrixCOO{TvA, TiA}, Transpose{TvA, <:CuSparseMatrixCOO{TvA, TiA}}, Adjoint{TvA, <:CuSparseMatrixCOO{TvA, TiA}}},
+    B::Union{CuSparseMatrixCOO{TvB, TiB}, Transpose{TvB, <:CuSparseMatrixCOO{TvB, TiB}}, Adjoint{TvB, <:CuSparseMatrixCOO{TvB, TiB}}}
+    ) where {TvA, TiA, TvB, TiB}
+    mA, nA = size(A)
+    mB, nB = size(B)
+    Ti = promote_type(TiA, TiB)
+    Tv = typeof(oneunit(TvA)*oneunit(TvB))
+
+    A_rowInd, A_colInd, A_nzVal, A_nzOp, A_nnz = _kron_CuSparseMatrixCOO_components(A)
+    B_rowInd, B_colInd, B_nzVal, B_nzOp, B_nnz = _kron_CuSparseMatrixCOO_components(B)
+
+    if A_nnz == 0 || B_nnz == 0
+        return CuSparseMatrixCOO{Tv, Ti}(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{Tv}(undef, 0), (mA * mB, nA * nB))
     end
 
-    row = (A.rowInd .- 1) .* mB
-    row = repeat(row, inner = Bnnz)
-    col = (A.colInd .- 1) .* nB
-    col = repeat(col, inner = Bnnz)
-    data = repeat(A.nzVal, inner = Bnnz)
+    C_nnz = A_nnz * B_nnz
+    C_rowInd = reshape(B_rowInd .+ Ti(mB) .* (reshape(A_rowInd, (1, A_nnz)) .- one(Ti)), C_nnz)
+    C_colInd = reshape(B_colInd .+ Ti(nB) .* (reshape(A_colInd, (1, A_nnz)) .- one(Ti)), C_nnz)
+    C_nzVal = reshape(B_nzOp.(B_nzVal) .* A_nzOp.(reshape(A_nzVal, (1, A_nnz))), C_nnz)
 
-    row .+= repeat(B.rowInd .- 1, outer = Annz) .+ 1
-    col .+= repeat(B.colInd .- 1, outer = Annz) .+ 1
-
-    data .*= repeat(B.nzVal, outer = Annz)
-
-    sparse(row, col, data, out_shape..., fmt = :coo)
+    C = CuSparseMatrixCOO{Tv, Ti}(C_rowInd, C_colInd, C_nzVal, (mA * mB, nA * nB), C_nnz)
+    return sort_coo(C)
 end
 
-function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::Diagonal) where {Ti, T}
-    mA,nA = size(A)
-    mB,nB = size(B)
-    out_shape = (mA * mB, nA * nB)
-    Annz = Int64(A.nnz)
-    Bnnz = nB
+function LinearAlgebra.kron(
+    A::Union{CuSparseMatrixCOO{TvA, TiA}, Transpose{TvA, <:CuSparseMatrixCOO{TvA, TiA}}, Adjoint{TvA, <:CuSparseMatrixCOO{TvA, TiA}}},
+    B::Diagonal{TvB, <:Union{CuVector{TvB}, Base.ReshapedArray{TvB, 1, <:Adjoint{TvB, <:CuVector{TvB}}}}}
+    ) where {TvA, TiA, TvB}
+    mA, nA = size(A)
+    mB, nB = size(B)
+    Ti = TiA
+    Tv = typeof(oneunit(TvA)*oneunit(TvB))
 
-    if Annz == 0 || Bnnz == 0
-        return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
+    A_rowInd, A_colInd, A_nzVal, A_nzOp, A_nnz = _kron_CuSparseMatrixCOO_components(A)
+    B_rowInd, B_colInd, B_nzVal, B_nnz = one(Ti):Ti(nB), one(Ti):Ti(nB), B.diag, Int(nB)
+
+    if A_nnz == 0 || B_nnz == 0
+        return CuSparseMatrixCOO{Tv, Ti}(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{Tv}(undef, 0), (mA * mB, nA * nB))
     end
 
-    row = (A.rowInd .- 1) .* mB
-    row = repeat(row, inner = Bnnz)
-    col = (A.colInd .- 1) .* nB
-    col = repeat(col, inner = Bnnz)
-    data = repeat(A.nzVal, inner = Bnnz)
+    C_nnz = A_nnz * B_nnz
+    C_rowInd = reshape(B_rowInd .+ Ti(mB) .* (reshape(A_rowInd, (1, A_nnz)) .- one(Ti)), C_nnz)
+    C_colInd = reshape(B_colInd .+ Ti(nB) .* (reshape(A_colInd, (1, A_nnz)) .- one(Ti)), C_nnz)
+    C_nzVal = reshape(B_nzVal .* A_nzOp.(reshape(A_nzVal, (1, A_nnz))), C_nnz)
 
-    row .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
-    col .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
-
-    data .*= repeat(CUDA.ones(T, nB), outer = Annz)
-
-    sparse(row, col, data, out_shape..., fmt = :coo)
+    C = CuSparseMatrixCOO{Tv, Ti}(C_rowInd, C_colInd, C_nzVal, (mA * mB, nA * nB), C_nnz)
+    return sort_coo(C)
 end
 
-function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T, Ti}) where {Ti, T}
-    mA,nA = size(A)
-    mB,nB = size(B)
-    out_shape = (mA * mB, nA * nB)
-    Annz = nA
-    Bnnz = Int64(B.nnz)
+function LinearAlgebra.kron(
+    A::Diagonal{TvA, <:Union{CuVector{TvA}, Base.ReshapedArray{TvA, 1, <:Adjoint{TvA, <:CuVector{TvA}}}}},
+    B::Union{CuSparseMatrixCOO{TvB, TiB}, Transpose{TvB, <:CuSparseMatrixCOO{TvB, TiB}}, Adjoint{TvB, <:CuSparseMatrixCOO{TvB, TiB}}}
+    ) where {TvA, TvB, TiB}
+    mA, nA = size(A)
+    mB, nB = size(B)
+    Ti = TiB
+    Tv = typeof(oneunit(TvA)*oneunit(TvB))
 
-    if Annz == 0 || Bnnz == 0
-        return CuSparseMatrixCOO(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), out_shape)
+    A_rowInd, A_colInd, A_nzVal, A_nnz = one(Ti):Ti(nA), one(Ti):Ti(nA), A.diag, Int(nA)
+    B_rowInd, B_colInd, B_nzVal, B_nzOp, B_nnz = _kron_CuSparseMatrixCOO_components(B)
+
+    if A_nnz == 0 || B_nnz == 0
+        return CuSparseMatrixCOO{Tv, Ti}(CuVector{Ti}(undef, 0), CuVector{Ti}(undef, 0), CuVector{Tv}(undef, 0), (mA * mB, nA * nB))
     end
 
-    row = (0:nA-1) .* mB
-    row = CuVector(repeat(row, inner = Bnnz))
-    col = (0:nA-1) .* nB
-    col = CuVector(repeat(col, inner = Bnnz))
-    data = repeat(CUDA.ones(T, nA), inner = Bnnz)
+    C_nnz = A_nnz * B_nnz
+    C_rowInd = reshape(B_rowInd .+ Ti(mB) .* (reshape(A_rowInd, (1, A_nnz)) .- one(Ti)), C_nnz)
+    C_colInd = reshape(B_colInd .+ Ti(nB) .* (reshape(A_colInd, (1, A_nnz)) .- one(Ti)), C_nnz)
+    C_nzVal = reshape(B_nzOp.(B_nzVal) .* reshape(A_nzVal, (1, A_nnz)), C_nnz)
 
-    row .+= repeat(B.rowInd .- 1, outer = Annz) .+ 1
-    col .+= repeat(B.colInd .- 1, outer = Annz) .+ 1
-
-    data .*= repeat(B.nzVal, outer = Annz)
-
-    sparse(row, col, data, out_shape..., fmt = :coo)
+    C = CuSparseMatrixCOO{Tv, Ti}(C_rowInd, C_colInd, C_nzVal, (mA * mB, nA * nB), C_nnz)
+    return sort_coo(C)
 end
 
 function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{T}) where {T<:Union{BlasInt, BlasFloat}}
