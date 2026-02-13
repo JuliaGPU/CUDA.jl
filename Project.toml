@@ -42,6 +42,9 @@ EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
+[sources]
+KernelAbstractions = {rev = "main", url = "https://github.com/JuliaGPU/KernelAbstractions.jl"}
+
 [extensions]
 ChainRulesCoreExt = "ChainRulesCore"
 EnzymeCoreExt = "EnzymeCore"
@@ -64,7 +67,7 @@ ExprTools = "0.1"
 GPUArrays = "11.3.1"
 GPUCompiler = "1.4"
 GPUToolbox = "0.3, 1"
-KernelAbstractions = "0.9.38"
+KernelAbstractions = "0.9, 0.10"
 LLVM = "9.3.1"
 LLVMLoopInfo = "1"
 LazyArtifacts = "1"
