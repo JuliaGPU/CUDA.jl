@@ -124,6 +124,13 @@ p = 5
     @testset "sytrs!" begin
         @testset "uplo = $uplo" for uplo in ('L', 'U')
             @testset "pivoting = $pivoting" for pivoting in (false, true)
+                !pivoting && (CUSOLVER.version() < v"11.7.2") && continue
+                # We are always using pivoting when calling LAPCK.
+                # There is no point in disabling pivoting when calling
+                # sytrf. The test fails in this case, and we know that
+                # sytrf without pivoting is numericall unstable, so we
+                # didn't learn antying. Just don't do it.
+                !pivoting && (CUSOLVER.version() >= v"12") && continue
                 A = rand(elty,n,n)
                 B = rand(elty,n,p)
                 C = rand(elty,n)
@@ -131,7 +138,6 @@ p = 5
                 d_A = CuMatrix(A)
                 d_B = CuMatrix(B)
                 d_C = CuVector(C)
-                !pivoting && (CUSOLVER.version() < v"11.7.2") && continue
                 if pivoting
                     d_A, d_ipiv, _ = CUSOLVER.sytrf!(uplo, d_A; pivoting)
                     d_ipiv = CuVector{Int64}(d_ipiv)

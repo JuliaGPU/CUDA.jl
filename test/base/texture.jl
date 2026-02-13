@@ -1,5 +1,8 @@
 using Interpolations
 
+# Texture interpolation crashes LLVM in Julia 1.13
+VERSION < v"1.13-" && @testset "texture" begin
+
 @inline function calcpoint(blockIdx, blockDim, threadIdx, size)
     i = (blockIdx - 1) * blockDim + threadIdx
     return i, Float32(i)
@@ -240,4 +243,6 @@ end
             end
         end
     end
+end
+
 end
