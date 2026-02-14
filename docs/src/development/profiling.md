@@ -378,7 +378,7 @@ If possible and if it is compatible with your GPU, upgrade the CUDA driver on th
 
 First of all, make sure your application works normally outside the profiler.
 If you only get this error while running Julia under Nsight Compute, the problem may be a mismatch between the CUDA toolkit used by the profiler and the one loaded by Julia.
-In that case, try pointing CUDA.jl to a [local CUDA toolkit](@ref Using a local CUDA).
+In that case, try pointing CUDA.jl to a [local CUDA toolkit](@ref "Using a local CUDA").
 
 ## Source-code annotations
 
