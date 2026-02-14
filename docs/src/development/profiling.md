@@ -162,12 +162,13 @@ without having to restart Julia.
 
 #### NVIDIA Nsight Systems
 
-Generally speaking, the first external profiler you should use is Nsight Systems, as it will
-give you a high-level overview of your application's performance characteristics. After
-downloading and installing the tool (a version might have been installed alongside with the
-CUDA toolkit, but it is recommended to download and install the latest version from the
-NVIDIA website), you need to launch Julia from the command-line, wrapped by the `nsys`
-utility from Nsight Systems:
+Generally speaking, the first external profiler you should use is [Nsight
+Systems](https://developer.nvidia.com/nsight-systems), as it will give you a
+high-level overview of your application's performance characteristics. After
+downloading and installing the tool (a version might have been installed
+alongside with the CUDA toolkit, but it is recommended to download and install
+the latest version from the NVIDIA website), you need to launch Julia from the
+command-line, wrapped by the `nsys` utility from Nsight Systems:
 
 ```
 $ nsys launch julia
@@ -214,10 +215,12 @@ You can open the resulting `.qdrep` file with `nsight-sys`:
 
 #### NVIDIA Nsight Compute
 
-If you want details on the execution properties of a single kernel, or inspect API
-interactions in detail, Nsight Compute is the tool for you. It is again possible to use this
-profiler with an interactive session of Julia, and debug or profile only those sections of
-your application that are marked with `CUDA.@profile`.
+If you want details on the execution properties of a single kernel, or inspect
+API interactions in detail, [Nsight
+Compute](https://developer.nvidia.com/nsight-compute) is the tool for you. It is
+again possible to use this profiler with an interactive session of Julia, and
+debug or profile only those sections of your application that are marked with
+`CUDA.@profile`.
 
 First, ensure that all (CUDA) packages that are involved in your application have been
 precompiled. Otherwise, you'll end up profiling the precompilation process, instead of
@@ -360,11 +363,22 @@ Incompatibility between the ncu and Julia CUDA version. Run `ncu --version` to f
 
 ##### "Profiling is not supported on this device" error
 
-Nsight Compute does not support the GPU you have. Run `ncu --list-chips` to verify. Either delete newer versions of CUDA Toolkit and set the environment variable `CUDA_PATH` to a previous version, or install a newer version. 
+Nsight Compute does not support the GPU you have. Run `ncu --list-chips` to verify. Either delete newer versions of CUDA Toolkit and set the environment variable `CUDA_PATH` to a previous version, or install a newer version.
 
-##### ==ERROR== ERR_NVGPUCTRPERM 
-Run the terminal as administrator. Refer to [the NVIDIA documentation issue webpage](https://developer.nvidia.com/ERR_NVGPUCTRPERM) for more details. 
+##### `==ERROR== ERR_NVGPUCTRPERM`
 
+Run the terminal as administrator. Refer to [the NVIDIA documentation issue webpage](https://developer.nvidia.com/ERR_NVGPUCTRPERM) for more details.
+
+##### `==ERROR== Cuda driver is not compatible with Nsight Compute`
+
+As the error message suggests, the version of Nsight Compute you are using may be too new for the driver installed on the machine where you are trying to run the GPU application.
+If possible and if it is compatible with your GPU, upgrade the CUDA driver on the target machine, otherwise downgrade Nsight Compute to a version which supports the CUDA driver installed on the system.
+
+##### `CUDA error: device kernel image is invalid (code 200, ERROR_INVALID_IMAGE)`
+
+First of all, make sure your application works normally outside the profiler.
+If you only get this error while running Julia under Nsight Compute, the problem may be a mismatch between the CUDA toolkit used by the profiler and the one loaded by Julia.
+In that case, try pointing CUDA.jl to a [local CUDA toolkit](@ref "Using a local CUDA").
 
 ## Source-code annotations
 
