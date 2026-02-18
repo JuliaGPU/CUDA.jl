@@ -52,7 +52,8 @@ macro device_functions(ex)
                 # descend in blocks
                 push!(out.args, rewrite(arg))
             elseif Meta.isexpr(arg, [:function, :(=)])
-			    # capture temp variable for Julia 1.13 and rewrite function definitions
+			    # capture temp variable for Julia 1.13 (see issue #3019)
+				# and rewrite function definitions
                 if Meta.isexpr(arg, :(=)) && isa(arg.args[1], Symbol) && Meta.isexpr(arg.args[2], [:function, :(=)])
                     push!(out.args, Expr(:(=), arg.args[1], :(@device_function $(arg.args[2]))))
                 else
