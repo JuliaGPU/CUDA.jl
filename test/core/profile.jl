@@ -1,6 +1,34 @@
 import NVTX
+using CUDA.Profile: push_row!, filtermask
 
 @testset "profiler" begin
+
+############################################################################################
+
+@testset "helpers" begin
+
+@testset "push_row!" begin
+    nt = (id = Int[], name = String[], value = Union{Missing,Int}[])
+    push_row!(nt, (id = 1, name = "a"))
+    push_row!(nt, (id = 2, name = "b", value = 10))
+
+    @test nt.id == [1, 2]
+    @test nt.name == ["a", "b"]
+    @test ismissing(nt.value[1])
+    @test nt.value[2] == 10
+end
+
+@testset "filtermask" begin
+    nt = (id = [1, 2, 3, 4, 5], val = [10, 25, 15, 30, 5])
+    filtered = filtermask(nt, nt.val .> 15)
+
+    @test filtered.id == [2, 4]
+    @test filtered.val == [25, 30]
+end
+
+end
+
+############################################################################################
 
 @testset "external" begin
 
