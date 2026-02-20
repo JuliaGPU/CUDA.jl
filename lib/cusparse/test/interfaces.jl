@@ -342,7 +342,7 @@ nB = 2
             dA = SparseMatrixType(A)
             dS = dA[rowmask_d, colmask_d]
             @test dS isa SparseMatrixType
-            @test S_cpu ≈ SparseMatrixCSC(dS)
+            @test S_cpu ≈ collect(dS)
         end
     end
 end
