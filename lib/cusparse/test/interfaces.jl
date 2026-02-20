@@ -329,4 +329,20 @@ nB = 2
             @test ref_cuda_sparse.colPtr == cuda_spdiagm.colPtr
         end
     end
+
+    @testset "getindex with boolean masks" begin
+        A = sprand(elty, m, n, 0.4)
+        rowmask = rand(Bool, m)
+        colmask = rand(Bool, n)
+        S_cpu = A[rowmask, colmask]
+
+        rowmask_d = CuVector(rowmask)
+        colmask_d = CuVector(colmask)
+        @testset "type = $SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+            dA = SparseMatrixType(A)
+            dS = dA[rowmask_d, colmask_d]
+            @test dS isa SparseMatrixType
+            @test S_cpu ≈ SparseMatrixCSC(dS)
+        end
+    end
 end

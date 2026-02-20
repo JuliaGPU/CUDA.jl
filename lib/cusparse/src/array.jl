@@ -521,6 +521,54 @@ function Base.getindex(A::CuSparseArrayCSR{Tv, Ti, N}, i0::Integer, i1::Integer,
     CuSparseMatrixCSR(A.rowPtr[:,idxs...], A.colVal[:,idxs...], nonzeros(A)[:,idxs...], size(A)[1:2])[i0, i1]
 end
 
+# slice matrix by masking rows and columns
+function _getindex_boolmask(A::Union{CuSparseMatrixCSR, CuSparseMatrixCSC},
+                            Imask::CuVector{Bool}, Jmask::CuVector{Bool})
+    m, n = size(A)
+    length(Imask) == m || throw(DimensionMismatch("boolean row mask length $(length(Imask)) must match row count $m"))
+    length(Jmask) == n || throw(DimensionMismatch("boolean column mask length $(length(Jmask)) must match column count $n"))
+
+    # convert to COO for uniform element-wise access
+    A_coo = CuSparseMatrixCOO(A)
+    rowInd = A_coo.rowInd
+    colInd = A_coo.colInd
+    nzVal  = A_coo.nzVal
+
+    # build selection mask: keep entry if both row and col are selected
+    row_sel = Imask[rowInd]
+    col_sel = Jmask[colInd]
+    keep = row_sel .& col_sel
+
+    # filter entries
+    new_rowInd = rowInd[keep]
+    new_colInd = colInd[keep]
+    new_nzVal  = nzVal[keep]
+
+    # build index remapping via cumulative sum of masks
+    rowmap = cumsum(Int32.(Imask))
+    colmap = cumsum(Int32.(Jmask))
+
+    # remap to compacted indices
+    new_rowInd = rowmap[new_rowInd]
+    new_colInd = colmap[new_colInd]
+
+    new_m = Int(sum(Imask))
+    new_n = Int(sum(Jmask))
+    new_nnz = length(new_nzVal)
+
+    return CuSparseMatrixCOO(new_rowInd, new_colInd, new_nzVal, (new_m, new_n), new_nnz)
+end
+
+function Base.getindex(A::CuSparseMatrixCSR, Imask::CuVector{Bool}, Jmask::CuVector{Bool})
+    coo = _getindex_boolmask(A, Imask, Jmask)
+    return CuSparseMatrixCSR(coo)
+end
+
+function Base.getindex(A::CuSparseMatrixCSC, Imask::CuVector{Bool}, Jmask::CuVector{Bool})
+    coo = _getindex_boolmask(A, Imask, Jmask)
+    return CuSparseMatrixCSC(coo)
+end
+
 ## interop with sparse CPU arrays
 
 # cpu to gpu
