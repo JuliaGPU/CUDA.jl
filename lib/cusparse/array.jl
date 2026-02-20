@@ -523,7 +523,7 @@ end
 
 # slice matrix by masking rows and columns
 
-function Base.getindex(A::CuSparseMatrixCSR{Tv,Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv,Ti}
+function Base.getindex(A::CuSparseMatrixCSR{Tv, Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv, Ti}
     m, n = size(A)
     length(Imask) == m || throw(DimensionMismatch("boolean row mask length $(length(Imask)) must match row count $m"))
     length(Jmask) == n || throw(DimensionMismatch("boolean column mask length $(length(Jmask)) must match column count $n"))
@@ -538,7 +538,7 @@ function Base.getindex(A::CuSparseMatrixCSR{Tv,Ti}, Imask::CuVector{Bool}, Jmask
     if new_m > 0 && new_n > 0
         threads = min(256, m)
         blocks = cld(m, threads)
-        @cuda threads=threads blocks=blocks _csr_count_kernel!(counts, A.rowPtr, A.colVal, Imask, Jmask, rowmap)
+        @cuda threads = threads blocks = blocks _csr_count_kernel!(counts, A.rowPtr, A.colVal, Imask, Jmask, rowmap)
     end
 
     # build new rowPtr from counts: [1, 1+cumsum(counts)...]
@@ -551,12 +551,13 @@ function Base.getindex(A::CuSparseMatrixCSR{Tv,Ti}, Imask::CuVector{Bool}, Jmask
     if new_nnz > 0
         threads = min(256, m)
         blocks = cld(m, threads)
-        @cuda threads=threads blocks=blocks _csr_fill_kernel!(
+        @cuda threads = threads blocks = blocks _csr_fill_kernel!(
             new_colVal, new_nzVal, new_rowPtr, A.rowPtr, A.colVal, A.nzVal,
-            Imask, Jmask, rowmap, colmap)
+            Imask, Jmask, rowmap, colmap
+        )
     end
 
-    return CuSparseMatrixCSR{Tv,Ti}(new_rowPtr, new_colVal, new_nzVal, (new_m, new_n))
+    return CuSparseMatrixCSR{Tv, Ti}(new_rowPtr, new_colVal, new_nzVal, (new_m, new_n))
 end
 
 # CSR: one thread per original row — count entries where column is selected
@@ -567,7 +568,7 @@ function _csr_count_kernel!(counts, rowPtr, colVal, Imask, Jmask, rowmap)
         Imask[i] || return nothing
         new_i = rowmap[i]
         c = zero(eltype(counts))
-        for j in rowPtr[i]:(rowPtr[i+1] - one(eltype(rowPtr)))
+        for j in rowPtr[i]:(rowPtr[i + 1] - one(eltype(rowPtr)))
             if Jmask[colVal[j]]
                 c += one(eltype(counts))
             end
@@ -578,14 +579,16 @@ function _csr_count_kernel!(counts, rowPtr, colVal, Imask, Jmask, rowmap)
 end
 
 # CSR: one thread per original row — fill entries with remapped column indices
-function _csr_fill_kernel!(new_colVal, new_nzVal, new_rowPtr, rowPtr, colVal, nzVal,
-                           Imask, Jmask, rowmap, colmap)
+function _csr_fill_kernel!(
+        new_colVal, new_nzVal, new_rowPtr, rowPtr, colVal, nzVal,
+        Imask, Jmask, rowmap, colmap
+    )
     i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
     i > length(Imask) && return nothing
     @inbounds begin
         Imask[i] || return nothing
         offset = new_rowPtr[rowmap[i]]
-        for j in rowPtr[i]:(rowPtr[i+1] - one(eltype(rowPtr)))
+        for j in rowPtr[i]:(rowPtr[i + 1] - one(eltype(rowPtr)))
             col = colVal[j]
             if Jmask[col]
                 new_colVal[offset] = colmap[col]
@@ -599,10 +602,10 @@ end
 
 # CSC: reinterpret as transposed CSR, index with swapped masks, reinterpret back.
 # A CSC (colPtr, rowVal, nzVal, (m,n)) is the same layout as CSR (rowPtr, colVal, nzVal, (n,m)).
-function Base.getindex(A::CuSparseMatrixCSC{Tv,Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv,Ti}
-    A_as_csr = CuSparseMatrixCSR{Tv,Ti}(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
+function Base.getindex(A::CuSparseMatrixCSC{Tv, Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv, Ti}
+    A_as_csr = CuSparseMatrixCSR{Tv, Ti}(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
     result_csr = A_as_csr[Jmask, Imask]
-    return CuSparseMatrixCSC{Tv,Ti}(result_csr.rowPtr, result_csr.colVal, result_csr.nzVal, reverse(size(result_csr)))
+    return CuSparseMatrixCSC{Tv, Ti}(result_csr.rowPtr, result_csr.colVal, result_csr.nzVal, reverse(size(result_csr)))
 end
 
 
