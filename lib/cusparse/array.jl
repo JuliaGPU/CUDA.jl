@@ -522,52 +522,89 @@ function Base.getindex(A::CuSparseArrayCSR{Tv, Ti, N}, i0::Integer, i1::Integer,
 end
 
 # slice matrix by masking rows and columns
-function _getindex_boolmask(A::Union{CuSparseMatrixCSR, CuSparseMatrixCSC},
-                            Imask::CuVector{Bool}, Jmask::CuVector{Bool})
+
+function Base.getindex(A::CuSparseMatrixCSR{Tv,Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv,Ti}
     m, n = size(A)
     length(Imask) == m || throw(DimensionMismatch("boolean row mask length $(length(Imask)) must match row count $m"))
     length(Jmask) == n || throw(DimensionMismatch("boolean column mask length $(length(Jmask)) must match column count $n"))
 
-    # convert to COO for uniform element-wise access
-    A_coo = CuSparseMatrixCOO(A)
-    rowInd = A_coo.rowInd
-    colInd = A_coo.colInd
-    nzVal  = A_coo.nzVal
+    rowmap = cumsum(Ti.(Imask))
+    colmap = cumsum(Ti.(Jmask))
+    new_m = Int(CUDA.@allowscalar rowmap[end])
+    new_n = Int(CUDA.@allowscalar colmap[end])
 
-    # build selection mask: keep entry if both row and col are selected
-    row_sel = Imask[rowInd]
-    col_sel = Jmask[colInd]
-    keep = row_sel .& col_sel
+    # pass 1: count kept entries per new row
+    counts = CUDA.zeros(Ti, new_m)
+    if new_m > 0 && new_n > 0
+        threads = min(256, m)
+        blocks = cld(m, threads)
+        @cuda threads=threads blocks=blocks _csr_count_kernel!(counts, A.rowPtr, A.colVal, Imask, Jmask, rowmap)
+    end
 
-    # filter entries
-    new_rowInd = rowInd[keep]
-    new_colInd = colInd[keep]
-    new_nzVal  = nzVal[keep]
+    # build new rowPtr from counts: [1, 1+cumsum(counts)...]
+    new_rowPtr = vcat(CuVector{Ti}([one(Ti)]), cumsum(counts) .+ one(Ti))
+    new_nnz = Int(CUDA.@allowscalar new_rowPtr[end]) - 1
 
-    # build index remapping via cumulative sum of masks
-    rowmap = cumsum(Int32.(Imask))
-    colmap = cumsum(Int32.(Jmask))
+    # pass 2: fill entries
+    new_colVal = CuVector{Ti}(undef, new_nnz)
+    new_nzVal = CuVector{Tv}(undef, new_nnz)
+    if new_nnz > 0
+        threads = min(256, m)
+        blocks = cld(m, threads)
+        @cuda threads=threads blocks=blocks _csr_fill_kernel!(
+            new_colVal, new_nzVal, new_rowPtr, A.rowPtr, A.colVal, A.nzVal,
+            Imask, Jmask, rowmap, colmap)
+    end
 
-    # remap to compacted indices
-    new_rowInd = rowmap[new_rowInd]
-    new_colInd = colmap[new_colInd]
-
-    new_m = Int(sum(Imask))
-    new_n = Int(sum(Jmask))
-    new_nnz = length(new_nzVal)
-
-    return CuSparseMatrixCOO(new_rowInd, new_colInd, new_nzVal, (new_m, new_n), new_nnz)
+    return CuSparseMatrixCSR{Tv,Ti}(new_rowPtr, new_colVal, new_nzVal, (new_m, new_n))
 end
 
-function Base.getindex(A::CuSparseMatrixCSR, Imask::CuVector{Bool}, Jmask::CuVector{Bool})
-    coo = _getindex_boolmask(A, Imask, Jmask)
-    return CuSparseMatrixCSR(coo)
+# CSR: one thread per original row — count entries where column is selected
+function _csr_count_kernel!(counts, rowPtr, colVal, Imask, Jmask, rowmap)
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    i > length(Imask) && return nothing
+    @inbounds begin
+        Imask[i] || return nothing
+        new_i = rowmap[i]
+        c = zero(eltype(counts))
+        for j in rowPtr[i]:(rowPtr[i+1] - one(eltype(rowPtr)))
+            if Jmask[colVal[j]]
+                c += one(eltype(counts))
+            end
+        end
+        counts[new_i] = c
+    end
+    return nothing
 end
 
-function Base.getindex(A::CuSparseMatrixCSC, Imask::CuVector{Bool}, Jmask::CuVector{Bool})
-    coo = _getindex_boolmask(A, Imask, Jmask)
-    return CuSparseMatrixCSC(coo)
+# CSR: one thread per original row — fill entries with remapped column indices
+function _csr_fill_kernel!(new_colVal, new_nzVal, new_rowPtr, rowPtr, colVal, nzVal,
+                           Imask, Jmask, rowmap, colmap)
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    i > length(Imask) && return nothing
+    @inbounds begin
+        Imask[i] || return nothing
+        offset = new_rowPtr[rowmap[i]]
+        for j in rowPtr[i]:(rowPtr[i+1] - one(eltype(rowPtr)))
+            col = colVal[j]
+            if Jmask[col]
+                new_colVal[offset] = colmap[col]
+                new_nzVal[offset] = nzVal[j]
+                offset += one(eltype(new_rowPtr))
+            end
+        end
+    end
+    return nothing
 end
+
+# CSC: reinterpret as transposed CSR, index with swapped masks, reinterpret back.
+# A CSC (colPtr, rowVal, nzVal, (m,n)) is the same layout as CSR (rowPtr, colVal, nzVal, (n,m)).
+function Base.getindex(A::CuSparseMatrixCSC{Tv,Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv,Ti}
+    A_as_csr = CuSparseMatrixCSR{Tv,Ti}(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
+    result_csr = A_as_csr[Jmask, Imask]
+    return CuSparseMatrixCSC{Tv,Ti}(result_csr.rowPtr, result_csr.colVal, result_csr.nzVal, reverse(size(result_csr)))
+end
+
 
 ## interop with sparse CPU arrays
 
