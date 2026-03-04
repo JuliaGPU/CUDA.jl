@@ -130,14 +130,12 @@ function irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, regi
     irfft(complexfloat(x), d, region)
 end
 
-# yields the maximal dimensions of the plan, for plans starting at dim 1 or ending at the size vector, 
-# this is always the full input size
-function plan_max_dims(region, sz) 
-    if (region[1] == 1 && (length(region) <=1 || all(diff(collect(region)) .== 1)))
-        return length(sz)
-    else
-        return region[end]
-    end
+# returns the dimensions over which to run internal batching and external for-loop batching
+# internal_batch_dims, external_batch_dims = get_batch_dims(region, sz)
+function get_batch_dims(region, sz)
+    size_front = prod(sz[1:region[1]])
+    size_back = prod(sz[region[end]:end])
+    return ifelse(size_front > size_back, ((1:region[1]-1), (region[end]+1:length(sz))), ((region[end]+1:length(sz)), (1:region[1]-1)))
 end
 
 # retrieves the size to allocate even if the trailing dimensions do no transform
@@ -170,9 +168,7 @@ function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftC
     K = CUFFT_FORWARD
     inplace = true
 
-    md = plan_max_dims(region, size(X))
-    sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftGetPlan(T, T, size(X), region)
 
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
@@ -181,9 +177,7 @@ function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufft
     K = CUFFT_INVERSE
     inplace = true
 
-    md = plan_max_dims(region, size(X))
-    sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftGetPlan(T, T, size(X), region)
 
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
@@ -193,9 +187,7 @@ function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftCo
     K = CUFFT_FORWARD
     inplace = false
 
-    md = plan_max_dims(region,size(X))
-    sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftGetPlan(T, T, size(X), region)
 
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
@@ -204,9 +196,7 @@ function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftC
     K = CUFFT_INVERSE
     inplace = false
 
-    md = plan_max_dims(region,size(X))
-    sizex = size(X)[1:md]
-    handle = cufftGetPlan(T, T, sizex, region)
+    handle = cufftGetPlan(T, T, size(X), region)
 
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
 end
@@ -222,10 +212,7 @@ function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftR
     K = CUFFT_FORWARD
     inplace = false
 
-    md = plan_max_dims(region,size(X))
-    sizex = size(X)[1:md]
-
-    handle = cufftGetPlan(complex(T), T, sizex, region)
+    handle = cufftGetPlan(complex(T), T, size(X), region)
 
     xdims = size(X)
     ydims = Base.setindex(xdims, div(xdims[region[1]], 2) + 1, region[1])
@@ -265,18 +252,14 @@ end
 
 function plan_inv(p::CuFFTPlan{T,S,CUFFT_INVERSE,inplace,N,R,B}
                   ) where {T<:cufftNumber,S<:cufftNumber,inplace,N,R,B}
-    md_osz = plan_max_dims(p.region, p.output_size)
-    sz_X = p.output_size[1:md_osz]
-    handle = cufftGetPlan(S, T, sz_X, p.region)
+    handle = cufftGetPlan(S, T, p.output_size, p.region)
     ScaledPlan(CuFFTPlan{S,T,CUFFT_FORWARD,inplace,N,R,B}(handle, p.output_size, p.input_size, p.region, p.buffer),
                normalization(real(T), p.output_size, p.region))
 end
 
 function plan_inv(p::CuFFTPlan{T,S,CUFFT_FORWARD,inplace,N,R,B}
                   ) where {T<:cufftNumber,S<:cufftNumber,inplace,N,R,B}
-    md_isz = plan_max_dims(p.region, p.input_size)
-    sz_Y = p.input_size[1:md_isz]
-    handle = cufftGetPlan(S, T, sz_Y, p.region)
+    handle = cufftGetPlan(S, T, p.input_size, p.region)
     ScaledPlan(CuFFTPlan{S,T,CUFFT_INVERSE,inplace,N,R,B}(handle, p.output_size, p.input_size, p.region, p.buffer),
                normalization(real(S), p.input_size, p.region))
 end
@@ -317,20 +300,33 @@ end
 # Note that for plans, with trailing non-transform dimensions views are created for each of such elements.
 # Such views each have lower dimensions and are then transformed by the lower dimension low-level Cuda plan.
 function unsafe_execute_trailing!(p, x, y)
-    N = plan_max_dims(p.region, p.output_size)
-    M = ndims(x)
-    d = p.region[end]
-    if M == N  
+    internal_batch_dims, external_batch_dims = get_batch_dims(p.region, p.output_size)
+    if isempty(external_batch_dims)
         unsafe_execute!(p,x,y)
+    elseif (external_batch_dims[1] == 1)
+        # @show "external batching: leading dimensions "
+        trailing_ids = ntuple((dd)->Colon(), length(p.input_size) - p.region[1] + 1)
+        # flatten the memory as a view as otherwise the intput is not correctly interpreted as a contiguous Cuda memory
+        memx = reshape(x, prod(size(x)))
+        memy = reshape(y, prod(size(y)))
+        n = 1
+        for c in CartesianIndices(size(x)[external_batch_dims])
+            vx = @view memx[n:end]
+            vy = @view memy[n:end]
+            unsafe_execute!(p,vx,vy)
+            n += 1
+        end
     else
-        front_ids = ntuple((dd)->Colon(), d)
-        for c in CartesianIndices(size(x)[d+1:end])
-            ids = ntuple((dd)->c[dd], M-N)
-            vx = @view x[front_ids..., ids...]
-            vy = @view y[front_ids..., ids...]
+        # @show "external batching: trailing dimensions "
+        front_ids = ntuple((dd)->Colon(), p.region[end])
+        for c in CartesianIndices(size(x)[external_batch_dims])
+            vx = @view x[front_ids..., c]
+            vy = @view y[front_ids..., c]
             unsafe_execute!(p,vx,vy)
         end
     end
+
+    return 
 end
 
 ## high-level integrations
