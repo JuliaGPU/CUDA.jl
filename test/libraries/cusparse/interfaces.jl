@@ -339,7 +339,9 @@ nB = 2
         rowmask_d = CuVector(rowmask)
         colmask_d = CuVector(colmask)
         @testset "type = $SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
-            dA = SparseMatrixType(A)
+            # CUDA 12.0 has a bug in CSC -> CSR conversion, so we go though COO
+            dA_coo = CuSparseMatrixCOO(A)
+            dA = SparseMatrixType(dA_coo)
             dS = dA[rowmask_d, colmask_d]
             @test dS isa SparseMatrixType
             @test S_cpu ≈ collect(dS)
