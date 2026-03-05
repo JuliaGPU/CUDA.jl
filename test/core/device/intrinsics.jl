@@ -330,6 +330,7 @@ end
 
 ############################################################################################
 
+capability(device()) >= v"9" || # JuliaGPU/CUDA.jl#1846
 @testset "libcudadevrt" begin
     kernel() = (CUDA.device_synchronize(); nothing)
     @cuda kernel()

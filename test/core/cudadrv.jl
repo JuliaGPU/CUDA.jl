@@ -129,6 +129,7 @@ shmem_config!(config)
 end
 
 
+capability(device()) >= v"9" || # JuliaGPU/CUDA.jl#1846
 @testset "limits" begin
 
 lim = limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)

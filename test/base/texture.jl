@@ -1,3 +1,6 @@
+# Broken on LLVM 20, see JuliaGPU/CUDA.jl#3037
+if !(v"20-" <= Base.libllvm_version < v"21-")
+
 using Interpolations
 
 @inline function calcpoint(blockIdx, blockDim, threadIdx, size)
@@ -240,4 +243,6 @@ end
             end
         end
     end
+end
+
 end

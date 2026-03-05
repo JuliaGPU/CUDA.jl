@@ -253,6 +253,7 @@ function check_sortperm(T, N; kwargs...)
 end
 
 # Makes sure that non-maximally-large block sizes don't result in race conds
+capability(device()) >= v"9" || # JuliaGPU/CUDA.jl#1846
 @testset "reduced block sizes" begin
     function init()
         a = map(x -> x%UInt8, reverse(1:100000))
@@ -278,6 +279,7 @@ end
 end
 
 @testset "interface" begin
+    capability(device()) >= v"9" || # JuliaGPU/CUDA.jl#1846
     @testset "quicksort" begin
         # pre-sorted
         @test check_sort!(Int, 1000000; alg=CUDA.QuickSort)
