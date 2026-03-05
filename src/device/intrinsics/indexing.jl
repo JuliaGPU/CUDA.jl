@@ -150,8 +150,7 @@ Returns the dimensions (in clusters) of the grid
 
 Returns the linear block index within the cluster.
 """ linearBlockIdxInCluster
-function @inline $(:linearBlockIdxInCluster)() =
-    _index($(Val(Symbol("cluster.ctarank"))), $(Val(0:max_cluster_length-1))) + 1i32
+@eval @inline $(:linearBlockIdxInCluster)() = _index($(Val(Symbol("cluster.ctarank"))), $(Val(0:max_cluster_length-1))) + 1i32
 
 @doc """
     linearClusterSize()::Int32
