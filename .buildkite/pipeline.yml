@@ -84,6 +84,7 @@ steps:
                 cuda: "13.0"
               soft_fail: true
         commands: |
+          unset LD_LIBRARY_PATH
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
 
   - group: ":nesting_dolls: Subpackages"
@@ -119,6 +120,7 @@ steps:
             build.message !~ /\[skip subpackages\]/
         timeout_in_minutes: 30
         commands: |
+          unset LD_LIBRARY_PATH
           julia -e '
             using Pkg
 
@@ -213,7 +215,8 @@ steps:
                 - src
                 - lib
                 - examples
-        command: |
+        commands: |
+          unset LD_LIBRARY_PATH
           julia -e '
             using Pkg
 
@@ -299,6 +302,8 @@ steps:
                 - src
                 - lib
                 - examples
+        commands: |
+          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -321,6 +326,8 @@ steps:
                 - src
                 - lib
                 - examples
+        commands: |
+          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -345,6 +352,8 @@ steps:
                 - src
                 - lib
                 - examples
+        commands: |
+          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -374,6 +383,8 @@ steps:
                 - src
                 - lib
                 - examples
+        commands: |
+          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -393,7 +404,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: "1.11"
-    command: |
+    commands: |
+      unset LD_LIBRARY_PATH
       julia --project -e '
         println("--- :julia: Instantiating project")
         using Pkg
@@ -417,7 +429,8 @@ steps:
     plugins:
       - JuliaCI/julia#v1:
           version: "1.12"
-    command: |
+    commands: |
+      unset LD_LIBRARY_PATH
       julia --project=perf -e '
         using Pkg
 

@@ -1,4 +1,5 @@
 using Distributed
+using InteractiveUtils
 using Dates
 import REPL
 using Printf: @sprintf
@@ -136,7 +137,8 @@ label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
 if label_match !== nothing
   @test toolkit_release == VersionNumber(label_match.captures[1])
 end
-@info "System information:\n" * sprint(io->CUDA.versioninfo(io))
+@info "Julia information:\n" * sprint(io->versioninfo(io))
+@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
 # select devices
 function gpu_entry(dev)
