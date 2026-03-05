@@ -86,7 +86,7 @@ The latest version of CUDA.jl also has certain requirements that cannot be enfor
 package manager:
 
 - Host platform: only 64-bit Linux and Windows are supported;
-- Device hardware: only NVIDIA GPUs with **compute capability 5.0** (Maxwell) or higher are
+- Device hardware: only NVIDIA GPUs with **compute capability 7.5** (Turing) or higher are
   supported;
 - NVIDIA driver: a driver for **CUDA 12** or newer is required;
 - CUDA toolkit (in case you need to use your own): only **CUDA toolkit 12.0** or newer are
