@@ -20,6 +20,12 @@ dummy() = return
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
+
+    clustersize = 1
+    @cuda clustersize dummy()
+    @cuda clustersize=1 dummy()
+    @cuda clustersize=(1,1) dummy()
+    @cuda clustersize=(1,1,1) dummy()
 end
 
 
@@ -159,6 +165,13 @@ end
     @cuda stream=s dummy()
 end
 
+@testset "clusters" begin
+    if CUDA.capability(device()) >= v"9.0"
+        @cuda threads=64 clustersize=2 dummy()
+    else
+        @test_throws ArgumentError @cuda threads=64 clustersize=2 dummy()
+    end
+end
 
 @testset "external kernels" begin
     @eval module KernelModule
