@@ -338,13 +338,31 @@ nB = 2
 
         rowmask_d = CuVector(rowmask)
         colmask_d = CuVector(colmask)
-        @testset "type = $SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR)
-            # CUDA 12.0 has a bug in CSC -> CSR conversion, so we go though COO
-            dA_coo = CuSparseMatrixCOO(A)
-            dA = SparseMatrixType(dA_coo)
-            dS = dA[rowmask_d, colmask_d]
-            @test dS isa SparseMatrixType
-            @test S_cpu ≈ collect(dS)
+
+        # test slicing of CSC format
+        A_csc = CuSparseMatrixCSC(A)
+        S_csc = A_csc[rowmask_d, colmask_d]
+        @test S_csc isa CuSparseMatrixCSC
+        @test S_cpu ≈ collect(S_csc)
+
+        # test slicing of CSR format
+        # Conversion between CSC and CSR is broken in many ways on CUDA 12.0,
+        # therefore we construct the CSR matrix manually from the transposed CSC.
+        Aᵀ_csc = CuSparseMatrixCSC(Transpose(A))
+        A_csr = CuSparseMatrixCSR{eltype(A), Int32}(
+            copy(Aᵀ_csc.colPtr), # rowPtr is the same as colPtr of the transposed CSC
+            copy(Aᵀ_csc.rowVal), # colVal is the same as rowVal of the transposed CSC
+            copy(Aᵀ_csc.nzVal),  # nzVal is unchanged by transposition
+            size(A)
+        )
+        # collect calls CSR→CSC conversion again which is broken, so we test on scalar level
+        CUDA.@allowscalar for i in eachindex(A, A_csr)
+            @test A[i] ≈ A_csr[i]
+        end
+        S_csr = A_csr[rowmask_d, colmask_d]
+        @test S_csr isa CuSparseMatrixCSR
+        CUDA.@allowscalar for i in eachindex(S_cpu, S_csr)
+            @test S_cpu[i] ≈ S_csr[i]
         end
     end
 end
