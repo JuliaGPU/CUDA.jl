@@ -67,7 +67,7 @@ end
     gridDim()::NamedTuple
 
 Returns the dimensions of the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
-These dimensions have the same starting index as the `gridDim` built-in variable in the C/C++ extension.
+These dimensions have the same starting dimension as the `gridDim` built-in variable in the C/C++ extension.
 """
 @inline gridDim() =   (x=gridDim_x(),   y=gridDim_y(),   z=gridDim_z())
 
