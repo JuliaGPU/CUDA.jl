@@ -362,8 +362,8 @@ end
     ifelse(anynan, NaN, minval), ifelse(anynan, NaN, maxval)
 end
 
-@static if Base.thismajor(LLVM.version()) <= v"18"
-    # LLVM 18 and below generate non-existing instructions for Julia's default methods of
+@static if Base.thismajor(LLVM.version()) <= v"20"
+    # LLVM 20 and below generate non-existing instructions for Julia's default methods of
     # fast min/max on fp64: https://github.com/JuliaGPU/CUDA.jl/issues/2886
     for T in (Float16, Float32, Float64)
         @eval begin
@@ -372,6 +372,11 @@ end
             @device_override @inline Base.FastMath.minmax_fast(x::$T, y::$T) = ifelse(y > x, (x, y), (y, x))
         end
     end
+
+    # For Float16, this even happens with a non-fastmath @llvm.minimum/maximum.f16
+    @device_override @inline Base.max(x::Float16, y::Float16) = ifelse(y > x, y, x)
+    @device_override @inline Base.min(x::Float16, y::Float16) = ifelse(y > x, x, y)
+
 end
 
 @device_function saturate(x::Float32) = ccall("extern __nv_saturatef", llvmcall, Cfloat, (Cfloat,), x)
