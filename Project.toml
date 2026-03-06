@@ -2,6 +2,9 @@ name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
 version = "5.9.7"
 
+[workspace]
+projects = ["test", "examples"]
+
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -56,7 +59,7 @@ CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDA_Compiler_jll = "0.3, 0.4"
 CUDA_Driver_jll = "13"
 CUDA_Runtime_Discovery = "1"
-CUDA_Runtime_jll = "0.19"
+CUDA_Runtime_jll = "0.20"
 ChainRulesCore = "1"
 Crayons = "4"
 EnzymeCore = "0.8.2"
