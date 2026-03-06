@@ -329,4 +329,40 @@ nB = 2
             @test ref_cuda_sparse.colPtr == cuda_spdiagm.colPtr
         end
     end
+
+    @testset "getindex with boolean masks" begin
+        A = sprand(elty, m, n, 0.4)
+        rowmask = rand(Bool, m)
+        colmask = rand(Bool, n)
+        S_cpu = A[rowmask, colmask]
+
+        rowmask_d = CuVector(rowmask)
+        colmask_d = CuVector(colmask)
+
+        # test slicing of CSC format
+        A_csc = CuSparseMatrixCSC(A)
+        S_csc = A_csc[rowmask_d, colmask_d]
+        @test S_csc isa CuSparseMatrixCSC
+        @test S_cpu ≈ collect(S_csc)
+
+        # test slicing of CSR format
+        # Conversion between CSC and CSR is broken in many ways on CUDA 12.0,
+        # therefore we construct the CSR matrix manually from the transposed CSC.
+        Aᵀ_csc = CuSparseMatrixCSC(Transpose(A))
+        A_csr = CuSparseMatrixCSR{eltype(A), Int32}(
+            copy(Aᵀ_csc.colPtr), # rowPtr is the same as colPtr of the transposed CSC
+            copy(Aᵀ_csc.rowVal), # colVal is the same as rowVal of the transposed CSC
+            copy(Aᵀ_csc.nzVal),  # nzVal is unchanged by transposition
+            size(A)
+        )
+        # collect calls CSR→CSC conversion again which is broken, so we test on scalar level
+        CUDA.@allowscalar for i in eachindex(A, A_csr)
+            @test A[i] ≈ A_csr[i]
+        end
+        S_csr = A_csr[rowmask_d, colmask_d]
+        @test S_csr isa CuSparseMatrixCSR
+        CUDA.@allowscalar for i in eachindex(S_cpu, S_csr)
+            @test S_cpu[i] ≈ S_csr[i]
+        end
+    end
 end
