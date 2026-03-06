@@ -370,6 +370,7 @@ steps:
               - "unified"
               - "host"
         commands: |
+          unset LD_LIBRARY_PATH
           echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
       - label: "MultiGPU"
