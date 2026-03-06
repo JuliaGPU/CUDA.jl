@@ -213,6 +213,13 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                 return sytrf!(uplo, A, ipiv)
             else
                 CUSOLVER.version() < v"11.7.2" && throw(ErrorException("This operation is not supported by the current CUDA version."))
+                # NVIDIA bug #5949478: cusolverDn{C,Z}sytrf with NULL ipiv
+                # performs Hermitian (LDL^H) factorization instead of symmetric
+                # (LDL^T) on CUSOLVER 12.0.9 (CUDA 13.1), silently producing
+                # wrong results for complex symmetric matrices.
+                if $elty <: Complex && v"12.0.9" <= CUSOLVER.version() < v"12.1"
+                    throw(ErrorException("Non-pivoting symmetric factorization of complex matrices is broken on cuSOLVER $(CUSOLVER.version()). Use pivoting=true instead."))
+                end
                 chkuplo(uplo)
                 n = checksquare(A)
                 lda = max(1, stride(A, 2))
@@ -532,7 +539,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
                 throw(ArgumentError("CUSOLVER's gesvdjBatched currently requires m <=32 and n <= 32"))
             end
             lda = max(1, stride(A, 2))
-            
+
             U = similar(A, $elty, (m, m, batchSize))
             ldu = max(1, stride(U, 2))
 

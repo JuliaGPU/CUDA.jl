@@ -63,60 +63,60 @@ end
 
 @device_functions begin
 
-"""
-    gridDim()::NamedTuple
-
-Returns the dimensions of the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
-These dimensions have the same starting dimension as the `gridDim` built-in variable in the C/C++ extension.
-"""
-@inline gridDim() =   (x=gridDim_x(),   y=gridDim_y(),   z=gridDim_z())
-
-"""
-    blockIdx()::NamedTuple
-
-Returns the block index within the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
-These indices are 1-based, unlike the `blockIdx` built-in variable in the C/C++ extension which is 0-based.
-"""
-@inline blockIdx() =  (x=blockIdx_x(),  y=blockIdx_y(),  z=blockIdx_z())
-
-"""
-    blockDim()::NamedTuple
-
-Returns the dimensions of the block as a `NamedTuple` with keys `x`, `y`, and `z`.
-These dimensions have the same starting index as the `blockDim` built-in variable in the C/C++ extension.
-"""
-@inline blockDim() =  (x=blockDim_x(),  y=blockDim_y(),  z=blockDim_z())
-
-"""
+@doc """
     threadIdx()::NamedTuple
 
 Returns the thread index within the block as a `NamedTuple` with keys `x`, `y`, and `z`.
 These indices are 1-based, unlike the `threadIdx` built-in variable in the C/C++ extension which is 0-based.
-"""
+""" threadIdx
 @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
 
-"""
+@doc """
+    blockDim()::NamedTuple
+
+Returns the dimensions (in threads) of the block as a `NamedTuple` with keys `x`, `y`, and `z`.
+These dimensions have the same starting index as the `blockDim` built-in variable in the C/C++ extension.
+""" blockDim
+@inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
+
+@doc """
+    blockIdx()::NamedTuple
+
+Returns the block index within the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
+These indices are 1-based, unlike the `blockIdx` built-in variable in the C/C++ extension which is 0-based.
+""" blockIdx
+@inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
+
+@doc """
+    gridDim()::NamedTuple
+
+Returns the dimensions (in blocks) of the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
+These dimensions have the same starting dimension as the `gridDim` built-in variable in the C/C++ extension.
+""" gridDim
+@inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
+
+@doc """
     warpsize()::Int32
 
 Returns the warp size (in threads).
 This corresponds to the `warpSize` built-in variable in the C/C++ extension.
-"""
+""" warpsize
 @inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
 
-"""
+@doc """
     laneid()::Int32
 
 Returns the thread's lane within the warp.
 This ID is 1-based.
-"""
+""" laneid
 @inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
 
-"""
+@doc """
     lanemask(pred)::UInt32
 
 Returns a 32-bit mask indicating which threads in a warp satisfy the given predicate.
 Supported predicates are `==`, `<`, `<=`, `>=`, and `>`.
-"""
+""" lanemask
 @inline function lanemask(pred::F) where F
     if pred === Base.:(==)
         ccall("llvm.nvvm.read.ptx.sreg.lanemask.eq", llvmcall, UInt32, ())
@@ -133,12 +133,12 @@ Supported predicates are `==`, `<`, `<=`, `>=`, and `>`.
     end
 end
 
-"""
+@doc """
     active_mask()
 
 Returns a 32-bit mask indicating which threads in a warp are active with the current
 executing thread.
-"""
+""" active_mask
 @inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
 
 end
