@@ -111,6 +111,7 @@ module Profile
 
 using ..CUDA
 using ..CUPTI
+using ..CUDA_Runtime
 
 using Crayons: @crayon_str, Crayon
 using NVTX: NVTX
