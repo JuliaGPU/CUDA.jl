@@ -75,7 +75,7 @@ These indices are 1-based, unlike the `threadIdx` built-in variable in the C/C++
     blockDim()::NamedTuple
 
 Returns the dimensions (in threads) of the block as a `NamedTuple` with keys `x`, `y`, and `z`.
-These dimensions have the same starting index as the `blockDim` built-in variable in the C/C++ extension.
+Unlike the `*Idx` intrinsics, `blockDim` returns the same value as its C/C++ extension counterpart.
 """ blockDim
 @inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
 
@@ -91,7 +91,7 @@ These indices are 1-based, unlike the `blockIdx` built-in variable in the C/C++ 
     gridDim()::NamedTuple
 
 Returns the dimensions (in blocks) of the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
-These dimensions have the same starting dimension as the `gridDim` built-in variable in the C/C++ extension.
+Unlike the `*Idx` intrinsics, `gridDim` returns the same value as its C/C++ extension counterpart.
 """ gridDim
 @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
 
