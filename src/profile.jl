@@ -111,7 +111,6 @@ module Profile
 
 using ..CUDA
 using ..CUPTI
-using ..CUDA_Runtime
 
 using Crayons: @crayon_str, Crayon
 using NVTX: NVTX
@@ -171,7 +170,7 @@ function detect_cupti()
         # We cannot run this unconditionally during initialization to avoid interfering
         # with other cupti users who may not operate via CUDA.@profile [like Reactant/XLA]
         if !NVTX.isactive() && CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
-            ENV["NVTX_INJECTION64_PATH"] = CUDA_Runtime.libcupti
+            ENV["NVTX_INJECTION64_PATH"] = CUDA.CUDA_Runtime.libcupti
             NVTX.activate()
         end
         _nvtx_activated[] = true
