@@ -82,6 +82,9 @@ function main()
                 "development/troubleshooting.md",
                 "development/debugging.md",
             ],
+            "Hacking" => Any[
+                "hacking/exposing_new_intrinsics.md",
+            ],
             "API reference" => Any[
                 "api/essentials.md",
                 "api/array.md",
