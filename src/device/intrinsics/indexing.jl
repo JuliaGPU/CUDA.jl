@@ -66,28 +66,32 @@ end
 @doc """
     threadIdx()::NamedTuple
 
-Returns the thread index within the block.
+Returns the thread index within the block as a `NamedTuple` with keys `x`, `y`, and `z`.
+These indices are 1-based, unlike the `threadIdx` built-in variable in the C/C++ extension which is 0-based.
 """ threadIdx
 @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
 
 @doc """
     blockDim()::NamedTuple
 
-Returns the dimensions (in threads) of the block.
+Returns the dimensions (in threads) of the block as a `NamedTuple` with keys `x`, `y`, and `z`.
+Unlike the `*Idx` intrinsics, `blockDim` returns the same value as its C/C++ extension counterpart.
 """ blockDim
 @inline blockDim() = (x=blockDim_x(), y=blockDim_y(), z=blockDim_z())
 
 @doc """
     blockIdx()::NamedTuple
 
-Returns the block index within the grid.
+Returns the block index within the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
+These indices are 1-based, unlike the `blockIdx` built-in variable in the C/C++ extension which is 0-based.
 """ blockIdx
 @inline blockIdx() = (x=blockIdx_x(), y=blockIdx_y(), z=blockIdx_z())
 
 @doc """
     gridDim()::NamedTuple
 
-Returns the dimensions (in blocks) of the grid.
+Returns the dimensions (in blocks) of the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
+Unlike the `*Idx` intrinsics, `gridDim` returns the same value as its C/C++ extension counterpart.
 """ gridDim
 @inline gridDim() = (x=gridDim_x(), y=gridDim_y(), z=gridDim_z())
 
@@ -95,6 +99,7 @@ Returns the dimensions (in blocks) of the grid.
     warpsize()::Int32
 
 Returns the warp size (in threads).
+This corresponds to the `warpSize` built-in variable in the C/C++ extension.
 """ warpsize
 @inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
 
@@ -102,6 +107,7 @@ Returns the warp size (in threads).
     laneid()::Int32
 
 Returns the thread's lane within the warp.
+This ID is 1-based.
 """ laneid
 @inline laneid() = ccall("llvm.nvvm.read.ptx.sreg.laneid", llvmcall, Int32, ()) + 1i32
 

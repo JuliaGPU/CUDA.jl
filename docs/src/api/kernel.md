@@ -1,13 +1,19 @@
 # [Kernel programming](@id KernelAPI)
 
 This section lists the package's public functionality that corresponds to special CUDA
-functions for use in device code. It is loosely organized according to the [C language
-extensions](http://docs.nvidia.com/cuda/cuda-c-programming-guide/#c-language-extensions)
-appendix from the CUDA C programming guide. For more information about certain intrinsics,
-refer to the aforementioned NVIDIA documentation.
+functions for use in device code. It is loosely organized according to the [C/C++ language
+extensions](https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html)
+appendix from the [CUDA programming
+guide](https://docs.nvidia.com/cuda/cuda-programming-guide/). For more information about
+certain intrinsics, refer to the aforementioned NVIDIA documentation.
 
 
 ## Indexing and dimensions
+
+!!! note "Differences with corresponding C/C++ indexing variables"
+    The indexing functions [`blockIdx`](@ref) and [`threadIdx`](@ref) have different
+    starting index from the corresponding variables in the C/C++ extensions.
+    Be careful when literally porting code from C/C++.
 
 ```@docs
 gridDim
@@ -18,7 +24,6 @@ warpsize
 laneid
 active_mask
 ```
-
 
 ## Device arrays
 
