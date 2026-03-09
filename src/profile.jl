@@ -158,9 +158,22 @@ function profile_externally(f)
 end
 
 const _cupti_active = Ref{Union{Nothing,Bool}}(nothing)
+const _nvtx_activated = Ref{Bool}(false)
+
 function detect_cupti()
     if _cupti_active[] !== nothing
         return _cupti_active[]
+    end
+
+    if !_nvtx_activated[]
+        # If we're not running under an external profiler, let CUPTI handle NVTX events
+        # We cannot run this unconditionally during initialization to avoid interfering
+        # with other cupti users who may not operate via CUDA.@profile [like Reactant/XLA]
+        if !NVTX.isactive() && CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
+            ENV["NVTX_INJECTION64_PATH"] = CUDA.CUDA_Runtime.libcupti
+            NVTX.activate()
+        end
+        _nvtx_activated[] = true
     end
 
     subscribed = try
