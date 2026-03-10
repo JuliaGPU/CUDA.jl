@@ -169,7 +169,7 @@ end
     if CUDA.capability(device()) >= v"9.0"
         @cuda threads=64 clustersize=2 dummy()
     else
-        @test_throws ArgumentError @cuda threads=64 clustersize=2 dummy()
+        @test_throws CuError @cuda threads=64 clustersize=2 dummy()
     end
 end
 
