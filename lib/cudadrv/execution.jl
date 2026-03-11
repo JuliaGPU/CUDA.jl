@@ -65,39 +65,36 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
 
-    try
-        pack_arguments(args...) do kernelParams
-            if cooperative
-                cuLaunchCooperativeKernel(f,
-                                          blockdim.x, blockdim.y, blockdim.z,
-                                          threaddim.x, threaddim.y, threaddim.z,
-                                          shmem, stream, kernelParams)
-            elseif clusterdim.x == 1 && clusterdim.y == 1 && clusterdim.z == 1
-                cuLaunchKernel(f,
-                               blockdim.x, blockdim.y, blockdim.z,
-                               threaddim.x, threaddim.y, threaddim.z,
-                               shmem, stream, kernelParams, C_NULL)
-            else
-                attr_ref = Ref{CUDA.CUlaunchAttribute}()
-                GC.@preserve attr_ref stream begin
-                    attr = Base.unsafe_convert(Ptr{CUDA.CUlaunchAttribute}, attr_ref)
-                    attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
-                    attr.value.clusterDim.x = clusterdim.x
-                    attr.value.clusterDim.y = clusterdim.y
-                    attr.value.clusterDim.z = clusterdim.z
-                    config = Ref(CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
-                                                threaddim.x, threaddim.y, threaddim.z,
-                                                shmem, stream.handle, attr, 1))
-                    cuLaunchKernelEx(config, f, kernelParams, C_NULL)
-                end
+    attrs = CUDA.CUlaunchAttribute[]
+    if cooperative
+        push!(attrs, CUDA.CUlaunchAttribute())
+        attr = pointer(attrs, length(attrs))
+        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
+    end
+    if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
+        push!(attrs, CUDA.CUlaunchAttribute())
+        attr = pointer(attrs, length(attrs))
+        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
+        attr.value.clusterDim.x = clusterdim.x
+        attr.value.clusterDim.y = clusterdim.y
+        attr.value.clusterDim.z = clusterdim.z
+    end
+
+    GC.@preserve attrs stream begin
+        config = Ref(CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
+                                    threaddim.x, threaddim.y, threaddim.z,
+                                    shmem, stream.handle, pointer(attrs), length(attrs)))
+        try
+            pack_arguments(args...) do kernelParams
+                cuLaunchKernelEx(config, f, kernelParams, C_NULL)
             end
+        catch err
+            diagnose_launch_failure(f, config, err; blockdim, threaddim, clusterdim, shmem)
         end
-    catch err
-        diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
     end
 end
 
-@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, clusterdim, shmem)
+@noinline function diagnose_launch_failure(f::CuFunction, config::CUlaunchConfig, err; blockdim, threaddim, clusterdim, shmem)
     if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
                                             ERROR_LAUNCH_OUT_OF_RESOURCES])
         rethrow()
@@ -132,6 +129,26 @@ end
         if getfield(blockdim, dim) > getfield(blocklim, dim)
             error("Number of blocks in $(dim)-dimension exceeds device limit ($(getfield(blockdim, dim)) > $(getfield(blocklim, dim))).")
         end
+    end
+    ## cluster size limit
+    active_clusters = clusterdim.x * clusterdim.y * clusterdim.z
+    if capability(dev) >= v"9.0"
+        cluster_launch = attribute(dev, CU_DEVICE_ATTRIBUTE_CLUSTER_LAUNCH) != 0
+    else
+        cluster_launch = false
+    end
+    if cluster_launch
+        num_clusters = Ref{Cint}[]
+        curesult = cuOccupancyMaxActiveClusters(num_clusters, f, config)
+        max_active_clusters = num_clusters[]
+        if active_clusters > max_active_clusters
+            error("Total cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > $max_active_clusters).")
+        end
+    else
+        # Thread block clusters are not supported
+         if active_clusters > 1
+             error("Total cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > 1). (The device does not support thread block clusters. All cluster dimensions must be 1.)")
+         end
     end
     ## shared memory limit
     shmem_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
