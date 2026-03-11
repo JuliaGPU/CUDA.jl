@@ -70,7 +70,7 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
         resize!(attrs, length(attrs)+1)
         attr = pointer(attrs, length(attrs))
         attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
-        attrs.value.cooperative = 1;
+        attr.value.cooperative = 1;
     end
     if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
         resize!(attrs, length(attrs)+1)
