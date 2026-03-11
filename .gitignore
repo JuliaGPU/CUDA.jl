@@ -9,6 +9,6 @@ alloc-profile.pb.gz
 .vscode
 lcov.info
 
-/Manifest.toml
+/Manifest*.toml
 /lib/**/Manifest.toml
 /lib/**/LocalPreferences.toml
