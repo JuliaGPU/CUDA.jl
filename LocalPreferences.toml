@@ -1,23 +1,7 @@
-[CUDA_Runtime_jll]
-# which CUDA runtime to use. in normal cases, this will be auto-detected, but you need to
-# set this preference if you want to precompile CUDA.jl in an envirnonment without CUDA
-#version = "11.8"
-
-# whether to use a local CUDA installation. if CUDA isn't available during precompilation,
-# you will also need to set the "version" preference, matching the local CUDA version.
-#local = "false"
-
 [CUDA]
-# whether to use a nonblocking synchronization mechanism,
-# making it possible to do use cooperative multitasking.
-#nonblocking_synchronization = true
-
-# which memory type unspecified allocations should default to.
-# possible values: "device", "unified", "host"
-#default_memory = "device"
 
 [CUDA_Driver_jll]
-# whether to attempt to load a forwards-compatibile userspace driver.
-# only turn this off if you experience issues, e.g., when using a local
-# toolkit that's much older than the available forwards compatible driver.
-#compat = "true"
+
+[CUDA_Runtime_jll]
+local = "false"
+version = "13.2"

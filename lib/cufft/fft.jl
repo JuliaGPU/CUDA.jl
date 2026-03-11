@@ -347,12 +347,8 @@ function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) whe
     internal_batch_dims, external_batch_dims = get_batch_dims(p.region, p.output_size)
     if isempty(external_batch_dims)
         unsafe_execute!(p,x,y)
-    else # if (external_batch_dims[1] == 1)
-        # @show "external batching: leading dimensions "
+    else 
         # flatten the memory as a view as otherwise the intput is not correctly interpreted as a contiguous Cuda memory
-        # memx = reshape(x, prod(size(x)))
-        # memy = reshape(y, prod(size(y)))
-        # cdims = ntuple((d) -> (d==1) ? div(p.input_size[d],2) + 1 : p.input_size[d], length(p.input_size))
         external_batch_ids = [external_batch_dims...]
         batch_strides_x = (1, cumprod(size(x))...)[external_batch_ids]
         batch_strides_y = (1, cumprod(size(y))...)[external_batch_ids]
@@ -361,18 +357,16 @@ function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) whe
         did_skip_y = false
         to_skip_y = 0
         for c in CartesianIndices(size(x)[external_batch_ids])
-            # @show c
             batch_start_x = sum(batch_strides_x .* (Tuple(c).-1)) + 1
             batch_start_y = sum(batch_strides_y .* (Tuple(c).-1)) + 1
-            # @show offset_x
-            if (eltype(x) <: Float32 && iseven(batch_start_x))
+            if (eltype(x) <: Real && iseven(batch_start_x))
                 did_skip_x = true
                 if (to_skip_x == 0)
                     to_skip_x = batch_start_x - 1
                 end
                 continue;
             end
-            if (eltype(y) <: Float32 && iseven(batch_start_y))
+            if (eltype(y) <: Real && iseven(batch_start_y))
                 did_skip_y = true
                 if (to_skip_y == 0)
                     to_skip_y = batch_start_y - 1
@@ -381,12 +375,6 @@ function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) whe
             end
             vx = @view x[batch_start_x:end]
             vy = @view y[batch_start_y:end]
-            # @show size(x)
-            # @show size(y)
-            # @show batch_start_x
-            # @show batch_start_y
-            # @show eltype(x)
-            # @show eltype(y)
             unsafe_execute!(p,vx,vy)
         end
         # If there was at least one skip due to real Float32 alignment, we need to cyclicly rotate the whole array in place and run again
@@ -394,32 +382,24 @@ function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) whe
             extra_x_index = 0
             extra_y_index = 0
             if (did_skip_x)
-                # @show "skipped x by $(to_skip_x)"
                 extra_y_index = 1
                 circshift!((@view x[:]), -to_skip_x)
             end
             if (did_skip_y)
-                # @show "skipped y by $(to_skip_y)"
                 extra_x_index = 1
                 circshift!((@view y[:]), -to_skip_y)
             end
             for c in CartesianIndices(size(x)[external_batch_ids])
                 batch_start_x = sum(batch_strides_x .* (Tuple(c).-1)) + 1 + extra_x_index
                 batch_start_y = sum(batch_strides_y .* (Tuple(c).-1)) + 1 + extra_y_index
-                if (eltype(x) <: Float32 && iseven(batch_start_x))
+                if (eltype(x) <: Real && iseven(batch_start_x))
                     continue;
                 end
-                if (eltype(y) <: Float32 && iseven(batch_start_y))
+                if (eltype(y) <: Real && iseven(batch_start_y))
                     continue;
                 end
                 vx = @view x[batch_start_x:end]
                 vy = @view y[batch_start_y:end]
-                # @show size(x)
-                # @show size(y)
-                # @show batch_start_x
-                # @show batch_start_y
-                # @show eltype(x)
-                # @show eltype(y)
                 unsafe_execute!(p,vx,vy)
             end
             if (did_skip_x)

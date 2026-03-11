@@ -50,7 +50,6 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
     handle = handle_ref[]
 
     if (region...,) == ((1:nrank)...,)
-        # @show "contiguous dims, no batching"
         # handle simple case, transforming the first nrank dimensions, ... simply! (for robustness)
         # arguments are: plan, rank, transform-sizes, inembed, istride, idist, itype, onembed, ostride, odist, otype, batch
         execution_type = promote_type(input_type, output_type)
@@ -59,8 +58,6 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
                             C_NULL, 1, 1, convert(cudaDataType, output_type),
                             num_internal_batches, worksize_ref, convert(cudaDataType, execution_type))
     else
-        # @show "internal batching needed"
-
         # reduce the array to the final transform direction.
         # This situation will be picked up in the application of the plan later.
         internal_batch_dims, external_batch_dims = get_batch_dims(region, input_size)
@@ -69,6 +66,7 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
         # the internal batching is over the largest consecutive batch indices.
         # Since they are consecutive they can all be batched by a single batch_stride "i_dist".
         idist = prod((1, input_size...)[1:internal_batch_dims[1]])
+
         cdist = prod((1, cdims...)[1:internal_batch_dims[1]])
         istride = prod((1, input_size...)[1:region[1]])
 
@@ -80,22 +78,26 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
             inembed = Clonglong[idist,]
             cnembed = Clonglong[cdist,]
         elseif (nrank == 2)
-            inembed = Clonglong[1, prod(input_size[region[1]:region[2]-1])]
-            cnembed = Clonglong[1, prod(cdims[region[1]:region[2]-1])]
+            # inembed[0] must be >= n[0] (the larger transform dim in C-order)
+            # Using idist ensures sufficient storage is indicated
+            inembed = Clonglong[idist, prod(input_size[region[1]:region[2]-1])]
+            cnembed = Clonglong[cdist, prod(cdims[region[1]:region[2]-1])]
         elseif (nrank == 3)
-            inembed = Clonglong[1, prod(input_size[region[2]:region[3]-1]), prod(input_size[region[1]:region[2]-1])]
-            cnembed = Clonglong[1, prod(cdims[region[2]:region[3]-1]), prod(cdims[region[1]:region[2]-1])]
+            inembed = Clonglong[idist, prod(input_size[region[2]:region[3]-1]), prod(input_size[region[1]:region[2]-1])]
+            cnembed = Clonglong[cdist, prod(cdims[region[2]:region[3]-1]), prod(cdims[region[1]:region[2]-1])]
         end
 
         # internal number of batches are product of the sizes at the internal_batch_dims
         num_internal_batches = prod(input_size[[internal_batch_dims...]])
 
+        # in C-style notation:
         # 2D: input[ b * idist + (x * inembed[1] + y) * istride ]
         # 3D: input[ b * idist + ((x * inembed[1] + y) * inembed[2] + z) * istride ]
         # first transform dimension stride, assuming internal batching over outer dimensions
         # batching stride (datatype size dependent)
 
         ostride = istride
+        # if input_type is real, the output will be half complex, so the output strides are modified
         if input_type <: Real
             odist = cdist
             onembed = cnembed
@@ -109,17 +111,6 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
         end
 
         execution_type = promote_type(input_type, output_type)
-
-        # @show rsz
-        # @show nrank
-        # @show inembed
-        # @show onembed
-        # @show istride
-        # @show ostride
-        # @show idist
-        # @show odist
-        # @show cdims
-        # @show cnembed
 
         res = cufftXtMakePlanMany(handle, nrank, Clonglong[rsz...],
                                   inembed, istride, idist, convert(cudaDataType, input_type),

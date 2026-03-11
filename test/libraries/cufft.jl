@@ -381,21 +381,23 @@ end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,3)]
+    for region in [(1,2),(1,3),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(2,4),(1,4),(3,4),(2,3)]
-        # if (T <: Float16 || T <: Float32)
+    for region in [(2,4),(1,4),(3,4)]
+        if (T <: Float16)
             # for odd dimensions covering axes of or between transform axes
             # there is a rather unspecific CUFFTError: "CUFFT_INCOMPLETE_PARAMETER_LIST" thrown. This should be caught elsewhere to give more specific hint
             # on how to avoid this. Maybe as of Cuda 13 this issue is removed?
+            X = rand(T, dims);
             @test_throws CUFFTError batched(X,region)
-        # else
-        #     batched(X,region)
-        # end
+        else
+            batched(X,region)
+        end
     end
 
+    X = rand(T, dims)
     @test_throws ArgumentError batched(X,(3,1))
 end
 
