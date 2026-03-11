@@ -130,15 +130,45 @@ function irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, regi
     irfft(complexfloat(x), d, region)
 end
 
-# returns the dimensions over which to run internal batching and external for-loop batching
-# internal_batch_dims, external_batch_dims = get_batch_dims(region, sz)
+"""
+    get_batch_dims(region, sz)
+
+returns the dimensions over which to run internal batching and dimensions used for external (for-loop9 batching
+It finds the largest product of consecutive dimension and uses these as internal batch dimensions.
+All other dimensions are external batch dimensions.
+
+    internal_batch_dims, external_batch_dims = get_batch_dims(region, sz)
+
+# Parameters:
++ `transform_dims`: Tuple of dimensions to transform
++ `sz`: size of the array to transform. All dimensions not in `transform_dims` ar considered as batch dimenions
+        This size Tuple is only used to determine the best set of consecutive dimension to be used for internal batching.
+"""
 function get_batch_dims(region, sz)
-    size_front = prod(sz[1:region[1]])
-    size_back = prod(sz[region[end]:end])
-    return ifelse(size_front > size_back, ((1:region[1]-1), (region[end]+1:length(sz))), ((region[end]+1:length(sz)), (1:region[1]-1)))
+    internal_batch_dims = ()
+    external_batch_dims = ()
+    previous_transform_dim = 0
+    best_gap_size = 0
+    # iterate through the transform dimensions and one extra dim beyond the size to cover the external batch dims
+    for t in (region..., length(sz)+1)
+        # calculate the product only of consecutively non-transformed sizes
+        if (t > previous_transform_dim+1)
+            gap_size = prod(sz[previous_transform_dim+1:t-1])
+            if (gap_size > best_gap_size)
+                best_gap_size = gap_size
+                # the previously best dims were not the best. Add them to the external list.
+                external_batch_dims = (external_batch_dims..., internal_batch_dims...)
+                internal_batch_dims = Tuple(previous_transform_dim+1:t-1)
+            else
+                external_batch_dims = Tuple(external_batch_dims..., previous_transform_dim+1:t-1)
+            end
+        end
+        previous_transform_dim = t
+    end
+    return internal_batch_dims, external_batch_dims
 end
 
-# retrieves the size to allocate even if the trailing dimensions do no transform
+# retrieves the size to allocate even if the external batch dimensions do no transform
 get_osz(osz, x) = ntuple((d)->(d>length(osz) ? size(x, d) : osz[d]), ndims(x))
 
 # returns a view of the front part of the dimensions of the array up to md dimensions
@@ -156,6 +186,7 @@ end
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
         Base.@constprop :aggressive function $f(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
+            region = isa(region, Number) ? region : sort(region)
             R = length(region)
             region = NTuple{R,Int}(region)
             $f(X, region)
@@ -167,6 +198,7 @@ end
 function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = true
+    region = isa(region, Number) ? region : sort(region)
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -176,6 +208,7 @@ end
 function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = true
+    region = isa(region, Number) ? region : sort(region)
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -186,6 +219,7 @@ end
 function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = false
+    region = isa(region, Number) ? region : sort(region)
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -195,6 +229,7 @@ end
 function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
+    region = isa(region, Number) ? region : sort(region)
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -203,6 +238,8 @@ end
 
 # out-of-place real-to-complex
 Base.@constprop :aggressive function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
+    # for rfft we cannot sort, since the meaning in fftw is that the first dimension in the list is reduced.
+    # so we let the plan throw an error
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_rfft(X, region)
@@ -211,6 +248,8 @@ end
 function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftReals,N,R}
     K = CUFFT_FORWARD
     inplace = false
+    # for rfft we cannot sort, since the meaning in fftw is that the first dimension in the list is reduced.
+    # so we let the plan throw an error
 
     handle = cufftGetPlan(complex(T), T, size(X), region)
 
@@ -227,6 +266,8 @@ end
 
 # out-of-place complex-to-real
 Base.@constprop :aggressive function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region) where {T<:cufftComplexes,N}
+    # for rfft we cannot sort, since the meaning in fftw is that the first dimension in the list is reduced.
+    # so we let the plan throw an error
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_brfft(X, d, region)
@@ -235,6 +276,8 @@ end
 function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
+    # for rfft we cannot sort, since the meaning in fftw is that the first dimension in the list is reduced.
+    # so we let the plan throw an error
 
     xdims = size(X)
     ydims = Base.setindex(xdims, d, region[1])
@@ -296,36 +339,97 @@ function unsafe_execute!(plan::CuFFTPlan{T,S,K,inplace}, x::DenseCuArray{S}, y::
     cufftXtExec(plan, x, y, K)
 end
 
-# a version of unsafe_execute which applies the plan to each element of trailing dimensions not covered by the plan.
-# Note that for plans, with trailing non-transform dimensions views are created for each of such elements.
+# a version of unsafe_execute which applies the plan to each element of external batch dimensions not covered by the plan.
+# Note that for plans, with external batch non-transform dimensions views are created for each of such elements.
 # Such views each have lower dimensions and are then transformed by the lower dimension low-level Cuda plan.
-function unsafe_execute_trailing!(p, x, y)
+function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) where {T,S,K,inplace}
+    # For R2C/C2R transforms, dimension 1 should not be in external batches (alignment requirement)
     internal_batch_dims, external_batch_dims = get_batch_dims(p.region, p.output_size)
     if isempty(external_batch_dims)
         unsafe_execute!(p,x,y)
-    elseif (external_batch_dims[1] == 1)
+    else # if (external_batch_dims[1] == 1)
         # @show "external batching: leading dimensions "
-        trailing_ids = ntuple((dd)->Colon(), length(p.input_size) - p.region[1] + 1)
         # flatten the memory as a view as otherwise the intput is not correctly interpreted as a contiguous Cuda memory
-        memx = reshape(x, prod(size(x)))
-        memy = reshape(y, prod(size(y)))
-        n = 1
-        for c in CartesianIndices(size(x)[external_batch_dims])
-            vx = @view memx[n:end]
-            vy = @view memy[n:end]
+        # memx = reshape(x, prod(size(x)))
+        # memy = reshape(y, prod(size(y)))
+        # cdims = ntuple((d) -> (d==1) ? div(p.input_size[d],2) + 1 : p.input_size[d], length(p.input_size))
+        external_batch_ids = [external_batch_dims...]
+        batch_strides_x = (1, cumprod(size(x))...)[external_batch_ids]
+        batch_strides_y = (1, cumprod(size(y))...)[external_batch_ids]
+        did_skip_x = false
+        to_skip_x = 0
+        did_skip_y = false
+        to_skip_y = 0
+        for c in CartesianIndices(size(x)[external_batch_ids])
+            # @show c
+            batch_start_x = sum(batch_strides_x .* (Tuple(c).-1)) + 1
+            batch_start_y = sum(batch_strides_y .* (Tuple(c).-1)) + 1
+            # @show offset_x
+            if (eltype(x) <: Float32 && iseven(batch_start_x))
+                did_skip_x = true
+                if (to_skip_x == 0)
+                    to_skip_x = batch_start_x - 1
+                end
+                continue;
+            end
+            if (eltype(y) <: Float32 && iseven(batch_start_y))
+                did_skip_y = true
+                if (to_skip_y == 0)
+                    to_skip_y = batch_start_y - 1
+                end
+                continue;
+            end
+            vx = @view x[batch_start_x:end]
+            vy = @view y[batch_start_y:end]
+            # @show size(x)
+            # @show size(y)
+            # @show batch_start_x
+            # @show batch_start_y
+            # @show eltype(x)
+            # @show eltype(y)
             unsafe_execute!(p,vx,vy)
-            n += 1
         end
-    else
-        # @show "external batching: trailing dimensions "
-        front_ids = ntuple((dd)->Colon(), p.region[end])
-        for c in CartesianIndices(size(x)[external_batch_dims])
-            vx = @view x[front_ids..., c]
-            vy = @view y[front_ids..., c]
-            unsafe_execute!(p,vx,vy)
+        # If there was at least one skip due to real Float32 alignment, we need to cyclicly rotate the whole array in place and run again
+        if (did_skip_x || did_skip_y)
+            extra_x_index = 0
+            extra_y_index = 0
+            if (did_skip_x)
+                # @show "skipped x by $(to_skip_x)"
+                extra_y_index = 1
+                circshift!((@view x[:]), -to_skip_x)
+            end
+            if (did_skip_y)
+                # @show "skipped y by $(to_skip_y)"
+                extra_x_index = 1
+                circshift!((@view y[:]), -to_skip_y)
+            end
+            for c in CartesianIndices(size(x)[external_batch_ids])
+                batch_start_x = sum(batch_strides_x .* (Tuple(c).-1)) + 1 + extra_x_index
+                batch_start_y = sum(batch_strides_y .* (Tuple(c).-1)) + 1 + extra_y_index
+                if (eltype(x) <: Float32 && iseven(batch_start_x))
+                    continue;
+                end
+                if (eltype(y) <: Float32 && iseven(batch_start_y))
+                    continue;
+                end
+                vx = @view x[batch_start_x:end]
+                vy = @view y[batch_start_y:end]
+                # @show size(x)
+                # @show size(y)
+                # @show batch_start_x
+                # @show batch_start_y
+                # @show eltype(x)
+                # @show eltype(y)
+                unsafe_execute!(p,vx,vy)
+            end
+            if (did_skip_x)
+                circshift!((@view x[:]), 1)
+            end
+            if (did_skip_y)
+                circshift!((@view y[:]), 1)
+            end
         end
     end
-
     return 
 end
 
@@ -342,13 +446,13 @@ function LinearAlgebra.mul!(y::DenseCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x::
     else
         z = x
     end
-    unsafe_execute_trailing!(p, z, y)
+    unsafe_execute_external_batches!(p, z, y)
     y
 end
 
 function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::DenseCuArray{S}) where {T,S,K}
     assert_applicable(p, x)
-    unsafe_execute_trailing!(p, x, x)
+    unsafe_execute_external_batches!(p, x, x)
     x
 end
 
@@ -368,6 +472,6 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::DenseCuArray{S1,M}) where {T,S,
     end
     assert_applicable(p, z)
     y = CuArray{T,M}(undef, p.output_size)
-    unsafe_execute_trailing!(p, z, y)
+    unsafe_execute_external_batches!(p, z, y)
     y
 end
