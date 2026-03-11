@@ -94,7 +94,7 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     end
 end
 
-@noinline function diagnose_launch_failure(f::CuFunction, config::CUlaunchConfig, err; blockdim, threaddim, clusterdim, shmem)
+@noinline function diagnose_launch_failure(f::CuFunction, config::Ref{CUlaunchConfig}, err; blockdim, threaddim, clusterdim, shmem)
     if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
                                             ERROR_LAUNCH_OUT_OF_RESOURCES])
         rethrow()
@@ -138,16 +138,16 @@ end
         cluster_launch = false
     end
     if cluster_launch
-        num_clusters = Ref{Cint}[]
-        curesult = cuOccupancyMaxActiveClusters(num_clusters, f, config)
-        max_active_clusters = num_clusters[]
-        if active_clusters > max_active_clusters
-            error("Total cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > $max_active_clusters).")
-        end
+        # It is difficult to determine the maximum cluster size. There is no attribute to query.
+        # If we really want to report this then we should implement a stand-alone function for this
+        # and then call this function here.
+        #
+        # The function to call is `cuOccupancyMaxPotentialClusterSize`,
+        # which reports a value that depends on the function's attributes.
     else
         # Thread block clusters are not supported
          if active_clusters > 1
-             error("Total cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > 1). (The device does not support thread block clusters. All cluster dimensions must be 1.)")
+             error("Thread block cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > 1). (The device does not support thread block clusters.)")
          end
     end
     ## shared memory limit
