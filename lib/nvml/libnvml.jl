@@ -1731,6 +1731,39 @@ end
 
 const nvmlVgpuCreatablePlacementInfo_t = nvmlVgpuCreatablePlacementInfo_v1_t
 
+struct nvmlVgpuSchedulerStateInfo_v2_t
+    engineId::Cuint
+    schedulerPolicy::Cuint
+    avgFactor::Cuint
+    timeslice::Cuint
+end
+
+struct nvmlVgpuSchedulerLogEntry_v2_t
+    timestamp::Culonglong
+    timeRunTotal::Culonglong
+    timeRun::Culonglong
+    swRunlistId::Cuint
+    targetTimeSlice::Culonglong
+    cumulativePreemptionTime::Culonglong
+    weight::Cuint
+end
+
+struct nvmlVgpuSchedulerLogInfo_v2_t
+    engineId::Cuint
+    schedulerPolicy::Cuint
+    avgFactor::Cuint
+    timeslice::Cuint
+    entriesCount::Cuint
+    logEntries::NTuple{200,nvmlVgpuSchedulerLogEntry_v2_t}
+end
+
+struct nvmlVgpuSchedulerState_v2_t
+    engineId::Cuint
+    schedulerPolicy::Cuint
+    avgFactor::Cuint
+    frequency::Cuint
+end
+
 struct nvmlNvLinkPowerThres_st
     lowPwrThreshold::Cuint
 end
@@ -3827,6 +3860,11 @@ end
                                                         state::nvmlEnableState_t)::nvmlReturn_t
 end
 
+@checked function nvmlDeviceVgpuForceGspUnload(device)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceVgpuForceGspUnload(device::nvmlDevice_t)::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetGridLicensableFeatures_v4(device, pGridLicensableFeatures)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetGridLicensableFeatures_v4(device::nvmlDevice_t,
@@ -4118,6 +4156,42 @@ end
                                                                   pHeterogeneousMode::Ptr{nvmlVgpuHeterogeneousMode_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetVgpuSchedulerState_v2(device, pSchedulerStateInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetVgpuSchedulerState_v2(device::nvmlDevice_t,
+                                                             pSchedulerStateInfo::Ptr{nvmlVgpuSchedulerStateInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceGetVgpuSchedulerState_v2(gpuInstance, pSchedulerStateInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlGpuInstanceGetVgpuSchedulerState_v2(gpuInstance::nvmlGpuInstance_t,
+                                                                  pSchedulerStateInfo::Ptr{nvmlVgpuSchedulerStateInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetVgpuSchedulerLog_v2(device, pSchedulerLogInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetVgpuSchedulerLog_v2(device::nvmlDevice_t,
+                                                           pSchedulerLogInfo::Ptr{nvmlVgpuSchedulerLogInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceGetVgpuSchedulerLog_v2(gpuInstance, pSchedulerLogInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlGpuInstanceGetVgpuSchedulerLog_v2(gpuInstance::nvmlGpuInstance_t,
+                                                                pSchedulerLogInfo::Ptr{nvmlVgpuSchedulerLogInfo_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetVgpuSchedulerState_v2(device, pSchedulerState)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceSetVgpuSchedulerState_v2(device::nvmlDevice_t,
+                                                             pSchedulerState::Ptr{nvmlVgpuSchedulerState_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlGpuInstanceSetVgpuSchedulerState_v2(gpuInstance, pSchedulerState)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlGpuInstanceSetVgpuSchedulerState_v2(gpuInstance::nvmlGpuInstance_t,
+                                                                  pSchedulerState::Ptr{nvmlVgpuSchedulerState_v2_t})::nvmlReturn_t
+end
+
 struct nvmlVgpuVersion_st
     minVersion::Cuint
     maxVersion::Cuint
@@ -4220,16 +4294,16 @@ end
                                                           pSchedulerState::Ptr{nvmlVgpuSchedulerGetState_t})::nvmlReturn_t
 end
 
-@checked function nvmlDeviceGetVgpuSchedulerCapabilities(device, pCapabilities)
-    initialize_context()
-    @gcsafe_ccall libnvml.nvmlDeviceGetVgpuSchedulerCapabilities(device::nvmlDevice_t,
-                                                                 pCapabilities::Ptr{nvmlVgpuSchedulerCapabilities_t})::nvmlReturn_t
-end
-
 @checked function nvmlDeviceSetVgpuSchedulerState(device, pSchedulerState)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceSetVgpuSchedulerState(device::nvmlDevice_t,
                                                           pSchedulerState::Ptr{nvmlVgpuSchedulerSetState_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetVgpuSchedulerCapabilities(device, pCapabilities)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetVgpuSchedulerCapabilities(device::nvmlDevice_t,
+                                                                 pCapabilities::Ptr{nvmlVgpuSchedulerCapabilities_t})::nvmlReturn_t
 end
 
 @checked function nvmlGetVgpuVersion(supported, current)
@@ -4806,6 +4880,7 @@ end
     NVML_GPM_METRIC_ANY_TENSOR_UTIL = 5
     NVML_GPM_METRIC_DFMA_TENSOR_UTIL = 6
     NVML_GPM_METRIC_HMMA_TENSOR_UTIL = 7
+    NVML_GPM_METRIC_DMMA_TENSOR_UTIL = 8
     NVML_GPM_METRIC_IMMA_TENSOR_UTIL = 9
     NVML_GPM_METRIC_DRAM_BW_UTIL = 10
     NVML_GPM_METRIC_FP64_UTIL = 11
@@ -4979,7 +5054,56 @@ end
     NVML_GPM_METRIC_GR7_CTXSW_REQUESTS = 207
     NVML_GPM_METRIC_GR7_CTXSW_CYCLES_PER_REQ = 208
     NVML_GPM_METRIC_GR7_CTXSW_ACTIVE_PCT = 209
-    NVML_GPM_METRIC_MAX = 210
+    NVML_GPM_METRIC_SM_CYCLES_ELAPSED = 248
+    NVML_GPM_METRIC_SM_CYCLES_ACTIVE = 249
+    NVML_GPM_METRIC_MMA_CYCLES_ACTIVE = 250
+    NVML_GPM_METRIC_DMMA_CYCLES_ACTIVE = 251
+    NVML_GPM_METRIC_HMMA_CYCLES_ACTIVE = 252
+    NVML_GPM_METRIC_IMMA_CYCLES_ACTIVE = 253
+    NVML_GPM_METRIC_DFMA_CYCLES_ACTIVE = 254
+    NVML_GPM_METRIC_PCIE_TX = 255
+    NVML_GPM_METRIC_PCIE_RX = 256
+    NVML_GPM_METRIC_INTEGER_CYCLES_ACTIVE = 257
+    NVML_GPM_METRIC_FP64_CYCLES_ACTIVE = 258
+    NVML_GPM_METRIC_FP32_CYCLES_ACTIVE = 259
+    NVML_GPM_METRIC_FP16_CYCLES_ACTIVE = 260
+    NVML_GPM_METRIC_NVLINK_L0_RX = 261
+    NVML_GPM_METRIC_NVLINK_L0_TX = 262
+    NVML_GPM_METRIC_NVLINK_L1_RX = 263
+    NVML_GPM_METRIC_NVLINK_L1_TX = 264
+    NVML_GPM_METRIC_NVLINK_L2_RX = 265
+    NVML_GPM_METRIC_NVLINK_L2_TX = 266
+    NVML_GPM_METRIC_NVLINK_L3_RX = 267
+    NVML_GPM_METRIC_NVLINK_L3_TX = 268
+    NVML_GPM_METRIC_NVLINK_L4_RX = 269
+    NVML_GPM_METRIC_NVLINK_L4_TX = 270
+    NVML_GPM_METRIC_NVLINK_L5_RX = 271
+    NVML_GPM_METRIC_NVLINK_L5_TX = 272
+    NVML_GPM_METRIC_NVLINK_L6_RX = 273
+    NVML_GPM_METRIC_NVLINK_L6_TX = 274
+    NVML_GPM_METRIC_NVLINK_L7_RX = 275
+    NVML_GPM_METRIC_NVLINK_L7_TX = 276
+    NVML_GPM_METRIC_NVLINK_L8_RX = 277
+    NVML_GPM_METRIC_NVLINK_L8_TX = 278
+    NVML_GPM_METRIC_NVLINK_L9_RX = 279
+    NVML_GPM_METRIC_NVLINK_L9_TX = 280
+    NVML_GPM_METRIC_NVLINK_L10_RX = 281
+    NVML_GPM_METRIC_NVLINK_L10_TX = 282
+    NVML_GPM_METRIC_NVLINK_L11_RX = 283
+    NVML_GPM_METRIC_NVLINK_L11_TX = 284
+    NVML_GPM_METRIC_NVLINK_L12_RX = 285
+    NVML_GPM_METRIC_NVLINK_L12_TX = 286
+    NVML_GPM_METRIC_NVLINK_L13_RX = 287
+    NVML_GPM_METRIC_NVLINK_L13_TX = 288
+    NVML_GPM_METRIC_NVLINK_L14_RX = 289
+    NVML_GPM_METRIC_NVLINK_L14_TX = 290
+    NVML_GPM_METRIC_NVLINK_L15_RX = 291
+    NVML_GPM_METRIC_NVLINK_L15_TX = 292
+    NVML_GPM_METRIC_NVLINK_L16_RX = 293
+    NVML_GPM_METRIC_NVLINK_L16_TX = 294
+    NVML_GPM_METRIC_NVLINK_L17_RX = 295
+    NVML_GPM_METRIC_NVLINK_L17_TX = 296
+    NVML_GPM_METRIC_MAX = 333
 end
 
 mutable struct nvmlGpmSample_st end
@@ -5045,7 +5169,7 @@ struct nvmlGpmMetricsGet_t
     numMetrics::Cuint
     sample1::nvmlGpmSample_t
     sample2::nvmlGpmSample_t
-    metrics::NTuple{210,nvmlGpmMetric_t}
+    metrics::NTuple{333,nvmlGpmMetric_t}
 end
 
 struct nvmlGpmSupport_t
@@ -5757,6 +5881,10 @@ const NVML_VGPU_SCHEDULER_ARR_ENABLE = 2
 
 const NVML_VGPU_SCHEDULER_ENGINE_TYPE_GRAPHICS = 1
 
+const NVML_VGPU_SCHEDULER_ENGINE_TYPE_NVENC1 = 2
+
+const NVML_VGPU_SCHEDULER_ENGINE_TYPE_NVENC0 = 3
+
 const NVML_GRID_LICENSE_STATE_UNKNOWN = 0
 
 const NVML_GRID_LICENSE_STATE_UNINITIALIZED = 1
@@ -6364,7 +6492,21 @@ const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_PRIMARY_FLOOR_TAR_WIN_MULT = 287
 
 const NVML_FI_PWR_SMOOTHING_ADMIN_OVERRIDE_PRIMARY_FLOOR_ACT_OFFSET = 288
 
-const NVML_FI_MAX = 289
+const NVML_FI_DEV_NVLINK_COUNT_RAW_ERRORS_LANE0 = 289
+
+const NVML_FI_DEV_NVLINK_COUNT_RAW_ERRORS_LANE1 = 290
+
+const NVML_FI_DEV_NVLINK_COUNT_RAW_BER_LANE0_V2 = 291
+
+const NVML_FI_DEV_NVLINK_COUNT_RAW_BER_LANE1_V2 = 292
+
+const NVML_FI_DEV_NVLINK_COUNT_RAW_BER_V2 = 293
+
+const NVML_FI_DEV_NVLINK_PLR_XMIT_BLOCKS = 294
+
+const NVML_FI_DEV_NVLINK_PLR_XMIT_RETRY_BLOCKS = 295
+
+const NVML_FI_MAX = 296
 
 const NVML_NVLINK_LOW_POWER_THRESHOLD_UNIT_100US = 0x00
 
@@ -6606,9 +6748,21 @@ const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INCOMPATIBLE_GPU_FW = 
 
 const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_INVALID_LOCATION = 7
 
+const NVML_GPU_FABRIC_HEALTH_MASK_INCORRECT_CONFIGURATION_GPU_STATE_INVALID = 8
+
 const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_INCORRECT_CONFIGURATION = 8
 
 const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_INCORRECT_CONFIGURATION = 0x0f
+
+const NVML_GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_NOT_SUPPORTED = 0
+
+const NVML_GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_TRUE = 1
+
+const NVML_GPU_FABRIC_HEALTH_MASK_PARTITION_ASSIGNED_FALSE = 2
+
+const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_PARTITION_ASSIGNED = 12
+
+const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_PARTITION_ASSIGNED = 0x03
 
 const NVML_GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED = 0
 
