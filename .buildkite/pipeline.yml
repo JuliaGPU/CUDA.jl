@@ -95,13 +95,15 @@ steps:
               - "12.0"
               - "13.0"
             package:
-              - "cuDNN"
-              - "cuTENSOR"
-              - "cuStateVec"
-              - "cuTensorNet"
+              - "cudnn"
+              - "cutensor"
+              - "custatevec"
+              - "cutensornet"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "1.12"
+          - JuliaCI/julia-test#v1:
+              project: "lib/{{matrix.package}}"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -119,30 +121,6 @@ steps:
         timeout_in_minutes: 30
         commands: |
           unset LD_LIBRARY_PATH
-          julia -e '
-            using Pkg
-
-            println("--- :julia: Instantiating project")
-            withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              Pkg.activate(joinpath("lib", lowercase("{{matrix.package}}")))
-              try
-                Pkg.instantiate()
-              catch
-                # if we fail to instantiate, assume that we need newer dependencies
-                deps = [PackageSpec(path=".")]
-                if "{{matrix.package}}" == "cuTensorNet"
-                  push!(deps, PackageSpec(path="lib/cutensor"))
-                end
-                Pkg.develop(deps)
-              end
-
-              Pkg.add("CUDA_Runtime_jll")
-              write(joinpath("lib", lowercase("{{matrix.package}}"), "LocalPreferences.toml"),
-                    "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"")
-            end
-
-            println("+++ :julia: Running tests")
-            Pkg.test(; coverage=true)'
 
   - group: ":telescope: Downstream"
     depends_on: "cuda"

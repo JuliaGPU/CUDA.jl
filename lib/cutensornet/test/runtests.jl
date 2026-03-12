@@ -29,6 +29,8 @@ using TensorOperations
         @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_32U) == UInt32
         @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_32I) == Int32
         @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_64F) == Float64
+        @test convert(cuTensorNet.cutensornetComputeType_t, CUDA.BFloat16) == cuTensorNet.CUTENSORNET_COMPUTE_16BF
+        @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_16BF) == CUDA.BFloat16
 
         
         modesA = ['m', 'h', 'k', 'n']
@@ -67,6 +69,11 @@ using TensorOperations
         @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_CUTENSOR_VERSION_MISMATCH)) == "the dynamically linked cuTENSOR library is incompatible."
         @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_NO_DEVICE_ALLOCATOR)) == "drawing device memory from a mempool is requested, but the mempool is not set."
         @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_ALL_HYPER_SAMPLES_FAILED)) == "all hyper samples failed for one or more errors."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_MAPPING_ERROR)) == "a mapping error occurred."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_CUSOLVER_ERROR)) == "a call to CUSOLVER did not succeed."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_DEVICE_ALLOCATOR_ERROR)) == "the device allocator returned an error."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_DISTRIBUTED_FAILURE)) == "a distributed failure occurred."
+        @test cuTensorNet.description(cuTensorNet.CUTENSORNETError(cuTensorNet.CUTENSORNET_STATUS_INTERRUPTED)) == "the operation was interrupted."
     end
     n = 8
     m = 16
