@@ -120,6 +120,9 @@ const cuda_ptx_db = Dict(
     v"8.6" => between(v"12.7", highest),
     v"8.7" => between(v"12.8", highest),
     v"8.8" => between(v"12.9", highest),
+    v"9.0" => between(v"13.0", highest),
+    v"9.1" => between(v"13.1", highest),
+    v"9.2" => between(v"13.2", highest),
 )
 
 function cuda_ptx_support(ver::VersionNumber)
@@ -272,6 +275,8 @@ const llvm_ptx_db = Dict(
     v"8.6" => between(v"20", highest),
     v"8.7" => between(v"20", highest),
     v"8.8" => between(v"21", highest),
+    v"9.0" => between(v"22", highest),
+    v"9.1" => between(v"24", highest),
 )
 
 function llvm_ptx_support(ver::VersionNumber)

@@ -42,11 +42,32 @@ macro CUPTI_CALLBACK_STRUCT_SIZE(type, lastfield)
     end
 end
 
+macro CUPTI_ACTIVITY_STRUCT_SIZE(type, lastfield)
+    type = esc(type)
+    lastfield = QuoteNode(lastfield)
+    quote
+        $struct_size($type, $lastfield)
+    end
+end
+
 struct CUpti_SubscriberParams
     structSize::Csize_t
     subscriberName::Cstring
     oldSubscriberName::Cstring
     oldSubscriberSize::Csize_t
+    allowMultipleSubscribers::UInt8
+    padding::NTuple{7,UInt8}
+end
+
+struct CUpti_ActivityFieldSelection
+    structSize::Csize_t
+    numFields::Csize_t
+    pFieldIds::Ptr{Cint}
+end
+
+struct CUpti_ActivityConfig
+    structSize::Csize_t
+    fieldSelection::CUpti_ActivityFieldSelection
 end
 
 @cenum CUptiResult::UInt32 begin
@@ -355,6 +376,16 @@ end
                                                  subscriber::CUpti_SubscriberHandle,
                                                  domain::CUpti_CallbackDomain,
                                                  cbid::CUpti_CallbackId)::CUptiResult
+end
+
+@checked function cuptiGetEnabledCallbacks(subscriber, domain, buffer, bufferSize,
+                                           enabledCallbacksCount)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiGetEnabledCallbacks(subscriber::CUpti_SubscriberHandle,
+                                                    domain::CUpti_CallbackDomain,
+                                                    buffer::Ptr{CUpti_CallbackId},
+                                                    bufferSize::Ptr{UInt32},
+                                                    enabledCallbacksCount::Ptr{UInt32})::CUptiResult
 end
 
 @checked function cuptiEnableCallback(enable, subscriber, domain, cbid)
@@ -985,7 +1016,8 @@ end
     CUPTI_ACTIVITY_KIND_GRAPH_HOST_NODE = 56
     CUPTI_ACTIVITY_KIND_COMPUTE_ENGINE_CTX_SWITCH = 57
     CUPTI_ACTIVITY_KIND_HOST_LAUNCH = 58
-    CUPTI_ACTIVITY_KIND_COUNT = 59
+    CUPTI_ACTIVITY_KIND_GREEN_CONTEXT = 59
+    CUPTI_ACTIVITY_KIND_COUNT = 60
     CUPTI_ACTIVITY_KIND_FORCE_INT = 2147483647
 end
 
@@ -1416,6 +1448,21 @@ function Base.propertynames(x::CUpti_ActivityPCSamplingConfig, private::Bool=fal
             end...)
 end
 
+struct CUpti_ActivityFieldLayoutEntry
+    structSize::Csize_t
+    fieldId::Cint
+    offset::Csize_t
+    size::Csize_t
+    alignment::Csize_t
+end
+
+struct CUpti_ActivityRecordLayout
+    structSize::Csize_t
+    pEntries::Ptr{CUpti_ActivityFieldLayoutEntry}
+    numFields::Csize_t
+    recordSize::Csize_t
+end
+
 struct CUpti_Activity
     data::NTuple{8,UInt8}
 end
@@ -1496,6 +1543,28 @@ function Base.propertynames(x::CUpti_ActivityMemcpy6, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityMemcpyFieldIds::UInt32 begin
+    MEMCPY_FIELD_KIND = 0
+    MEMCPY_FIELD_COPY_KIND = 1
+    MEMCPY_FIELD_SRC_KIND = 2
+    MEMCPY_FIELD_DST_KIND = 3
+    MEMCPY_FIELD_FLAGS = 4
+    MEMCPY_FIELD_BYTES = 5
+    MEMCPY_FIELD_START = 6
+    MEMCPY_FIELD_END = 7
+    MEMCPY_FIELD_DEVICE_ID = 8
+    MEMCPY_FIELD_CONTEXT_ID = 9
+    MEMCPY_FIELD_STREAM_ID = 10
+    MEMCPY_FIELD_CORRELATION_ID = 11
+    MEMCPY_FIELD_GRAPH_NODE_ID = 12
+    MEMCPY_FIELD_GRAPH_ID = 13
+    MEMCPY_FIELD_CHANNEL_ID = 14
+    MEMCPY_FIELD_CHANNEL_TYPE = 15
+    MEMCPY_FIELD_IS_DEVICE_LAUNCHED = 16
+    MEMCPY_FIELD_COPY_COUNT = 17
+    MEMCPY_FIELD_MAX = 18
+end
+
 struct CUpti_ActivityMemcpyPtoP4
     data::NTuple{96,UInt8}
 end
@@ -1547,6 +1616,30 @@ function Base.propertynames(x::CUpti_ActivityMemcpyPtoP4, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityMemcpy2FieldIds::UInt32 begin
+    MEMCPY2_FIELD_KIND = 0
+    MEMCPY2_FIELD_COPY_KIND = 1
+    MEMCPY2_FIELD_SRC_KIND = 2
+    MEMCPY2_FIELD_DST_KIND = 3
+    MEMCPY2_FIELD_FLAGS = 4
+    MEMCPY2_FIELD_BYTES = 5
+    MEMCPY2_FIELD_START = 6
+    MEMCPY2_FIELD_END = 7
+    MEMCPY2_FIELD_DEVICE_ID = 8
+    MEMCPY2_FIELD_CONTEXT_ID = 9
+    MEMCPY2_FIELD_STREAM_ID = 10
+    MEMCPY2_FIELD_SRC_DEVICE_ID = 11
+    MEMCPY2_FIELD_SRC_CONTEXT_ID = 12
+    MEMCPY2_FIELD_DST_DEVICE_ID = 13
+    MEMCPY2_FIELD_DST_CONTEXT_ID = 14
+    MEMCPY2_FIELD_CORRELATION_ID = 15
+    MEMCPY2_FIELD_GRAPH_NODE_ID = 16
+    MEMCPY2_FIELD_GRAPH_ID = 17
+    MEMCPY2_FIELD_CHANNEL_ID = 18
+    MEMCPY2_FIELD_CHANNEL_TYPE = 19
+    MEMCPY2_FIELD_MAX = 20
+end
+
 struct CUpti_ActivityMemset4
     data::NTuple{88,UInt8}
 end
@@ -1594,6 +1687,26 @@ function Base.propertynames(x::CUpti_ActivityMemset4, private::Bool=false)
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityMemsetFieldIds::UInt32 begin
+    MEMSET_FIELD_KIND = 0
+    MEMSET_FIELD_VALUE = 1
+    MEMSET_FIELD_BYTES = 2
+    MEMSET_FIELD_START = 3
+    MEMSET_FIELD_END = 4
+    MEMSET_FIELD_DEVICE_ID = 5
+    MEMSET_FIELD_CONTEXT_ID = 6
+    MEMSET_FIELD_STREAM_ID = 7
+    MEMSET_FIELD_CORRELATION_ID = 8
+    MEMSET_FIELD_FLAGS = 9
+    MEMSET_FIELD_MEMORY_KIND = 10
+    MEMSET_FIELD_GRAPH_NODE_ID = 11
+    MEMSET_FIELD_GRAPH_ID = 12
+    MEMSET_FIELD_CHANNEL_ID = 13
+    MEMSET_FIELD_CHANNEL_TYPE = 14
+    MEMSET_FIELD_IS_DEVICE_LAUNCHED = 15
+    MEMSET_FIELD_MAX = 16
 end
 
 struct CUpti_ActivityMemory
@@ -1746,6 +1859,29 @@ function Base.propertynames(x::CUpti_ActivityMemory4, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityMemoryFieldIds::UInt32 begin
+    MEMORY_FIELD_KIND = 0
+    MEMORY_FIELD_OPERATION_TYPE = 1
+    MEMORY_FIELD_MEMORY_KIND = 2
+    MEMORY_FIELD_CORRELATION_ID = 3
+    MEMORY_FIELD_ADDRESS = 4
+    MEMORY_FIELD_BYTES = 5
+    MEMORY_FIELD_TIMESTAMP = 6
+    MEMORY_FIELD_PROCESS_ID = 7
+    MEMORY_FIELD_DEVICE_ID = 8
+    MEMORY_FIELD_CONTEXT_ID = 9
+    MEMORY_FIELD_STREAM_ID = 10
+    MEMORY_FIELD_IS_ASYNC = 11
+    MEMORY_FIELD_POOL_TYPE = 12
+    MEMORY_FIELD_POOL_ADDRESS = 13
+    MEMORY_FIELD_POOL_RELEASE_THRESHOLD = 14
+    MEMORY_FIELD_POOL_SIZE = 15
+    MEMORY_FIELD_POOL_PROCESS_ID = 16
+    MEMORY_FIELD_POOL_UTILIZED_SIZE = 17
+    MEMORY_FIELD_SOURCE = 18
+    MEMORY_FIELD_MAX = 19
+end
+
 struct CUpti_ActivityMemoryPool3
     data::NTuple{80,UInt8}
 end
@@ -1788,6 +1924,23 @@ function Base.propertynames(x::CUpti_ActivityMemoryPool3, private::Bool=false)
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityMemoryPoolFieldIds::UInt32 begin
+    MEMORY_POOL_FIELD_KIND = 0
+    MEMORY_POOL_FIELD_OPERATION_TYPE = 1
+    MEMORY_POOL_FIELD_POOL_TYPE = 2
+    MEMORY_POOL_FIELD_CORRELATION_ID = 3
+    MEMORY_POOL_FIELD_PROCESS_ID = 4
+    MEMORY_POOL_FIELD_DEVICE_ID = 5
+    MEMORY_POOL_FIELD_MIN_BYTES_TO_KEEP = 6
+    MEMORY_POOL_FIELD_ADDRESS = 7
+    MEMORY_POOL_FIELD_SIZE = 8
+    MEMORY_POOL_FIELD_RELEASE_THRESHOLD = 9
+    MEMORY_POOL_FIELD_TIMESTAMP = 10
+    MEMORY_POOL_FIELD_UTILIZED_SIZE = 11
+    MEMORY_POOL_FIELD_IS_MANAGED_POOL = 12
+    MEMORY_POOL_FIELD_MAX = 13
 end
 
 @cenum CUpti_ActivityLaunchType::UInt32 begin
@@ -1919,6 +2072,56 @@ function Base.propertynames(x::CUpti_ActivityKernel11, private::Bool=false)
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityKernelFieldIds::UInt32 begin
+    KERNEL_FIELD_KIND = 0
+    KERNEL_FIELD_CACHE_CONFIG_REQUESTED = 1
+    KERNEL_FIELD_CACHE_CONFIG_EXECUTED = 2
+    KERNEL_FIELD_SHARED_MEMORY_CONFIG = 3
+    KERNEL_FIELD_REGISTERS_PER_THREAD = 4
+    KERNEL_FIELD_PARTITIONED_GLOBAL_CACHE_REQUESTED = 5
+    KERNEL_FIELD_PARTITIONED_GLOBAL_CACHE_EXECUTED = 6
+    KERNEL_FIELD_START = 7
+    KERNEL_FIELD_END = 8
+    KERNEL_FIELD_COMPLETED = 9
+    KERNEL_FIELD_DEVICE_ID = 10
+    KERNEL_FIELD_CONTEXT_ID = 11
+    KERNEL_FIELD_STREAM_ID = 12
+    KERNEL_FIELD_GRID_X = 13
+    KERNEL_FIELD_GRID_Y = 14
+    KERNEL_FIELD_GRID_Z = 15
+    KERNEL_FIELD_BLOCK_X = 16
+    KERNEL_FIELD_BLOCK_Y = 17
+    KERNEL_FIELD_BLOCK_Z = 18
+    KERNEL_FIELD_STATIC_SHARED_MEMORY = 19
+    KERNEL_FIELD_DYNAMIC_SHARED_MEMORY = 20
+    KERNEL_FIELD_LOCAL_MEMORY_PER_THREAD = 21
+    KERNEL_FIELD_CORRELATION_ID = 22
+    KERNEL_FIELD_GRID_ID = 23
+    KERNEL_FIELD_NAME = 24
+    KERNEL_FIELD_QUEUED = 25
+    KERNEL_FIELD_SUBMITTED = 26
+    KERNEL_FIELD_LAUNCH_TYPE = 27
+    KERNEL_FIELD_IS_SHARED_MEMORY_CARVEOUT_REQUESTED = 28
+    KERNEL_FIELD_SHARED_MEMORY_CARVEOUT_REQUESTED = 29
+    KERNEL_FIELD_SHARED_MEMORY_EXECUTED = 30
+    KERNEL_FIELD_GRAPH_NODE_ID = 31
+    KERNEL_FIELD_SHMEM_LIMIT_CONFIG = 32
+    KERNEL_FIELD_GRAPH_ID = 33
+    KERNEL_FIELD_ACCESS_POLICY_WINDOW = 34
+    KERNEL_FIELD_CHANNEL_ID = 35
+    KERNEL_FIELD_CHANNEL_TYPE = 36
+    KERNEL_FIELD_CLUSTER_X = 37
+    KERNEL_FIELD_CLUSTER_Y = 38
+    KERNEL_FIELD_CLUSTER_Z = 39
+    KERNEL_FIELD_CLUSTER_SCHEDULING_POLICY = 40
+    KERNEL_FIELD_LOCAL_MEMORY_TOTAL = 41
+    KERNEL_FIELD_MAX_POTENTIAL_CLUSTER_SIZE = 42
+    KERNEL_FIELD_MAX_ACTIVE_CLUSTERS = 43
+    KERNEL_FIELD_IS_DEVICE_LAUNCHED = 44
+    KERNEL_FIELD_LAUNCH_PRIORITY = 45
+    KERNEL_FIELD_MAX = 46
 end
 
 struct var"##Ctag#351"
@@ -2082,6 +2285,18 @@ function Base.propertynames(x::CUpti_ActivityAPI, private::Bool=false)
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityApiFieldIds::UInt32 begin
+    API_FIELD_KIND = 0
+    API_FIELD_CBID = 1
+    API_FIELD_START = 2
+    API_FIELD_END = 3
+    API_FIELD_PROCESS_ID = 4
+    API_FIELD_THREAD_ID = 5
+    API_FIELD_CORRELATION_ID = 6
+    API_FIELD_RETURN_VALUE = 7
+    API_FIELD_MAX = 8
 end
 
 struct CUpti_ActivityEvent
@@ -2327,11 +2542,11 @@ function Base.propertynames(x::CUpti_ActivityBranch2, private::Bool=false)
             end...)
 end
 
-struct CUpti_ActivityDevice5
-    data::NTuple{184,UInt8}
+struct CUpti_ActivityDevice6
+    data::NTuple{192,UInt8}
 end
 
-function Base.getproperty(x::Ptr{CUpti_ActivityDevice5}, f::Symbol)
+function Base.getproperty(x::Ptr{CUpti_ActivityDevice6}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
     f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
     f === :globalMemoryBandwidth && return Ptr{UInt64}(x + 8)
@@ -2370,21 +2585,23 @@ function Base.getproperty(x::Ptr{CUpti_ActivityDevice5}, f::Symbol)
     f === :migUuid && return Ptr{CUuuid}(x + 160)
     f === :isNumaNode && return Ptr{UInt32}(x + 176)
     f === :numaId && return Ptr{UInt32}(x + 180)
+    f === :numTpcs && return Ptr{UInt32}(x + 184)
+    f === :reserved0 && return Ptr{UInt32}(x + 188)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::CUpti_ActivityDevice5, f::Symbol)
-    r = Ref{CUpti_ActivityDevice5}(x)
-    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice5}, r)
+function Base.getproperty(x::CUpti_ActivityDevice6, f::Symbol)
+    r = Ref{CUpti_ActivityDevice6}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice6}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{CUpti_ActivityDevice5}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CUpti_ActivityDevice6}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::CUpti_ActivityDevice5, private::Bool=false)
+function Base.propertynames(x::CUpti_ActivityDevice6, private::Bool=false)
     return (:kind, :flags, :globalMemoryBandwidth, :globalMemorySize, :constantMemorySize,
             :l2CacheSize, :numThreadsPerWarp, :coreClockRate, :numMemcpyEngines,
             :numMultiprocessors, :maxIPC, :maxWarpsPerMultiprocessor,
@@ -2393,12 +2610,54 @@ function Base.propertynames(x::CUpti_ActivityDevice5, private::Bool=false)
             :maxThreadsPerBlock, :maxBlockDimX, :maxBlockDimY, :maxBlockDimZ, :maxGridDimX,
             :maxGridDimY, :maxGridDimZ, :computeCapabilityMajor, :computeCapabilityMinor,
             :id, :eccEnabled, :uuid, :name, :isCudaVisible, :isMigEnabled, :reserved,
-            :gpuInstanceId, :computeInstanceId, :migUuid, :isNumaNode, :numaId,
-            if private
+            :gpuInstanceId, :computeInstanceId, :migUuid, :isNumaNode, :numaId, :numTpcs,
+            :reserved0, if private
                 fieldnames(typeof(x))
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityDeviceFieldIds::UInt32 begin
+    DEVICE_FIELD_KIND = 0
+    DEVICE_FIELD_FLAGS = 1
+    DEVICE_FIELD_GLOBAL_MEMORY_BANDWIDTH = 2
+    DEVICE_FIELD_GLOBAL_MEMORY_SIZE = 3
+    DEVICE_FIELD_CONSTANT_MEMORY_SIZE = 4
+    DEVICE_FIELD_L2_CACHE_SIZE = 5
+    DEVICE_FIELD_NUM_THREADS_PER_WARP = 6
+    DEVICE_FIELD_CORE_CLOCK_RATE = 7
+    DEVICE_FIELD_NUM_MEMCPY_ENGINES = 8
+    DEVICE_FIELD_NUM_MULTIPROCESSORS = 9
+    DEVICE_FIELD_MAX_IPC = 10
+    DEVICE_FIELD_MAX_WARPS_PER_MULTIPROCESSOR = 11
+    DEVICE_FIELD_MAX_BLOCKS_PER_MULTIPROCESSOR = 12
+    DEVICE_FIELD_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR = 13
+    DEVICE_FIELD_MAX_REGISTERS_PER_MULTIPROCESSOR = 14
+    DEVICE_FIELD_MAX_REGISTERS_PER_BLOCK = 15
+    DEVICE_FIELD_MAX_SHARED_MEMORY_PER_BLOCK = 16
+    DEVICE_FIELD_MAX_THREADS_PER_BLOCK = 17
+    DEVICE_FIELD_MAX_BLOCK_DIM_X = 18
+    DEVICE_FIELD_MAX_BLOCK_DIM_Y = 19
+    DEVICE_FIELD_MAX_BLOCK_DIM_Z = 20
+    DEVICE_FIELD_MAX_GRID_DIM_X = 21
+    DEVICE_FIELD_MAX_GRID_DIM_Y = 22
+    DEVICE_FIELD_MAX_GRID_DIM_Z = 23
+    DEVICE_FIELD_COMPUTE_CAPABILITY_MAJOR = 24
+    DEVICE_FIELD_COMPUTE_CAPABILITY_MINOR = 25
+    DEVICE_FIELD_ID = 26
+    DEVICE_FIELD_ECC_ENABLED = 27
+    DEVICE_FIELD_UUID = 28
+    DEVICE_FIELD_NAME = 29
+    DEVICE_FIELD_IS_CUDA_VISIBLE = 30
+    DEVICE_FIELD_IS_MIG_ENABLED = 31
+    DEVICE_FIELD_GPU_INSTANCE_ID = 32
+    DEVICE_FIELD_COMPUTE_INSTANCE_ID = 33
+    DEVICE_FIELD_MIG_UUID = 34
+    DEVICE_FIELD_IS_NUMA_NODE = 35
+    DEVICE_FIELD_NUMA_ID = 36
+    DEVICE_FIELD_NUM_TPCS = 37
+    DEVICE_FIELD_MAX = 38
 end
 
 struct var"##Ctag#411"
@@ -2535,6 +2794,20 @@ function Base.propertynames(x::CUpti_ActivityContext4, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityContextFieldIds::UInt32 begin
+    CONTEXT_FIELD_KIND = 0
+    CONTEXT_FIELD_CONTEXT_ID = 1
+    CONTEXT_FIELD_DEVICE_ID = 2
+    CONTEXT_FIELD_COMPUTE_API_KIND = 3
+    CONTEXT_FIELD_NULL_STREAM_ID = 4
+    CONTEXT_FIELD_PARENT_CONTEXT_ID = 5
+    CONTEXT_FIELD_IS_GREEN_CONTEXT = 6
+    CONTEXT_FIELD_NUM_MULTIPROCESSORS = 7
+    CONTEXT_FIELD_CIG_MODE = 8
+    CONTEXT_FIELD_PROCESS_ID = 9
+    CONTEXT_FIELD_MAX = 10
+end
+
 struct CUpti_ActivityName
     data::NTuple{32,UInt8}
 end
@@ -2565,6 +2838,14 @@ function Base.propertynames(x::CUpti_ActivityName, private::Bool=false)
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityNameFieldIds::UInt32 begin
+    NAME_FIELD_KIND = 0
+    NAME_FIELD_OBJECT_KIND = 1
+    NAME_FIELD_OBJECT_ID = 2
+    NAME_FIELD_NAME = 3
+    NAME_FIELD_MAX = 4
 end
 
 struct CUpti_ActivityMarker2
@@ -2604,6 +2885,18 @@ function Base.propertynames(x::CUpti_ActivityMarker2, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityMarkerFieldIds::UInt32 begin
+    MARKER_FIELD_KIND = 0
+    MARKER_FIELD_FLAGS = 1
+    MARKER_FIELD_TIMESTAMP = 2
+    MARKER_FIELD_ID = 3
+    MARKER_FIELD_PROCESS_ID = 4
+    MARKER_FIELD_THREAD_ID = 5
+    MARKER_FIELD_NAME = 6
+    MARKER_FIELD_DOMAIN = 7
+    MARKER_FIELD_MAX = 8
+end
+
 struct CUpti_ActivityMarkerData2
     data::NTuple{40,UInt8}
 end
@@ -2641,6 +2934,18 @@ function Base.propertynames(x::CUpti_ActivityMarkerData2, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityMarkerDataFieldIds::UInt32 begin
+    MARKER_DATA_FIELD_KIND = 0
+    MARKER_DATA_FIELD_FLAGS = 1
+    MARKER_DATA_FIELD_ID = 2
+    MARKER_DATA_FIELD_PAYLOAD_KIND = 3
+    MARKER_DATA_FIELD_PAYLOAD = 4
+    MARKER_DATA_FIELD_COLOR = 5
+    MARKER_DATA_FIELD_CATEGORY = 6
+    MARKER_DATA_FIELD_CUPTI_DOMAIN_ID = 7
+    MARKER_DATA_FIELD_MAX = 8
+end
+
 struct CUpti_ActivityOverhead3
     data::NTuple{56,UInt8}
 end
@@ -2676,6 +2981,18 @@ function Base.propertynames(x::CUpti_ActivityOverhead3, private::Bool=false)
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityOverheadFieldIds::UInt32 begin
+    OVERHEAD_FIELD_KIND = 0
+    OVERHEAD_FIELD_OVERHEAD_KIND = 1
+    OVERHEAD_FIELD_PROCESS_ID = 2
+    OVERHEAD_FIELD_THREAD_ID = 3
+    OVERHEAD_FIELD_START = 4
+    OVERHEAD_FIELD_END = 5
+    OVERHEAD_FIELD_CORRELATION_ID = 6
+    OVERHEAD_FIELD_OVERHEAD_DATA = 7
+    OVERHEAD_FIELD_MAX = 8
 end
 
 struct var"##Ctag#400"
@@ -2892,6 +3209,22 @@ function Base.propertynames(x::CUpti_ActivityUnifiedMemoryCounter3, private::Boo
             end...)
 end
 
+@cenum CUpti_ActivityUvmCounterFieldIds::UInt32 begin
+    UVM_COUNTER_FIELD_KIND = 0
+    UVM_COUNTER_FIELD_COUNTER_KIND = 1
+    UVM_COUNTER_FIELD_VALUE = 2
+    UVM_COUNTER_FIELD_START = 3
+    UVM_COUNTER_FIELD_END = 4
+    UVM_COUNTER_FIELD_ADDRESS = 5
+    UVM_COUNTER_FIELD_SRC_ID = 6
+    UVM_COUNTER_FIELD_DST_ID = 7
+    UVM_COUNTER_FIELD_STREAM_ID = 8
+    UVM_COUNTER_FIELD_PROCESS_ID = 9
+    UVM_COUNTER_FIELD_FLAGS = 10
+    UVM_COUNTER_FIELD_PROCESSORS = 11
+    UVM_COUNTER_FIELD_MAX = 12
+end
+
 struct CUpti_ActivityFunction
     data::NTuple{32,UInt8}
 end
@@ -3038,6 +3371,18 @@ function Base.propertynames(x::CUpti_ActivityCudaEvent2, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityCudaEventFieldIds::UInt32 begin
+    CUDA_EVENT_FIELD_KIND = 0
+    CUDA_EVENT_FIELD_CORRELATION_ID = 1
+    CUDA_EVENT_FIELD_CONTEXT_ID = 2
+    CUDA_EVENT_FIELD_STREAM_ID = 3
+    CUDA_EVENT_FIELD_EVENT_ID = 4
+    CUDA_EVENT_FIELD_DEVICE_ID = 5
+    CUDA_EVENT_FIELD_DEVICE_TIMESTAMP = 6
+    CUDA_EVENT_FIELD_CUDA_EVENT_SYNC_ID = 7
+    CUDA_EVENT_FIELD_MAX = 8
+end
+
 struct CUpti_ActivityStream
     data::NTuple{24,UInt8}
 end
@@ -3070,6 +3415,16 @@ function Base.propertynames(x::CUpti_ActivityStream, private::Bool=false)
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityStreamFieldIds::UInt32 begin
+    STREAM_FIELD_KIND = 0
+    STREAM_FIELD_CONTEXT_ID = 1
+    STREAM_FIELD_STREAM_ID = 2
+    STREAM_FIELD_PRIORITY = 3
+    STREAM_FIELD_FLAG = 4
+    STREAM_FIELD_CORRELATION_ID = 5
+    STREAM_FIELD_MAX = 6
 end
 
 struct CUpti_ActivitySynchronization2
@@ -3110,6 +3465,20 @@ function Base.propertynames(x::CUpti_ActivitySynchronization2, private::Bool=fal
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivitySynchronizationFieldIds::UInt32 begin
+    SYNCHRONIZATION_FIELD_KIND = 0
+    SYNCHRONIZATION_FIELD_TYPE = 1
+    SYNCHRONIZATION_FIELD_START = 2
+    SYNCHRONIZATION_FIELD_END = 3
+    SYNCHRONIZATION_FIELD_CORRELATION_ID = 4
+    SYNCHRONIZATION_FIELD_CONTEXT_ID = 5
+    SYNCHRONIZATION_FIELD_STREAM_ID = 6
+    SYNCHRONIZATION_FIELD_CUDA_EVENT_ID = 7
+    SYNCHRONIZATION_FIELD_CUDA_EVENT_SYNC_ID = 8
+    SYNCHRONIZATION_FIELD_RETURN_VALUE = 9
+    SYNCHRONIZATION_FIELD_MAX = 10
 end
 
 struct CUpti_ActivityInstructionCorrelation
@@ -3507,6 +3876,14 @@ function Base.propertynames(x::CUpti_ActivityExternalCorrelation, private::Bool=
             end...)
 end
 
+@cenum CUpti_ActivityExternalCorrelationFieldIds::UInt32 begin
+    EXTERNAL_CORRELATION_FIELD_KIND = 0
+    EXTERNAL_CORRELATION_FIELD_EXTERNAL_KIND = 1
+    EXTERNAL_CORRELATION_FIELD_EXTERNAL_ID = 2
+    EXTERNAL_CORRELATION_FIELD_CORRELATION_ID = 3
+    EXTERNAL_CORRELATION_FIELD_MAX = 4
+end
+
 @cenum CUpti_DevType::UInt32 begin
     CUPTI_DEV_TYPE_INVALID = 0
     CUPTI_DEV_TYPE_GPU = 1
@@ -3514,28 +3891,28 @@ end
     CUPTI_DEV_TYPE_FORCE_INT = 2147483647
 end
 
-struct var"##Ctag#393"
+struct var"##Ctag#445"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#393"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#445"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#394"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#446"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#393", f::Symbol)
-    r = Ref{var"##Ctag#393"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#393"}, r)
+function Base.getproperty(x::var"##Ctag#445", f::Symbol)
+    r = Ref{var"##Ctag#445"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#445"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#393"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#445"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#393", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#445", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -3543,28 +3920,28 @@ function Base.propertynames(x::var"##Ctag#393", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#395"
+struct var"##Ctag#447"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#395"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#447"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#396"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#448"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#395", f::Symbol)
-    r = Ref{var"##Ctag#395"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#395"}, r)
+function Base.getproperty(x::var"##Ctag#447", f::Symbol)
+    r = Ref{var"##Ctag#447"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#447"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#395"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#447"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#395", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#447", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -3572,39 +3949,39 @@ function Base.propertynames(x::var"##Ctag#395", private::Bool=false)
             end...)
 end
 
-struct CUpti_ActivityNvLink4
-    data::NTuple{136,UInt8}
+struct CUpti_ActivityNvLink5
+    data::NTuple{88,UInt8}
 end
 
-function Base.getproperty(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol)
+function Base.getproperty(x::Ptr{CUpti_ActivityNvLink5}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#393"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#395"}(x + 32)
+    f === :idDev0 && return Ptr{var"##Ctag#445"}(x + 16)
+    f === :idDev1 && return Ptr{var"##Ctag#447"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
-    f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
-    f === :portDev1 && return Ptr{NTuple{32,Int8}}(x + 88)
-    f === :bandwidth && return Ptr{UInt64}(x + 120)
-    f === :nvswitchConnected && return Ptr{UInt8}(x + 128)
-    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 129)
+    f === :portDev0 && return Ptr{Ptr{UInt32}}(x + 56)
+    f === :portDev1 && return Ptr{Ptr{UInt32}}(x + 64)
+    f === :bandwidth && return Ptr{UInt64}(x + 72)
+    f === :nvswitchConnected && return Ptr{UInt8}(x + 80)
+    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 81)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::CUpti_ActivityNvLink4, f::Symbol)
-    r = Ref{CUpti_ActivityNvLink4}(x)
-    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityNvLink4}, r)
+function Base.getproperty(x::CUpti_ActivityNvLink5, f::Symbol)
+    r = Ref{CUpti_ActivityNvLink5}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityNvLink5}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink5}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::CUpti_ActivityNvLink4, private::Bool=false)
+function Base.propertynames(x::CUpti_ActivityNvLink5, private::Bool=false)
     return (:kind, :nvlinkVersion, :typeDev0, :typeDev1, :idDev0, :idDev1, :flag,
             :physicalNvLinkCount, :portDev0, :portDev1, :bandwidth, :nvswitchConnected,
             :pad, if private
@@ -3767,6 +4144,17 @@ function Base.propertynames(x::CUpti_ActivityConfidentialComputeRotation,
             else
                 ()
             end...)
+end
+
+@cenum CUpti_ActivityConfidentialComputeRotationFieldIds::UInt32 begin
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_KIND = 0
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_EVENT_TYPE = 1
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_DEVICE_ID = 2
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_CONTEXT_ID = 3
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_CHANNEL_ID = 4
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_CHANNEL_TYPE = 5
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_TIMESTAMP = 6
+    CONFIDENTIAL_COMPUTE_ROTATION_FIELD_MAX = 7
 end
 
 struct CUpti_ActivityInstantaneousEvent
@@ -3968,6 +4356,22 @@ function Base.propertynames(x::CUpti_ActivityJit2, private::Bool=false)
             end...)
 end
 
+@cenum CUpti_ActivityJitFieldIds::UInt32 begin
+    JIT_FIELD_KIND = 0
+    JIT_FIELD_ENTRY_TYPE = 1
+    JIT_FIELD_OPERATION_TYPE = 2
+    JIT_FIELD_DEVICE_ID = 3
+    JIT_FIELD_START = 4
+    JIT_FIELD_END = 5
+    JIT_FIELD_CORRELATION_ID = 6
+    JIT_FIELD_OPERATION_CORRELATION_ID = 7
+    JIT_FIELD_CACHE_SIZE = 8
+    JIT_FIELD_CACHE_PATH = 9
+    JIT_FIELD_PROCESS_ID = 10
+    JIT_FIELD_THREAD_ID = 11
+    JIT_FIELD_MAX = 12
+end
+
 struct CUpti_ActivityGraphTrace2
     kind::CUpti_ActivityKind
     correlationId::UInt32
@@ -3980,6 +4384,20 @@ struct CUpti_ActivityGraphTrace2
     reserved::Ptr{Cvoid}
     endDeviceId::UInt32
     endContextId::UInt32
+end
+
+@cenum CUpti_ActivityGraphTraceFieldIds::UInt32 begin
+    GRAPH_TRACE_FIELD_KIND = 0
+    GRAPH_TRACE_FIELD_CORRELATION_ID = 1
+    GRAPH_TRACE_FIELD_START = 2
+    GRAPH_TRACE_FIELD_END = 3
+    GRAPH_TRACE_FIELD_DEVICE_ID = 4
+    GRAPH_TRACE_FIELD_GRAPH_ID = 5
+    GRAPH_TRACE_FIELD_CONTEXT_ID = 6
+    GRAPH_TRACE_FIELD_STREAM_ID = 7
+    GRAPH_TRACE_FIELD_END_DEVICE_ID = 8
+    GRAPH_TRACE_FIELD_END_CONTEXT_ID = 9
+    GRAPH_TRACE_FIELD_MAX = 10
 end
 
 @cenum CUpti_DeviceGraphLaunchMode::UInt32 begin
@@ -4002,6 +4420,19 @@ struct CUpti_ActivityDeviceGraphTrace
     reserved::Ptr{Cvoid}
 end
 
+@cenum CUpti_ActivityDeviceGraphTraceFieldIds::UInt32 begin
+    DEVICE_GRAPH_TRACE_FIELD_KIND = 0
+    DEVICE_GRAPH_TRACE_FIELD_DEVICE_ID = 1
+    DEVICE_GRAPH_TRACE_FIELD_START = 2
+    DEVICE_GRAPH_TRACE_FIELD_END = 3
+    DEVICE_GRAPH_TRACE_FIELD_GRAPH_ID = 4
+    DEVICE_GRAPH_TRACE_FIELD_LAUNCHER_GRAPH_ID = 5
+    DEVICE_GRAPH_TRACE_FIELD_DEVICE_LAUNCH_MODE = 6
+    DEVICE_GRAPH_TRACE_FIELD_CONTEXT_ID = 7
+    DEVICE_GRAPH_TRACE_FIELD_STREAM_ID = 8
+    DEVICE_GRAPH_TRACE_FIELD_MAX = 9
+end
+
 struct CUpti_ActivityMemDecompress
     kind::CUpti_ActivityKind
     deviceId::UInt32
@@ -4017,6 +4448,21 @@ struct CUpti_ActivityMemDecompress
     _end::UInt64
 end
 
+@cenum CUpti_ActivityMemDecompressFieldIds::UInt32 begin
+    MEM_DECOMPRESS_FIELD_KIND = 0
+    MEM_DECOMPRESS_FIELD_DEVICE_ID = 1
+    MEM_DECOMPRESS_FIELD_CONTEXT_ID = 2
+    MEM_DECOMPRESS_FIELD_STREAM_ID = 3
+    MEM_DECOMPRESS_FIELD_CHANNEL_ID = 4
+    MEM_DECOMPRESS_FIELD_CHANNEL_TYPE = 5
+    MEM_DECOMPRESS_FIELD_CORRELATION_ID = 6
+    MEM_DECOMPRESS_FIELD_NUMBER_OF_OPERATIONS = 7
+    MEM_DECOMPRESS_FIELD_SOURCE_BYTES = 8
+    MEM_DECOMPRESS_FIELD_START = 9
+    MEM_DECOMPRESS_FIELD_END = 10
+    MEM_DECOMPRESS_FIELD_MAX = 11
+end
+
 struct CUpti_ActivityGraphHostNode
     kind::CUpti_ActivityKind
     streamId::UInt32
@@ -4029,6 +4475,21 @@ struct CUpti_ActivityGraphHostNode
     threadId::UInt32
     start::UInt64
     _end::UInt64
+end
+
+@cenum CUpti_ActivityGraphHostNodeFieldIds::UInt32 begin
+    GRAPH_HOST_NODE_FIELD_KIND = 0
+    GRAPH_HOST_NODE_FIELD_STREAM_ID = 1
+    GRAPH_HOST_NODE_FIELD_CONTEXT_ID = 2
+    GRAPH_HOST_NODE_FIELD_DEVICE_ID = 3
+    GRAPH_HOST_NODE_FIELD_CORRELATION_ID = 4
+    GRAPH_HOST_NODE_FIELD_GRAPH_ID = 5
+    GRAPH_HOST_NODE_FIELD_GRAPH_NODE_ID = 6
+    GRAPH_HOST_NODE_FIELD_PROCESS_ID = 7
+    GRAPH_HOST_NODE_FIELD_THREAD_ID = 8
+    GRAPH_HOST_NODE_FIELD_START = 9
+    GRAPH_HOST_NODE_FIELD_END = 10
+    GRAPH_HOST_NODE_FIELD_MAX = 11
 end
 
 @cenum CUpti_ComputeEngineCtxSwitchOperationType::UInt32 begin
@@ -4046,6 +4507,14 @@ struct CUpti_ActivityComputeEngineCtxSwitch
     padding::UInt32
 end
 
+@cenum CUpti_ActivityComputeEngineCtxSwitchFieldIds::UInt32 begin
+    COMPUTE_ENGINE_CTX_SWITCH_FIELD_KIND = 0
+    COMPUTE_ENGINE_CTX_SWITCH_FIELD_CONTEXT_ID = 1
+    COMPUTE_ENGINE_CTX_SWITCH_FIELD_TIMESTAMP = 2
+    COMPUTE_ENGINE_CTX_SWITCH_FIELD_OPERATION_TYPE = 3
+    COMPUTE_ENGINE_CTX_SWITCH_FIELD_MAX = 4
+end
+
 struct CUpti_ActivityHostLaunch
     kind::CUpti_ActivityKind
     streamId::UInt32
@@ -4057,6 +4526,68 @@ struct CUpti_ActivityHostLaunch
     padding::UInt32
     start::UInt64
     _end::UInt64
+end
+
+@cenum CUpti_ActivityHostLaunchFieldIds::UInt32 begin
+    HOST_LAUNCH_FIELD_KIND = 0
+    HOST_LAUNCH_FIELD_STREAM_ID = 1
+    HOST_LAUNCH_FIELD_CONTEXT_ID = 2
+    HOST_LAUNCH_FIELD_DEVICE_ID = 3
+    HOST_LAUNCH_FIELD_CORRELATION_ID = 4
+    HOST_LAUNCH_FIELD_PROCESS_ID = 5
+    HOST_LAUNCH_FIELD_THREAD_ID = 6
+    HOST_LAUNCH_FIELD_START = 7
+    HOST_LAUNCH_FIELD_END = 8
+    HOST_LAUNCH_FIELD_MAX = 9
+end
+
+struct CUpti_ActivityGreenContext
+    data::NTuple{152,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityGreenContext}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :contextId && return Ptr{UInt32}(x + 4)
+    f === :parentContextId && return Ptr{UInt32}(x + 8)
+    f === :deviceId && return Ptr{UInt32}(x + 12)
+    f === :numTpcs && return Ptr{UInt32}(x + 16)
+    f === :numMultiprocessors && return Ptr{UInt16}(x + 20)
+    f === :logicalTpcMaskSize && return Ptr{UInt8}(x + 22)
+    f === :padding && return Ptr{UInt8}(x + 23)
+    f === :logicalTpcMask && return Ptr{NTuple{32,UInt32}}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityGreenContext, f::Symbol)
+    r = Ref{CUpti_ActivityGreenContext}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityGreenContext}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityGreenContext}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUpti_ActivityGreenContext, private::Bool=false)
+    return (:kind, :contextId, :parentContextId, :deviceId, :numTpcs, :numMultiprocessors,
+            :logicalTpcMaskSize, :padding, :logicalTpcMask, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+@cenum CUpti_ActivityGreenContextFieldIds::UInt32 begin
+    GREEN_CONTEXT_FIELD_KIND = 0
+    GREEN_CONTEXT_FIELD_CONTEXT_ID = 1
+    GREEN_CONTEXT_FIELD_PARENT_CONTEXT_ID = 2
+    GREEN_CONTEXT_FIELD_DEVICE_ID = 3
+    GREEN_CONTEXT_FIELD_NUM_MULTIPROCESSORS = 4
+    GREEN_CONTEXT_FIELD_NUM_TPCS = 5
+    GREEN_CONTEXT_FIELD_LOGICAL_TPC_MASK_SIZE = 6
+    GREEN_CONTEXT_FIELD_LOGICAL_TPC_MASK = 7
+    GREEN_CONTEXT_FIELD_MAX = 8
 end
 
 @cenum CUpti_ActivityAttribute::UInt32 begin
@@ -4071,6 +4602,19 @@ end
     CUPTI_ACTIVITY_ATTR_MEM_ALLOCATION_TYPE_HOST_PINNED = 8
     CUPTI_ACTIVITY_ATTR_PER_THREAD_ACTIVITY_BUFFER = 9
     CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_SIZE_DEVICE_GRAPHS = 10
+    CUPTI_ACTIVITY_ATTR_USER_DEFINED_RECORDS = 11
+    CUPTI_ACTIVITY_ATTR_MULTIPLE_SUBSCRIBER_STATE = 12
+    CUPTI_ACTIVITY_ATTR_ENABLE_HES = 13
+    CUPTI_ACTIVITY_ATTR_ENABLE_ALLOCATION_SOURCE_TRACKING = 14
+    CUPTI_ACTIVITY_ATTR_ENABLE_KERNEL_LATENCY_TIMESTAMPS = 15
+    CUPTI_ACTIVITY_ATTR_ENABLE_ALL_SYNC_RECORDS = 16
+    CUPTI_ACTIVITY_ATTR_ENABLE_CUDA_EVENT_DEVICE_TIMESTAMPS = 17
+    CUPTI_ACTIVITY_ATTR_ENABLE_KERNEL_LAUNCH_ATTRIBUTES = 18
+    CUPTI_ACTIVITY_ATTR_ENABLE_DEVICE_GRAPH_TRACE = 19
+    CUPTI_ACTIVITY_ATTR_ENABLE_MULTI_SUBSCRIBER_GRAPH_LEVEL_TRACE = 20
+    CUPTI_ACTIVITY_ATTR_THREAD_ID_TYPE = 21
+    CUPTI_ACTIVITY_ATTR_TIMESTAMP_CALLBACK = 22
+    CUPTI_ACTIVITY_ATTR_CIG_MODE = 23
     CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_FORCE_INT = 2147483647
 end
 
@@ -4143,6 +4687,48 @@ end
     @gcsafe_ccall libcupti.cuptiActivityDisable(kind::CUpti_ActivityKind)::CUptiResult
 end
 
+@checked function cuptiActivityEnable_v2(subscriber, kind, pActivityConfig)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityEnable_v2(subscriber::CUpti_SubscriberHandle,
+                                                  kind::CUpti_ActivityKind,
+                                                  pActivityConfig::Ptr{CUpti_ActivityConfig})::CUptiResult
+end
+
+@checked function cuptiActivityDisable_v2(subscriber, kind, pActivityConfig)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityDisable_v2(subscriber::CUpti_SubscriberHandle,
+                                                   kind::CUpti_ActivityKind,
+                                                   pActivityConfig::Ptr{CUpti_ActivityConfig})::CUptiResult
+end
+
+@checked function cuptiActivityEnableAndDump_v2(subscriber, kind, activityConfig)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityEnableAndDump_v2(subscriber::CUpti_SubscriberHandle,
+                                                         kind::CUpti_ActivityKind,
+                                                         activityConfig::Ptr{CUpti_ActivityConfig})::CUptiResult
+end
+
+@checked function cuptiActivityGetEnabledKinds(subscriber, buffer, bufferSize,
+                                               enabledKindsCount)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityGetEnabledKinds(subscriber::CUpti_SubscriberHandle,
+                                                        buffer::Ptr{CUpti_ActivityKind},
+                                                        bufferSize::Ptr{UInt32},
+                                                        enabledKindsCount::Ptr{UInt32})::CUptiResult
+end
+
+@checked function cuptiActivityGetStructSize(activityKind, version, activityStructSize)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityGetStructSize(activityKind::CUpti_ActivityKind,
+                                                      version::UInt32,
+                                                      activityStructSize::Ptr{Csize_t})::CUptiResult
+end
+
+@checked function cuptiIsTracingSessionRunning(isRunning)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiIsTracingSessionRunning(isRunning::Ptr{UInt8})::CUptiResult
+end
+
 @checked function cuptiActivityEnableContext(context, kind)
     initialize_context()
     @gcsafe_ccall libcupti.cuptiActivityEnableContext(context::CUcontext,
@@ -4181,6 +4767,31 @@ const CUpti_BuffersCallbackCompleteFunc = Ptr{Cvoid}
                                                           funcBufferCompleted::CUpti_BuffersCallbackCompleteFunc)::CUptiResult
 end
 
+struct CUpti_BufferCallbackRequestInfo
+    structSize::Csize_t
+end
+
+# typedef void ( CUPTIAPI * CUpti_BuffersCallbackRequestFunc_v2 ) ( uint8_t * * buffer , size_t * size , size_t * maxNumRecords , CUpti_BufferCallbackRequestInfo * pBufferRequestInfo )
+const CUpti_BuffersCallbackRequestFunc_v2 = Ptr{Cvoid}
+
+struct CUpti_BufferCallbackCompleteInfo
+    structSize::Csize_t
+    threadId::UInt64
+    ppRecordLayouts::Ptr{Ptr{CUpti_ActivityRecordLayout}}
+    numRecordLayouts::Csize_t
+end
+
+# typedef void ( CUPTIAPI * CUpti_BuffersCallbackCompleteFunc_v2 ) ( uint8_t * buffer , size_t size , size_t validSize , CUpti_BufferCallbackCompleteInfo * pBufferCompleteInfo )
+const CUpti_BuffersCallbackCompleteFunc_v2 = Ptr{Cvoid}
+
+@checked function cuptiActivityRegisterCallbacks_v2(subscriber, funcBufferRequested,
+                                                    funcBufferCompleted)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityRegisterCallbacks_v2(subscriber::CUpti_SubscriberHandle,
+                                                             funcBufferRequested::CUpti_BuffersCallbackRequestFunc_v2,
+                                                             funcBufferCompleted::CUpti_BuffersCallbackCompleteFunc_v2)::CUptiResult
+end
+
 @checked function cuptiActivityFlush(context, streamId, flag)
     initialize_context()
     @gcsafe_ccall libcupti.cuptiActivityFlush(context::CUcontext, streamId::UInt32,
@@ -4199,11 +4810,27 @@ end
                                                      value::Ptr{Cvoid})::CUptiResult
 end
 
+@checked function cuptiActivityGetAttribute_v2(subscriber, attr, valueSize, value)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivityGetAttribute_v2(subscriber::CUpti_SubscriberHandle,
+                                                        attr::CUpti_ActivityAttribute,
+                                                        valueSize::Ptr{Csize_t},
+                                                        value::Ptr{Cvoid})::CUptiResult
+end
+
 @checked function cuptiActivitySetAttribute(attr, valueSize, value)
     initialize_context()
     @gcsafe_ccall libcupti.cuptiActivitySetAttribute(attr::CUpti_ActivityAttribute,
                                                      valueSize::Ptr{Csize_t},
                                                      value::Ptr{Cvoid})::CUptiResult
+end
+
+@checked function cuptiActivitySetAttribute_v2(subscriber, attr, valueSize, value)
+    initialize_context()
+    @gcsafe_ccall libcupti.cuptiActivitySetAttribute_v2(subscriber::CUpti_SubscriberHandle,
+                                                        attr::CUpti_ActivityAttribute,
+                                                        valueSize::Ptr{Csize_t},
+                                                        value::Ptr{Cvoid})::CUptiResult
 end
 
 @checked function cuptiActivityConfigureUnifiedMemoryCounter(config, count)
@@ -4667,6 +5294,80 @@ function Base.propertynames(x::CUpti_ActivityDevice4, private::Bool=false)
             :maxGridDimY, :maxGridDimZ, :computeCapabilityMajor, :computeCapabilityMinor,
             :id, :eccEnabled, :uuid, :name, :isCudaVisible, :isMigEnabled, :reserved,
             :gpuInstanceId, :computeInstanceId, :migUuid, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct CUpti_ActivityDevice5
+    data::NTuple{184,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityDevice5}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
+    f === :globalMemoryBandwidth && return Ptr{UInt64}(x + 8)
+    f === :globalMemorySize && return Ptr{UInt64}(x + 16)
+    f === :constantMemorySize && return Ptr{UInt32}(x + 24)
+    f === :l2CacheSize && return Ptr{UInt32}(x + 28)
+    f === :numThreadsPerWarp && return Ptr{UInt32}(x + 32)
+    f === :coreClockRate && return Ptr{UInt32}(x + 36)
+    f === :numMemcpyEngines && return Ptr{UInt32}(x + 40)
+    f === :numMultiprocessors && return Ptr{UInt32}(x + 44)
+    f === :maxIPC && return Ptr{UInt32}(x + 48)
+    f === :maxWarpsPerMultiprocessor && return Ptr{UInt32}(x + 52)
+    f === :maxBlocksPerMultiprocessor && return Ptr{UInt32}(x + 56)
+    f === :maxSharedMemoryPerMultiprocessor && return Ptr{UInt32}(x + 60)
+    f === :maxRegistersPerMultiprocessor && return Ptr{UInt32}(x + 64)
+    f === :maxRegistersPerBlock && return Ptr{UInt32}(x + 68)
+    f === :maxSharedMemoryPerBlock && return Ptr{UInt32}(x + 72)
+    f === :maxThreadsPerBlock && return Ptr{UInt32}(x + 76)
+    f === :maxBlockDimX && return Ptr{UInt32}(x + 80)
+    f === :maxBlockDimY && return Ptr{UInt32}(x + 84)
+    f === :maxBlockDimZ && return Ptr{UInt32}(x + 88)
+    f === :maxGridDimX && return Ptr{UInt32}(x + 92)
+    f === :maxGridDimY && return Ptr{UInt32}(x + 96)
+    f === :maxGridDimZ && return Ptr{UInt32}(x + 100)
+    f === :computeCapabilityMajor && return Ptr{UInt32}(x + 104)
+    f === :computeCapabilityMinor && return Ptr{UInt32}(x + 108)
+    f === :id && return Ptr{UInt32}(x + 112)
+    f === :eccEnabled && return Ptr{UInt32}(x + 116)
+    f === :uuid && return Ptr{CUuuid}(x + 120)
+    f === :name && return Ptr{Cstring}(x + 136)
+    f === :isCudaVisible && return Ptr{UInt8}(x + 144)
+    f === :isMigEnabled && return Ptr{UInt8}(x + 145)
+    f === :reserved && return Ptr{NTuple{6,UInt8}}(x + 146)
+    f === :gpuInstanceId && return Ptr{UInt32}(x + 152)
+    f === :computeInstanceId && return Ptr{UInt32}(x + 156)
+    f === :migUuid && return Ptr{CUuuid}(x + 160)
+    f === :isNumaNode && return Ptr{UInt32}(x + 176)
+    f === :numaId && return Ptr{UInt32}(x + 180)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityDevice5, f::Symbol)
+    r = Ref{CUpti_ActivityDevice5}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityDevice5}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityDevice5}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUpti_ActivityDevice5, private::Bool=false)
+    return (:kind, :flags, :globalMemoryBandwidth, :globalMemorySize, :constantMemorySize,
+            :l2CacheSize, :numThreadsPerWarp, :coreClockRate, :numMemcpyEngines,
+            :numMultiprocessors, :maxIPC, :maxWarpsPerMultiprocessor,
+            :maxBlocksPerMultiprocessor, :maxSharedMemoryPerMultiprocessor,
+            :maxRegistersPerMultiprocessor, :maxRegistersPerBlock, :maxSharedMemoryPerBlock,
+            :maxThreadsPerBlock, :maxBlockDimX, :maxBlockDimY, :maxBlockDimZ, :maxGridDimX,
+            :maxGridDimY, :maxGridDimZ, :computeCapabilityMajor, :computeCapabilityMinor,
+            :id, :eccEnabled, :uuid, :name, :isCudaVisible, :isMigEnabled, :reserved,
+            :gpuInstanceId, :computeInstanceId, :migUuid, :isNumaNode, :numaId,
+            if private
                 fieldnames(typeof(x))
             else
                 ()
@@ -6810,7 +7511,7 @@ function Base.propertynames(x::var"##Ctag#349", private::Bool=false)
 end
 
 struct CUpti_ActivityNvLink2
-    data::NTuple{128,UInt8}
+    data::NTuple{96,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol)
@@ -6822,9 +7523,9 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol)
     f === :idDev1 && return Ptr{var"##Ctag#349"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
-    f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
-    f === :portDev1 && return Ptr{NTuple{32,Int8}}(x + 88)
-    f === :bandwidth && return Ptr{UInt64}(x + 120)
+    f === :portDev0 && return Ptr{NTuple{16,Int8}}(x + 56)
+    f === :portDev1 && return Ptr{NTuple{16,Int8}}(x + 72)
+    f === :bandwidth && return Ptr{UInt64}(x + 88)
     return getfield(x, f)
 end
 
@@ -6908,7 +7609,7 @@ function Base.propertynames(x::var"##Ctag#343", private::Bool=false)
 end
 
 struct CUpti_ActivityNvLink3
-    data::NTuple{136,UInt8}
+    data::NTuple{104,UInt8}
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol)
@@ -6920,11 +7621,11 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol)
     f === :idDev1 && return Ptr{var"##Ctag#343"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
-    f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
-    f === :portDev1 && return Ptr{NTuple{32,Int8}}(x + 88)
-    f === :bandwidth && return Ptr{UInt64}(x + 120)
-    f === :nvswitchConnected && return Ptr{UInt8}(x + 128)
-    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 129)
+    f === :portDev0 && return Ptr{NTuple{16,Int8}}(x + 56)
+    f === :portDev1 && return Ptr{NTuple{16,Int8}}(x + 72)
+    f === :bandwidth && return Ptr{UInt64}(x + 88)
+    f === :nvswitchConnected && return Ptr{UInt8}(x + 96)
+    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 97)
     return getfield(x, f)
 end
 
@@ -6940,6 +7641,106 @@ function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol, v)
 end
 
 function Base.propertynames(x::CUpti_ActivityNvLink3, private::Bool=false)
+    return (:kind, :nvlinkVersion, :typeDev0, :typeDev1, :idDev0, :idDev1, :flag,
+            :physicalNvLinkCount, :portDev0, :portDev1, :bandwidth, :nvswitchConnected,
+            :pad, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct var"##Ctag#393"
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"##Ctag#393"}, f::Symbol)
+    f === :uuidDev && return Ptr{CUuuid}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#394"}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#393", f::Symbol)
+    r = Ref{var"##Ctag#393"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#393"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#393"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::var"##Ctag#393", private::Bool=false)
+    return (:uuidDev, :npu, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct var"##Ctag#395"
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"##Ctag#395"}, f::Symbol)
+    f === :uuidDev && return Ptr{CUuuid}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#396"}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#395", f::Symbol)
+    r = Ref{var"##Ctag#395"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#395"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#395"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::var"##Ctag#395", private::Bool=false)
+    return (:uuidDev, :npu, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct CUpti_ActivityNvLink4
+    data::NTuple{136,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
+    f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
+    f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
+    f === :idDev0 && return Ptr{var"##Ctag#393"}(x + 16)
+    f === :idDev1 && return Ptr{var"##Ctag#395"}(x + 32)
+    f === :flag && return Ptr{UInt32}(x + 48)
+    f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
+    f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
+    f === :portDev1 && return Ptr{NTuple{32,Int8}}(x + 88)
+    f === :bandwidth && return Ptr{UInt64}(x + 120)
+    f === :nvswitchConnected && return Ptr{UInt8}(x + 128)
+    f === :pad && return Ptr{NTuple{7,UInt8}}(x + 129)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityNvLink4, f::Symbol)
+    r = Ref{CUpti_ActivityNvLink4}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityNvLink4}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUpti_ActivityNvLink4, private::Bool=false)
     return (:kind, :nvlinkVersion, :typeDev0, :typeDev1, :idDev0, :idDev1, :flag,
             :physicalNvLinkCount, :portDev0, :portDev1, :bandwidth, :nvswitchConnected,
             :pad, if private
@@ -8670,7 +9471,16 @@ const CUpti_driver_api_trace_cbid = CUpti_driver_api_trace_cbid_enum
     CUPTI_RUNTIME_TRACE_CBID_cuda547_v13010 = 547
     CUPTI_RUNTIME_TRACE_CBID_cudaDeviceGetExecutionCtx_v13010 = 548
     CUPTI_RUNTIME_TRACE_CBID_cudaDevSmResourceSplit_v13010 = 549
-    CUPTI_RUNTIME_TRACE_CBID_SIZE = 550
+    CUPTI_RUNTIME_TRACE_CBID_cudaLaunchHostFunc_v2_v13020 = 550
+    CUPTI_RUNTIME_TRACE_CBID_cudaLaunchHostFunc_v2_ptsz_v13020 = 551
+    CUPTI_RUNTIME_TRACE_CBID_cudaFuncGetParamCount_v13020 = 552
+    CUPTI_RUNTIME_TRACE_CBID_cuda553_v13020 = 553
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpyWithAttributesAsync_v13020 = 554
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpyWithAttributesAsync_ptsz_v13020 = 555
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpy3DWithAttributesAsync_v13020 = 556
+    CUPTI_RUNTIME_TRACE_CBID_cudaMemcpy3DWithAttributesAsync_ptsz_v13020 = 557
+    CUPTI_RUNTIME_TRACE_CBID_cudaGraphNodeGetParams_v13020 = 558
+    CUPTI_RUNTIME_TRACE_CBID_SIZE = 559
     CUPTI_RUNTIME_TRACE_CBID_FORCE_INT = 2147483647
 end
 
@@ -9614,12 +10424,54 @@ function Base.setproperty!(x::Ptr{var"##Ctag#444"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
+struct var"##Ctag#446"
+    index::UInt32
+    domainId::UInt32
+end
+function Base.getproperty(x::Ptr{var"##Ctag#446"}, f::Symbol)
+    f === :index && return Ptr{UInt32}(x + 0)
+    f === :domainId && return Ptr{UInt32}(x + 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#446", f::Symbol)
+    r = Ref{var"##Ctag#446"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#446"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#446"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"##Ctag#448"
+    index::UInt32
+    domainId::UInt32
+end
+function Base.getproperty(x::Ptr{var"##Ctag#448"}, f::Symbol)
+    f === :index && return Ptr{UInt32}(x + 0)
+    f === :domainId && return Ptr{UInt32}(x + 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#448", f::Symbol)
+    r = Ref{var"##Ctag#448"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#448"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#448"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
 const CUPTI_SUBSCRIBER_NAME_MAX_LEN = 53
 
 const CUPTI_OLD_SUBSCRIBER_NAME_MIN_LEN = 64
 
 const CUpti_SubscriberParams_STRUCT_SIZE = @CUPTI_CALLBACK_STRUCT_SIZE(CUpti_SubscriberParams,
-                                                                       oldSubscriberSize)
+                                                                       padding)
 
 const CUPTI_EVENT_OVERFLOW = uint64_t(Culonglong(0xffffffffffffffff))
 
@@ -9631,11 +10483,15 @@ const ACTIVITY_RECORD_ALIGNMENT = 8
 
 # Skipping MacroDefinition: PACKED_ALIGNMENT __attribute__ ( ( __packed__ ) ) __attribute__ ( ( aligned ( ACTIVITY_RECORD_ALIGNMENT ) ) )
 
+const CUPTI_MAX_DEVICES = 256
+
 const CUPTI_UNIFIED_MEMORY_CPU_DEVICE_ID = uint32_t(Cuint(0xffffffff))
 
-const CUPTI_INVALID_CONTEXT_ID = uint32_t(Cuint(0xffffffff))
+const CUPTI_INVALID_DEVICE_ID = uint32_t(Cuint(0xffffffff))
 
-const CUPTI_INVALID_STREAM_ID = uint32_t(Cuint(0xffffffff))
+const CUPTI_INVALID_CONTEXT_ID = 0
+
+const CUPTI_INVALID_STREAM_ID = 0
 
 const CUPTI_INVALID_CHANNEL_ID = uint32_t(Cuint(0xffffffff))
 
@@ -9655,13 +10511,16 @@ const CUPTI_SYNCHRONIZATION_INVALID_VALUE = uint32_t(Cuint(0xffffffff))
 
 const CUPTI_AUTO_BOOST_INVALID_CLIENT_PID = 0
 
-const CUPTI_NVLINK_INVALID_PORT = -1
-
-const CUPTI_MAX_NVLINK_PORTS = 32
+const CUPTI_NVLINK_INVALID_PORT = uint32_t(Cuint(0xffffffff))
 
 const CUPTI_DECOMPRESSED_BYTES_UNKNOWN = Clonglong(0)
 
 const CUPTI_MAX_GPUS = 32
+
+const CUpti_ActivityConfig_STRUCT_SIZE = @CUPTI_ACTIVITY_STRUCT_SIZE(CUpti_ActivityConfig,
+                                                                     fieldSelection)
+
+const CUPTI_MAX_NVLINK_PORTS = 256
 
 const CUpti_Profiler_Initialize_Params_STRUCT_SIZE = @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Initialize_Params,
                                                                                  pPriv)
