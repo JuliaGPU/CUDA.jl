@@ -128,7 +128,7 @@ p = 5
                 # NVIDIA bug #5949478: non-pivoting sytrf performs Hermitian
                 # instead of symmetric factorization for complex types on
                 # CUSOLVER 12.0.9 (CUDA 13.1)
-                !pivoting && elty <: Complex && v"12.0.9" <= CUSOLVER.version() < v"12.1" && continue
+                !pivoting && elty <: Complex && v"12.0.9" <= CUSOLVER.version() && continue
                 A = rand(elty,n,n)
                 B = rand(elty,n,p)
                 C = rand(elty,n)
