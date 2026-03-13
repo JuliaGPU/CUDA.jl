@@ -332,11 +332,33 @@ end
 
 const CUmemLocationType = CUmemLocationType_enum
 
-# XXX: hacked because Clang.jl does not support anonymous unions, generating an opaque
-# blob for CUmemLocation_st. The anonymous union is a single-member no-op (CUDA 13.2+).
 struct CUmemLocation_st
-    type::CUmemLocationType
-    id::Cint
+    data::NTuple{8,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUmemLocation_st}, f::Symbol)
+    f === :type && return Ptr{CUmemLocationType}(x + 0)
+    f === :id && return Ptr{Cint}(x + 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUmemLocation_st, f::Symbol)
+    r = Ref{CUmemLocation_st}(x)
+    ptr = Base.unsafe_convert(Ptr{CUmemLocation_st}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUmemLocation_st}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUmemLocation_st, private::Bool=false)
+    return (:type, :id, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
 end
 
 const CUmemLocation_v1 = CUmemLocation_st

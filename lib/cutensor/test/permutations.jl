@@ -6,15 +6,15 @@ using LinearAlgebra, Random
 
 eltypes = [(Float16, Float16),
            (Float16, Float32),
-           #(Float32, Float16),
+           (Float32, Float16),
            (Float32, Float32),
            (Float64, Float64),
            (Float32, Float64),
-           #(Float64, Float32),
+           (Float64, Float32),
            (ComplexF32, ComplexF32),
            (ComplexF64, ComplexF64),
            (ComplexF32, ComplexF64),
-           #(ComplexF64, ComplexF32)
+           (ComplexF64, ComplexF32),
            ]
 
 @testset for N=2:5
@@ -35,7 +35,7 @@ eltypes = [(Float16, Float16),
         opA = cuTENSOR.OP_IDENTITY
         dC = permute!(one(eltyA), dA, indsA, opA, dC, indsC)
         C  = collect(dC)
-        @test C == permutedims(A, p) # exact equality
+        @test C ≈ eltyC.(permutedims(A, p))
 
         # with scalar
         α  = rand(eltyA)

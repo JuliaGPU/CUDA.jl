@@ -17,6 +17,8 @@ function Base.convert(::Type{cutensornetComputeType_t}, T::DataType)
         return CUTENSORNET_COMPUTE_32U
     elseif T == Int32
         return CUTENSORNET_COMPUTE_32I
+    elseif T == CUDA.BFloat16
+        return CUTENSORNET_COMPUTE_16BF
     else
         throw(ArgumentError("cuTensorNet type equivalent for compute type $T does not exist!"))
     end
@@ -37,6 +39,8 @@ function Base.convert(::Type{Type}, T::cutensornetComputeType_t)
         return Int8
     elseif T == CUTENSORNET_COMPUTE_32I
         return Int32
+    elseif T == CUTENSORNET_COMPUTE_16BF
+        return CUDA.BFloat16
     else
         throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
     end
@@ -219,6 +223,7 @@ Base.@kwdef struct OptimizerConfig
     hyper_num_threads::Int32=Threads.nthreads()
     seed::Int32=0
     cost_function_objective::cutensornetOptimizerCost_t=CUTENSORNET_OPTIMIZER_COST_FLOPS
+    gpu_arch::Int32=0
 end
 
 mutable struct CuTensorNetworkContractionOptimizerConfig
@@ -248,6 +253,7 @@ mutable struct CuTensorNetworkContractionOptimizerConfig
                         :hyper_num_threads=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_HYPER_NUM_THREADS,
                         :seed=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_SEED,
                         :cost_function_objective=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_COST_FUNCTION_OBJECTIVE,
+                        :gpu_arch=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_GPU_ARCH,
                     )
             attr_buf = Ref(Base.getproperty(prefs, attr[1]))
             cutensornetContractionOptimizerConfigSetAttribute(handle(), desc_ref[], attr[2], attr_buf, sizeof(attr_buf))
