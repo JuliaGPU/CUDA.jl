@@ -23,6 +23,14 @@ using cuStateVec
         @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_SAMPLER_NOT_PREPROCESSED)) == "the sampler was called prior to preprocessing."
         @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_NO_DEVICE_ALLOCATOR)) == "the device memory pool was not set."
         @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_DEVICE_ALLOCATOR_ERROR)) == "operation with the device memory pool failed"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_COMMUNICATOR_ERROR)) == "a communicator operation failed"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_LOADING_LIBRARY_FAILED)) == "loading the library failed"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_INVALID_CONFIGURATION)) == "an invalid configuration was used"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_ALREADY_INITIALIZED)) == "the library was already initialized"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_INVALID_WIRE)) == "an invalid wire was specified"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_SYSTEM_ERROR)) == "a system error occurred"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_CUDA_ERROR)) == "a CUDA error occurred"
+        @test cuStateVec.description(cuStateVec.CUSTATEVECError(cuStateVec.CUSTATEVEC_STATUS_NUMERICAL_ERROR)) == "a numerical error occurred"
     end
     @testset "applyMatrix! and expectation" begin
         # build a simple state and compute expectations

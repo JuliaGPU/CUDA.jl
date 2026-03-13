@@ -71,7 +71,13 @@ end
     CUSTATEVEC_STATUS_DEVICE_ALLOCATOR_ERROR = 11
     CUSTATEVEC_STATUS_COMMUNICATOR_ERROR = 12
     CUSTATEVEC_STATUS_LOADING_LIBRARY_FAILED = 13
-    CUSTATEVEC_STATUS_MAX_VALUE = 14
+    CUSTATEVEC_STATUS_INVALID_CONFIGURATION = 14
+    CUSTATEVEC_STATUS_ALREADY_INITIALIZED = 15
+    CUSTATEVEC_STATUS_INVALID_WIRE = 16
+    CUSTATEVEC_STATUS_SYSTEM_ERROR = 17
+    CUSTATEVEC_STATUS_CUDA_ERROR = 18
+    CUSTATEVEC_STATUS_NUMERICAL_ERROR = 19
+    CUSTATEVEC_STATUS_MAX_VALUE = 20
 end
 
 @cenum custatevecPauli_t::UInt32 begin
@@ -100,6 +106,7 @@ end
 @cenum custatevecCollapseOp_t::UInt32 begin
     CUSTATEVEC_COLLAPSE_NONE = 0
     CUSTATEVEC_COLLAPSE_NORMALIZE_AND_ZERO = 1
+    CUSTATEVEC_COLLAPSE_RESET = 2
 end
 
 @cenum custatevecComputeType_t::UInt32 begin
@@ -170,7 +177,7 @@ end
                                                       value::Ptr{Int32})::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:532:8, please use with caution
+# no prototype is found for this function at custatevec.h:539:8, please use with caution
 function custatevecGetVersion()
     @gcsafe_ccall libcustatevec.custatevecGetVersion()::Csize_t
 end
@@ -214,7 +221,7 @@ end
     @gcsafe_ccall libcustatevec.custatevecLoggerSetMask(mask::Int32)::custatevecStatus_t
 end
 
-# no prototype is found for this function at custatevec.h:632:1, please use with caution
+# no prototype is found for this function at custatevec.h:639:1, please use with caution
 @checked function custatevecLoggerForceDisable()
     @gcsafe_ccall libcustatevec.custatevecLoggerForceDisable()::custatevecStatus_t
 end

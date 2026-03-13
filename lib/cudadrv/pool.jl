@@ -15,20 +15,25 @@ mutable struct CuMemoryPool
                           alloc_type::CUmemAllocationType=ALLOCATION_TYPE_PINNED,
                           handle_type::CUmemAllocationHandleType=HANDLE_TYPE_NONE,
                           maxSize::Integer=0, usage::Integer=0)
-        props = Ref(CUmemPoolProps(
-            alloc_type,
-            handle_type,
-            CUmemLocation(
-                CU_MEM_LOCATION_TYPE_DEVICE,
-                deviceid(dev)
-            ),
-            C_NULL,
-            maxSize,
-            usage,
-            ntuple(i->Cuchar(0), 54)
-        ))
-        handle_ref = Ref{CUmemoryPool}()
-        cuMemPoolCreate(handle_ref, props)
+        location = Ref{CUmemLocation}()
+        GC.@preserve location begin
+            # Clang.jl wraps this object in an annoying way
+            location_ptr = Base.unsafe_convert(Ptr{CUDA.CUmemLocation}, location)
+            location_ptr.type = CU_MEM_LOCATION_TYPE_DEVICE
+            location_ptr.id = deviceid(dev)
+
+            props = Ref(CUmemPoolProps(
+                alloc_type,
+                handle_type,
+                location[],
+                C_NULL,
+                maxSize,
+                usage,
+                ntuple(i->Cuchar(0), 54)
+            ))
+            handle_ref = Ref{CUmemoryPool}()
+            cuMemPoolCreate(handle_ref, props)
+        end
 
         ctx = current_context()
         new(handle_ref[], ctx)
@@ -109,8 +114,13 @@ Control the visibility of memory pool `pool` on device `dev` or a list of device
 function access!(pool::CuMemoryPool, devs::Vector{CuDevice}, flags::CUmemAccess_flags)
     map = Vector{CUmemAccessDesc}(undef, length(devs))
     for (i, dev) in enumerate(devs)
-        location = CUmemLocation(CU_MEM_LOCATION_TYPE_DEVICE, dev.handle)
-        access = CUmemAccessDesc(location, flags)
+        location = Ref{CUmemLocation}()
+        GC.@preserve location begin
+            location_ptr = Base.unsafe_convert(Ptr{CUmemLocation}, location)
+            location_ptr.type = CU_MEM_LOCATION_TYPE_DEVICE
+            location_ptr.id = dev.handle
+        end
+        access = CUmemAccessDesc(location[], flags)
         map[i] = access
     end
     cuMemPoolSetAccess(pool, map, length(map))
