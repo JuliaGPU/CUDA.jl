@@ -1,7 +1,7 @@
 name = "cuTensorNet"
 uuid = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
-version = "1.5.0"
+version = "1.5.1"
 
 [workspace]
 projects = ["test"]
