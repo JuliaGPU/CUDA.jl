@@ -1,7 +1,7 @@
 name = "cuTENSOR"
 uuid = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "2.3.0"
+version = "2.3.1"
 
 [workspace]
 projects = ["test"]
