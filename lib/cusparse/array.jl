@@ -152,7 +152,7 @@ mutable struct CuSparseMatrixBSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
         new{Tv, Ti}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
     end
 end
-function GPUSparseArrays.GPUSparseMatrixBSR(rowPtr::CuVector{Ti}, colVal::CuVector{Ti}, nzVal::CuVector{Tv}, dims::NTuple{2,<:Integer}, blockDim::Integer, args...) where {Tv, Ti <: Integer}
+function GPUArrays.GPUSparseMatrixBSR(rowPtr::CuVector{Ti}, colVal::CuVector{Ti}, nzVal::CuVector{Tv}, dims::NTuple{2,<:Integer}, blockDim::Integer, args...) where {Tv, Ti <: Integer}
     return CuSparseMatrixBSR{Tv, Ti}(rowPtr, colVal, nzVal, dims, blockDim, args...)
 end
 
@@ -185,7 +185,7 @@ mutable struct CuSparseMatrixCOO{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
         new{Tv, Ti}(rowInd,colInd,nzVal,dims,nnz)
     end
 end
-function GPUSparseArrays.GPUSparseMatrixCOO(rowInd::CuVector{Ti}, colInd::CuVector{Ti}, nzVal::CuVector{Tv}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+function GPUArrays.GPUSparseMatrixCOO(rowInd::CuVector{Ti}, colInd::CuVector{Ti}, nzVal::CuVector{Tv}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
     return CuSparseMatrixCOO{Tv, Ti}(rowInd, colInd, nzVal, dims)
 end
 CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
