@@ -340,6 +340,16 @@ function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
     @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
 end
 
+
+@testset "ensure_raising" begin
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((1,2,3))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((2,1,3))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((1,3,2))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((3,1,2))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((2,3,1))
+    @test (10,20,30) == CUDA.CUFFT.ensure_raising((30,20,10))
+end
+
 @testset for T in [Float16, Float32, Float64]
 
 @testset "1D" begin

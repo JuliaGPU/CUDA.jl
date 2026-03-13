@@ -177,6 +177,20 @@ function front_view(X, md)
 	@view X[t...]
 end
 
+ensure_raising(num::Number) = num
+
+# it is convenient to use sort on tuples, but since this is only implemented as of Julia 1.12
+# and the dimensions are anyway limited to maximally three, we hand code the cases here:
+ensure_raising(sequence::NTuple{1, Int}) = sequence
+ensure_raising(sequence::NTuple{2, Int}) = (sequence[1] < sequence[2]) ? sequence : sequence[2:-1:1]
+ensure_raising(sequence::NTuple{3, Int}) = (sequence[1] < sequence[2]) ?
+            ((sequence[2]<sequence[3]) ? sequence : (sequence[1]<sequence[3]) ? sequence[[1,3,2]] : sequence[[3,1,2]]) :
+            ((sequence[1]<sequence[3]) ? sequence[[2,1,3]] : (sequence[2]<sequence[3]) ? sequence[[2,3,1]] : sequence[[3,2,1]])
+function ensure_raising(sequence::NTuple)
+    throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
+end
+
+
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
 
@@ -186,9 +200,10 @@ end
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
 	@eval begin
 		Base.@constprop :aggressive function $f(X::DenseCuArray{T, N}, region) where {T <: cufftComplexes, N}
-			region = isa(region, Number) ? region : sort(region)
+            region = unique(region)
 			R = length(region)
 			region = NTuple{R, Int}(region)
+            region = ensure_raising(region)
 			$f(X, region)
 		end
 	end
@@ -198,7 +213,7 @@ end
 function plan_fft!(X::DenseCuArray{T, N}, region::NTuple{R, Int}) where {T <: cufftComplexes, N, R}
 	K = CUFFT_FORWARD
 	inplace = true
-	region = isa(region, Number) ? region : sort(region)
+    region = ensure_raising(Tuple(unique(region)))
 
 	handle = cufftGetPlan(T, T, size(X), region)
 
@@ -208,7 +223,7 @@ end
 function plan_bfft!(X::DenseCuArray{T, N}, region::NTuple{R, Int}) where {T <: cufftComplexes, N, R}
 	K = CUFFT_INVERSE
 	inplace = true
-	region = isa(region, Number) ? region : sort(region)
+    region = ensure_raising(Tuple(unique(region)))
 
 	handle = cufftGetPlan(T, T, size(X), region)
 
@@ -219,7 +234,7 @@ end
 function plan_fft(X::DenseCuArray{T, N}, region::NTuple{R, Int}) where {T <: cufftComplexes, N, R}
 	K = CUFFT_FORWARD
 	inplace = false
-	region = isa(region, Number) ? region : sort(region)
+    region = ensure_raising(Tuple(unique(region)))
 
 	handle = cufftGetPlan(T, T, size(X), region)
 
@@ -229,7 +244,7 @@ end
 function plan_bfft(X::DenseCuArray{T, N}, region::NTuple{R, Int}) where {T <: cufftComplexes, N, R}
 	K = CUFFT_INVERSE
 	inplace = false
-	region = isa(region, Number) ? region : sort(region)
+    region = ensure_raising(Tuple(unique(region)))
 
 	handle = cufftGetPlan(T, T, size(X), region)
 
@@ -238,7 +253,7 @@ end
 
 # out-of-place real-to-complex
 Base.@constprop :aggressive function plan_rfft(X::DenseCuArray{T, N}, region) where {T <: cufftReals, N}
-	# for rfft we cannot sort, since the meaning in fftw is that the first dimension in the list is reduced.
+	# for rfft we cannot sort the transform dimensions, since the meaning in fftw is that the first dimension in the list is reduced.
 	# so we let the plan throw an error
 	R = length(region)
 	region = NTuple{R, Int}(region)
@@ -248,7 +263,7 @@ end
 function plan_rfft(X::DenseCuArray{T, N}, region::NTuple{R, Int}) where {T <: cufftReals, N, R}
 	K = CUFFT_FORWARD
 	inplace = false
-	# for rfft we cannot sort, since the meaning in fftw is that the first dimension in the list is reduced.
+	# for rfft we cannot sort the transform dimensions, since the meaning in fftw is that the first dimension in the list is reduced.
 	# so we let the plan throw an error
 
 	handle = cufftGetPlan(complex(T), T, size(X), region)
@@ -266,7 +281,7 @@ end
 
 # out-of-place complex-to-real
 Base.@constprop :aggressive function plan_brfft(X::DenseCuArray{T, N}, d::Integer, region) where {T <: cufftComplexes, N}
-	# for rfft we cannot sort, since the meaning in fftw is that the first dimension in the list is reduced.
+	# for rfft we cannot sort the transform dimensions, since the meaning in fftw is that the first dimension in the list is reduced.
 	# so we let the plan throw an error
 	R = length(region)
 	region = NTuple{R, Int}(region)
