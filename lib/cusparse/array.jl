@@ -53,7 +53,7 @@ mutable struct CuSparseMatrixCSC{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSC
         new{Tv, Ti}(colPtr, rowVal, nzVal, dims, length(nzVal))
     end
 end
-function GPUSparseMatrixCSC(colPtr::CuVector{Ti, 1}, rowVal::CuVector{Ti, 1}, nzVal::CuVector{Tv, 1}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+function GPUArrays.GPUSparseMatrixCSC(colPtr::CuVector{Ti}, rowVal::CuVector{Ti}, nzVal::CuVector{Tv}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
     return CuSparseMatrixCSC{Tv, Ti}(colPtr, rowVal, nzVal, dims)
 end
 CuSparseMatrixCSC{Tv, Ti}(csc::CuSparseMatrixCSC{Tv, Ti}) where {Tv, Ti} = csc
@@ -97,7 +97,7 @@ mutable struct CuSparseMatrixCSR{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSR
         new{Tv, Ti}(rowPtr, colVal, nzVal, dims, length(nzVal))
     end
 end
-function GPUSparseMatrixCSR(rowPtr::CuVector{Ti, 1}, colVal::CuVector{Ti, 1}, nzVal::CuVector{Tv, 1}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
+function GPUArrays.GPUSparseMatrixCSR(rowPtr::CuVector{Ti}, colVal::CuVector{Ti}, nzVal::CuVector{Tv}, dims::NTuple{2,<:Integer}) where {Tv, Ti <: Integer}
     return CuSparseMatrixCSR{Tv, Ti}(rowPtr, colVal, nzVal, dims)
 end
 CuSparseMatrixCSR{Tv, Ti}(csr::CuSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} = csr
