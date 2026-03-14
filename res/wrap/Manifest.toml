@@ -28,34 +28,34 @@ uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
 version = "3.4.3"
 
 [[deps.CUDA_Driver_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "23bf4e60006b78544f753880fbcf1aa158a7669c"
+deps = ["Artifacts", "JLLWrappers", "Libdl", "TOML"]
+git-tree-sha1 = "061f39cc84e99928830aa1005d79f7e99097ba28"
 uuid = "4ee394cb-3365-5eb0-8335-949819d2adfc"
-version = "13.1.0+2"
+version = "13.2.0+0"
 
 [[deps.CUDA_Runtime_jll]]
 deps = ["Artifacts", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "aa15017227b7cc388431875270c26cefe99afec4"
+git-tree-sha1 = "af17d37b5b8b4d7525f8902eba1ef6141a9a7d3b"
 uuid = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
-version = "0.20.1+0"
+version = "0.21.0+0"
 
 [[deps.CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "9c8c9c8b4a4f66c85992ef6449f03dc18abbd24f"
+git-tree-sha1 = "c1fd6fe1a1a198afa28b425737f6afffe667096e"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "13.1.1+0"
+version = "13.2.0+0"
 
 [[deps.CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "dff9a69017686c95f1fd601c63c088244b3db75b"
+git-tree-sha1 = "70dea6a7133d2100a143b515a00d6d887e208500"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "9.17.1+0"
+version = "9.20.0+0"
 
 [[deps.CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "60dd053eebe8c8691a8235ff778896006662956c"
+git-tree-sha1 = "8d717d9dca1dbd43dc1478e948e75d6bb3a34473"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "2.4.1+0"
+version = "2.5.0+0"
 
 [[deps.Clang]]
 deps = ["CEnum", "Clang_unified_jll", "Downloads", "Pkg", "TOML"]
@@ -305,9 +305,9 @@ version = "1.5.7+1"
 
 [[deps.cuQuantum_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CUTENSOR_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "e46591bfbc25eb1f6cbf22af06585216aa37e8d1"
+git-tree-sha1 = "9ea69a1de874ad229325590a042bcd4d691bc976"
 uuid = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
-version = "25.11.0+0"
+version = "26.1.0+0"
 
 [[deps.libLLVM_jll]]
 deps = ["Artifacts", "Libdl"]

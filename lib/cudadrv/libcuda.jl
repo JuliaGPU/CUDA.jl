@@ -326,14 +326,39 @@ const CUmem_advise = CUmem_advise_enum
     CU_MEM_LOCATION_TYPE_HOST = 2
     CU_MEM_LOCATION_TYPE_HOST_NUMA = 3
     CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT = 4
+    CU_MEM_LOCATION_TYPE_INVISIBLE = 5
     CU_MEM_LOCATION_TYPE_MAX = 2147483647
 end
 
 const CUmemLocationType = CUmemLocationType_enum
 
 struct CUmemLocation_st
-    type::CUmemLocationType
-    id::Cint
+    data::NTuple{8,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUmemLocation_st}, f::Symbol)
+    f === :type && return Ptr{CUmemLocationType}(x + 0)
+    f === :id && return Ptr{Cint}(x + 4)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUmemLocation_st, f::Symbol)
+    r = Ref{CUmemLocation_st}(x)
+    ptr = Base.unsafe_convert(Ptr{CUmemLocation_st}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUmemLocation_st}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUmemLocation_st, private::Bool=false)
+    return (:type, :id, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
 end
 
 const CUmemLocation_v1 = CUmemLocation_st
@@ -1514,6 +1539,13 @@ end
 
 const cl_context_flags = cl_context_flags_enum
 
+@cenum CUhostTaskSyncMode_enum::UInt32 begin
+    CU_HOST_TASK_BLOCKING = 0
+    CU_HOST_TASK_SPINWAIT = 1
+end
+
+const CUhostTaskSyncMode = CUhostTaskSyncMode_enum
+
 @cenum CUstream_flags_enum::UInt32 begin
     CU_STREAM_DEFAULT = 0
     CU_STREAM_NON_BLOCKING = 1
@@ -2215,6 +2247,7 @@ const CUDA_HOST_NODE_PARAMS = CUDA_HOST_NODE_PARAMS_v1
 struct CUDA_HOST_NODE_PARAMS_v2_st
     fn::CUhostFn
     userData::Ptr{Cvoid}
+    syncMode::Cuint
 end
 
 const CUDA_HOST_NODE_PARAMS_v2 = CUDA_HOST_NODE_PARAMS_v2_st
@@ -2293,6 +2326,22 @@ end
 
 const CUlaunchMemSyncDomainMap = CUlaunchMemSyncDomainMap_st
 
+@cenum CUlaunchAttributePortableClusterMode_enum::UInt32 begin
+    CU_LAUNCH_PORTABLE_CLUSTER_MODE_DEFAULT = 0
+    CU_LAUNCH_PORTABLE_CLUSTER_MODE_REQUIRE_PORTABLE = 1
+    CU_LAUNCH_PORTABLE_CLUSTER_MODE_ALLOW_NON_PORTABLE = 2
+end
+
+const CUlaunchAttributePortableClusterMode = CUlaunchAttributePortableClusterMode_enum
+
+@cenum CUsharedMemoryMode_enum::UInt32 begin
+    CU_SHARED_MEMORY_MODE_DEFAULT = 0
+    CU_SHARED_MEMORY_MODE_REQUIRE_PORTABLE = 1
+    CU_SHARED_MEMORY_MODE_ALLOW_NON_PORTABLE = 2
+end
+
+const CUsharedMemoryMode = CUsharedMemoryMode_enum
+
 @cenum CUlaunchAttributeID_enum::UInt32 begin
     CU_LAUNCH_ATTRIBUTE_IGNORE = 0
     CU_LAUNCH_ATTRIBUTE_ACCESS_POLICY_WINDOW = 1
@@ -2310,6 +2359,8 @@ const CUlaunchMemSyncDomainMap = CUlaunchMemSyncDomainMap_st
     CU_LAUNCH_ATTRIBUTE_DEVICE_UPDATABLE_KERNEL_NODE = 13
     CU_LAUNCH_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT = 14
     CU_LAUNCH_ATTRIBUTE_NVLINK_UTIL_CENTRIC_SCHEDULING = 16
+    CU_LAUNCH_ATTRIBUTE_PORTABLE_CLUSTER_SIZE_MODE = 17
+    CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE = 18
 end
 
 const CUlaunchAttributeID = CUlaunchAttributeID_enum
@@ -2335,6 +2386,9 @@ function Base.getproperty(x::Ptr{CUlaunchAttributeValue_union}, f::Symbol)
     f === :deviceUpdatableKernelNode && return Ptr{var"##Ctag#296"}(x + 0)
     f === :sharedMemCarveout && return Ptr{Cuint}(x + 0)
     f === :nvlinkUtilCentricScheduling && return Ptr{Cuint}(x + 0)
+    f === :portableClusterSizeMode &&
+        return Ptr{CUlaunchAttributePortableClusterMode}(x + 0)
+    f === :sharedMemoryMode && return Ptr{CUsharedMemoryMode}(x + 0)
     return getfield(x, f)
 end
 
@@ -2354,7 +2408,8 @@ function Base.propertynames(x::CUlaunchAttributeValue_union, private::Bool=false
             :clusterSchedulingPolicyPreference, :programmaticStreamSerializationAllowed,
             :programmaticEvent, :launchCompletionEvent, :priority, :memSyncDomainMap,
             :memSyncDomain, :preferredClusterDim, :deviceUpdatableKernelNode,
-            :sharedMemCarveout, :nvlinkUtilCentricScheduling, if private
+            :sharedMemCarveout, :nvlinkUtilCentricScheduling, :portableClusterSizeMode,
+            :sharedMemoryMode, if private
                 fieldnames(typeof(x))
             else
                 ()
@@ -2437,6 +2492,25 @@ end
 const CUexecAffinitySmCount_v1 = CUexecAffinitySmCount_st
 
 const CUexecAffinitySmCount = CUexecAffinitySmCount_v1
+
+@cenum CUstreamCigDataType_enum::UInt32 begin
+    STREAM_CIG_DATA_TYPE_D3D12_COMMAND_LIST = 1
+end
+
+const CUstreamCigDataType = CUstreamCigDataType_enum
+
+struct CUstreamCigParam_st
+    streamSharedDataType::CUstreamCigDataType
+    streamSharedData::Ptr{Cvoid}
+end
+
+const CUstreamCigParam = CUstreamCigParam_st
+
+struct CUstreamCigCaptureParams_st
+    streamCigParams::Ptr{CUstreamCigParam}
+end
+
+const CUstreamCigCaptureParams = CUstreamCigCaptureParams_st
 
 @cenum CUlibraryOption_enum::UInt32 begin
     CU_LIBRARY_HOST_UNIVERSAL_FUNCTION_AND_DATA_TABLE = 0
@@ -3643,6 +3717,12 @@ const CUmemAccessDesc = CUmemAccessDesc_v1
     CU_MEMPOOL_ATTR_RESERVED_MEM_HIGH = 6
     CU_MEMPOOL_ATTR_USED_MEM_CURRENT = 7
     CU_MEMPOOL_ATTR_USED_MEM_HIGH = 8
+    CU_MEMPOOL_ATTR_ALLOCATION_TYPE = 9
+    CU_MEMPOOL_ATTR_EXPORT_HANDLE_TYPES = 10
+    CU_MEMPOOL_ATTR_LOCATION_ID = 11
+    CU_MEMPOOL_ATTR_LOCATION_TYPE = 12
+    CU_MEMPOOL_ATTR_MAX_POOL_SIZE = 13
+    CU_MEMPOOL_ATTR_HW_DECOMPRESS_ENABLED = 14
 end
 
 const CUmemPool_attribute = CUmemPool_attribute_enum
@@ -3723,9 +3803,10 @@ end
 
 const CUgraphMem_attribute = CUgraphMem_attribute_enum
 
-@cenum CUgraphChildGraphNodeOwnership_enum::UInt32 begin
+@cenum CUgraphChildGraphNodeOwnership_enum::Int32 begin
     CU_GRAPH_CHILD_GRAPH_OWNERSHIP_CLONE = 0
     CU_GRAPH_CHILD_GRAPH_OWNERSHIP_MOVE = 1
+    CU_GRAPH_CHILD_GRAPH_OWNERSHIP_INVALID = -1
 end
 
 const CUgraphChildGraphNodeOwnership = CUgraphChildGraphNodeOwnership_enum
@@ -4294,6 +4375,12 @@ end
                                                paramSize::Ptr{Csize_t})::CUresult
 end
 
+@checked function cuKernelGetParamCount(kernel, paramCount)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuKernelGetParamCount(kernel::CUkernel,
+                                                paramCount::Ptr{Csize_t})::CUresult
+end
+
 @checked function cuMemFreeHost(p)
     initialize_context()
     @gcsafe_ccall libcuda.cuMemFreeHost(p::Ptr{Cvoid})::CUresult
@@ -4407,6 +4494,21 @@ end
     initialize_context()
     @gcsafe_ccall libcuda.cuMemcpy3DPeerAsync(pCopy::Ptr{CUDA_MEMCPY3D_PEER},
                                               hStream::CUstream)::CUresult
+end
+
+@checked function cuMemcpyWithAttributesAsync(dst, src, size, attr, hStream)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuMemcpyWithAttributesAsync(dst::CUdeviceptr, src::CUdeviceptr,
+                                                      size::Csize_t,
+                                                      attr::Ptr{CUmemcpyAttributes},
+                                                      hStream::CUstream)::CUresult
+end
+
+@checked function cuMemcpy3DWithAttributesAsync(op, flags, hStream)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuMemcpy3DWithAttributesAsync(op::Ptr{CUDA_MEMCPY3D_BATCH_OP},
+                                                        flags::Culonglong,
+                                                        hStream::CUstream)::CUresult
 end
 
 @checked function cuMemsetD8Async(dstDevice, uc, N, hStream)
@@ -4889,6 +4991,17 @@ end
                                                      priority::Cint)::CUresult
 end
 
+@checked function cuStreamBeginCaptureToCig(hStream, streamCigCaptureParams)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuStreamBeginCaptureToCig(hStream::CUstream,
+                                                    streamCigCaptureParams::Ptr{CUstreamCigCaptureParams})::CUresult
+end
+
+@checked function cuStreamEndCaptureToCig(hStream)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuStreamEndCaptureToCig(hStream::CUstream)::CUresult
+end
+
 @checked function cuStreamGetPriority(hStream, priority)
     initialize_context()
     @gcsafe_ccall libcuda.cuStreamGetPriority(hStream::CUstream,
@@ -5111,6 +5224,12 @@ end
                                              paramSize::Ptr{Csize_t})::CUresult
 end
 
+@checked function cuFuncGetParamCount(func, paramCount)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuFuncGetParamCount(func::CUfunction,
+                                              paramCount::Ptr{Csize_t})::CUresult
+end
+
 @cenum CUfunctionLoadingState_enum::UInt32 begin
     CU_FUNCTION_LOADING_STATE_UNLOADED = 0
     CU_FUNCTION_LOADING_STATE_LOADED = 1
@@ -5171,6 +5290,13 @@ end
     initialize_context()
     @gcsafe_ccall libcuda.cuLaunchHostFunc(hStream::CUstream, fn::CUhostFn,
                                            userData::Ptr{Cvoid})::CUresult
+end
+
+@checked function cuLaunchHostFunc_v2(hStream, fn, userData, syncMode)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLaunchHostFunc_v2(hStream::CUstream, fn::CUhostFn,
+                                              userData::Ptr{Cvoid},
+                                              syncMode::Cuint)::CUresult
 end
 
 @checked function cuFuncSetBlockShape(hfunc, x, y, z)
@@ -5733,6 +5859,12 @@ end
                                                nodeParams::Ptr{CUgraphNodeParams})::CUresult
 end
 
+@checked function cuGraphNodeGetParams(hNode, nodeParams)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuGraphNodeGetParams(hNode::CUgraphNode,
+                                               nodeParams::Ptr{CUgraphNodeParams})::CUresult
+end
+
 @checked function cuGraphExecNodeSetParams(hGraphExec, hNode, nodeParams)
     initialize_context()
     @gcsafe_ccall libcuda.cuGraphExecNodeSetParams(hGraphExec::CUgraphExec,
@@ -6218,6 +6350,37 @@ end
     @gcsafe_ccall libcuda.cuCoredumpSetAttributeGlobal(attrib::CUcoredumpSettings,
                                                        value::Ptr{Cvoid},
                                                        size::Ptr{Csize_t})::CUresult
+end
+
+mutable struct CUcoredumpCallbackEntry_st end
+
+const CUcoredumpCallbackHandle = Ptr{CUcoredumpCallbackEntry_st}
+
+# typedef void ( CUDA_CB * CUcoredumpStatusCallback ) ( void * userData , int pid , CUdevice dev )
+const CUcoredumpStatusCallback = Ptr{Cvoid}
+
+@checked function cuCoredumpRegisterStartCallback(callback, userData, callbackOut)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuCoredumpRegisterStartCallback(callback::CUcoredumpStatusCallback,
+                                                          userData::Ptr{Cvoid},
+                                                          callbackOut::Ptr{CUcoredumpCallbackHandle})::CUresult
+end
+
+@checked function cuCoredumpRegisterCompleteCallback(callback, userData, callbackOut)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuCoredumpRegisterCompleteCallback(callback::CUcoredumpStatusCallback,
+                                                             userData::Ptr{Cvoid},
+                                                             callbackOut::Ptr{CUcoredumpCallbackHandle})::CUresult
+end
+
+@checked function cuCoredumpDeregisterStartCallback(callback)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuCoredumpDeregisterStartCallback(callback::CUcoredumpCallbackHandle)::CUresult
+end
+
+@checked function cuCoredumpDeregisterCompleteCallback(callback)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuCoredumpDeregisterCompleteCallback(callback::CUcoredumpCallbackHandle)::CUresult
 end
 
 @checked function cuGetExportTable(ppExportTable, pExportTableId)
