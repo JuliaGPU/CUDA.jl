@@ -258,10 +258,10 @@
 
 function contract!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::CuTensorBS), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::CuTensorBS), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(A), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(C::CuTensorBS), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(C), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
@@ -308,9 +308,9 @@ function contractBS!(plan::CuTensorPlan,
 end
 
 function plan_contraction(
-        @nospecialize(A::CuTensorBS), Ainds::ModeType, opA::cutensorOperator_t,
-        @nospecialize(B::CuTensorBS), Binds::ModeType, opB::cutensorOperator_t,
-        @nospecialize(C::CuTensorBS), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(A), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(C), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
