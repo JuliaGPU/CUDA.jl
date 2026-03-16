@@ -370,6 +370,15 @@ end
     @gcsafe_ccall libcutensor.cutensorDestroyPlanPreference(pref::cutensorPlanPreference_t)::cutensorStatus_t
 end
 
+@checked function cutensorPlanPreferenceGetAttribute(handle, pref, attr, buf, sizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcutensor.cutensorPlanPreferenceGetAttribute(handle::cutensorHandle_t,
+                                                                 pref::cutensorPlanPreference_t,
+                                                                 attr::cutensorPlanPreferenceAttribute_t,
+                                                                 buf::Ptr{Cvoid},
+                                                                 sizeInBytes::Csize_t)::cutensorStatus_t
+end
+
 @checked function cutensorPlanPreferenceSetAttribute(handle, pref, attr, buf, sizeInBytes)
     initialize_context()
     @gcsafe_ccall libcutensor.cutensorPlanPreferenceSetAttribute(handle::cutensorHandle_t,
@@ -550,12 +559,13 @@ function cutensorGetErrorString(error)
     @gcsafe_ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
 
-# no prototype is found for this function at cutensor.h:1401:8, please use with caution
+
+# no prototype is found for this function at cutensor.h:1419:8, please use with caution
 function cutensorGetVersion()
     @gcsafe_ccall libcutensor.cutensorGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensor.h:1407:8, please use with caution
+# no prototype is found for this function at cutensor.h:1425:8, please use with caution
 function cutensorGetCudartVersion()
     @gcsafe_ccall libcutensor.cutensorGetCudartVersion()::Csize_t
 end
@@ -585,7 +595,7 @@ end
     @gcsafe_ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
-# no prototype is found for this function at cutensor.h:1458:18, please use with caution
+# no prototype is found for this function at cutensor.h:1476:18, please use with caution
 @checked function cutensorLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t

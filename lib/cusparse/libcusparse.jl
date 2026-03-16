@@ -6283,9 +6283,9 @@ const cusparseSpMMOpPlan_t = Ptr{cusparseSpMMOpPlan}
 end
 
 @checked function cusparseSpMMOp_createPlan(handle, plan, opA, opB, matA, matB, matC,
-                                            computeType, alg, addOperationNvvmBuffer,
-                                            addOperationBufferSize, mulOperationNvvmBuffer,
-                                            mulOperationBufferSize, epilogueNvvmBuffer,
+                                            computeType, alg, addOperationLtoirBuffer,
+                                            addOperationBufferSize, mulOperationLtoirBuffer,
+                                            mulOperationBufferSize, epilogueLtoirBuffer,
                                             epilogueBufferSize, SpMMWorkspaceSize)
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseSpMMOp_createPlan(handle::cusparseHandle_t,
@@ -6297,11 +6297,11 @@ end
                                                         matC::cusparseDnMatDescr_t,
                                                         computeType::cudaDataType,
                                                         alg::cusparseSpMMOpAlg_t,
-                                                        addOperationNvvmBuffer::Ptr{Cvoid},
+                                                        addOperationLtoirBuffer::Ptr{Cvoid},
                                                         addOperationBufferSize::Csize_t,
-                                                        mulOperationNvvmBuffer::Ptr{Cvoid},
+                                                        mulOperationLtoirBuffer::Ptr{Cvoid},
                                                         mulOperationBufferSize::Csize_t,
-                                                        epilogueNvvmBuffer::Ptr{Cvoid},
+                                                        epilogueLtoirBuffer::Ptr{Cvoid},
                                                         epilogueBufferSize::Csize_t,
                                                         SpMMWorkspaceSize::Ref{Csize_t})::cusparseStatus_t
 end
