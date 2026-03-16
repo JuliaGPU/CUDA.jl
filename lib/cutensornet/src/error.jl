@@ -46,6 +46,16 @@ function description(err::CUTENSORNETError)
         return "drawing device memory from a mempool is requested, but the mempool is not set."
     elseif err.code == CUTENSORNET_STATUS_ALL_HYPER_SAMPLES_FAILED
         return "all hyper samples failed for one or more errors."
+    elseif err.code == CUTENSORNET_STATUS_MAPPING_ERROR
+        return "a mapping error occurred."
+    elseif err.code == CUTENSORNET_STATUS_CUSOLVER_ERROR
+        return "a call to CUSOLVER did not succeed."
+    elseif err.code == CUTENSORNET_STATUS_DEVICE_ALLOCATOR_ERROR
+        return "the device allocator returned an error."
+    elseif err.code == CUTENSORNET_STATUS_DISTRIBUTED_FAILURE
+        return "a distributed failure occurred."
+    elseif err.code == CUTENSORNET_STATUS_INTERRUPTED
+        return "the operation was interrupted."
     else
         return "no description for this error"
     end

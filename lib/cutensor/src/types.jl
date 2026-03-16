@@ -26,7 +26,7 @@ const elementwise_trinary_compute_types = Dict(
     (ComplexF32, ComplexF32, ComplexF32) => Float32,
     (ComplexF64, ComplexF64, ComplexF64) => Float64,
     (Float32,    Float32,    Float16)    => Float32,
-  # (Float64,    Float64,    Float32)    => Float32,
+    (Float64,    Float64,    Float32)    => Float64,
     (ComplexF64, ComplexF64, ComplexF32) => Float64)
 
 const elementwise_binary_compute_types = Dict(
@@ -44,15 +44,15 @@ const permutation_compute_types = Dict(
     # typeA,     typeB       => typeCompute
     (Float16,    Float16)    => Float16,
     (Float16,    Float32)    => Float32,
-  # (Float32,    Float16)    => Float32,
+    (Float32,    Float16)    => Float32,
     (Float32,    Float32)    => Float32,
     (Float64,    Float64)    => Float64,
     (Float32,    Float64)    => Float64,
-  # (Float64,    Float32)    => Float64,
+    (Float64,    Float32)    => Float64,
     (ComplexF32, ComplexF32) => Float32,
     (ComplexF64, ComplexF64) => Float64,
     (ComplexF32, ComplexF64) => Float64,
-  # (ComplexF64, ComplexF32) => Float64
+    (ComplexF64, ComplexF32) => Float64,
     )
 
 const reduction_compute_types = Dict(
@@ -95,22 +95,8 @@ function Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::cutensorComputeDe
 end
 
 
-
-function Base.convert(::DataType, T::cutensorDataType_t)
-    if T == CUTENSOR_R_16F
-        return Float16
-    elseif T == CUTENSOR_R_32F
-        return Float32
-    elseif T == CUTENSOR_C_32F
-        return ComplexF32
-    elseif T == CUTENSOR_R_64F
-        return Float64
-    elseif T == CUTENSOR_C_64F
-        return ComplexF64
-    else
-        throw(ArgumentError("Data type equivalent for cutensorDataType type $T does not exist!"))
-    end
-end
+# cutensorDataType_t is now just cudaDataType; conversions are defined in CUDA proper
+# (lib/library_types.jl)
 
 
 ## plan
@@ -139,7 +125,6 @@ mutable struct CuTensorPlan
         cutensorPlanGetAttribute(handle(), plan_ref[], CUTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
         workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
 
-        # obj = new(context(), plan_ref[], workspace, required_scalar_type[])
         obj = new(context(), plan_ref[], workspace, convert(Type, required_scalar_type[]))
         finalizer(CUDA.unsafe_free!, obj)
         return obj

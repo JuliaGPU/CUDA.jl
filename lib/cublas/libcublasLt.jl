@@ -59,7 +59,7 @@ function cublasLtDisableCpuInstructionsSetMask(mask)
 end
 
 struct cublasLtMatrixLayoutOpaque_t
-    data::NTuple{8,UInt64}
+    data::NTuple{14,UInt64}
 end
 
 const cublasLtMatrixLayout_t = Ptr{cublasLtMatrixLayoutOpaque_t}
@@ -81,10 +81,16 @@ end
 const cublasLtMatrixTransformDesc_t = Ptr{cublasLtMatrixTransformDescOpaque_t}
 
 struct cublasLtMatmulPreferenceOpaque_t
-    data::NTuple{8,UInt64}
+    data::NTuple{12,UInt64}
 end
 
 const cublasLtMatmulPreference_t = Ptr{cublasLtMatmulPreferenceOpaque_t}
+
+struct cublasLtEmulationDescOpaque_t
+    data::NTuple{8,UInt64}
+end
+
+const cublasLtEmulationDesc_t = Ptr{cublasLtEmulationDescOpaque_t}
 
 @cenum cublasLtMatmulTile_t::UInt32 begin
     CUBLASLT_MATMUL_TILE_UNDEFINED = 0
@@ -837,7 +843,8 @@ end
     CUBLASLT_MATMUL_MATRIX_SCALE_OUTER_VEC_32F = 3
     CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_32F = 4
     CUBLASLT_MATMUL_MATRIX_SCALE_BLK128x128_32F = 5
-    CUBLASLT_MATMUL_MATRIX_SCALE_END = 6
+    CUBLASLT_MATMUL_MATRIX_SCALE_PER_BATCH_SCALAR_32F = 6
+    CUBLASLT_MATMUL_MATRIX_SCALE_END = 7
 end
 
 @cenum cublasLtPointerMode_t::UInt32 begin
@@ -903,6 +910,12 @@ end
 @cenum cublasLtBatchMode_t::UInt32 begin
     CUBLASLT_BATCH_MODE_STRIDED = 0
     CUBLASLT_BATCH_MODE_POINTER_ARRAY = 1
+    CUBLASLT_BATCH_MODE_GROUPED = 2
+end
+
+@cenum cublasLtIntegerWidth_t::UInt32 begin
+    CUBLASLT_INTEGER_WIDTH_32 = 0
+    CUBLASLT_INTEGER_WIDTH_64 = 1
 end
 
 @cenum cublasLtMatrixLayoutAttribute_t::UInt32 begin
@@ -915,6 +928,11 @@ end
     CUBLASLT_MATRIX_LAYOUT_STRIDED_BATCH_OFFSET = 6
     CUBLASLT_MATRIX_LAYOUT_PLANE_OFFSET = 7
     CUBLASLT_MATRIX_LAYOUT_BATCH_MODE = 8
+    CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_ARRAY = 9
+    CUBLASLT_GROUPED_MATRIX_LAYOUT_COLS_ARRAY = 10
+    CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY = 11
+    CUBLASLT_GROUPED_MATRIX_LAYOUT_ROWS_COLS_ARRAY_INTEGER_WIDTH = 12
+    CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY_INTEGER_WIDTH = 13
 end
 
 @checked function cublasLtMatrixLayoutInit_internal(matLayout, size, type, rows, cols, ld)
@@ -934,12 +952,47 @@ end
                                                        ld::Int64)::cublasStatus_t
 end
 
+@checked function cublasLtGroupedMatrixLayoutInit_internal(matLayout, size, type,
+                                                           groupCount, rows_array,
+                                                           cols_array, ld_array)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtGroupedMatrixLayoutInit_internal(matLayout::cublasLtMatrixLayout_t,
+                                                                       size::Csize_t,
+                                                                       type::cudaDataType,
+                                                                       groupCount::Cint,
+                                                                       rows_array::Ptr{Cvoid},
+                                                                       cols_array::Ptr{Cvoid},
+                                                                       ld_array::Ptr{Cvoid})::cublasStatus_t
+end
+
+@checked function cublasLtGroupedMatrixLayoutInit(matLayout, type, groupCount, rows_array,
+                                                  cols_array, ld_array)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtGroupedMatrixLayoutInit(matLayout::cublasLtMatrixLayout_t,
+                                                              type::cudaDataType,
+                                                              groupCount::Cint,
+                                                              rows_array::Ptr{Cvoid},
+                                                              cols_array::Ptr{Cvoid},
+                                                              ld_array::Ptr{Cvoid})::cublasStatus_t
+end
+
 @checked function cublasLtMatrixLayoutCreate(matLayout, type, rows, cols, ld)
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtMatrixLayoutCreate(matLayout::Ptr{cublasLtMatrixLayout_t},
                                                          type::cudaDataType, rows::UInt64,
                                                          cols::UInt64,
                                                          ld::Int64)::cublasStatus_t
+end
+
+@checked function cublasLtGroupedMatrixLayoutCreate(matLayout, type, groupCount, rows_array,
+                                                    cols_array, ld_array)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtGroupedMatrixLayoutCreate(matLayout::Ptr{cublasLtMatrixLayout_t},
+                                                                type::cudaDataType,
+                                                                groupCount::Cint,
+                                                                rows_array::Ptr{Cvoid},
+                                                                cols_array::Ptr{Cvoid},
+                                                                ld_array::Ptr{Cvoid})::cublasStatus_t
 end
 
 @checked function cublasLtMatrixLayoutDestroy(matLayout)
@@ -998,6 +1051,9 @@ end
     CUBLASLT_MATMUL_DESC_EPILOGUE_AUX_SCALE_MODE = 35
     CUBLASLT_MATMUL_DESC_D_OUT_SCALE_POINTER = 36
     CUBLASLT_MATMUL_DESC_D_OUT_SCALE_MODE = 37
+    CUBLASLT_MATMUL_DESC_EMULATION_DESCRIPTOR = 38
+    CUBLASLT_MATMUL_DESC_ALPHA_BATCH_STRIDE = 39
+    CUBLASLT_MATMUL_DESC_BETA_BATCH_STRIDE = 40
 end
 
 @checked function cublasLtMatmulDescInit_internal(matmulDesc, size, computeType, scaleType)
@@ -1095,6 +1151,54 @@ end
                                                                       sizeWritten::Ptr{Csize_t})::cublasStatus_t
 end
 
+@cenum cublasLtEmulationDescAttributes_t::UInt32 begin
+    CUBLASLT_EMULATION_DESC_STRATEGY = 0
+    CUBLASLT_EMULATION_DESC_SPECIAL_VALUES_SUPPORT = 1
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_CONTROL = 2
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MAX_MANTISSA_BIT_COUNT = 3
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_OFFSET = 4
+    CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_COUNT_POINTER = 5
+end
+
+@checked function cublasLtEmulationDescInit_internal(emulationDesc, size)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescInit_internal(emulationDesc::cublasLtEmulationDesc_t,
+                                                                 size::Csize_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescInit(emulationDesc)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescInit(emulationDesc::cublasLtEmulationDesc_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescCreate(emulationDesc)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescCreate(emulationDesc::Ptr{cublasLtEmulationDesc_t})::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescDestroy(emulationDesc)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescDestroy(emulationDesc::cublasLtEmulationDesc_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescSetAttribute(emulationDesc, attr, buf, sizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescSetAttribute(emulationDesc::cublasLtEmulationDesc_t,
+                                                                attr::cublasLtEmulationDescAttributes_t,
+                                                                buf::Ptr{Cvoid},
+                                                                sizeInBytes::Csize_t)::cublasStatus_t
+end
+
+@checked function cublasLtEmulationDescGetAttribute(emulationDesc, attr, buf, sizeInBytes,
+                                                    sizeWritten)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtEmulationDescGetAttribute(emulationDesc::cublasLtEmulationDesc_t,
+                                                                attr::cublasLtEmulationDescAttributes_t,
+                                                                buf::Ptr{Cvoid},
+                                                                sizeInBytes::Csize_t,
+                                                                sizeWritten::Ptr{Csize_t})::cublasStatus_t
+end
+
 @cenum cublasLtReductionScheme_t::UInt32 begin
     CUBLASLT_REDUCTION_SCHEME_NONE = 0
     CUBLASLT_REDUCTION_SCHEME_INPLACE = 1
@@ -1145,6 +1249,9 @@ end
     CUBLASLT_MATMUL_PREF_MIN_ALIGNMENT_D_BYTES = 8
     CUBLASLT_MATMUL_PREF_MAX_WAVES_COUNT = 9
     CUBLASLT_MATMUL_PREF_IMPL_MASK = 12
+    CUBLASLT_MATMUL_PREF_GROUPED_AVERAGE_REDUCTION_DIM = 13
+    CUBLASLT_MATMUL_PREF_GROUPED_DESC_D_AVERAGE_ROWS = 14
+    CUBLASLT_MATMUL_PREF_GROUPED_DESC_D_AVERAGE_COLS = 15
 end
 
 @checked function cublasLtMatmulPreferenceInit_internal(pref, size)
@@ -1274,6 +1381,7 @@ end
     CUBLASLT_ALGO_CAP_MIN_ALIGNMENT_D_BYTES = 19
     CUBLASLT_ALGO_CAP_POINTER_ARRAY_BATCH_SUPPORT = 21
     CUBLASLT_ALGO_CAP_FLOATING_POINT_EMULATION_SUPPORT = 22
+    CUBLASLT_ALGO_CAP_POINTER_ARRAY_GROUPED_SUPPORT = 23
 end
 
 @checked function cublasLtMatmulAlgoCapGetAttribute(algo, attr, buf, sizeInBytes,
@@ -1344,7 +1452,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2521:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2795:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t

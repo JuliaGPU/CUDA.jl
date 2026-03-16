@@ -164,3 +164,18 @@ end
     CUDA_EMULATION_STRATEGY_PERFORMANT = 1
     CUDA_EMULATION_STRATEGY_EAGER = 2
 end
+const cudaEmulationStrategy = cudaEmulationStrategy_t
+
+@enum cudaEmulationSpecialValuesSupport_t::Cint begin
+    CUDA_EMULATION_SPECIAL_VALUES_SUPPORT_DEFAULT = 0xFFFF
+    CUDA_EMULATION_SPECIAL_VALUES_SUPPORT_NONE = 0
+    CUDA_EMULATION_SPECIAL_VALUES_SUPPORT_INFINITY = 1
+    CUDA_EMULATION_SPECIAL_VALUES_SUPPORT_NAN = 2
+end
+const cudaEmulationSpecialValuesSupport = cudaEmulationSpecialValuesSupport_t
+
+@enum cudaEmulationMantissaControl_t::Cint begin
+    CUDA_EMULATION_MANTISSA_CONTROL_DYNAMIC = 0
+    CUDA_EMULATION_MANTISSA_CONTROL_FIXED = 1
+end
+const cudaEmulationMantissaControl = cudaEmulationMantissaControl_t

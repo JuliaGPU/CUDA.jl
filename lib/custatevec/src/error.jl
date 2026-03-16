@@ -36,6 +36,22 @@ function description(err)
         return "the device memory pool was not set."
     elseif err.code == CUSTATEVEC_STATUS_DEVICE_ALLOCATOR_ERROR
         return "operation with the device memory pool failed"
+    elseif err.code == CUSTATEVEC_STATUS_COMMUNICATOR_ERROR
+        return "a communicator operation failed"
+    elseif err.code == CUSTATEVEC_STATUS_LOADING_LIBRARY_FAILED
+        return "loading the library failed"
+    elseif err.code == CUSTATEVEC_STATUS_INVALID_CONFIGURATION
+        return "an invalid configuration was used"
+    elseif err.code == CUSTATEVEC_STATUS_ALREADY_INITIALIZED
+        return "the library was already initialized"
+    elseif err.code == CUSTATEVEC_STATUS_INVALID_WIRE
+        return "an invalid wire was specified"
+    elseif err.code == CUSTATEVEC_STATUS_SYSTEM_ERROR
+        return "a system error occurred"
+    elseif err.code == CUSTATEVEC_STATUS_CUDA_ERROR
+        return "a CUDA error occurred"
+    elseif err.code == CUSTATEVEC_STATUS_NUMERICAL_ERROR
+        return "a numerical error occurred"
     else
         return "no description for this error"
     end

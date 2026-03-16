@@ -125,6 +125,10 @@ p = 5
         @testset "uplo = $uplo" for uplo in ('L', 'U')
             @testset "pivoting = $pivoting" for pivoting in (false, true)
                 !pivoting && (CUSOLVER.version() < v"11.7.2") && continue
+                # NVIDIA bug #5949478: non-pivoting sytrf performs Hermitian
+                # instead of symmetric factorization for complex types on
+                # CUSOLVER 12.0.9 (CUDA 13.1)
+                !pivoting && elty <: Complex && v"12.0.9" <= CUSOLVER.version() && continue
                 A = rand(elty,n,n)
                 B = rand(elty,n,p)
                 C = rand(elty,n)
