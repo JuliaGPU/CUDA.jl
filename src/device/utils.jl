@@ -49,7 +49,7 @@ macro device_functions(ex)
         out = Expr(:block)
         for arg in block.args
             if Meta.isexpr(arg, :block)
-                # descend in blocks
+                # descend into blocks
                 push!(out.args, rewrite(arg))
             elseif Meta.isexpr(arg, [:function, :(=)])
                 # capture temp variable for Julia 1.13 and rewrite function definitions

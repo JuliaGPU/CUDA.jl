@@ -66,6 +66,12 @@ export barrier_sync
 
 barrier_sync(id=0) = ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
 
+export cluster_arrive, cluster_arrive_relaxed, cluster_wait
+
+cluster_arrive() = ccall("llvm.nvvm.barrier.cluster.arrive", llvmcall, Cvoid, ())
+cluster_arrive_relaxed() = ccall("llvm.nvvm.barrier.cluster.arrive.relaxed", llvmcall, Cvoid, ())
+cluster_wait() = ccall("llvm.nvvm.barrier.cluster.wait", llvmcall, Cvoid, ())
+
 
 ## memory barriers (membar)
 
