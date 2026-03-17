@@ -11,12 +11,18 @@ refer to the aforementioned NVIDIA documentation.
 
 ```@docs
 gridDim
+clusterIdx
+clusterDim
+blockIdxInCluster
+linearBlockIdxInCluster
 blockIdx
 blockDim
 threadIdx
 warpsize
 laneid
+lanemask
 active_mask
+FULL_MASK
 ```
 
 
