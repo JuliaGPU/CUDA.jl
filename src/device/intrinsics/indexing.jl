@@ -124,28 +124,30 @@ Unlike the `*Idx` intrinsics, `gridDim` returns the same value as its C/C++ exte
 @doc """
     blockIdxInCluster()::NamedTuple
 
-Returns the block index within the cluster.
+Returns the block index within the cluster as a `NamedTuple` with keys `x`, `y`, and `z`.
+These indices are 1-based.
 """ blockIdxInCluster
 @inline blockIdxInCluster() = (x=blockIdxInCluster_x(), y=blockIdxInCluster_y(), z=blockIdxInCluster_z())
 
 @doc """
     clusterDim()::NamedTuple
 
-Returns the dimensions (in blocks) of the cluster
+Returns the dimensions (in blocks) of the cluster as a `NamedTuple` with keys `x`, `y`, and `z`.
 """ clusterDim
 @inline clusterDim() = (x=clusterDim_x(), y=clusterDim_y(), z=clusterDim_z())
 
 @doc """
     clusterIdx()::NamedTuple
 
-Returns the cluster index within the grid.
+Returns the cluster index within the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
+These indices are 1-based.
 """ clusterIdx
 @inline clusterIdx() = (x=clusterIdx_x(), y=clusterIdx_y(), z=clusterIdx_z())
 
 @doc """
     gridClusterDim()::NamedTuple
 
-Returns the dimensions (in clusters) of the grid
+Returns the dimensions (in clusters) of the grid as a `NamedTuple` with keys `x`, `y`, and `z`.
 """ gridClusterDim
 @inline gridClusterDim() = (x=gridClusterDim_x(), y=gridClusterDim_y(), z=gridClusterDim_z())
 
@@ -153,6 +155,7 @@ Returns the dimensions (in clusters) of the grid
     linearBlockIdxInCluster()::Int32
 
 Returns the linear block index within the cluster.
+These indices are 1-based.
 """ linearBlockIdxInCluster
 @eval @inline $(:linearBlockIdxInCluster)() = _index($(Val(Symbol("cluster.ctarank"))), $(Val(0:max_cluster_length-1))) + 1i32
 
