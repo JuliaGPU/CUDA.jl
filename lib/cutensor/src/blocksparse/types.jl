@@ -112,6 +112,7 @@ function CuTensorBSDescriptor(A::CuTensorBS)
     st = strides(A)
     dataType = eltype(A)#convert(cuTENSOR.cutensorDataType_t, eltype(A))
 
-    CuTensorBSDescriptor(numModes, numNonZeroBlocks, numSectionsPerMode, extent, nonZeroCoordinates, 
-    st, dataType)
+    ## Right now assume stride is NULL. I am not sure if stride works, need to discuss with cuTENSOR team.
+    CuTensorBSDescriptor(numModes, numNonZeroBlocks, 
+    numSectionsPerMode, extent, nonZeroCoordinates, dataType)
 end
