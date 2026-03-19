@@ -21,11 +21,10 @@ mutable struct CuTensorBS{T, N}
 end
 
 function CuTensorBS(nonzero_data::Vector{<:CuArray{T}}, 
-        blocks_per_mode, block_extents, nonzero_block_coords, inds::Vector) where {T<:Number}
-        CuArrayT = eltype(nonzero_data)
-        CuTensorBS{T,length(block_extents)}(nonzero_data, 
-        blocks_per_mode, block_extents, nonzero_block_coords, inds)
-    end
+    blocks_per_mode, block_extents, nonzero_block_coords, inds::Vector) where {T<:Number}
+    CuTensorBS{T,length(block_extents)}(nonzero_data, 
+    blocks_per_mode, block_extents, nonzero_block_coords, inds)
+end
 # array interface
 function Base.size(T::CuTensorBS)
     return tuple(sum.(T.block_extents)...)
@@ -59,12 +58,8 @@ function list_nonzero_block_coords(T::CuTensorBS)
     end
     return block_list
 end
-# Base.similar(T::CuTensorBS{Tv, N}) where {Tv, N} = CuTensor{Tv, N}(similar(T.data), copy(T.inds))
-# Base.copy(T::CuTensorBS{Tv, N}) where {Tv, N} = CuTensor{Tv, N}(copy(T.data), copy(T.inds))
-# Base.collect(T::CuTensorBS) = (collect(T.data), T.inds)
 
 # ## descriptor
-# ## TODO update this 
 mutable struct CuTensorBSDescriptor
     handle::cutensorBlockSparseTensorDescriptor_t
     # inner constructor handles creation and finalizer of the descriptor
@@ -80,12 +75,23 @@ mutable struct CuTensorBSDescriptor
         desc = Ref{cuTENSOR.cutensorBlockSparseTensorDescriptor_t}()
         cutensorCreateBlockSparseTensorDescriptor(handle(), desc, 
         numModes, numNonZeroBlocks, numSectionsPerMode, extent, nonZeroCoordinates,
-        C_NULL, eltype)
+        stride, eltype)
 
         obj = new(desc[])
         finalizer(unsafe_destroy!, obj)
         return obj
     end
+end
+
+function CuTensorBSDescriptor(
+    numModes,
+    numNonZeroBlocks,
+    numSectionsPerMode,
+    extent,
+    nonZeroCoordinates,
+    eltype)
+
+    return CuTensorBSDescriptor(numModes, numNonZeroBlocks, numSectionsPerMode, extent, nonZeroCoordinates, C_NULL, eltype)
 end
 
 Base.show(io::IO, desc::CuTensorBSDescriptor) = @printf(io, "CuTensorBSDescriptor(%p)", desc.handle)
@@ -96,8 +102,8 @@ function unsafe_destroy!(obj::CuTensorBSDescriptor)
     cutensorDestroyBlockSparseTensorDescriptor(obj)
 end
 
+## Descriptor function for CuTensorBS type. Please overwrite for custom objects
 function CuTensorBSDescriptor(A::CuTensorBS)
-
     numModes = Int32(ndims(A))
     numNonZeroBlocks = Int64(length(A.nonzero_block_coords))
     numSectionsPerMode = collect(Int32, A.blocks_per_mode)
