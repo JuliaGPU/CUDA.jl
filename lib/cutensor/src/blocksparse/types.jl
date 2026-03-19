@@ -7,7 +7,9 @@ mutable struct CuTensorBS{T, N}
     nonzero_data::Vector{<:CuArray}
     inds::Vector{Int}
     blocks_per_mode::Vector{Int}
+    ## This expects a Vector{Tuple(Int)} right now
     block_extents
+    ## This expects a Vector{Tuple(Int)} right now
     nonzero_block_coords
 
     function CuTensorBS{T, N}(nonzero_data::Vector{<:CuArray}, 
