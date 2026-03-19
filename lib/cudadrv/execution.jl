@@ -44,11 +44,14 @@ end
 
 """
     launch(f::CuFunction; args...; blocks::CuDim=1, threads::CuDim=1,
-           cooperative=false, shmem=0, stream=stream())
+           clustersize::CuDim=1, cooperative=false, shmem=0, stream=stream())
 
 Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
 respectively the grid and block configuration. Dynamic shared memory is allocated according
-to `shmem`, and the kernel is launched on stream `stream`.
+to `shmem`, and the kernel is launched on stream `stream`. If `clustersize > 1` and compute
+capability is `>= 9.0`, [thread block clusters](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#thread-block-clusters)
+are launched. If `clustersize > 1` and compute capability is `< 9.0`, an error is thrown, as
+thread block clusters are not supported.
 
 Arguments to a kernel should either be bitstype, in which case they will be copied to the
 internal kernel parameter buffer, or a pointer to device memory.
@@ -56,31 +59,43 @@ internal kernel parameter buffer, or a pointer to device memory.
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
 function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
-                cooperative::Bool=false, shmem::Integer=0,
+                clustersize::CuDim=1, cooperative::Bool=false, shmem::Integer=0,
                 stream::CuStream=stream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
+    clusterdim = CuDim3(clustersize)
 
-    try
-        pack_arguments(args...) do kernelParams
-            if cooperative
-                cuLaunchCooperativeKernel(f,
-                                          blockdim.x, blockdim.y, blockdim.z,
-                                          threaddim.x, threaddim.y, threaddim.z,
-                                          shmem, stream, kernelParams)
-            else
-                cuLaunchKernel(f,
-                               blockdim.x, blockdim.y, blockdim.z,
-                               threaddim.x, threaddim.y, threaddim.z,
-                               shmem, stream, kernelParams, C_NULL)
+    attrs = CUDA.CUlaunchAttribute[]
+    if cooperative
+        resize!(attrs, length(attrs)+1)
+        attr = pointer(attrs, length(attrs))
+        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
+        attr.value.cooperative = 1;
+    end
+    if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
+        resize!(attrs, length(attrs)+1)
+        attr = pointer(attrs, length(attrs))
+        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
+        attr.value.clusterDim.x = clusterdim.x
+        attr.value.clusterDim.y = clusterdim.y
+        attr.value.clusterDim.z = clusterdim.z
+    end
+
+    GC.@preserve attrs stream begin
+        config = Ref(CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
+                                    threaddim.x, threaddim.y, threaddim.z,
+                                    shmem, stream.handle, pointer(attrs), length(attrs)))
+        try
+            pack_arguments(args...) do kernelParams
+                cuLaunchKernelEx(config, f, kernelParams, C_NULL)
             end
+        catch err
+            diagnose_launch_failure(f, config, err; blockdim, threaddim, clusterdim, shmem)
         end
-    catch err
-        diagnose_launch_failure(f, err; blockdim, threaddim, shmem)
     end
 end
 
-@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, shmem)
+@noinline function diagnose_launch_failure(f::CuFunction, config::Ref{CUlaunchConfig}, err; blockdim, threaddim, clusterdim, shmem)
     if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
                                             ERROR_LAUNCH_OUT_OF_RESOURCES])
         rethrow()
@@ -88,9 +103,13 @@ end
 
     # essentials
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
-        error("Grid dimensions should be non-null")
+        error("Grid dimensions $blockdim are not positive")
     (threaddim.x>0 && threaddim.y>0 && threaddim.z>0) ||
-        error("Block dimensions should be non-null")
+        error("Block dimensions $threaddim are not positive")
+    (clusterdim.x>0 && clusterdim.y>0 && clusterdim.z>0) ||
+        error("Cluster dimensions $clusterdim are not positive")
+    (blockdim.x % clusterdim.x == 0 && blockdim.y % clusterdim.y == 0 && blockdim.z % clusterdim.z == 0) ||
+        error("Block dimensions $blockdim are not multiples of the cluster dimensions $clusterdim")
 
     # check device limits
     dev = device()
@@ -111,6 +130,26 @@ end
         if getfield(blockdim, dim) > getfield(blocklim, dim)
             error("Number of blocks in $(dim)-dimension exceeds device limit ($(getfield(blockdim, dim)) > $(getfield(blocklim, dim))).")
         end
+    end
+    ## cluster size limit
+    active_clusters = clusterdim.x * clusterdim.y * clusterdim.z
+    if capability(dev) >= v"9.0"
+        cluster_launch = attribute(dev, CU_DEVICE_ATTRIBUTE_CLUSTER_LAUNCH) != 0
+    else
+        cluster_launch = false
+    end
+    if cluster_launch
+        # It is difficult to determine the maximum cluster size. There is no attribute to query.
+        # If we really want to report this then we should implement a stand-alone function for this
+        # and then call this function here.
+        #
+        # The function to call is `cuOccupancyMaxPotentialClusterSize`,
+        # which reports a value that depends on the function's attributes.
+    else
+        # Thread block clusters are not supported
+         if active_clusters > 1
+             error("Thread block cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > 1). (The device does not support thread block clusters.)")
+         end
     end
     ## shared memory limit
     shmem_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)

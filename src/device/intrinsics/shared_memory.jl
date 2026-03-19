@@ -1,6 +1,6 @@
 # Shared Memory (part of B.2)
 
-export @cuStaticSharedMem, @cuDynamicSharedMem, CuStaticSharedArray, CuDynamicSharedArray
+export @cuStaticSharedMem, @cuDynamicSharedMem, CuStaticSharedArray, CuDynamicSharedArray, CuDistributedSharedArray
 
 """
     CuStaticSharedArray(T::Type, dims) -> CuDeviceArray{T,N,AS.Shared}
@@ -57,7 +57,7 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
 end
 Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, len::Integer, offset) where {T} =
     CuDynamicSharedArray(T, (len,), offset)
-# XXX: default argument-generated methods do not propagate inboundsness
+# Default argument-generated methods do not propagate inboundsness
 Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, dims) where {T} =
     CuDynamicSharedArray(T, dims, 0)
 
@@ -70,6 +70,37 @@ end
 
 dynamic_smem_size() =
     @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
+
+@inline function CuDistributedSharedArray(shared_array::CuDeviceArray{T,N,AS.Shared}, blockidx::Integer) where {T,N}
+    # Distributed shared memory has address space 7 (SharedCluster).
+    # This is only supported in LLVM >= 21 which we can't yet use with
+    # Julia. We therefore need to map it to address space 0 (Generic).
+    #
+    # We should change this to be address space 7 (SharedCluster) if
+    # we're using LLVM >=21.
+
+    ptr = map_shared_rank(shared_array.ptr, blockidx)
+    CuDeviceArray{T,N,AS.Generic}(ptr, shared_array.dims, shared_array.maxsize)
+end
+
+@inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
+    # This requires LLVM >=20 (i.e. Julia >= 1.13)
+    ptr7 = @asmcall(
+        "mapa.shared::cluster.u64 \$0, \$1, \$2;",
+        "=l,l,r",
+        LLVMPtr{T,AS.SharedCluster},
+        Tuple{Core.LLVMPtr{T,AS.Shared}, Int32},
+        ptr_shared, Int32(rank - 1i32),
+    )
+    ptr0 = @asmcall(
+        "cvta.shared::cluster.u64 \$0, \$1;",
+        "=l,l",
+        LLVMPtr{T,AS.Generic},
+        Tuple{Core.LLVMPtr{T,AS.SharedCluster}},
+        ptr7,
+    )
+    return ptr0
+end
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
