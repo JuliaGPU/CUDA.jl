@@ -699,7 +699,7 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     CUDA.pin(hA)
 
     # memory copies on pinned memory behave differently, so test that code path
-    dA = CUDA.rand(UInt8, 512)
+    dA = CuArray(rand(UInt8, 512))
     copyto!(dA, hA)
     copyto!(hA, dA)
 

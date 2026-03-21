@@ -1,0 +1,9 @@
+[deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+cuBLAS = "92909e3e-e0f1-40a8-bef7-041c6db527ef"
+cuSOLVER = "6db60d96-3a04-4709-9948-55620357a9f7"
+cuSPARSE = "ef870955-711f-4dc1-8108-f8112e4174b9"

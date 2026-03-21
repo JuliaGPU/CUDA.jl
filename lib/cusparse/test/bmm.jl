@@ -1,0 +1,250 @@
+using CUDA, cuSPARSE
+
+using LinearAlgebra
+using SparseArrays
+
+m = 5
+n = 15
+# error when n == 1 and batchsize > 1 as cusparseSpMM fallsback to cusparseSpMV, which doesn't do batched computations.
+# see https://docs.nvidia.com/cuda/cusparse/#cusparsespmm
+k = 25
+p = 0.5
+
+@testset "Sparse-Dense $elty bmm!" for elty in (Float64, Float32, ComplexF64, ComplexF32)
+    α = rand(elty) 
+    β = rand(elty) 
+
+    @testset "Dimension checks" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, k, n, 2))
+        C = CuArray(rand(elty, m, n, 3))
+
+        @test_throws ArgumentError("C must have same batch-dimension as max(size(A,3)=$(size(A,3)), size(B,3)=$(size(B,3))), got $(size(C,3)).") cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+        
+        C = CuArray(rand(elty, m, 1, 2))
+        @test_throws ArgumentError("bmm! does not work for n==1 and b>1 due to CUDA error.") cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+
+        C = CuArray(rand(elty, m, n, 2))
+        B = CuArray(rand(elty, k+1, n, 2))
+        @test_throws DimensionMismatch("B has dimensions $(size(B)) but needs ($k,$n)") cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+    end
+
+    @testset "C = αAB + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, k, n, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1 * B[:,:,1] + β * D[:,:,1]
+        D[:,:,2] = α * A2 * B[:,:,2] + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+    @testset "C = αAᵀB + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, k, n, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('C', 'N', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1' * B[:,:,1] + β * D[:,:,1]
+        D[:,:,2] = α * A2' * B[:,:,2] + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+
+    @testset "C = αABᵀ + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, n, k, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('N', 'C', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1 * B[:,:,1]' + β * D[:,:,1]
+        D[:,:,2] = α * A2 * B[:,:,2]' + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+
+    @testset "C = αAᵀBᵀ + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, n, k, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('C', 'C', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1' * B[:,:,1]' + β * D[:,:,1]
+        D[:,:,2] = α * A2' * B[:,:,2]' + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+    @testset "extended batch-dims" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A3 = cat(A1, A2; dims=3)
+
+        A4 = copy(A3)
+        A4.nzVal = CuArray(rand(elty, size(A3.nzVal)...))
+
+        A5 = copy(A3)
+        A5.nzVal = CuArray(rand(elty, size(A3.nzVal)...))
+
+        A = cat(A3, A4, A5; dims=4)
+
+        B = CuArray(rand(elty, k, n, 2, 3))
+        C = CuArray(rand(elty, m, n, 2, 3))
+        D = copy(C)
+
+        cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+
+        for c in CartesianIndices((2,3))
+            CUDA.@allowscalar D[:,:,c] = α * A[:,:,c.I...] * B[:,:,c] + β*D[:,:,c]
+        end
+
+        @test D ≈ C
+    end
+end
+
+m = 1
+n = 2
+# error when n == 1 and batchsize > 1 as cusparseSpMM fallsback to cusparseSpMV, which doesn't do batched computations.
+# see https://docs.nvidia.com/cuda/cusparse/#cusparsespmm
+k = 1
+p = 1.
+
+@testset "Sparse-Dense $elty bmm! for small matrices" for elty in (Float64, Float32, ComplexF64, ComplexF32)
+    # check if #2296 returns
+    α = rand(elty) 
+    β = rand(elty) 
+
+    @testset "C = αAB + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, k, n, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1 * B[:,:,1] + β * D[:,:,1]
+        D[:,:,2] = α * A2 * B[:,:,2] + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+    @testset "C = αAᵀB + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, k, n, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('C', 'N', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1' * B[:,:,1] + β * D[:,:,1]
+        D[:,:,2] = α * A2' * B[:,:,2] + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+
+    @testset "C = αABᵀ + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, n, k, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('N', 'C', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1 * B[:,:,1]' + β * D[:,:,1]
+        D[:,:,2] = α * A2 * B[:,:,2]' + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+
+    @testset "C = αAᵀBᵀ + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, n, k, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = copy(C)
+
+        cuSPARSE.bmm!('C', 'C', α, A, B, β, C, 'O') 
+
+        D[:,:,1] = α * A1' * B[:,:,1]' + β * D[:,:,1]
+        D[:,:,2] = α * A2' * B[:,:,2]' + β * D[:,:,2]
+
+        @test D ≈ C
+    end
+
+    @testset "extended batch-dims" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A3 = cat(A1, A2; dims=3)
+
+        A4 = copy(A3)
+        A4.nzVal = CuArray(rand(elty, size(A3.nzVal)...))
+
+        A5 = copy(A3)
+        A5.nzVal = CuArray(rand(elty, size(A3.nzVal)...))
+
+        A = cat(A3, A4, A5; dims=4)
+
+        B = CuArray(rand(elty, k, n, 2, 3))
+        C = CuArray(rand(elty, m, n, 2, 3))
+        D = copy(C)
+
+        cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
+
+        for c in CartesianIndices((2,3))
+            CUDA.@allowscalar D[:,:,c] = α * A[:,:,c.I...] * B[:,:,c] + β*D[:,:,c]
+        end
+
+        @test D ≈ C
+    end
+end

@@ -109,22 +109,11 @@ include("reverse.jl")
 include("iterator.jl")
 include("sorting.jl")
 include("profile.jl")
+include("random.jl")
 
-# array libraries
+# shared library types
 include("../lib/complex.jl")
 include("../lib/library_types.jl")
-include("../lib/cublas/CUBLAS.jl")
-include("../lib/cusparse/CUSPARSE.jl")
-include("../lib/cusolver/CUSOLVER.jl")
-include("../lib/cufft/CUFFT.jl")
-include("../lib/curand/CURAND.jl")
-
-export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND
-const has_cusolvermg = CUSOLVER.has_cusolvermg
-export has_cusolvermg
-
-# random depends on CURAND
-include("random.jl")
 
 # other libraries
 include("../lib/nvml/NVML.jl")

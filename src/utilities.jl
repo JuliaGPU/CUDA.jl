@@ -59,9 +59,21 @@ function versioninfo(io::IO=stdout)
     println(io)
 
     println(io, "CUDA libraries: ")
-    for lib in (:CUBLAS, :CURAND, :CUFFT, :CUSOLVER, :CUSPARSE)
-        mod = getfield(CUDA, lib)
-        println(io, "- $lib: ", mod.version())
+    for (name, uuid) in [
+        "cuBLAS"      => Base.UUID("92909e3e-e0f1-40a8-bef7-041c6db527ef"),
+        "cuSPARSE"    => Base.UUID("ef870955-711f-4dc1-8108-f8112e4174b9"),
+        "cuSOLVER"    => Base.UUID("6db60d96-3a04-4709-9948-55620357a9f7"),
+        "cuFFT"       => Base.UUID("9dd0c4bd-d876-4614-8ffc-368de6640c0b"),
+        "cuRAND"      => Base.UUID("713b3d06-febf-4d11-af26-4cafc54f6077"),
+        "cuDNN"       => Base.UUID("02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"),
+        "cuTENSOR"    => Base.UUID("011b41b2-24ef-40a8-b3eb-fa098493e9e1"),
+        "cuTensorNet" => Base.UUID("448d79b3-4b49-4e06-a5ea-00c62c0dc3db"),
+        "cuStateVec"  => Base.UUID("92f7fd98-d22e-4c0d-85a8-6ade11b672fb"),
+    ]
+        pkgid = Base.PkgId(uuid, name)
+        mod = get(Base.loaded_modules, pkgid, nothing)
+        mod === nothing && continue
+        println(io, "- $name: $(mod.version())")
     end
     println(io, "- CUPTI: $(CUPTI.library_version()) (API $(CUPTI.version()))")
     println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")

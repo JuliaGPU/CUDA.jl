@@ -1,5 +1,4 @@
 [deps]
-AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -9,7 +8,6 @@ ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
-FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -23,8 +21,27 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
-SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+cuBLAS = "92909e3e-e0f1-40a8-bef7-041c6db527ef"
+cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
+cuFFT = "9dd0c4bd-d876-4614-8ffc-368de6640c0b"
+cuRAND = "713b3d06-febf-4d11-af26-4cafc54f6077"
+cuSOLVER = "6db60d96-3a04-4709-9948-55620357a9f7"
+cuSPARSE = "ef870955-711f-4dc1-8108-f8112e4174b9"
+cuStateVec = "92f7fd98-d22e-4c0d-85a8-6ade11b672fb"
+cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
+cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
+
+[sources]
+cuBLAS = {path = "../lib/cublas"}
+cuDNN = {path = "../lib/cudnn"}
+cuFFT = {path = "../lib/cufft"}
+cuRAND = {path = "../lib/curand"}
+cuSOLVER = {path = "../lib/cusolver"}
+cuSPARSE = {path = "../lib/cusparse"}
+cuStateVec = {path = "../lib/custatevec"}
+cuTENSOR = {path = "../lib/cutensor"}
+cuTensorNet = {path = "../lib/cutensornet"}

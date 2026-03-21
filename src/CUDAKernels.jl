@@ -1,12 +1,11 @@
 module CUDAKernels
 
 using ..CUDA
-using ..CUDA: @device_override, CUSPARSE, default_memory, UnifiedMemory, GPUArrays
+using ..CUDA: @device_override, default_memory, UnifiedMemory, GPUArrays
 
 import KernelAbstractions as KA
 
 import StaticArrays
-import SparseArrays: AbstractSparseArray
 
 import Adapt
 
@@ -26,9 +25,6 @@ CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blo
 @inline KA.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), one(T))
 
 KA.get_backend(::CuArray) = CUDABackend()
-KA.get_backend(::CUSPARSE.CuSparseVector)    = CUDABackend()
-KA.get_backend(::CUSPARSE.CuSparseMatrixCSC) = CUDABackend()
-KA.get_backend(::CUSPARSE.CuSparseMatrixCSR) = CUDABackend()
 KA.synchronize(::CUDABackend) = synchronize()
 
 KA.functional(::CUDABackend) = CUDA.functional()

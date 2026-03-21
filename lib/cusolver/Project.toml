@@ -1,0 +1,34 @@
+name = "cuSOLVER"
+uuid = "6db60d96-3a04-4709-9948-55620357a9f7"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
+version = "6.0.0"
+
+[workspace]
+projects = ["test"]
+
+[deps]
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+cuBLAS = "92909e3e-e0f1-40a8-bef7-041c6db527ef"
+cuSPARSE = "ef870955-711f-4dc1-8108-f8112e4174b9"
+
+[sources]
+cuBLAS = {path = "../cublas"}
+cuSPARSE = {path = "../cusparse"}
+
+[compat]
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDA = "=6.0.0"
+CUDA_Runtime_Discovery = "1"
+CUDA_Runtime_jll = "0.21"
+GPUToolbox = "0.3, 1"
+LinearAlgebra = "1"
+SparseArrays = "1"
+cuBLAS = "=6.0.0"
+cuSPARSE = "=6.0.0"
+julia = "1.10"

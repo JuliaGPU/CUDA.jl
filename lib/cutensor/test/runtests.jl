@@ -1,13 +1,7 @@
-using Test
-
-using CUDA
-@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
-
-using cuTENSOR
+include("setup.jl")
 @test cuTENSOR.has_cutensor()
-@info "cuTENSOR version: $(cuTENSOR.version()) (built for CUDA $(cuTENSOR.cuda_version()))"
 
-@testset "cuTENSOR" begin
+@testset verbose=true "cuTENSOR" begin
 
 include("base.jl")
 

@@ -1,0 +1,28 @@
+name = "cuFFT"
+uuid = "9dd0c4bd-d876-4614-8ffc-368de6640c0b"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
+version = "6.0.0"
+
+[workspace]
+projects = ["test"]
+
+[deps]
+AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[compat]
+AbstractFFTs = "0.5, 1.0"
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDA = "=6.0.0"
+CUDA_Runtime_Discovery = "1"
+CUDA_Runtime_jll = "0.21"
+GPUToolbox = "0.3, 1"
+LinearAlgebra = "1"
+Reexport = "1.0"
+julia = "1.10"

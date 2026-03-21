@@ -213,7 +213,7 @@ end
 
   @test testf(x->view(x, :, 1:4, 3), rand(Float32, 5, 4, 3))
 
-  let x = CUDA.rand(Float32, 5, 4, 3)
+  let x = CuArray(rand(Float32, 5, 4, 3))
     @test_throws BoundsError view(x, :, :, 1:10)
   end
 
@@ -355,7 +355,7 @@ end
 
 
 @testset "Dense derivatives" begin
-  a = CUDA.rand(Int64, 5, 4, 3)
+  a = CuArray(rand(Int64, 5, 4, 3))
   @test a isa CuArray
 
   # Contiguous views should return new CuArray
@@ -395,7 +395,7 @@ end
 end
 
 @testset "StridedArray" begin
-  a = CUDA.rand(Int64, 2,2,2)
+  a = CuArray(rand(Int64, 2,2,2))
   @test a isa StridedCuArray
 
   @test view(a, :, :, 1) isa StridedCuArray
@@ -443,7 +443,7 @@ end
   @test testf(cumsum, rand(2))
   @test testf(cumprod, rand(2))
 
-  @test_throws ArgumentError("accumulate does not support the keyword arguments [:bad_kwarg]") accumulate(+, CUDA.rand(1024); bad_kwarg="bad")
+  @test_throws ArgumentError("accumulate does not support the keyword arguments [:bad_kwarg]") accumulate(+, CuArray(rand(Float32, 1024)); bad_kwarg="bad")
 end
 
 @testset "logical indexing" begin
@@ -542,7 +542,7 @@ end
 end
 
 @testset "issue #543" begin
-  x = CUDA.rand(ComplexF32, 1)
+  x = CuArray(rand(ComplexF32, 1))
   @test x isa CuArray{Complex{Float32}}
 
   y = exp.(x)
@@ -970,10 +970,10 @@ end
 end
 
 @testset "inplaceability" begin
-  a = CUDA.rand(10, 10)
+  a = CuArray(rand(Float32, 10, 10))
   @test is_inplaceable_destination(a)
   a′ = copy(a)
-  b = CUDA.rand(10, 10)
+  b = CuArray(rand(Float32, 10, 10))
   c = add!!(a, b)
   @test c == a′ + b
   @test c === a
@@ -981,7 +981,7 @@ end
 
 @testset "transpose!" begin
     for T in [Float32, Float64, ComplexF32, ComplexF64]
-        a = CUDA.rand(T, 10, 20)
+        a = CuArray(rand(T, 10, 20))
         b = similar(a, reverse(size(a)))
         c = similar(a)
         @test Array(transpose!(b, a)) == transpose(Array(a))

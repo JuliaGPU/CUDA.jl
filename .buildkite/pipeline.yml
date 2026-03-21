@@ -30,7 +30,6 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.10"
               - "1.11"
               - "1.12"
               - "1.13"
@@ -48,7 +47,7 @@ steps:
       - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base libraries"
           - JuliaCI/julia-coverage#v1:
@@ -65,7 +64,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip cuda\]/
-        timeout_in_minutes: 60
+        timeout_in_minutes: 120
         matrix:
           setup:
             cuda:
@@ -84,43 +83,6 @@ steps:
         commands: |
           unset LD_LIBRARY_PATH
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
-
-  - group: ":nesting_dolls: Subpackages"
-    depends_on: "cuda"
-    steps:
-      - label: "{{matrix.package}} on CUDA {{matrix.cuda}}"
-        matrix:
-          setup:
-            cuda:
-              - "12.0"
-              - "13.0"
-            package:
-              - "cudnn"
-              - "cutensor"
-              - "custatevec"
-              - "cutensornet"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              project: "lib/{{matrix.package}}"
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only subpackages\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip subpackages\]/
-        timeout_in_minutes: 30
-        commands: |
-          unset LD_LIBRARY_PATH
 
   - group: ":telescope: Downstream"
     depends_on: "cuda"
@@ -270,7 +232,7 @@ steps:
       - label: "Compute sanitizer"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--sanitize core base"
           - JuliaCI/julia-coverage#v1:
@@ -294,7 +256,7 @@ steps:
       - label: "Legacy memory allocator"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core base"
           - JuliaCI/julia-coverage#v1:
@@ -320,9 +282,9 @@ steps:
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base libraries"
+              test_args: "--quickfail core base"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -352,9 +314,9 @@ steps:
       - label: "MultiGPU"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--gpu=0,1 --quickfail core base libraries"
+              test_args: "--gpu=0,1 --quickfail core base libraries/cublas/xt"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -380,7 +342,7 @@ steps:
   - label: ":books: Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.11"
+          version: "1.12"
     commands: |
       unset LD_LIBRARY_PATH
       julia --project -e '

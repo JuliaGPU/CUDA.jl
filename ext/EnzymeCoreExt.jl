@@ -13,12 +13,6 @@ else
 end
 using GPUArrays
 
-function EnzymeCore.EnzymeRules.inactive(::typeof(CUDA.CUBLAS.handle))
-    return nothing
-end
-function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.CUBLAS.version))
-    return nothing
-end
 function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDA.context!), args...)
     return nothing
 end

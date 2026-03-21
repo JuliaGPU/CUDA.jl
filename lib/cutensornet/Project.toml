@@ -19,7 +19,7 @@ cuTENSOR = {path = "../cutensor"}
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDA = "~5.11"
+CUDA = "=6.0.0"
 CUDA_Runtime_Discovery = "0.2, 0.3, 1"
 cuQuantum_jll = "26.1"
 cuTENSOR = "2.3.1"

@@ -29,10 +29,11 @@ end
 do_help, _ = extract_flag!(ARGS, "--help")
 if do_help
     println("""
-        Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
+        Usage: runtests.jl [--help] [--list] [--jobs=N] [--all] [TESTS...]
 
                --help             Show this text.
                --list             List all available tests.
+               --all              Also include subpackage tests (libraries/*).
                --verbose          Print more information during testing.
                --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
@@ -46,6 +47,7 @@ set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
 do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
 do_verbose, _ = extract_flag!(ARGS, "--verbose")
 do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
+do_all, _ = extract_flag!(ARGS, "--all")
 do_gpu_list, gpu_list = extract_flag!(ARGS, "--gpu")
 do_list, _ = extract_flag!(ARGS, "--list")
 ## no options should remain
@@ -91,6 +93,44 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
   end
 end
 sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
+## subpackage tests (enabled with --all, or by selecting libraries/*)
+const subpackages = ["cublas", "cusparse", "cusolver", "cufft", "curand",
+                     "cudnn", "cutensor", "cutensornet", "custatevec"]
+for pkg in subpackages
+    testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
+    isdir(testdir) || continue
+    for (rootpath, dirs, files) in walkdir(testdir)
+        filter!(files) do file
+            endswith(file, ".jl") && file ∉ ("setup.jl", "runtests.jl")
+        end
+        isempty(files) && continue
+        for file in files
+            name = file[1:end-3]
+            subdir = relpath(rootpath, testdir)
+            if subdir != "."
+                name = joinpath(subdir, name)
+            end
+            name = replace(name, path_separator => '/')
+            testname = "libraries/$pkg/$name"
+            filepath = joinpath(rootpath, file)
+            setuppath = joinpath(testdir, "setup.jl")
+            projectpath = joinpath(testdir, "Project.toml")
+            push!(tests, testname)
+            test_runners[testname] = () -> begin
+                old_project = Base.active_project()
+                try
+                    if isfile(projectpath)
+                        Base.set_active_project(projectpath)
+                    end
+                    include(setuppath)
+                    include(filepath)
+                finally
+                    Base.set_active_project(old_project)
+                end
+            end
+        end
+    end
+end
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
     pushfirst!(tests, "gpuarrays/$name")
@@ -117,6 +157,11 @@ if isempty(ARGS)
     # which we don't want to put in our test env by default.
     startswith(test, "extensions") && return false
 
+    # subpackage tests are only included with --all
+    if !do_all && startswith(test, "libraries/")
+        return false
+    end
+
     if CUDA.default_memory != CUDA.DeviceMemory && test == "gpuarrays/indexing scalar"
         # GPUArrays' scalar indexing tests assume that indexing is not supported
         return false
@@ -137,7 +182,16 @@ label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
 if label_match !== nothing
   @test toolkit_release == VersionNumber(label_match.captures[1])
 end
+
+# forcibly precompile the current environment in parallel (Pkg somehow ignores
+# the dependencies that are pointed through via [sources])
+using Pkg
+Pkg.precompile()
+
 @info "Julia information:\n" * sprint(io->versioninfo(io))
+
+using cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
+using cuDNN, cuTENSOR, cuTensorNet, cuStateVec
 @info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
 
 # select devices
@@ -187,7 +241,6 @@ end
 # install compute sanitizer
 if do_sanitize
     # install CUDA_SDK_jll in a temporary environment
-    using Pkg
     project = Base.active_project()
     Pkg.activate(; temp=true)
     Pkg.add("CUDA_SDK_jll")
