@@ -1,5 +1,5 @@
 include("setup.jl")
-@test cuTENSOR.has_cutensor()
+@test cuTENSOR.functional()
 
 @testset verbose=true "cuTENSOR" begin
 

@@ -1,5 +1,5 @@
 include("setup.jl")
-@test cuStateVec.has_custatevec()
+@test cuStateVec.functional()
 
 @testset verbose=true "cuStateVec" begin
     include("errors.jl")

@@ -17,10 +17,10 @@ else
 end
 
 
-export has_curand
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_curand() = _initialized[]
+functional() = _initialized[]
 
 # core library
 include("libcurand.jl")

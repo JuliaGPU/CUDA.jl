@@ -17,10 +17,10 @@ else
 end
 
 
-export has_cufft
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_cufft() = _initialized[]
+functional() = _initialized[]
 
 # core library
 include("libcufft.jl")

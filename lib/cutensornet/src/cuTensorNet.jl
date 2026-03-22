@@ -19,10 +19,10 @@ else
 end
 
 
-export has_cutensornet
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_cutensornet() = _initialized[]
+functional() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType

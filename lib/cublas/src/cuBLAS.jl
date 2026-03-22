@@ -27,10 +27,10 @@ else
 end
 
 
-export has_cublas
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_cublas() = _initialized[]
+functional() = _initialized[]
 
 const cudaDataType_t = cudaDataType
 

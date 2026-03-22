@@ -1,6 +1,6 @@
 include("setup.jl")
-@test cuTENSOR.has_cutensor()
-@test cuTensorNet.has_cutensornet()
+@test cuTENSOR.functional()
+@test cuTensorNet.functional()
 
 @testset verbose=true "cuTensorNet" begin
     include("helpers.jl")

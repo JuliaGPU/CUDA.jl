@@ -21,10 +21,10 @@ else
 end
 
 
-export has_cudnn
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_cudnn() = _initialized[]
+functional() = _initialized[]
 
 # core library
 include("libcudnn.jl")

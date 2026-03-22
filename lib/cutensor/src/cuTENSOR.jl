@@ -16,10 +16,10 @@ else
 end
 
 
-export has_cutensor
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_cutensor() = _initialized[]
+functional() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType

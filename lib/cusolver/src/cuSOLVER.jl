@@ -24,10 +24,10 @@ else
 end
 
 
-export has_cusolvermg
+export functional, has_cusolvermg
 
 const _initialized = Ref{Bool}(false)
-has_cusolver() = _initialized[]
+functional() = _initialized[]
 
 function has_cusolvermg(show_reason::Bool=false)
     if !@isdefined(libcusolverMg)

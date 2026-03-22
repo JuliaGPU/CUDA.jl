@@ -27,10 +27,10 @@ end
 const SparseChar = Char
 
 
-export has_cusparse
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_cusparse() = _initialized[]
+functional() = _initialized[]
 
 # core library
 include("libcusparse.jl")

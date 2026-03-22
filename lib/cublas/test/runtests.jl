@@ -1,5 +1,5 @@
 include("setup.jl")
-@test cuBLAS.has_cublas()
+@test cuBLAS.functional()
 
 @testset verbose=true "cuBLAS" begin
 

@@ -15,10 +15,10 @@ else
 end
 
 
-export has_custatevec
+export functional
 
 const _initialized = Ref{Bool}(false)
-has_custatevec() = _initialized[]
+functional() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType

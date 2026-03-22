@@ -73,7 +73,11 @@ function versioninfo(io::IO=stdout)
         pkgid = Base.PkgId(uuid, name)
         mod = get(Base.loaded_modules, pkgid, nothing)
         mod === nothing && continue
-        println(io, "- $name: $(mod.version())")
+        if mod.functional()
+            println(io, "- $name: $(mod.version())")
+        else
+            println(io, "- $name: missing")
+        end
     end
     println(io, "- CUPTI: $(CUPTI.library_version()) (API $(CUPTI.version()))")
     println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")

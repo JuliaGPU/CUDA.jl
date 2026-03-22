@@ -1,5 +1,5 @@
 include("setup.jl")
-@test cuDNN.has_cudnn()
+@test cuDNN.functional()
 
 @testset verbose=true "cuDNN" begin
 
