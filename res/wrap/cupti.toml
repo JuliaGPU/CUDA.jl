@@ -22,3 +22,46 @@ needs_context = false
 
 [api.cuptiGetVersion]
 needs_context = false
+
+# Profiler Host API functions (no CUDA context needed)
+[api.cuptiProfilerHostInitialize]
+needs_context = false
+
+[api.cuptiProfilerHostDeinitialize]
+needs_context = false
+
+[api.cuptiProfilerHostGetSupportedChips]
+needs_context = false
+
+[api.cuptiProfilerHostGetBaseMetrics]
+needs_context = false
+
+[api.cuptiProfilerHostGetSubMetrics]
+needs_context = false
+
+[api.cuptiProfilerHostGetMetricProperties]
+needs_context = false
+
+[api.cuptiProfilerHostConfigAddMetrics]
+needs_context = false
+
+[api.cuptiProfilerHostGetConfigImageSize]
+needs_context = false
+
+[api.cuptiProfilerHostGetConfigImage]
+needs_context = false
+
+[api.cuptiProfilerHostGetNumOfPasses]
+needs_context = false
+
+[api.cuptiProfilerHostEvaluateToGpuValues]
+needs_context = false
+
+[api.cuptiProfilerHostGetSinglePassSets]
+needs_context = false
+
+[api.cuptiProfilerHostGetMetricsInSinglePassSet]
+needs_context = false
+
+[api.cuptiProfilerHostGetRangeName]
+needs_context = false

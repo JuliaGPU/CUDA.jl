@@ -277,7 +277,9 @@ function main(name="all")
     if name == "all" || name == "cupti"
         cupti = joinpath(CUDA_SDK_jll.artifact_dir, "cuda", "include")
 
-        wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h"];
+        wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h",
+                       "$cupti/cupti_profiler_host.h", "$cupti/cupti_range_profiler.h",
+                       "$cupti/cupti_pmsampling.h"];
             include_dirs=[cuda, cupti],
             targets=[r"cupti_.*.h"])
     end

@@ -323,6 +323,308 @@ function process(f, cfg::ActivityConfig)
     end
 end
 
+#
+# profiler host API
+#
+
+# compute capability → chip name mapping
+# from cuptiProfilerHostGetSupportedChips() output
+const CC_TO_CHIP = Dict{VersionNumber,String}(
+    v"7.5" => "TU102",
+    v"8.0" => "GA100",
+    v"8.6" => "GA102",
+    v"8.9" => "AD102",
+    v"9.0" => "GH100",
+    v"10.0" => "GB100",
+    v"10.2" => "GB202",
+    v"11.0" => "GB110",
+)
+
+"""
+    check_profiling_permissions()
+
+Check if CUPTI profiling permissions are available on Linux.
+PM sampling and hardware counter collection require
+`NVreg_RestrictProfilingToAdminUsers=0`.
+"""
+function check_profiling_permissions()
+    if !Sys.islinux()
+        return true
+    end
+    nvidia_params = "/proc/driver/nvidia/params"
+    if isfile(nvidia_params)
+        content = read(nvidia_params, String)
+        if contains(content, "RmProfilingAdminOnly: 1")
+            @warn """CUPTI hardware counter collection requires profiling permissions.
+                     Set NVreg_RestrictProfilingToAdminUsers=0 in /etc/modprobe.d/nvidia-profiler.conf
+                     and reload the nvidia kernel module, or run as root."""
+            return false
+        end
+    end
+    return true
+end
+
+"""
+    chip_name(dev::CUDA.CuDevice) -> String
+
+Get the CUPTI chip name for a CUDA device.
+Falls back to querying supported chips if the compute capability
+is not in the built-in mapping.
+"""
+function chip_name(dev::CUDA.CuDevice)
+    cc = CUDA.capability(dev)
+    if haskey(CC_TO_CHIP, cc)
+        return CC_TO_CHIP[cc]
+    end
+    # fallback: query supported chips and match by CC prefix
+    chips = supported_chips()
+    # try exact match first, then look for any chip
+    for chip in chips
+        return chip  # return first available as fallback
+    end
+    error("Could not determine chip name for compute capability $cc. " *
+          "Supported chips: $(join(chips, ", "))")
+end
+
+"""
+    supported_chips() -> Vector{String}
+
+List all GPU chip names supported by the CUPTI profiler host API.
+"""
+function supported_chips()
+    params = Ref(CUpti_Profiler_Host_GetSupportedChips_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetSupportedChips_Params, ppChipNames),
+        C_NULL, 0, Ptr{Cstring}(0),
+    ))
+    cuptiProfilerHostGetSupportedChips(params)
+    p = params[]
+    return [unsafe_string(unsafe_load(p.ppChipNames, i)) for i in 1:p.numChips]
+end
+
+"""
+    ProfilerHostContext
+
+Manages a CUPTI profiler host object for metric enumeration and
+config image creation. Supports both range profiling and PM sampling.
+
+```julia
+ctx = CUPTI.ProfilerHostContext("GH100"; profiler_type=CUPTI_PROFILER_TYPE_PM_SAMPLING)
+metrics = CUPTI.base_metrics(ctx, CUPTI_METRIC_TYPE_COUNTER)
+close(ctx)
+```
+"""
+mutable struct ProfilerHostContext
+    host_object::Ptr{CUpti_Profiler_Host_Object}
+    chip_name::String
+    profiler_type::CUpti_ProfilerType
+
+    function ProfilerHostContext(chip::String;
+                                 profiler_type::CUpti_ProfilerType=CUPTI_PROFILER_TYPE_PM_SAMPLING,
+                                 counter_availability_image::Union{Nothing,Vector{UInt8}}=nothing,
+                                 single_pass_set_name::Union{Nothing,String}=nothing)
+        params = Ref(CUpti_Profiler_Host_Initialize_Params(
+            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_Initialize_Params, pSinglePassMetricSetName),
+            C_NULL,
+            profiler_type,
+            Base.unsafe_convert(Cstring, chip),
+            counter_availability_image === nothing ? Ptr{UInt8}(0) : pointer(counter_availability_image),
+            Ptr{CUpti_Profiler_Host_Object}(0),  # pHostObject (out)
+            single_pass_set_name === nothing ? Cstring(C_NULL) : Base.unsafe_convert(Cstring, single_pass_set_name),
+        ))
+        cuptiProfilerHostInitialize(params)
+        obj = new(params[].pHostObject, chip, profiler_type)
+        finalizer(obj) do o
+            if o.host_object != C_NULL
+                deinit = Ref(CUpti_Profiler_Host_Deinitialize_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_Deinitialize_Params, pHostObject),
+                    C_NULL,
+                    o.host_object,
+                ))
+                cuptiProfilerHostDeinitialize(deinit)
+                o.host_object = C_NULL
+            end
+        end
+        return obj
+    end
+end
+
+function Base.close(ctx::ProfilerHostContext)
+    finalize(ctx)
+end
+
+"""
+    base_metrics(ctx::ProfilerHostContext, metric_type::CUpti_MetricType) -> Vector{String}
+
+List all base metrics of the given type (CUPTI_METRIC_TYPE_COUNTER,
+CUPTI_METRIC_TYPE_RATIO, or CUPTI_METRIC_TYPE_THROUGHPUT).
+"""
+function base_metrics(ctx::ProfilerHostContext, metric_type::CUpti_MetricType)
+    params = Ref(CUpti_Profiler_Host_GetBaseMetrics_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetBaseMetrics_Params, numMetrics),
+        C_NULL,
+        ctx.host_object,
+        metric_type,
+        Ptr{Cstring}(0), 0,
+    ))
+    cuptiProfilerHostGetBaseMetrics(params)
+    p = params[]
+    return [unsafe_string(unsafe_load(p.ppMetricNames, i)) for i in 1:p.numMetrics]
+end
+
+"""
+    sub_metrics(ctx::ProfilerHostContext, metric_name::String, metric_type::CUpti_MetricType) -> Vector{String}
+
+List available sub-metrics (rollups like `.sum`, `.avg`, `.pct`, etc.)
+for a given base metric.
+"""
+function sub_metrics(ctx::ProfilerHostContext, metric_name::String,
+                     metric_type::CUpti_MetricType)
+    params = Ref(CUpti_Profiler_Host_GetSubMetrics_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetSubMetrics_Params, ppSubMetrics),
+        C_NULL,
+        ctx.host_object,
+        metric_type,
+        Base.unsafe_convert(Cstring, metric_name),
+        0, Ptr{Cstring}(0),
+    ))
+    cuptiProfilerHostGetSubMetrics(params)
+    p = params[]
+    return [unsafe_string(unsafe_load(p.ppSubMetrics, i)) for i in 1:p.numOfSubmetrics]
+end
+
+"""
+    MetricProperties
+
+Properties of a CUPTI metric.
+"""
+struct MetricProperties
+    description::String
+    hw_unit::String
+    dim_unit::String
+    metric_type::CUpti_MetricType
+    collection_scope::CUpti_MetricCollectionScope
+end
+
+"""
+    metric_properties(ctx::ProfilerHostContext, metric_name::String) -> MetricProperties
+
+Get the description, hardware unit, and other properties of a metric.
+"""
+function metric_properties(ctx::ProfilerHostContext, metric_name::String)
+    params = Ref(CUpti_Profiler_Host_GetMetricProperties_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetMetricProperties_Params, metricCollectionScope),
+        C_NULL,
+        ctx.host_object,
+        Base.unsafe_convert(Cstring, metric_name),
+        C_NULL, C_NULL, C_NULL,
+        CUPTI_METRIC_TYPE_COUNTER,
+        CUPTI_METRIC_COLLECTION_SCOPE_CONTEXT,
+    ))
+    cuptiProfilerHostGetMetricProperties(params)
+    p = params[]
+    return MetricProperties(
+        p.pDescription == C_NULL ? "" : unsafe_string(p.pDescription),
+        p.pHwUnit == C_NULL ? "" : unsafe_string(p.pHwUnit),
+        p.pDimUnit == C_NULL ? "" : unsafe_string(p.pDimUnit),
+        p.metricType,
+        p.metricCollectionScope,
+    )
+end
+
+"""
+    single_pass_sets(chip::String) -> Vector{String}
+
+List the single-pass metric set names available for a chip
+(e.g. "TriageCompute" on Hopper).
+"""
+function single_pass_sets(chip::String)
+    # first call: query count
+    params = Ref(CUpti_Profiler_Host_GetSinglePassSets_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetSinglePassSets_Params, ppSinglePassSets),
+        C_NULL,
+        Base.unsafe_convert(Cstring, chip),
+        0, C_NULL,
+    ))
+    cuptiProfilerHostGetSinglePassSets(params)
+    n = params[].numOfSinglePassSets
+    if n == 0
+        return String[]
+    end
+    # second call: get names
+    buf = Vector{Cstring}(undef, n)
+    params = Ref(CUpti_Profiler_Host_GetSinglePassSets_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetSinglePassSets_Params, ppSinglePassSets),
+        C_NULL,
+        Base.unsafe_convert(Cstring, chip),
+        n, pointer(buf),
+    ))
+    cuptiProfilerHostGetSinglePassSets(params)
+    return [unsafe_string(buf[i]) for i in 1:n]
+end
+
+"""
+    list_metrics(; chip=nothing, type=nothing) -> Vector{@NamedTuple{name::String, description::String, hw_unit::String}}
+
+List available PM sampling metrics for a GPU. If `chip` is not specified,
+auto-detects from the current CUDA device.
+
+`type` can be `CUPTI_METRIC_TYPE_COUNTER`, `CUPTI_METRIC_TYPE_RATIO`,
+or `CUPTI_METRIC_TYPE_THROUGHPUT`. If `nothing`, lists all types.
+"""
+function list_metrics(; chip::Union{String,Nothing}=nothing,
+                       type::Union{CUpti_MetricType,Nothing}=nothing)
+    if chip === nothing
+        chip = chip_name(CUDA.device())
+    end
+    ctx = ProfilerHostContext(chip; profiler_type=CUPTI_PROFILER_TYPE_PM_SAMPLING)
+    try
+        types = type === nothing ?
+            [CUPTI_METRIC_TYPE_COUNTER, CUPTI_METRIC_TYPE_RATIO, CUPTI_METRIC_TYPE_THROUGHPUT] :
+            [type]
+        results = @NamedTuple{name::String, description::String, hw_unit::String}[]
+        for t in types
+            for name in base_metrics(ctx, t)
+                props = metric_properties(ctx, name)
+                push!(results, (name=name, description=props.description, hw_unit=props.hw_unit))
+            end
+        end
+        return results
+    finally
+        close(ctx)
+    end
+end
+
+"""
+    metric_info(metric_name::String; chip=nothing)
+
+Print detailed information about a metric including its sub-metrics.
+"""
+function metric_info(metric_name::String; chip::Union{String,Nothing}=nothing)
+    if chip === nothing
+        chip = chip_name(CUDA.device())
+    end
+    ctx = ProfilerHostContext(chip; profiler_type=CUPTI_PROFILER_TYPE_PM_SAMPLING)
+    try
+        props = metric_properties(ctx, metric_name)
+        println("Metric: $metric_name")
+        println("  Description: $(props.description)")
+        println("  HW Unit:     $(props.hw_unit)")
+        println("  Dim Unit:    $(props.dim_unit)")
+        println("  Type:        $(props.metric_type)")
+        println("  Scope:       $(props.collection_scope)")
+        subs = sub_metrics(ctx, metric_name, props.metric_type)
+        if !isempty(subs)
+            println("  Sub-metrics ($(length(subs))):")
+            for s in subs
+                println("    .$s")
+            end
+        end
+    finally
+        close(ctx)
+    end
+end
+
+
 function Base.string(memory_kind::CUpti_ActivityMemoryKind)
     if memory_kind == CUPTI_ACTIVITY_MEMORY_KIND_UNKNOWN
         "unknown"
