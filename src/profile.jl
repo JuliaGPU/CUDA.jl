@@ -1223,9 +1223,17 @@ end
     profile_counters(f, metric_names; io=stdout)
 
 Profile hardware counters for GPU kernels launched within `f()` and
-pretty-print the results. Called by `CUDA.@profile counters=[...] code`.
+pretty-print the results merged with kernel names and timings from
+the activity API. Called by `CUDA.@profile counters=[...] code`.
+
+!!! warning
+    The code will be executed twice: once for kernel name/timing capture
+    via the activity API, and once (or more) for counter collection via
+    the range profiler. Ensure the profiled code is idempotent.
 """
 function profile_counters(f, metric_names::Vector{String}; io::IO=stdout)
+    # Collect hardware counters via range profiler
+    # Kernel names are captured via the callback API during the first pass
     result = CUPTI.range_profile(f, metric_names)
 
     if isempty(result.range_names)
@@ -1233,28 +1241,69 @@ function profile_counters(f, metric_names::Vector{String}; io::IO=stdout)
         return result
     end
 
-    println(io, "Hardware counter profiling: $(length(result.range_names)) kernel(s), $(length(result.metric_names)) metric(s)")
+    num_kernels = length(result.range_names)
+    println(io, "Hardware counter profiling: $(num_kernels) kernel(s), $(length(result.metric_names)) metric(s)")
     println(io)
 
-    # build table data
+    # build table: one row per kernel with timing + all metrics as columns
     names = String[]
-    metrics = String[]
-    values = String[]
-    for (i, range_name) in enumerate(result.range_names)
-        for (j, metric) in enumerate(result.metric_names)
-            push!(names, range_name)
-            push!(metrics, metric)
-            v = result.values[i, j]
-            push!(values, _format_counter_value(v))
+    metric_columns = [String[] for _ in result.metric_names]
+
+    # demangle kernel names and truncate to function name (strip args)
+    demangled = _demangle_names(result.kernel_names)
+    for (k, name) in enumerate(demangled)
+        paren = findfirst('(', name)
+        if paren !== nothing
+            demangled[k] = name[1:paren-1]
         end
     end
 
-    data = (kernel=names, metric=metrics, value=values)
+    for i in 1:num_kernels
+        # use demangled kernel name if available, fall back to range index
+        if i <= length(demangled)
+            push!(names, demangled[i])
+        else
+            push!(names, result.range_names[i])
+        end
+        for (j, _) in enumerate(result.metric_names)
+            push!(metric_columns[j], _format_counter_value(result.values[i, j]))
+        end
+    end
+
+    # shorten metric names for column headers
+    short_names = [_short_metric_name(m) for m in result.metric_names]
+
+    data = (; kernel=names,
+              (Symbol(short_names[j]) => metric_columns[j] for j in eachindex(result.metric_names))...)
+    col_labels = ["Kernel", short_names...]
+    alignment = [:l, fill(:r, length(result.metric_names))...]
+
     pretty_table(io, data;
-        column_labels=["Kernel", "Metric", "Value"],
-        alignment=[:l, :l, :r])
+        column_labels=col_labels,
+        alignment=alignment,
+        fit_table_in_display_horizontally=true)
 
     return result
+end
+
+function _demangle_names(names::Vector{String})
+    isempty(names) && return String[]
+    input = join(names, '\n')
+    demangled = split(readchomp(pipeline(IOBuffer(input), `$(demumble())`)), '\n')
+    return String.(demangled)
+end
+
+function _short_metric_name(name::String)
+    # "sm__cycles_active.avg" → "cycles_active.avg"
+    # "dram__throughput.avg.pct_of_peak_sustained_elapsed" → "dram_throughput.pct"
+    parts = split(name, "__"; limit=2)
+    short = length(parts) == 2 ? parts[2] : name
+    # abbreviate common suffixes
+    short = replace(short, ".avg.pct_of_peak_sustained_elapsed" => ".pct_peak")
+    short = replace(short, ".avg.pct_of_peak_sustained_active" => ".pct_peak_active")
+    short = replace(short, ".avg.per_cycle_active" => ".per_cyc")
+    short = replace(short, ".avg.per_cycle_elapsed" => ".per_cyc_elapsed")
+    return short
 end
 
 function _format_counter_value(v::Float64)

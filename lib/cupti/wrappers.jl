@@ -744,6 +744,7 @@ Result from range profiling a kernel or code region.
 """
 struct RangeProfileResult
     range_names::Vector{String}
+    kernel_names::Vector{String}  # from callback API (may be empty)
     metric_names::Vector{String}
     values::Matrix{Float64}  # ranges × metrics
 end
@@ -784,6 +785,18 @@ function range_profile(f, metric_names::Vector{String};
 
     @lock profiler_lock begin
         _profiler_initialize()
+
+        # use callback API to capture kernel names during profiling
+        kernel_names = String[]
+        first_pass = Ref(true)
+        cb_cfg = CallbackConfig([CUPTI_CB_DOMAIN_DRIVER_API]) do domain, id, data
+            if first_pass[] && data.callbackSite == CUPTI_API_ENTER && data.symbolName != C_NULL
+                name = unsafe_string(data.symbolName)
+                if name != "Unknown"
+                    push!(kernel_names, name)
+                end
+            end
+        end
 
         # create host context and configure metrics
         host_ctx = ProfilerHostContext(chip; profiler_type=CUPTI_PROFILER_TYPE_RANGE_PROFILER)
@@ -854,8 +867,15 @@ function range_profile(f, metric_names::Vector{String};
                     ))
                     cuptiRangeProfilerStart(start_params)
 
-                    # run user code
-                    f()
+                    # run user code, capturing kernel names on first pass via callback
+                    if first_pass[]
+                        enable!(cb_cfg) do
+                            f()
+                        end
+                        first_pass[] = false
+                    else
+                        f()
+                    end
 
                     # stop profiling
                     stop_params = Ref(CUpti_RangeProfiler_Stop_Params(
@@ -907,7 +927,7 @@ function range_profile(f, metric_names::Vector{String};
                         values[i+1, :] .= vals
                     end
 
-                    return RangeProfileResult(range_names, metric_names, values)
+                    return RangeProfileResult(range_names, kernel_names, metric_names, values)
                 end
             finally
                 disable_params = Ref(CUpti_RangeProfiler_Disable_Params(
