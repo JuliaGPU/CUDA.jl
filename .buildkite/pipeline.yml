@@ -20,6 +20,13 @@ steps:
           cuda: "*"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          julia --project=. -e '
+            VERSION < v"1.11" || exit(0)
+            using Pkg
+            Pkg.develop([PackageSpec(; path) for path in (
+              "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
+              "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
+            )])'
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only julia\]/ ||
@@ -30,6 +37,7 @@ steps:
         matrix:
           setup:
             julia:
+              - "1.10"
               - "1.11"
               - "1.12"
               - "1.13"
