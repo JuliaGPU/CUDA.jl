@@ -86,6 +86,62 @@ end
     @test result.values[1, 1] > 0
 end
 
+@testset "range_profile multipass" begin
+    N = 1024 * 1024
+    a = CUDA.rand(Float32, N)
+    b = CUDA.rand(Float32, N)
+    c = CUDA.zeros(Float32, N)
+
+    # These metrics require multiple passes (4 on GH100)
+    multi_metrics = [
+        "sm__cycles_active.avg",
+        "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+        "lts__throughput.avg.pct_of_peak_sustained_elapsed",
+        "l1tex__data_pipe_lsu_wavefronts.avg.pct_of_peak_sustained_elapsed",
+        "sm__warps_active.avg.pct_of_peak_sustained_active",
+        "smsp__inst_executed.sum",
+        "smsp__warps_launched.sum",
+    ]
+
+    # verify >1 pass is required
+    chip = CUDA.CUPTI.chip_name(CUDA.device())
+    ctx = CUDA.CUPTI.ProfilerHostContext(chip;
+        profiler_type=CUDA.CUPTI.CUPTI_PROFILER_TYPE_RANGE_PROFILER)
+    CUDA.CUPTI.config_add_metrics!(ctx, multi_metrics)
+    config = CUDA.CUPTI.get_config_image(ctx)
+    num_passes = CUDA.CUPTI.get_num_passes(config)
+    close(ctx)
+    @test num_passes > 1
+
+    # With KernelReplay mode, CUPTI handles multi-pass internally,
+    # so f() may only be called once even with multiple passes
+    result = CUDA.CUPTI.range_profile(multi_metrics) do
+        @cuda threads=256 blocks=cld(N, 256) vadd_kernel(a, b, c)
+        CUDA.synchronize()
+    end
+    @test result isa CUDA.CUPTI.RangeProfileResult
+    @test length(result.metric_names) == length(multi_metrics)
+    @test size(result.values, 2) == length(multi_metrics)
+    # all metrics should have real values
+    @test all(v -> v > 0, result.values[1, :])
+end
+
+@testset "range_profile kernel names" begin
+    N = 1024 * 1024
+    a = CUDA.rand(Float32, N)
+    b = CUDA.rand(Float32, N)
+    c = CUDA.zeros(Float32, N)
+
+    result = CUDA.CUPTI.range_profile(["sm__cycles_active.avg"]) do
+        @cuda threads=256 blocks=cld(N, 256) vadd_kernel(a, b, c)
+        CUDA.synchronize()
+    end
+
+    @test length(result.kernel_names) >= 1
+    # kernel name should contain "vadd_kernel"
+    @test any(contains("vadd_kernel"), result.kernel_names)
+end
+
 @testset "pm_sample" begin
     N = 1024 * 1024
     a = CUDA.rand(Float32, N)
