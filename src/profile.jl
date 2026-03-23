@@ -3,11 +3,11 @@
 """
     @profile [trace=false] [raw=false] code...
     @profile external=true code...
+    @profile counters=["metric1", "metric2"] code...
 
 Profile the GPU execution of `code`.
 
-There are two modes of operation, depending on whether `external` is `true` or `false`.
-The default value depends on whether Julia is being run under an external profiler.
+There are three modes of operation:
 
 ## Integrated profiler (`external=false`, the default)
 
@@ -29,6 +29,23 @@ For more advanced profiling, it is possible to use an external profiling tool, s
 NSight Systems or NSight Compute. When doing so, it is often advisable to only enable the
 profiler for the specific code region of interest. This can be done by wrapping the code
 with `CUDA.@profile external=true`, which used to be the only way to use this macro.
+
+## Hardware counters (`counters=[...]`)
+
+When `counters` is set to a vector of CUPTI metric names, the profiler will collect
+per-kernel hardware counter values using the CUPTI Range Profiler API. Use
+`CUDA.CUPTI.list_metrics()` to discover available metrics.
+
+```julia
+CUDA.@profile counters=["sm__cycles_active.avg", "dram__throughput.avg.pct_of_peak_sustained_elapsed"] begin
+    my_kernel(args...)
+    CUDA.synchronize()
+end
+```
+
+!!! warning
+    Hardware counter profiling may run your code multiple times if the requested
+    metrics require multiple passes. Ensure the profiled code is idempotent.
 """
 macro profile(ex...)
     # destructure the `@profile` expression
@@ -44,6 +61,7 @@ macro profile(ex...)
             false
         end
     end
+    counters = nothing
     remaining_kwargs = Expr[]
     for kwarg in kwargs
         if Meta.isexpr(kwarg, :(=))
@@ -51,6 +69,8 @@ macro profile(ex...)
             if key == :external
                 isa(value, Bool) || throw(ArgumentError("Invalid value for keyword argument `external`: got `$value`, expected literal boolean value"))
                 external = value
+            elseif key == :counters
+                counters = esc(value)
             else
                 push!(remaining_kwargs, Expr(:kw, key, esc(value)))
             end
@@ -59,12 +79,19 @@ macro profile(ex...)
         end
     end
 
-    quote
-        profiled_code() = $(esc(code))
-        if $external
-            $Profile.profile_externally(profiled_code; $(remaining_kwargs...))
-        else
-            $Profile.profile_internally(profiled_code; $(remaining_kwargs...))
+    if counters !== nothing
+        quote
+            profiled_code() = $(esc(code))
+            $Profile.profile_counters(profiled_code, $counters; $(remaining_kwargs...))
+        end
+    else
+        quote
+            profiled_code() = $(esc(code))
+            if $external
+                $Profile.profile_externally(profiled_code; $(remaining_kwargs...))
+            else
+                $Profile.profile_internally(profiled_code; $(remaining_kwargs...))
+            end
         end
     end
 end
@@ -1185,6 +1212,63 @@ function benchmark_and_profile(f; time=1.0, kwargs...)
     end
 
     profile_internally(benchmark_harness; kwargs...)
+end
+
+
+#
+# hardware counter profiling
+#
+
+"""
+    profile_counters(f, metric_names; io=stdout)
+
+Profile hardware counters for GPU kernels launched within `f()` and
+pretty-print the results. Called by `CUDA.@profile counters=[...] code`.
+"""
+function profile_counters(f, metric_names::Vector{String}; io::IO=stdout)
+    result = CUPTI.range_profile(f, metric_names)
+
+    if isempty(result.range_names)
+        println(io, "No GPU kernels were captured.")
+        return result
+    end
+
+    println(io, "Hardware counter profiling: $(length(result.range_names)) kernel(s), $(length(result.metric_names)) metric(s)")
+    println(io)
+
+    # build table data
+    names = String[]
+    metrics = String[]
+    values = String[]
+    for (i, range_name) in enumerate(result.range_names)
+        for (j, metric) in enumerate(result.metric_names)
+            push!(names, range_name)
+            push!(metrics, metric)
+            v = result.values[i, j]
+            push!(values, _format_counter_value(v))
+        end
+    end
+
+    data = (kernel=names, metric=metrics, value=values)
+    pretty_table(io, data;
+        column_labels=["Kernel", "Metric", "Value"],
+        alignment=[:l, :l, :r])
+
+    return result
+end
+
+function _format_counter_value(v::Float64)
+    if v == 0.0
+        "0"
+    elseif abs(v) >= 1e6
+        @sprintf("%.3e", v)
+    elseif abs(v) >= 100
+        @sprintf("%.1f", v)
+    elseif abs(v) >= 1
+        @sprintf("%.3f", v)
+    else
+        @sprintf("%.6f", v)
+    end
 end
 
 end
