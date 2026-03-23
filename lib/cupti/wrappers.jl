@@ -327,6 +327,17 @@ end
 # profiler host API
 #
 
+"""
+    _check_profiler_host_api()
+
+Check that the CUPTI Profiler Host API is available (requires CUDA >= 12.6).
+"""
+function _check_profiler_host_api()
+    if CUDA.runtime_version() < v"12.6"
+        error("CUPTI Profiler Host API requires CUDA >= 12.6 (got $(CUDA.runtime_version()))")
+    end
+end
+
 # compute capability → chip name mapping
 # from cuptiProfilerHostGetSupportedChips() output
 const CC_TO_CHIP = Dict{VersionNumber,String}(
@@ -392,6 +403,7 @@ end
 List all GPU chip names supported by the CUPTI profiler host API.
 """
 function supported_chips()
+    _check_profiler_host_api()
     params = Ref(CUpti_Profiler_Host_GetSupportedChips_Params(
         @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetSupportedChips_Params, ppChipNames),
         C_NULL, 0, Ptr{Cstring}(0),
@@ -536,8 +548,16 @@ end
 
 List the single-pass metric set names available for a chip
 (e.g. "TriageCompute" on Hopper).
+
+Requires CUDA >= 13.1. Returns an empty vector on older versions.
 """
 function single_pass_sets(chip::String)
+    _check_profiler_host_api()
+    # cuptiProfilerHostGetSinglePassSets was added in CUDA 13.2
+    if CUDA.runtime_version() < v"13.2"
+        return String[]
+    end
+
     # first call: query count
     params = Ref(CUpti_Profiler_Host_GetSinglePassSets_Params(
         @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_Host_GetSinglePassSets_Params, ppSinglePassSets),
@@ -777,6 +797,7 @@ function range_profile(f, metric_names::Vector{String};
                        replay_mode::CUpti_ProfilerReplayMode=CUPTI_KernelReplay,
                        max_ranges::Int=64,
                        max_nesting::Int=1)
+    _check_profiler_host_api()
     check_profiling_permissions()
 
     if chip === nothing
@@ -997,6 +1018,7 @@ function pm_sample(f, metric_names::Vector{String};
                    max_samples::Int=1024,
                    hw_buffer_size::Int=16*1024*1024,
                    trigger_mode::CUpti_PmSampling_TriggerMode=CUPTI_PM_SAMPLING_TRIGGER_MODE_GPU_SYSCLK_INTERVAL)
+    _check_profiler_host_api()
     check_profiling_permissions()
 
     if chip === nothing
