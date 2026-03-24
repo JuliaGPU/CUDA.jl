@@ -630,13 +630,8 @@ function capture(cfg)
         end
     end
 
-    # Batch-demangle all kernel names in a single demumble invocation. This is
-    # much faster than demangling them one-by-one.
-    if !isempty(device_trace.name)
-        input = join(device_trace.name, '\n')
-        demangled = split(readchomp(pipeline(IOBuffer(input), `$(demumble())`)), '\n')
-        copy!(device_trace.name, demangled)
-    end
+    # Batch-demangle all kernel names in a single demumble invocation.
+    demangle_names!(device_trace.name)
 
     # add details column via Dict lookup (replaces leftjoin)
     host_details = Union{Missing,String}[get(details, id, missing) for id in host_trace.id]
@@ -1245,23 +1240,17 @@ function profile_counters(f, metric_names::Vector{String}; io::IO=stdout)
     println(io, "Hardware counter profiling: $(num_kernels) kernel(s), $(length(result.metric_names)) metric(s)")
     println(io)
 
-    # build table: one row per kernel with timing + all metrics as columns
+    # build table: one row per kernel with all metrics as columns
     names = String[]
     metric_columns = [String[] for _ in result.metric_names]
 
-    # demangle kernel names and truncate to function name (strip args)
-    demangled = _demangle_names(result.kernel_names)
-    for (k, name) in enumerate(demangled)
-        paren = findfirst('(', name)
-        if paren !== nothing
-            demangled[k] = name[1:paren-1]
-        end
-    end
+    # demangle and shorten kernel names
+    demangle_names!(result.kernel_names)
 
     for i in 1:num_kernels
         # use demangled kernel name if available, fall back to range index
-        if i <= length(demangled)
-            push!(names, demangled[i])
+        if i <= length(result.kernel_names)
+            push!(names, short_kernel_name(result.kernel_names[i]))
         else
             push!(names, result.range_names[i])
         end
@@ -1286,11 +1275,29 @@ function profile_counters(f, metric_names::Vector{String}; io::IO=stdout)
     return result
 end
 
-function _demangle_names(names::Vector{String})
-    isempty(names) && return String[]
+"""
+    demangle_names!(names) -> names
+
+Batch-demangle C++/CUDA kernel names in-place using demumble.
+"""
+function demangle_names!(names::AbstractVector{<:AbstractString})
+    isempty(names) && return names
     input = join(names, '\n')
     demangled = split(readchomp(pipeline(IOBuffer(input), `$(demumble())`)), '\n')
-    return String.(demangled)
+    for i in eachindex(names)
+        names[i] = demangled[i]
+    end
+    return names
+end
+
+"""
+    short_kernel_name(name) -> String
+
+Strip argument list from a demangled kernel name, returning just the function name.
+"""
+function short_kernel_name(name::AbstractString)
+    paren = findfirst('(', name)
+    return paren !== nothing ? name[1:paren-1] : String(name)
 end
 
 function _short_metric_name(name::String)

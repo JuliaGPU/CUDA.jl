@@ -696,6 +696,65 @@ function _profiler_initialize()
 end
 
 """
+    _get_counter_availability(device_index) -> Vector{UInt8}
+
+Query the counter availability image for a device. Required by PM sampling
+for forward chip compatibility.
+"""
+function _get_counter_availability(device_index::Int=0)
+    # Query size
+    params = Ref(CUpti_PmSampling_GetCounterAvailability_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterAvailability_Params, pCounterAvailabilityImage),
+        C_NULL, device_index, 0, Ptr{UInt8}(0),
+    ))
+    cuptiPmSamplingGetCounterAvailability(params)
+    avail_size = params[].counterAvailabilityImageSize
+
+    # Retrieve image
+    avail_image = Vector{UInt8}(undef, avail_size)
+    params = Ref(CUpti_PmSampling_GetCounterAvailability_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterAvailability_Params, pCounterAvailabilityImage),
+        C_NULL, device_index, avail_size, pointer(avail_image),
+    ))
+    cuptiPmSamplingGetCounterAvailability(params)
+    return avail_image
+end
+
+"""
+    _with_profiler_host(f, metric_names, profiler_type; chip, counter_availability_image)
+
+Shared setup for range profiling and PM sampling: initialize CUPTI,
+create a ProfilerHostContext, configure metrics, build config image,
+then call `f(host_ctx, config_image)`.
+"""
+function _with_profiler_host(f, metric_names::Vector{String},
+                             profiler_type::CUpti_ProfilerType;
+                             chip::Union{String,Nothing}=nothing,
+                             counter_availability_image::Union{Nothing,Vector{UInt8}}=nothing)
+    _check_profiler_host_api()
+    check_profiling_permissions()
+
+    if chip === nothing
+        chip = chip_name(CUDA.device())
+    end
+
+    @lock profiler_lock begin
+        _profiler_initialize()
+
+        host_ctx = ProfilerHostContext(chip;
+            profiler_type,
+            counter_availability_image)
+        try
+            config_add_metrics!(host_ctx, metric_names)
+            config_image = get_config_image(host_ctx)
+            return f(host_ctx, config_image)
+        finally
+            close(host_ctx)
+        end
+    end
+end
+
+"""
     config_add_metrics!(ctx::ProfilerHostContext, metric_names::Vector{String})
 
 Add metrics to the profiler host config. Must be called before
@@ -808,7 +867,6 @@ end
 """
     range_profile(f, metric_names::Vector{String};
                   range_mode=CUPTI_AutoRange,
-                  replay_mode=CUPTI_KernelReplay,
                   max_ranges=64,
                   max_nesting=1) -> RangeProfileResult
 
@@ -817,9 +875,14 @@ Profile hardware counters for GPU kernels launched within `f()`.
 With `CUPTI_AutoRange`, each kernel launch becomes a separate range.
 With `CUPTI_UserRange`, use `push_range!`/`pop_range!` to define custom ranges.
 
+Uses CUPTI's KernelReplay mode: when metrics require multiple passes,
+CUPTI internally replays each kernel, so `f()` is only called once.
+
 !!! warning
-    If multiple passes are required, `f()` will be called multiple times
-    and must be idempotent.
+    CUPTI's KernelReplay mode internally re-executes GPU kernels to
+    collect multi-pass metrics. While `f()` itself runs only once,
+    individual kernels may be replayed by CUPTI. Ensure kernels
+    produce deterministic results.
 
 ```julia
 result = CUPTI.range_profile(["sm__cycles_active.avg", "dram__throughput.avg.pct_of_peak_sustained_elapsed"]) do
@@ -830,171 +893,138 @@ end
 function range_profile(f, metric_names::Vector{String};
                        chip::Union{String,Nothing}=nothing,
                        range_mode::CUpti_ProfilerRange=CUPTI_AutoRange,
-                       replay_mode::CUpti_ProfilerReplayMode=CUPTI_KernelReplay,
                        max_ranges::Int=64,
                        max_nesting::Int=1)
-    _check_profiler_host_api()
-    check_profiling_permissions()
+    # Range profiling flow:
+    #
+    # 1. _with_profiler_host creates a ProfilerHostContext, configures metrics,
+    #    and builds a config image (shared with PM sampling).
+    #
+    # 2. Enable the range profiler on the CUDA context — this creates a device-side
+    #    profiler object that intercepts kernel launches.
+    #
+    # 3. Allocate a counter data image — buffer where CUPTI writes raw counter values.
+    #
+    # 4. SetConfig + Start + run user code + Stop + DecodeData:
+    #    KernelReplay mode: CUPTI internally re-executes each kernel as many times
+    #    as needed for multi-pass collection. f() is only called once.
+    #
+    # 5. Evaluate: host context converts raw counter data into metric values.
+    #
+    # Kernel name capture:
+    #    Auto-range mode names ranges "0", "1"... We use the CUPTI callback API
+    #    (fires synchronously on host thread) to capture symbolName from each
+    #    kernel launch. Callbacks coexist with the range profiler.
 
-    if chip === nothing
-        chip = chip_name(CUDA.device())
-    end
-
-    @lock profiler_lock begin
-        _profiler_initialize()
-
-        # use callback API to capture kernel names during profiling
-        kernel_names = String[]
-        first_pass = Ref(true)
-        cb_cfg = CallbackConfig([CUPTI_CB_DOMAIN_DRIVER_API]) do domain, id, data
-            if first_pass[] && data.callbackSite == CUPTI_API_ENTER && data.symbolName != C_NULL
-                name = unsafe_string(data.symbolName)
-                if name != "Unknown"
-                    push!(kernel_names, name)
-                end
+    # Set up callback to capture kernel names from driver API calls
+    kernel_names = String[]
+    cb_cfg = CallbackConfig([CUPTI_CB_DOMAIN_DRIVER_API]) do domain, id, data
+        if data.callbackSite == CUPTI_API_ENTER && data.symbolName != C_NULL
+            name = unsafe_string(data.symbolName)
+            if name != "Unknown"
+                push!(kernel_names, name)
             end
         end
+    end
 
-        # create host context and configure metrics
-        host_ctx = ProfilerHostContext(chip; profiler_type=CUPTI_PROFILER_TYPE_RANGE_PROFILER)
+    _with_profiler_host(metric_names, CUPTI_PROFILER_TYPE_RANGE_PROFILER; chip) do host_ctx, config_image
+        # Enable range profiler on current CUDA context
+        cu_ctx = Base.unsafe_convert(CUDA.CUcontext, CUDA.context())
+        enable_params = Ref(CUpti_RangeProfiler_Enable_Params(
+            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Enable_Params, pRangeProfilerObject),
+            C_NULL, cu_ctx, Ptr{CUpti_RangeProfiler_Object}(0),
+        ))
+        cuptiRangeProfilerEnable(enable_params)
+        rp_obj = enable_params[].pRangeProfilerObject
+
         try
-            config_add_metrics!(host_ctx, metric_names)
-            config_image = get_config_image(host_ctx)
-            num_passes = get_num_passes(config_image)
-
-            # enable range profiler
-            cu_ctx = Base.unsafe_convert(CUDA.CUcontext, CUDA.context())
-            enable_params = Ref(CUpti_RangeProfiler_Enable_Params(
-                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Enable_Params, pRangeProfilerObject),
-                C_NULL,
-                cu_ctx,
-                Ptr{CUpti_RangeProfiler_Object}(0),
-            ))
-            cuptiRangeProfilerEnable(enable_params)
-            rp_obj = enable_params[].pRangeProfilerObject
-
-            try
-                # get counter data size and allocate
-                c_names = Base.unsafe_convert.(Cstring, metric_names)
-                counter_data_size = GC.@preserve metric_names c_names begin
-                    size_params = Ref(CUpti_RangeProfiler_GetCounterDataSize_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_GetCounterDataSize_Params, counterDataSize),
-                        C_NULL, rp_obj,
-                        pointer(c_names), length(c_names),
-                        max_ranges, max_ranges, 0,
-                    ))
-                    cuptiRangeProfilerGetCounterDataSize(size_params)
-                    Int(size_params[].counterDataSize)
-                end
-
-                counter_data = Vector{UInt8}(undef, counter_data_size)
-
-                # initialize counter data image
-                GC.@preserve counter_data begin
-                    init_params = Ref(CUpti_RangeProfiler_CounterDataImage_Initialize_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_CounterDataImage_Initialize_Params, pCounterData),
-                        C_NULL, rp_obj,
-                        counter_data_size,
-                        pointer(counter_data),
-                    ))
-                    cuptiRangeProfilerCounterDataImageInitialize(init_params)
-                end
-
-                # multi-pass profiling loop
-                pass_index = 0
-                all_passes_done = false
-                while !all_passes_done
-                    GC.@preserve config_image counter_data begin
-                        set_params = Ref(CUpti_RangeProfiler_SetConfig_Params(
-                            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_SetConfig_Params, targetNestingLevel),
-                            C_NULL, rp_obj,
-                            length(config_image), pointer(config_image),
-                            counter_data_size, pointer(counter_data),
-                            range_mode, replay_mode,
-                            max_ranges, max_nesting, 1,
-                            pass_index, 1,
-                        ))
-                        cuptiRangeProfilerSetConfig(set_params)
-                    end
-
-                    # start profiling
-                    start_params = Ref(CUpti_RangeProfiler_Start_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Start_Params, pRangeProfilerObject),
-                        C_NULL, rp_obj,
-                    ))
-                    cuptiRangeProfilerStart(start_params)
-
-                    # run user code, capturing kernel names on first pass via callback
-                    if first_pass[]
-                        enable!(cb_cfg) do
-                            f()
-                        end
-                        first_pass[] = false
-                    else
-                        f()
-                    end
-
-                    # stop profiling
-                    stop_params = Ref(CUpti_RangeProfiler_Stop_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Stop_Params, isAllPassSubmitted),
-                        C_NULL, rp_obj,
-                        0, 0, 0,
-                    ))
-                    cuptiRangeProfilerStop(stop_params)
-                    pass_index = stop_params[].passIndex
-                    all_passes_done = stop_params[].isAllPassSubmitted != 0
-
-                    # decode data
-                    decode_params = Ref(CUpti_RangeProfiler_DecodeData_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_DecodeData_Params, numOfRangeDropped),
-                        C_NULL, rp_obj, 0,
-                    ))
-                    cuptiRangeProfilerDecodeData(decode_params)
-                end
-
-                # extract results
-                GC.@preserve counter_data begin
-                    info_params = Ref(CUpti_RangeProfiler_GetCounterDataInfo_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_GetCounterDataInfo_Params, numTotalRanges),
-                        C_NULL,
-                        pointer(counter_data), counter_data_size,
-                        0,
-                    ))
-                    cuptiRangeProfilerGetCounterDataInfo(info_params)
-                    num_ranges = Int(info_params[].numTotalRanges)
-
-                    range_names = String[]
-                    values = Matrix{Float64}(undef, num_ranges, length(metric_names))
-
-                    for i in 0:(num_ranges-1)
-                        # get range name
-                        range_info = Ref(CUpti_RangeProfiler_CounterData_GetRangeInfo_Params(
-                            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_CounterData_GetRangeInfo_Params, rangeName),
-                            C_NULL,
-                            pointer(counter_data), counter_data_size,
-                            i,
-                            Base.unsafe_convert(Cstring, "/"),
-                            Cstring(C_NULL),
-                        ))
-                        cuptiRangeProfilerCounterDataGetRangeInfo(range_info)
-                        push!(range_names, unsafe_string(range_info[].rangeName))
-
-                        # evaluate metrics
-                        vals = evaluate_metrics(host_ctx, counter_data, i, metric_names)
-                        values[i+1, :] .= vals
-                    end
-
-                    return RangeProfileResult(range_names, kernel_names, metric_names, values)
-                end
-            finally
-                disable_params = Ref(CUpti_RangeProfiler_Disable_Params(
-                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Disable_Params, pRangeProfilerObject),
+            # Allocate and initialize counter data buffer
+            c_names = Base.unsafe_convert.(Cstring, metric_names)
+            counter_data_size = GC.@preserve metric_names c_names begin
+                size_params = Ref(CUpti_RangeProfiler_GetCounterDataSize_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_GetCounterDataSize_Params, counterDataSize),
                     C_NULL, rp_obj,
+                    pointer(c_names), length(c_names),
+                    max_ranges, max_ranges, 0,
                 ))
-                cuptiRangeProfilerDisable(disable_params)
+                cuptiRangeProfilerGetCounterDataSize(size_params)
+                Int(size_params[].counterDataSize)
+            end
+
+            counter_data = Vector{UInt8}(undef, counter_data_size)
+            GC.@preserve counter_data begin
+                init_params = Ref(CUpti_RangeProfiler_CounterDataImage_Initialize_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_CounterDataImage_Initialize_Params, pCounterData),
+                    C_NULL, rp_obj, counter_data_size, pointer(counter_data),
+                ))
+                cuptiRangeProfilerCounterDataImageInitialize(init_params)
+            end
+
+            # Configure and run — KernelReplay handles multi-pass internally
+            GC.@preserve config_image counter_data begin
+                set_params = Ref(CUpti_RangeProfiler_SetConfig_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_SetConfig_Params, targetNestingLevel),
+                    C_NULL, rp_obj,
+                    length(config_image), pointer(config_image),
+                    counter_data_size, pointer(counter_data),
+                    range_mode, CUPTI_KernelReplay,
+                    max_ranges, max_nesting, 1, 0, 1,
+                ))
+                cuptiRangeProfilerSetConfig(set_params)
+            end
+
+            cuptiRangeProfilerStart(Ref(CUpti_RangeProfiler_Start_Params(
+                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Start_Params, pRangeProfilerObject),
+                C_NULL, rp_obj,
+            )))
+
+            # Run user code with callback enabled for kernel name capture
+            enable!(cb_cfg) do
+                f()
+            end
+
+            cuptiRangeProfilerStop(Ref(CUpti_RangeProfiler_Stop_Params(
+                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Stop_Params, isAllPassSubmitted),
+                C_NULL, rp_obj, 0, 0, 0,
+            )))
+
+            cuptiRangeProfilerDecodeData(Ref(CUpti_RangeProfiler_DecodeData_Params(
+                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_DecodeData_Params, numOfRangeDropped),
+                C_NULL, rp_obj, 0,
+            )))
+
+            # Extract and evaluate results
+            GC.@preserve counter_data begin
+                info_params = Ref(CUpti_RangeProfiler_GetCounterDataInfo_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_GetCounterDataInfo_Params, numTotalRanges),
+                    C_NULL, pointer(counter_data), counter_data_size, 0,
+                ))
+                cuptiRangeProfilerGetCounterDataInfo(info_params)
+                num_ranges = Int(info_params[].numTotalRanges)
+
+                range_names = String[]
+                values = Matrix{Float64}(undef, num_ranges, length(metric_names))
+
+                for i in 0:(num_ranges-1)
+                    range_info = Ref(CUpti_RangeProfiler_CounterData_GetRangeInfo_Params(
+                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_CounterData_GetRangeInfo_Params, rangeName),
+                        C_NULL, pointer(counter_data), counter_data_size,
+                        i, Base.unsafe_convert(Cstring, "/"), Cstring(C_NULL),
+                    ))
+                    cuptiRangeProfilerCounterDataGetRangeInfo(range_info)
+                    push!(range_names, unsafe_string(range_info[].rangeName))
+
+                    vals = evaluate_metrics(host_ctx, counter_data, i, metric_names)
+                    values[i+1, :] .= vals
+                end
+
+                return RangeProfileResult(range_names, kernel_names, metric_names, values)
             end
         finally
-            close(host_ctx)
+            cuptiRangeProfilerDisable(Ref(CUpti_RangeProfiler_Disable_Params(
+                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_RangeProfiler_Disable_Params, pRangeProfilerObject),
+                C_NULL, rp_obj,
+            )))
         end
     end
 end
@@ -1054,161 +1084,104 @@ function pm_sample(f, metric_names::Vector{String};
                    max_samples::Int=1024,
                    hw_buffer_size::Int=16*1024*1024,
                    trigger_mode::CUpti_PmSampling_TriggerMode=CUPTI_PM_SAMPLING_TRIGGER_MODE_GPU_SYSCLK_INTERVAL)
-    _check_profiler_host_api()
-    check_profiling_permissions()
+    # PM sampling needs a counter availability image for forward chip compatibility
+    avail_image = _get_counter_availability(device_index)
 
-    if chip === nothing
-        chip = chip_name(CUDA.device())
-    end
-
-    @lock profiler_lock begin
-        _profiler_initialize()
-
-        # get counter availability image
-        avail_params = Ref(CUpti_PmSampling_GetCounterAvailability_Params(
-            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterAvailability_Params, pCounterAvailabilityImage),
-            C_NULL,
-            device_index,
-            0,
-            Ptr{UInt8}(0),
+    _with_profiler_host(metric_names, CUPTI_PROFILER_TYPE_PM_SAMPLING;
+                        chip, counter_availability_image=avail_image) do host_ctx, config_image
+        # Enable PM sampling on device
+        enable_params = Ref(CUpti_PmSampling_Enable_Params(
+            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Enable_Params, pPmSamplingObject),
+            C_NULL, device_index, Ptr{CUpti_PmSampling_Object}(0),
         ))
-        cuptiPmSamplingGetCounterAvailability(avail_params)
-        avail_size = avail_params[].counterAvailabilityImageSize
-        avail_image = Vector{UInt8}(undef, avail_size)
-        avail_params = Ref(CUpti_PmSampling_GetCounterAvailability_Params(
-            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterAvailability_Params, pCounterAvailabilityImage),
-            C_NULL,
-            device_index,
-            avail_size,
-            pointer(avail_image),
-        ))
-        cuptiPmSamplingGetCounterAvailability(avail_params)
+        cuptiPmSamplingEnable(enable_params)
+        pm_obj = enable_params[].pPmSamplingObject
 
-        # create host context
-        host_ctx = ProfilerHostContext(chip;
-            profiler_type=CUPTI_PROFILER_TYPE_PM_SAMPLING,
-            counter_availability_image=avail_image)
         try
-            config_add_metrics!(host_ctx, metric_names)
-            config_image = get_config_image(host_ctx)
+            # Allocate and initialize counter data buffer
+            c_names = Base.unsafe_convert.(Cstring, metric_names)
+            counter_data_size = GC.@preserve metric_names c_names begin
+                size_params = Ref(CUpti_PmSampling_GetCounterDataSize_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterDataSize_Params, counterDataSize),
+                    C_NULL, pm_obj,
+                    pointer(c_names), length(c_names),
+                    max_samples, 0,
+                ))
+                cuptiPmSamplingGetCounterDataSize(size_params)
+                Int(size_params[].counterDataSize)
+            end
 
-            # enable PM sampling
-            enable_params = Ref(CUpti_PmSampling_Enable_Params(
-                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Enable_Params, pPmSamplingObject),
-                C_NULL,
-                device_index,
-                Ptr{CUpti_PmSampling_Object}(0),
-            ))
-            cuptiPmSamplingEnable(enable_params)
-            pm_obj = enable_params[].pPmSamplingObject
+            counter_data = Vector{UInt8}(undef, counter_data_size)
+            GC.@preserve counter_data begin
+                init_params = Ref(CUpti_PmSampling_CounterDataImage_Initialize_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_CounterDataImage_Initialize_Params, pCounterData),
+                    C_NULL, pm_obj, counter_data_size, pointer(counter_data),
+                ))
+                cuptiPmSamplingCounterDataImageInitialize(init_params)
+            end
 
+            # Configure sampling parameters
+            GC.@preserve config_image begin
+                cfg_params = Ref(CUpti_PmSampling_SetConfig_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_SetConfig_Params, hwBufferAppendMode),
+                    C_NULL, pm_obj,
+                    length(config_image), pointer(config_image),
+                    hw_buffer_size, sampling_interval, trigger_mode,
+                    CUPTI_PM_SAMPLING_HARDWARE_BUFFER_APPEND_MODE_KEEP_LATEST,
+                ))
+                cuptiPmSamplingSetConfig(cfg_params)
+            end
+
+            # Start sampling, run user code, stop
+            cuptiPmSamplingStart(Ref(CUpti_PmSampling_Start_Params(
+                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Start_Params, pPmSamplingObject),
+                C_NULL, pm_obj,
+            )))
             try
-                # get counter data size
-                c_names = Base.unsafe_convert.(Cstring, metric_names)
-                counter_data_size = GC.@preserve metric_names c_names begin
-                    size_params = Ref(CUpti_PmSampling_GetCounterDataSize_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterDataSize_Params, counterDataSize),
-                        C_NULL, pm_obj,
-                        pointer(c_names), length(c_names),
-                        max_samples, 0,
-                    ))
-                    cuptiPmSamplingGetCounterDataSize(size_params)
-                    Int(size_params[].counterDataSize)
-                end
-
-                counter_data = Vector{UInt8}(undef, counter_data_size)
-
-                # initialize counter data image
-                GC.@preserve counter_data begin
-                    init_params = Ref(CUpti_PmSampling_CounterDataImage_Initialize_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_CounterDataImage_Initialize_Params, pCounterData),
-                        C_NULL, pm_obj,
-                        counter_data_size,
-                        pointer(counter_data),
-                    ))
-                    cuptiPmSamplingCounterDataImageInitialize(init_params)
-                end
-
-                # set config
-                GC.@preserve config_image begin
-                    cfg_params = Ref(CUpti_PmSampling_SetConfig_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_SetConfig_Params, hwBufferAppendMode),
-                        C_NULL, pm_obj,
-                        length(config_image), pointer(config_image),
-                        hw_buffer_size,
-                        sampling_interval,
-                        trigger_mode,
-                        CUPTI_PM_SAMPLING_HARDWARE_BUFFER_APPEND_MODE_KEEP_LATEST,
-                    ))
-                    cuptiPmSamplingSetConfig(cfg_params)
-                end
-
-                # start sampling
-                start_params = Ref(CUpti_PmSampling_Start_Params(
-                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Start_Params, pPmSamplingObject),
-                    C_NULL, pm_obj,
-                ))
-                cuptiPmSamplingStart(start_params)
-
-                # run user code
-                try
-                    f()
-                finally
-                    stop_params = Ref(CUpti_PmSampling_Stop_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Stop_Params, pPmSamplingObject),
-                        C_NULL, pm_obj,
-                    ))
-                    cuptiPmSamplingStop(stop_params)
-                end
-
-                # decode data
-                GC.@preserve counter_data begin
-                    decode_params = Ref(CUpti_PmSampling_DecodeData_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_DecodeData_Params, overflow),
-                        C_NULL, pm_obj,
-                        pointer(counter_data), counter_data_size,
-                        CUPTI_PM_SAMPLING_DECODE_STOP_REASON_OTHER,
-                        0,
-                    ))
-                    cuptiPmSamplingDecodeData(decode_params)
-
-                    # get number of samples
-                    info_params = Ref(CUpti_PmSampling_GetCounterDataInfo_Params(
-                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterDataInfo_Params, numCompletedSamples),
-                        C_NULL,
-                        pointer(counter_data), counter_data_size,
-                        0, 0, 0,
-                    ))
-                    cuptiPmSamplingGetCounterDataInfo(info_params)
-                    num_samples = Int(info_params[].numCompletedSamples)
-
-                    # extract samples
-                    samples = PmSample[]
-                    for i in 0:(num_samples-1)
-                        sample_info = Ref(CUpti_PmSampling_CounterData_GetSampleInfo_Params(
-                            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_CounterData_GetSampleInfo_Params, endTimestamp),
-                            C_NULL, pm_obj,
-                            pointer(counter_data), counter_data_size,
-                            i, 0, 0,
-                        ))
-                        cuptiPmSamplingCounterDataGetSampleInfo(sample_info)
-                        si = sample_info[]
-
-                        vals = evaluate_metrics(host_ctx, counter_data, i, metric_names)
-                        push!(samples, PmSample(si.startTimestamp, si.endTimestamp, vals))
-                    end
-
-                    return PmSamplingResult(metric_names, samples)
-                end
+                f()
             finally
-                disable_params = Ref(CUpti_PmSampling_Disable_Params(
-                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Disable_Params, pPmSamplingObject),
+                cuptiPmSamplingStop(Ref(CUpti_PmSampling_Stop_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Stop_Params, pPmSamplingObject),
                     C_NULL, pm_obj,
+                )))
+            end
+
+            # Decode and extract samples
+            GC.@preserve counter_data begin
+                cuptiPmSamplingDecodeData(Ref(CUpti_PmSampling_DecodeData_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_DecodeData_Params, overflow),
+                    C_NULL, pm_obj,
+                    pointer(counter_data), counter_data_size,
+                    CUPTI_PM_SAMPLING_DECODE_STOP_REASON_OTHER, 0,
+                )))
+
+                info_params = Ref(CUpti_PmSampling_GetCounterDataInfo_Params(
+                    @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_GetCounterDataInfo_Params, numCompletedSamples),
+                    C_NULL, pointer(counter_data), counter_data_size, 0, 0, 0,
                 ))
-                cuptiPmSamplingDisable(disable_params)
+                cuptiPmSamplingGetCounterDataInfo(info_params)
+                num_samples = Int(info_params[].numCompletedSamples)
+
+                samples = PmSample[]
+                for i in 0:(num_samples-1)
+                    sample_info = Ref(CUpti_PmSampling_CounterData_GetSampleInfo_Params(
+                        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_CounterData_GetSampleInfo_Params, endTimestamp),
+                        C_NULL, pm_obj,
+                        pointer(counter_data), counter_data_size, i, 0, 0,
+                    ))
+                    cuptiPmSamplingCounterDataGetSampleInfo(sample_info)
+                    si = sample_info[]
+                    vals = evaluate_metrics(host_ctx, counter_data, i, metric_names)
+                    push!(samples, PmSample(si.startTimestamp, si.endTimestamp, vals))
+                end
+
+                return PmSamplingResult(metric_names, samples)
             end
         finally
-            close(host_ctx)
+            cuptiPmSamplingDisable(Ref(CUpti_PmSampling_Disable_Params(
+                @CUPTI_PROFILER_STRUCT_SIZE(CUpti_PmSampling_Disable_Params, pPmSamplingObject),
+                C_NULL, pm_obj,
+            )))
         end
     end
 end
