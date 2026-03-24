@@ -1,6 +1,6 @@
 module SparseMatricesCSRExt
 
-using CUDA
+using CUDACore
 using cuSPARSE
 import cuSPARSE:
     CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO, CuSparseMatrixBSR

@@ -208,7 +208,7 @@ function CuContext(f::Function, pctx::CuPrimaryContext)
 end
 
 """
-    CUDA.unsafe_release!(pctx::CuPrimaryContext)
+    CUDACore.unsafe_release!(pctx::CuPrimaryContext)
 
 Lower the refcount of a context, possibly freeing up all resources associated with it. This
 does not respect any users of the context, and might make other objects unusable.
@@ -388,12 +388,12 @@ function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
                     enable_peer_access(context(dst))
                     peer_access[][src_idx, dst_idx] = 1
                 catch err
-                    if err.code == CUDA.CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED
+                    if err.code == CUDACore.CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED
                         @warn "Peer-to-peer access between $src and $dst was unexpectedly already enabled"
-                        CUDA.peer_access[][src_idx, dst_idx] = 1
+                        CUDACore.peer_access[][src_idx, dst_idx] = 1
                     else
                         @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
-                        CUDA.peer_access[][src_idx, dst_idx] = -1
+                        CUDACore.peer_access[][src_idx, dst_idx] = -1
                     end
                 end
             end

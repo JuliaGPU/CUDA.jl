@@ -94,7 +94,7 @@ function mg_syevd!(jobz::Char, uplo::Char, A; dev_rows=1, dev_cols=ndevices()) #
     end
     for (di, dev) in enumerate(devices())
         device!(dev)
-        workspace[di] = CUDA.zeros(eltype(A), lwork[])
+        workspace[di] = CUDACore.zeros(eltype(A), lwork[])
         synchronize()
     end
     device!(dev)
@@ -130,7 +130,7 @@ function mg_potrf!(uplo::Char, A; dev_rows=1, dev_cols=ndevices()) # one host-si
     end
     for (di, dev) in enumerate(devices())
         device!(dev)
-        workspace[di]     = CUDA.zeros(eltype(A), lwork[])
+        workspace[di]     = CUDACore.zeros(eltype(A), lwork[])
         synchronize()
     end
     device!(dev)
@@ -162,7 +162,7 @@ function mg_potri!(uplo::Char, A; dev_rows=1, dev_cols=ndevices()) # one host-si
     end
     for (di, dev) in enumerate(devices())
         device!(dev)
-        workspace[di]     = CUDA.zeros(eltype(A), lwork[])
+        workspace[di]     = CUDACore.zeros(eltype(A), lwork[])
         synchronize()
     end
     device!(dev)
@@ -200,7 +200,7 @@ function mg_potrs!(uplo::Char, A, B; dev_rows=1, dev_cols=ndevices()) # one host
     end
     for (di, dev) in enumerate(devices())
         device!(dev)
-        workspace[di]     = CUDA.zeros(eltype(A), lwork[])
+        workspace[di]     = CUDACore.zeros(eltype(A), lwork[])
         synchronize()
     end
     device!(dev)
@@ -227,7 +227,7 @@ function mg_getrf!(A; dev_rows=1, dev_cols=ndevices()) # one host-side array A
     JA      = 1
     for (di, dev) in enumerate(devices())
         device!(dev)
-        ipivs[di]     = CUDA.zeros(Cint, N)
+        ipivs[di]     = CUDACore.zeros(Cint, N)
         synchronize()
     end
     device!(dev)
@@ -237,7 +237,7 @@ function mg_getrf!(A; dev_rows=1, dev_cols=ndevices()) # one host-side array A
     device_synchronize()
     for (di, dev) in enumerate(devices())
         device!(dev)
-        workspace[di]     = CUDA.zeros(eltype(A), lwork[])
+        workspace[di]     = CUDACore.zeros(eltype(A), lwork[])
         synchronize()
     end
     device!(dev)
@@ -288,7 +288,7 @@ function mg_getrs!(trans, A, ipiv, B; dev_rows=1, dev_cols=ndevices()) # one hos
     end
     for (di, dev) in enumerate(devices())
         device!(dev)
-        workspace[di]     = CUDA.zeros(eltype(A), lwork[])
+        workspace[di]     = CUDACore.zeros(eltype(A), lwork[])
         synchronize()
     end
     device!(dev)

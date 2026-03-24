@@ -1,23 +1,23 @@
 module cuFFT
 
-using CUDA
-using CUDA.APIUtils
+using CUDACore
+using CUDACore.APIUtils
 using GPUToolbox
-using CUDA: CUstream, cuComplex, cuDoubleComplex, cudaDataType, libraryPropertyType
-using CUDA: unsafe_free!, retry_reclaim, initialize_context
+using CUDACore: CUstream, cuComplex, cuDoubleComplex, cudaDataType, libraryPropertyType
+using CUDACore: unsafe_free!, retry_reclaim, initialize_context
 
 using CEnum: @cenum
 
 using Reexport: @reexport
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import CUDA_Runtime_jll
 end
 
 
-export functional
+public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -37,11 +37,11 @@ include("fft.jl")
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcufft
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cufft"; optional=true)
         if path === nothing

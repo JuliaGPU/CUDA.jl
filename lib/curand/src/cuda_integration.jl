@@ -1,6 +1,6 @@
-# Integration with CUDA.jl: implements CUDA.rand, CUDA.randn, CUDA.seed!
+# High-level rand/randn/seed! API and integration with CUDACore types
 
-using CUDA: AnyCuArray, CuArray, CuContext, active_state
+using CUDACore: AnyCuArray, CuArray, CuContext, active_state
 
 
 ## native RNG handle cache
@@ -36,11 +36,11 @@ function native_rng()
 end
 
 
-## CUDA.rand / CUDA.randn / CUDA.seed! — high-level API
+## cuRAND.rand / cuRAND.randn / cuRAND.seed! — high-level API
 
 curand_rng() = default_rng()
 
-function CUDA.seed!(seed=Base.rand(UInt64))
+function seed!(seed=Base.rand(UInt64))
     Random.seed!(native_rng(), seed)
     Random.seed!(curand_rng(), seed)
 end
@@ -60,25 +60,25 @@ rand_poisson!(A::AnyCuArray; kwargs...) =
     error("cuRAND does not support generating Poisson-distributed random numbers of type $(eltype(A))")
 
 # CURAND out-of-place
-CUDA.rand(T::UniformType, dims::Dims) = Random.rand(curand_rng(), T, dims)
-CUDA.randn(T::NormalType, dims::Dims; kwargs...) = Random.randn(curand_rng(), T, dims; kwargs...)
-CUDA.rand(T::UniformType, dim1::Integer, dims::Integer...) =
+rand(T::UniformType, dims::Dims) = Random.rand(curand_rng(), T, dims)
+randn(T::NormalType, dims::Dims; kwargs...) = Random.randn(curand_rng(), T, dims; kwargs...)
+rand(T::UniformType, dim1::Integer, dims::Integer...) =
     Random.rand(curand_rng(), T, Dims((dim1, dims...)))
-CUDA.randn(T::NormalType, dim1::Integer, dims::Integer...; kwargs...) =
+randn(T::NormalType, dim1::Integer, dims::Integer...; kwargs...) =
     Random.randn(curand_rng(), T, Dims((dim1, dims...)); kwargs...)
 
 # native out-of-place
-CUDA.rand(T::Type, dims::Dims) = Random.rand!(CuArray{T}(undef, dims...))
-CUDA.randn(T::Type, dims::Dims; kwargs...) = Random.randn!(CuArray{T}(undef, dims...); kwargs...)
-CUDA.rand(T::Type, dim1::Integer, dims::Integer...) =
+rand(T::Type, dims::Dims) = Random.rand!(CuArray{T}(undef, dims...))
+randn(T::Type, dims::Dims; kwargs...) = Random.randn!(CuArray{T}(undef, dims...); kwargs...)
+rand(T::Type, dim1::Integer, dims::Integer...) =
     Random.rand!(CuArray{T}(undef, dim1, dims...))
-CUDA.randn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
+randn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
     Random.randn!(CuArray{T}(undef, dim1, dims...); kwargs...)
 
 # untyped out-of-place (defaults to CURAND Float32)
-CUDA.rand(dim1::Integer, dims::Integer...) =
+rand(dim1::Integer, dims::Integer...) =
     Random.rand(curand_rng(), Dims((dim1, dims...)))
-CUDA.randn(dim1::Integer, dims::Integer...; kwargs...) =
+randn(dim1::Integer, dims::Integer...; kwargs...) =
     Random.randn(curand_rng(), Dims((dim1, dims...)); kwargs...)
 
 # out-of-place logn/poisson
@@ -94,7 +94,7 @@ rand_poisson(dim1::Integer, dims::Integer...; kwargs...) =
     rand_poisson(curand_rng(), Dims((dim1, dims...)); kwargs...)
 
 # scalars
-CUDA.rand(T::Type=Float32) = CUDA.rand(T, 1)[]
-CUDA.randn(T::Type=Float32; kwargs...) = CUDA.randn(T, 1; kwargs...)[]
+rand(T::Type=Float32) = rand(T, 1)[]
+randn(T::Type=Float32; kwargs...) = randn(T, 1; kwargs...)[]
 rand_logn(T::Type=Float32; kwargs...) = rand_logn(curand_rng(), T, 1; kwargs...)[]
 rand_poisson(T::Type=Cuint; kwargs...) = rand_poisson(curand_rng(), T, 1; kwargs...)[]

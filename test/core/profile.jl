@@ -1,5 +1,5 @@
 import NVTX
-using CUDA.Profile: push_row!, filtermask
+using CUDACore.Profile: push_row!, filtermask
 
 @testset "profiler" begin
 
@@ -32,10 +32,10 @@ end
 
 @testset "external" begin
 
-CUDA.Profile.start()
-CUDA.Profile.stop()
+CUDACore.Profile.start()
+CUDACore.Profile.stop()
 
-@test CUDA.@profile external=true begin
+@test CUDACore.@profile external=true begin
     true
 end
 
@@ -48,7 +48,7 @@ end
 
 # smoke test
 let
-    str = string(CUDA.@profile true)
+    str = string(CUDACore.@profile true)
     @test occursin("No host-side activity was recorded", str)
     @test occursin("No device-side activity was recorded", str)
 end
@@ -56,7 +56,7 @@ end
 # kernel launch
 let
     @cuda identity(nothing)
-    str = string(CUDA.@profile @cuda identity(nothing))
+    str = string(CUDACore.@profile @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
     @test occursin("identity()", str)
@@ -67,7 +67,7 @@ end
 
 # kernel launch (trace)
 let
-    str = string(CUDA.@profile trace=true @cuda identity(nothing))
+    str = string(CUDACore.@profile trace=true @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
     @test occursin("identity()", str)
@@ -79,7 +79,7 @@ end
 
 # kernel launch (raw trace)
 let
-    str = string(CUDA.@profile trace=true raw=true @cuda identity(nothing))
+    str = string(CUDACore.@profile trace=true raw=true @cuda identity(nothing))
 
     @test occursin("cuLaunchKernel", str)
     @test occursin("identity()", str)
@@ -91,12 +91,12 @@ end
 
 # benchmarked profile
 let
-    str = string(CUDA.@bprofile @cuda identity(nothing))
+    str = string(CUDACore.@bprofile @cuda identity(nothing))
     @test occursin("cuLaunchKernel", str)
     @test occursin("identity()", str)
     @test !occursin("cuCtxGetCurrent", str)
 
-    str = string(CUDA.@bprofile raw=true @cuda identity(nothing))
+    str = string(CUDACore.@bprofile raw=true @cuda identity(nothing))
     @test occursin("cuLaunchKernel", str)
     @test occursin("identity()", str)
     @test occursin("cuCtxGetCurrent", str)
@@ -106,14 +106,14 @@ if CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
 
 # NVTX markers
 let
-    str = string(CUDA.@profile trace=true NVTX.@mark "a marker")
+    str = string(CUDACore.@profile trace=true NVTX.@mark "a marker")
     @test occursin("NVTX marker", str)
     @test occursin("a marker", str)
 end
 
 # NVTX ranges
 let
-    str = string(CUDA.@profile trace=true NVTX.@range "a range" identity(nothing))
+    str = string(CUDACore.@profile trace=true NVTX.@range "a range" identity(nothing))
     @test occursin("NVTX ranges", str)
     @test occursin("a range", str)
 end

@@ -8,34 +8,34 @@
         sync_threads()
     end
 
-    ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}))
+    ir = sprint(io->CUDACore.code_llvm(io, foobar, Tuple{}))
     @test !occursin("inttoptr", ir)
 end
 
 @testset "CUDA.jl#553" begin
     function kernel(ptr)
-       unsafe_store!(ptr, CUDA.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+       unsafe_store!(ptr, CUDACore.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
        return
     end
 
-    ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{Ptr{Float32}}))
+    ir = sprint(io->CUDACore.code_llvm(io, kernel, Tuple{Ptr{Float32}}))
     @test !occursin("@__nv_fmaf", ir)
 end
 
 @testset "assume" begin
     foo(i) = cld(42, i)
-    ir = sprint(io->CUDA.code_llvm(io, foo, Tuple{Int}))
+    ir = sprint(io->CUDACore.code_llvm(io, foo, Tuple{Int}))
     @test occursin("@gpu_report_exception", ir)
 
 
-    bar(i) = (CUDA.assume(i > 0); cld(42, i))
-    ir = sprint(io->CUDA.code_llvm(io, bar, Tuple{Int}))
+    bar(i) = (CUDACore.assume(i > 0); cld(42, i))
+    ir = sprint(io->CUDACore.code_llvm(io, bar, Tuple{Int}))
     @test !occursin("gpu_report_exception", ir)
 end
 
 @testset "stripping invariant.load" begin
     function kernel(ptr, x)
-        i = CUDA.threadIdx_x()
+        i = CUDACore.threadIdx_x()
         @inbounds ptr[] = x[i]
         return
     end
@@ -132,16 +132,16 @@ end
         return
     end
 
-    asm = sprint(io->CUDA.code_ptx(io, g, Tuple{Float64}))
+    asm = sprint(io->CUDACore.code_ptx(io, g, Tuple{Float64}))
     @test occursin(r"\.func .*julia_f_expensive", asm)
 
-    asm = sprint(io->CUDA.code_ptx(io, g, Tuple{Float64}; always_inline=true))
+    asm = sprint(io->CUDACore.code_ptx(io, g, Tuple{Float64}; always_inline=true))
     @test !occursin(r"\.func .*julia_f_expensive", asm)
 
-    asm = sprint(io->CUDA.code_ptx(io, h, Tuple{Float64}; always_inline=true))
+    asm = sprint(io->CUDACore.code_ptx(io, h, Tuple{Float64}; always_inline=true))
     @test !occursin(r"\.func .*julia_f_expensive", asm)
 
-    asm = sprint(io->CUDA.code_ptx(io, h, Tuple{Float64}))
+    asm = sprint(io->CUDACore.code_ptx(io, h, Tuple{Float64}))
     @test occursin(r"\.func .*julia_f_expensive", asm)
 end
 
@@ -153,7 +153,7 @@ end
         return
     end
 
-    asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{2,CuDeviceArray{Float32,1,AS.Global}}))
+    asm = sprint(io->CUDACore.code_ptx(io, kernel, NTuple{2,CuDeviceArray{Float32,1,AS.Global}}))
     @test !occursin(".local", asm)
 end
 
@@ -164,7 +164,7 @@ end
         return
     end
 
-    asm = sprint(io->CUDA.code_ptx(io, div_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
+    asm = sprint(io->CUDACore.code_ptx(io, div_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
     @test occursin("div.approx.ftz", asm)
 
     function sqrt_kernel(x)
@@ -173,10 +173,10 @@ end
         return
     end
 
-    asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}))
+    asm = sprint(io->CUDACore.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}))
     @test occursin("sqrt.r", asm)
 
-    asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
+    asm = sprint(io->CUDACore.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
     @test occursin("sqrt.approx.ftz", asm)
 end
 
@@ -191,8 +191,8 @@ end
     invalid_kernel() = 1
 
     if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
-        @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
-        @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+        @test CUDACore.code_sass(devnull, valid_kernel, Tuple{}) == nothing
+        @test_throws CUDACore.KernelError CUDACore.code_sass(devnull, invalid_kernel, Tuple{})
     end
 end
 
@@ -202,15 +202,15 @@ end
     @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
 
     if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
-        CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+        CUDACore.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
     end
 end
 
 @testset "device runtime" begin
-    kernel() = (CUDA.cudaGetLastError(); return)
+    kernel() = (CUDACore.cudaGetLastError(); return)
 
     if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
-        CUDA.code_sass(devnull, kernel, Tuple{})
+        CUDACore.code_sass(devnull, kernel, Tuple{})
     end
 end
 

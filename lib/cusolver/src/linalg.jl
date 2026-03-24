@@ -37,12 +37,12 @@ function Base.:\(_A::CuMatOrAdj, _B::CuOrAdj)
         F, tau = geqrf!(At)  # A = RᴴQᴴ
         if B isa CuVector{T}
             cuBLAS.trsv!('U', 'C', 'N', view(F,1:n,1:n), B)
-            X = CUDA.zeros(T, m)
+            X = CUDACore.zeros(T, m)
             view(X, 1:n) .= B
         else
             cuBLAS.trsm!('L', 'U', 'C', 'N', one(T), view(F,1:n,1:n), B)
             p = size(B, 2)
-            X = CUDA.zeros(T, m, p)
+            X = CUDACore.zeros(T, m, p)
             view(X, 1:n, :) .= B
         end
         ormqr!('L', 'N', F, tau, X)
@@ -78,8 +78,8 @@ end
 
 # patch JuliaLang/julia#40899 to create a CuArray
 # (see https://github.com/JuliaLang/julia/pull/41331#issuecomment-868374522)
-_zeros(::Type{T}, b::AbstractVector, n::Integer) where {T} = CUDA.zeros(T, max(length(b), n))
-_zeros(::Type{T}, B::AbstractMatrix, n::Integer) where {T} = CUDA.zeros(T, max(size(B, 1), n), size(B, 2))
+_zeros(::Type{T}, b::AbstractVector, n::Integer) where {T} = CUDACore.zeros(T, max(length(b), n))
+_zeros(::Type{T}, B::AbstractMatrix, n::Integer) where {T} = CUDACore.zeros(T, max(size(B, 1), n), size(B, 2))
 function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
                           Adjoint{<:Any,<:LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray}}},
                  B::AbstractVecOrMat)
@@ -275,10 +275,10 @@ using LinearAlgebra: Factorization, AbstractQ, QRCompactWY, QRCompactWYQ, QRPack
 LinearAlgebra.qr!(A::CuMatrix{T}) where T = QR(geqrf!(A::CuMatrix{T})...)
 
 # conversions
-CUDA.CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
-CUDA.CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
-CUDA.CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
-CUDA.CuArray(F::QRPivoted) = CuMatrix(F)
+CUDACore.CuMatrix(F::Union{QR,QRCompactWY}) = CuArray(AbstractArray(F))
+CUDACore.CuArray(F::Union{QR,QRCompactWY}) = CuMatrix(F)
+CUDACore.CuMatrix(F::QRPivoted) = CuArray(AbstractArray(F))
+CUDACore.CuArray(F::QRPivoted) = CuMatrix(F)
 
 function LinearAlgebra.ldiv!(_qr::QR, b::CuVector)
     m,n = size(_qr)
@@ -306,19 +306,19 @@ end
 # AbstractQ's `size` is the size of the full matrix,
 # while `Matrix(Q)` only gives the compact Q.
 # See JuliaLang/julia#26591 and JuliaGPU/CUDA.jl#969.
-CUDA.CuArray(Q::AbstractQ) = CuMatrix(Q)
-CUDA.CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
-CUDA.CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
-CUDA.CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
+CUDACore.CuArray(Q::AbstractQ) = CuMatrix(Q)
+CUDACore.CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
+CUDACore.CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
+CUDACore.CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
     CuMatrix{T}(lmul!(Q, CuMatrix{S}(I, size(Q, 1), min(size(Q.factors)...))))
-CUDA.CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)
-CUDA.CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not supported")
+CUDACore.CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)
+CUDACore.CuMatrix{T}(Q::QRCompactWYQ) where {T} = error("QRCompactWY format is not supported")
 # avoid the CPU array in the above mul!
 Base.Matrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 Base.Matrix{T}(Q::QRCompactWYQ{S,<:CuArray,<:CuArray}) where {T,S} = Array(CuMatrix{T}(Q))
 
 function Base.getindex(Q::QRPackedQ{<:Any, <:CuArray}, ::Colon, j::Int)
-    y = CUDA.zeros(eltype(Q), size(Q, 2))
+    y = CUDACore.zeros(eltype(Q), size(Q, 2))
     y[j] = 1
     lmul!(Q, y)
 end

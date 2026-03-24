@@ -330,7 +330,7 @@ end
 function cudnnFindConvolutionAlgorithmWorkspaceSize(x)
     # Because algorithm discovery runs infrequently yet allocates more than conv functions,
     # This is a good place to synchronize and trim the memory pool to reduce fragmentation.
-    CUDA.reclaim()
-    gpufree = CUDA.free_memory() + coalesce(CUDA.cached_memory(), 0)
+    CUDACore.reclaim()
+    gpufree = CUDACore.free_memory() + coalesce(CUDACore.cached_memory(), 0)
     min(gpufree ÷ 10, sizeof(x) * 100)
 end

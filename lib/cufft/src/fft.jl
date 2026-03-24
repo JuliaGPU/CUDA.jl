@@ -55,7 +55,7 @@ function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle, X::DenseCuArray{S,N
     CuFFTPlan{T,S,K,inplace,N,R,B}(handle, size(X), sizey, region, buffer)
 end
 
-function CUDA.unsafe_free!(plan::CuFFTPlan)
+function CUDACore.unsafe_free!(plan::CuFFTPlan)
     if plan.handle != C_NULL
         context!(plan.ctx; skip_destroyed=true) do
             cufftReleasePlan(plan.handle)
@@ -63,7 +63,7 @@ function CUDA.unsafe_free!(plan::CuFFTPlan)
         plan.handle = C_NULL
     end
     if !isnothing(plan.buffer)
-        CUDA.unsafe_free!(plan.buffer)
+        CUDACore.unsafe_free!(plan.buffer)
     end
 end
 

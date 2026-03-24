@@ -1,23 +1,24 @@
 module cuRAND
 
-using CUDA
-using CUDA.APIUtils
+using CUDACore
+using CUDACore.APIUtils
 using GPUToolbox
-using CUDA: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
-using CUDA: retry_reclaim, initialize_context
+using CUDACore: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
+using CUDACore: retry_reclaim, initialize_context
 
 using CEnum: @cenum
 
 using Random
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import CUDA_Runtime_jll
 end
 
 
-export functional
+public functional
+public rand, randn, seed!
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -35,7 +36,7 @@ include("random.jl")
 # native kernel-based RNG
 include("native.jl")
 
-# CUDA.rand/randn integration
+# CUDACore.rand/randn integration
 include("cuda_integration.jl")
 
 
@@ -55,7 +56,7 @@ end
 const idle_curand_rngs = HandleCache{CuContext,RNG}(handle_ctor, handle_dtor)
 
 function default_rng()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{rng::RNG}
@@ -85,11 +86,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcurand
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "curand"; optional=true)
         if path === nothing

@@ -1,6 +1,6 @@
 # Native kernel-based RNG (doesn't use the cuRAND library)
 
-using CUDA: AnyCuArray, CuArray
+using CUDACore: AnyCuArray, CuArray
 
 """
     cuRAND.NativeRNG()

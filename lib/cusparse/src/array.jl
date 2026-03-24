@@ -25,7 +25,7 @@ mutable struct CuSparseVector{Tv, Ti} <: AbstractCuSparseVector{Tv, Ti}
     end
 end
 
-function CUDA.unsafe_free!(xs::CuSparseVector)
+function CUDACore.unsafe_free!(xs::CuSparseVector)
     unsafe_free!(nonzeroinds(xs))
     unsafe_free!(nonzeros(xs))
     return
@@ -62,7 +62,7 @@ SparseArrays.getcolptr(S::CuSparseMatrixCSC) = S.colPtr
 
 CuSparseMatrixCSC(A::CuSparseMatrixCSC) = A
 
-function CUDA.unsafe_free!(xs::CuSparseMatrixCSC)
+function CUDACore.unsafe_free!(xs::CuSparseMatrixCSC)
     unsafe_free!(xs.colPtr)
     unsafe_free!(rowvals(xs))
     unsafe_free!(nonzeros(xs))
@@ -98,7 +98,7 @@ end
 CuSparseMatrixCSR{Tv, Ti}(csr::CuSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} = csr
 CuSparseMatrixCSR(A::CuSparseMatrixCSR) = A
 
-function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
+function CUDACore.unsafe_free!(xs::CuSparseMatrixCSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(nonzeros(xs))
@@ -150,7 +150,7 @@ end
 
 CuSparseMatrixBSR(A::CuSparseMatrixBSR) = A
 
-function CUDA.unsafe_free!(xs::CuSparseMatrixBSR)
+function CUDACore.unsafe_free!(xs::CuSparseMatrixBSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(nonzeros(xs))
@@ -195,7 +195,7 @@ end
 
 CuSparseArrayCSR(A::CuSparseArrayCSR) = A
 
-function CUDA.unsafe_free!(xs::CuSparseArrayCSR)
+function CUDACore.unsafe_free!(xs::CuSparseArrayCSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(nonzeros(xs))
@@ -285,9 +285,9 @@ Base.similar(Mat::CuSparseMatrixCSR, T::Type) = CuSparseMatrixCSR(copy(Mat.rowPt
 Base.similar(Mat::CuSparseMatrixBSR, T::Type) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
 Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
 
-Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CUDA.zeros(Int32, 1), CUDA.zeros(Int32, 0), CuVector{T}(undef, 0), (N, M))
-Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDA.zeros(Int32, 1), CUDA.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
-Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixCOO(CUDA.zeros(Int32, 0), CUDA.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
+Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
+Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixCOO(CUDACore.zeros(Int32, 0), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
 
 Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M) 
 Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M) 
@@ -433,11 +433,11 @@ function Base.getindex(x::CuSparseMatrixCOO{T}, i::Integer, ::Colon) where {T}
     if issorted(x.rowInd)
         row_start = searchsortedfirst(x.rowInd, i)
         row_end   = min(searchsortedlast(x.rowInd, i), length(x.rowInd))
-        row_start == length(x.rowInd) + 1 && return CuSparseVector(similar(x.rowInd, 0), CUDA.zeros(T, 0), size(x, 2))
+        row_start == length(x.rowInd) + 1 && return CuSparseVector(similar(x.rowInd, 0), CUDACore.zeros(T, 0), size(x, 2))
         CuSparseVector(x.colInd[row_start:row_end], x.nzVal[row_start:row_end], size(x, 2))
     else
         row_inds = findall(ix->ix == i, x.rowInd)
-        isnothing(row_inds) && return CuSparseVector(similar(x.rowInd, 0), CUDA.zeros(T, 0), size(x, 2))
+        isnothing(row_inds) && return CuSparseVector(similar(x.rowInd, 0), CUDACore.zeros(T, 0), size(x, 2))
         CuSparseVector(x.colInd[row_inds], x.nzVal[row_inds], size(x, 2))
     end
 end
@@ -447,11 +447,11 @@ function Base.getindex(x::CuSparseMatrixCOO{T}, ::Colon, j::Integer) where {T}
     if issorted(x.colInd)
         col_start = searchsortedfirst(x.colInd, j)
         col_end   = min(searchsortedlast(x.colInd, j), length(x.colInd))
-        col_start == length(x.colInd) + 1 && return CuSparseVector(similar(x.colInd, 0), CUDA.zeros(T, 0), size(x, 2))
+        col_start == length(x.colInd) + 1 && return CuSparseVector(similar(x.colInd, 0), CUDACore.zeros(T, 0), size(x, 2))
         CuSparseVector(x.rowInd[col_start:col_end], x.nzVal[col_start:col_end], size(x, 1))
     else
         col_inds = findall(ix->ix == j, x.colInd)
-        isnothing(col_inds) && return CuSparseVector(similar(x.colInd, 0), CUDA.zeros(T, 0), size(x, 1))
+        isnothing(col_inds) && return CuSparseVector(similar(x.colInd, 0), CUDACore.zeros(T, 0), size(x, 1))
         CuSparseVector(x.rowInd[col_inds], x.nzVal[col_inds], size(x, 1))
     end
 end
@@ -586,9 +586,9 @@ Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs
 Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
 Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
 
-Adapt.adapt_storage(::CUDA.CuArrayKernelAdaptor, xs::AbstractSparseArray) =
+Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor, xs::AbstractSparseArray) =
   adapt(CuArray, xs)
-Adapt.adapt_storage(::CUDA.CuArrayKernelAdaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
+Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
   adapt(CuArray{Float32}, xs)
 
 Adapt.adapt_storage(::Type{Array}, xs::CuSparseVector) = SparseVector(xs)
@@ -708,7 +708,7 @@ function GPUArrays.GPUSparseDeviceVector(iPtr::CuDeviceVector{Ti, A},
     GPUArrays.GPUSparseDeviceVector{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(iPtr, nzVal, len, nnz)
 end
 
-function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseVector)
+function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseVector)
     return GPUArrays.GPUSparseDeviceVector(
         adapt(to, x.iPtr),
         adapt(to, x.nzVal),
@@ -724,7 +724,7 @@ function GPUArrays.GPUSparseDeviceMatrixCSR(rowPtr::CuDeviceVector{Ti, A},
     GPUArrays.GPUSparseDeviceMatrixCSR{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowPtr, colVal, nzVal, dims, nnz)
 end
 
-function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSR)
+function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixCSR)
     return GPUArrays.GPUSparseDeviceMatrixCSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
@@ -741,7 +741,7 @@ function GPUArrays.GPUSparseDeviceMatrixCSC(colPtr::CuDeviceVector{Ti, A},
     GPUArrays.GPUSparseDeviceMatrixCSC{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(colPtr, rowVal, nzVal, dims, nnz)
 end
 
-function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCSC)
+function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixCSC)
     return GPUArrays.GPUSparseDeviceMatrixCSC(
         adapt(to, x.colPtr),
         adapt(to, x.rowVal),
@@ -760,7 +760,7 @@ function GPUArrays.GPUSparseDeviceMatrixBSR(rowPtr::CuDeviceVector{Ti, A},
     GPUArrays.GPUSparseDeviceMatrixBSR{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 end
 
-function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixBSR)
+function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixBSR)
     return GPUArrays.GPUSparseDeviceMatrixBSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),
@@ -778,7 +778,7 @@ function GPUArrays.GPUSparseDeviceMatrixCOO(rowInd::CuDeviceVector{Ti, A},
     GPUArrays.GPUSparseDeviceMatrixCOO{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowInd, colInd, nzVal, dims, nnz)
 end
 
-function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCOO)
+function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixCOO)
     return GPUArrays.GPUSparseDeviceMatrixCOO(
         adapt(to, x.rowInd),
         adapt(to, x.colInd),
@@ -787,7 +787,7 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseMatrixCOO)
     )
 end
 
-function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuSparseArrayCSR)
+function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseArrayCSR)
     return GPUArrays.GPUSparseDeviceArrayCSR(
         adapt(to, x.rowPtr),
         adapt(to, x.colVal),

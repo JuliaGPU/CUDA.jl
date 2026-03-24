@@ -59,10 +59,10 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
             i += blockDim().x * gridDim().x
         end
 
-        val = CUDA.reduce_block(+, local_val, zero(T), shuffle)
+        val = CUDACore.reduce_block(+, local_val, zero(T), shuffle)
         if threadIdx().x == 1i32
             # NOTE: introduces nondeterminism
-            @inbounds CUDA.@atomic res[] += val
+            @inbounds CUDACore.@atomic res[] += val
         end
 
         return
@@ -78,11 +78,11 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
         else
             T <: Union{Int32, Int64, Float32, Float64}
         end
-        if CUDA.math_mode() == CUDA.PEDANTIC_MATH || !atomic
+        if CUDACore.math_mode() == CUDACore.PEDANTIC_MATH || !atomic
             return mapreduce((x,y)->LinearAlgebra.dot(x, y), +, x, y; init=zero(T))
         end
 
-        res = CUDA.zeros(T, 1)
+        res = CUDACore.zeros(T, 1)
 
         # be conservative about using shuffle instructions
         shuffle = T <: Union{Bool,
@@ -111,7 +111,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
         shmem = compute_shmem(threads)
         kernel(x, y, res, Val(shuffle); threads, blocks, shmem)
 
-        CUDA.@allowscalar res[]
+        CUDACore.@allowscalar res[]
     end
 end
 
@@ -141,10 +141,10 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
             i += blockDim().x * gridDim().x
         end
 
-        val = CUDA.reduce_block(+, local_val, zero(T), shuffle)
+        val = CUDACore.reduce_block(+, local_val, zero(T), shuffle)
         if threadIdx().x == 1i32
             # NOTE: introduces nondeterminism
-            @inbounds CUDA.@atomic res[] += val
+            @inbounds CUDACore.@atomic res[] += val
         end
 
         return
@@ -160,7 +160,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
         else
             T <: Union{Int32, Int64, Float32, Float64}
         end
-        if CUDA.math_mode() == CUDA.PEDANTIC_MATH || !atomic
+        if CUDACore.math_mode() == CUDACore.PEDANTIC_MATH || !atomic
             bc = Base.Broadcast.broadcasted(A, Base.CartesianIndices(A)) do a, I
                 i, j = Tuple(I)
                 LinearAlgebra.dot(x[i], a * y[j])
@@ -168,7 +168,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
             return sum(bc)
         end
 
-        res = CUDA.zeros(T, 1)
+        res = CUDACore.zeros(T, 1)
 
         # be conservative about using shuffle instructions
         shuffle = T <: Union{Bool,
@@ -197,7 +197,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
         shmem = compute_shmem(threads)
         kernel_func(x, A, y, res, Val(shuffle); threads, blocks, shmem)
 
-        CUDA.@allowscalar res[]
+        CUDACore.@allowscalar res[]
     end
 end
 
@@ -457,10 +457,10 @@ end
 
 # conversions to dense matrices
 Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Array(Diagonal(Array(D.diag)))
-CUDA.CuArray(D::Diagonal{T}) where {T} = CuMatrix(D)
-function CUDA.CuMatrix{T}(D::Diagonal) where {T}
+CUDACore.CuArray(D::Diagonal{T}) where {T} = CuMatrix(D)
+function CUDACore.CuMatrix{T}(D::Diagonal) where {T}
     n = size(D, 1)
-    B = CUDA.zeros(T, n, n)
+    B = CUDACore.zeros(T, n, n)
     n == 0 && return B
 
     gpu_diag = adapt(CuArray, D.diag)

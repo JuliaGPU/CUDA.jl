@@ -12,6 +12,6 @@ function curandGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
-version() = VersionNumber(curandGetProperty(CUDA.MAJOR_VERSION),
-                          curandGetProperty(CUDA.MINOR_VERSION),
-                          curandGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(curandGetProperty(CUDACore.MAJOR_VERSION),
+                          curandGetProperty(CUDACore.MINOR_VERSION),
+                          curandGetProperty(CUDACore.PATCH_LEVEL))

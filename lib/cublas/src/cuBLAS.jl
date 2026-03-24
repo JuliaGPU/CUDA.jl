@@ -1,11 +1,11 @@
 module cuBLAS
 
-using CUDA
-using CUDA.APIUtils
+using CUDACore
+using CUDACore.APIUtils
 using GPUToolbox
 
-using CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationSpecialValuesSupport, cudaEmulationMantissaControl
-using CUDA: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context
+using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationSpecialValuesSupport, cudaEmulationMantissaControl
+using CUDACore: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context
 
 using GPUArrays
 
@@ -20,14 +20,14 @@ using CEnum: @cenum
 
 using Adapt: adapt
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import CUDA_Runtime_jll
 end
 
 
-export functional
+public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -53,12 +53,12 @@ function math_mode!(handle, mode)
     # https://github.com/facebookresearch/faiss/issues/1385
     flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
 
-    flags |= if mode == CUDA.PEDANTIC_MATH
+    flags |= if mode == CUDACore.PEDANTIC_MATH
         # prevent use of tensor cores
         CUBLAS_PEDANTIC_MATH
-    elseif mode == CUDA.DEFAULT_MATH
+    elseif mode == CUDACore.DEFAULT_MATH
         CUBLAS_DEFAULT_MATH
-    elseif mode == CUDA.FAST_MATH
+    elseif mode == CUDACore.FAST_MATH
         # we'll additionally select a compute-mode with reduced precision whenever possible
         CUBLAS_TF32_TENSOR_OP_MATH
     end
@@ -84,10 +84,10 @@ end
 const idle_handles = HandleCache{CuContext,cublasHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cublasHandle_t, stream::CuStream, math_mode::CUDA.MathMode}
+    LibraryState = @NamedTuple{handle::cublasHandle_t, stream::CuStream, math_mode::CUDACore.MathMode}
     states = get!(task_local_storage(), :CUBLAS) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
@@ -138,7 +138,7 @@ function xt_handle_ctor(ctxs)
 end
 function xt_handle_dtor(ctxs, handle)
     for ctx in ctxs
-        CUDA.isvalid(ctx) || return
+        CUDACore.isvalid(ctx) || return
     end
     cublasXtDestroy(handle)
 end
@@ -152,13 +152,13 @@ end
 
 devices() = get!(task_local_storage(), :CUBLASxt_devices) do
     # by default, select all devices
-    sort(collect(CUDA.devices()); by=deviceid)
+    sort(collect(CUDACore.devices()); by=deviceid)
 end::Vector{CuDevice}
 
 ndevices() = length(devices())
 
 function xt_handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per set of devices
     LibraryState = @NamedTuple{handle::cublasXtHandle_t}
@@ -187,8 +187,8 @@ function xt_handle()
         async_devs = filter(memory_pools_supported, devices())
         for dev in async_devs
             other_devs = filter(!isequal(dev), async_devs)
-            pool = CUDA.pool_create(dev)
-            access!(pool, other_devs, CUDA.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
+            pool = CUDACore.pool_create(dev)
+            access!(pool, other_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
         end
 
         devs = convert.(Cint, devices())
@@ -250,11 +250,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcublas, libcublasLt
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cublas"; optional=true)
         if path === nothing

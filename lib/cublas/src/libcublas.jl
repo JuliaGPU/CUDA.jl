@@ -3,7 +3,7 @@
 
 using CEnum: CEnum, @cenum
 
-# CUBLAS uses CUDA runtime objects, which are compatible with our driver usage
+# CUBLAS uses CUDACore runtime objects, which are compatible with our driver usage
 const cudaStream_t = CUstream
 
 # outlined functionality to avoid GC frame allocation

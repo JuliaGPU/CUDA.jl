@@ -89,7 +89,7 @@ alloc(x) = CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}(undef, (x,))
 @testset "Forward allocate" begin
     dup = Enzyme.autodiff(ForwardWithPrimal, alloc, Duplicated, Const(10))
     @test all(dup[1] .≈ 0.0)
-    
+
     dup = Enzyme.autodiff(Forward, alloc, Duplicated, Const(10))
     @test all(dup[1] .≈ 0.0)
 end

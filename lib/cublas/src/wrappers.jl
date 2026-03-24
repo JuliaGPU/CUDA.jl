@@ -41,9 +41,9 @@ function cublasGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
-version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
-                          cublasGetProperty(CUDA.MINOR_VERSION),
-                          cublasGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(cublasGetProperty(CUDACore.MAJOR_VERSION),
+                          cublasGetProperty(CUDACore.MINOR_VERSION),
+                          cublasGetProperty(CUDACore.PATCH_LEVEL))
 
 function juliaStorageType(T::Type{<:Real}, ct::cublasComputeType_t)
     if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
@@ -1177,22 +1177,22 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
     # source: CUBLAS Features and Technical Specifications
     Float16 in sig && cap < v"5.3" && return nothing
 
-    math_mode = CUDA.math_mode()
-    reduced_precision = CUDA.math_precision()
+    math_mode = CUDACore.math_mode()
+    reduced_precision = CUDACore.math_precision()
 
     if sig === (Float16, Float16)
         # NOTE: Float16=Float16*Float16 can also happen in 32-bit compute
-        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
+        return math_mode==CUDACore.PEDANTIC_MATH ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
     end
 
     if sig === (Int8, Int32)
         # Int32=Int8*Int8 requires m,n,k to be multiples of 4
         # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
         all_mod_4 = (m%4 == 0 && n%4 == 0 && k%4 == 0)
-        all_mod_4 && return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
+        all_mod_4 && return math_mode==CUDACore.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
     end
 
-    if math_mode == CUDA.FAST_MATH
+    if math_mode == CUDACore.FAST_MATH
         if sig === (Float32, Float32) ||
            sig === (Complex{Float32}, Complex{Float32})
             if reduced_precision === :Float16
@@ -1213,15 +1213,15 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
        sig === (Float32,  Float32) ||
        sig === (Complex{Int8},    Complex{Float32}) ||
        sig === (Complex{Float32}, Complex{Float32})
-        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+        return math_mode==CUDACore.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
     end
 
     if sig === (Float64, Float64) ||
        sig === (Complex{Float64}, Complex{Float64})
-        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
+        return math_mode==CUDACore.PEDANTIC_MATH ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
     end
     if sig === (BFloat16, BFloat16) || sig === (BFloat16, Float32)
-        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+        return math_mode==CUDACore.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
     end
 
     return nothing
@@ -2140,7 +2140,7 @@ for (fname, elty) in ((:cublasDgetrfBatched, :Float64),
                     $fname(handle(), n, ptrs, lda, pivotArray, info, batchSize)
                 else
                     $fname(handle(), n, ptrs, lda, CU_NULL, info, batchSize)
-                    pivotArray = CUDA.zeros(Cint, (n, batchSize))
+                    pivotArray = CUDACore.zeros(Cint, (n, batchSize))
                 end
                 return pivotArray, info
             end
@@ -2294,7 +2294,7 @@ for (fname, elty) in ((:cublasDgetriBatched, :Float64),
             ldc = max(1,stride(C[1],2))
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
-            info = CUDA.zeros(Cint,length(A))
+            info = CUDACore.zeros(Cint,length(A))
             $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)
@@ -2321,7 +2321,7 @@ for (fname, elty) in ((:cublasDgetriBatched, :Float64),
             ldc = max(1, stride(C[1], 2))
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
-            info = CUDA.zeros(Cint, length(A))
+            info = CUDACore.zeros(Cint, length(A))
             $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)
@@ -2369,7 +2369,7 @@ for (fname, elty) in
             ldc = max(1,stride(C[1],2))
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
-            info = CUDA.zeros(Cint,length(A))
+            info = CUDACore.zeros(Cint,length(A))
             $fname(handle(), n, Aptrs, lda, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)
@@ -2445,7 +2445,7 @@ for (fname, elty) in ((:cublasDgelsBatched, :Float64),
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
             info  = Ref{Cint}()
-            infoarray = CUDA.zeros(Cint, length(A))
+            infoarray = CUDACore.zeros(Cint, length(A))
             $fname(handle(), trans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, info, infoarray, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)

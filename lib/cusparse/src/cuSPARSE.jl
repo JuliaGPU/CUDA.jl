@@ -1,11 +1,11 @@
 module cuSPARSE
 
-using CUDA
-using CUDA.APIUtils
+using CUDACore
+using CUDACore.APIUtils
 using GPUToolbox
 
-using CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using CUDA: unsafe_free!, retry_reclaim, initialize_context, @allowscalar
+using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
+using CUDACore: unsafe_free!, retry_reclaim, initialize_context, @allowscalar
 
 using GPUArrays
 
@@ -18,7 +18,7 @@ using Adapt: Adapt, adapt
 
 using SparseArrays
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import CUDA_Runtime_jll
@@ -27,7 +27,7 @@ end
 const SparseChar = Char
 
 
-export functional
+public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -74,7 +74,7 @@ end
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cusparseHandle_t, stream::CuStream}
@@ -113,11 +113,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcusparse
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cusparse"; optional=true)
         if path === nothing
@@ -134,9 +134,9 @@ end
 
 # KernelAbstractions integration
 import KernelAbstractions as KA
-KA.get_backend(::CuSparseVector)    = CUDA.CUDAKernels.CUDABackend()
-KA.get_backend(::CuSparseMatrixCSC) = CUDA.CUDAKernels.CUDABackend()
-KA.get_backend(::CuSparseMatrixCSR) = CUDA.CUDAKernels.CUDABackend()
+KA.get_backend(::CuSparseVector)    = CUDACore.CUDAKernels.CUDABackend()
+KA.get_backend(::CuSparseMatrixCSC) = CUDACore.CUDAKernels.CUDABackend()
+KA.get_backend(::CuSparseMatrixCSR) = CUDACore.CUDAKernels.CUDABackend()
 
 # deprecated binding for backwards compatibility
 Base.@deprecate_binding CUSPARSE cuSPARSE false

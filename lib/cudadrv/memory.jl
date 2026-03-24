@@ -66,7 +66,7 @@ function alloc(::Type{DeviceMemory}, bytesize::Integer;
 
     ptr_ref = Ref{CUdeviceptr}()
     if async
-        stream = @something stream CUDA.stream()
+        stream = @something stream CUDACore.stream()
         if pool !== nothing
             cuMemAllocFromPoolAsync(ptr_ref, bytesize, pool, stream)
         else
@@ -83,7 +83,7 @@ function free(mem::DeviceMemory; stream::Union{Nothing,CuStream}=nothing)
     pointer(mem) == CU_NULL && return
 
     if mem.async
-        stream = @something stream CUDA.stream()
+        stream = @something stream CUDACore.stream()
         cuMemFreeAsync(mem, stream)
     else
         cuMemFree_v2(mem)
@@ -395,7 +395,7 @@ for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
     fn = Symbol("cuMemsetD$(bits)Async")
     @eval function memset(ptr::CuPtr{$T}, value::$T, len::Integer; stream::CuStream=stream())
-        $(getproperty(CUDA, fn))(ptr, value, len, stream)
+        $(getproperty(CUDACore, fn))(ptr, value, len, stream)
         return
     end
 end
@@ -411,7 +411,7 @@ for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", :CuPtr, :Ptr),
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::CuStream=stream(),
                                        async::Bool=false) where T
-        $(getproperty(CUDA, Symbol(fn)))(dst, src, N*aligned_sizeof(T), stream)
+        $(getproperty(CUDACore, Symbol(fn)))(dst, src, N*aligned_sizeof(T), stream)
         async || synchronize(stream)
         return dst
     end
@@ -477,7 +477,7 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
                         width::Integer, height::Integer=1;
                         dstPos::CuDim=(1,1), dstPitch::Integer=0,
                         srcPos::CuDim=(1,1), srcPitch::Integer=0,
-                        async::Bool=false, stream::CuStream=CUDA.stream()) where T
+                        async::Bool=false, stream::CuStream=CUDACore.stream()) where T
     srcPos = CuDim3(srcPos)
     @assert srcPos.z == 1
     dstPos = CuDim3(dstPos)

@@ -90,7 +90,7 @@ function inplace_pow2(A, f)
         B = similar(A, padlen)
         f(B)
         copyto!(A, 1, B, 1, len)
-        CUDA.unsafe_free!(B)
+        CUDACore.unsafe_free!(B)
     end
     A
 end
@@ -192,8 +192,8 @@ rand_poisson(rng::RNG, T::PoissonType, dims::Dims; kwargs...) =
     rand_poisson!(rng, CuArray{T}(undef, dims); kwargs...)
 
 # specify default types
-Random.rand(rng::RNG, dims::Dims; kwargs...) = rand(rng, Float32, dims; kwargs...)
-Random.randn(rng::RNG, dims::Dims; kwargs...) = randn(rng, Float32, dims; kwargs...)
+Random.rand(rng::RNG, dims::Dims; kwargs...) = Random.rand(rng, Float32, dims; kwargs...)
+Random.randn(rng::RNG, dims::Dims; kwargs...) = Random.randn(rng, Float32, dims; kwargs...)
 rand_logn(rng::RNG, dims::Dims; kwargs...) = rand_logn(rng, Float32, dims; kwargs...)
 rand_poisson(rng::RNG, dims::Dims; kwargs...) = rand_poisson(rng, Cuint, dims; kwargs...)
 

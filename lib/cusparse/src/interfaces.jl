@@ -42,7 +42,7 @@ function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
     m_A == n_B || throw(DimensionMismatch())
     n_A == n_C || throw(DimensionMismatch())
     m_B == m_C || throw(DimensionMismatch())
-    isempty(B) && return CUDA.zeros(eltype(B), size(A, 1), 0)
+    isempty(B) && return CUDACore.zeros(eltype(B), size(A, 1), 0)
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
 end
 
@@ -279,7 +279,7 @@ function _sparse_identity(::Type{<:CuSparseMatrixCSR{<:Any,Ti}},
     len = min(dims[1], dims[2])
     rowPtr = CuVector{Ti}(vcat(1:len, fill(len+1, dims[1]-len+1)))
     colVal = CuVector{Ti}(1:len)
-    nzVal = CUDA.fill(I.λ, len)
+    nzVal = CUDACore.fill(I.λ, len)
     CuSparseMatrixCSR{Tv,Ti}(rowPtr, colVal, nzVal, dims)
 end
 
@@ -288,7 +288,7 @@ function _sparse_identity(::Type{<:CuSparseMatrixCSC{<:Any,Ti}},
     len = min(dims[1], dims[2])
     colPtr = CuVector{Ti}(vcat(1:len, fill(len+1, dims[2]-len+1)))
     rowVal = CuVector{Ti}(1:len)
-    nzVal = CUDA.fill(I.λ, len)
+    nzVal = CUDACore.fill(I.λ, len)
     CuSparseMatrixCSC{Tv,Ti}(colPtr, rowVal, nzVal, dims)
 end
 
@@ -297,7 +297,7 @@ function _sparse_identity(::Type{<:CuSparseMatrixCOO{Tv,Ti}},
     len = min(dims[1], dims[2])
     rowInd = CuVector{Ti}(1:len)
     colInd = CuVector{Ti}(1:len)
-    nzVal = CUDA.fill(I.λ, len)
+    nzVal = CUDACore.fill(I.λ, len)
     CuSparseMatrixCOO{Tv,Ti}(rowInd, colInd, nzVal, dims)
 end
 

@@ -78,7 +78,7 @@ function LinearAlgebra.kron(A::CuSparseMatrixCOO{T, Ti}, B::Diagonal) where {Ti,
     row .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
     col .+= CuVector(repeat(0:nB-1, outer = Annz)) .+ 1
 
-    data .*= repeat(CUDA.ones(T, nB), outer = Annz)
+    data .*= repeat(CUDACore.ones(T, nB), outer = Annz)
 
     sparse(row, col, data, out_shape..., fmt = :coo)
 end
@@ -98,7 +98,7 @@ function LinearAlgebra.kron(A::Diagonal, B::CuSparseMatrixCOO{T, Ti}) where {Ti,
     row = CuVector(repeat(row, inner = Bnnz))
     col = (0:nA-1) .* nB
     col = CuVector(repeat(col, inner = Bnnz))
-    data = repeat(CUDA.ones(T, nA), inner = Bnnz)
+    data = repeat(CUDACore.ones(T, nA), inner = Bnnz)
 
     row .+= repeat(B.rowInd .- 1, outer = Annz) .+ 1
     col .+= repeat(B.colInd .- 1, outer = Annz) .+ 1
@@ -133,7 +133,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
             end
         end
 
-        reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+        reduced_val = CUDACore.reduce_block(+, tmp, zero(T1), shuffle)
 
         if thread_idx == 1
             @inbounds result[blockIdx().x] = reduced_val
@@ -188,7 +188,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
             end
         end
 
-        reduced_val = CUDA.reduce_block(+, tmp, zero(T1), shuffle)
+        reduced_val = CUDACore.reduce_block(+, tmp, zero(T1), shuffle)
 
         if thread_idx == 1
             @inbounds result[blockIdx().x] = reduced_val

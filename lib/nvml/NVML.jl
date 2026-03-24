@@ -3,7 +3,7 @@ module NVML
 
 using ..GPUToolbox
 
-using ..CUDA
+using ..CUDACore
 
 using CEnum: @cenum
 
@@ -27,7 +27,7 @@ end
 
 function has_nvml()
     @memoize begin
-        if CUDA.is_tegra()
+        if CUDACore.is_tegra()
             # XXX: even though Orin supports NVML, we don't know how to
             #      look up the device (CUDA.jl#2580)
             return false

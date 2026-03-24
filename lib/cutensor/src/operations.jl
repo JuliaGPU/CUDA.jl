@@ -37,7 +37,7 @@ function elementwise_trinary_execute!(
     elementwise_trinary_execute!(actual_plan, alpha, A, beta, B, gamma, C, D)
 
     if plan === nothing
-        CUDA.unsafe_free!(actual_plan)
+        CUDACore.unsafe_free!(actual_plan)
     end
 
     return D
@@ -132,7 +132,7 @@ function elementwise_binary_execute!(
     elementwise_binary_execute!(actual_plan, alpha, A, gamma, C, D)
 
     if plan === nothing
-        CUDA.unsafe_free!(actual_plan)
+        CUDACore.unsafe_free!(actual_plan)
     end
 
     return D
@@ -214,7 +214,7 @@ function permute!(
     permute!(actual_plan, alpha, A, B)
 
     if plan === nothing
-        CUDA.unsafe_free!(actual_plan)
+        CUDACore.unsafe_free!(actual_plan)
     end
 
     return B
@@ -287,7 +287,7 @@ function contract!(
     contract!(actual_plan, alpha, A, B, beta, C)
 
     if plan === nothing
-        CUDA.unsafe_free!(actual_plan)
+        CUDACore.unsafe_free!(actual_plan)
     end
 
     return C
@@ -374,7 +374,7 @@ function reduce!(
     reduce!(actual_plan, alpha, A, beta, C)
 
     if plan === nothing
-        CUDA.unsafe_free!(actual_plan)
+        CUDACore.unsafe_free!(actual_plan)
     end
 
     return C

@@ -162,7 +162,7 @@ if isempty(ARGS)
         return false
     end
 
-    if CUDA.default_memory != CUDA.DeviceMemory && test == "gpuarrays/indexing scalar"
+    if CUDACore.default_memory != CUDACore.DeviceMemory && test == "gpuarrays/indexing scalar"
         # GPUArrays' scalar indexing tests assume that indexing is not supported
         return false
     end
@@ -177,7 +177,7 @@ else
 end
 
 # check that CI is using the requested toolkit
-toolkit_release = Base.thisminor(CUDA.runtime_version())
+toolkit_release = Base.thisminor(CUDACore.runtime_version())
 label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
 if label_match !== nothing
   @test toolkit_release == VersionNumber(label_match.captures[1])
@@ -192,18 +192,18 @@ Pkg.precompile()
 
 using cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
 using cuDNN, cuTENSOR, cuTensorNet, cuStateVec
-@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
+@info "CUDA information:\n" * sprint(io->CUDACore.versioninfo(io))
 
 # select devices
 function gpu_entry(dev)
     id = deviceid(dev)
-    name = CUDA.name(dev)
-    uuid = CUDA.uuid(dev)
+    name = CUDACore.name(dev)
+    uuid = CUDACore.uuid(dev)
     cap = capability(dev)
     mig = uuid != parent_uuid(dev)
-    compute_mode = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE)
+    compute_mode = attribute(dev, CUDACore.DEVICE_ATTRIBUTE_COMPUTE_MODE)
     free_memory = device!(dev) do
-        mem = CUDA.free_memory()
+        mem = CUDACore.free_memory()
         device_reset!()
         mem
     end
@@ -218,7 +218,7 @@ gpus = if do_gpu_list
 else
     # pick the first non-exclusive GPU
     entries = map(gpu_entry, devices())
-    filter!(entry->entry.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, entries)
+    filter!(entry->entry.compute_mode != CUDACore.CU_COMPUTEMODE_PROHIBITED, entries)
     first(entries, 1)
 end
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
@@ -233,7 +233,7 @@ if !set_jobs
     jobs = max(1, min(cpu_jobs, cpu_memory_jobs, gpu_memory_jobs))
 end
 @info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
-if first(gpus).compute_mode == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
+if first(gpus).compute_mode == CUDACore.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
     @warn "Running tests on a GPU in exclusive mode; reducing parallelism to 1."
     jobs = 1
 end
@@ -396,9 +396,9 @@ try
     end
     @sync begin
         function recycle_worker(p)
-            if isdefined(CUDA, :to)
+            if isdefined(CUDACore, :to)
                 to = remotecall_fetch(p) do
-                    CUDA.to
+                    CUDACore.to
                 end
                 push!(timings, to)
             end

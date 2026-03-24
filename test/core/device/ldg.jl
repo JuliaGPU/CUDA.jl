@@ -1,5 +1,5 @@
 @testset "ldg" begin
-    ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
+    ir = sprint(io->CUDACore.code_llvm(io, CUDACore.pointerref_ldg, Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
     if Base.libllvm_version >= v"20"
         # `@llvm.nvvm.ldg` was removed in LLVM 20; the auto-upgrade
         # replaces it with a load bearing `!invariant.load` metadata
@@ -68,8 +68,8 @@ end
         return
     end
 
-    x = CUDA.zeros(Float64, 32)
-    y = CUDA.ones(Float64, length(x))
+    x = CUDACore.zeros(Float64, 32)
+    y = CUDACore.ones(Float64, length(x))
 
     @cuda threads=length(x) copy_const(x, y)
     @test Array(x) == Array(y)
@@ -85,8 +85,8 @@ end
 
     buf = IOBuffer()
 
-    a = CUDA.ones(Float32, 4)
-    b = CUDA.zeros(Float32, 4)
+    a = CUDACore.ones(Float32, 4)
+    b = CUDACore.zeros(Float32, 4)
     @device_code_ptx io=buf @cuda kernel(a, b, 1)
     @test Array(a) == Array(b)
 

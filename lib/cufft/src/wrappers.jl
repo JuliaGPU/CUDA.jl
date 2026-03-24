@@ -6,9 +6,9 @@ function cufftGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
-version() = VersionNumber(cufftGetProperty(CUDA.MAJOR_VERSION),
-                          cufftGetProperty(CUDA.MINOR_VERSION),
-                          cufftGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(cufftGetProperty(CUDACore.MAJOR_VERSION),
+                          cufftGetProperty(CUDACore.MINOR_VERSION),
+                          cufftGetProperty(CUDACore.PATCH_LEVEL))
 
 function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, xdims::Dims, region)
     if any(diff(collect(region)) .< 1)

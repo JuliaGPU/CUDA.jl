@@ -6,9 +6,9 @@ function cusolverGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
-version() = VersionNumber(cusolverGetProperty(CUDA.MAJOR_VERSION),
-                          cusolverGetProperty(CUDA.MINOR_VERSION),
-                          cusolverGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(cusolverGetProperty(CUDACore.MAJOR_VERSION),
+                          cusolverGetProperty(CUDACore.MINOR_VERSION),
+                          cusolverGetProperty(CUDACore.PATCH_LEVEL))
 
 function Base.convert(::Type{cusolverEigType_t}, typ::Int)
     if typ == 1

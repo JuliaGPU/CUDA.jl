@@ -32,7 +32,7 @@ const cupti_versions = [
 function version()
     version_ref = Ref{Cuint}()
     cuptiGetVersion(version_ref)
-    if CUDA.runtime_version() < v"13"
+    if CUDACore.runtime_version() < v"13"
         cupti_versions[version_ref[]]
     else
         major, ver = divrem(version_ref[], 10000)
@@ -242,7 +242,7 @@ function enable!(f::Base.Callable, cfg::ActivityConfig)
                        (Ptr{Ptr{UInt8}}, Ptr{Csize_t}, Ptr{Csize_t}))
         complete_buffer_ptr =
             @cfunction(complete_buffer, Cvoid,
-                       (CUDA.CUcontext, UInt32, Ptr{UInt8}, Csize_t, Csize_t))
+                       (CUDACore.CUcontext, UInt32, Ptr{UInt8}, Csize_t, Csize_t))
         cuptiActivityRegisterCallbacks(request_buffer_ptr, complete_buffer_ptr)
 
         activity_config[] = cfg
@@ -279,7 +279,7 @@ function process(f, cfg::ActivityConfig)
     )
     # NOTE: the CUPTI version is unreliable, e.g., both CUDA 11.5 and 11.6 have CUPTI 16,
     #       yet CUpti_ActivityMemset4 is only available in CUDA 11.6.
-    cuda_version = CUDA.runtime_version()
+    cuda_version = CUDACore.runtime_version()
     ## kernel activities
     activity_types[CUPTI_ACTIVITY_KIND_KERNEL] =
         CUpti_ActivityKernel9

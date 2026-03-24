@@ -32,7 +32,7 @@
 
     @testset "range metadata" begin
         foobar() = threadIdx().x
-        ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}; raw=true))
+        ir = sprint(io->CUDACore.code_llvm(io, foobar, Tuple{}; raw=true))
 
         @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
     end
@@ -68,7 +68,7 @@ if capability(device()) >= v"3.0"
         return
     end
 
-    warpsize = CUDA.warpsize(device())
+    warpsize = CUDACore.warpsize(device())
 
     @testset for T in [UInt8, UInt16, UInt32, UInt64, UInt128,
                        Int8, Int16, Int32, Int64, Int128,
@@ -332,7 +332,7 @@ end
 
 capability(device()) >= v"9" || # JuliaGPU/CUDA.jl#1846
 @testset "libcudadevrt" begin
-    kernel() = (CUDA.device_synchronize(); nothing)
+    kernel() = (CUDACore.device_synchronize(); nothing)
     @cuda kernel()
 end
 

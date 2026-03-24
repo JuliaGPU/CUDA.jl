@@ -65,17 +65,17 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
 
-    attrs = CUDA.CUlaunchAttribute[]
+    attrs = CUDACore.CUlaunchAttribute[]
     if cooperative
         resize!(attrs, length(attrs)+1)
         attr = pointer(attrs, length(attrs))
-        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
+        attr.id = CUDACore.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
         attr.value.cooperative = 1;
     end
     if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
         resize!(attrs, length(attrs)+1)
         attr = pointer(attrs, length(attrs))
-        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
+        attr.id = CUDACore.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
         attr.value.clusterDim.x = clusterdim.x
         attr.value.clusterDim.y = clusterdim.y
         attr.value.clusterDim.z = clusterdim.z

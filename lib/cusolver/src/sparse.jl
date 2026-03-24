@@ -187,7 +187,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
 
             desca = CuMatrixDescriptor('G', 'L', 'N', inda)
             x       = copy(x_0)
-            μ       = CUDA.zeros($elty,1)
+            μ       = CUDACore.zeros($elty,1)
             $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal,
                    μ_0, x_0, maxite, tol, μ, x)
 

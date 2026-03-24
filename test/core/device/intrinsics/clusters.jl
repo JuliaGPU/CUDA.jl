@@ -21,7 +21,7 @@ if capability(device()) >= v"9.0"
     threads = (3,5,7)
     clustersize = (2,2,2)
     blocks = (4,6,8)
-    A = CUDA.zeros(Int32, threads..., clustersize..., (blocks .÷ clustersize)...)
+    A = CUDACore.zeros(Int32, threads..., clustersize..., (blocks .÷ clustersize)...)
     @cuda threads=threads blocks=blocks clustersize=clustersize f(A)
 
     @test all(==(1), Array(A))
@@ -62,7 +62,7 @@ end
     threads = 1
     clustersize = 4
     blocks = 16
-    A = CUDA.zeros(Int32, clustersize, clustersize, blocks ÷ clustersize)
+    A = CUDACore.zeros(Int32, clustersize, clustersize, blocks ÷ clustersize)
     @cuda threads=threads blocks=blocks clustersize=clustersize f(A)
 
     B = Array(A)

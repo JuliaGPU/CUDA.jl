@@ -57,7 +57,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base libraries"
+              test_args: "--quickfail core libraries"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -242,7 +242,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--sanitize core base"
+              test_args: "--sanitize core"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -266,7 +266,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base"
+              test_args: "--quickfail core"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -292,7 +292,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base"
+              test_args: "--quickfail core"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -324,7 +324,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--gpu=0,1 --quickfail core base libraries/cublas/xt"
+              test_args: "--gpu=0,1 --quickfail core libraries/cublas/xt"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src

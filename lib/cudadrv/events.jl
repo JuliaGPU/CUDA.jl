@@ -124,3 +124,4 @@ macro elapsed(ex...)
         elapsed(t0, t1)
     end
 end
+public @elapsed

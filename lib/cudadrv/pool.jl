@@ -18,7 +18,7 @@ mutable struct CuMemoryPool
         location = Ref{CUmemLocation}()
         GC.@preserve location begin
             # Clang.jl wraps this object in an annoying way
-            location_ptr = Base.unsafe_convert(Ptr{CUDA.CUmemLocation}, location)
+            location_ptr = Base.unsafe_convert(Ptr{CUDACore.CUmemLocation}, location)
             location_ptr.type = CU_MEM_LOCATION_TYPE_DEVICE
             location_ptr.id = deviceid(dev)
 

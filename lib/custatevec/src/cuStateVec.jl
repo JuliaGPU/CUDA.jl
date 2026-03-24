@@ -1,21 +1,21 @@
 module cuStateVec
 
-using CUDA
-using CUDA.APIUtils
-using CUDA: CUstream, cudaDataType, cudaEvent_t, libraryPropertyType
-using CUDA: unsafe_free!, retry_reclaim, initialize_context, isdebug
-using CUDA: @checked, @gcsafe_ccall
+using CUDACore
+using CUDACore.APIUtils
+using CUDACore: CUstream, cudaDataType, cudaEvent_t, libraryPropertyType
+using CUDACore: unsafe_free!, retry_reclaim, initialize_context, isdebug
+using CUDACore: @checked, @gcsafe_ccall
 
 using CEnum: @cenum
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import cuQuantum_jll
 end
 
 
-export functional
+public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -56,7 +56,7 @@ Base.unsafe_convert(::Type{Ptr{custatevecContext}}, handle::cuStateVecHandle) =
     handle.handle
 
 function handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cuStateVecHandle, stream::CuStream}
@@ -72,7 +72,7 @@ function handle()
         fat_handle = cuStateVecHandle(new_handle, cache)
 
         finalizer(current_task()) do task
-            CUDA.unsafe_free!(cache)
+            CUDACore.unsafe_free!(cache)
             push!(idle_handles, cuda.context, new_handle)
         end
 
@@ -119,11 +119,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcustatevec
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "custatevec"; optional=true)
         if path === nothing

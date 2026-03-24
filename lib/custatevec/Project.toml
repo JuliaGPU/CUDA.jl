@@ -8,13 +8,13 @@ projects = ["test"]
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
 cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDA = "=6.0.0"
+CUDACore = "=6.0.0"
 CUDA_Runtime_Discovery = "1"
 cuQuantum_jll = "26.1"
 julia = "1.10"

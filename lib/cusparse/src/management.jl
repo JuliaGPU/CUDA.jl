@@ -12,6 +12,6 @@ function cusparseGetProperty(property::libraryPropertyType)
     value_ref[]
 end
 
-version() = VersionNumber(cusparseGetProperty(CUDA.MAJOR_VERSION),
-                          cusparseGetProperty(CUDA.MINOR_VERSION),
-                          cusparseGetProperty(CUDA.PATCH_LEVEL))
+version() = VersionNumber(cusparseGetProperty(CUDACore.MAJOR_VERSION),
+                          cusparseGetProperty(CUDACore.MINOR_VERSION),
+                          cusparseGetProperty(CUDACore.PATCH_LEVEL))

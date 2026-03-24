@@ -2,6 +2,7 @@
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDA_Driver_jll = "4ee394cb-3365-5eb0-8335-949819d2adfc"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -25,17 +26,19 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-cuBLAS = "92909e3e-e0f1-40a8-bef7-041c6db527ef"
+cuBLAS = "182d3088-87b7-4494-8cad-fc6afaa545bc"
 cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
-cuFFT = "9dd0c4bd-d876-4614-8ffc-368de6640c0b"
-cuRAND = "713b3d06-febf-4d11-af26-4cafc54f6077"
-cuSOLVER = "6db60d96-3a04-4709-9948-55620357a9f7"
-cuSPARSE = "ef870955-711f-4dc1-8108-f8112e4174b9"
+cuFFT = "533571aa-0936-420e-b4be-9c66f5f626ca"
+cuRAND = "20fd9a0b-12d5-4c2f-a8af-7c34e9e60431"
+cuSOLVER = "887afef0-6a32-4de5-add4-7827692ba8fc"
+cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 cuStateVec = "92f7fd98-d22e-4c0d-85a8-6ade11b672fb"
 cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 
 [sources]
+CUDA = {path = ".."}
+CUDACore = {path = "../CUDACore"}
 cuBLAS = {path = "../lib/cublas"}
 cuDNN = {path = "../lib/cudnn"}
 cuFFT = {path = "../lib/cufft"}

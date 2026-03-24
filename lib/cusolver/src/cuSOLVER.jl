@@ -1,11 +1,11 @@
 module cuSOLVER
 
-using CUDA
-using CUDA.APIUtils
+using CUDACore
+using CUDACore.APIUtils
 using GPUToolbox
 
-using CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationStrategy_t, cudaEmulationMantissaControl_t, cudaEmulationSpecialValuesSupport_t
-using CUDA: @allowscalar, assertscalar, unsafe_free!, retry_reclaim, initialize_context
+using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationStrategy_t, cudaEmulationMantissaControl_t, cudaEmulationSpecialValuesSupport_t
+using CUDACore: @allowscalar, assertscalar, unsafe_free!, retry_reclaim, initialize_context
 
 using cuBLAS
 using cuBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
@@ -17,14 +17,14 @@ using CEnum: @cenum
 using LinearAlgebra
 using LinearAlgebra: BlasFloat, Factorization
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import CUDA_Runtime_jll
 end
 
 
-export functional, has_cusolvermg
+public functional, has_cusolvermg
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -83,7 +83,7 @@ Base.unsafe_convert(::Type{Ptr{cusolverDnContext}}, handle::cusolverDnHandle) =
     handle.handle
 
 function dense_handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cusolverDnHandle, stream::CuStream}
@@ -101,8 +101,8 @@ function dense_handle()
         fat_handle = cusolverDnHandle(new_handle, workspace_gpu, workspace_cpu, info)
 
         finalizer(current_task()) do task
-            CUDA.unsafe_free!(workspace_gpu)
-            CUDA.unsafe_free!(info)
+            CUDACore.unsafe_free!(workspace_gpu)
+            CUDACore.unsafe_free!(info)
             push!(idle_dense_handles, cuda.context, new_handle)
         end
 
@@ -143,7 +143,7 @@ const idle_sparse_handles =
     HandleCache{CuContext,cusolverSpHandle_t}(sparse_handle_ctor, sparse_handle_dtor)
 
 function sparse_handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cusolverSpHandle_t, stream::CuStream}
@@ -188,15 +188,15 @@ end
 
 devices() = get!(task_local_storage(), :CUSOLVERmg_devices) do
     # by default, select only the first device
-    [first(CUDA.devices())]
+    [first(CUDACore.devices())]
     # TODO: select all devices
-    #sort(collect(CUDA.devices()); by=deviceid)
+    #sort(collect(CUDACore.devices()); by=deviceid)
 end::Vector{CuDevice}
 
 ndevices() = length(devices())
 
 function mg_handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per set of devices
     LibraryState = @NamedTuple{handle::cusolverMgHandle_t}
@@ -238,11 +238,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcusolver, libcusolverMg
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cusolver"; optional=true)
         if path === nothing

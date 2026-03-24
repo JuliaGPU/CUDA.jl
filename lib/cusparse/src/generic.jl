@@ -540,7 +540,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
         else
             throw(ArgumentError("Unsupported SpGEMM algorithm: $algo"))
         end
-        CUDA.unsafe_free!(buffer1)
+        CUDACore.unsafe_free!(buffer1)
 
         # retrieve the size of the output matrix and the number of non-zero elements
         nnzC = Ref{Int64}()
@@ -568,7 +568,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
         # copy the offsets, column indices, and values to the output matrix
         cusparseSpGEMM_copy(handle(), transa, transb, alpha_ref, descA, descB,
                             beta_ref, descC, T, algo, spgemm_desc)
-        CUDA.unsafe_free!(buffer2)
+        CUDACore.unsafe_free!(buffer2)
     end
 
     return C
@@ -670,7 +670,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         else
             throw(ArgumentError("Unsupported SpGEMM algorithm: $algo"))
         end
-        CUDA.unsafe_free!(buffer1)
+        CUDACore.unsafe_free!(buffer1)
 
         # retrieve the size of the output matrix and the number of non-zero elements
         nnzC = Ref{Int64}()
@@ -685,7 +685,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         # copy the offsets, column indices, and values to the output matrix
         cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
                             descC, T, algo, spgemm_desc)
-        CUDA.unsafe_free!(buffer2)
+        CUDACore.unsafe_free!(buffer2)
     end
 
     return C

@@ -34,8 +34,8 @@ end
             return nothing
         end
 
-        a = CUDA.zeros(T, n)
-        b = CUDA.zeros(T, n)
+        a = CUDACore.zeros(T, n)
+        b = CUDACore.zeros(T, n)
 
         @cuda threads=n kernel(a, seed)
         @cuda threads=n kernel(b, seed)
@@ -57,8 +57,8 @@ end
             return nothing
         end
 
-        a = CUDA.zeros(T, n)
-        b = CUDA.zeros(T, n)
+        a = CUDACore.zeros(T, n)
+        b = CUDACore.zeros(T, n)
 
         @cuda threads=n kernel(a, b, seed)
 
@@ -75,7 +75,7 @@ end
         end
 
         tx, ty, tz, bx, by, bz = [dim == active_dim ? 3 : 1 for dim in 1:6]
-        a = CUDA.zeros(T, 3)
+        a = CUDACore.zeros(T, 3)
 
         @cuda threads=(tx, ty, tz) blocks=(bx, by, bz) kernel(a, seed)
 
@@ -96,8 +96,8 @@ end
         return
     end
 
-    a = CUDA.zeros(T, n)
-    b = CUDA.zeros(T, n)
+    a = CUDACore.zeros(T, n)
+    b = CUDACore.zeros(T, n)
 
     @cuda threads=n kernel(a, seed)
     @cuda threads=n kernel(b, seed)
@@ -118,8 +118,8 @@ end
         return
     end
 
-    a = CUDA.zeros(T, n)
-    b = CUDA.zeros(T, n)
+    a = CUDACore.zeros(T, n)
+    b = CUDACore.zeros(T, n)
 
     @cuda threads=n kernel(a, seed)
     @cuda threads=n kernel(b, seed)

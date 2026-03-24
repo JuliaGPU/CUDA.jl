@@ -32,18 +32,18 @@ context!(ctx)
 @inferred context!(()->42, ctx)
 
 # setting flags is only possible on a new context
-@test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
+@test_throws ErrorException device!(0, CUDACore.CU_CTX_SCHED_YIELD)
 device_reset!()
-device!(0, CUDA.CU_CTX_SCHED_YIELD)
+device!(0, CUDACore.CU_CTX_SCHED_YIELD)
 
 # reset on a different task
 let ctx = context()
-    @test CUDA.isvalid(ctx)
+    @test CUDACore.isvalid(ctx)
     @test ctx == fetch(@async context())
 
     @sync @async device_reset!()
 
-    @test CUDA.isvalid(context())
+    @test CUDACore.isvalid(context())
     @test ctx != context()
 end
 
@@ -97,16 +97,16 @@ if length(devices()) > 1
     @test device() == CuDevice(0)
 
     # math_mode
-    old_mm = CUDA.math_mode()
-    old_prec = CUDA.math_precision()
-    CUDA.math_mode!(CUDA.PEDANTIC_MATH)
-    @test CUDA.math_mode() == CUDA.PEDANTIC_MATH
-    CUDA.math_mode!(CUDA.PEDANTIC_MATH; precision=:Float16)
-    @test CUDA.math_precision() == :Float16
-    CUDA.math_mode!(old_mm; precision=old_prec)
+    old_mm = CUDACore.math_mode()
+    old_prec = CUDACore.math_precision()
+    CUDACore.math_mode!(CUDACore.PEDANTIC_MATH)
+    @test CUDACore.math_mode() == CUDACore.PEDANTIC_MATH
+    CUDACore.math_mode!(CUDACore.PEDANTIC_MATH; precision=:Float16)
+    @test CUDACore.math_precision() == :Float16
+    CUDACore.math_mode!(old_mm; precision=old_prec)
     # ensure the values we tested here aren't the defaults
-    @test CUDA.math_mode() != CUDA.PEDANTIC_MATH
-    @test CUDA.math_precision() != :Float16
+    @test CUDACore.math_mode() != CUDACore.PEDANTIC_MATH
+    @test CUDACore.math_precision() != :Float16
 
     # tasks on multiple threads
     Threads.@threads for d in 0:1
@@ -169,9 +169,9 @@ end
 
 @testset "issue 1331: repeated initialization failure should stick" begin
     script = """
-        using CUDA, Test
-        @test !CUDA.functional()
-        @test !CUDA.functional()
+        using CUDACore, Test
+        @test !CUDACore.functional()
+        @test !CUDACore.functional()
     """
 
     proc, out, err = julia_exec(`-e $script`, "CUDA_VISIBLE_DEVICES"=>"-1")

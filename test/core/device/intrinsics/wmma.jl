@@ -1,6 +1,6 @@
 if capability(device()) >= v"7.0"
 
-using CUDA.WMMA
+using CUDACore.WMMA
 
 using BFloat16s: BFloat16
 
@@ -34,7 +34,7 @@ end
 
 @testset "LLVM intrinsics" begin
     @testset "llvm_wmma_load" begin
-        @testset "$(mat)_$(layout)_m$(mnk[1])n$(mnk[2])k$(mnk[3])$(addr_space)_$(elem_type)" for op in CUDA.WMMA.all_ldst_ops,
+        @testset "$(mat)_$(layout)_m$(mnk[1])n$(mnk[2])k$(mnk[3])$(addr_space)_$(elem_type)" for op in CUDACore.WMMA.all_ldst_ops,
             layout in ["row", "col"],
             mnk in op[1],
             mat in op[2],
@@ -56,10 +56,10 @@ end
                 continue
             end
 
-            shape = CUDA.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
+            shape = CUDACore.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
 
             # Type-dependent variables
-            array_ty = CUDA.WMMA.map_ptx_to_jl_array[elem_type]
+            array_ty = CUDACore.WMMA.map_ptx_to_jl_array[elem_type]
             expected = map_ptx_to_jl_frag[elem_type]
 
             # Address-space dependent variables
@@ -104,7 +104,7 @@ end
     end
 
     @testset "llvm_wmma_store" begin
-       @testset "$(mat)_$(layout)_m$(mnk[1])n$(mnk[2])k$(mnk[3])$(addr_space)_$(elem_type)" for ops in CUDA.WMMA.all_ldst_ops,
+       @testset "$(mat)_$(layout)_m$(mnk[1])n$(mnk[2])k$(mnk[3])$(addr_space)_$(elem_type)" for ops in CUDACore.WMMA.all_ldst_ops,
             layout in ["row", "col"],
             mat in ops[2],
             mnk in ops[1],
@@ -127,10 +127,10 @@ end
                 continue
             end
 
-            shape = CUDA.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
+            shape = CUDACore.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
 
             # Type-dependent variables
-            array_ty = CUDA.WMMA.map_ptx_to_jl_array[elem_type]
+            array_ty = CUDACore.WMMA.map_ptx_to_jl_array[elem_type]
             data = elem_type == "f16" ? ntuple(i -> ntuple(j -> VecElement{Float16}(42), 2), 4) : ntuple(i -> 42, 8)
 
             # Get the function name
@@ -173,7 +173,7 @@ end
         end
     end
     @testset "llvm_wmma_mma" begin
-        @testset "$(a_layout)_$(b_layout)_m$(mnk[1])n$(mnk[2])k$(mnk[3]), a/b: $(ab_elem_type), d: $(d_elem_type) c: $(c_elem_type)" for ops in CUDA.WMMA.all_wmma_ops,
+        @testset "$(a_layout)_$(b_layout)_m$(mnk[1])n$(mnk[2])k$(mnk[3]), a/b: $(ab_elem_type), d: $(d_elem_type) c: $(c_elem_type)" for ops in CUDACore.WMMA.all_wmma_ops,
             a_layout in ["row", "col"],
             b_layout in ["row", "col"],
             mnk in ops[1],
@@ -192,11 +192,11 @@ end
             end
 
             # Type-dependent variables
-            d_ty  = CUDA.WMMA.map_ptx_to_jl_array[d_elem_type]
-            c_ty  = CUDA.WMMA.map_ptx_to_jl_array[c_elem_type]
-            ab_ty = CUDA.WMMA.map_ptx_to_jl_array[ab_elem_type]
+            d_ty  = CUDACore.WMMA.map_ptx_to_jl_array[d_elem_type]
+            c_ty  = CUDACore.WMMA.map_ptx_to_jl_array[c_elem_type]
+            ab_ty = CUDACore.WMMA.map_ptx_to_jl_array[ab_elem_type]
 
-            shape = CUDA.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
+            shape = CUDACore.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
 
             # Get the function names
             lda_func = getfield(Main, Symbol("llvm_wmma_load_a_$(a_layout)_$(shape)_global_stride_$(ab_elem_type)"))
@@ -487,7 +487,7 @@ end
             return
         end
 
-        ptx = sprint(io -> CUDA.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDA.AS.Global},)))
+        ptx = sprint(io -> CUDACore.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDACore.AS.Global},)))
 
         @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
         @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)
@@ -504,7 +504,7 @@ end
             return
         end
 
-        ptx = sprint(io -> CUDA.code_ptx(io, kernel, ()))
+        ptx = sprint(io -> CUDACore.code_ptx(io, kernel, ()))
 
         @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
         @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
