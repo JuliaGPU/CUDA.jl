@@ -545,11 +545,11 @@ end
     @gcsafe_ccall libcutensor.cutensorBlockSparseContract(handle::cutensorHandle_t,
                                                           plan::cutensorPlan_t,
                                                           alpha::Ptr{Cvoid},
-                                                          A::Ptr{Cvoid},
-                                                          B::Ptr{Cvoid},
+                                                          A::Ptr{CuPtr{Cvoid}},
+                                                          B::Ptr{CuPtr{Cvoid}},
                                                           beta::Ptr{Cvoid},
-                                                          C::Ptr{Cvoid},
-                                                          D::Ptr{Cvoid},
+                                                          C::Ptr{CuPtr{Cvoid}},
+                                                          D::Ptr{CuPtr{Cvoid}},
                                                           workspace::CuPtr{Cvoid},
                                                           workspaceSize::UInt64,
                                                           stream::cudaStream_t)::cutensorStatus_t
@@ -558,7 +558,6 @@ end
 function cutensorGetErrorString(error)
     @gcsafe_ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
-
 
 # no prototype is found for this function at cutensor.h:1419:8, please use with caution
 function cutensorGetVersion()
