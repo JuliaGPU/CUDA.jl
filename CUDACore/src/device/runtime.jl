@@ -1,6 +1,6 @@
 # GPU runtime library
 
-public precompile_runtime
+@public precompile_runtime
 
 import Base.Sys: WORD_SIZE
 

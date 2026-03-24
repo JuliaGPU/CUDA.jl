@@ -23,7 +23,7 @@ using cuRAND
 
 # Forward cuRAND's rand/randn/seed! so CUDA.rand etc. work
 using cuRAND: rand, randn, seed!
-public rand, randn, seed!
+@public rand, randn, seed!
 
 # Forward cuRAND's rand_logn!/rand_poisson! so CUDA.rand_logn! etc. work
 using cuRAND: rand_logn!, rand_poisson!

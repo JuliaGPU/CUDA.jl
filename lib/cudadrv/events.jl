@@ -1,7 +1,7 @@
 # Events for timing
 
 export CuEvent, record, synchronize, elapsed
-public isdone, wait
+@public isdone, wait
 
 
 @enum_without_prefix visibility=:public CUevent_flags_enum CU_
@@ -125,4 +125,4 @@ macro elapsed(ex...)
         elapsed(t0, t1)
     end
 end
-public @elapsed
+@public @elapsed

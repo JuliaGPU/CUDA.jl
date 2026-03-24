@@ -1,4 +1,4 @@
-public encode, decode
+@public encode, decode
 
 @enum_without_prefix visibility=:public CUjit_option CU_
 @enum_without_prefix visibility=:public CUjitInputType CU_

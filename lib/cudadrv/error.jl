@@ -1,7 +1,7 @@
 # Error type and decoding functionality
 
 export CuError
-public description#, name
+@public description#, name
 
 
 # an optional struct, used to represent e.g. optional error logs.

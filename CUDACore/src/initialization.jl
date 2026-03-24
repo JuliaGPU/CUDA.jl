@@ -216,7 +216,7 @@ end
 # TODO: update docstrings
 
 export has_cuda, has_cuda_gpu
-public functional
+@public functional
 
 """
     has_cuda()::Bool

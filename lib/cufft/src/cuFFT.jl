@@ -1,7 +1,6 @@
 module cuFFT
 
 using CUDACore
-using CUDACore.APIUtils
 using GPUToolbox
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, cudaDataType, libraryPropertyType
 using CUDACore: unsafe_free!, retry_reclaim, initialize_context
@@ -17,7 +16,7 @@ else
 end
 
 
-public functional
+@public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

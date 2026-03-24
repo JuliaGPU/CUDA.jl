@@ -1,7 +1,6 @@
 module cuTENSOR
 
 using CUDACore
-using CUDACore.APIUtils
 using CUDACore: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
 using CUDACore: retry_reclaim, initialize_context, isdebug
 
@@ -16,7 +15,7 @@ else
 end
 
 
-public functional
+@public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

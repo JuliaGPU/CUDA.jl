@@ -1,15 +1,17 @@
 module CUDACore
 
+include("utils/public.jl")
+
 using GPUCompiler
 using GPUCompiler: InvalidIRError, KernelError
-public InvalidIRError, KernelError
+@public InvalidIRError, KernelError
 
 using GPUArrays
 using GPUArrays: allowscalar
-public allowscalar
+@public allowscalar
 
 using GPUToolbox
-public i32
+@public i32
 
 using LLVM
 using LLVM.Interop
@@ -67,8 +69,10 @@ end
 
 include("pointer.jl")
 
-# core library
-include("utils/APIUtils.jl")
+# core utilities
+include("utils/call.jl")
+include("utils/cache.jl")
+include("utils/struct_size.jl")
 include("../../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff

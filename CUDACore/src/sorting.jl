@@ -980,7 +980,7 @@ struct BitonicSortAlg <: SortingAlgorithm end
 
 const QuickSort = QuickSortAlg()
 const BitonicSort = BitonicSortAlg()
-public QuickSort, BitonicSort
+@public QuickSort, BitonicSort
 
 
 function Base.sort!(c::AnyCuVector, alg::QuickSortAlg; lt=isless, by=identity, rev=false)

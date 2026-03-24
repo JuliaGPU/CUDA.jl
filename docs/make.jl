@@ -1,6 +1,6 @@
 using Documenter, Literate
 using CUDA
-using CUDA.CUBLAS, CUDA.CUFFT, CUDA.CUPTI, CUDA.CURAND, CUDA.CUSOLVER, CUDA.CUSPARSE, CUDA.NVML, CUDA.APIUtils
+using CUDA.CUBLAS, CUDA.CUFFT, CUDA.CUPTI, CUDA.CURAND, CUDA.CUSOLVER, CUDA.CUSPARSE, CUDA.NVML
 using cuDNN, cuStateVec, cuTENSOR, cuTensorNet
 
 const src = "https://github.com/JuliaGPU/CUDA.jl"
@@ -50,7 +50,6 @@ function main()
             CUSOLVER,
             CUSPARSE,
             NVML,
-            APIUtils,
             cuDNN,
             cuStateVec,
             cuTENSOR,

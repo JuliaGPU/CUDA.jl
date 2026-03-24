@@ -1,6 +1,6 @@
 # math functionality
 
-public fma, rsqrt, saturate, byte_perm, assume
+@public fma, rsqrt, saturate, byte_perm, assume
 
 using Base: FastMath
 

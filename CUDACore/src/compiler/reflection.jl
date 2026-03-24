@@ -203,8 +203,7 @@ end
 export @device_code_lowered, @device_code_typed, @device_code_warntype,
        @device_code_llvm, @device_code_ptx, @device_code_sass,
        @device_code
-public code_lowered, code_typed, code_warntype, code_llvm, code_ptx, code_sass,
-       return_type
+@public code_lowered, code_typed, code_warntype, code_llvm, code_ptx, code_sass, return_type
 
 """
     @device_code_sass [io::IO=stdout, ...] ex

@@ -19,7 +19,7 @@ struct HandleCache{K,V}
                        Base.ThreadSynchronizer(), max_entries)
 
         # register a hook to wipe the current context's cache when under memory pressure
-        push!(CUDACore.reclaim_hooks, ()->empty!(obj))
+        push!(reclaim_hooks, ()->empty!(obj))
 
         return obj
     end
@@ -48,7 +48,7 @@ function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
 
     # if we still didn't find anything, create a new handle
     if handle === nothing
-        CUDACore.maybe_collect()
+        maybe_collect()
         handle = cache.ctor(key)
     end
 

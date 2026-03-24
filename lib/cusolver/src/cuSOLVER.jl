@@ -1,7 +1,6 @@
 module cuSOLVER
 
 using CUDACore
-using CUDACore.APIUtils
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationStrategy_t, cudaEmulationMantissaControl_t, cudaEmulationSpecialValuesSupport_t
@@ -24,7 +23,7 @@ else
 end
 
 
-public functional, has_cusolvermg
+@public functional, has_cusolvermg
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

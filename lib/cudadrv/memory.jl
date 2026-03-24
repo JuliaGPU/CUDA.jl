@@ -5,7 +5,7 @@
 # operations on memory
 #
 
-public alloc, free
+@public alloc, free
 
 # a chunk of memory allocated using the CUDA APIs. this memory can reside on the host, on
 # the GPU, or can represent specially-formatted memory (like texture arrays). depending on
@@ -25,7 +25,7 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, mem::AbstractMemory)
 
 ## device memory
 
-public DeviceMemory
+@public DeviceMemory
 
 """
     DeviceMemory
@@ -95,9 +95,7 @@ end
 
 ## host memory
 
-public HostMemory, register, unregister,
-       MEMHOSTALLOC_PORTABLE, MEMHOSTALLOC_DEVICEMAP, MEMHOSTREGISTER_IOMEMORY,
-       MEMHOSTREGISTER_PORTABLE, MEMHOSTREGISTER_DEVICEMAP, MEMHOSTREGISTER_IOMEMORY
+@public HostMemory, register, unregister, MEMHOSTALLOC_PORTABLE, MEMHOSTALLOC_DEVICEMAP, MEMHOSTREGISTER_IOMEMORY, MEMHOSTREGISTER_PORTABLE, MEMHOSTREGISTER_DEVICEMAP, MEMHOSTREGISTER_IOMEMORY
 
 """
     HostMemory
@@ -197,7 +195,7 @@ end
 
 ## unified memory
 
-public UnifiedMemory, prefetch, advise
+@public UnifiedMemory, prefetch, advise
 
 """
     UnifiedMemory
@@ -278,7 +276,7 @@ end
 
 ## array memory
 
-public ArrayMemory
+@public ArrayMemory
 
 """
     ArrayMemory
@@ -392,7 +390,7 @@ nchans(::Type) = 1
 # operations on pointers
 #
 
-public memset, unsafe_copyto!, unsafe_copy2d!, unsafe_copy3d!
+@public memset, unsafe_copyto!, unsafe_copy2d!, unsafe_copy3d!
 
 ## initialization
 
@@ -655,7 +653,7 @@ end
 # auxiliary functionality
 #
 
-public pin
+@public pin
 
 # given object, find base allocation
 # pin that, or increase refcount
@@ -778,7 +776,7 @@ end
 ## pointer attributes
 
 export attribute, attribute!, memory_type, is_managed
-public host_pointer, device_pointer, is_pinned
+@public host_pointer, device_pointer, is_pinned
 
 # TODO: iterable struct
 
@@ -870,7 +868,7 @@ end
 # other
 #
 
-public memory_info, free_memory, total_memory
+@public memory_info, free_memory, total_memory
 
 ## memory info
 

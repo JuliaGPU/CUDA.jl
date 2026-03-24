@@ -17,7 +17,7 @@ function _gpuarrays_rng_dtor(ctx, rng)
     context!(ctx; skip_destroyed=true) do
     end
 end
-const _idle_gpuarray_rngs = APIUtils.HandleCache{CuContext,GPUArrays.RNG}(_gpuarrays_rng_ctor, _gpuarrays_rng_dtor)
+const _idle_gpuarray_rngs = HandleCache{CuContext,GPUArrays.RNG}(_gpuarrays_rng_ctor, _gpuarrays_rng_dtor)
 
 function GPUArrays.default_rng(::Type{<:CuArray})
     cuda = active_state()

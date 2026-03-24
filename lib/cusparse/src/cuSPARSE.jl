@@ -1,7 +1,6 @@
 module cuSPARSE
 
 using CUDACore
-using CUDACore.APIUtils
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
@@ -27,7 +26,7 @@ end
 const SparseChar = Char
 
 
-public functional
+@public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

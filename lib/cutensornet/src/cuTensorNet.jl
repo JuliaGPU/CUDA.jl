@@ -2,7 +2,6 @@ module cuTensorNet
 
 using LinearAlgebra
 using CUDACore
-using CUDACore.APIUtils
 using CUDACore: CUstream, cudaDataType
 using CUDACore: retry_reclaim, initialize_context, isdebug, cuDoubleComplex
 using CUDACore: @checked, @gcsafe_ccall
@@ -19,7 +18,7 @@ else
 end
 
 
-public functional
+@public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

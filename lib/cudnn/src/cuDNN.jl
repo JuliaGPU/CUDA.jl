@@ -8,7 +8,6 @@ design overview.
 module cuDNN
 
 using CUDACore
-using CUDACore.APIUtils
 using CUDACore: CUstream, CUgraph, libraryPropertyType
 using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked
 
@@ -21,7 +20,7 @@ else
 end
 
 
-public functional
+@public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

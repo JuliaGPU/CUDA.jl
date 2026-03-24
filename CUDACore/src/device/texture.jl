@@ -1,5 +1,5 @@
 export CuDeviceTexture
-public NearestNeighbour, LinearInterpolation, CubicInterpolation
+@public NearestNeighbour, LinearInterpolation, CubicInterpolation
 
 abstract type TextureInterpolationMode end
 struct NearestNeighbour      <: TextureInterpolationMode end

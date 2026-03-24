@@ -90,7 +90,7 @@ function with_workspaces(f::Base.Callable,
         end
     finally
         if cache_gpu === nothing
-            CUDACore.unsafe_free!(workspace_gpu)
+            unsafe_free!(workspace_gpu)
         end
     end
 end

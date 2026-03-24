@@ -1,7 +1,6 @@
 module cuRAND
 
 using CUDACore
-using CUDACore.APIUtils
 using GPUToolbox
 using CUDACore: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
 using CUDACore: retry_reclaim, initialize_context
@@ -17,9 +16,9 @@ else
 end
 
 
-public functional
-public rand, randn, seed!
-public NativeRNG, native_rng
+@public functional
+@public rand, randn, seed!
+@public NativeRNG, native_rng
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

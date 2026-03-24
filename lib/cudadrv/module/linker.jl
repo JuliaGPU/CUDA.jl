@@ -2,7 +2,7 @@
 
 export CuLink, CuLinkImage, add_data!, add_file!, complete
 
-public unsafe_destroy!
+@public unsafe_destroy!
 
 
 """

@@ -105,7 +105,7 @@ macro bprofile(ex...)
         $Profile.benchmark_and_profile(benchmarked_code; $(remaining_kwargs...))
     end
 end
-public @profile, @bprofile, Profile
+@public @profile, @bprofile, Profile
 
 
 module Profile

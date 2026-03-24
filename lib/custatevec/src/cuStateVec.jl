@@ -1,7 +1,6 @@
 module cuStateVec
 
 using CUDACore
-using CUDACore.APIUtils
 using CUDACore: CUstream, cudaDataType, cudaEvent_t, libraryPropertyType
 using CUDACore: unsafe_free!, retry_reclaim, initialize_context, isdebug
 using CUDACore: @checked, @gcsafe_ccall
@@ -15,7 +14,7 @@ else
 end
 
 
-public functional
+@public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

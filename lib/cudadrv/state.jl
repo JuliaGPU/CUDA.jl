@@ -11,7 +11,7 @@
 # identical to Julia's task-local one.
 
 export context, context!, device, device!, device_reset!, deviceid, stream, stream!
-public math_mode, math_mode!, math_precision, PEDANTIC_MATH, DEFAULT_MATH, FAST_MATH
+@public math_mode, math_mode!, math_precision, PEDANTIC_MATH, DEFAULT_MATH, FAST_MATH
 
 
 ## task-local state

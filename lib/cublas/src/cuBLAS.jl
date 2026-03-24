@@ -1,7 +1,6 @@
 module cuBLAS
 
 using CUDACore
-using CUDACore.APIUtils
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationSpecialValuesSupport, cudaEmulationMantissaControl
@@ -27,7 +26,7 @@ else
 end
 
 
-public functional
+@public functional
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

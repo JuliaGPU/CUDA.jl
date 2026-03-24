@@ -3,7 +3,7 @@
 export CuPrimaryContext, CuContext, current_context, has_context, activate,
        unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
        device, device_synchronize
-public unsafe_destroy!
+@public unsafe_destroy!
 
 
 ## construction and destruction
