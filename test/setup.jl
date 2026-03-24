@@ -1,8 +1,8 @@
-using Distributed, Test, CUDACore
-using CUDACore: i32
+using Distributed, Test, CUDA
+using CUDA: i32
 
 # ensure CUDA.jl is functional
-@assert CUDACore.functional(true)
+@assert CUDA.functional(true)
 
 # GPUArrays has a testsuite that isn't part of the main package.
 # Include it directly.
@@ -28,12 +28,12 @@ function can_use_cupti()
     sanitize && return false
 
     # NVIDIA bug #3964667: CUPTI in CUDA 11.7+ broken for sm_35 devices
-    if CUDACore.runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
+    if CUDA.runtime_version() >= v"11.7" && capability(device()) <= v"3.7"
         return false
     end
 
     # Tegra requires running as root and and modifying the device tree
-    if CUDACore.is_tegra()
+    if CUDA.is_tegra()
         return false
     end
 
@@ -41,7 +41,7 @@ function can_use_cupti()
 end
 
 # precompile the runtime library
-CUDACore.precompile_runtime()
+CUDA.precompile_runtime()
 
 
 ## entry point
@@ -51,12 +51,12 @@ function runtests(f, name, time_source=:cuda)
         # generate a temporary module to execute the tests in
         mod_name = Symbol("Test", rand(1:100), "Main_", replace(name, '/' => '_'))
         mod = @eval(Main, module $mod_name end)
-        @eval(mod, using Test, Random, CUDACore)
-        # import all CUDACore names into the test module
-        for n in names(CUDACore; all=false)
-            n === :CUDACore && continue
-            isdefined(CUDACore, n) || continue
-            @eval(mod, using CUDACore: $n)
+        @eval(mod, using Test, Random, CUDA)
+        # import all CUDA names into the test module
+        for n in names(CUDA; all=false)
+            n === :CUDA && continue
+            isdefined(CUDA, n) || continue
+            @eval(mod, using CUDA: $n)
         end
 
         let id = myid()
@@ -68,7 +68,7 @@ function runtests(f, name, time_source=:cuda)
             Random.seed!(1)
 
             if $(QuoteNode(time_source)) == :cuda
-                CUDACore.@timed @testset $name begin
+                CUDA.@timed @testset $name begin
                     $f()
                 end
             elseif $(QuoteNode(time_source)) == :julia
@@ -179,7 +179,7 @@ macro on_device(ex...)
                 return
             end
 
-            CUDACore.@sync @cuda $(kwargs...) $kernel()
+            CUDA.@sync @cuda $(kwargs...) $kernel()
         end
     end)
 end

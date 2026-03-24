@@ -64,7 +64,7 @@ using SpecialFunctions
     @testset "rsqrt" begin
         # GPUCompiler.jl#173: a CUDA-only device function fails to validate
         function kernel(a)
-            a[] = CUDACore.rsqrt(a[])
+            a[] = CUDA.rsqrt(a[])
             return
         end
 
@@ -123,11 +123,11 @@ using SpecialFunctions
         r = bytes[sel[4]+1]<<24 | bytes[sel[3]+1]<<16 | bytes[sel[2]+1]<<8 | bytes[sel[1]+1]<<0
 
         function kernel1(a)
-            a[3] = CUDACore.byte_perm(a[1], a[2], code % Int32)
+            a[3] = CUDA.byte_perm(a[1], a[2], code % Int32)
             return
         end
         function kernel2(a)
-            a[3] = CUDACore.byte_perm(a[1], a[2], code % UInt16)
+            a[3] = CUDA.byte_perm(a[1], a[2], code % UInt16)
             return
         end
 
@@ -147,7 +147,7 @@ using SpecialFunctions
             @inbounds b[], c[] = @fastmath sincos(a[])
             return
         end
-        asm = sprint(io->CUDACore.code_ptx(io, kernel, NTuple{3,CuDeviceArray{Float32,1,AS.Global}}))
+        asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{3,CuDeviceArray{Float32,1,AS.Global}}))
         @assert contains(asm, "sin.approx.f32")
         @assert contains(asm, "cos.approx.f32")
         @assert !contains(asm, "__nv")  # from libdevice

@@ -153,7 +153,7 @@ end
 @testset "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
     function kernel(v0::T) where {T}
-        shared = CUDACore.CuStaticSharedArray(T, 32)
+        shared = CUDA.CuStaticSharedArray(T, 32)
         @inbounds shared[Cuint(1)] = v0
         return
     end

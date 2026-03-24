@@ -1,5 +1,5 @@
 # TODO: unify with Base.@atomic
-using CUDACore: @atomic
+using CUDA: @atomic
 using BFloat16s: BFloat16
 
 @testset "atomics (low-level)" begin
@@ -15,7 +15,7 @@ using BFloat16s: BFloat16
         a = CuArray(T[0])
 
         function kernel(a, b)
-            CUDACore.atomic_add!(pointer(a), b)
+            CUDA.atomic_add!(pointer(a), b)
             return
         end
 
@@ -31,7 +31,7 @@ end
         a = CuArray(T[2048])
 
         function kernel(a, b)
-            CUDACore.atomic_sub!(pointer(a), b)
+            CUDA.atomic_sub!(pointer(a), b)
             return
         end
 
@@ -45,7 +45,7 @@ end
         a = CuArray(T[0])
 
         function kernel(a, b)
-            CUDACore.atomic_inc!(pointer(a), b)
+            CUDA.atomic_inc!(pointer(a), b)
             return
         end
 
@@ -59,7 +59,7 @@ end
         a = CuArray(T[1024])
 
         function kernel(a, b)
-            CUDACore.atomic_dec!(pointer(a), b)
+            CUDA.atomic_dec!(pointer(a), b)
             return
         end
 
@@ -73,7 +73,7 @@ end
         a = CuArray([zero(T)])
 
         function kernel(a, b)
-            CUDACore.atomic_xchg!(pointer(a), b)
+            CUDA.atomic_xchg!(pointer(a), b)
             return
         end
 
@@ -93,7 +93,7 @@ end
                 k *= 2
             end
             b = 1023 - k  # 1023 - 2^i
-            CUDACore.atomic_and!(pointer(a), T(b))
+            CUDA.atomic_and!(pointer(a), T(b))
             return
         end
 
@@ -113,7 +113,7 @@ end
                 b *= 2
             end
             b /= 2
-            CUDACore.atomic_or!(pointer(a), T(b))
+            CUDA.atomic_or!(pointer(a), T(b))
             return
         end
 
@@ -133,7 +133,7 @@ end
                 b *= 2
             end
             b /= 2
-            CUDACore.atomic_xor!(pointer(a), T(b))
+            CUDA.atomic_xor!(pointer(a), T(b))
             return
         end
 
@@ -150,7 +150,7 @@ end
         a = CuArray(T[0])
 
         function kernel(a, b, c)
-            CUDACore.atomic_cas!(pointer(a), b, c)
+            CUDA.atomic_cas!(pointer(a), b, c)
             return
         end
 
@@ -167,7 +167,7 @@ end
 
         function kernel(a, T)
             i = threadIdx().x
-            CUDACore.atomic_max!(pointer(a), T(i))
+            CUDA.atomic_max!(pointer(a), T(i))
             return
         end
 
@@ -184,7 +184,7 @@ end
 
         function kernel(a, T)
             i = threadIdx().x
-            CUDACore.atomic_min!(pointer(a), T(i))
+            CUDA.atomic_min!(pointer(a), T(i))
             return
         end
 
@@ -200,7 +200,7 @@ end
         return
     end
 
-    CUDACore.@sync @cuda kernel()
+    CUDA.@sync @cuda kernel()
 end
 
 end
@@ -404,7 +404,7 @@ end
         f(x,y) = 3x + 2y
 
         function kernel(x)
-            CUDACore.@atomic x[1] = f(x[1],42f0)
+            CUDA.@atomic x[1] = f(x[1],42f0)
             nothing
         end
 
@@ -417,7 +417,7 @@ end
         @test isnan(Array(a)[1])
     end
 
-    using CUDACore: AtomicError
+    using CUDA: AtomicError
 
     @test_throws AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = 1
@@ -444,14 +444,14 @@ end
     # https://github.com/JuliaGPU/CUDA.jl/issues/311
 
     function kernel(a)
-        b = CUDACore.CuStaticSharedArray(Int, 1)
+        b = CUDA.CuStaticSharedArray(Int, 1)
 
         if threadIdx().x == 1
             b[] = a[]
         end
         sync_threads()
 
-        CUDACore.atomic_add!(pointer(b), 1)
+        CUDA.atomic_add!(pointer(b), 1)
         sync_threads()
 
         if threadIdx().x == 1
@@ -472,9 +472,9 @@ end
     function kernel()
         tid = threadIdx().x
         shared = CuStaticSharedArray(Float32, 4)
-        CUDACore.atomic_add!(pointer(shared, tid), shared[tid + 2])
+        CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
         sync_threads()
-        CUDACore.atomic_add!(pointer(shared, tid), shared[tid + 2])
+        CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
         return
     end
 

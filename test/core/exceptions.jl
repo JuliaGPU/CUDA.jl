@@ -7,7 +7,7 @@ device_error_re = r"ERROR: a \w+ was thrown during kernel execution"
 @testset "stack traces at different debug levels" begin
 
 script = """
-    using CUDACore
+    using CUDA
 
     function kernel(arr, val)
         arr[threadIdx().x] = val
@@ -60,7 +60,7 @@ end
 @testset "#329" begin
 
 script = """
-    using CUDACore
+    using CUDA
 
     @noinline foo(a, i) = a[1] = i
     bar(a) = (foo(a, 42); nothing)
@@ -68,7 +68,7 @@ script = """
     ptr = reinterpret(Core.LLVMPtr{Int,AS.Global}, C_NULL)
     arr = CuDeviceArray{Int,1,AS.Global}(ptr, (0,))
 
-    CUDACore.@sync @cuda bar(arr)
+    CUDA.@sync @cuda bar(arr)
 """
 
 let (proc, out, err) = julia_exec(`-g2 -e $script`)

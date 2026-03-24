@@ -41,7 +41,7 @@ ccall(:clock, Nothing, (Ptr{Int},), a)
 @test_throws Exception ccall(:clock, Nothing, (CuPtr{Int},), a)
 ccall(:clock, Nothing, (PtrOrCuPtr{Int},), a)
 
-data = GPUArrays.DataRef(Returns(nothing), CUDACore.Managed(CUDACore.DeviceMemory()))
+data = GPUArrays.DataRef(Returns(nothing), CUDA.Managed(CUDA.DeviceMemory()))
 b = CuArray{eltype(a), ndims(a)}(data, size(a))
 ccall(:clock, Nothing, (CuPtr{Int},), b)
 @test_throws Exception ccall(:clock, Nothing, (Ptr{Int},), b)
@@ -74,8 +74,8 @@ end
     @test Base.cconvert(CuRef{Int}, cuptr) == cuptr
     @test Base.unsafe_convert(CuRef{Int}, Base.cconvert(CuRef{Int}, cuptr)) == Base.bitcast(CuRef{Int}, cuptr)
 
-    cuarr = CUDACore.CuArray([1])
-    @test Base.cconvert(CuRef{Int}, cuarr) isa CUDACore.CuRefArray{Int, typeof(cuarr)}
+    cuarr = CUDA.CuArray([1])
+    @test Base.cconvert(CuRef{Int}, cuarr) isa CUDA.CuRefArray{Int, typeof(cuarr)}
     @test Base.unsafe_convert(CuRef{Int}, Base.cconvert(CuRef{Int}, cuarr)) == Base.bitcast(CuRef{Int}, pointer(cuarr))
 
     ref = CuRef{Int64}(1)
@@ -85,7 +85,7 @@ end
     @test ref[] == 1
     @test Base.unsafe_convert(CuPtr{Cvoid}, ref) isa CuPtr{Cvoid}
     
-    arr_ref = convert(CuRef{Int64}, CUDACore.ones(Int64, 1))
+    arr_ref = convert(CuRef{Int64}, CUDA.ones(Int64, 1))
     @test eltype(arr_ref) == Int64
     @test convert(CuRef{Int64}, arr_ref) === arr_ref
     @test sprint(show, arr_ref) == "CuRefArray{Int64}(1)"

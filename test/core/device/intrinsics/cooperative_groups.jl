@@ -30,7 +30,7 @@ end
 
 ###########################################################################################
 
-if capability(device()) >= v"6.0" && attribute(device(), CUDACore.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
+if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
 @testset "grid groups" begin
     function kernel_vadd(a, b, c)
         grid = CG.this_grid()
@@ -44,9 +44,9 @@ if capability(device()) >= v"6.0" && attribute(device(), CUDACore.DEVICE_ATTRIBU
     # cooperative kernels are limited in the number of blocks that can be launched
     # (the occupancy API could be used to calculate how many blocks can fit per SM,
     #  but that doesn't matter for the tests, so we assume a single block per SM.)
-    maxBlocks = attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
+    maxBlocks = attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
     kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global}})
-    maxThreads = CUDACore.maxthreads(kernel)
+    maxThreads = CUDA.maxthreads(kernel)
 
     a = rand(Float32, maxBlocks, maxThreads)
     b = rand(Float32, size(a)) * 100
@@ -101,7 +101,7 @@ end
         return
     end
 
-    warpsize = CUDACore.warpsize(device())
+    warpsize = CUDA.warpsize(device())
     delta = rand(1:5)
     lower, upper = 20, 30
 
@@ -160,7 +160,7 @@ end
 
         # elect the first active thread to perform atomic add
         if CG.thread_rank(g) == 1
-            prev = CUDACore.atomic_add!(ptr, Int32(CG.num_threads(g)))
+            prev = CUDA.atomic_add!(ptr, Int32(CG.num_threads(g)))
         end
 
         # broadcast previous value within the warp

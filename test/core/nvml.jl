@@ -1,4 +1,4 @@
-using CUDACore.NVML
+using CUDA.NVML
 
 # XXX: can we be more fine grained? or check if we have permissions beforehand?
 macro test_maybe(ex)
@@ -21,7 +21,7 @@ else
 @testset "system" begin
     @test NVML.version() isa VersionNumber
     @test NVML.driver_version() isa VersionNumber
-    @test NVML.cuda_driver_version() == CUDACore.driver_version()
+    @test NVML.cuda_driver_version() == CUDA.driver_version()
 end
 
 @testset "devices" begin

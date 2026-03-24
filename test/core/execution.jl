@@ -34,10 +34,10 @@ end
     k()
     k(; threads=1)
 
-    CUDACore.version(k)
-    CUDACore.memory(k)
-    CUDACore.registers(k)
-    CUDACore.maxthreads(k)
+    CUDA.version(k)
+    CUDA.memory(k)
+    CUDA.registers(k)
+    CUDA.maxthreads(k)
 end
 
 
@@ -56,10 +56,10 @@ end
     # there isn't any capability other than the device's that's guaruanteed to work
     @cuda launch=false cap=capability(device()) dummy()
     # but we should be able to see it in the generated PTX code
-    asm = sprint(io->CUDACore.code_ptx(io, dummy, (); cap=v"5.0"))
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
     @test contains(asm, ".target sm_50")
 
-    asm = sprint(io->CUDACore.code_ptx(io, dummy, (); ptx=v"6.3"))
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); ptx=v"6.3"))
     @test contains(asm, ".version 6.3")
 end
 
@@ -76,20 +76,20 @@ end
 
 
 @testset "reflection" begin
-    CUDACore.code_lowered(dummy, Tuple{})
-    CUDACore.code_typed(dummy, Tuple{})
-    CUDACore.code_warntype(devnull, dummy, Tuple{})
-    CUDACore.code_llvm(devnull, dummy, Tuple{})
-    CUDACore.code_ptx(devnull, dummy, Tuple{})
+    CUDA.code_lowered(dummy, Tuple{})
+    CUDA.code_typed(dummy, Tuple{})
+    CUDA.code_warntype(devnull, dummy, Tuple{})
+    CUDA.code_llvm(devnull, dummy, Tuple{})
+    CUDA.code_ptx(devnull, dummy, Tuple{})
     if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
         # functions defined in Julia
-        sass = sprint(io->CUDACore.code_sass(io, dummy, Tuple{}))
+        sass = sprint(io->CUDA.code_sass(io, dummy, Tuple{}))
         @test occursin(".text._Z5dummy", sass)
 
         # external functions
         sass = sprint(io->begin
-            CUDACore.code_sass(io) do
-                cuBLAS.copy!(1, CUDACore.ones(1), CUDACore.ones(1))
+            CUDA.code_sass(io) do
+                cuBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
             end
         end)
         @test occursin("copy_kernel", sass)
@@ -108,7 +108,7 @@ end
         # external functions
         sass = sprint(io->begin
             @device_code_sass io=io begin
-                cuBLAS.copy!(1, CUDACore.ones(1), CUDACore.ones(1))
+                cuBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
             end
         end)
         @test occursin("copy_kernel", sass)
@@ -131,8 +131,8 @@ end
     # make sure invalid kernels can be partially reflected upon
     let
         invalid_kernel() = throw()
-        @test_throws CUDACore.InvalidIRError @cuda invalid_kernel()
-        @test_throws CUDACore.InvalidIRError @grab_output @device_code_warntype @cuda invalid_kernel()
+        @test_throws CUDA.InvalidIRError @cuda invalid_kernel()
+        @test_throws CUDA.InvalidIRError @grab_output @device_code_warntype @cuda invalid_kernel()
         out, err = @grab_output begin
             try
                 @device_code_warntype @cuda invalid_kernel()
@@ -148,10 +148,10 @@ end
         k()
     end)))
 
-    @test CUDACore.return_type(identity, Tuple{Int}) === Int
-    @test CUDACore.return_type(sin, Tuple{Float32}) === Float32
-    @test CUDACore.return_type(getindex, Tuple{CuDeviceArray{Float32,1,1},Int32}) === Float32
-    @test CUDACore.return_type(getindex, Tuple{Base.RefValue{Integer}}) === Integer
+    @test CUDA.return_type(identity, Tuple{Int}) === Int
+    @test CUDA.return_type(sin, Tuple{Float32}) === Float32
+    @test CUDA.return_type(getindex, Tuple{CuDeviceArray{Float32,1,1},Int32}) === Float32
+    @test CUDA.return_type(getindex, Tuple{Base.RefValue{Integer}}) === Integer
 end
 
 
@@ -166,7 +166,7 @@ end
 end
 
 @testset "clusters" begin
-    if CUDACore.capability(device()) >= v"9.0"
+    if CUDA.capability(device()) >= v"9.0"
         @cuda threads=64 blocks=2 clustersize=2 dummy()
     else
         @test_throws CuError @cuda threads=64 blocks=2 clustersize=2 dummy()
@@ -186,7 +186,7 @@ end
     end
 
     @eval module WrapperModule
-        using CUDACore
+        using CUDA
         @eval dummy() = return
         wrapper() = @cuda dummy()
     end
@@ -507,7 +507,7 @@ end
     @eval struct Host   end
     @eval struct Device end
 
-    Adapt.adapt_storage(::CUDACore.KernelAdaptor, a::Host) = Device()
+    Adapt.adapt_storage(::CUDA.KernelAdaptor, a::Host) = Device()
 
     Base.convert(::Type{Int}, ::Host)   = 1
     Base.convert(::Type{Int}, ::Device) = 2
@@ -1030,7 +1030,7 @@ end
         @cuprint("Hello, ")
         s = CuDeviceStream()
         @cuda dynamic=true stream=s world()
-        CUDACore.unsafe_destroy!(s)
+        CUDA.unsafe_destroy!(s)
         return
     end
 
@@ -1062,7 +1062,7 @@ end
         foo = (Any[T(i) for (i,T) in enumerate(Foo.parameters)]...,)
         bar = (Any[T(i) for (i,T) in enumerate(Bar.parameters)]...,)
 
-        x, y = CUDACore.zeros(Int, 1), CUDACore.zeros(Int, 1)
+        x, y = CUDA.zeros(Int, 1), CUDA.zeros(Int, 1)
         @cuda child(x, foo, bar)
         @cuda parent(y, foo, bar)
         @test sum(bar) == Array(x)[] == Array(y)[]
@@ -1101,7 +1101,7 @@ end
 
 @testset "contextual dispatch" begin
 
-@test_throws ErrorException CUDACore.saturate(1f0)  # CUDA.jl#60
+@test_throws ErrorException CUDA.saturate(1f0)  # CUDA.jl#60
 
 @test testf(a->broadcast(x->x^1.5, a), rand(Float32, 1))    # CUDA.jl#71
 @test testf(a->broadcast(x->1.0^x, a), rand(Int, 1))        # CUDA.jl#76

@@ -73,7 +73,7 @@ end
     @test ndims(array_mem) == ndims(d_a3D)
 
     # and its CuArrayPtr
-    ptr = convert(CUDACore.CuArrayPtr{Float32}, array_mem)
+    ptr = convert(CUDA.CuArrayPtr{Float32}, array_mem)
     @test isequal(ptr, ptr)
     @test isless(ptr, 2 + ptr)
     @test isless(ptr - 2, ptr)
@@ -100,7 +100,7 @@ end
     h_arr_1D = zeros(Float32, length(a1D))
     Base.unsafe_copyto!(pointer(h_arr_1D), pointer(texarr1D), length(h_arr_1D))
     @test h_arr_1D == a1D
-    cu_arr_1D = CUDACore.zeros(Float32, length(a1D))
+    cu_arr_1D = CUDA.zeros(Float32, length(a1D))
     Base.unsafe_copyto!(pointer(cu_arr_1D), pointer(texarr1D), length(cu_arr_1D))
     @test Array(cu_arr_1D) == a1D
 
@@ -200,7 +200,7 @@ end
                 end
 
                 gpu_dst = CuArray{T}(undef, size(cpu_idx))
-                gpu_tex = CuTexture(gpu_src; interpolation=CUDACore.NearestNeighbour())
+                gpu_tex = CuTexture(gpu_src; interpolation=CUDA.NearestNeighbour())
                 broadcast!(gpu_dst, gpu_idx, Ref(gpu_tex)) do idx, tex
                     tex[idx...]
                 end
@@ -216,7 +216,7 @@ end
                 end
 
                 gpu_dst = CuArray{T}(undef, size(cpu_idx))
-                gpu_tex = CuTexture(gpu_src; interpolation=CUDACore.LinearInterpolation())
+                gpu_tex = CuTexture(gpu_src; interpolation=CUDA.LinearInterpolation())
                 broadcast!(gpu_dst, gpu_idx, Ref(gpu_tex)) do idx, tex
                     tex[idx...]
                 end
@@ -232,7 +232,7 @@ end
                 end
 
                 gpu_dst = CuArray{T}(undef, size(cpu_idx))
-                gpu_tex = CuTexture(gpu_src; interpolation=CUDACore.CubicInterpolation())
+                gpu_tex = CuTexture(gpu_src; interpolation=CUDA.CubicInterpolation())
                 broadcast!(gpu_dst, gpu_idx, Ref(gpu_tex)) do idx, tex
                     tex[idx...]
                 end

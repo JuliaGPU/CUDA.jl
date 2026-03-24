@@ -32,7 +32,7 @@ endline = Sys.iswindows() ? "\r\n" : "\n"
     end
     x = CuArray(ones(2, 2))
     _, out = @grab_output begin
-        CUDACore.@sync @cuda kernel(x)
+        CUDA.@sync @cuda kernel(x)
     end
     @test out == "1.000000 1.000000$endline"
 end

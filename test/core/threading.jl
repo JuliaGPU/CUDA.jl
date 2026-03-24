@@ -41,8 +41,8 @@ end
     end
 
     yield()
-    CUDACore.unsafe_free!(da)
-    CUDACore.unsafe_free!(db)
+    CUDA.unsafe_free!(da)
+    CUDA.unsafe_free!(db)
   end
 end
 
@@ -65,8 +65,8 @@ end
       end
 
       yield()
-      CUDACore.unsafe_free!(da)
-      CUDACore.unsafe_free!(db)
+      CUDA.unsafe_free!(da)
+      CUDA.unsafe_free!(db)
     end
   end
 end

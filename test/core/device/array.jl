@@ -4,7 +4,7 @@
         a = I1(1)
         b = I2(2)
 
-        dp = reinterpret(CUDACore.LLVMPtr{T,AS.Generic}, C_NULL)
+        dp = reinterpret(CUDA.LLVMPtr{T,AS.Generic}, C_NULL)
 
         CuDeviceArray{T,1,AS.Generic}(dp, (b,))
         @test_throws MethodError CuDeviceArray{T,1,AS.Generic}(dp, (a,b))
@@ -75,9 +75,9 @@ end
         tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
                             Tuple{UnitRange{Int64},UnitRange{Int64}},false}}
 
-        ir = sprint(io->CUDACore.code_llvm(io, kernel, tt))
+        ir = sprint(io->CUDA.code_llvm(io, kernel, tt))
         @test !occursin("jl_invoke", ir)
-        CUDACore.code_ptx(devnull, kernel, tt)
+        CUDA.code_ptx(devnull, kernel, tt)
     end
 
     # test that we don't do needless bounds checking when the kernel already does it
@@ -93,7 +93,7 @@ end
         end
 
         for N in 1:3
-            ir = sprint(io->CUDACore.code_llvm(io, kernel, Tuple{CuDeviceArray{Int,N,AS.Global}}))
+            ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{CuDeviceArray{Int,N,AS.Global}}))
             @test !occursin("boundserror", ir)
         end
     end
@@ -152,7 +152,7 @@ end
         return
     end
 
-    array = CUDACore.zeros(1)
+    array = CUDA.zeros(1)
     @cuda kernel(array)
     @test Array(array) == [1]
 end
@@ -169,7 +169,7 @@ end
 
 function shmem_reinterpet_equal_size()
   threads = 4
-  y = CUDACore.zeros(threads)
+  y = CUDA.zeros(threads)
   shmem = sizeof(Float32) * threads
   @cuda(
     threads = threads,
@@ -203,7 +203,7 @@ end
 
 function shmem_reinterpet_smaller_size()
   threads = 4
-  y = CUDACore.zeros(UInt128, threads)
+  y = CUDA.zeros(UInt128, threads)
   shmem = sizeof(UInt128) * threads
   @cuda(
     threads = threads,
@@ -239,7 +239,7 @@ end
 
 function shmem_reinterpet_larger_size()
   threads = 4
-  y = CUDACore.zeros(UInt128, threads)
+  y = CUDA.zeros(UInt128, threads)
   shmem = sizeof(UInt128) * threads
   @cuda(
     threads = threads,
