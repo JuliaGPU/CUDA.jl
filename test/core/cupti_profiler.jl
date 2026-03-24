@@ -12,6 +12,8 @@ end
 
 if CUDA.runtime_version() < v"12.6"
     @warn "Skipping CUPTI Profiler Host tests: requires CUDA >= 12.6"
+elseif !CUDA.CUPTI.profiler_device_supported()
+    @warn "Skipping CUPTI Profiler Host tests: device does not support profiling (MIG, vGPU, etc.)"
 else
 
 @testset "supported_chips" begin

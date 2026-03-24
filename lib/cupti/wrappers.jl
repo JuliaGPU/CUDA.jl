@@ -338,6 +338,34 @@ function _check_profiler_host_api()
     end
 end
 
+"""
+    profiler_device_supported(; dev=CUDA.device(), api=CUPTI_PROFILER_RANGE_PROFILING) -> Bool
+
+Check whether the CUPTI profiler APIs are supported on the given device.
+Returns `false` for MIG partitions, unsupported architectures, vGPU, etc.
+"""
+function profiler_device_supported(;
+        dev::CUDA.CuDevice=CUDA.device(),
+        api::CUpti_Profiler_API=CUPTI_PROFILER_RANGE_PROFILING)
+    _check_profiler_host_api()
+    params = Ref(CUpti_Profiler_DeviceSupported_Params(
+        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_DeviceSupported_Params, sku),
+        C_NULL,
+        dev,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        api,
+        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+    ))
+    cuptiProfilerDeviceSupported(params)
+    return params[].isSupported == CUPTI_PROFILER_CONFIGURATION_SUPPORTED
+end
+
 # compute capability → chip name mapping
 # from cuptiProfilerHostGetSupportedChips() output
 const CC_TO_CHIP = Dict{VersionNumber,String}(
