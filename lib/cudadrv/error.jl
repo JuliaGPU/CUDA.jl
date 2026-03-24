@@ -1,6 +1,7 @@
 # Error type and decoding functionality
 
 export CuError
+public description#, name
 
 
 # an optional struct, used to represent e.g. optional error logs.
@@ -81,4 +82,4 @@ end
 
 Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.code))")
 
-@enum_without_prefix cudaError_enum CUDA_
+@enum_without_prefix visibility=:public cudaError_enum CUDA_

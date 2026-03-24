@@ -218,7 +218,7 @@ gpus = if do_gpu_list
 else
     # pick the first non-exclusive GPU
     entries = map(gpu_entry, devices())
-    filter!(entry->entry.compute_mode != CUDA.CU_COMPUTEMODE_PROHIBITED, entries)
+    filter!(entry->entry.compute_mode != CUDA.COMPUTEMODE_PROHIBITED, entries)
     first(entries, 1)
 end
 @info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
@@ -233,7 +233,7 @@ if !set_jobs
     jobs = max(1, min(cpu_jobs, cpu_memory_jobs, gpu_memory_jobs))
 end
 @info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
-if first(gpus).compute_mode == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
+if first(gpus).compute_mode == CUDACore.COMPUTEMODE_EXCLUSIVE_PROCESS
     @warn "Running tests on a GPU in exclusive mode; reducing parallelism to 1."
     jobs = 1
 end

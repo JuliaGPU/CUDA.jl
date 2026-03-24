@@ -1,8 +1,7 @@
 # Stream management
 
-export
-    CuStream, default_stream, legacy_stream, per_thread_stream,
-    unique_id, priority, priority_range, synchronize, device_synchronize
+export CuStream, default_stream, legacy_stream, per_thread_stream,
+       unique_id, priority, priority_range, synchronize, device_synchronize
 
 """
     CuStream(; flags=STREAM_DEFAULT, priority=nothing)
@@ -81,7 +80,7 @@ Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
-@enum_without_prefix CUstream_flags_enum CU_
+@enum_without_prefix visibility=:public CUstream_flags_enum CU_
 
 function unsafe_destroy!(s::CuStream)
     @assert s.ctx !== nothing "Cannot destroy unassociated stream"

@@ -1,11 +1,11 @@
 # Raw memory management
 
-export attribute, attribute!, memory_type, is_managed
-
 
 #
 # operations on memory
 #
+
+public alloc, free
 
 # a chunk of memory allocated using the CUDA APIs. this memory can reside on the host, on
 # the GPU, or can represent specially-formatted memory (like texture arrays). depending on
@@ -24,6 +24,8 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, mem::AbstractMemory)
 
 
 ## device memory
+
+public DeviceMemory
 
 """
     DeviceMemory
@@ -92,6 +94,10 @@ end
 
 
 ## host memory
+
+public HostMemory, register, unregister,
+       MEMHOSTALLOC_PORTABLE, MEMHOSTALLOC_DEVICEMAP, MEMHOSTREGISTER_IOMEMORY,
+       MEMHOSTREGISTER_PORTABLE, MEMHOSTREGISTER_DEVICEMAP, MEMHOSTREGISTER_IOMEMORY
 
 """
     HostMemory
@@ -191,6 +197,8 @@ end
 
 ## unified memory
 
+public UnifiedMemory, prefetch, advise
+
 """
     UnifiedMemory
 
@@ -216,7 +224,7 @@ Base.convert(::Type{Ptr{T}}, mem::UnifiedMemory) where {T} =
 Base.convert(::Type{CuPtr{T}}, mem::UnifiedMemory) where {T} =
     convert(CuPtr{T}, pointer(mem))
 
-@enum_without_prefix CUmemAttach_flags CU_
+@enum_without_prefix visibility=:public CUmemAttach_flags CU_
 
 """
     alloc(UnifiedMemory, bytesize::Integer, [flags::CUmemAttach_flags])
@@ -254,7 +262,7 @@ function prefetch(mem::UnifiedMemory, bytes::Integer=sizeof(mem);
 end
 
 
-@enum_without_prefix CUmem_advise CU_
+@enum_without_prefix visibility=:public CUmem_advise CU_
 
 """
     advise(::UnifiedMemory, advice::CUDA.CUmem_advise, [bytes::Integer]; [device::CuDevice])
@@ -269,6 +277,8 @@ end
 
 
 ## array memory
+
+public ArrayMemory
 
 """
     ArrayMemory
@@ -381,6 +391,8 @@ nchans(::Type) = 1
 #
 # operations on pointers
 #
+
+public memset, unsafe_copyto!, unsafe_copy2d!, unsafe_copy3d!
 
 ## initialization
 
@@ -643,6 +655,8 @@ end
 # auxiliary functionality
 #
 
+public pin
+
 # given object, find base allocation
 # pin that, or increase refcount
 # finalizer, drop refcount, free if 0
@@ -763,6 +777,9 @@ end
 
 ## pointer attributes
 
+export attribute, attribute!, memory_type, is_managed
+public host_pointer, device_pointer, is_pinned
+
 # TODO: iterable struct
 
 """
@@ -789,7 +806,7 @@ function attribute!(ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute, val)
     return
 end
 
-@enum_without_prefix CUpointer_attribute CU_
+@enum_without_prefix visibility=:public CUpointer_attribute CU_
 
 # some common attributes
 
@@ -809,7 +826,7 @@ Identify the device memory was allocated on.
 device(x::Union{Ptr,CuPtr}) =
     CuDevice(convert(Int, attribute(Cuint, x, POINTER_ATTRIBUTE_DEVICE_ORDINAL)))
 
-@enum_without_prefix CUmemorytype CU_
+@enum_without_prefix visibility=:public CUmemorytype CU_
 memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE))
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
@@ -852,6 +869,8 @@ end
 #
 # other
 #
+
+public memory_info, free_memory, total_memory
 
 ## memory info
 

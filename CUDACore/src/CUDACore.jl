@@ -1,8 +1,12 @@
 module CUDACore
 
 using GPUCompiler
+using GPUCompiler: InvalidIRError, KernelError
+public InvalidIRError, KernelError
 
 using GPUArrays
+using GPUArrays: allowscalar
+public allowscalar
 
 using GPUToolbox
 public i32

@@ -1,6 +1,7 @@
 # Native execution support
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
+public maxthreads, registers, memory, version, KernelAdaptor
 
 
 ## high-level @cuda interface

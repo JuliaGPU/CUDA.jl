@@ -1,4 +1,5 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
+public supports_hmm, enable_synchronization!, unsafe_free!, fill, ones, zeros, resize!
 
 
 ## array type

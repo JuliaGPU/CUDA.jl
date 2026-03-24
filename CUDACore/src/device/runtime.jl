@@ -1,5 +1,7 @@
 # GPU runtime library
 
+public precompile_runtime
+
 import Base.Sys: WORD_SIZE
 
 # reset the runtime cache from global scope, so that any change triggers recompilation

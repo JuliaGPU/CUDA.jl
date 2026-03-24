@@ -848,7 +848,9 @@ macro timed(ex)
          gpu_bytes=gpu_mem_stats.alloc_bytes, gpu_memtime=gpu_mem_stats.total_time, gpu_memstats=gpu_mem_stats)
     end
 end
-public @allocated, @time, @timed
+public @allocated, @time, @timed,
+       used_memory, cached_memory,
+       pool_status, reclaim
 
 """
     used_memory()

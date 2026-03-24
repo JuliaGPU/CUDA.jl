@@ -11,6 +11,7 @@ for n in names(CUDACore)
     n === :CUDACore && continue
     isdefined(CUDACore, n) || continue
     @eval using CUDACore: $n
+    @eval $(Expr(:public, n))
 end
 
 # Load math libraries so their methods (matmul, rand, etc.) are available

@@ -38,7 +38,7 @@ macro sync(ex...)
     end
 end
 
-public @sync
+public @sync, versioninfo
 
 function versioninfo(io::IO=stdout)
     @assert functional(true)

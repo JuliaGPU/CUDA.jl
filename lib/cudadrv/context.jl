@@ -1,25 +1,25 @@
 # Context management
 
-export
-    CuPrimaryContext, CuContext, current_context, has_context, activate,
-    unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
-    device, device_synchronize
+export CuPrimaryContext, CuContext, current_context, has_context, activate,
+       unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
+       device, device_synchronize
+public unsafe_destroy!
 
 
 ## construction and destruction
 
-@enum_without_prefix CUctx_flags CU_
+@enum_without_prefix visibility=:public CUctx_flags CU_
 
 """
     CuContext(dev::CuDevice, flags=CTX_SCHED_AUTO)
     CuContext(f::Function, ...)
 
-Create a CUDA context for device. A context on the GPU is analogous to a process on the CPU,
-with its own distinct address space and allocated resources. When a context is destroyed,
-the system cleans up the resources allocated to it.
+Create a CUDA context for device. A context on the GPU is analogous to a process
+on the CPU, with its own distinct address space and allocated resources. When a
+context is destroyed, the system cleans up the resources allocated to it.
 
-When you are done using the context, call [`CUDA.unsafe_destroy!`](@ref) to mark it for
-deletion, or use do-block syntax with this constructor.
+When you are done using the context, call [`CUDA.unsafe_destroy!`](@ref) to mark
+it for deletion, or use do-block syntax with this constructor.
 """
 struct CuContext
     handle::CUcontext
@@ -310,7 +310,7 @@ device_synchronize()
 
 export cache_config, cache_config!
 
-@enum_without_prefix CUfunc_cache CU_
+@enum_without_prefix visibility=:public CUfunc_cache CU_
 
 function cache_config()
     config = Ref{CUfunc_cache}()
@@ -327,7 +327,7 @@ end
 
 export shmem_config, shmem_config!
 
-@enum_without_prefix CUsharedconfig CU_
+@enum_without_prefix visibility=:public CUsharedconfig CU_
 
 function shmem_config()
     config = Ref{CUsharedconfig}()
@@ -344,7 +344,7 @@ end
 
 export limit, limit!
 
-@enum_without_prefix CUlimit CU_
+@enum_without_prefix visibility=:public CUlimit CU_
 
 function limit(lim::CUlimit)
     val = Ref{Csize_t}()

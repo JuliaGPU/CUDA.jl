@@ -1,7 +1,6 @@
 # Module-related types and auxiliary functions
 
-export
-    CuModule, CuModuleFile
+export CuModule, CuModuleFile
 
 include(joinpath("module", "jit.jl"))
 

@@ -52,12 +52,6 @@ function runtests(f, name, time_source=:cuda)
         mod_name = Symbol("Test", rand(1:100), "Main_", replace(name, '/' => '_'))
         mod = @eval(Main, module $mod_name end)
         @eval(mod, using Test, Random, CUDA)
-        # import all CUDA names into the test module
-        for n in names(CUDA; all=false)
-            n === :CUDA && continue
-            isdefined(CUDA, n) || continue
-            @eval(mod, using CUDA: $n)
-        end
 
         let id = myid()
             wait(@spawnat 1 print_testworker_started(name, id))

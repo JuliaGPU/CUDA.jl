@@ -1,5 +1,10 @@
 # Version management
 
+public driver_version,
+       runtime_version, set_runtime_version!, reset_runtime_version!,
+       compiler_version,
+       is_tegra
+
 # because of this API call being used so frequently, we use a manual cache set in __init__
 # (@memoize's lazy/thread-safe initialization is too expensive for this purpose)
 const _driver_version = Ref{VersionNumber}()

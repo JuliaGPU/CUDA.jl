@@ -171,7 +171,7 @@ end
 
 export CuTexture
 
-@enum_without_prefix CUaddress_mode CU_TR_
+@enum_without_prefix visibility=:public CUaddress_mode CU_TR_
 
 Base.convert(::Type{CUfilter_mode}, ::NearestNeighbour)      = CU_TR_FILTER_MODE_POINT
 Base.convert(::Type{CUfilter_mode}, ::LinearInterpolation)   = CU_TR_FILTER_MODE_LINEAR

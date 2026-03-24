@@ -1,5 +1,7 @@
-@enum_without_prefix CUjit_option CU_
-@enum_without_prefix CUjitInputType CU_
+public encode, decode
+
+@enum_without_prefix visibility=:public CUjit_option CU_
+@enum_without_prefix visibility=:public CUjitInputType CU_
 
 function convert_bits(::Type{T}, data::UInt) where T
     if sizeof(data) == sizeof(T)

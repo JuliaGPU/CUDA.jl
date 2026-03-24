@@ -435,7 +435,10 @@ macro atomic(ex)
         $atomic_arrayset($array, $indices, $op, $val)
     end)
 end
-public @atomic
+public @atomic, AtomicError,
+       atomic_add!, atomic_sub!, atomic_and!, atomic_or!, atomic_xor!,
+       atomic_min!, atomic_max!, atomic_inc!, atomic_dec!,
+       atomic_cas!, atomic_xchg!
 
 # FIXME: make this respect the indexing style
 @inline atomic_arrayset(A::AbstractArray{T}, Is::Tuple, op::Function, val) where {T} =

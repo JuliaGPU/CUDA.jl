@@ -2,10 +2,10 @@ const ModeType = AbstractVector{<:Union{Char, Integer}}
 
 # remove the CUTENSOR_ prefix from some common enums,
 # as they're namespaced to the cuTENSOR module anyway.
-@enum_without_prefix cutensorOperator_t CUTENSOR_
-@enum_without_prefix cutensorWorksizePreference_t CUTENSOR_
-@enum_without_prefix cutensorAlgo_t CUTENSOR_
-@enum_without_prefix cutensorJitMode_t CUTENSOR_
+@enum_without_prefix visibility=:public cutensorOperator_t CUTENSOR_
+@enum_without_prefix visibility=:public cutensorWorksizePreference_t CUTENSOR_
+@enum_without_prefix visibility=:public cutensorAlgo_t CUTENSOR_
+@enum_without_prefix visibility=:public cutensorJitMode_t CUTENSOR_
 
 is_unary(op::cutensorOperator_t) =  (op ∈ (OP_IDENTITY, OP_SQRT, OP_RELU, OP_CONJ, OP_RCP))
 is_binary(op::cutensorOperator_t) = (op ∈ (OP_ADD, OP_MUL, OP_MAX, OP_MIN))

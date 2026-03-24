@@ -15,7 +15,7 @@ function name(err::CUPTIError)
     unsafe_string(str_ref[])
 end
 
-@enum_without_prefix CUptiResult CUPTI_
+@enum_without_prefix visibility=:public CUptiResult CUPTI_
 
 ## COV_EXCL_START
 function description(err)

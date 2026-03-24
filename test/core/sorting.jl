@@ -1,8 +1,8 @@
 using Random
 using DataStructures
 
-import CUDA.QuickSortImpl: flex_lt, find_partition, quicksort!, partition_batches_kernel,
-                           consolidate_batch_partition, bubble_sort
+import CUDACore.QuickSortImpl: flex_lt, find_partition, quicksort!, partition_batches_kernel,
+                               consolidate_batch_partition, bubble_sort
 
 @testset "integer functions" begin
     @test flex_lt(1, 2, false, isless, identity) == true

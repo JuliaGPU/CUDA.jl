@@ -5,11 +5,11 @@
 synchronize()
 
 ctx = current_context()
-@test CUDA.isvalid(ctx)
+@test CUDACore.isvalid(ctx)
 @test unique_id(ctx) > 0
 
 dev = current_device()
-exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.CU_COMPUTEMODE_EXCLUSIVE_PROCESS
+exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS
 
 synchronize(ctx)
 
@@ -33,7 +33,7 @@ if !exclusive
             @test ctx != ctx2
             global_ctx2 = ctx2
         end
-        @test !CUDA.isvalid(global_ctx2)
+        @test !CUDACore.isvalid(global_ctx2)
         @test ctx == current_context()
 
         @test device(ctx) == dev
@@ -64,23 +64,23 @@ setflags!(pctx, CUDA.CTX_SCHED_BLOCKING_SYNC)
 
 let global_ctx = nothing
     CuContext(pctx) do ctx
-        @test CUDA.isvalid(ctx)
+        @test CUDACore.isvalid(ctx)
         @test isactive(pctx)
         global_ctx = ctx
     end
     @test !isactive(pctx) broken=true
-    @test !CUDA.isvalid(global_ctx) broken=true
+    @test !CUDACore.isvalid(global_ctx) broken=true
 end
 
 let
     ctx = CuContext(pctx)
-    @test CUDA.isvalid(ctx)
+    @test CUDACore.isvalid(ctx)
     @test isactive(pctx)
 
     unsafe_reset!(pctx)
 
     @test !isactive(pctx)
-    @test !CUDA.isvalid(ctx)
+    @test !CUDACore.isvalid(ctx)
 end
 
 let
@@ -88,16 +88,16 @@ let
 
     ctx1 = CuContext(pctx)
     @test isactive(pctx)
-    @test CUDA.isvalid(ctx1)
+    @test CUDACore.isvalid(ctx1)
 
     unsafe_reset!(pctx)
     @test !isactive(pctx)
-    @test !CUDA.isvalid(ctx1)
+    @test !CUDACore.isvalid(ctx1)
 
     ctx2 = CuContext(pctx)
     @test isactive(pctx)
-    @test !CUDA.isvalid(ctx1)
-    @test CUDA.isvalid(ctx2)
+    @test !CUDACore.isvalid(ctx1)
+    @test CUDACore.isvalid(ctx2)
 
     unsafe_reset!(pctx)
 end
@@ -807,7 +807,7 @@ let
 
     vadd = CuFunction(md, "vadd")
 
-    options = Dict{CUDA.CUjit_option,Any}()
+    options = Dict{CUDACore.CUjit_option,Any}()
     options[CUDA.JIT_GENERATE_LINE_INFO] = true
 
     md = CuModule(obj, options)
