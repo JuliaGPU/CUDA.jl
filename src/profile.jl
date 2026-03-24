@@ -1259,11 +1259,21 @@ function profile_counters(f, metric_names::Vector{String}; io::IO=stdout)
         end
     end
 
-    # shorten metric names for column headers
+    # shorten metric names for column headers, ensuring unique Symbol keys
     short_names = [_short_metric_name(m) for m in result.metric_names]
+    seen = Set{Symbol}()
+    unique_syms = Symbol[]
+    for (j, s) in enumerate(short_names)
+        sym = Symbol(s)
+        while sym in seen
+            sym = Symbol(s, "_", j)
+        end
+        push!(seen, sym)
+        push!(unique_syms, sym)
+    end
 
     data = (; kernel=names,
-              (Symbol(short_names[j]) => metric_columns[j] for j in eachindex(result.metric_names))...)
+              (unique_syms[j] => metric_columns[j] for j in eachindex(result.metric_names))...)
     col_labels = ["Kernel", short_names...]
     alignment = [:l, fill(:r, length(result.metric_names))...]
 
@@ -1301,16 +1311,18 @@ function short_kernel_name(name::AbstractString)
 end
 
 function _short_metric_name(name::String)
-    # "sm__cycles_active.avg" → "cycles_active.avg"
-    # "dram__throughput.avg.pct_of_peak_sustained_elapsed" → "dram_throughput.pct"
+    # "sm__cycles_active.avg" → "sm:cycles_active.avg"
+    # "dram__throughput.avg.pct_of_peak_sustained_elapsed" → "dram:throughput.pct"
+    # "fbpa__dram_read_bytes.sum" → "fbpa:dram_read_bytes.sum"
     parts = split(name, "__"; limit=2)
-    short = length(parts) == 2 ? parts[2] : name
+    prefix = length(parts) == 2 ? parts[1] : ""
+    base = length(parts) == 2 ? parts[2] : name
     # abbreviate common suffixes
-    short = replace(short, ".avg.pct_of_peak_sustained_elapsed" => ".pct_peak")
-    short = replace(short, ".avg.pct_of_peak_sustained_active" => ".pct_peak_active")
-    short = replace(short, ".avg.per_cycle_active" => ".per_cyc")
-    short = replace(short, ".avg.per_cycle_elapsed" => ".per_cyc_elapsed")
-    return short
+    base = replace(base, ".avg.pct_of_peak_sustained_elapsed" => ".pct")
+    base = replace(base, ".avg.pct_of_peak_sustained_active" => ".pct_active")
+    base = replace(base, ".avg.per_cycle_active" => ".ipc")
+    base = replace(base, ".avg.per_cycle_elapsed" => ".ipc_elapsed")
+    return isempty(prefix) ? base : "$prefix:$base"
 end
 
 function _format_counter_value(v::Float64)
