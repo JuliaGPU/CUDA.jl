@@ -554,6 +554,98 @@ struct MetricProperties
 end
 
 """
+    METRIC_ALIASES
+
+Human-readable aliases for common CUPTI hardware counter metrics.
+These use bare metric names (no Triage prefix) that CUPTI resolves
+at runtime across GPU architectures (Turing through Blackwell).
+
+Use with `range_profile` or `@profile counters=`:
+
+```julia
+CUDA.@profile counters=CUDA.CUPTI.METRIC_ALIASES[:memory] begin
+    my_kernel(...)
+end
+```
+"""
+const METRIC_ALIASES = Dict{Symbol,Vector{String}}(
+    # Preset groups
+    :memory => [
+        "fbpa__dram_read_bytes.sum",
+        "fbpa__dram_write_bytes.sum",
+        "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+        "lts__throughput.avg.pct_of_peak_sustained_elapsed",
+        "lts__t_sector_hit_rate.pct",
+        "l1tex__throughput.avg.pct_of_peak_sustained_elapsed",
+    ],
+    :compute => [
+        "sm__cycles_active.avg",
+        "sm__inst_executed.sum",
+        "sm__inst_executed_realtime.avg.per_cycle_active",
+        "sm__warps_active.avg.pct_of_peak_sustained_active",
+        "smsp__inst_executed.sum",
+        "smsp__warps_launched.sum",
+    ],
+    :overview => [
+        "gpu__time_duration.sum",
+        "sm__cycles_active.avg",
+        "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+        "sm__inst_executed_realtime.avg.per_cycle_active",
+        "sm__warps_active.avg.pct_of_peak_sustained_active",
+        "lts__t_sector_hit_rate.pct",
+    ],
+    :tensor => [
+        "sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_active",
+        "sm__inst_executed.sum",
+        "sm__cycles_active.avg",
+        "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+    ],
+)
+
+"""
+    METRICS
+
+Individual metric aliases mapping human-readable names to bare CUPTI metric strings.
+These work across GPU architectures (Turing through Blackwell).
+
+```julia
+m = CUDA.CUPTI.METRICS
+result = CUDA.CUPTI.range_profile([m[:dram_throughput], m[:sm_occupancy]]) do
+    my_kernel(...)
+end
+```
+"""
+const METRICS = Dict{Symbol,String}(
+    # Time
+    :duration               => "gpu__time_duration.sum",
+    :elapsed_cycles         => "gr__cycles_elapsed.max",
+    :active_cycles          => "sm__cycles_active.avg",
+    # DRAM
+    :dram_bytes             => "dram__bytes.sum",
+    :dram_read_bytes        => "fbpa__dram_read_bytes.sum",
+    :dram_write_bytes       => "fbpa__dram_write_bytes.sum",
+    :dram_throughput        => "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+    # L2 cache
+    :l2_throughput          => "lts__throughput.avg.pct_of_peak_sustained_elapsed",
+    :l2_hit_rate            => "lts__t_sector_hit_rate.pct",
+    :l2_sectors             => "lts__t_sectors.sum",
+    :l2_hit_sectors         => "lts__t_sectors_lookup_hit.sum",
+    :l2_miss_sectors        => "lts__t_sectors_lookup_miss.sum",
+    # L1 / texture cache
+    :l1_throughput          => "l1tex__throughput.avg.pct_of_peak_sustained_elapsed",
+    :l1_hit_rate            => "l1tex__t_sector_hit_rate.pct",
+    # SM compute
+    :sm_occupancy           => "sm__warps_active.avg.pct_of_peak_sustained_active",
+    :sm_ipc                 => "sm__inst_executed_realtime.avg.per_cycle_active",
+    :inst_executed          => "sm__inst_executed.sum",
+    :warps_launched         => "smsp__warps_launched.sum",
+    # Tensor cores
+    :tensor_active          => "sm__pipe_tensor_cycles_active.avg.pct_of_peak_sustained_active",
+    # Shared memory
+    :shared_throughput      => "l1tex__data_pipe_lsu_wavefronts_mem_shared.avg.pct_of_peak_sustained_elapsed",
+)
+
+"""
     metric_properties(ctx::ProfilerHostContext, metric_name::String) -> MetricProperties
 
 Get the description, hardware unit, and other properties of a metric.
