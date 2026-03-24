@@ -19,6 +19,7 @@ end
 
 public functional
 public rand, randn, seed!
+public NativeRNG, native_rng
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
