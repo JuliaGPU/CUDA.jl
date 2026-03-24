@@ -348,22 +348,30 @@ function profiler_device_supported(;
         dev::CUDA.CuDevice=CUDA.device(),
         api::CUpti_Profiler_API=CUPTI_PROFILER_RANGE_PROFILING)
     _check_profiler_host_api()
-    params = Ref(CUpti_Profiler_DeviceSupported_Params(
-        @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_DeviceSupported_Params, sku),
-        C_NULL,
-        dev,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-        api,
-        CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
-    ))
-    cuptiProfilerDeviceSupported(params)
-    return params[].isSupported == CUPTI_PROFILER_CONFIGURATION_SUPPORTED
+    try
+        params = Ref(CUpti_Profiler_DeviceSupported_Params(
+            @CUPTI_PROFILER_STRUCT_SIZE(CUpti_Profiler_DeviceSupported_Params, sku),
+            C_NULL,
+            dev,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+            api,
+            CUPTI_PROFILER_CONFIGURATION_UNKNOWN,
+        ))
+        cuptiProfilerDeviceSupported(params)
+        return params[].isSupported == CUPTI_PROFILER_CONFIGURATION_SUPPORTED
+    catch e
+        # CUPTI_ERROR_INVALID_PARAMETER on MIG devices — profiling not supported
+        if e isa CUPTIError
+            return false
+        end
+        rethrow()
+    end
 end
 
 # compute capability → chip name mapping
