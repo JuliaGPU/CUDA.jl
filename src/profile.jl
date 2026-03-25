@@ -3,11 +3,11 @@
 """
     @profile [trace=false] [raw=false] code...
     @profile external=true code...
+    @profile counters=["metric1", "metric2"] code...
 
 Profile the GPU execution of `code`.
 
-There are two modes of operation, depending on whether `external` is `true` or `false`.
-The default value depends on whether Julia is being run under an external profiler.
+There are three modes of operation:
 
 ## Integrated profiler (`external=false`, the default)
 
@@ -29,6 +29,23 @@ For more advanced profiling, it is possible to use an external profiling tool, s
 NSight Systems or NSight Compute. When doing so, it is often advisable to only enable the
 profiler for the specific code region of interest. This can be done by wrapping the code
 with `CUDA.@profile external=true`, which used to be the only way to use this macro.
+
+## Hardware counters (`counters=[...]`)
+
+When `counters` is set to a vector of CUPTI metric names, the profiler will collect
+per-kernel hardware counter values using the CUPTI Range Profiler API. Use
+`CUDA.CUPTI.list_metrics()` to discover available metrics.
+
+```julia
+CUDA.@profile counters=["sm__cycles_active.avg", "dram__throughput.avg.pct_of_peak_sustained_elapsed"] begin
+    my_kernel(args...)
+    CUDA.synchronize()
+end
+```
+
+!!! warning
+    Hardware counter profiling may run your code multiple times if the requested
+    metrics require multiple passes. Ensure the profiled code is idempotent.
 """
 macro profile(ex...)
     # destructure the `@profile` expression
@@ -44,6 +61,7 @@ macro profile(ex...)
             false
         end
     end
+    counters = nothing
     remaining_kwargs = Expr[]
     for kwarg in kwargs
         if Meta.isexpr(kwarg, :(=))
@@ -51,6 +69,8 @@ macro profile(ex...)
             if key == :external
                 isa(value, Bool) || throw(ArgumentError("Invalid value for keyword argument `external`: got `$value`, expected literal boolean value"))
                 external = value
+            elseif key == :counters
+                counters = esc(value)
             else
                 push!(remaining_kwargs, Expr(:kw, key, esc(value)))
             end
@@ -59,12 +79,19 @@ macro profile(ex...)
         end
     end
 
-    quote
-        profiled_code() = $(esc(code))
-        if $external
-            $Profile.profile_externally(profiled_code; $(remaining_kwargs...))
-        else
-            $Profile.profile_internally(profiled_code; $(remaining_kwargs...))
+    if counters !== nothing
+        quote
+            profiled_code() = $(esc(code))
+            $Profile.profile_counters(profiled_code, $counters; $(remaining_kwargs...))
+        end
+    else
+        quote
+            profiled_code() = $(esc(code))
+            if $external
+                $Profile.profile_externally(profiled_code; $(remaining_kwargs...))
+            else
+                $Profile.profile_internally(profiled_code; $(remaining_kwargs...))
+            end
         end
     end
 end
@@ -603,13 +630,8 @@ function capture(cfg)
         end
     end
 
-    # Batch-demangle all kernel names in a single demumble invocation. This is
-    # much faster than demangling them one-by-one.
-    if !isempty(device_trace.name)
-        input = join(device_trace.name, '\n')
-        demangled = split(readchomp(pipeline(IOBuffer(input), `$(demumble())`)), '\n')
-        copy!(device_trace.name, demangled)
-    end
+    # Batch-demangle all kernel names in a single demumble invocation.
+    demangle_names!(device_trace.name)
 
     # add details column via Dict lookup (replaces leftjoin)
     host_details = Union{Missing,String}[get(details, id, missing) for id in host_trace.id]
@@ -1185,6 +1207,136 @@ function benchmark_and_profile(f; time=1.0, kwargs...)
     end
 
     profile_internally(benchmark_harness; kwargs...)
+end
+
+
+#
+# hardware counter profiling
+#
+
+"""
+    profile_counters(f, metric_names; io=stdout)
+
+Profile hardware counters for GPU kernels launched within `f()` and
+pretty-print the results merged with kernel names and timings from
+the activity API. Called by `CUDA.@profile counters=[...] code`.
+
+!!! warning
+    The code will be executed twice: once for kernel name/timing capture
+    via the activity API, and once (or more) for counter collection via
+    the range profiler. Ensure the profiled code is idempotent.
+"""
+function profile_counters(f, metric_names::Vector{String}; io::IO=stdout)
+    # Collect hardware counters via range profiler
+    # Kernel names are captured via the callback API during the first pass
+    result = CUPTI.range_profile(f, metric_names)
+
+    if isempty(result.range_names)
+        println(io, "No GPU kernels were captured.")
+        return result
+    end
+
+    num_kernels = length(result.range_names)
+    println(io, "Hardware counter profiling: $(num_kernels) kernel(s), $(length(result.metric_names)) metric(s)")
+    println(io)
+
+    # build table: one row per kernel with all metrics as columns
+    names = String[]
+    metric_columns = [String[] for _ in result.metric_names]
+
+    # demangle and shorten kernel names
+    demangle_names!(result.kernel_names)
+
+    for i in 1:num_kernels
+        # use demangled kernel name if available, fall back to range index
+        if i <= length(result.kernel_names)
+            push!(names, short_kernel_name(result.kernel_names[i]))
+        else
+            push!(names, result.range_names[i])
+        end
+        for (j, _) in enumerate(result.metric_names)
+            push!(metric_columns[j], _format_counter_value(result.values[i, j]))
+        end
+    end
+
+    # shorten metric names for column headers, ensuring unique Symbol keys
+    short_names = [_short_metric_name(m) for m in result.metric_names]
+    seen = Set{Symbol}()
+    unique_syms = Symbol[]
+    for (j, s) in enumerate(short_names)
+        sym = Symbol(s)
+        while sym in seen
+            sym = Symbol(s, "_", j)
+        end
+        push!(seen, sym)
+        push!(unique_syms, sym)
+    end
+
+    data = (; kernel=names,
+              (unique_syms[j] => metric_columns[j] for j in eachindex(result.metric_names))...)
+    col_labels = ["Kernel", short_names...]
+    alignment = [:l, fill(:r, length(result.metric_names))...]
+
+    pretty_table(io, data;
+        column_labels=col_labels,
+        alignment=alignment,
+        fit_table_in_display_horizontally=true)
+
+    return result
+end
+
+"""
+    demangle_names!(names) -> names
+
+Batch-demangle C++/CUDA kernel names in-place using demumble.
+"""
+function demangle_names!(names::AbstractVector{<:AbstractString})
+    isempty(names) && return names
+    input = join(names, '\n')
+    demangled = split(readchomp(pipeline(IOBuffer(input), `$(demumble())`)), '\n')
+    for i in eachindex(names)
+        names[i] = demangled[i]
+    end
+    return names
+end
+
+"""
+    short_kernel_name(name) -> String
+
+Strip argument list from a demangled kernel name, returning just the function name.
+"""
+function short_kernel_name(name::AbstractString)
+    paren = findfirst('(', name)
+    return paren !== nothing ? name[1:paren-1] : String(name)
+end
+
+function _short_metric_name(name::String)
+    # "sm__cycles_active.avg" → "sm:cycles_active.avg"
+    # "dram__throughput.avg.pct_of_peak_sustained_elapsed" → "dram:throughput.pct"
+    # "fbpa__dram_read_bytes.sum" → "fbpa:dram_read_bytes.sum"
+    parts = split(name, "__"; limit=2)
+    prefix = length(parts) == 2 ? parts[1] : ""
+    base = length(parts) == 2 ? parts[2] : name
+    # abbreviate common suffixes
+    base = replace(base, ".avg.pct_of_peak_sustained_elapsed" => ".pct")
+    base = replace(base, ".avg.pct_of_peak_sustained_active" => ".pct_active")
+    base = replace(base, ".avg.per_cycle_active" => ".ipc")
+    base = replace(base, ".avg.per_cycle_elapsed" => ".ipc_elapsed")
+    return isempty(prefix) ? base : "$prefix:$base"
+end
+
+function _format_counter_value(v::Float64)
+    if v == 0.0
+        "0"
+    elseif abs(v) >= 1e6
+        @sprintf("%.3e", v)
+    elseif abs(v) >= 100
+        @sprintf("%.1f", v)
+    elseif abs(v) >= 1
+        @sprintf("%.3f", v)
+    else
+        @sprintf("%.6f", v)
+    end
 end
 
 end
