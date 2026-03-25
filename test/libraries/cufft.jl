@@ -96,7 +96,8 @@ end
 N1 = 8
 N2 = 32
 N3 = 64
-N4 = 8
+N4 = 9
+N5 = 2
 
 rtol(::Type{Float16}) = 1e-2
 rtol(::Type{Float32}) = 1e-5
@@ -156,11 +157,12 @@ function in_place(X::AbstractArray{T,N}) where {T <: Complex,N}
     @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
 end
 
-function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
+function batched(X::AbstractArray{T,N}, region) where {T <: Complex,N}
     fftw_X = fft(X,region)
     d_X = CuArray(X)
     p = plan_fft(d_X,region)
     d_Y = p * d_X
+
     d_X2 = reshape(d_X, (size(d_X)..., 1))
     @test_throws ArgumentError p * d_X2
 
@@ -242,24 +244,51 @@ end
 
 @testset "Batch 2D (in 3D)" begin
     dims = (N1,N2,N3)
-    for region in [(1,2),(2,3),(1,3)]
+    for region in [(1,2),(2,3),(1,3),(3,1)]
         X = rand(T, dims)
         batched(X,region)
     end
 
-    X = rand(T, dims)
-    @test_throws ArgumentError batched(X,(3,1))
+    # @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4),(1,3),(2,3),(2,),(3,)]
+    for region in [(1,2),(1,3),(3,),(2,),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(2,4)]
+
+    for region in [(1,4),(3,4)]
         X = rand(T, dims)
-        @test_throws ArgumentError batched(X,region)
+        if (T <: ComplexF16)
+            # for odd dimensions covering axes of or between transform axes
+            # there is a rather unspecific CUFFTError: "CUFFT_INCOMPLETE_PARAMETER_LIST" thrown. This should be caught elsewhere to give more specific hint
+            # on how to avoid this. Maybe as of Cuda 13 this issue is removed?
+            @test_throws CUFFTError batched(X, region)
+        else
+            batched(X,region)
+        end
+    end    
+end
+
+@testset "Batch 3D (in 5D)" begin
+    dims = (N1,N2,N3,N4,N5)
+    for region in [(1,2,3),(2,3,5)]
+        X = rand(T, dims)
+        batched(X,region)
+    end
+
+    for region in [(1,2,4),(2,3,4),(3,4,5)]
+        X = rand(T, dims)
+        if (T <: ComplexF16)
+            # for odd dimensions covering axes of or between transform axes
+            # there is a rather unspecific CUFFTError: "CUFFT_INCOMPLETE_PARAMETER_LIST" thrown. This should be caught elsewhere to give more specific hint
+            # on how to avoid this. Maybe as of Cuda 13 this issue is removed?
+            @test_throws CUFFTError batched(X,region)
+        else
+            batched(X,region)
+        end
     end
 end
 
@@ -311,6 +340,16 @@ function batched(X::AbstractArray{T,N},region) where {T <: Real,N}
     @test isapprox(Z, X, rtol = rtol(T), atol = atol(T))
 end
 
+
+@testset "ensure_raising" begin
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((1,2,3))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((2,1,3))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((1,3,2))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((3,1,2))
+    @test (1,2,3) == CUDA.CUFFT.ensure_raising((2,3,1))
+    @test (10,20,30) == CUDA.CUFFT.ensure_raising((30,20,10))
+end
+
 @testset for T in [Float16, Float32, Float64]
 
 @testset "1D" begin
@@ -345,19 +384,31 @@ end
     end
 
     X = rand(T, dims)
+
+    # This should only throw an error for rfft type transforms:
     @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4),(1,3),(2,3)]
+    for region in [(1,2),(1,3),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(2,4)]
-        X = rand(T, dims)
-        @test_throws ArgumentError batched(X,region)
+    for region in [(2,4),(1,4),(3,4)]
+        if (T <: Float16)
+            # for odd dimensions covering axes of or between transform axes
+            # there is a rather unspecific CUFFTError: "CUFFT_INCOMPLETE_PARAMETER_LIST" thrown. This should be caught elsewhere to give more specific hint
+            # on how to avoid this. Maybe as of Cuda 13 this issue is removed?
+            X = rand(T, dims);
+            @test_throws CUFFTError batched(X,region)
+        else
+            batched(X,region)
+        end
     end
+
+    X = rand(T, dims)
+    @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "3D" begin
