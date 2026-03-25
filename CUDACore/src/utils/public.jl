@@ -11,9 +11,17 @@ function _public_symbols(e::Expr)
         [_public_symbol(e)]
     end
 end
+
+# Track public names so they can be discovered on Julia < 1.11
+const PUBLIC_NAMES = Symbol[]
+
 macro public(symbols_expr)
+    syms = _public_symbols(symbols_expr)
+    append!(PUBLIC_NAMES, syms)
     if VERSION >= v"1.11.0-DEV.469"
-        esc(Expr(:public, _public_symbols(symbols_expr)...))
+        esc(Expr(:public, syms...))
+    else
+        nothing
     end
 end
 export @public
