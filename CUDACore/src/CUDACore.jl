@@ -139,6 +139,5 @@ include("../ext/StaticArraysExt.jl")
 # NOTE: StaticArrays is a direct dep, so extension is directly included
 
 include("precompile.jl")
-include("deprecated.jl")
 
 end
