@@ -1,7 +1,7 @@
 name = "cuStateVec"
 uuid = "92f7fd98-d22e-4c0d-85a8-6ade11b672fb"
 authors = ["Katharine Hyatt <kslimes@gmail.com>"]
-version = "1.5.1"
+version = "6.0.0"
 
 [workspace]
 projects = ["test"]
