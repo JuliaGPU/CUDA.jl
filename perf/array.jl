@@ -129,8 +129,8 @@ let group = addgroup!(group, "random")
     end
 
     let group = addgroup!(group, "rand!")
-        group["Float32"] = @async_benchmarkable CUDA.rand!($gpu_vec)
-        group["Int64"] = @async_benchmarkable CUDA.rand!($gpu_vec_ints)
+        group["Float32"] = @async_benchmarkable rand!($gpu_vec)
+        group["Int64"] = @async_benchmarkable rand!($gpu_vec_ints)
     end
 
     let group = addgroup!(group, "randn")
@@ -138,7 +138,7 @@ let group = addgroup!(group, "random")
     end
 
     let group = addgroup!(group, "randn!")
-        group["Float32"] = @async_benchmarkable CUDA.randn!($gpu_vec)
+        group["Float32"] = @async_benchmarkable randn!($gpu_vec)
     end
 end
 
