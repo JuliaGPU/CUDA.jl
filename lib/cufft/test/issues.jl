@@ -27,7 +27,7 @@ end
 end
 
 @testset "CUDA.jl#2409" begin
-    x = CUDA.zeros(ComplexF32, 4)
+    x = CUDACore.zeros(ComplexF32, 4)
     p = plan_ifft(x)
     @test p isa AbstractFFTs.ScaledPlan
     # Initialize sz ref to invalid value
@@ -39,7 +39,7 @@ end
 end
 
 @testset "CUDA.jl#2504" begin
-    x = CUDA.zeros(Float32, 4)
+    x = CUDACore.zeros(Float32, 4)
     p = plan_rfft(x)
     pinv = inv(p)
     @test p isa AbstractFFTs.Plan{Float32}

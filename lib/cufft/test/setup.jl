@@ -2,7 +2,7 @@ using Test
 
 using cuFFT
 
-using CUDA
+using CUDACore
 
 import FFTW
 

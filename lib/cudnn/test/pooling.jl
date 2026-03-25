@@ -1,4 +1,4 @@
-using CUDA, Random
+using CUDACore, Random
 import NNlib
 using cuDNN:
     cudnnPoolingForward,

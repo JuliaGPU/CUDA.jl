@@ -88,7 +88,7 @@ end
                 copyto!(sv.data, batched_vec)
                 H_batch = CuVector{elty}(repeat(vec(H), n_mats))
                 sv = applyMatrixBatched!(sv, n_svs, mapping, mat_inds, H_batch, n_mats, false, Int32[0], Int32[])
-                CUDA.@allowscalar begin
+                CUDACore.@allowscalar begin
                     for sv_ix in 0:n_svs-1
                         ix_begin = sv_ix*2^n_q + 1
                         ix_end   = (sv_ix+1)*2^n_q

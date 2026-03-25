@@ -21,7 +21,7 @@ using cuSPARSE, SparseArrays
 
         # involving something dense
         y = x .* ones(elty, m, n)
-        dy = dx .* CUDA.ones(elty, m, n)
+        dy = dx .* CUDACore.ones(elty, m, n)
         @test dy isa CuArray{elty}
         @test y == Array(dy)
 
@@ -65,7 +65,7 @@ using cuSPARSE, SparseArrays
 
         # involving something dense
         y = x .+ ones(elty, m)
-        dy = dx .+ CUDA.ones(elty, m)
+        dy = dx .+ CUDACore.ones(elty, m)
         @test dy isa CuArray{elty}
         @test y == Array(dy)
 

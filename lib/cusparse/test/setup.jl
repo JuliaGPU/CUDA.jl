@@ -1,5 +1,5 @@
 using Test
-using CUDA
+using CUDACore
 using cuSPARSE
 using LinearAlgebra
 using SparseArrays

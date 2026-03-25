@@ -1,5 +1,5 @@
 using Test, LinearAlgebra
-using CUDA
+using CUDACore
 using cuStateVec
 import cuStateVec: CuStateVec, applyMatrix!, applyMatrixBatched!, applyPauliExp!,
     applyGeneralizedPermutationMatrix!, expectation, expectationsOnPauliBasis, sample,

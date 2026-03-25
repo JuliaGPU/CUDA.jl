@@ -1,6 +1,6 @@
 using SparseMatricesCSR
 using SparseArrays
-using CUDA
+using CUDACore
 using cuSPARSE
 using Test
 

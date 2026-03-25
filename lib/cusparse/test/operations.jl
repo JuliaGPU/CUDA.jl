@@ -105,7 +105,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
             @test maximum(coloring) == ncolors
             @test minimum(reordering) == 1
             @test maximum(reordering) == 50
-            @test CUDA.@allowscalar isperm(reordering)
+            @test CUDACore.@allowscalar isperm(reordering)
         end
 
         # The routine color returns the wrong result with small sparse matrices.
@@ -125,7 +125,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
                 @test ncolors == 2
                 @test minimum(reordering) == 1
                 @test maximum(reordering) == 5
-                CUDA.allowscalar() do
+                CUDACore.allowscalar() do
                     @test isperm(reordering)
                     @test coloring[1] == coloring[3]  == coloring[4]
                     @test coloring[2] == coloring[5]

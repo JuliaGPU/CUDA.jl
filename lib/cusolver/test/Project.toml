@@ -1,6 +1,6 @@
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

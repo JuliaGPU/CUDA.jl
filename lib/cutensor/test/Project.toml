@@ -1,5 +1,5 @@
 [deps]
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"

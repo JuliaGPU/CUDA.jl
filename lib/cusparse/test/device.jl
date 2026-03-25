@@ -1,7 +1,7 @@
 using cuSPARSE
 using SparseArrays
 using SparseArrays: nonzeros, nnz, rowvals
-using CUDA.GPUArrays: GPUSparseDeviceVector, GPUSparseDeviceMatrixCSC, GPUSparseDeviceMatrixCSR,
+using CUDACore.GPUArrays: GPUSparseDeviceVector, GPUSparseDeviceMatrixCSC, GPUSparseDeviceMatrixCSR,
                       GPUSparseDeviceMatrixBSR, GPUSparseDeviceMatrixCOO
 
 @testset "cudaconvert" begin
@@ -64,7 +64,7 @@ end
                     v += nonzeros(col)[i]
                     i += blockDim().x
                 end
-                v = CUDA.reduce_warp(+, v)
+                v = CUDACore.reduce_warp(+, v)
 
                 if threadIdx().x == 1
                     out[j] = v

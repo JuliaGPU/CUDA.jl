@@ -1,6 +1,6 @@
 using Test
 
-using CUDA
+using CUDACore
 using cuBLAS
 using LinearAlgebra
 using Random

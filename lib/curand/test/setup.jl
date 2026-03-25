@@ -1,7 +1,7 @@
 using Test
 using Random
 
-using CUDA
+using CUDACore
 using cuRAND
 using cuRAND: rand_logn!, rand_logn, rand_poisson!, rand_poisson
 

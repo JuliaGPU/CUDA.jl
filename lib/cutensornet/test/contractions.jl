@@ -32,7 +32,7 @@ k = 32
             @testset for tuning in [NoAutoTune(), AutoTune()]
                 ctn.input_arrs = raw_data_in
                 info = rehearse_contraction(ctn, max_ws_size)
-                ctn.output_arr = CUDA.zeros(elty, extentsD...)
+                ctn.output_arr = CUDACore.zeros(elty, extentsD...)
                 ctn = perform_contraction!(ctn, info, tuning)
                 @test size(ctn.output_arr) == tuple(extentsD...)
                 hA = collect(A)
@@ -55,17 +55,17 @@ k = 32
     @testset "QR" begin
         A = CuArray(rand(elty, n, m))
         modesA = ['n','m']
-        Q = CUDA.zeros(elty, n, n)
-        R = CUDA.zeros(elty, n, m)
+        Q = CUDACore.zeros(elty, n, n)
+        R = CUDACore.zeros(elty, n, m)
         Q, R = qr!(CuTensor(A, modesA), CuTensor(Q, ['n', 'o']), CuTensor(R, ['o', 'm']))
         @test collect(Q*R) ≈ collect(A)
     end
     @testset "SVD" begin
         A = CuArray(rand(elty, n, n))
         modesA = ['n','m']
-        U = CUDA.zeros(elty, n, n)
-        S = CUDA.zeros(real(elty), n)
-        V = CUDA.zeros(elty, n, n)
+        U = CUDACore.zeros(elty, n, n)
+        S = CUDACore.zeros(real(elty), n)
+        V = CUDACore.zeros(elty, n, n)
         config = cuTensorNet.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
         U, S, V, info = svd!(CuTensor(A, modesA), CuTensor(U, ['n', 'o']), S, CuTensor(V, ['o', 'm']), svd_config=config)
         @test cuTensorNet.full_extent(info)      == n
@@ -94,10 +94,10 @@ k = 32
         modesB = ['c','f','g','h']
         modesG = ['i','j','d','f']
         z = 16
-        Aout = CUDA.zeros(elty, a, b, z, i)
+        Aout = CUDACore.zeros(elty, a, b, z, i)
         modesAout = ['a','b','z','i']
-        S    = CUDA.zeros(real(elty), z)
-        Bout = CUDA.zeros(elty, z, j, g, h)
+        S    = CUDACore.zeros(real(elty), z)
+        Bout = CUDACore.zeros(elty, z, j, g, h)
         modesBout = ['z','j','g','h']
         config = cuTensorNet.SVDConfig(abs_cutoff=0.0, rel_cutoff=0.0)
         Aout, S, Bout, info = gateSplit!(CuTensor(A, modesA), CuTensor(B, modesB), CuTensor(G, modesG), CuTensor(Aout, modesAout), S, CuTensor(Bout, modesBout), svd_config=config)

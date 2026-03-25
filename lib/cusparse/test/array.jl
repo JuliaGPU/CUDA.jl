@@ -8,7 +8,7 @@
     @test ndims(d_x)  == 1
     dense_d_x = CuVector(x)
     dense_d_x2 = CuVector(d_x)
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         @test sprint(show, d_x) == replace(sprint(show, x), "SparseVector{Float64, Int64}"=>"cuSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
         @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseVector{Float64, Int64}"=>"CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
         @test Array(d_x[:])        == x[:]
@@ -27,7 +27,7 @@
     @test Array(rowvals(d_x)) == nonzeroinds(x)
     @test nnz(d_x)    == length(nonzeros(d_x))
     d_y = copy(d_x)
-    CUDA.unsafe_free!(d_y)
+    CUDACore.unsafe_free!(d_y)
     x = sprand(m,0.2)
     d_x = CuSparseMatrixCSC{Float64}(x)
     @test size(d_x) == (m, 1)
@@ -44,7 +44,7 @@
     @test size(d_x,2) == n
     @test size(d_x,3) == 1
     @test ndims(d_x)  == 2
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         @test sprint(show, d_x) == sprint(show, SparseMatrixCSC(d_x))
         @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
         @test Array(d_x[:])        == x[:]
@@ -81,7 +81,7 @@
     @test_throws ArgumentError size(d_x,0)
     @test_throws ArgumentError cuSPARSE.CuSparseVector(x)
     d_y = copy(d_x)
-    CUDA.unsafe_free!(d_y)
+    CUDACore.unsafe_free!(d_y)
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCSC(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
@@ -105,7 +105,7 @@
     @test d_x2 isa CuSparseMatrixCOO
     @test size(d_x2) == size(d_x)
     @test length(d_x) == length(x)
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
@@ -133,20 +133,20 @@
     d_y = CuSparseMatrixCSR(d_y)
     d_x = CuSparseMatrixCSR(d_x)
     d_z = copy(d_x)
-    CUDA.unsafe_free!(d_z)
+    CUDACore.unsafe_free!(d_z)
     @test CuSparseMatrixCSR(d_x) === d_x
     @test reshape(d_x, :, :, 1, 1, 1) isa CuSparseArrayCSR
     @test_throws ArgumentError("Cannot repeat matrix dimensions of CuSparseCSR") repeat(d_x, 2, 1, 3)
     @test repeat(d_x, 1, 1, 3) isa CuSparseArrayCSR
     @test reshape(repeat(d_x, 1, 1, 3), size(d_x, 1), size(d_x, 2), 3, 1, 1) isa CuSparseArrayCSR
     # to hit the CuSparseArrayCSR path
-    CUDA.unsafe_free!(repeat(d_x, 1, 1, 3))
-    CUDA.@allowscalar begin
+    CUDACore.unsafe_free!(repeat(d_x, 1, 1, 3))
+    CUDACore.@allowscalar begin
         @test startswith(sprint(show, MIME"text/plain"(), repeat(d_x, 1, 1, 2)), "$m×$n×2 CuSparseArrayCSR{Float64, Int32, 3} with $(2*nnz(d_x)) stored entries:\n")
     end
     @test length(d_x) == m*n
     @test_throws ArgumentError copyto!(d_y,d_x)
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         for i in 1:size(y, 1)
           @test d_y[i, :] ≈ y[i, :]
         end
@@ -159,10 +159,10 @@
     d_x = CuSparseMatrixBSR(d_x, blockdim)
     @test CuSparseMatrixBSR(d_x) === d_x
     d_z = copy(d_x)
-    CUDA.unsafe_free!(d_z)
+    CUDACore.unsafe_free!(d_z)
     @test_throws ArgumentError copyto!(d_y,d_x)
     d_y_mat = CuMatrix{eltype(d_y)}(d_y)
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         @test d_y[1, 1] ≈ y[1, 1]
         @test d_y_mat[1, 1] ≈ y[1, 1]
     end

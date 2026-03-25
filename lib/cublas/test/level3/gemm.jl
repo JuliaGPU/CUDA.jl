@@ -7,9 +7,9 @@ using BFloat16s
 using StaticArrays
 
 @test cuBLAS.version() isa VersionNumber
-@test cuBLAS.version().major == cuBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
-@test cuBLAS.version().minor == cuBLAS.cublasGetProperty(CUDA.MINOR_VERSION)
-@test cuBLAS.version().patch == cuBLAS.cublasGetProperty(CUDA.PATCH_LEVEL)
+@test cuBLAS.version().major == cuBLAS.cublasGetProperty(CUDACore.MAJOR_VERSION)
+@test cuBLAS.version().minor == cuBLAS.cublasGetProperty(CUDACore.MINOR_VERSION)
+@test cuBLAS.version().patch == cuBLAS.cublasGetProperty(CUDACore.PATCH_LEVEL)
 
 m = 20
 n = 35
@@ -84,7 +84,7 @@ k = 13
         @testset "strided gemm!" begin
             denseA = CuArray(rand(elty, 4,4))
             denseB = CuArray(rand(elty, 4,4))
-            denseC = CUDA.zeros(elty, 4,4)
+            denseC = CUDACore.zeros(elty, 4,4)
 
             stridedA = view(denseA, 1:2, 1:2)::SubArray
             stridedB = view(denseB, 1:2, 1:2)::SubArray
@@ -112,7 +112,7 @@ k = 13
                 C1 = (α*A)*B + β*C1
                 # compare
                 @test C1 ≈ h_C1
-                d_Cbad = CUDA.zeros(elty, m+1, n-1) 
+                d_Cbad = CUDACore.zeros(elty, m+1, n-1) 
                 @test_throws DimensionMismatch cuBLAS.gemmEx!('N','N',α,d_A,d_B,β,d_Cbad)
             end
         end
@@ -444,8 +444,8 @@ k = 13
         end
     end
 
-    starting_mode = CUDA.math_mode()
-    starting_precision = CUDA.math_precision()
+    starting_mode = CUDACore.math_mode()
+    starting_precision = CUDACore.math_precision()
     @testset "mixed-precision matmul" begin
         m,k,n = 4,4,4
         cudaTypes = (Float16, Complex{Float16}, BFloat16, Complex{BFloat16}, Float32, Complex{Float32},
@@ -480,7 +480,7 @@ k = 13
         try
             # test in fast math mode too
             for precision in (:Float16, :BFloat16, :TensorFloat32), (AT, CT) in ((Float32, Float32), (ComplexF32, ComplexF32)) 
-                CUDA.math_mode!(CUDA.FAST_MATH; precision=precision)
+                CUDACore.math_mode!(CUDACore.FAST_MATH; precision=precision)
                 BT = AT # gemmEx requires identical A and B types
 
                 # we only test combinations of types that are supported by gemmEx
@@ -504,10 +504,10 @@ k = 13
                     @test C ≈ Array(dC) rtol=rtol
                 end
             end
-            CUDA.math_mode!(CUDA.FAST_MATH; precision = :Bad)
+            CUDACore.math_mode!(CUDACore.FAST_MATH; precision = :Bad)
             @test_throws ArgumentError("Unknown reduced precision type Bad") cuBLAS.gemmExComputeType(Float32, Float32, Float32, m, k, n)
         finally
-            CUDA.math_mode!(starting_mode; precision = starting_precision)
+            CUDACore.math_mode!(starting_mode; precision = starting_precision)
         end
 
         # also test an unsupported combination (falling back to GPUArrays)

@@ -13,7 +13,7 @@
     end
 
     # out-of-place, with implicit type
-    for (f,T) in ((CUDA.rand,Float32), (CUDA.randn,Float32),
+    for (f,T) in ((cuRAND.rand,Float32), (cuRAND.randn,Float32),
                   (cuRAND.rand_logn,Float32), (cuRAND.rand_poisson,Cuint),
                   (rand,Float64), (randn,Float64)),
         args in ((0,), (2,), (2, 2), (3,), (3, 3))
@@ -22,8 +22,8 @@
     end
 
     # out-of-place, with type specified
-    for (f,T) in ((CUDA.rand,Float32), (CUDA.randn,Float32), (cuRAND.rand_logn,Float32),
-                  (CUDA.rand,Float64), (CUDA.randn,Float64), (cuRAND.rand_logn,Float64),
+    for (f,T) in ((cuRAND.rand,Float32), (cuRAND.randn,Float32), (cuRAND.rand_logn,Float32),
+                  (cuRAND.rand,Float64), (cuRAND.randn,Float64), (cuRAND.rand_logn,Float64),
                   (cuRAND.rand_poisson,Cuint),
                   (rand,Float32), (randn,Float32),
                   (rand,Float64), (randn,Float64)),
@@ -33,7 +33,7 @@
     end
 
     # unsupported types that fall back to a native generator
-    for (f,T) in ((CUDA.rand,Int64), (CUDA.randn,ComplexF64)),
+    for (f,T) in ((cuRAND.rand,Int64), (cuRAND.randn,ComplexF64)),
         args in ((T, 0), (T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
         A = f(args...)
         @test eltype(A) == T
@@ -48,27 +48,27 @@
     @test_throws ErrorException rand_poisson!(CuArray{Float64}(undef, 10))
 
     # seeding of both generators
-    CUDA.seed!()
-    CUDA.seed!(1)
+    cuRAND.seed!()
+    cuRAND.seed!(1)
     ## CUDA CURAND
-    CUDA.seed!(1)
-    A = CUDA.rand(Float32, 1)
-    CUDA.seed!(1)
-    B = CUDA.rand(Float32, 1)
+    cuRAND.seed!(1)
+    A = cuRAND.rand(Float32, 1)
+    cuRAND.seed!(1)
+    B = cuRAND.rand(Float32, 1)
     @test all(A .== B)
     ## GPUArrays fallback
-    CUDA.seed!(1)
-    A = CUDA.rand(Int64, 1)
-    CUDA.seed!(1)
-    B = CUDA.rand(Int64, 1)
+    cuRAND.seed!(1)
+    A = cuRAND.rand(Int64, 1)
+    cuRAND.seed!(1)
+    B = cuRAND.rand(Int64, 1)
     @test all(A .== B)
 
     # scalar number generation
-    CUDA.@allowscalar let
-        CUDA.rand()
-        CUDA.rand(Float32)
-        CUDA.randn()
-        CUDA.randn(Float32)
+    CUDACore.@allowscalar let
+        cuRAND.rand()
+        cuRAND.rand(Float32)
+        cuRAND.randn()
+        cuRAND.randn(Float32)
 
         cuRAND.rand_logn()
         cuRAND.rand_logn(Float32)
@@ -93,7 +93,7 @@ end
         rand!(rng, A)
 
         B = Array{T}(undef, dims)
-        CUDA.@allowscalar rand!(rng, B)
+        CUDACore.@allowscalar rand!(rng, B)
     end
 
     # normal
@@ -104,13 +104,13 @@ end
         randn!(rng, A)
 
         B = Array{T}(undef, dims)
-        CUDA.@allowscalar rand!(rng, B)
+        CUDACore.@allowscalar rand!(rng, B)
     end
 
     ## out-of-place
 
     # uniform
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         @test rand(rng) isa Number
         @test rand(rng, Float32) isa Float32
     end
@@ -125,7 +125,7 @@ end
     end
 
     # normal
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         @test randn(rng) isa Number
         @test randn(rng, Float32) isa Float32
     end
@@ -156,11 +156,11 @@ end
 @testset "seeding idempotency" begin
     t = @async begin
         Random.seed!(1)
-        CUDA.seed!(1)
+        cuRAND.seed!(1)
         x = rand()
 
         Random.seed!(1)
-        CUDA.seed!(1)
+        cuRAND.seed!(1)
         y = rand()
 
         x == y
@@ -186,7 +186,7 @@ end
 
     let r1 = copy(cuRAND.native_rng()), r2 = copy(cuRAND.native_rng())
         x1 = rand(r1, 30, 10, 100)
-        sum(rand(r1, 30) .+ x1 .+ CUDA.randn(30))  # do some other work
+        sum(rand(r1, 30) .+ x1 .+ cuRAND.randn(30))  # do some other work
         x2 = rand(r2, 30, 10, 100)
         @test x1 == x2
     end
@@ -201,7 +201,7 @@ end
 @testset "counter overflow" begin
     rng = cuRAND.NativeRNG()
     # we may not be able to allocate over 4GB on the GPU, so use unified memory
-    c = CuArray{Float16, 5, CUDA.UnifiedMemory}(undef, 64, 32, 512, 32, 64)
+    c = CuArray{Float16, 5, CUDACore.UnifiedMemory}(undef, 64, 32, 512, 32, 64)
     rand!(rng, c)
     randn!(rng, c)
 end

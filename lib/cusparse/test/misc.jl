@@ -85,7 +85,7 @@ end
     @test size(similar(d_x)) == size(d_x)
     @test size(d_x, 3) == 1
     @test_throws ArgumentError("dimension must be ≥ 1, got 0") size(d_x, 0)
-    CUDA.@allowscalar begin
+    CUDACore.@allowscalar begin
         @test d_x[1, 2] == x[2, 1]
     end
 end

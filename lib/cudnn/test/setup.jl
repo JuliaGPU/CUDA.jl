@@ -1,4 +1,4 @@
 using Test
 
-using CUDA
+using CUDACore
 using cuDNN

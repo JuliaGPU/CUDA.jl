@@ -1,4 +1,4 @@
-using CUDA, cuSPARSE
+using CUDACore, cuSPARSE
 
 using LinearAlgebra
 using SparseArrays
@@ -128,7 +128,7 @@ p = 0.5
         cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
 
         for c in CartesianIndices((2,3))
-            CUDA.@allowscalar D[:,:,c] = α * A[:,:,c.I...] * B[:,:,c] + β*D[:,:,c]
+            CUDACore.@allowscalar D[:,:,c] = α * A[:,:,c.I...] * B[:,:,c] + β*D[:,:,c]
         end
 
         @test D ≈ C
@@ -242,7 +242,7 @@ p = 1.
         cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O') 
 
         for c in CartesianIndices((2,3))
-            CUDA.@allowscalar D[:,:,c] = α * A[:,:,c.I...] * B[:,:,c] + β*D[:,:,c]
+            CUDACore.@allowscalar D[:,:,c] = α * A[:,:,c.I...] * B[:,:,c] + β*D[:,:,c]
         end
 
         @test D ≈ C

@@ -238,7 +238,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         d_B,d_ipiv,info = LAPACK.getrf!(d_B, similar(d_ipiv))
         @test d_B ≈ d_A
 
-        d_A,d_ipiv,info = cuSOLVER.getrf!(CUDA.zeros(elty,n,n))
+        d_A,d_ipiv,info = cuSOLVER.getrf!(CUDACore.zeros(elty,n,n))
         @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
     end
 
@@ -285,7 +285,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         d_A  = CuArray(A)
         @test_throws DimensionMismatch cuSOLVER.sytrf!('U',d_A)
 
-        d_A,d_ipiv,info = cuSOLVER.sytrf!('U',CUDA.zeros(elty,n,n))
+        d_A,d_ipiv,info = cuSOLVER.sytrf!('U',CUDACore.zeros(elty,n,n))
         @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
     end
 
@@ -681,7 +681,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         @test collect(d_F.R * d_I) ≈ collect(d_F.R)
         @test collect(d_I * d_F.R) ≈ collect(d_F.R)
 
-        CUDA.@allowscalar begin
+        CUDACore.@allowscalar begin
             qval = d_F.Q[1, 1]
             @test qval ≈ F.Q[1, 1]
             qrstr = sprint(show, MIME"text/plain"(), d_F)
@@ -718,7 +718,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
         B              = rand(elty, n)
         d_B            = CuArray(B)
         @test collect(d_M \ d_B) ≈ M \ B
-        @test_throws DimensionMismatch("arguments must have the same number of rows") d_M \ CUDA.ones(elty, n+1)
+        @test_throws DimensionMismatch("arguments must have the same number of rows") d_M \ CUDACore.ones(elty, n+1)
         A              = rand(elty, m, n)  # A is a matrix and B,C is a vector
         d_A            = CuArray(A)
         M              = qr(A)
@@ -904,7 +904,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
             F = lu(A)
             @test F.L*F.U ≈ A[F.p, :]
 
-            @test_throws LinearAlgebra.SingularException lu(CUDA.zeros(elty,n,n))
+            @test_throws LinearAlgebra.SingularException lu(CUDACore.zeros(elty,n,n))
         end
         @testset "lu ldiv! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             A = rand(elty, m, m)

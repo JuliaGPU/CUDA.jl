@@ -12,8 +12,8 @@
     @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_32U) == UInt32
     @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_32I) == Int32
     @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_64F) == Float64
-    @test convert(cuTensorNet.cutensornetComputeType_t, CUDA.BFloat16) == cuTensorNet.CUTENSORNET_COMPUTE_16BF
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_16BF) == CUDA.BFloat16
+    @test convert(cuTensorNet.cutensornetComputeType_t, CUDACore.BFloat16) == cuTensorNet.CUTENSORNET_COMPUTE_16BF
+    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_16BF) == CUDACore.BFloat16
 
 
     modesA = ['m', 'h', 'k', 'n']

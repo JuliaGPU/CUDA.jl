@@ -5,9 +5,9 @@ using BFloat16s
 using StaticArrays
 
 @test cuBLAS.version() isa VersionNumber
-@test cuBLAS.version().major == cuBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
-@test cuBLAS.version().minor == cuBLAS.cublasGetProperty(CUDA.MINOR_VERSION)
-@test cuBLAS.version().patch == cuBLAS.cublasGetProperty(CUDA.PATCH_LEVEL)
+@test cuBLAS.version().major == cuBLAS.cublasGetProperty(CUDACore.MAJOR_VERSION)
+@test cuBLAS.version().minor == cuBLAS.cublasGetProperty(CUDACore.MINOR_VERSION)
+@test cuBLAS.version().patch == cuBLAS.cublasGetProperty(CUDACore.PATCH_LEVEL)
 
 m = 20
 n = 35
