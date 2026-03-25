@@ -18,6 +18,7 @@ end
 
 @public functional
 @public rand, randn, seed!
+@public rand_logn, rand_logn!, rand_poisson, rand_poisson!
 @public NativeRNG, native_rng
 
 const _initialized = Ref{Bool}(false)

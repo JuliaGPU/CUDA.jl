@@ -208,9 +208,9 @@ export @device_code_lowered, @device_code_typed, @device_code_warntype,
 """
     @device_code_sass [io::IO=stdout, ...] ex
 
-Evaluates the expression `ex` and prints the result of [`CUDA.code_sass`](@ref) to
+Evaluates the expression `ex` and prints the result of [`CUDACore.code_sass`](@ref) to
 `io` for every executed CUDA kernel. For other supported keywords, see
-[`CUDA.code_sass`](@ref).
+[`CUDACore.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
     code = ex[end]

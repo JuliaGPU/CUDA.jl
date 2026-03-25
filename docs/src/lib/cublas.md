@@ -1,19 +1,19 @@
-# CUBLAS
+# cuBLAS
 
 ```@meta
-CurrentModule = CUBLAS
+CurrentModule = cuBLAS
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CUBLAS]
+Modules = [cuBLAS]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CUBLAS]
+Modules = [cuBLAS]
 Public = false
 ```

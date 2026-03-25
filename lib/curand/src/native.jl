@@ -7,7 +7,7 @@ using CUDACore: AnyCuArray, CuArray
 
 A random number generator using `rand()` in a device kernel.
 
-See also: [CUDA.Philox2x32](@ref)
+See also: `CUDACore.Philox2x32`
 """
 mutable struct NativeRNG <: Random.AbstractRNG
     seed::UInt32

@@ -1,10 +1,13 @@
 # Essentials
 
+```@meta
+CurrentModule = CUDACore
+```
 
 ## Initialization
 
 ```@docs
-CUDA.functional(::Bool)
+functional(::Bool)
 has_cuda
 has_cuda_gpu
 ```

@@ -39,13 +39,9 @@ using cuSOLVER
 using cuFFT
 using cuRAND
 
-# Forward cuRAND's rand/randn/seed! so CUDA.rand etc. work
-using cuRAND: rand, randn, seed!
-@public rand, randn, seed!
-
-# Forward cuRAND's rand_logn!/rand_poisson! so CUDA.rand_logn! etc. work
-using cuRAND: rand_logn!, rand_poisson!
-export rand_logn!, rand_poisson!
+# Forward cuRAND identifiers
+using cuRAND: rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
+@public rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
 
 # Backward compatibility: master exported these as submodule names
 Base.@deprecate_binding CUBLAS cuBLAS false

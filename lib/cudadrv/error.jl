@@ -43,7 +43,7 @@ Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 Gets the string representation of an error code.
 
 ```jldoctest
-julia> err = CuError(CUDA.cudaError_enum(1))
+julia> err = CuError(CUDACore.cudaError_enum(1))
 CuError(CUDA_ERROR_INVALID_VALUE)
 
 julia> name(err)

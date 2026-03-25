@@ -26,8 +26,8 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
-- arguments that influence kernel launch: see [`CUDA.HostKernel`](@ref) and
-  [`CUDA.DeviceKernel`](@ref)
+- arguments that influence kernel launch: see [`CUDACore.HostKernel`](@ref) and
+  [`CUDACore.DeviceKernel`](@ref)
 """
 macro cuda(ex...)
     # destructure the `@cuda` expression
@@ -415,7 +415,7 @@ end
     dynamic_cufunction(f, tt=Tuple{})
 
 Low-level interface to compile a function invocation for the currently-active GPU, returning
-a callable kernel object. Device-side equivalent of [`CUDA.cufunction`](@ref).
+a callable kernel object. Device-side equivalent of [`CUDACore.cufunction`](@ref).
 
 No keyword arguments are supported.
 """
