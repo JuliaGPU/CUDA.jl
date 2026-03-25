@@ -25,6 +25,9 @@ cuRAND = {path = "lib/curand"}
 cuSOLVER = {path = "lib/cusolver"}
 cuSPARSE = {path = "lib/cusparse"}
 
+[extras]
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+
 [compat]
 CUDACore = "=6.0.0"
 Reexport = "1.0"
