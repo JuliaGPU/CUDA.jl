@@ -38,26 +38,21 @@ using cuSPARSE
 using cuSOLVER
 using cuFFT
 using cuRAND
+export cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
+
+# Backward compatibility: master exported these as submodule names
+Base.@deprecate_binding CUBLAS cuBLAS true
+Base.@deprecate_binding CUSPARSE cuSPARSE true
+Base.@deprecate_binding CUSOLVER cuSOLVER true
+Base.@deprecate_binding CUFFT cuFFT true
+Base.@deprecate_binding CURAND cuRAND true
 
 # Forward cuRAND identifiers
 using cuRAND: rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
 @public rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
-
-# Backward compatibility: master exported these as submodule names
-Base.@deprecate_binding CUBLAS cuBLAS false
-Base.@deprecate_binding CUSPARSE cuSPARSE false
-Base.@deprecate_binding CUSOLVER cuSOLVER false
-Base.@deprecate_binding CUFFT cuFFT false
-Base.@deprecate_binding CURAND cuRAND false
-export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND
-
-# Backward compatibility: CUDA.RNG → cuRAND.NativeRNG
 Base.@deprecate_binding RNG cuRAND.NativeRNG false
-
-# Backward compatibility: CUDA.default_rng() → cuRAND.native_rng()
 Base.@deprecate default_rng() cuRAND.native_rng() false
 
-const has_cusolvermg = cuSOLVER.has_cusolvermg
-export has_cusolvermg
+Base.@deprecate_binding has_cusolvermg cuSOLVER.has_cusolvermg false
 
 end
