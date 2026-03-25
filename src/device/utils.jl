@@ -19,7 +19,7 @@ macro device_override(ex)
         end)
     else
         esc(quote
-            Base.Experimental.@overlay(CUDA.method_table, $ex)
+            Base.Experimental.@overlay($(CUDA).method_table, $ex)
         end)
     end
 end
@@ -37,7 +37,7 @@ macro device_function(ex)
         $(combinedef(def))
 
         # NOTE: no use of `@consistent_overlay` here because the regular function errors
-        Base.Experimental.@overlay(CUDA.method_table, $ex)
+        Base.Experimental.@overlay($(CUDA).method_table, $ex)
     end)
 end
 
