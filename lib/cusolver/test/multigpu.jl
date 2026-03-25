@@ -1,6 +1,6 @@
 using cuSOLVER
 
-if !has_cusolvermg()
+if !cuSOLVER.has_cusolvermg()
 @warn "CUSOLVERMG not available, skipping tests"
 else
 
