@@ -18,6 +18,10 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 demumble_jll = "1e29f10c-031c-5a83-9565-69cddfc27673"
 
+[sources]
+CUPTI = {path = "../lib/cupti"}
+NVML = {path = "../lib/nvml"}
+
 [compat]
 CUDACore = "=6.0.0"
 CUDA_Compiler_jll = "0.3, 0.4"
