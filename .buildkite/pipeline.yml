@@ -244,12 +244,12 @@ steps:
           julia --project -e '
             using CUDA
             @assert !CUDA.functional()
-            @assert !isdefined(CUDA, :libcudart)
+            @assert !isdefined(CUDACore, :libcudart)
             CUDA.set_runtime_version!(v"11.6")'
           julia --project -e '
             using CUDA
             @assert !CUDA.functional()
-            @assert isdefined(CUDA, :libcudart)'
+            @assert isdefined(CUDACore, :libcudart)'
         agents:
           queue: "juliagpu"
           intel: "*"
