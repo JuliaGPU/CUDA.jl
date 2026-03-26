@@ -1,0 +1,28 @@
+name = "cuRAND"
+uuid = "20fd9a0b-12d5-4c2f-a8af-7c34e9e60431"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
+version = "6.0.0"
+
+[workspace]
+projects = ["test"]
+
+[deps]
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Random123 = "74087812-796a-5b5d-8853-05524746bad3"
+RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
+
+[compat]
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDACore = "=6.0.0"
+CUDA_Runtime_Discovery = "1"
+CUDA_Runtime_jll = "0.21"
+GPUToolbox = "0.3, 1"
+Random = "1"
+Random123 = "1.2"
+RandomNumbers = "1.5.3"
+julia = "1.10"

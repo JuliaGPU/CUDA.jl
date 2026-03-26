@@ -1,28 +1,27 @@
 module cuTensorNet
 
 using LinearAlgebra
-using CUDA
-using CUDA.APIUtils
-using CUDA: CUstream, cudaDataType
-using CUDA: retry_reclaim, initialize_context, isdebug, cuDoubleComplex
-using CUDA: @checked, @gcsafe_ccall
+using CUDACore
+using CUDACore: CUstream, cudaDataType
+using CUDACore: retry_reclaim, initialize_context, isdebug, cuDoubleComplex
+using CUDACore: @checked, @gcsafe_ccall
 
 using cuTENSOR
 using cuTENSOR: CuTensor
 
 using CEnum: @cenum
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import cuQuantum_jll
 end
 
 
-export has_cutensornet
+@public functional
 
 const _initialized = Ref{Bool}(false)
-has_cutensornet() = _initialized[]
+functional() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType
@@ -52,7 +51,7 @@ end
 const idle_handles = HandleCache{CuContext,cutensornetHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cutensornetHandle_t}
@@ -99,11 +98,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcutensornet
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cutensornet"; optional=true)
         if path === nothing

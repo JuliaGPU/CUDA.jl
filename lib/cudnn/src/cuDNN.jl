@@ -7,24 +7,23 @@ design overview.
 """
 module cuDNN
 
-using CUDA
-using CUDA.APIUtils
-using CUDA: CUstream, CUgraph, libraryPropertyType
-using CUDA: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked
+using CUDACore
+using CUDACore: CUstream, CUgraph, libraryPropertyType
+using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked
 
 using CEnum: @cenum
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import CUDNN_jll
 end
 
 
-export has_cudnn
+@public functional
 
 const _initialized = Ref{Bool}(false)
-has_cudnn() = _initialized[]
+functional() = _initialized[]
 
 # core library
 include("libcudnn.jl")
@@ -48,15 +47,15 @@ include("multiheadattn.jl")
 include("normalization.jl")
 
 
-function math_mode(mode=CUDA.math_mode())
-    if mode == CUDA.PEDANTIC_MATH
+function math_mode(mode=CUDACore.math_mode())
+    if mode == CUDACore.PEDANTIC_MATH
         # don't use tensor cores.
         # on A100, only use them for TF32
         CUDNN_DEFAULT_MATH
-    elseif mode == CUDA.DEFAULT_MATH
+    elseif mode == CUDACore.DEFAULT_MATH
         # allow tensor core usage
         CUDNN_TENSOR_OP_MATH
-    elseif mode == CUDA.FAST_MATH
+    elseif mode == CUDACore.FAST_MATH
         # also downcast inputs
         CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION
     end
@@ -78,7 +77,7 @@ end
 const idle_handles = HandleCache{CuContext,cudnnHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cudnnHandle_t, stream::CuStream}
@@ -148,11 +147,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcudnn
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cudnn"; optional=true)
         if path === nothing

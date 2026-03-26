@@ -1,0 +1,39 @@
+name = "cuSPARSE"
+uuid = "b26da814-b3bc-49ef-b0ee-c816305aa060"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
+version = "6.0.0"
+
+[workspace]
+projects = ["test"]
+
+[deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
+GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[weakdeps]
+SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
+
+[extensions]
+SparseMatricesCSRExt = "SparseMatricesCSR"
+
+[compat]
+Adapt = "4.4"
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDACore = "=6.0.0"
+CUDA_Runtime_Discovery = "1"
+CUDA_Runtime_jll = "0.21"
+GPUArrays = "11.4.1"
+GPUToolbox = "0.3, 1"
+KernelAbstractions = "0.9.38"
+LinearAlgebra = "1"
+SparseArrays = "1"
+SparseMatricesCSR = "0.6.9"
+julia = "1.10"

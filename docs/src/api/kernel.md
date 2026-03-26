@@ -1,5 +1,9 @@
 # [Kernel programming](@id KernelAPI)
 
+```@meta
+CurrentModule = CUDACore
+```
+
 This section lists the package's public functionality that corresponds to special CUDA
 functions for use in device code. It is loosely organized according to the [C/C++ language
 extensions](https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html)
@@ -39,7 +43,7 @@ of) the array interface as well as other functionality for use _on_ the GPU:
 
 ```@docs
 CuDeviceArray
-CUDA.Const
+Const
 ```
 
 
@@ -130,24 +134,24 @@ shfl_xor_sync
 A high-level macro is available to annotate expressions with:
 
 ```@docs
-CUDA.@atomic
+CUDACore.@atomic
 ```
 
 If your expression is not recognized, or you need more control, use the underlying
 functions:
 
 ```@docs
-CUDA.atomic_cas!
-CUDA.atomic_xchg!
-CUDA.atomic_add!
-CUDA.atomic_sub!
-CUDA.atomic_and!
-CUDA.atomic_or!
-CUDA.atomic_xor!
-CUDA.atomic_min!
-CUDA.atomic_max!
-CUDA.atomic_inc!
-CUDA.atomic_dec!
+CUDACore.atomic_cas!
+CUDACore.atomic_xchg!
+CUDACore.atomic_add!
+CUDACore.atomic_sub!
+CUDACore.atomic_and!
+CUDACore.atomic_or!
+CUDACore.atomic_xor!
+CUDACore.atomic_min!
+CUDACore.atomic_max!
+CUDACore.atomic_inc!
+CUDACore.atomic_dec!
 ```
 
 
@@ -159,7 +163,7 @@ well:
 
 ```@docs
 dynamic_cufunction
-CUDA.DeviceKernel
+DeviceKernel
 ```
 
 
@@ -304,5 +308,5 @@ WMMA.fill_c
 ## Other
 
 ```@docs
-CUDA.align
+CUDACore.align
 ```

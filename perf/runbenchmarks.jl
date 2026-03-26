@@ -4,7 +4,7 @@ using CUDA
 
 using BenchmarkTools
 
-using StableRNGs
+using Random, StableRNGs
 rng = StableRNG(123)
 
 # convenience macro to create a benchmark that requires synchronizing the GPU

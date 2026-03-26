@@ -1,0 +1,269 @@
+module cuSOLVER
+
+using CUDACore
+using GPUToolbox
+
+using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationStrategy_t, cudaEmulationMantissaControl_t, cudaEmulationSpecialValuesSupport_t
+using CUDACore: @allowscalar, assertscalar, unsafe_free!, retry_reclaim, initialize_context
+
+using cuBLAS
+using cuBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
+using cuSPARSE
+using cuSPARSE: cusparseMatDescr_t
+
+using CEnum: @cenum
+
+using LinearAlgebra
+using LinearAlgebra: BlasFloat, Factorization
+
+if CUDACore.local_toolkit
+    using CUDA_Runtime_Discovery
+else
+    import CUDA_Runtime_jll
+end
+
+
+@public functional, has_cusolvermg
+
+const _initialized = Ref{Bool}(false)
+functional() = _initialized[]
+
+function has_cusolvermg(show_reason::Bool=false)
+    if !@isdefined(libcusolverMg)
+        show_reason && error("CUDA toolkit does not contain cuSolverMG")
+        return false
+    end
+    return true
+end
+
+
+# core library
+include("libcusolver.jl")
+include("libcusolverMg.jl")
+include("libcusolverRF.jl")
+
+# low-level wrappers
+include("helpers.jl")
+include("error.jl")
+include("base.jl")
+include("sparse.jl")
+include("sparse_factorizations.jl")
+include("dense.jl")
+include("dense_generic.jl")
+include("multigpu.jl")
+
+# high-level integrations
+include("linalg.jl")
+
+
+## dense handles
+
+function dense_handle_ctor(ctx)
+    context!(ctx) do
+        cusolverDnCreate()
+    end
+end
+function dense_handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        cusolverDnDestroy(handle)
+    end
+end
+const idle_dense_handles =
+    HandleCache{CuContext,cusolverDnHandle_t}(dense_handle_ctor, dense_handle_dtor)
+
+# fat handle, includes a cache
+struct cusolverDnHandle
+    handle::cusolverDnHandle_t
+    workspace_gpu::CuVector{UInt8}
+    workspace_cpu::Vector{UInt8}
+    info::CuVector{Cint}
+end
+Base.unsafe_convert(::Type{Ptr{cusolverDnContext}}, handle::cusolverDnHandle) =
+    handle.handle
+
+function dense_handle()
+    cuda = CUDACore.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::cusolverDnHandle, stream::CuStream}
+    states = get!(task_local_storage(), :CUSOLVER_dense) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get library state
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_dense_handles, cuda.context)
+
+        workspace_gpu = CuVector{UInt8}(undef, 0)
+        workspace_cpu = Vector{UInt8}(undef, 0)
+        info = CuVector{Cint}(undef, 1)
+        fat_handle = cusolverDnHandle(new_handle, workspace_gpu, workspace_cpu, info)
+
+        finalizer(current_task()) do task
+            CUDACore.unsafe_free!(workspace_gpu)
+            CUDACore.unsafe_free!(info)
+            push!(idle_dense_handles, cuda.context, new_handle)
+        end
+
+        cusolverDnSetStream(new_handle, cuda.stream)
+
+        (; handle=fat_handle, cuda.stream)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    # update stream
+    @noinline function update_stream(cuda, state)
+        cusolverDnSetStream(state.handle, cuda.stream)
+        (; state.handle, cuda.stream)
+    end
+    if state.stream != cuda.stream
+        states[cuda.context] = state = update_stream(cuda, state)
+    end
+
+    return state.handle
+end
+
+
+## sparse handles
+
+function sparse_handle_ctor(ctx)
+    context!(ctx) do
+        cusolverSpCreate()
+    end
+end
+function sparse_handle_dtor(ctx, handle)
+    context!(ctx; skip_destroyed=true) do
+        cusolverSpDestroy(handle)
+    end
+end
+const idle_sparse_handles =
+    HandleCache{CuContext,cusolverSpHandle_t}(sparse_handle_ctor, sparse_handle_dtor)
+
+function sparse_handle()
+    cuda = CUDACore.active_state()
+
+    # every task maintains library state per device
+    LibraryState = @NamedTuple{handle::cusolverSpHandle_t, stream::CuStream}
+    states = get!(task_local_storage(), :CUSOLVER_sparse) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    # get or create handle
+    @noinline function new_state(cuda)
+        new_handle = pop!(idle_sparse_handles, cuda.context)
+        finalizer(current_task()) do task
+            push!(idle_sparse_handles, cuda.context, new_handle)
+        end
+
+        cusolverSpSetStream(new_handle, cuda.stream)
+
+        (; handle=new_handle, cuda.stream)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    # update stream
+    @noinline function update_stream(cuda, state)
+        cusolverSpSetStream(state.handle, cuda.stream)
+        (; state.handle, cuda.stream)
+    end
+    if state.stream != cuda.stream
+        states[cuda.context] = state = update_stream(cuda, state)
+    end
+
+    return state.handle
+end
+
+
+## mg handles
+
+function devices!(devs::Vector{CuDevice})
+    task_local_storage(:CUSOLVERmg_devices, sort(devs; by=deviceid))
+    return
+end
+
+devices() = get!(task_local_storage(), :CUSOLVERmg_devices) do
+    # by default, select only the first device
+    [first(CUDACore.devices())]
+    # TODO: select all devices
+    #sort(collect(CUDACore.devices()); by=deviceid)
+end::Vector{CuDevice}
+
+ndevices() = length(devices())
+
+function mg_handle()
+    cuda = CUDACore.active_state()
+
+    # every task maintains library state per set of devices
+    LibraryState = @NamedTuple{handle::cusolverMgHandle_t}
+    states = get!(task_local_storage(), :CUSOLVERmg) do
+        Dict{UInt,LibraryState}()
+    end::Dict{UInt,LibraryState}
+
+    # derive a key from the active and selected devices
+    key = hash(cuda.context)
+    for dev in devices()
+        # we hash the device context to support device resets
+        key = hash(context(dev), key)
+    end
+
+    # get library state
+    @noinline function new_state(cuda)
+        # we can't reuse cusolverMg handles because they can only be assigned devices once
+        new_handle = cusolverMgCreate()
+
+        finalizer(current_task()) do task
+            context!(cuda.context; skip_destroyed=true) do
+                cusolverMgDestroy(new_handle)
+            end
+        end
+
+        devs = convert.(Cint, devices())
+        cusolverMgDeviceSelect(new_handle, length(devs), devs)
+
+        (; handle=new_handle)
+    end
+    state = get!(states, key) do
+        new_state(cuda)
+    end
+
+    return state.handle
+end
+
+
+function __init__()
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+
+    CUDACore.functional() || return
+
+    # find the library
+    global libcusolver, libcusolverMg
+    if CUDACore.local_toolkit
+        dirs = CUDA_Runtime_Discovery.find_toolkit()
+        path = CUDA_Runtime_Discovery.get_library(dirs, "cusolver"; optional=true)
+        if path === nothing
+            precompiling || @error "cuSOLVER is not available on your system (looked in $(join(dirs, ", ")))"
+            return
+        end
+        libcusolver = path
+        path_mg = CUDA_Runtime_Discovery.get_library(dirs, "cusolverMg"; optional=true)
+        if path_mg !== nothing
+            libcusolverMg = path_mg
+        end
+    else
+        libcusolver = CUDA_Runtime_jll.libcusolver
+        if hasproperty(CUDA_Runtime_jll, :libcusolverMg)
+            libcusolverMg = CUDA_Runtime_jll.libcusolverMg
+        end
+    end
+
+    _initialized[] = true
+end
+
+# deprecated binding for backwards compatibility
+Base.@deprecate_binding CUSOLVER cuSOLVER false
+
+end

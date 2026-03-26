@@ -1,5 +1,5 @@
 @testset "thread block clusters" begin
-if capability(device()) >= v"9.0"
+if capability(device()) >= v"9.0" && VERSION >= v"1.11-"
 
 ###########################################################################################
 
@@ -18,11 +18,10 @@ if capability(device()) >= v"9.0"
         nothing
     end
 
-    A = CUDA.zeros(Int32, threads..., clustersize..., (blocks .÷ clustersize)...)
-
     threads = (3,5,7)
     clustersize = (2,2,2)
     blocks = (4,6,8)
+    A = CUDA.zeros(Int32, threads..., clustersize..., (blocks .÷ clustersize)...)
     @cuda threads=threads blocks=blocks clustersize=clustersize f(A)
 
     @test all(==(1), Array(A))
@@ -60,11 +59,10 @@ end
         return nothing
     end
 
-    A = CUDA.zeros(Int32, clustersize, clustersize, blocks ÷ clustersize)
-
     threads = 1
     clustersize = 4
     blocks = 16
+    A = CUDA.zeros(Int32, clustersize, clustersize, blocks ÷ clustersize)
     @cuda threads=threads blocks=blocks clustersize=clustersize f(A)
 
     B = Array(A)

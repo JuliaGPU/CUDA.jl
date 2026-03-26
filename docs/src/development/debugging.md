@@ -116,7 +116,7 @@ julia> run(`$compute_sanitizer $options $(Base.julia_cmd())`)
 julia> using CUDA
 
 julia> CuArray([1]) .+ 1
-1-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+1-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  2
 
 julia> exit()

@@ -1,19 +1,19 @@
-# CUFFT
+# cuFFT
 
 ```@meta
-CurrentModule = CUFFT
+CurrentModule = cuFFT
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CUFFT]
+Modules = [cuFFT]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CUFFT]
+Modules = [cuFFT]
 Public = false
 ```

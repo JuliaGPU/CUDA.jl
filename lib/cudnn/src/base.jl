@@ -4,7 +4,7 @@ function cudnnCreate()
     return handle_ref[]
 end
 
-function cudnnGetProperty(property::CUDA.libraryPropertyType)
+function cudnnGetProperty(property::CUDACore.libraryPropertyType)
   value_ref = Ref{Cint}()
   cudnnGetProperty(property, value_ref)
   value_ref[]

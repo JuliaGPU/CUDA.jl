@@ -35,7 +35,7 @@ end
 
 @testset "stripping invariant.load" begin
     function kernel(ptr, x)
-        i = CUDA.threadIdx_x()
+        i = CUDACore.threadIdx_x()
         @inbounds ptr[] = x[i]
         return
     end
@@ -207,7 +207,7 @@ end
 end
 
 @testset "device runtime" begin
-    kernel() = (CUDA.cudaGetLastError(); return)
+    kernel() = (CUDACore.cudaGetLastError(); return)
 
     if can_use_cupti() && !(v"2024.2.0" <= CUPTI.library_version()) # NVIDIA bug #4667039
         CUDA.code_sass(devnull, kernel, Tuple{})

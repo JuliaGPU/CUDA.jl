@@ -55,10 +55,10 @@ using cuDNN:
     math_mode
 
     X,H,B,T = 8,8,4,2
-    w = CUDA.randn(10000)
-    x = CUDA.randn(X,B,T)
-    hx1 = CUDA.randn(H,B,1)
-    cx1 = CUDA.randn(H,B,1)
+    w = CuArray(randn(Float32, 10000))
+    x = CuArray(randn(Float32, X,B,T))
+    hx1 = CuArray(randn(Float32, H,B,1))
+    cx1 = CuArray(randn(Float32, H,B,1))
 
 function rnntest(;
     hx = nothing,

@@ -89,7 +89,7 @@ end
         # external functions
         sass = sprint(io->begin
             CUDA.code_sass(io) do
-                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+                cuBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
             end
         end)
         @test occursin("copy_kernel", sass)
@@ -108,7 +108,7 @@ end
         # external functions
         sass = sprint(io->begin
             @device_code_sass io=io begin
-                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+                cuBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
             end
         end)
         @test occursin("copy_kernel", sass)
@@ -167,9 +167,9 @@ end
 
 @testset "clusters" begin
     if CUDA.capability(device()) >= v"9.0"
-        @cuda threads=64 clustersize=2 dummy()
+        @cuda threads=64 blocks=2 clustersize=2 dummy()
     else
-        @test_throws CuError @cuda threads=64 clustersize=2 dummy()
+        @test_throws CuError @cuda threads=64 blocks=2 clustersize=2 dummy()
     end
 end
 

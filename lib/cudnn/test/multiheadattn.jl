@@ -131,7 +131,7 @@ end
 
 Q,K,V,B,T,F = 6,6,5,4,3,Float32
 
-weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,B,T),(F,K,B,T),(F,V,B,T)))
+weights, queries, keys, values = (CuArray(randn(x...)) for x in ((F,100),(F,Q,B,T),(F,K,B,T),(F,V,B,T)))
 mhatest()
 mhatest(attnMode = CUDNN_ATTN_QUERYMAP_ALL_TO_ONE | CUDNN_ATTN_ENABLE_PROJ_BIASES |> Cuint, vProjSize=7)
 mhatest(seqLengthsQO = Cint[1,2,3,1])
@@ -154,15 +154,15 @@ mhatest(hiWinIdx = fill(Cint(1),T))
 mhatest(currIdx = 0)
 
 # Test residuals: residuals and output (and thus values unless oProjSize>0) must match queries in vector size
-values, residuals = (CUDA.randn(x...) for x in ((F,Q,B,T),(F,Q,B,T)))
+values, residuals = (CuArray(randn(x...)) for x in ((F,Q,B,T),(F,Q,B,T)))
 mhatest(residuals = residuals)
 
 # Test nonstandard axes order
-weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,T,B),(F,K,T,B),(F,V,T,B)))
+weights, queries, keys, values = (CuArray(randn(x...)) for x in ((F,100),(F,Q,T,B),(F,K,T,B),(F,V,T,B)))
 mhatest(axes = [CUDNN_SEQDATA_VECT_DIM, CUDNN_SEQDATA_TIME_DIM, CUDNN_SEQDATA_BATCH_DIM, CUDNN_SEQDATA_BEAM_DIM])
 
 # Test beam handling
-weights, queries, keys, values = (CUDA.randn(x...) for x in ((F,100),(F,Q,B,T,2),(F,K,B,T,1),(F,V,B,T,1)))
+weights, queries, keys, values = (CuArray(randn(x...)) for x in ((F,100),(F,Q,B,T,2),(F,K,B,T,1),(F,V,B,T,1)))
 mhatest()
 
 # CUDNN_ATTN_QUERYMAP_ONE_TO_ONE does not seem to be supported

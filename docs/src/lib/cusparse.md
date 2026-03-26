@@ -1,19 +1,19 @@
-# CUSPARSE
+# cuSPARSE
 
 ```@meta
-CurrentModule = CUSPARSE
+CurrentModule = cuSPARSE
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CUSPARSE]
+Modules = [cuSPARSE]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CUSPARSE]
+Modules = [cuSPARSE]
 Public = false
 ```
