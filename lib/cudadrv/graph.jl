@@ -1,11 +1,10 @@
+## graph
+
 export CuGraph, capture, instantiate, CuGraphExec, launch, update,
        capture_status, is_capturing,
        @captured
 
-
-## graph
-
-@enum_without_prefix CUstreamCaptureMode CU_
+@enum_without_prefix visibility=:public CUstreamCaptureMode CU_
 
 """
     CuGraph([flags])
@@ -124,7 +123,7 @@ Launches an executable graph, by default in the currently-active stream.
 """
 launch(exec::CuGraphExec, stream::CuStream=stream()) = cuGraphLaunch(exec, stream)
 
-@enum_without_prefix CUgraphExecUpdateResult CU_
+@enum_without_prefix visibility=:public CUgraphExecUpdateResult CU_
 
 """
     update(exec::CuGraphExec, graph::CuGraph; [throw_error::Bool=true])
@@ -148,7 +147,7 @@ end
 
 ## global properties
 
-@enum_without_prefix CUstreamCaptureStatus CU_
+@enum_without_prefix visibility=:public CUstreamCaptureStatus CU_
 
 function capture_status(stream::CuStream=stream())
     status_ref = Ref{CUstreamCaptureStatus}()

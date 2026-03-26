@@ -1,145 +1,58 @@
 module CUDA
 
-using GPUCompiler
 
-using GPUArrays
+using Reexport
 
-using GPUToolbox
+@reexport using CUDACore
 
-using LLVM
-using LLVM.Interop
-using Core: LLVMPtr
-
-import KernelAbstractions
-
-using Adapt: Adapt, adapt, WrappedArray
-
-using LinearAlgebra
-
-using BFloat16s: BFloat16
-
-using ExprTools: splitdef, combinedef
-
-using LLVMLoopInfo
-
-using CUDA_Driver_jll
-
-using CUDA_Compiler_jll
-
-import CUDA_Runtime_jll
-const local_toolkit = CUDA_Runtime_jll.host_platform["cuda_local"] == "true"
-const toolkit_version = if CUDA_Runtime_jll.host_platform["cuda"] == "none"
-    nothing
+# Forward public names from CUDACore so CUDA.xyz works (exported names handled by @reexport)
+if VERSION >= v"1.11.0-DEV.469"
+    # On 1.11+, `names` returns public names, so we can forward just those
+    for n in names(CUDACore)
+        Base.isexported(CUDACore, n) && continue
+        n === :CUDACore && continue
+        isdefined(CUDACore, n) || continue
+        @eval using CUDACore: $n
+        @eval $(Expr(:public, n))
+    end
 else
-    parse(VersionNumber, CUDA_Runtime_jll.host_platform["cuda"])
-end
-if local_toolkit
-    using CUDA_Runtime_Discovery
-    const CUDA_Runtime = CUDA_Runtime_Discovery
-else
-    using CUDA_Runtime_jll
-    const CUDA_Runtime = CUDA_Runtime_jll
-end
-
-import Preferences
-
-using Libdl
-
-import NVTX
-
-using Printf
-
-# Julia has several notions of `sizeof`
-# - Base.sizeof is the size of an object in memory
-# - Base.aligned_sizeof is the size of an object in an array/inline alloced
-# Both of them are equivalent for immutable objects, but differ for mutable singtons and Symbol
-# We use `aligned_sizeof` since we care about the size of a type in an array
-@generated function aligned_sizeof(::Type{T}) where T
-    return :($(Base.aligned_sizeof(T)))
+    # On 1.10, there's no `public` keyword. Use PUBLIC_NAMES for names registered
+    # by @public, and scan names(; all=true) for public enum values created by
+    # @enum_without_prefix (which bypasses @public but creates const bindings).
+    public_names = Set{Symbol}(CUDACore.PUBLIC_NAMES)
+    for n in names(CUDACore; all=true)
+        isdefined(CUDACore, n) || continue
+        val = try getfield(CUDACore, n) catch; continue end
+        val isa CUDACore.CEnum.Cenum && Symbol(val) !== n && push!(public_names, n)
+    end
+    for n in public_names
+        Base.isexported(CUDACore, n) && continue
+        isdefined(CUDACore, n) || continue
+        @eval using CUDACore: $n
+    end
 end
 
-## source code includes
+# Load math libraries so their methods (matmul, rand, etc.) are available
+using cuBLAS
+using cuSPARSE
+using cuSOLVER
+using cuFFT
+using cuRAND
+export cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
 
-include("pointer.jl")
+# Backward compatibility: master exported these as submodule names
+Base.@deprecate_binding CUBLAS cuBLAS true
+Base.@deprecate_binding CUSPARSE cuSPARSE true
+Base.@deprecate_binding CUSOLVER cuSOLVER true
+Base.@deprecate_binding CUFFT cuFFT true
+Base.@deprecate_binding CURAND cuRAND true
 
-# core library
-include("../lib/utils/APIUtils.jl")
-include("../lib/cudadrv/CUDAdrv.jl")
+# Forward cuRAND identifiers
+using cuRAND: rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
+@public rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
+Base.@deprecate_binding RNG cuRAND.NativeRNG false
+Base.@deprecate default_rng() cuRAND.native_rng() false
 
-# essential stuff
-include("initialization.jl")
-include("compatibility.jl")
-include("debug.jl")
-
-# device functionality (needs to be loaded first, because of generated functions)
-include("device/utils.jl")
-include("device/pointer.jl")
-include("device/array.jl")
-include("device/intrinsics.jl")
-include("device/runtime.jl")
-include("device/texture.jl")
-include("device/random.jl")
-include("device/quirks.jl")
-
-# array essentials
-include("memory.jl")
-include("array.jl")
-include("refpointer.jl")
-
-# compiler libraries
-include("../lib/cupti/CUPTI.jl")
-export CUPTI
-
-# compiler implementation
-include("compiler/compilation.jl")
-include("compiler/execution.jl")
-include("compiler/exceptions.jl")
-include("compiler/reflection.jl")
-
-# array implementation
-include("utilities.jl")
-include("texture.jl")
-
-# integrations and specialized functionality
-include("indexing.jl")
-include("broadcast.jl")
-include("mapreduce.jl")
-include("accumulate.jl")
-include("reverse.jl")
-include("iterator.jl")
-include("sorting.jl")
-include("profile.jl")
-
-# array libraries
-include("../lib/complex.jl")
-include("../lib/library_types.jl")
-include("../lib/cublas/CUBLAS.jl")
-include("../lib/cusparse/CUSPARSE.jl")
-include("../lib/cusolver/CUSOLVER.jl")
-include("../lib/cufft/CUFFT.jl")
-include("../lib/curand/CURAND.jl")
-
-export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND
-const has_cusolvermg = CUSOLVER.has_cusolvermg
-export has_cusolvermg
-
-# random depends on CURAND
-include("random.jl")
-
-# other libraries
-include("../lib/nvml/NVML.jl")
-const has_nvml = NVML.has_nvml
-export NVML, has_nvml
-
-# KernelAbstractions
-include("CUDAKernels.jl")
-import .CUDAKernels: CUDABackend
-export CUDABackend
-
-# StaticArrays is still a direct dependency, so directly include the extension
-include("../ext/StaticArraysExt.jl")
-
-include("precompile.jl")
-include("deprecated.jl")
+Base.@deprecate_binding has_cusolvermg cuSOLVER.has_cusolvermg false
 
 end

@@ -6,7 +6,7 @@ import cuDNN:
     cudnnAddTensor,
     CUDNN_TENSOR_NHWC
 
-x = CUDA.rand(10)
+x = CuArray(rand(Float32, 10))
 cudnnSetTensor!(x, 7)
 @test all(isequal(7), Array(x))
 ax = rand(10)

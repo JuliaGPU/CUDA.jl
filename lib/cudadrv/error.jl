@@ -1,6 +1,7 @@
 # Error type and decoding functionality
 
 export CuError
+@public description#, name
 
 
 # an optional struct, used to represent e.g. optional error logs.
@@ -42,7 +43,7 @@ Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 Gets the string representation of an error code.
 
 ```jldoctest
-julia> err = CuError(CUDA.cudaError_enum(1))
+julia> err = CuError(CUDACore.cudaError_enum(1))
 CuError(CUDA_ERROR_INVALID_VALUE)
 
 julia> name(err)
@@ -81,4 +82,4 @@ end
 
 Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.code))")
 
-@enum_without_prefix cudaError_enum CUDA_
+@enum_without_prefix visibility=:public cudaError_enum CUDA_

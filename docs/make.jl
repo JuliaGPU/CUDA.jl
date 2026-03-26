@@ -1,6 +1,6 @@
 using Documenter, Literate
 using CUDA
-using CUDA.CUBLAS, CUDA.CUFFT, CUDA.CUPTI, CUDA.CURAND, CUDA.CUSOLVER, CUDA.CUSPARSE, CUDA.NVML, CUDA.APIUtils
+using CUDACore, cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE
 using cuDNN, cuStateVec, cuTENSOR, cuTensorNet
 
 const src = "https://github.com/JuliaGPU/CUDA.jl"
@@ -28,6 +28,7 @@ function main()
 
     @info "Generating Documenter.jl site"
     DocMeta.setdocmeta!(CUDA, :DocTestSetup, :(using CUDA); recursive = true)
+    DocMeta.setdocmeta!(CUDACore, :DocTestSetup, :(using CUDA); recursive = true)
     makedocs(
         sitename = "CUDA.jl",
         authors = "Tim Besard",
@@ -42,15 +43,15 @@ function main()
         doctest = true,
         warnonly = [:missing_docs],
         modules = [
+            CUDACore,
             CUDA,
-            CUBLAS,
-            CUFFT,
-            CUPTI,
-            CURAND,
-            CUSOLVER,
-            CUSPARSE,
-            NVML,
-            APIUtils,
+            cuBLAS,
+            cuFFT,
+            CUDACore.CUPTI,
+            cuRAND,
+            cuSOLVER,
+            cuSPARSE,
+            CUDACore.NVML,
             cuDNN,
             cuStateVec,
             cuTENSOR,
@@ -89,19 +90,18 @@ function main()
                 "api/compiler.md",
             ],
             "Library reference" => Any[
-                "lib/cublas.md",
                 "lib/cudadrv.md",
-                "lib/cudnn.md",
-                "lib/cufft.md",
-                "lib/cupti.md",
+                "lib/cublas.md",
                 "lib/curand.md",
                 "lib/cusolver.md",
                 "lib/cusparse.md",
-                "lib/custatevec.md",
+                "lib/cufft.md",
+                "lib/cudnn.md",
                 "lib/cutensor.md",
                 "lib/cutensornet.md",
+                "lib/custatevec.md",
+                "lib/cupti.md",
                 "lib/nvml.md",
-                "lib/utils.md",
             ],
             "FAQ" => "faq.md",
         ]

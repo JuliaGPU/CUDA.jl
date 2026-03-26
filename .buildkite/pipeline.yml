@@ -3,6 +3,38 @@ steps:
   - group: ":julia: Julia"
     key: "julia"
     steps:
+      # Julia 1.10 doesn't support [sources] in Project.toml,
+      # so we need to manually dev workspace packages before instantiating.
+      - label: "Julia 1.10"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.10"
+          - JuliaCI/julia-coverage#v1:
+              dirs:
+                - src
+                - lib
+                - examples
+        agents:
+          queue: "juliagpu"
+          cuda: "*"
+        commands: |
+          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          julia --project=. -e '
+            using Pkg
+            Pkg.develop([PackageSpec(; path) for path in (
+              "CUDACore",
+              "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
+              "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
+            )])
+            Pkg.test(; test_args=["--quickfail"])'
+        if: |
+          build.message =~ /\[only tests\]/ ||
+          build.message =~ /\[only julia\]/ ||
+          build.message !~ /\[only/ &&
+            build.message !~ /\[skip tests\]/ &&
+            build.message !~ /\[skip julia\]/
+        timeout_in_minutes: 90
+
       - label: "Julia {{matrix.julia}}"
         plugins:
           - JuliaCI/julia#v1:
@@ -30,7 +62,6 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.10"
               - "1.11"
               - "1.12"
               - "1.13"
@@ -48,9 +79,9 @@ steps:
       - label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base libraries"
+              test_args: "--quickfail core libraries"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -65,7 +96,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip cuda\]/
-        timeout_in_minutes: 60
+        timeout_in_minutes: 120
         matrix:
           setup:
             cuda:
@@ -84,43 +115,6 @@ steps:
         commands: |
           unset LD_LIBRARY_PATH
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
-
-  - group: ":nesting_dolls: Subpackages"
-    depends_on: "cuda"
-    steps:
-      - label: "{{matrix.package}} on CUDA {{matrix.cuda}}"
-        matrix:
-          setup:
-            cuda:
-              - "12.0"
-              - "13.0"
-            package:
-              - "cudnn"
-              - "cutensor"
-              - "custatevec"
-              - "cutensornet"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              project: "lib/{{matrix.package}}"
-          - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
-        agents:
-          queue: "juliagpu"
-          cuda: "*"
-        if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only subpackages\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip subpackages\]/
-        timeout_in_minutes: 30
-        commands: |
-          unset LD_LIBRARY_PATH
 
   - group: ":telescope: Downstream"
     depends_on: "cuda"
@@ -185,7 +179,7 @@ steps:
       - label: "Enzyme.jl"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10" # XXX: Enzyme.jl is broken on 1.11
+              version: "1.11"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -250,12 +244,12 @@ steps:
           julia --project -e '
             using CUDA
             @assert !CUDA.functional()
-            @assert !isdefined(CUDA, :libcudart)
+            @assert !isdefined(CUDACore, :libcudart)
             CUDA.set_runtime_version!(v"11.6")'
           julia --project -e '
             using CUDA
             @assert !CUDA.functional()
-            @assert isdefined(CUDA, :libcudart)'
+            @assert isdefined(CUDACore, :libcudart)'
         agents:
           queue: "juliagpu"
           intel: "*"
@@ -270,9 +264,9 @@ steps:
       - label: "Compute sanitizer"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--sanitize core base"
+              test_args: "--sanitize core"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -294,9 +288,9 @@ steps:
       - label: "Legacy memory allocator"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base"
+              test_args: "--quickfail core"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -320,9 +314,9 @@ steps:
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base libraries"
+              test_args: "--quickfail core"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -352,9 +346,9 @@ steps:
       - label: "MultiGPU"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--gpu=0,1 --quickfail core base libraries"
+              test_args: "--gpu=0,1 --quickfail core libraries/cublas/xt"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
@@ -380,7 +374,7 @@ steps:
   - label: ":books: Documentation"
     plugins:
       - JuliaCI/julia#v1:
-          version: "1.11"
+          version: "1.12"
     commands: |
       unset LD_LIBRARY_PATH
       julia --project -e '

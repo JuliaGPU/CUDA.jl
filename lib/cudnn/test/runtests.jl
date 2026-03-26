@@ -1,18 +1,12 @@
-using Test
+include("setup.jl")
+@test cuDNN.functional()
 
-using CUDA
-@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
-
-using cuDNN
-@test cuDNN.has_cudnn()
-@info "cuDNN version: $(cuDNN.version()) (built for CUDA $(cuDNN.cuda_version()))"
-
-@testset "cuDNN" begin
+@testset verbose=true "cuDNN" begin
 
 # include all tests
 for entry in readdir(@__DIR__)
     endswith(entry, ".jl") || continue
-    entry in ["runtests.jl"] && continue
+    entry in ["runtests.jl", "setup.jl"] && continue
 
     # generate a testset
     name = splitext(entry)[1]

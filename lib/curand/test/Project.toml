@@ -1,0 +1,5 @@
+[deps]
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+cuRAND = "20fd9a0b-12d5-4c2f-a8af-7c34e9e60431"

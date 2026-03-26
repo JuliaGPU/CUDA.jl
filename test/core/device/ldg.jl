@@ -1,5 +1,5 @@
 @testset "ldg" begin
-    ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
+    ir = sprint(io->CUDA.code_llvm(io, CUDACore.pointerref_ldg, Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
     if Base.libllvm_version >= v"20"
         # `@llvm.nvvm.ldg` was removed in LLVM 20; the auto-upgrade
         # replaces it with a load bearing `!invariant.load` metadata

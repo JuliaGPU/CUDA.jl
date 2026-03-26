@@ -1,5 +1,7 @@
 # Version management
 
+@public driver_version, runtime_version, set_runtime_version!, reset_runtime_version!, compiler_version, is_tegra
+
 # because of this API call being used so frequently, we use a manual cache set in __init__
 # (@memoize's lazy/thread-safe initialization is too expensive for this purpose)
 const _driver_version = Ref{VersionNumber}()
@@ -50,7 +52,7 @@ When not specifying either the `version` or the `local_toolkit` argument, the de
 behavior will be used, which is to use the most recent compatible runtime available from an
 artifact source. Note that this will override any Preferences that may be configured in a
 higher-up depot; to clear preferences nondestructively, use
-[`CUDA.reset_runtime_version!`](@ref) instead.
+[`CUDACore.reset_runtime_version!`](@ref) instead.
 """
 function set_runtime_version!(version::Union{Nothing,VersionNumber}=nothing;
                               local_toolkit::Union{Nothing,Bool}=nothing)
@@ -82,7 +84,7 @@ end
 Resets the CUDA version preferences in the active project to the default, which is to use
 the most recent compatible runtime available from an artifact source, unless a higher-up
 depot has configured a different preference. To force use of the default behavior for the
-local project, use [`CUDA.set_runtime_version!`](@ref) with no arguments.
+local project, use [`CUDACore.set_runtime_version!`](@ref) with no arguments.
 """
 function reset_runtime_version!()
     Preferences.delete_preferences!(CUDA_Runtime_jll, "version"; force=true)

@@ -3,9 +3,9 @@
 export CuMemoryPool, default_memory_pool, memory_pool, memory_pool!, trim,
        attribute, attribute!, access!
 
-@enum_without_prefix CUmemAllocationType CU_MEM_
-@enum_without_prefix CUmemAllocationHandleType CU_MEM_
-@enum_without_prefix CUmemAccess_flags_enum CU_MEM_
+@enum_without_prefix visibility=:public CUmemAllocationType CU_MEM_
+@enum_without_prefix visibility=:public CUmemAllocationHandleType CU_MEM_
+@enum_without_prefix visibility=:public CUmemAccess_flags_enum CU_MEM_
 
 mutable struct CuMemoryPool
     handle::CUmemoryPool
@@ -18,7 +18,7 @@ mutable struct CuMemoryPool
         location = Ref{CUmemLocation}()
         GC.@preserve location begin
             # Clang.jl wraps this object in an annoying way
-            location_ptr = Base.unsafe_convert(Ptr{CUDA.CUmemLocation}, location)
+            location_ptr = Base.unsafe_convert(Ptr{CUDACore.CUmemLocation}, location)
             location_ptr.type = CU_MEM_LOCATION_TYPE_DEVICE
             location_ptr.id = deviceid(dev)
 
@@ -76,7 +76,7 @@ trim(pool::CuMemoryPool, bytes_to_keep::Integer=0) = cuMemPoolTrimTo(pool, bytes
 
 ## pool attributes
 
-@enum_without_prefix CUmemPool_attribute CU_
+@enum_without_prefix visibility=:public CUmemPool_attribute CU_
 
 """
     attribute(X, pool::CuMemoryPool, attr)
@@ -103,7 +103,7 @@ end
 
 ## pool access
 
-@enum_without_prefix CUmemAccess_flags_enum CU_MEM_
+@enum_without_prefix visibility=:public CUmemAccess_flags_enum CU_MEM_
 
 """
     access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags)

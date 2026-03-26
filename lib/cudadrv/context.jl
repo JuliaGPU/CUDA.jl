@@ -1,25 +1,25 @@
 # Context management
 
-export
-    CuPrimaryContext, CuContext, current_context, has_context, activate,
-    unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
-    device, device_synchronize
+export CuPrimaryContext, CuContext, current_context, has_context, activate,
+       unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
+       device, device_synchronize
+@public unsafe_destroy!
 
 
 ## construction and destruction
 
-@enum_without_prefix CUctx_flags CU_
+@enum_without_prefix visibility=:public CUctx_flags CU_
 
 """
     CuContext(dev::CuDevice, flags=CTX_SCHED_AUTO)
     CuContext(f::Function, ...)
 
-Create a CUDA context for device. A context on the GPU is analogous to a process on the CPU,
-with its own distinct address space and allocated resources. When a context is destroyed,
-the system cleans up the resources allocated to it.
+Create a CUDA context for device. A context on the GPU is analogous to a process
+on the CPU, with its own distinct address space and allocated resources. When a
+context is destroyed, the system cleans up the resources allocated to it.
 
-When you are done using the context, call [`CUDA.unsafe_destroy!`](@ref) to mark it for
-deletion, or use do-block syntax with this constructor.
+When you are done using the context, call [`CUDACore.unsafe_destroy!`](@ref) to mark
+it for deletion, or use do-block syntax with this constructor.
 """
 struct CuContext
     handle::CUcontext
@@ -208,7 +208,7 @@ function CuContext(f::Function, pctx::CuPrimaryContext)
 end
 
 """
-    CUDA.unsafe_release!(pctx::CuPrimaryContext)
+    CUDACore.unsafe_release!(pctx::CuPrimaryContext)
 
 Lower the refcount of a context, possibly freeing up all resources associated with it. This
 does not respect any users of the context, and might make other objects unusable.
@@ -310,7 +310,7 @@ device_synchronize()
 
 export cache_config, cache_config!
 
-@enum_without_prefix CUfunc_cache CU_
+@enum_without_prefix visibility=:public CUfunc_cache CU_
 
 function cache_config()
     config = Ref{CUfunc_cache}()
@@ -327,7 +327,7 @@ end
 
 export shmem_config, shmem_config!
 
-@enum_without_prefix CUsharedconfig CU_
+@enum_without_prefix visibility=:public CUsharedconfig CU_
 
 function shmem_config()
     config = Ref{CUsharedconfig}()
@@ -344,7 +344,7 @@ end
 
 export limit, limit!
 
-@enum_without_prefix CUlimit CU_
+@enum_without_prefix visibility=:public CUlimit CU_
 
 function limit(lim::CUlimit)
     val = Ref{Csize_t}()
@@ -388,12 +388,12 @@ function maybe_enable_peer_access(src::CuDevice, dst::CuDevice)
                     enable_peer_access(context(dst))
                     peer_access[][src_idx, dst_idx] = 1
                 catch err
-                    if err.code == CUDA.CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED
+                    if err.code == CUDACore.CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED
                         @warn "Peer-to-peer access between $src and $dst was unexpectedly already enabled"
-                        CUDA.peer_access[][src_idx, dst_idx] = 1
+                        CUDACore.peer_access[][src_idx, dst_idx] = 1
                     else
                         @warn "Enabling peer-to-peer access between $src and $dst failed; please file an issue." exception=(err,catch_backtrace())
-                        CUDA.peer_access[][src_idx, dst_idx] = -1
+                        CUDACore.peer_access[][src_idx, dst_idx] = -1
                     end
                 end
             end

@@ -11,4 +11,4 @@ Base.showerror(io::IO, err::NVMLError) =
 
 description(err::NVMLError) = unsafe_string(nvmlErrorString(err))
 
-@enum_without_prefix nvmlReturn_enum NVML_
+@enum_without_prefix visibility=:public nvmlReturn_enum NVML_

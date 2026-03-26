@@ -1,7 +1,5 @@
 # Execution control
 
-export cudacall
-
 # In contrast to `Base.RefValue` we just need a container for both pass-by-ref (Symbol),
 # and pass-by-value (immutable structs).
 mutable struct ArgBox{T}
@@ -13,7 +11,10 @@ function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, b::ArgBox
     return pointer_from_objref(b)
 end
 
+
 ## device
+
+export cudacall
 
 # pack arguments in a buffer that CUDA expects
 @inline @generated function pack_arguments(f::Function, args...)
@@ -65,17 +66,17 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
 
-    attrs = CUDA.CUlaunchAttribute[]
+    attrs = CUDACore.CUlaunchAttribute[]
     if cooperative
         resize!(attrs, length(attrs)+1)
         attr = pointer(attrs, length(attrs))
-        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
+        attr.id = CUDACore.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
         attr.value.cooperative = 1;
     end
     if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
         resize!(attrs, length(attrs)+1)
         attr = pointer(attrs, length(attrs))
-        attr.id = CUDA.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
+        attr.id = CUDACore.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
         attr.value.clusterDim.x = clusterdim.x
         attr.value.clusterDim.y = clusterdim.y
         attr.value.clusterDim.z = clusterdim.z
@@ -289,7 +290,7 @@ end
 
 attributes(f::CuFunction) = AttributeDict(f)
 
-@enum_without_prefix CUfunction_attribute CU_
+@enum_without_prefix visibility=:public CUfunction_attribute CU_
 
 function Base.getindex(dict::AttributeDict, attr::CUfunction_attribute)
     val = Ref{Cint}()

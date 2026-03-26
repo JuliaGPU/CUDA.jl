@@ -1,7 +1,8 @@
 # Linking of different PTX modules
 
-export
-    CuLink, CuLinkImage, add_data!, add_file!, complete
+export CuLink, CuLinkImage, add_data!, add_file!, complete
+
+@public unsafe_destroy!
 
 
 """

@@ -1,8 +1,7 @@
 # Device type and auxiliary functions
 
-export
-    CuDevice, current_device, has_device,
-    name, deviceid, uuid, parent_uuid, totalmem, can_access_peer
+export CuDevice, current_device, has_device, DEVICE_CPU, DEVICE_INVALID,
+       name, deviceid, uuid, parent_uuid, totalmem, can_access_peer
 
 """
     CuDevice(ordinal::Integer)
@@ -165,7 +164,7 @@ function attribute(dev::CuDevice, code::CUdevice_attribute)
     return value_ref[]
 end
 
-@enum_without_prefix CUdevice_attribute CU_
+@enum_without_prefix visibility=:public CUdevice_attribute CU_
 
 """
     warpsize(dev::CuDevice)
@@ -190,6 +189,8 @@ memory_pools_supported(dev::CuDevice) = attribute(dev, DEVICE_ATTRIBUTE_MEMORY_P
 unified_addressing(dev::CuDevice) =
     attribute(dev, DEVICE_ATTRIBUTE_UNIFIED_ADDRESSING) == 1
 
+@enum_without_prefix visibility=:public CUcomputemode_enum CU_
+
 
 ## p2p attributes
 
@@ -206,4 +207,4 @@ function p2p_attribute(src::CuDevice, dst::CuDevice, code::CUdevice_P2PAttribute
     return value_ref[]
 end
 
-@enum_without_prefix CUdevice_P2PAttribute CU_
+@enum_without_prefix visibility=:public CUdevice_P2PAttribute CU_

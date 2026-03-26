@@ -14,7 +14,7 @@
     @on_device blockIdx().z
     @on_device gridDim().z
 
-    if capability(device()) >= v"9.0"
+    if capability(device()) >= v"9.0" && VERSION >= v"1.11-"
         @on_device clusterIdx().x
         @on_device clusterIdx().y
         @on_device clusterIdx().z

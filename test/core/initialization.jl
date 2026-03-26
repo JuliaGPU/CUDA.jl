@@ -32,18 +32,18 @@ context!(ctx)
 @inferred context!(()->42, ctx)
 
 # setting flags is only possible on a new context
-@test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
+@test_throws ErrorException device!(0, CUDA.CTX_SCHED_YIELD)
 device_reset!()
-device!(0, CUDA.CU_CTX_SCHED_YIELD)
+device!(0, CUDA.CTX_SCHED_YIELD)
 
 # reset on a different task
 let ctx = context()
-    @test CUDA.isvalid(ctx)
+    @test CUDACore.isvalid(ctx)
     @test ctx == fetch(@async context())
 
     @sync @async device_reset!()
 
-    @test CUDA.isvalid(context())
+    @test CUDACore.isvalid(context())
     @test ctx != context()
 end
 

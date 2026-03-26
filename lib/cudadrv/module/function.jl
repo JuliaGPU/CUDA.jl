@@ -1,7 +1,6 @@
 # Functions in modules
 
-export
-    CuFunction
+export CuFunction
 
 
 """
