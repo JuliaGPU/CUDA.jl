@@ -62,6 +62,13 @@ function with_workspaces(f::Base.Callable,
         if workspace_gpu === nothing
             workspace_gpu = CuVector{UInt8}(undef, sz_gpu)
         else
+            if workspace_gpu.maxsize < sz_gpu
+                # workspace data is scratch space that doesn't need to be preserved across
+                # calls, so shrink to 0 first to free the old buffer before growing. this
+                # avoids holding both old and new buffers simultaneously during resize,
+                # which can cause OOM on memory-constrained GPUs.
+                resize!(workspace_gpu, 0)
+            end
             resize!(workspace_gpu, sz_gpu)
         end
         sz_gpu = get_size_gpu()
