@@ -9,6 +9,29 @@
 const _initialized = Ref{Bool}(false)
 const _initialization_error = Ref{String}()
 
+# World age captured at __init__ time. Running the GPU compiler infrastructure
+# (typeinf_local, etc.) in this world avoids recompilation of native code that was
+# cached during precompilation but invalidated by later method definitions.
+# Default to typemax(UInt) so that during precompilation (before __init__ runs)
+# invoke_in_world clamps to the current world and behaves normally.
+const _initialization_world = Ref{UInt}(typemax(UInt))
+
+"""
+    invoke_frozen(f, args...; kwargs...)
+
+Invoke `f(args...; kwargs...)` in the world captured at `__init__` time.
+This allows precompiled native code for the GPU compiler infrastructure
+(typeinf_local, etc.) to be reused, avoiding expensive recompilation.
+"""
+function invoke_frozen(f, args...; kwargs...)
+    @inline
+    kwargs = merge(NamedTuple(), kwargs)
+    if isempty(kwargs)
+        return Base.invoke_in_world(_initialization_world[], f, args...)
+    end
+    return Base.invoke_in_world(_initialization_world[], Core.kwcall, kwargs, f, args...)
+end
+
 """
     functional(show_reason=false)
 
@@ -206,6 +229,10 @@ function __init__()
             end
         end
     end
+
+    # capture the world age so that the compiler infrastructure can be invoked
+    # in this world, reusing precompiled native code for typeinf_local etc.
+    _initialization_world[] = Base.get_world_counter()
 
     _initialized[] = true
 end

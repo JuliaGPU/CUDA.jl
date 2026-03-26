@@ -177,7 +177,8 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
             source = methodinstance(typeof(func), Base.to_tuple_type(types))
             config = CUDACore.compiler_config(device(); kernel, compiler_kwargs...)
             job = CompilerJob(source, config)
-            GPUCompiler.$method($(args...); kwargs...)
+            # use frozen world to avoid recompiling the compiler infrastructure
+            CUDACore.invoke_frozen(GPUCompiler.$method, $(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =
             $method(stdout, func, types; kwargs...)
