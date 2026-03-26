@@ -44,6 +44,7 @@ function main()
         warnonly = [:missing_docs],
         modules = [
             CUDACore,
+            CUDATools,
             CUDA,
             cuBLAS,
             cuFFT,
