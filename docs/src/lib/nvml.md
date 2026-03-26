@@ -1,19 +1,19 @@
 # NVML
 
 ```@meta
-CurrentModule = CUDATools.NVML
+CurrentModule = NVML
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CUDATools.NVML]
+Modules = [NVML]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CUDATools.NVML]
+Modules = [NVML]
 Public = false
 ```

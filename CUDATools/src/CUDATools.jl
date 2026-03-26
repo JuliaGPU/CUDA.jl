@@ -19,33 +19,22 @@ macro public(symbols_expr)
     end
 end
 
-using CUDACore: retry_reclaim, initialize_context,
-                cuProfilerStart, cuProfilerStop, cuCtxSynchronize,
-                compiler_config, compile, link, COMPILER_KWARGS,
-                CuDim3
+using CUDACore: compiler_config, compile, link, COMPILER_KWARGS
 
-using GPUToolbox
 using GPUCompiler
 using GPUCompiler: CompilerJob, methodinstance
 using LLVM
-using CEnum: @cenum
 
 using CUDA_Compiler_jll: nvdisasm
 
-import Libdl
 import Preferences
 using Printf
 
-# Alias CUDACore's runtime resolution (avoids duplicating local-vs-JLL logic)
-const CUDA_Runtime = CUDACore.CUDA_Runtime
-const local_toolkit = CUDACore.local_toolkit
-
-# Submodules
-include("../lib/cupti/CUPTI.jl")
+using CUPTI
 export CUPTI
 
-include("../lib/nvml/NVML.jl")
-const has_nvml = NVML.has_nvml
+using NVML
+using NVML: has_nvml
 export NVML, has_nvml
 
 # Developer tools

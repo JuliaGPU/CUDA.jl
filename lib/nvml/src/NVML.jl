@@ -1,7 +1,6 @@
 module NVML
 
-
-using ..GPUToolbox
+using GPUToolbox
 
 using CUDACore
 

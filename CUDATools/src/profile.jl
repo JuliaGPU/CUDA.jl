@@ -111,8 +111,8 @@ end
 module Profile
 
 using CUDACore
-using CUDACore: cuCtxSynchronize, cuProfilerStart, cuProfilerStop, CuDim3
-using ..CUPTI
+using CUDACore: CuDim3
+using CUPTI
 
 using Crayons: @crayon_str, Crayon
 using NVTX: NVTX
@@ -149,7 +149,7 @@ end
 
 function profile_externally(f)
     # wait for the device to become idle
-    cuCtxSynchronize()
+    CUDACore.cuCtxSynchronize()
 
     start()
     try
@@ -172,7 +172,7 @@ function detect_cupti()
         # We cannot run this unconditionally during initialization to avoid interfering
         # with other cupti users who may not operate via CUDA.@profile [like Reactant/XLA]
         if !NVTX.isactive() && CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
-            ENV["NVTX_INJECTION64_PATH"] = CUDACore.CUDA_Runtime.libcupti
+            ENV["NVTX_INJECTION64_PATH"] = CUPTI.libcupti
             NVTX.activate()
         end
         _nvtx_activated[] = true
@@ -321,7 +321,7 @@ function start()
     end
 
     # actually start the capture
-    cuProfilerStart()
+    CUDACore.cuProfilerStart()
 end
 
 """
@@ -331,7 +331,7 @@ Disables profile collection by the active profiling tool for the current context
 profiling is already disabled, then this call has no effect.
 """
 function stop()
-    cuProfilerStop()
+    CUDACore.cuProfilerStop()
 end
 
 
@@ -381,25 +381,25 @@ function profile_internally(f; concurrent=true, kwargs...)
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
     ]
-    if runtime_version() >= v"12.0"
+    if CUDACore.runtime_version() >= v"12.0"
         # additional data on NVTX markers
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA)
     end
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
     # wait for the device to become idle
-    cuCtxSynchronize()
+    CUDACore.cuCtxSynchronize()
 
     CUPTI.enable!(cfg) do
         # perform dummy operations to "warm up" the profiler, and avoid slow first calls.
         # we'll skip everything up until the synchronization call during processing
         CuArray([1])
-        cuCtxSynchronize()
+        CUDACore.cuCtxSynchronize()
 
         f()
 
         # synchronize to ensure we capture all activity
-        cuCtxSynchronize()
+        CUDACore.cuCtxSynchronize()
     end
 
     data = capture(cfg)
@@ -451,7 +451,7 @@ function capture(cfg)
     # memory_kind fields are sometimes typed CUpti_ActivityMemoryKind, sometimes UInt
     as_memory_kind(x) = isa(x, CUPTI.CUpti_ActivityMemoryKind) ? x : CUPTI.CUpti_ActivityMemoryKind(x)
 
-    cuda_version = runtime_version()
+    cuda_version = CUDACore.runtime_version()
     CUPTI.process(cfg) do ctx, stream_id, record
         # driver API calls
         if record.kind in [CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -1181,7 +1181,7 @@ function benchmark_and_profile(f; time=1.0, kwargs...)
         while (time_ns() - t0)/1e9 < time
             NVTX.@range "iteration" domain=domain begin
                 f()
-                cuCtxSynchronize()
+                CUDACore.cuCtxSynchronize()
             end
         end
     end

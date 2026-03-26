@@ -10,7 +10,7 @@ function versioninfo(io::IO=stdout)
     println(io, "CUDA toolchain: ")
 
     print(io, "- runtime $(runtime_version().major).$(runtime_version().minor), ")
-    if local_toolkit
+    if CUDACore.local_toolkit
         println(io, "local installation")
     else
         println(io, "artifact installation")

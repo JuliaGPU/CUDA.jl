@@ -4,10 +4,12 @@ BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDATools = "9ec180c6-1c07-47c7-9e6e-ebefa4d1f6d0"
+CUPTI = "9e67e8f6-ba02-4b6c-a7db-3b11ae1e7ab7"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+NVML = "611af6d1-644e-4c5d-bd58-854d7d1254b9"
 cuBLAS = "182d3088-87b7-4494-8cad-fc6afaa545bc"
 cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
 cuFFT = "533571aa-0936-420e-b4be-9c66f5f626ca"
@@ -21,6 +23,8 @@ cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 [sources]
 CUDA = {path = ".."}
 CUDATools = {path = "../CUDATools"}
+CUPTI = {path = "../lib/cupti"}
+NVML = {path = "../lib/nvml"}
 cuDNN = {path = "../lib/cudnn"}
 cuStateVec = {path = "../lib/custatevec"}
 cuTENSOR = {path = "../lib/cutensor"}

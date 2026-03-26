@@ -61,6 +61,7 @@ RUN julia -e 'using Pkg; \
               rev = ENV["PACKAGE_REF"]; \
               Pkg.add([PackageSpec(; url, rev, subdir) for subdir in \
                        ["CUDACore", "CUDATools", \
+                        "lib/cupti", "lib/nvml", \
                         "lib/cublas", "lib/cusparse", "lib/cusolver", \
                         "lib/cufft", "lib/curand", \
                         "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec", \

@@ -6,6 +6,7 @@ version = "6.0.0"
 projects = ["test", "docs", "perf", "examples",
             "CUDACore",
             "CUDATools",
+            "lib/cupti", "lib/nvml",
             "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
             "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"]
 

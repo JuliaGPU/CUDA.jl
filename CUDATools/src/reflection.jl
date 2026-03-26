@@ -3,8 +3,8 @@
 using CUDACore
 using CUDACore: COMPILER_KWARGS, compiler_config, compile, link
 
-using .CUPTI
-using .CUPTI: CUpti_ModuleResourceData
+using CUPTI
+using CUPTI: CUpti_ModuleResourceData
 
 using GPUCompiler
 using GPUCompiler: CompilerJob, methodinstance

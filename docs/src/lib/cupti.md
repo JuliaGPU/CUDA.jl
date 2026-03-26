@@ -1,19 +1,19 @@
 # CUPTI
 
 ```@meta
-CurrentModule = CUDATools.CUPTI
+CurrentModule = CUPTI
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CUDATools.CUPTI]
+Modules = [CUPTI]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CUDATools.CUPTI]
+Modules = [CUPTI]
 Public = false
 ```
