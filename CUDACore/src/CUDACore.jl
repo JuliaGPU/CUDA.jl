@@ -73,7 +73,7 @@ include("pointer.jl")
 include("utils/call.jl")
 include("utils/cache.jl")
 include("utils/struct_size.jl")
-include("../../lib/cudadrv/CUDAdrv.jl")
+include("../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
 include("initialization.jl")
@@ -96,7 +96,7 @@ include("array.jl")
 include("refpointer.jl")
 
 # compiler libraries
-include("../../lib/cupti/CUPTI.jl")
+include("../lib/cupti/CUPTI.jl")
 export CUPTI
 
 # compiler implementation
@@ -125,7 +125,7 @@ include("complex.jl")
 include("library_types.jl")
 
 # other libraries
-include("../../lib/nvml/NVML.jl")
+include("../lib/nvml/NVML.jl")
 const has_nvml = NVML.has_nvml
 export NVML, has_nvml
 
