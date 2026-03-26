@@ -29,6 +29,7 @@ const root = dirname(@__DIR__)
 # All packages in the monorepo: (name, subdir relative to root, Project.toml path)
 const packages = [
     ("CUDACore",    "CUDACore",          joinpath(root, "CUDACore", "Project.toml")),
+    ("CUDATools",   "CUDATools",         joinpath(root, "CUDATools", "Project.toml")),
     ("cuBLAS",      "lib/cublas",        joinpath(root, "lib", "cublas", "Project.toml")),
     ("cuSPARSE",    "lib/cusparse",      joinpath(root, "lib", "cusparse", "Project.toml")),
     ("cuFFT",       "lib/cufft",         joinpath(root, "lib", "cufft", "Project.toml")),
@@ -104,7 +105,7 @@ end
 # --- Step 2: Print registration commands in dependency order ---
 #
 # Wave 1: CUDACore (no internal deps)
-# Wave 2: cuBLAS, cuSPARSE, cuFFT, cuRAND, cuDNN, cuTENSOR, cuStateVec
+# Wave 2: CUDATools, cuBLAS, cuSPARSE, cuFFT, cuRAND, cuDNN, cuTENSOR, cuStateVec
 #          (depend only on CUDACore)
 # Wave 3: cuSOLVER (depends on cuBLAS, cuSPARSE),
 #          cuTensorNet (depends on cuTENSOR)
@@ -112,7 +113,7 @@ end
 
 const waves = [
     ["CUDACore"],
-    ["cuBLAS", "cuSPARSE", "cuFFT", "cuRAND", "cuDNN", "cuTENSOR", "cuStateVec"],
+    ["CUDATools", "cuBLAS", "cuSPARSE", "cuFFT", "cuRAND", "cuDNN", "cuTENSOR", "cuStateVec"],
     ["cuSOLVER", "cuTensorNet"],
     ["CUDA"],
 ]

@@ -1,6 +1,6 @@
 using Documenter, Literate
 using CUDA
-using CUDACore, cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE
+using CUDACore, CUDATools, cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE
 using cuDNN, cuStateVec, cuTENSOR, cuTensorNet
 
 const src = "https://github.com/JuliaGPU/CUDA.jl"
@@ -47,11 +47,11 @@ function main()
             CUDA,
             cuBLAS,
             cuFFT,
-            CUDACore.CUPTI,
+            CUDATools.CUPTI,
             cuRAND,
             cuSOLVER,
             cuSPARSE,
-            CUDACore.NVML,
+            CUDATools.NVML,
             cuDNN,
             cuStateVec,
             cuTENSOR,

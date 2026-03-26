@@ -3,6 +3,7 @@ Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+CUDATools = "9ec180c6-1c07-47c7-9e6e-ebefa4d1f6d0"
 CUDA_Driver_jll = "4ee394cb-3365-5eb0-8335-949819d2adfc"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
@@ -39,6 +40,7 @@ cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 [sources]
 CUDA = {path = ".."}
 CUDACore = {path = "../CUDACore"}
+CUDATools = {path = "../CUDATools"}
 cuBLAS = {path = "../lib/cublas"}
 cuDNN = {path = "../lib/cudnn"}
 cuFFT = {path = "../lib/cufft"}

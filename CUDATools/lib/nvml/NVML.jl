@@ -3,7 +3,7 @@ module NVML
 
 using ..GPUToolbox
 
-using ..CUDACore
+using CUDACore
 
 using CEnum: @cenum
 

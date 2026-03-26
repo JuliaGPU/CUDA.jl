@@ -5,11 +5,13 @@ version = "6.0.0"
 [workspace]
 projects = ["test", "docs", "perf", "examples",
             "CUDACore",
+            "CUDATools",
             "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
             "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"]
 
 [deps]
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+CUDATools = "9ec180c6-1c07-47c7-9e6e-ebefa4d1f6d0"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 cuBLAS = "182d3088-87b7-4494-8cad-fc6afaa545bc"
 cuFFT = "533571aa-0936-420e-b4be-9c66f5f626ca"
@@ -19,6 +21,7 @@ cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 
 [sources]
 CUDACore = {path = "CUDACore"}
+CUDATools = {path = "CUDATools"}
 cuBLAS = {path = "lib/cublas"}
 cuFFT = {path = "lib/cufft"}
 cuRAND = {path = "lib/curand"}
@@ -30,6 +33,7 @@ CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 
 [compat]
 CUDACore = "=6.0.0"
+CUDATools = "=6.0.0"
 Reexport = "1.0"
 cuBLAS = "=6.0.0"
 cuFFT = "=6.0.0"

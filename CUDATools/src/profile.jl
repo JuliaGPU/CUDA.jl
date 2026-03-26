@@ -110,7 +110,8 @@ end
 
 module Profile
 
-using ..CUDACore
+using CUDACore
+using CUDACore: cuCtxSynchronize, cuProfilerStart, cuProfilerStop, CuDim3
 using ..CUPTI
 
 using Crayons: @crayon_str, Crayon
@@ -148,7 +149,7 @@ end
 
 function profile_externally(f)
     # wait for the device to become idle
-    CUDACore.cuCtxSynchronize()
+    cuCtxSynchronize()
 
     start()
     try
@@ -320,7 +321,7 @@ function start()
     end
 
     # actually start the capture
-    CUDACore.cuProfilerStart()
+    cuProfilerStart()
 end
 
 """
@@ -330,7 +331,7 @@ Disables profile collection by the active profiling tool for the current context
 profiling is already disabled, then this call has no effect.
 """
 function stop()
-    CUDACore.cuProfilerStop()
+    cuProfilerStop()
 end
 
 
@@ -380,25 +381,25 @@ function profile_internally(f; concurrent=true, kwargs...)
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
     ]
-    if CUDACore.runtime_version() >= v"12.0"
+    if runtime_version() >= v"12.0"
         # additional data on NVTX markers
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA)
     end
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
     # wait for the device to become idle
-    CUDACore.cuCtxSynchronize()
+    cuCtxSynchronize()
 
     CUPTI.enable!(cfg) do
         # perform dummy operations to "warm up" the profiler, and avoid slow first calls.
         # we'll skip everything up until the synchronization call during processing
         CuArray([1])
-        CUDACore.cuCtxSynchronize()
+        cuCtxSynchronize()
 
         f()
 
         # synchronize to ensure we capture all activity
-        CUDACore.cuCtxSynchronize()
+        cuCtxSynchronize()
     end
 
     data = capture(cfg)
@@ -426,8 +427,8 @@ function capture(cfg)
         stream  = Int[],
 
         # kernel launches
-        grid            = Union{Missing,CUDACore.CuDim3}[],
-        block           = Union{Missing,CUDACore.CuDim3}[],
+        grid            = Union{Missing,CuDim3}[],
+        block           = Union{Missing,CuDim3}[],
         registers       = Union{Missing,Int64}[],
         shared_mem      = Union{Missing,@NamedTuple{static::Int64,dynamic::Int64}}[],
         local_mem       = Union{Missing,@NamedTuple{thread::Int64,total::Int64}}[],
@@ -450,7 +451,7 @@ function capture(cfg)
     # memory_kind fields are sometimes typed CUpti_ActivityMemoryKind, sometimes UInt
     as_memory_kind(x) = isa(x, CUPTI.CUpti_ActivityMemoryKind) ? x : CUPTI.CUpti_ActivityMemoryKind(x)
 
-    cuda_version = CUDACore.runtime_version()
+    cuda_version = runtime_version()
     CUPTI.process(cfg) do ctx, stream_id, record
         # driver API calls
         if record.kind in [CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -537,8 +538,8 @@ function capture(cfg)
             t0, t1 = record.start/1e9, record._end/1e9
 
             name = unsafe_string(record.name)
-            grid = CUDACore.CuDim3(record.gridX, record.gridY, record.gridZ)
-            block = CUDACore.CuDim3(record.blockX, record.blockY, record.blockZ)
+            grid = CuDim3(record.gridX, record.gridY, record.gridZ)
+            block = CuDim3(record.blockX, record.blockY, record.blockZ)
             registers = record.registersPerThread
             shared_mem = (static=Int64(record.staticSharedMemory),
                           dynamic=Int64(record.dynamicSharedMemory))
@@ -559,15 +560,15 @@ function capture(cfg)
             domain = record.domain == C_NULL ? missing : unsafe_string(record.domain)
 
             if record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_INSTANTANEOUS
-                @assert record.objectKind == CUDACore.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                @assert record.objectKind == CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
                 tid = record.objectId.pt.threadId
                 push_row!(nvtx_trace, (; id=record.id, start, tid, type=:instant, name, domain))
             elseif record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_START
-                @assert record.objectKind == CUDACore.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                @assert record.objectKind == CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
                 tid = record.objectId.pt.threadId
                 push_row!(nvtx_trace, (; id=record.id, start, tid, type=:start, name, domain))
             elseif record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_END
-                @assert record.objectKind == CUDACore.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                @assert record.objectKind == CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
                 tid = record.objectId.pt.threadId
                 push_row!(nvtx_trace, (; id=record.id, start, tid, type=:end, name, domain))
             else
@@ -999,8 +1000,8 @@ function Base.show(io::IO, results::ProfileResults)
                 elseif col == :throughput
                     Base.format_bytes(v) * "/s"
                 elseif col == :device
-                    CUDACore.name(CuDevice(v))
-                elseif v isa CUDACore.CuDim3
+                    name(CuDevice(v))
+                elseif v isa CuDim3
                     if v.z != 1
                         "$(Int(v.x))×$(Int(v.y))×$(Int(v.z))"
                     elseif v.y != 1
@@ -1180,7 +1181,7 @@ function benchmark_and_profile(f; time=1.0, kwargs...)
         while (time_ns() - t0)/1e9 < time
             NVTX.@range "iteration" domain=domain begin
                 f()
-                CUDACore.cuCtxSynchronize()
+                cuCtxSynchronize()
             end
         end
     end

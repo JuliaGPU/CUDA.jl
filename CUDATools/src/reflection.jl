@@ -1,7 +1,13 @@
 # code reflection entry-points
 
+using CUDACore
+using CUDACore: COMPILER_KWARGS, compiler_config, compile, link
+
 using .CUPTI
 using .CUPTI: CUpti_ModuleResourceData
+
+using GPUCompiler
+using GPUCompiler: CompilerJob, methodinstance
 
 
 
@@ -208,9 +214,9 @@ export @device_code_lowered, @device_code_typed, @device_code_warntype,
 """
     @device_code_sass [io::IO=stdout, ...] ex
 
-Evaluates the expression `ex` and prints the result of [`CUDACore.code_sass`](@ref) to
+Evaluates the expression `ex` and prints the result of [`CUDATools.code_sass`](@ref) to
 `io` for every executed CUDA kernel. For other supported keywords, see
-[`CUDACore.code_sass`](@ref).
+[`CUDATools.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
     code = ex[end]
