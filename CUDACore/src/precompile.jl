@@ -25,3 +25,16 @@
         end
     end
 end
+
+# kernel launch infrastructure
+precompile(Tuple{typeof(cufunction), typeof(identity), Type{Tuple{Nothing}}})
+precompile(Tuple{typeof(link), CompilerJob, NamedTuple{(:image, :entry), Tuple{Vector{UInt8}, String}}})
+
+# GPUCompiler compilation pipeline (specialized for CUDACore's compile/link)
+precompile(Tuple{typeof(GPUCompiler.actual_compilation),
+    Dict{Any, CuFunction}, Core.MethodInstance, UInt64,
+    CUDACompilerConfig, typeof(compile), typeof(link)})
+
+# scalar reference (used by cuBLAS for alpha/beta parameters)
+precompile(Tuple{Type{CuRefValue{Float32}}, Float32})
+precompile(Tuple{typeof(pool_free), Managed{DeviceMemory}})

@@ -177,4 +177,6 @@ function __init__()
     _initialized[] = true
 end
 
+include("precompile.jl")
+
 end

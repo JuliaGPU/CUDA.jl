@@ -40,4 +40,6 @@ include("reflection.jl")
 include("profile.jl")
 include("utilities.jl")
 
+include("precompile.jl")
+
 end
