@@ -390,7 +390,7 @@ function profile_internally(f; concurrent=true, kwargs...)
     # wait for the device to become idle
     CUDACore.cuCtxSynchronize()
 
-    CUPTI.enable!(cfg) do
+    CUPTI.@enable! cfg begin
         # perform dummy operations to "warm up" the profiler, and avoid slow first calls.
         # we'll skip everything up until the synchronization call during processing
         CuArray([1])
