@@ -17,7 +17,7 @@ function Base.convert(::Type{cutensornetComputeType_t}, T::DataType)
         return CUTENSORNET_COMPUTE_32U
     elseif T == Int32
         return CUTENSORNET_COMPUTE_32I
-    elseif T == CUDA.BFloat16
+    elseif T == CUDACore.BFloat16
         return CUTENSORNET_COMPUTE_16BF
     else
         throw(ArgumentError("cuTensorNet type equivalent for compute type $T does not exist!"))
@@ -40,7 +40,7 @@ function Base.convert(::Type{Type}, T::cutensornetComputeType_t)
     elseif T == CUTENSORNET_COMPUTE_32I
         return Int32
     elseif T == CUTENSORNET_COMPUTE_16BF
-        return CUDA.BFloat16
+        return CUDACore.BFloat16
     else
         throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
     end
@@ -129,7 +129,7 @@ function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides,
                                      Int32(length(output_modes)), output_extents, output_strides, output_modes, T, compute_type(real(T)))
 
     return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_qualifiers,
-                              Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, CUDA.zeros(T, 0))
+                              Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, CUDACore.zeros(T, 0))
 end
 
 mutable struct CuTensorSVDInfo

@@ -1,0 +1,129 @@
+# Stream-orderdered memory allocator
+
+export CuMemoryPool, default_memory_pool, memory_pool, memory_pool!, trim,
+       attribute, attribute!, access!
+
+@enum_without_prefix visibility=:public CUmemAllocationType CU_MEM_
+@enum_without_prefix visibility=:public CUmemAllocationHandleType CU_MEM_
+@enum_without_prefix visibility=:public CUmemAccess_flags_enum CU_MEM_
+
+mutable struct CuMemoryPool
+    handle::CUmemoryPool
+    ctx::CuContext
+
+    function CuMemoryPool(dev::CuDevice;
+                          alloc_type::CUmemAllocationType=ALLOCATION_TYPE_PINNED,
+                          handle_type::CUmemAllocationHandleType=HANDLE_TYPE_NONE,
+                          maxSize::Integer=0, usage::Integer=0)
+        location = Ref{CUmemLocation}()
+        GC.@preserve location begin
+            # Clang.jl wraps this object in an annoying way
+            location_ptr = Base.unsafe_convert(Ptr{CUDACore.CUmemLocation}, location)
+            location_ptr.type = CU_MEM_LOCATION_TYPE_DEVICE
+            location_ptr.id = deviceid(dev)
+
+            props = Ref(CUmemPoolProps(
+                alloc_type,
+                handle_type,
+                location[],
+                C_NULL,
+                maxSize,
+                usage,
+                ntuple(i->Cuchar(0), 54)
+            ))
+            handle_ref = Ref{CUmemoryPool}()
+            cuMemPoolCreate(handle_ref, props)
+        end
+
+        ctx = current_context()
+        new(handle_ref[], ctx)
+        # NOTE: we cannot attach a finalizer to this object, as the pool can be active
+        #       without any references to it (similar to how contexts work).
+    end
+
+    global function default_memory_pool(dev::CuDevice)
+        handle_ref = Ref{CUmemoryPool}()
+        cuDeviceGetDefaultMemPool(handle_ref, dev)
+
+        ctx = current_context()
+        new(handle_ref[], ctx)
+    end
+
+    global function memory_pool(dev::CuDevice)
+        handle_ref = Ref{CUmemoryPool}()
+        cuDeviceGetMemPool(handle_ref, dev)
+
+        ctx = current_context()
+        new(handle_ref[], ctx)
+    end
+end
+
+function unsafe_destroy!(pool::CuMemoryPool)
+    context!(pool.ctx; skip_destroyed=true) do
+        cuMemPoolDestroy(pool)
+    end
+end
+
+Base.unsafe_convert(::Type{CUmemoryPool}, pool::CuMemoryPool) = pool.handle
+
+Base.:(==)(a::CuMemoryPool, b::CuMemoryPool) = a.handle == b.handle
+Base.hash(pool::CuMemoryPool, h::UInt) = hash(pool.handle, h)
+
+memory_pool!(dev::CuDevice, pool::CuMemoryPool) = cuDeviceSetMemPool(dev, pool)
+
+trim(pool::CuMemoryPool, bytes_to_keep::Integer=0) = cuMemPoolTrimTo(pool, bytes_to_keep)
+
+
+## pool attributes
+
+@enum_without_prefix visibility=:public CUmemPool_attribute CU_
+
+"""
+    attribute(X, pool::CuMemoryPool, attr)
+
+Returns attribute `attr` about `pool`. The type of the returned value depends on the
+attribute, and as such must be passed as the `X` parameter.
+"""
+function attribute(::Type{T}, pool::CuMemoryPool, attr::CUmemPool_attribute) where T
+    value = Ref{T}()
+    cuMemPoolGetAttribute(pool, attr, value)
+    return value[]
+end
+
+"""
+    attribute!(ptr::Union{Ptr,CuPtr}, attr, val)
+
+Sets attribute` attr` on a pointer `ptr` to `val`.
+"""
+function attribute!(pool::CuMemoryPool, attr::CUmemPool_attribute, value)
+    cuMemPoolSetAttribute(pool, attr, Ref(value))
+    return
+end
+
+
+## pool access
+
+@enum_without_prefix visibility=:public CUmemAccess_flags_enum CU_MEM_
+
+"""
+    access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags)
+    access!(pool::CuMemoryPool, devs::Vector{CuDevice}, flags::CUmemAccess_flags)
+
+Control the visibility of memory pool `pool` on device `dev` or a list of devices `devs`.
+"""
+function access!(pool::CuMemoryPool, devs::Vector{CuDevice}, flags::CUmemAccess_flags)
+    map = Vector{CUmemAccessDesc}(undef, length(devs))
+    for (i, dev) in enumerate(devs)
+        location = Ref{CUmemLocation}()
+        GC.@preserve location begin
+            location_ptr = Base.unsafe_convert(Ptr{CUmemLocation}, location)
+            location_ptr.type = CU_MEM_LOCATION_TYPE_DEVICE
+            location_ptr.id = dev.handle
+        end
+        access = CUmemAccessDesc(location[], flags)
+        map[i] = access
+    end
+    cuMemPoolSetAccess(pool, map, length(map))
+end
+access!(pool::CuMemoryPool, dev::CuDevice, flags::CUmemAccess_flags) =
+    access!(pool, [dev], flags)

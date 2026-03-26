@@ -27,18 +27,18 @@ jobs:
 
     strategy:
       matrix:
-        julia: ["1.10", "1.11"]
-        cuda: ["11.8", "12.6"]
+        julia: ["1.11", "1.12"]
+        cuda: ["11.8", "12.9", "13.2"]
         platform: ["linux/amd64"]
         os: ["ubuntu-24.04"]
         include:
-          - julia: "1.11"
-            cuda: "12.6"
+          - julia: "1.12"
+            cuda: "13.2"
             platform: "linux/amd64"
             os: "ubuntu-24.04"
             default: true
-          - julia: "1.11"
-            cuda: "12.6"
+          - julia: "1.12"
+            cuda: "13.2"
             platform: "linux/arm64"
             os: "ubuntu-24.04-arm"
             default: true
@@ -48,12 +48,8 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v6
-
-      - name: Check out the package
-        uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.ref || github.ref_name }}
-          path: package
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Get package spec
         id: pkg
@@ -69,7 +65,7 @@ jobs:
             echo "name=dev" >> $GITHUB_OUTPUT
           fi
 
-          VERSION=$(grep "^version = " package/Project.toml | cut -d'"' -f2)
+          VERSION=$(grep "^version = " Project.toml | cut -d'"' -f2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Get CUDA major version
@@ -115,12 +111,12 @@ jobs:
         with:
           context: .
           push: true
-          provenance: false # the build fetches the repo again, so provenance tracking is not useful
+          provenance: false
           platforms: ${{ matrix.platform }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             JULIA_VERSION=${{ matrix.julia }}
             CUDA_VERSION=${{ matrix.cuda }}
-            PACKAGE_SPEC=CUDA#${{ steps.pkg.outputs.ref }}
+            PACKAGE_REF=${{ steps.pkg.outputs.ref }}
             JULIA_CPU_TARGET=${{ steps.cpu_target.outputs.target }}

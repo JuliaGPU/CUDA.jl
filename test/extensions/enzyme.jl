@@ -30,14 +30,14 @@ function square!(x)
 end
 
 @testset "Forward Kernel" begin
-    A = CUDA.rand(64)
+    A = CuArray(rand(Float32, 64))
     dA = CUDA.ones(64)
     A .= (1:1:64)
     dA .= 1
     Enzyme.autodiff(Forward, square!, Duplicated(A, dA))
     @test all(dA .≈ (2:2:128))
 
-    A = CUDA.rand(32)
+    A = CuArray(rand(Float32, 32))
     dA = CUDA.ones(32)
     dA2 = CUDA.ones(32)
     A .= (1:1:32)
@@ -49,14 +49,14 @@ end
 end
 
 @testset "Reverse Kernel" begin
-    A = CUDA.rand(64)
+    A = CuArray(rand(Float32, 64))
     dA = CUDA.ones(64)
     A .= (1:1:64)
     dA .= 1
     Enzyme.autodiff(Reverse, square!, Duplicated(A, dA))
     @test all(dA .≈ (2:2:128))
 
-    A = CUDA.rand(32)
+    A = CuArray(rand(Float32, 32))
     dA = CUDA.ones(32)
     dA2 = CUDA.ones(32)
     A .= (1:1:32)
@@ -89,7 +89,7 @@ alloc(x) = CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}(undef, (x,))
 @testset "Forward allocate" begin
     dup = Enzyme.autodiff(ForwardWithPrimal, alloc, Duplicated, Const(10))
     @test all(dup[1] .≈ 0.0)
-    
+
     dup = Enzyme.autodiff(Forward, alloc, Duplicated, Const(10))
     @test all(dup[1] .≈ 0.0)
 end

@@ -89,7 +89,7 @@ end
         # external functions
         sass = sprint(io->begin
             CUDA.code_sass(io) do
-                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+                cuBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
             end
         end)
         @test occursin("copy_kernel", sass)
@@ -108,7 +108,7 @@ end
         # external functions
         sass = sprint(io->begin
             @device_code_sass io=io begin
-                CUBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
+                cuBLAS.copy!(1, CUDA.ones(1), CUDA.ones(1))
             end
         end)
         @test occursin("copy_kernel", sass)

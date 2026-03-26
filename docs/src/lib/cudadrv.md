@@ -1,5 +1,9 @@
 # CUDA driver
 
+```@meta
+CurrentModule = CUDACore
+```
+
 This section lists the package's public functionality that directly corresponds to
 functionality of the CUDA driver API. In general, the abstractions stay close to those of
 the CUDA driver API, so for more information on certain library calls you can consult the
@@ -13,17 +17,17 @@ The documentation is grouped according to the modules of the driver API.
 ```@docs
 CuError
 name(::CuError)
-CUDA.description(::CuError)
+description(::CuError)
 ```
 
 
 ## Version Management
 
 ```@docs
-CUDA.driver_version()
-CUDA.runtime_version()
-CUDA.set_runtime_version!
-CUDA.reset_runtime_version!
+driver_version()
+runtime_version()
+set_runtime_version!
+reset_runtime_version!
 ```
 
 
@@ -50,7 +54,7 @@ warpsize(::CuDevice)
 
 ```@docs
 CuContext
-CUDA.unsafe_destroy!(::CuContext)
+unsafe_destroy!(::CuContext)
 current_context
 activate(::CuContext)
 synchronize(::CuContext)
@@ -64,9 +68,9 @@ CuPrimaryContext
 CuContext(::CuPrimaryContext)
 isactive(::CuPrimaryContext)
 flags(::CuPrimaryContext)
-setflags!(::CuPrimaryContext, ::CUDA.CUctx_flags)
+setflags!(::CuPrimaryContext, ::CUctx_flags)
 unsafe_reset!(::CuPrimaryContext)
-CUDA.unsafe_release!(::CuPrimaryContext)
+unsafe_release!(::CuPrimaryContext)
 ```
 
 
@@ -116,8 +120,8 @@ This memory is accessible only by the GPU, and is the most common kind of memory
 CUDA programming.
 
 ```@docs
-CUDA.DeviceMemory
-CUDA.alloc(::Type{CUDA.DeviceMemory}, ::Integer)
+DeviceMemory
+alloc(::Type{DeviceMemory}, ::Integer)
 ```
 
 ### Unified memory
@@ -127,10 +131,10 @@ runtime. It is automatically migrated between the CPU and the GPU as needed, whi
 simplifies programming but can lead to performance issues if not used carefully.
 
 ```@docs
-CUDA.UnifiedMemory
-CUDA.alloc(::Type{CUDA.UnifiedMemory}, ::Integer, ::CUDA.CUmemAttach_flags)
-CUDA.prefetch(::CUDA.UnifiedMemory, bytes::Integer; device, stream)
-CUDA.advise(::CUDA.UnifiedMemory, ::CUDA.CUmem_advise, ::Integer; device)
+UnifiedMemory
+alloc(::Type{UnifiedMemory}, ::Integer, ::CUmemAttach_flags)
+prefetch(::UnifiedMemory, bytes::Integer; device, stream)
+advise(::UnifiedMemory, ::CUmem_advise, ::Integer; device)
 ```
 
 ### Host memory
@@ -140,10 +144,10 @@ slowest kind of memory, but is useful for communicating between running kernels 
 host (e.g., to update counters or flags).
 
 ```@docs
-CUDA.HostMemory
-CUDA.alloc(::Type{CUDA.HostMemory}, ::Integer, flags)
-CUDA.register(::Type{CUDA.HostMemory}, ::Ptr, ::Integer, flags)
-CUDA.unregister(::CUDA.HostMemory)
+HostMemory
+alloc(::Type{HostMemory}, ::Integer, flags)
+register(::Type{HostMemory}, ::Ptr, ::Integer, flags)
+unregister(::HostMemory)
 ```
 
 ### Array memory
@@ -151,8 +155,8 @@ CUDA.unregister(::CUDA.HostMemory)
 Array memory is a special kind of memory that is optimized for 2D and 3D access patterns. The memory is opaquely managed by the CUDA runtime, and is typically only used on combination with texture intrinsics.
 
 ```@docs
-CUDA.ArrayMemory
-CUDA.alloc(::Type{CUDA.ArrayMemory{T}}, ::Dims) where T
+ArrayMemory
+alloc(::Type{ArrayMemory{T}}, ::Dims) where T
 ```
 
 ### Pointers
@@ -163,16 +167,16 @@ such as `unsafe_copyto!`. CUDA.jl also provides some specialized functionality t
 match standard Julia functionality:
 
 ```@docs
-CUDA.unsafe_copy2d!
-CUDA.unsafe_copy3d!
-CUDA.memset
+unsafe_copy2d!
+unsafe_copy3d!
+memset
 ```
 
 ### Other
 
 ```@docs
-CUDA.free_memory
-CUDA.total_memory
+free_memory
+total_memory
 ```
 
 
@@ -180,11 +184,11 @@ CUDA.total_memory
 
 ```@docs
 CuStream
-CUDA.isdone(::CuStream)
+isdone(::CuStream)
 priority_range
 priority
 synchronize(::CuStream)
-CUDA.@sync
+@sync
 ```
 
 For specific use cases, special streams are available:
@@ -201,10 +205,10 @@ per_thread_stream
 CuEvent
 record
 synchronize(::CuEvent)
-CUDA.isdone(::CuEvent)
-CUDA.wait(::CuEvent)
+isdone(::CuEvent)
+CUDACore.wait(::CuEvent)
 elapsed
-CUDA.@elapsed
+@elapsed
 ```
 
 ## Execution Control
@@ -212,15 +216,15 @@ CUDA.@elapsed
 ```@docs
 CuDim3
 cudacall
-CUDA.launch
+launch
 ```
 
 ## Profiler Control
 
 ```@docs
-CUDA.@profile
-CUDA.Profile.start
-CUDA.Profile.stop
+@profile
+CUDACore.Profile.start
+CUDACore.Profile.stop
 ```
 
 ## Texture Memory
@@ -229,15 +233,15 @@ Textures are represented by objects of type `CuTexture` which are bound to some 
 memory, either `CuArray`s or `CuTextureArray`s:
 
 ```@docs
-CUDA.CuTexture
-CUDA.CuTexture(array)
+CuTexture
+CuTexture(array)
 ```
 
 You can create `CuTextureArray` objects from both host and device memory:
 
 ```@docs
-CUDA.CuTextureArray
-CUDA.CuTextureArray(array)
+CuTextureArray
+CuTextureArray(array)
 ```
 
 ## Occupancy API
@@ -256,7 +260,7 @@ occupancy
 CUDA graphs can be easily recorded and executed using the high-level `@captured` macro:
 
 ```@docs
-CUDA.@captured
+@captured
 ```
 
 Low-level operations are available too:
@@ -265,6 +269,6 @@ Low-level operations are available too:
 CuGraph
 capture
 instantiate
-launch(::CUDA.CuGraphExec)
+launch(::CuGraphExec)
 update
 ```

@@ -1,9 +1,8 @@
 module cuTENSOR
 
-using CUDA
-using CUDA.APIUtils
-using CUDA: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
-using CUDA: retry_reclaim, initialize_context, isdebug
+using CUDACore
+using CUDACore: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
+using CUDACore: retry_reclaim, initialize_context, isdebug
 
 using CUDA.GPUToolbox
 
@@ -11,17 +10,17 @@ using CEnum: @cenum
 
 using Printf: @printf
 
-if CUDA.local_toolkit
+if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
     import CUTENSOR_jll
 end
 
 
-export has_cutensor
+@public functional
 
 const _initialized = Ref{Bool}(false)
-has_cutensor() = _initialized[]
+functional() = _initialized[]
 
 
 const cudaDataType_t = cudaDataType
@@ -60,7 +59,7 @@ end
 const idle_handles = HandleCache{CuContext,cutensorHandle_t}(handle_ctor, handle_dtor)
 
 function handle()
-    cuda = CUDA.active_state()
+    cuda = CUDACore.active_state()
 
     # every task maintains library state per device
     LibraryState = @NamedTuple{handle::cutensorHandle_t}
@@ -107,11 +106,11 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
-    CUDA.functional() || return
+    CUDACore.functional() || return
 
     # find the library
     global libcutensor
-    if CUDA.local_toolkit
+    if CUDACore.local_toolkit
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cutensor"; optional=true)
         if path === nothing

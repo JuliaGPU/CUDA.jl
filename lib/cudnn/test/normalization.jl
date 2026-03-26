@@ -93,7 +93,7 @@ function normtest(
                                                     savedInvVariance, activationDesc) |> Array
 end
 
-x, z, s = (CUDA.randn(x...) for x in ((5,4,3,2),(5,4,3,2),(1,1,3,1)))
+x, z, s = (CuArray(randn(Float32, x...)) for x in ((5,4,3,2),(5,4,3,2),(1,1,3,1)))
 normtest(x)
 normtest(x; training = true)
 normtest(x; mode = CUDNN_NORM_PER_ACTIVATION)

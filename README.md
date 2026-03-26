@@ -72,6 +72,32 @@ For more usage instructions and other information, please refer to [the
 documentation](https://juliagpu.github.io/CUDA.jl/stable/).
 
 
+## Organization
+
+From version 6.0 on, CUDA.jl is a meta-package the imports the following
+registered subpackages:
+- CUDACore: the core package with the main CUDA API wrappers and the compiler for writing CUDA
+  kernels in Julia;
+- cuBLAS: wrappers for the cuBLAS library;
+- cuFFT: wrappers for the cuFFT library;
+- cuRAND: wrappers for the cuRAND library;
+- cuSPARSE: wrappers for the cuSPARSE library;
+- cuSOLVER: wrappers for the cuSOLVER library.
+
+Other registered subpackages that are not imported by default include:
+- cuTENSOR: wrappers for the cuTENSOR library;
+- cuStateVec: wrappers for the cuStateVec library;
+- cuTensorNet: wrappers for the cuTensorNet library;
+- CUDNN: wrappers for the cuDNN library.
+
+While importing CUDA.jl will remain the recommended way to use these packages,
+you can also import them separately in order to optimize precompilation or load
+times, or (in the future) reduce the size of the required artifacts.
+
+CUDA.jl and its subpackages are are always released together with version
+numbers that move in lockstep.
+
+
 ## Requirements
 
 The latest development version of CUDA.jl requires **Julia 1.10** or higher. If you are
@@ -132,7 +158,7 @@ Contributions are very welcome, as are feature requests and suggestions. Please 
 
 You can pass special flags to Buildkite to avoid overburdening the GPU CI agents, which
 are a shared resource. The flag should be added to your top level commit message (**not**
-the extended message). 
+the extended message).
 
 Available flags are:
   - `[only julia]`: test only on the various Julia versions CUDA.jl supports, skipping testing subpackages and the various CUDA toolkits
@@ -142,8 +168,8 @@ Available flags are:
   - `[only special]`: only test the special cases of multi-GPU, the various default memory locations, compute sanitizer, and the GPU-less environment
   - `[only downstream]`: test only the "downstream" packages which depend on CUDA.jl and its libraries, such as Enzyme.jl
   - `[skip downstream]`: don't the "downstream" packages
-  - `[skip special]`: don't run the above described special tests 
+  - `[skip special]`: don't run the above described special tests
   - `[skip tests]`: skip all tests, only run benchmarks and documentation
   - `[skip benchmarks]`: don't run the benchmarks
- 
+
 If you use these flags, make sure you don't exclude tests your changes could actually impact.

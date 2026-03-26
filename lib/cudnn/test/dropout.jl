@@ -19,7 +19,7 @@ using cuDNN:
 @test cudnnDropoutDescriptor(0.5) isa cudnnDropoutDescriptor
 
 N,P = 1000, 0.7
-x = CUDA.rand(N)
+x = CuArray(rand(Float32, N))
 d = cudnnDropoutDescriptor(P)
 cudnnDropoutSeed[] = 1  # only for testing; this makes dropout deterministic but slow
 y = cudnnDropoutForward(x; dropout = P) |> Array
