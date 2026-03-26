@@ -19,8 +19,6 @@ macro public(symbols_expr)
     end
 end
 
-using CUDACore: compiler_config, compile, link, COMPILER_KWARGS
-
 using GPUCompiler
 using GPUCompiler: CompilerJob, methodinstance
 using LLVM
