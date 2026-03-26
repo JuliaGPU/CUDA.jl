@@ -25,6 +25,8 @@ include("wrappers.jl")
 
 
 function __init__()
+    CUDACore.functional() || return
+
     # find the library
     global libcupti
     if CUDACore.local_toolkit
