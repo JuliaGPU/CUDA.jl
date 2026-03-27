@@ -247,7 +247,7 @@ function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
     # TODO: on 1.9, this actually creates a context. cache those.
     asm, meta = JuliaContext() do ctx
-        GPUCompiler.compile(:asm, job)
+        invoke_frozen(GPUCompiler.compile, :asm, job)
     end
 
     # check if we'll need the device runtime

@@ -147,7 +147,7 @@ end
 # external profiler
 #
 
-function profile_externally(f)
+function profile_externally(@nospecialize(f))
     # wait for the device to become idle
     CUDACore.cuCtxSynchronize()
 
@@ -366,7 +366,7 @@ Base.@kwdef struct ProfileResults
     raw::Bool=false
 end
 
-function profile_internally(f; concurrent=true, kwargs...)
+function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -390,7 +390,7 @@ function profile_internally(f; concurrent=true, kwargs...)
     # wait for the device to become idle
     CUDACore.cuCtxSynchronize()
 
-    CUPTI.enable!(cfg) do
+    CUPTI.@enable! cfg begin
         # perform dummy operations to "warm up" the profiler, and avoid slow first calls.
         # we'll skip everything up until the synchronization call during processing
         CuArray([1])

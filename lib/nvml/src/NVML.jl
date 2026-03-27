@@ -57,4 +57,6 @@ include("error.jl")
 include("system.jl")
 include("device.jl")
 
+include("precompile.jl")
+
 end
