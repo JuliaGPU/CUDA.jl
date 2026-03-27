@@ -221,10 +221,18 @@ launch
 
 ## Profiler Control
 
+```@meta
+CurrentModule = CUDATools
+```
+
 ```@docs
 @profile
-CUDACore.Profile.start
-CUDACore.Profile.stop
+Profile.start
+Profile.stop
+```
+
+```@meta
+CurrentModule = CUDACore
 ```
 
 ## Texture Memory

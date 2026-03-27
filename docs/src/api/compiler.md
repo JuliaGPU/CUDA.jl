@@ -43,15 +43,19 @@ the InteractiveUtils standard library:
 These macros are also available in function-form:
 
 ```
-CUDACore.code_typed
-CUDACore.code_warntype
-CUDACore.code_llvm
-CUDACore.code_ptx
-CUDACore.code_sass
+CUDA.code_typed
+CUDA.code_warntype
+CUDA.code_llvm
+CUDA.code_ptx
+CUDA.code_sass
 ```
 
 For more information, please consult the GPUCompiler.jl documentation. Only the `code_sass`
 functionality is actually defined in CUDA.jl:
+
+```@meta
+CurrentModule = CUDATools
+```
 
 ```@docs
 @device_code_sass

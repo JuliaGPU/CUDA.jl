@@ -22,7 +22,7 @@ steps:
           julia --project=. -e '
             using Pkg
             Pkg.develop([PackageSpec(; path) for path in (
-              "CUDACore",
+              "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
               "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
             )])

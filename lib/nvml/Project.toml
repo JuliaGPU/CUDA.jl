@@ -1,0 +1,17 @@
+name = "NVML"
+uuid = "611af6d1-644e-4c5d-bd58-854d7d1254b9"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
+version = "6.0.0"
+
+[deps]
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
+[compat]
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDACore = "=6.0.0"
+GPUToolbox = "1.1"
+Libdl = "1"
+julia = "1.10"

@@ -1,7 +1,12 @@
 # code reflection entry-points
 
-using .CUPTI
-using .CUPTI: CUpti_ModuleResourceData
+using CUDACore
+
+using CUPTI
+using CUPTI: CUpti_ModuleResourceData
+
+using GPUCompiler
+using GPUCompiler: CompilerJob, methodinstance
 
 
 
@@ -29,9 +34,9 @@ convenient to display the SASS code for functions whose source code is not avail
 See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types); kwargs...)
-    compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, COMPILER_KWARGS)
+    compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, CUDACore.COMPILER_KWARGS)
     source = methodinstance(typeof(func), Base.to_tuple_type(types))
-    config = compiler_config(device(); compiler_kwargs...)
+    config = CUDACore.compiler_config(device(); compiler_kwargs...)
     job = CompilerJob(source, config)
     code_sass(io, job; kwargs...)
 end
@@ -72,9 +77,9 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
         disassemble_cubin(io, cubin; raw)
     end
 
-    compiled = compile(job)
+    compiled = CUDACore.compile(job)
     CUPTI.enable!(cfg) do
-        link(job, compiled)
+        CUDACore.link(job, compiled)
     end
 
     return
@@ -168,9 +173,9 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
     @eval begin
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
                          kernel=false, kwargs...)
-            compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, COMPILER_KWARGS)
+            compiler_kwargs, kwargs = split_kwargs_runtime(kwargs, CUDACore.COMPILER_KWARGS)
             source = methodinstance(typeof(func), Base.to_tuple_type(types))
-            config = compiler_config(device(); kernel, compiler_kwargs...)
+            config = CUDACore.compiler_config(device(); kernel, compiler_kwargs...)
             job = CompilerJob(source, config)
             GPUCompiler.$method($(args...); kwargs...)
         end
@@ -188,7 +193,7 @@ Return a type `r` such that `f(args...)::r` where `args::tt`.
 """
 function return_type(@nospecialize(func), @nospecialize(tt))
     source = methodinstance(typeof(func), tt)
-    config = compiler_config(device())
+    config = CUDACore.compiler_config(device())
     job = CompilerJob(source, config)
     interp = GPUCompiler.get_interpreter(job)
     sig = Base.signature_type(func, tt)
@@ -208,9 +213,9 @@ export @device_code_lowered, @device_code_typed, @device_code_warntype,
 """
     @device_code_sass [io::IO=stdout, ...] ex
 
-Evaluates the expression `ex` and prints the result of [`CUDACore.code_sass`](@ref) to
+Evaluates the expression `ex` and prints the result of [`CUDATools.code_sass`](@ref) to
 `io` for every executed CUDA kernel. For other supported keywords, see
-[`CUDACore.code_sass`](@ref).
+[`CUDATools.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
     code = ex[end]
