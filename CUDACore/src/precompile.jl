@@ -20,8 +20,13 @@
         source = methodinstance(typeof(_precompile_vadd), tt)
         job = CompilerJob(source, config)
 
-        JuliaContext() do ctx
-            GPUCompiler.compile(:asm, job)
+        # On Julia < 1.12, GPU compilation during precompilation leaks foreign
+        # MIs into native compilation, causing LLVM errors
+        # (e.g. "Cannot select: intrinsic %llvm.nvvm.membar.sys").
+        @static if VERSION >= v"1.12-"
+            JuliaContext() do ctx
+                GPUCompiler.compile(:asm, job)
+            end
         end
     end
 end
