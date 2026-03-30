@@ -59,11 +59,9 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
     # unless the activity API is first activated. This is fixed in 12.5 Update 1.
     if v"2024.1.1" <= CUPTI.library_version() <= v"2024.2.0"
-        cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
-                                    CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
-        CUPTI.enable!(cfg) do
-            # do nothing
-        end
+        warmup_cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
+                                           CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
+        CUPTI.@enable! warmup_cfg nothing
     end
 
     cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
@@ -78,9 +76,7 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     end
 
     compiled = CUDACore.compile(job)
-    CUPTI.enable!(cfg) do
-        CUDACore.link(job, compiled)
-    end
+    CUPTI.@enable! cfg CUDACore.link(job, compiled)
 
     return
 end
@@ -96,11 +92,9 @@ function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
     # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
     # unless the activity API is first activated. This is fixed in 12.5 Update 1.
     if v"2024.1.1" <= CUPTI.library_version() <= v"2024.2.0"
-        cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
-                                    CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
-        CUPTI.enable!(cfg) do
-            # do nothing
-        end
+        warmup_cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
+                                           CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
+        CUPTI.@enable! warmup_cfg nothing
     end
 
     seen_modules = Set{UInt32}()
@@ -121,7 +115,7 @@ function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
         disassemble_cubin(io, cubin; raw)
     end
 
-    CUPTI.enable!(f, cfg)
+    CUPTI.@enable! cfg f()
 
     return
 end
@@ -177,7 +171,8 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
             source = methodinstance(typeof(func), Base.to_tuple_type(types))
             config = CUDACore.compiler_config(device(); kernel, compiler_kwargs...)
             job = CompilerJob(source, config)
-            GPUCompiler.$method($(args...); kwargs...)
+            # use frozen world to avoid recompiling the compiler infrastructure
+            CUDACore.invoke_frozen(GPUCompiler.$method, $(args...); kwargs...)
         end
         $method(@nospecialize(func), @nospecialize(types); kwargs...) =
             $method(stdout, func, types; kwargs...)

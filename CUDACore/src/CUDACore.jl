@@ -54,6 +54,8 @@ using Libdl
 
 using Printf
 
+using PrecompileTools
+
 # Julia has several notions of `sizeof`
 # - Base.sizeof is the size of an object in memory
 # - Base.aligned_sizeof is the size of an object in an array/inline alloced

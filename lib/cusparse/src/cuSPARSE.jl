@@ -137,6 +137,8 @@ KA.get_backend(::CuSparseVector)    = CUDACore.CUDAKernels.CUDABackend()
 KA.get_backend(::CuSparseMatrixCSC) = CUDACore.CUDAKernels.CUDABackend()
 KA.get_backend(::CuSparseMatrixCSR) = CUDACore.CUDAKernels.CUDABackend()
 
+include("precompile.jl")
+
 # deprecated binding for backwards compatibility
 Base.@deprecate_binding CUSPARSE cuSPARSE false
 
