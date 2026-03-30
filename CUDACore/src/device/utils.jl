@@ -39,7 +39,7 @@ macro device_function(ex)
         $(combinedef(def))
 
         # NOTE: no use of `@consistent_overlay` here because the regular function errors
-        Base.Experimental.@overlay(CUDACore.method_table, $ex)
+        Base.Experimental.@overlay($(CUDACore.method_table), $ex)
     end)
 end
 
