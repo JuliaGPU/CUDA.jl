@@ -15,11 +15,11 @@ macro device_override(ex)
         #   - if f(x) throws an exception, f′(x) must also throw an exception
         #     (although the exceptions do not need to be identical).
         esc(quote
-            Base.Experimental.@consistent_overlay(CUDACore.method_table, $ex)
+            Base.Experimental.@consistent_overlay($(CUDACore.method_table), $ex)
         end)
     else
         esc(quote
-            Base.Experimental.@overlay(CUDACore.method_table, $ex)
+            Base.Experimental.@overlay($(CUDACore.method_table), $ex)
         end)
     end
 end
