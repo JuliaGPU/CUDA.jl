@@ -23,7 +23,7 @@ using GPUCompiler
 using GPUCompiler: CompilerJob, methodinstance
 using LLVM
 
-using CUDA_Compiler_jll: nvdisasm
+using CUDA_Compiler_jll: CUDA_Compiler_jll
 
 import Preferences
 using Printf
