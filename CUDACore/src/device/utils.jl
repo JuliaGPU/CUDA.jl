@@ -7,6 +7,8 @@ else
 const method_table = nothing
 end
 
+@public @device_override, @device_function, @device_functions
+
 macro device_override(ex)
     ex = macroexpand(__module__, ex)
     if VERSION >= v"1.12.0-DEV.745" || v"1.11-rc1" <= VERSION < v"1.12-"
@@ -24,8 +26,6 @@ macro device_override(ex)
     end
 end
 
-@public @device_override
-
 macro device_function(ex)
     ex = macroexpand(__module__, ex)
     def = splitdef(ex)
@@ -42,8 +42,6 @@ macro device_function(ex)
         Base.Experimental.@overlay($(CUDACore.method_table), $ex)
     end)
 end
-
-@public @device_function
 
 macro device_functions(ex)
     ex = macroexpand(__module__, ex)
@@ -72,8 +70,6 @@ macro device_functions(ex)
 
     esc(rewrite(ex))
 end
-
-@public @device_functions
 
 ## alignment API
 
