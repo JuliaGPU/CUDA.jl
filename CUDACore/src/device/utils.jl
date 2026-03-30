@@ -24,6 +24,8 @@ macro device_override(ex)
     end
 end
 
+@public @device_override
+
 macro device_function(ex)
     ex = macroexpand(__module__, ex)
     def = splitdef(ex)
