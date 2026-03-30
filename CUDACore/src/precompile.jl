@@ -1,31 +1,36 @@
-@compile_workload begin
-    # compile a dummy kernel to PTX to precompile the GPUCompiler pipeline.
-    # this doesn't need a GPU — it only uses LLVM.
-    let
-        function _precompile_vadd(a)
-            i = threadIdx().x
-            @inbounds a[i] += 1f0
-            return nothing
-        end
+# `llvm_compat()` requires being able to initialize the NVPTX backend, so we run the
+# precompile workload only when that's supported, to be able to load this package also on
+# systems where the backend isn't available.
+if :NVPTX in LLVM.backends()
+    @compile_workload begin
+        # compile a dummy kernel to PTX to precompile the GPUCompiler pipeline.
+        # this doesn't need a GPU — it only uses LLVM.
+        let
+            function _precompile_vadd(a)
+                i = threadIdx().x
+                @inbounds a[i] += 1f0
+                return nothing
+            end
 
-        llvm_support = llvm_compat()
-        llvm_cap = maximum(filter(<=(v"7.5"), llvm_support.cap))
-        llvm_ptx = maximum(filter(>=(v"6.2"), llvm_support.ptx))
+            llvm_support = llvm_compat()
+            llvm_cap = maximum(filter(<=(v"7.5"), llvm_support.cap))
+            llvm_ptx = maximum(filter(>=(v"6.2"), llvm_support.ptx))
 
-        target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo=true)
-        params = CUDACompilerParams(; cap=llvm_cap, ptx=llvm_ptx)
-        config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
+            target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo=true)
+            params = CUDACompilerParams(; cap=llvm_cap, ptx=llvm_ptx)
+            config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
 
-        tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}
-        source = methodinstance(typeof(_precompile_vadd), tt)
-        job = CompilerJob(source, config)
+            tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}
+            source = methodinstance(typeof(_precompile_vadd), tt)
+            job = CompilerJob(source, config)
 
-        # On Julia < 1.12, GPU compilation during precompilation leaks foreign
-        # MIs into native compilation, causing LLVM errors
-        # (e.g. "Cannot select: intrinsic %llvm.nvvm.membar.sys").
-        @static if VERSION >= v"1.12-"
-            JuliaContext() do ctx
-                GPUCompiler.compile(:asm, job)
+            # On Julia < 1.12, GPU compilation during precompilation leaks foreign
+            # MIs into native compilation, causing LLVM errors
+            # (e.g. "Cannot select: intrinsic %llvm.nvvm.membar.sys").
+            @static if VERSION >= v"1.12-"
+                JuliaContext() do ctx
+                    GPUCompiler.compile(:asm, job)
+                end
             end
         end
     end
