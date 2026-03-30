@@ -43,6 +43,8 @@ macro device_function(ex)
     end)
 end
 
+@public @device_function
+
 macro device_functions(ex)
     ex = macroexpand(__module__, ex)
 
@@ -71,6 +73,7 @@ macro device_functions(ex)
     esc(rewrite(ex))
 end
 
+@public @device_functions
 
 ## alignment API
 
