@@ -9,6 +9,7 @@
 
 import Base.Sys: WORD_SIZE
 
+@device_functions begin
 function cudaDeviceGetAttribute(value, attr, device)
     ccall("extern cudaDeviceGetAttribute", llvmcall, cudaError_t,
           (Ptr{Cint}, cudaDeviceAttr, Cint),
@@ -295,4 +296,5 @@ function cudaCGGetRank(threadRank, gridRank, handle)
     ccall("extern cudaCGGetRank", llvmcall, cudaError_t,
           (Ptr{UInt32}, Ptr{UInt32}, Culonglong),
           threadRank, gridRank, handle)
+end
 end

@@ -67,7 +67,7 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
                     NTuple{4,$dispatch_rettyp}})
 
     # tex1D only supports array memory
-    @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemorySource}, x::Number) =
+    @eval @device_function tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemorySource}, x::Number) =
         Tuple(ccall($("llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32"), llvmcall,
                     $julia_rettyp, (CUtexObject, Float32), texObject, x))
 
@@ -78,7 +78,7 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         julia_sig = ntuple(_->Float32, dims)
         julia_params = ntuple(i->:($(julia_args[i])::Number), dims)
 
-        @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims}, $(julia_params...)) =
+        @eval @device_function tex(texObject::CuDeviceTexture{<:$eltyp,$dims}, $(julia_params...)) =
             Tuple(ccall($("llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32"), llvmcall,
                         $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...)))
     end
