@@ -3,7 +3,7 @@
     #       the method table. Wrapping it in a function gets us what we want currently but the PR
     #       here: https://github.com/JuliaLang/julia/pull/60718 will likely fix this according to
     #       @vchuravy. It is currently not backported.
-    ir = sprint(io->CUDA.code_llvm(io, (args...)->CUDA.pointerref_ldg(args...), Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
+    ir = sprint(io->CUDA.code_llvm(io, (args...)->CUDACore.pointerref_ldg(args...), Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
     if Base.libllvm_version >= v"20"
         # `@llvm.nvvm.ldg` was removed in LLVM 20; the auto-upgrade
         # replaces it with a load bearing `!invariant.load` metadata
