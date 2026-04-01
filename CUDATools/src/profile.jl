@@ -590,12 +590,9 @@ function capture(cfg)
                 nothing
             end
 
-            color = if record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_NONE == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_NONE
-                nothing
-            elseif record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB
+            color = if record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB
                 record.color
             else
-                @error "Unexpected CUPTI marker color flag $(Int(record.flags)). Please file an issue."
                 nothing
             end
 
