@@ -21,7 +21,8 @@ may not be relevant. The output will be written to `io`, which defaults to `stdo
 Slow operations will be highlighted in the output: Entries colored in yellow are among the
 slowest 25%, while entries colored in red are among the slowest 5% of all operations.
 
-!!! compat "Julia 1.9" This functionality is only available on Julia 1.9 and later.
+!!! compat "Julia 1.9" 
+    This functionality is only available on Julia 1.9 and later.
 
 ## External profilers (`external=true`, when an external profiler is detected)
 
