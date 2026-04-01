@@ -104,7 +104,7 @@ jobs:
               org.opencontainers.image.version=${{ steps.pkg.outputs.version }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and push image
         uses: docker/build-push-action@v6
