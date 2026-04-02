@@ -47,7 +47,7 @@ else
 end
 
 import Preferences
-const local_compiler = @load_preference("local_compiler", "false") == "true"
+const local_compiler = Preferences.@load_preference("local_compiler", "false") == "true"
 
 if local_compiler
     using CUDA_Runtime_Discovery
