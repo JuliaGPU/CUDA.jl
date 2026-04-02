@@ -418,9 +418,13 @@ end
 @device_override Base.hypot(x::Float64, y::Float64) = ccall("extern __nv_hypot", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.hypot(x::Float32, y::Float32) = ccall("extern __nv_hypotf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
-@device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("extern __nv_fma", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("extern __nv_fmaf", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("llvm.fma.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+@device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("llvm.fma.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
 @device_override Base.fma(x::Float16, y::Float16, z::Float16) = ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+
+@device_override Base.muladd(x::Float64, y::Float64, z::Float64) = ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+@device_override Base.muladd(x::Float32, y::Float32, z::Float32) = ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.muladd(x::Float16, y::Float16, z::Float16) = ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
 @device_function sad(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_sad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
 @device_function sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, ccall("extern __nv_usad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z))
