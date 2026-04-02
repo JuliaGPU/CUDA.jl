@@ -31,8 +31,6 @@ using LLVMLoopInfo
 
 using CUDA_Driver_jll
 
-using CUDA_Compiler_jll
-
 import CUDA_Runtime_jll
 const local_toolkit = CUDA_Runtime_jll.host_platform["cuda_local"] == "true"
 const toolkit_version = if CUDA_Runtime_jll.host_platform["cuda"] == "none"
@@ -49,6 +47,15 @@ else
 end
 
 import Preferences
+const local_compiler = @load_preference("local_compiler", "false") == "true"
+
+if local_compiler
+    using CUDA_Runtime_Discovery
+    const CUDA_Compiler = CUDA_Runtime_Discovery
+else
+    using CUDA_Compiler_jll
+    const CUDA_Compiler = CUDA_Compiler_jll
+end
 
 using Libdl
 
