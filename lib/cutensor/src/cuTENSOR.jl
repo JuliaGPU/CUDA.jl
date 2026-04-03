@@ -4,6 +4,8 @@ using CUDACore
 using CUDACore: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
 using CUDACore: retry_reclaim, initialize_context, isdebug
 
+using CUDA.GPUToolbox
+
 using CEnum: @cenum
 
 using Printf: @printf
@@ -32,8 +34,14 @@ include("utils.jl")
 include("types.jl")
 include("operations.jl")
 
+
+# Block sparse wrappers
+include("blocksparse/types.jl")
+include("blocksparse/operations.jl")
+
 # high-level integrations
 include("interfaces.jl")
+include("blocksparse/interfaces.jl")
 
 
 ## handles

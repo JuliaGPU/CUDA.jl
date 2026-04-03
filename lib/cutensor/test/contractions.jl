@@ -188,4 +188,62 @@ end
     end
 end
 
+eltypes_compact = [
+    (Float32, Float32, Float32, Float32),
+    (ComplexF32, ComplexF32, ComplexF32, Float32),
+     (Float64, Float64, Float64, Float64),
+     (ComplexF64, ComplexF64, ComplexF64, Float64)
+]
+@testset "Blocksparse Contraction" begin
+    ## There are many unsupported types because this is a new functionality
+    ## So I will test with Float32 and ComplexF32 only
+    @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes_compact
+        ## i = [20,20,25]
+        ## k = [10,10,15]
+        ## l = [30,30,35]
+        ## A = Tensor(k,i,l)
+        ## Nonzero blocks are 
+        ## [1,1,1], [1,1,3], [1,3,1], [1,3,3], [3,1,1], [3,1,3], [3,3,1], [3,3,3]
+        A = Vector{CuArray{eltyA, 3}}()
+        for k in [10,15]
+            for i in [20,25]
+                for l in [30,35]
+                    push!(A, CuArray(ones(eltyA, k,i,l)))
+                end
+            end
+        end
+
+        ## B = Tensor(k,l)
+        ## Nonzero blocks are
+        ## [1,1], [2,3]
+        B = Array{CuArray{eltyB, 2}}(
+            [CuArray(randn(eltyB, 10, 30)),
+            CuArray(randn(eltyB, 10, 35))])
+
+        ## C = Tensor(i)
+        ## Nonzero blocks are 
+        ## [1,], [3,]
+        C = Vector{CuArray{eltyC, 1}}(
+            [CuArray(zeros(eltyC, 20)),
+            CuArray(zeros(eltyC, 25))]
+        )
+        
+        cuTenA = cuTENSOR.CuTensorBS(A, [3,3,3], 
+        [(10,10,15), (20,20,25),  (30,30,35)], 
+        [(1,1,1), (1,1,3), (1,3,1), (1,3,3), (3,1,1), (3,1,3), (3,3,1), (3,3,3)],
+        [1,3,2])
+        cuTenB = cuTENSOR.CuTensorBS(B, [3,3],
+        [(10,10,15), (30,30,35)],
+        [(1,1),(2,3)], [1,2], )
+        cuTenC = cuTENSOR.CuTensorBS(C, [3],
+        [(20,20,25)],[(1,),(3,)], [3])
+
+        mul!(cuTenC, cuTenA, cuTenB, 1, 0)
+        ## C[1] = A[1,1,1] * B[1,1]
+        @test C[1] ≈ reshape(permutedims(A[1], (2,1,3)), (20, 10 * 30)) * reshape(B[1], (10 * 30))
+        ## C[3] = A[1,3,1] * B[1,1]
+        @test C[2] ≈ reshape(permutedims(A[3], (2,1,3)), (25, 10 * 30)) * reshape(B[1], (10 * 30))
+    end
+end
+
 end
