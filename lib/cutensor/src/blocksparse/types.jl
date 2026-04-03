@@ -85,12 +85,14 @@ mutable struct CuTensorBSDescriptor
     end
 end
 
+## This function assumes that strides are C_NULL, i.e. canonical stride
 function CuTensorBSDescriptor(
     numModes,
     numNonZeroBlocks,
     numSectionsPerMode,
     extent,
     nonZeroCoordinates,
+    # strides = C_NULL,
     eltype)
 
     return CuTensorBSDescriptor(numModes, numNonZeroBlocks, numSectionsPerMode, extent, nonZeroCoordinates, C_NULL, eltype)
