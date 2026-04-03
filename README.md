@@ -78,6 +78,8 @@ From version 6.0 on, CUDA.jl is a meta-package the imports the following
 registered subpackages:
 - CUDACore: the core package with the main CUDA API wrappers and the compiler for writing CUDA
   kernels in Julia;
+- CUDATools: developer tools including the profiler, CUPTI, NVML, and code reflection
+  utilities;
 - cuBLAS: wrappers for the cuBLAS library;
 - cuFFT: wrappers for the cuFFT library;
 - cuRAND: wrappers for the cuRAND library;

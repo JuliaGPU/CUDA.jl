@@ -60,7 +60,8 @@ RUN julia -e 'using Pkg; \
               url = "https://github.com/JuliaGPU/CUDA.jl.git"; \
               rev = ENV["PACKAGE_REF"]; \
               Pkg.add([PackageSpec(; url, rev, subdir) for subdir in \
-                       ["CUDACore", \
+                       ["CUDACore", "CUDATools", \
+                        "lib/cupti", "lib/nvml", \
                         "lib/cublas", "lib/cusparse", "lib/cusolver", \
                         "lib/cufft", "lib/curand", \
                         "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec", \

@@ -52,9 +52,9 @@ import Preferences
 
 using Libdl
 
-import NVTX
-
 using Printf
+
+using PrecompileTools
 
 # Julia has several notions of `sizeof`
 # - Base.sizeof is the size of an object in memory
@@ -95,15 +95,10 @@ include("memory.jl")
 include("array.jl")
 include("refpointer.jl")
 
-# compiler libraries
-include("../lib/cupti/CUPTI.jl")
-export CUPTI
-
 # compiler implementation
 include("compiler/compilation.jl")
 include("compiler/execution.jl")
 include("compiler/exceptions.jl")
-include("compiler/reflection.jl")
 
 # array implementation
 include("utilities.jl")
@@ -117,17 +112,11 @@ include("accumulate.jl")
 include("reverse.jl")
 include("iterator.jl")
 include("sorting.jl")
-include("profile.jl")
 include("random.jl")
 
 # shared library types
 include("complex.jl")
 include("library_types.jl")
-
-# other libraries
-include("../lib/nvml/NVML.jl")
-const has_nvml = NVML.has_nvml
-export NVML, has_nvml
 
 # KernelAbstractions
 include("CUDAKernels.jl")

@@ -110,8 +110,9 @@ end
 
 module Profile
 
-using ..CUDACore
-using ..CUPTI
+using CUDACore
+using CUDACore: CuDim3
+using CUPTI
 
 using Crayons: @crayon_str, Crayon
 using NVTX: NVTX
@@ -146,7 +147,7 @@ end
 # external profiler
 #
 
-function profile_externally(f)
+function profile_externally(@nospecialize(f))
     # wait for the device to become idle
     CUDACore.cuCtxSynchronize()
 
@@ -171,7 +172,7 @@ function detect_cupti()
         # We cannot run this unconditionally during initialization to avoid interfering
         # with other cupti users who may not operate via CUDA.@profile [like Reactant/XLA]
         if !NVTX.isactive() && CUPTI.version() != v"13.0.0" # NVIDIA/NVTX#125
-            ENV["NVTX_INJECTION64_PATH"] = CUDACore.CUDA_Runtime.libcupti
+            ENV["NVTX_INJECTION64_PATH"] = CUPTI.libcupti
             NVTX.activate()
         end
         _nvtx_activated[] = true
@@ -365,7 +366,7 @@ Base.@kwdef struct ProfileResults
     raw::Bool=false
 end
 
-function profile_internally(f; concurrent=true, kwargs...)
+function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -389,7 +390,7 @@ function profile_internally(f; concurrent=true, kwargs...)
     # wait for the device to become idle
     CUDACore.cuCtxSynchronize()
 
-    CUPTI.enable!(cfg) do
+    CUPTI.@enable! cfg begin
         # perform dummy operations to "warm up" the profiler, and avoid slow first calls.
         # we'll skip everything up until the synchronization call during processing
         CuArray([1])
@@ -426,8 +427,8 @@ function capture(cfg)
         stream  = Int[],
 
         # kernel launches
-        grid            = Union{Missing,CUDACore.CuDim3}[],
-        block           = Union{Missing,CUDACore.CuDim3}[],
+        grid            = Union{Missing,CuDim3}[],
+        block           = Union{Missing,CuDim3}[],
         registers       = Union{Missing,Int64}[],
         shared_mem      = Union{Missing,@NamedTuple{static::Int64,dynamic::Int64}}[],
         local_mem       = Union{Missing,@NamedTuple{thread::Int64,total::Int64}}[],
@@ -537,8 +538,8 @@ function capture(cfg)
             t0, t1 = record.start/1e9, record._end/1e9
 
             name = unsafe_string(record.name)
-            grid = CUDACore.CuDim3(record.gridX, record.gridY, record.gridZ)
-            block = CUDACore.CuDim3(record.blockX, record.blockY, record.blockZ)
+            grid = CuDim3(record.gridX, record.gridY, record.gridZ)
+            block = CuDim3(record.blockX, record.blockY, record.blockZ)
             registers = record.registersPerThread
             shared_mem = (static=Int64(record.staticSharedMemory),
                           dynamic=Int64(record.dynamicSharedMemory))
@@ -559,15 +560,15 @@ function capture(cfg)
             domain = record.domain == C_NULL ? missing : unsafe_string(record.domain)
 
             if record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_INSTANTANEOUS
-                @assert record.objectKind == CUDACore.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                @assert record.objectKind == CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
                 tid = record.objectId.pt.threadId
                 push_row!(nvtx_trace, (; id=record.id, start, tid, type=:instant, name, domain))
             elseif record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_START
-                @assert record.objectKind == CUDACore.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                @assert record.objectKind == CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
                 tid = record.objectId.pt.threadId
                 push_row!(nvtx_trace, (; id=record.id, start, tid, type=:start, name, domain))
             elseif record.flags == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_END
-                @assert record.objectKind == CUDACore.CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
+                @assert record.objectKind == CUPTI.CUPTI_ACTIVITY_OBJECT_THREAD
                 tid = record.objectId.pt.threadId
                 push_row!(nvtx_trace, (; id=record.id, start, tid, type=:end, name, domain))
             else
@@ -589,12 +590,9 @@ function capture(cfg)
                 nothing
             end
 
-            color = if record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_NONE == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_NONE
-                nothing
-            elseif record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB
+            color = if record.flags & CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB == CUPTI.CUPTI_ACTIVITY_FLAG_MARKER_COLOR_ARGB
                 record.color
             else
-                @error "Unexpected CUPTI marker color flag $(Int(record.flags)). Please file an issue."
                 nothing
             end
 
@@ -999,8 +997,8 @@ function Base.show(io::IO, results::ProfileResults)
                 elseif col == :throughput
                     Base.format_bytes(v) * "/s"
                 elseif col == :device
-                    CUDACore.name(CuDevice(v))
-                elseif v isa CUDACore.CuDim3
+                    name(CuDevice(v))
+                elseif v isa CuDim3
                     if v.z != 1
                         "$(Int(v.x))×$(Int(v.y))×$(Int(v.z))"
                     elseif v.y != 1

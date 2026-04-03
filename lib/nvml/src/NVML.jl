@@ -1,9 +1,8 @@
 module NVML
 
+using GPUToolbox
 
-using ..GPUToolbox
-
-using ..CUDACore
+using CUDACore
 
 using CEnum: @cenum
 
@@ -57,5 +56,7 @@ include("libnvml.jl")
 include("error.jl")
 include("system.jl")
 include("device.jl")
+
+include("precompile.jl")
 
 end

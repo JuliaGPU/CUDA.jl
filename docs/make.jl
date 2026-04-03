@@ -1,6 +1,6 @@
 using Documenter, Literate
 using CUDA
-using CUDACore, cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE
+using CUDACore, CUDATools, CUPTI, NVML, cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE
 using cuDNN, cuStateVec, cuTENSOR, cuTensorNet
 
 const src = "https://github.com/JuliaGPU/CUDA.jl"
@@ -44,14 +44,15 @@ function main()
         warnonly = [:missing_docs],
         modules = [
             CUDACore,
+            CUDATools,
             CUDA,
             cuBLAS,
             cuFFT,
-            CUDACore.CUPTI,
+            CUPTI,
             cuRAND,
             cuSOLVER,
             cuSPARSE,
-            CUDACore.NVML,
+            NVML,
             cuDNN,
             cuStateVec,
             cuTENSOR,

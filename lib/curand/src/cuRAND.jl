@@ -106,6 +106,8 @@ function __init__()
     _initialized[] = true
 end
 
+include("precompile.jl")
+
 # deprecated binding for backwards compatibility
 Base.@deprecate_binding CURAND cuRAND false
 

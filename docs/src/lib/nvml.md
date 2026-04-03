@@ -1,19 +1,19 @@
 # NVML
 
 ```@meta
-CurrentModule = CUDACore.NVML
+CurrentModule = NVML
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CUDACore.NVML]
+Modules = [NVML]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CUDACore.NVML]
+Modules = [NVML]
 Public = false
 ```

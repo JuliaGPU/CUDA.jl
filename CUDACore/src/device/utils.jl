@@ -7,6 +7,8 @@ else
 const method_table = nothing
 end
 
+@public @device_override, @device_function, @device_functions
+
 macro device_override(ex)
     ex = macroexpand(__module__, ex)
     if VERSION >= v"1.12.0-DEV.745" || v"1.11-rc1" <= VERSION < v"1.12-"
@@ -15,11 +17,11 @@ macro device_override(ex)
         #   - if f(x) throws an exception, f′(x) must also throw an exception
         #     (although the exceptions do not need to be identical).
         esc(quote
-            Base.Experimental.@consistent_overlay(CUDACore.method_table, $ex)
+            Base.Experimental.@consistent_overlay($(CUDACore.method_table), $ex)
         end)
     else
         esc(quote
-            Base.Experimental.@overlay(CUDACore.method_table, $ex)
+            Base.Experimental.@overlay($(CUDACore.method_table), $ex)
         end)
     end
 end
@@ -37,7 +39,7 @@ macro device_function(ex)
         $(combinedef(def))
 
         # NOTE: no use of `@consistent_overlay` here because the regular function errors
-        Base.Experimental.@overlay(CUDACore.method_table, $ex)
+        Base.Experimental.@overlay($(CUDACore.method_table), $ex)
     end)
 end
 
@@ -68,7 +70,6 @@ macro device_functions(ex)
 
     esc(rewrite(ex))
 end
-
 
 ## alignment API
 

@@ -110,37 +110,6 @@ mutable struct CallbackConfig
     callback_kinds::Vector{CUpti_CallbackDomain}
 end
 
-function enable!(f::Base.Callable, cfg::CallbackConfig)
-    @lock callback_lock begin
-        callback_ptr =
-            @cfunction(callback, Cvoid,
-                       (Ptr{Cvoid}, CUpti_CallbackDomain, CUpti_CallbackId, Ptr{Cvoid}))
-
-        GC.@preserve cfg begin
-            # set-up subscriber
-            subscriber_ref = Ref{CUpti_SubscriberHandle}()
-            cuptiSubscribe(subscriber_ref, callback_ptr, Base.pointer_from_objref(cfg))
-            subscriber = subscriber_ref[]
-
-            # enable domains
-            for callback_kind in cfg.callback_kinds
-                CUPTI.cuptiEnableDomain(true, subscriber, callback_kind)
-            end
-
-            try
-                f()
-            finally
-                # disable callback kinds
-                for callback_kind in cfg.callback_kinds
-                    CUPTI.cuptiEnableDomain(false, subscriber, callback_kind)
-                end
-
-                # disable the subscriber
-                CUPTI.cuptiUnsubscribe(subscriber)
-            end
-        end
-    end
-end
 
 
 #
@@ -232,40 +201,89 @@ function complete_buffer(ctx_handle, stream_id, buf_ptr, sz, valid_sz)
     return
 end
 
-function enable!(f::Base.Callable, cfg::ActivityConfig)
-    @lock activity_lock begin
-        activity_config[] = cfg
+"""
+    @enable! cfg expr
 
-        # set-up callbacks
-        request_buffer_ptr =
-            @cfunction(request_buffer, Cvoid,
-                       (Ptr{Ptr{UInt8}}, Ptr{Csize_t}, Ptr{Csize_t}))
-        complete_buffer_ptr =
-            @cfunction(complete_buffer, Cvoid,
-                       (CUDACore.CUcontext, UInt32, Ptr{UInt8}, Csize_t, Csize_t))
-        cuptiActivityRegisterCallbacks(request_buffer_ptr, complete_buffer_ptr)
+Macro version of `enable!(f, cfg)` that avoids creating a closure,
+similar to `@lock` vs `lock(f, l)`.
+"""
+macro enable!(cfg, expr)
+    mod = @__MODULE__
+    quote
+        _cfg = $(esc(cfg))
+        if _cfg isa $mod.ActivityConfig
+            @lock $mod.activity_lock begin
+                $mod.activity_config[] = _cfg
 
-        activity_config[] = cfg
+                # set-up callbacks
+                request_buffer_ptr =
+                    @cfunction($mod.request_buffer, Cvoid,
+                               (Ptr{Ptr{UInt8}}, Ptr{Csize_t}, Ptr{Csize_t}))
+                complete_buffer_ptr =
+                    @cfunction($mod.complete_buffer, Cvoid,
+                               (CUDACore.CUcontext, UInt32, Ptr{UInt8}, Csize_t, Csize_t))
+                $mod.cuptiActivityRegisterCallbacks(request_buffer_ptr, complete_buffer_ptr)
 
-        # enable requested activity kinds
-        for activity_kind in cfg.activity_kinds
-            cuptiActivityEnable(activity_kind)
-        end
+                $mod.activity_config[] = _cfg
 
-        try
-            f()
-        finally
-            # disable activity kinds
-            for activity_kind in cfg.activity_kinds
-                cuptiActivityDisable(activity_kind)
+                # enable requested activity kinds
+                for activity_kind in _cfg.activity_kinds
+                    $mod.cuptiActivityEnable(activity_kind)
+                end
+
+                try
+                    $(esc(expr))
+                finally
+                    # disable activity kinds
+                    for activity_kind in _cfg.activity_kinds
+                        $mod.cuptiActivityDisable(activity_kind)
+                    end
+
+                    # flush all activity records, even incomplete ones
+                    $mod.cuptiActivityFlushAll($mod.CUPTI_ACTIVITY_FLAG_FLUSH_FORCED)
+
+                    $mod.activity_config[] = nothing
+                end
             end
+        elseif _cfg isa $mod.CallbackConfig
+            @lock $mod.callback_lock begin
+                callback_ptr =
+                    @cfunction($mod.callback, Cvoid,
+                               (Ptr{Cvoid}, CUpti_CallbackDomain, CUpti_CallbackId, Ptr{Cvoid}))
 
-            # flush all activity records, even incomplete ones
-            cuptiActivityFlushAll(CUPTI_ACTIVITY_FLAG_FLUSH_FORCED)
+                GC.@preserve _cfg begin
+                    # set-up subscriber
+                    subscriber_ref = Ref{CUpti_SubscriberHandle}()
+                    $mod.cuptiSubscribe(subscriber_ref, callback_ptr, Base.pointer_from_objref(_cfg))
+                    subscriber = subscriber_ref[]
 
-            activity_config[] = nothing
+                    # enable domains
+                    for callback_kind in _cfg.callback_kinds
+                        $mod.cuptiEnableDomain(true, subscriber, callback_kind)
+                    end
+
+                    try
+                        $(esc(expr))
+                    finally
+                        for callback_kind in _cfg.callback_kinds
+                            $mod.cuptiEnableDomain(false, subscriber, callback_kind)
+                        end
+                        $mod.cuptiUnsubscribe(subscriber)
+                    end
+                end
+            end
+        else
+            error("@enable! expects an ActivityConfig or CallbackConfig")
         end
     end
+end
+
+function enable!(@nospecialize(f::Base.Callable), cfg::ActivityConfig)
+    @enable! cfg f()
+end
+
+function enable!(@nospecialize(f::Base.Callable), cfg::CallbackConfig)
+    @enable! cfg f()
 end
 
 function process(f, cfg::ActivityConfig)
