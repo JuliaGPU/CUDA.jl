@@ -530,11 +530,11 @@ function Base.getindex(A::CuSparseMatrixCSR{Tv, Ti}, Imask::CuVector{Bool}, Jmas
 
     rowmap = cumsum(Ti.(Imask))
     colmap = cumsum(Ti.(Jmask))
-    new_m = Int(CUDA.@allowscalar rowmap[end])
-    new_n = Int(CUDA.@allowscalar colmap[end])
+    new_m = Int(CUDACore.@allowscalar rowmap[end])
+    new_n = Int(CUDACore.@allowscalar colmap[end])
 
     # pass 1: count kept entries per new row
-    counts = CUDA.zeros(Ti, new_m)
+    counts = CUDACore.zeros(Ti, new_m)
     if new_m > 0 && new_n > 0
         threads = min(256, m)
         blocks = cld(m, threads)
@@ -543,7 +543,7 @@ function Base.getindex(A::CuSparseMatrixCSR{Tv, Ti}, Imask::CuVector{Bool}, Jmas
 
     # build new rowPtr from counts: [1, 1+cumsum(counts)...]
     new_rowPtr = vcat(CuVector{Ti}([one(Ti)]), cumsum(counts) .+ one(Ti))
-    new_nnz = Int(CUDA.@allowscalar new_rowPtr[end]) - 1
+    new_nnz = Int(CUDACore.@allowscalar new_rowPtr[end]) - 1
 
     # pass 2: fill entries
     new_colVal = CuVector{Ti}(undef, new_nnz)
