@@ -38,7 +38,8 @@ Base.length(T::CuTensorBS) = prod(size(T))
 nonzero_length(T::CuTensorBS) = sum(length.(T.nonzero_data))
 Base.ndims(T::CuTensorBS) = Int32(length(T.inds))
 
-Base.strides(T::CuTensorBS) = vcat([[st...] for st in strides.(T.nonzero_data)]...)
+## This tells how far away each block is from the other block in memory.
+Base.strides(T::CuTensorBS) = strides(T.nonzero_data)
 Base.eltype(T::CuTensorBS) = eltype(eltype(T.nonzero_data))
 
 function block_extents(T::CuTensorBS)
@@ -117,6 +118,7 @@ function CuTensorBSDescriptor(A::CuTensorBS)
     extent = block_extents(A)
     nonZeroCoordinates = collect(Base.Iterators.flatten(A.nonzero_block_coords)) .- Int32(1)
     st = strides(A)
+    @assert all(st .== 1)
 
     dataType = eltype(A)
 
