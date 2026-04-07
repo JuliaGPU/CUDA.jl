@@ -25,7 +25,7 @@ function contract!(
     contractBS!(actual_plan, alpha, nonzero_blocks(A), nonzero_blocks(B), beta, nonzero_blocks(C))
     
     if plan === nothing
-    CUDA.unsafe_free!(actual_plan)
+    CUDACore.unsafe_free!(actual_plan)
     end
 
     return C

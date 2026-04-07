@@ -4,7 +4,7 @@ using CUDACore
 using CUDACore: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
 using CUDACore: retry_reclaim, initialize_context, isdebug
 
-using CUDA.GPUToolbox
+using CUDACore.GPUToolbox
 
 using CEnum: @cenum
 
