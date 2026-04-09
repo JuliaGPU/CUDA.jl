@@ -78,7 +78,7 @@ function Base.getindex(gpu::CuRefValue{T}) where {T}
     synchronize(gpu.buf)
 
     cpu = Ref{T}()
-    GC.@preserve cpu begin
+    GC.@preserve cpu gpu begin
         cpu_ptr = Base.unsafe_convert(Ptr{T}, cpu)
         gpu_ptr = Base.unsafe_convert(CuPtr{T}, gpu)
         unsafe_copyto!(cpu_ptr, gpu_ptr, 1; async=false)
@@ -126,7 +126,7 @@ function Base.getindex(gpu::CuRefArray{T}) where {T}
     synchronize(gpu.x)
 
     cpu = Ref{T}()
-    GC.@preserve cpu begin
+    GC.@preserve cpu gpu begin
         cpu_ptr = Base.unsafe_convert(Ptr{T}, cpu)
         gpu_ptr = pointer(gpu.x, gpu.i)
         unsafe_copyto!(cpu_ptr, gpu_ptr, 1; async=false)
