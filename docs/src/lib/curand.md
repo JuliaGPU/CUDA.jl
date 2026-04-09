@@ -1,19 +1,19 @@
-# CURAND
+# cuRAND
 
 ```@meta
-CurrentModule = CURAND
+CurrentModule = cuRAND
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CURAND]
+Modules = [cuRAND]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CURAND]
+Modules = [cuRAND]
 Public = false
 ```

@@ -8,7 +8,7 @@ using cuDNN:
     CUDNN_TENSOR_NCHW,
     CUDNN_STATUS_SUCCESS
 
-x = CUDA.rand(1,1,1,2)
+x = CuArray(rand(Float32, 1,1,1,2))
 
 TD = cudnnTensorDescriptor
 FD = cudnnFilterDescriptor

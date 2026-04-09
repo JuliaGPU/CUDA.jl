@@ -1,0 +1,19 @@
+name = "CUPTI"
+uuid = "9e67e8f6-ba02-4b6c-a7db-3b11ae1e7ab7"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
+version = "6.0.0"
+
+[deps]
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+
+[compat]
+CEnum = "0.2, 0.3, 0.4, 0.5"
+CUDACore = "=6.0.0"
+CUDA_Runtime_Discovery = "1"
+CUDA_Runtime_jll = "0.21"
+GPUToolbox = "1.1"
+julia = "1.10"

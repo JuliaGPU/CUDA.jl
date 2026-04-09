@@ -1,5 +1,9 @@
 # Compiler
 
+```@meta
+CurrentModule = CUDACore
+```
+
 ## Execution
 
 The main entry-point to the compiler is the `@cuda` macro:
@@ -13,11 +17,11 @@ If needed, you can use a lower-level API that lets you inspect the compiler kern
 ```@docs
 cudaconvert
 cufunction
-CUDA.HostKernel
-CUDA.version
-CUDA.maxthreads
-CUDA.registers
-CUDA.memory
+HostKernel
+version
+maxthreads
+registers
+memory
 ```
 
 
@@ -49,7 +53,11 @@ CUDA.code_sass
 For more information, please consult the GPUCompiler.jl documentation. Only the `code_sass`
 functionality is actually defined in CUDA.jl:
 
+```@meta
+CurrentModule = CUDATools
+```
+
 ```@docs
 @device_code_sass
-CUDA.code_sass
+code_sass
 ```

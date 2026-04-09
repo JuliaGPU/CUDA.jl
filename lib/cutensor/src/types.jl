@@ -104,7 +104,7 @@ end
 mutable struct CuTensorPlan
     ctx::CuContext
     handle::cutensorPlan_t
-    workspace::CuVector{UInt8,CUDA.DeviceMemory}
+    workspace::CuVector{UInt8,CUDACore.DeviceMemory}
     scalar_type::DataType
 
     function CuTensorPlan(desc, pref; workspacePref=CUTENSOR_WORKSPACE_DEFAULT)
@@ -126,7 +126,7 @@ mutable struct CuTensorPlan
         workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
 
         obj = new(context(), plan_ref[], workspace, convert(Type, required_scalar_type[]))
-        finalizer(CUDA.unsafe_free!, obj)
+        finalizer(CUDACore.unsafe_free!, obj)
         return obj
     end
 end
@@ -146,8 +146,8 @@ function unsafe_destroy!(plan::CuTensorPlan)
 end
 
 # freeing the plan and associated workspace
-function CUDA.unsafe_free!(plan::CuTensorPlan)
-    CUDA.unsafe_free!(plan.workspace)
+function CUDACore.unsafe_free!(plan::CuTensorPlan)
+    CUDACore.unsafe_free!(plan.workspace)
     if plan.handle != C_NULL
         unsafe_destroy!(plan)
         plan.handle = C_NULL

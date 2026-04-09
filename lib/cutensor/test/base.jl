@@ -2,7 +2,7 @@
 
 using LinearAlgebra, Random
 
-@test has_cutensor()
+@test cuTENSOR.functional()
 @test cuTENSOR.version() isa VersionNumber
 
 @testset "type basics" begin

@@ -4,7 +4,7 @@
         a = I1(1)
         b = I2(2)
 
-        dp = reinterpret(CUDA.LLVMPtr{T,AS.Generic}, C_NULL)
+        dp = reinterpret(Core.LLVMPtr{T,AS.Generic}, C_NULL)
 
         CuDeviceArray{T,1,AS.Generic}(dp, (b,))
         @test_throws MethodError CuDeviceArray{T,1,AS.Generic}(dp, (a,b))

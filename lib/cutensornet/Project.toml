@@ -1,14 +1,14 @@
 name = "cuTensorNet"
 uuid = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 authors = ["Katharine Hyatt <kshyatt@gmail.com>"]
-version = "1.5.1"
+version = "6.0.0"
 
 [workspace]
 projects = ["test"]
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 cuQuantum_jll = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
@@ -19,9 +19,9 @@ cuTENSOR = {path = "../cutensor"}
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDA = "~5.11"
+CUDACore = "=6.0.0"
 CUDA_Runtime_Discovery = "0.2, 0.3, 1"
 cuQuantum_jll = "26.1"
-cuTENSOR = "2.3.1"
+cuTENSOR = "=6.0.0"
 julia = "1.10"
 LinearAlgebra = "1"

@@ -1,19 +1,19 @@
-# CUSOLVER
+# cuSOLVER
 
 ```@meta
-CurrentModule = CUSOLVER
+CurrentModule = cuSOLVER
 ```
 
 ## Public
 
 ```@autodocs
-Modules = [CUSOLVER]
+Modules = [cuSOLVER]
 Private = false
 ```
 
 ## Private
 
 ```@autodocs
-Modules = [CUSOLVER]
+Modules = [cuSOLVER]
 Public = false
 ```

@@ -62,7 +62,7 @@ julia> a = CuArray{Int}(undef, 1);
 julia> @cuda my_kernel(a);
 
 julia> a
-1-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+1-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  42
 ```
 
@@ -85,7 +85,7 @@ julia> a = CuArray{Int}(undef, 5);
 julia> @cuda threads=length(a) my_kernel(a);
 
 julia> a
-5-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+5-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  42
  42
  42
@@ -123,7 +123,7 @@ julia> function my_outer_kernel(f, a)
 my_outer_kernel (generic function with 1 method)
 
 julia> a = CUDA.rand(Int, (2,2))
-2×2 CuArray{Int64, 2, CUDA.DeviceMemory}:
+2×2 CuArray{Int64, 2, CUDACore.DeviceMemory}:
  5153094658246882343  -1636555237989902283
  2088126782868946458  -5701665962120018867
 
@@ -152,7 +152,7 @@ julia> function my_outer_kernel2(f, a)
 my_outer_kernel2 (generic function with 1 method)
 
 julia> a = CUDA.rand(Int, (2,2))
-2×2 CuArray{Int64, 2, CUDA.DeviceMemory}:
+2×2 CuArray{Int64, 2, CUDACore.DeviceMemory}:
   3193805011610800677  4871385510397812058
  -9060544314843886881  8829083170181145736
 
@@ -217,14 +217,14 @@ julia> function reverse_kernel(a::CuDeviceArray{T}) where T
        end
 
 julia> a = cu([1,2])
-2-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+2-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  1
  2
 
 julia> @cuda threads=2 reverse_kernel(a)
 
 julia> a
-2-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+2-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  2
  1
 ```
@@ -244,7 +244,7 @@ julia> function reverse_kernel(a::CuDeviceArray{T}) where T
        end
 
 julia> a = cu([1,2,3])
-3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+3-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  1
  2
  3
@@ -252,7 +252,7 @@ julia> a = cu([1,2,3])
 julia> @cuda threads=length(a) shmem=sizeof(a) reverse_kernel(a)
 
 julia> a
-3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+3-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  3
  2
  1
@@ -350,13 +350,13 @@ julia> function atomic_kernel(a)
        end
 
 julia> a = cu(Int32[1])
-1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+1-element CuArray{Int32, 1, CUDACore.DeviceMemory}:
  1
 
 julia> @cuda atomic_kernel(a)
 
 julia> a
-1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+1-element CuArray{Int32, 1, CUDACore.DeviceMemory}:
  2
 ```
 
@@ -380,13 +380,13 @@ julia> function atomic_kernel(a)
        end
 
 julia> a = cu(Int32[1])
-1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+1-element CuArray{Int32, 1, CUDACore.DeviceMemory}:
  1
 
 julia> @cuda atomic_kernel(a)
 
 julia> a
-1-element CuArray{Int32, 1, CUDA.DeviceMemory}:
+1-element CuArray{Int32, 1, CUDACore.DeviceMemory}:
  2
 ```
 
@@ -469,7 +469,7 @@ julia> function reverse_kernel(d::CuDeviceArray{T}) where {T}
        end
 
 julia> a = cu([1,2,3])
-3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+3-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  1
  2
  3
@@ -477,7 +477,7 @@ julia> a = cu([1,2,3])
 julia> @cuda threads=length(a) shmem=sizeof(a) reverse_kernel(a)
 
 julia> a
-3-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+3-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  3
  2
  1
@@ -582,7 +582,7 @@ julia> nb = 2;
 julia> @cuda shmem=sizeof(eltype(a))*nb memcpy_kernel(a, b, nb)
 
 julia> b
-4-element CuArray{Int64, 1, CUDA.DeviceMemory}:
+4-element CuArray{Int64, 1, CUDACore.DeviceMemory}:
  1
  2
  3

@@ -15,7 +15,7 @@ ENV JULIA_CPU_TARGET=${JULIA_CPU_TARGET}
 
 ARG CUDA_VERSION=12.6
 
-ARG PACKAGE_SPEC=CUDA
+ARG PACKAGE_REF=master
 
 LABEL org.opencontainers.image.authors="Tim Besard <tim.besard@gmail.com>" \
       org.opencontainers.image.description="A CUDA.jl container with CUDA ${CUDA_VERSION} and Julia ${JULIA_VERSION}" \
@@ -54,8 +54,18 @@ RUN julia -e '#= make bundled depot non-writable (JuliaLang/Pkg.jl#4120) =# \
     find -exec touch -h -d "@0" {} + && \
     touch -h -d "@0" /usr/local/share
 
-# install CUDA.jl itself
-RUN julia -e 'using Pkg; pkg"add '${PACKAGE_SPEC}'"; \
+# install CUDA.jl and all subpackages
+ARG PACKAGE_REF
+RUN julia -e 'using Pkg; \
+              url = "https://github.com/JuliaGPU/CUDA.jl.git"; \
+              rev = ENV["PACKAGE_REF"]; \
+              Pkg.add([PackageSpec(; url, rev, subdir) for subdir in \
+                       ["CUDACore", "CUDATools", \
+                        "lib/cupti", "lib/nvml", \
+                        "lib/cublas", "lib/cusparse", "lib/cusolver", \
+                        "lib/cufft", "lib/curand", \
+                        "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec", \
+                        ""]]); \
               using CUDA; CUDA.precompile_runtime()' && \
     #= remove useless stuff =# \
     cd /usr/local/share/julia && \

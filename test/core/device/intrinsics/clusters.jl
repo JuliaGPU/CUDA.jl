@@ -1,5 +1,5 @@
 @testset "thread block clusters" begin
-if capability(device()) >= v"9.0"
+if capability(device()) >= v"9.0" && VERSION >= v"1.11-"
 
 ###########################################################################################
 
