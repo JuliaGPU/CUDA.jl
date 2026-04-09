@@ -213,17 +213,18 @@ end
 
 ## randn
 
-@device_override Random.randn(rng::AbstractRNG) =
-    _randn(rng, Random.rand(rng, Random.UInt52Raw()))
-
-@inline function _randn(rng::AbstractRNG, r::UInt64)
-    @inbounds begin
-        r &= 0x000fffffffffffff
-        rabs = Int64(r>>1) # One bit for the sign
-        idx = rabs & 0xFF
-        x = ifelse(r % Bool, -rabs, rabs)*gpu_wi()[idx+1]
-        rabs < gpu_ki()[idx+1] && return x # 99.3% of the time we return here 1st try
-        return randn_unlikely(rng, idx, rabs, x)
+@device_override function Random.randn(rng::AbstractRNG)
+    while true
+        r = Random.rand(rng, Random.UInt52Raw()) % UInt64
+        @inbounds begin
+            r &= 0x000fffffffffffff
+            rabs = Int64(r>>1) # One bit for the sign
+            idx = rabs & 0xFF
+            x = ifelse(r % Bool, -rabs, rabs)*gpu_wi()[idx+1]
+            rabs < gpu_ki()[idx+1] && return x # 99.3% of the time we return here 1st try
+            result = randn_unlikely(rng, idx, rabs, x)
+            result !== nothing && return result
+        end
     end
 end
 
@@ -239,22 +240,23 @@ end
     elseif (gpu_fi()[idx] - gpu_fi()[idx+1])*Random.rand(rng) + gpu_fi()[idx+1] < exp(-0.5*x*x)
         return x # return from the triangular area
     else
-        return Random.randn(rng)
+        return # retry
     end
 end
 
 ## randexp
 
-@device_override Random.randexp(rng::AbstractRNG) =
-    _randexp(rng, Random.rand(rng, Random.UInt52Raw()))
-
-function _randexp(rng::AbstractRNG, ri::UInt64)
-    @inbounds begin
-        ri &= 0x000fffffffffffff
-        idx = ri & 0xFF
-        x = ri*gpu_we()[idx+1]
-        ri < gpu_ke()[idx+1] && return x # 98.9% of the time we return here 1st try
-        return randexp_unlikely(rng, idx, x)
+@device_override function Random.randexp(rng::AbstractRNG)
+    while true
+        ri = Random.rand(rng, Random.UInt52Raw()) % UInt64
+        @inbounds begin
+            ri &= 0x000fffffffffffff
+            idx = ri & 0xFF
+            x = ri*gpu_we()[idx+1]
+            ri < gpu_ke()[idx+1] && return x # 98.9% of the time we return here 1st try
+            result = randexp_unlikely(rng, idx, x)
+            result !== nothing && return result
+        end
     end
 end
 
@@ -264,6 +266,6 @@ end
     elseif (gpu_fe()[idx] - gpu_fe()[idx+1])*Random.rand(rng) + gpu_fe()[idx+1] < exp(-x)
         return x # return from the triangular area
     else
-        return Random.randexp(rng)
+        return # retry
     end
 end

@@ -109,6 +109,26 @@ end
     end
 end
 
+@testset "randn in complex kernels" begin
+    # Test that randn works in deeply-nested kernel code (JuliaGPU/CUDA.jl#xxxx),
+    # which used to fail due to recursion in the Ziggurat rejection sampling.
+    function complex_randn_kernel(result)
+        i = threadIdx().x
+        s = 0.0
+        x = 0.5
+        for j in 1:20
+            x = sin(x) * cos(x + randn())
+            s += x * randn() + randexp()
+        end
+        result[i] = s
+        return
+    end
+
+    a = CUDA.zeros(64)
+    @cuda threads=64 complex_randn_kernel(a)
+    @test !all(==(0.0), Array(a))
+end
+
 @testset "basic randexp($T), seed $seed" for T in (Float16, Float32, Float64),
                                            seed in (nothing, #=missing,=# 1234)
     function kernel(A::AbstractArray{T}, seed) where {T}
