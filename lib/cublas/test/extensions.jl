@@ -102,6 +102,13 @@ k = 13
             end
         end
 
+        @testset "unsafe_strided_batch" begin
+            A = CuArray(rand(elty, m, m, 10))
+            ptrs = cuBLAS.unsafe_strided_batch(A)
+            @test ptrs isa CuVector{CuPtr{elty}}
+            @test length(ptrs) == 10
+        end
+
         @testset "getrf_strided_batched!" begin
             Random.seed!(1)
             local k

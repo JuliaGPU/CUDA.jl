@@ -1341,7 +1341,7 @@ end
 end
 
 # create a batch of pointers in device memory from a strided device array
-@inline function unsafe_strided_batch(strided::DenseCuArray{T}) where {T}
+@inline function unsafe_strided_batch(strided::DenseCuArray{T, N}) where {T, N}
     batch_size = last(size(strided))
     batch_stride = prod(size(strided)[1:end-1])
     #ptrs = [pointer(strided, (i-1)*batch_stride + 1) for i in 1:batch_size]
