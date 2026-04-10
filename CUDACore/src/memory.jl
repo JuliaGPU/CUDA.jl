@@ -65,10 +65,15 @@ end
 # so we track them globally and size them against system RAM rather than GPU memory.
 const _host_stats = MemoryStats()
 
-const _early_gc = LazyInitialized{Bool}()
+# lazily-initialized mutable flag controlling whether `maybe_collect` runs.
+# `nothing` means uninitialized; once set it's read directly. mutable so we can
+# disable it at runtime if `cuMemGetInfo` starts failing (see below).
+const _early_gc = Ref{Union{Nothing,Bool}}(nothing)
 function maybe_collect(will_block::Bool=false)
-  enabled = get!(_early_gc) do
-    parse(Bool, get(ENV, "JULIA_CUDA_GC_EARLY", "true"))
+  enabled = _early_gc[]
+  if enabled === nothing
+    enabled = parse(Bool, get(ENV, "JULIA_CUDA_GC_EARLY", "true"))
+    _early_gc[] = enabled
   end
   enabled || return
   stats = memory_stats()
@@ -77,12 +82,27 @@ function maybe_collect(will_block::Bool=false)
   # periodically re-estimate the amount of memory available to this process.
   if current_time - stats.size_updated > 10
     limits = memory_limits()
-    Base.@atomic stats.size = if limits.hard > 0
+    new_size = if limits.hard > 0
       limits.hard
     elseif limits.soft > 0
       limits.soft
     else
-      size = free_memory() + stats.live
+      # `cuMemGetInfo` can fail in unusual contexts — e.g. when a prior kernel
+      # left the context in a sticky error state. propagating that error here
+      # would obscure the real cause (see issue #2795), so on failure we
+      # disable early GC for the rest of the session and bail out, letting
+      # the actual allocation surface a more meaningful error.
+      free = try
+        free_memory()
+      catch err
+        isa(err, CuError) || rethrow()
+        @warn "Failed to query free GPU memory; disabling early GC. \
+               This usually indicates a prior CUDA error left the context in \
+               a bad state." exception=(err, catch_backtrace())
+        _early_gc[] = false
+        return
+      end
+      size = free + stats.live
       # NOTE: we use stats.live so that we only count memory allocated here, ensuring
       #       the pressure calculation below reflects the heap we have control over.
 
@@ -94,6 +114,7 @@ function maybe_collect(will_block::Bool=false)
 
       size
     end
+    Base.@atomic stats.size = new_size
     Base.@atomic stats.size_updated = current_time
   end
 
@@ -728,7 +749,10 @@ against the stream that last used the memory.
     Base.@atomic alloc_stats.free_bytes += sz
     Base.@atomic alloc_stats.total_time += time
   catch ex
-    Base.showerror_nostdio(ex, "WARNING: Error while freeing $mem")
+    # NOTE: avoid `show`ing `mem` here since the buffer may be in a bad state
+    # (often the reason free is failing); printing the byte count is safer.
+    Base.showerror_nostdio(ex,
+        "WARNING: Error while freeing $(Base.format_bytes(sz)) of GPU memory")
     Base.show_backtrace(Core.stdout, catch_backtrace())
     Core.println()
   end
