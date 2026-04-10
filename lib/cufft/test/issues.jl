@@ -47,3 +47,22 @@ end
     @test pinv isa AbstractFFTs.Plan{ComplexF32}
     @test eltype(pinv) === ComplexF32
 end
+
+@testset "CUDA.jl_PR_issue_1" begin
+    # see https://github.com/JuliaGPU/CUDA.jl/pull/3052#issuecomment-4213439988
+    @test size(fft(CUDA.rand(ComplexF32, 3, 5, 7, 11, 2), (2, 4))) == (3,5,7,11,2)
+end
+
+@testset "CUDA.jl_PR_issue_2" begin
+    # see https://github.com/JuliaGPU/CUDA.jl/pull/3052#issuecomment-4213439988
+    x = CUDA.rand(Float32, 5, 3, 7, 4); xh = Array(x);
+    xc = copy(x)
+    y = rfft(x, (1, 3));
+    @test x == xc
+    @test maximum(abs.(Array(y) .- rfft(xh, (1, 3)))) < 1e-5
+end
+
+@testset "CUDA.jl_PR_issue_3" begin
+    # see https://github.com/JuliaGPU/CUDA.jl/pull/3052#issuecomment-4213439988
+    @test_throws ArgumentError plan_fft!(rand(ComplexF32, 4, 4, 4), (1, 2, 1)) 
+end
