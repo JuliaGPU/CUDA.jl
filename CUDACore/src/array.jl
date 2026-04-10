@@ -534,7 +534,10 @@ function typetagdata(a::CuArray, i=1; type=DeviceMemory)
   else
     error("unknown memory type")
   end
-  convert(PT, a.data[]) + a.maxsize + a.offset ÷ Base.elsize(a) + i - 1
+  # for zero-size element types (e.g. singleton unions), the byte offset
+  # is always zero, so the corresponding element offset is also zero
+  elem_offset = iszero(Base.elsize(a)) ? 0 : a.offset ÷ Base.elsize(a)
+  convert(PT, a.data[]) + a.maxsize + elem_offset + i - 1
 end
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
