@@ -81,3 +81,16 @@ end
   @test testf((x) -> (2 // 3 .* x),  rand(2, 3))
   @test testf((x) -> (f(x) = 2 // 3 * x; f.(x)),  rand(2, 3))
 end
+
+# https://github.com/JuliaGPU/CUDA.jl/issues/2681
+@testset "Broadcast Float vs Rational comparison" begin
+  for T in (Float32, Float64)
+    @test testf((x) -> x .<  3 // 2, rand(T, 4))
+    @test testf((x) -> x .<= 3 // 2, rand(T, 4))
+    @test testf((x) -> x .>  3 // 2, rand(T, 4))
+    @test testf((x) -> x .>= 3 // 2, rand(T, 4))
+    @test testf((x) -> 3 // 2 .<  x, rand(T, 4))
+    @test testf((x) -> 3 // 2 .<= x, rand(T, 4))
+    @test testf((x) -> cmp.(x, 3 // 2), rand(T, 4))
+  end
+end
