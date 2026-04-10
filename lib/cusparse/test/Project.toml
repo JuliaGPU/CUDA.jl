@@ -1,9 +1,13 @@
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"

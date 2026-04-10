@@ -223,4 +223,41 @@
     @test Array(d_v.iPtr) == v.nzind
     @test Array(d_v.nzVal) == v.nzval
     @test d_v.len == v.n
+
+    # `cu` should propagate the requested memory type to inner CuArrays (#2974),
+    # and apply the same opinionated eltype conversion as the dense path
+    let A = sprand(ComplexF64, m, n, 0.2)
+        d_A = cu(A; unified=true)
+        @test d_A isa CuSparseMatrixCSC{ComplexF32}
+        @test d_A.colPtr isa CuArray{Int32, 1, CUDACore.UnifiedMemory}
+        @test d_A.rowVal isa CuArray{Int32, 1, CUDACore.UnifiedMemory}
+        @test d_A.nzVal  isa CuArray{ComplexF32, 1, CUDACore.UnifiedMemory}
+
+        d_A = cu(A)
+        @test d_A isa CuSparseMatrixCSC{ComplexF32}
+        @test d_A.colPtr isa CuArray{Int32, 1, CUDACore.DeviceMemory}
+        @test d_A.rowVal isa CuArray{Int32, 1, CUDACore.DeviceMemory}
+        @test d_A.nzVal  isa CuArray{ComplexF32, 1, CUDACore.DeviceMemory}
+    end
+    let B = sprand(Float64, m, n, 0.2)
+        d_B = cu(B; unified=true)
+        @test d_B isa CuSparseMatrixCSC{Float32}
+        @test d_B.nzVal isa CuArray{Float32, 1, CUDACore.UnifiedMemory}
+    end
+    let v = sprand(Float64, m, 0.2)
+        d_v = cu(v; unified=true)
+        @test d_v isa CuSparseVector{Float32}
+        @test d_v.iPtr  isa CuArray{Int32, 1, CUDACore.UnifiedMemory}
+        @test d_v.nzVal isa CuArray{Float32, 1, CUDACore.UnifiedMemory}
+    end
+    # Float16 should be preserved (matching dense `cu` semantics)
+    let A = SparseMatrixCSC{Float16}(sprand(Float32, m, n, 0.2))
+        d_A = cu(A; unified=true)
+        @test d_A isa CuSparseMatrixCSC{Float16}
+        @test d_A.nzVal isa CuArray{Float16, 1, CUDACore.UnifiedMemory}
+    end
+    # the plain constructor must keep its non-opinionated semantics
+    let A = sprand(Float64, m, n, 0.2)
+        @test CuSparseMatrixCSC(A) isa CuSparseMatrixCSC{Float64}
+    end
 end
