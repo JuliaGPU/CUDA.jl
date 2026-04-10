@@ -26,53 +26,32 @@ const LDGTypes = (UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64,
 @static if LLVM.version() >= v"20"
     # LLVM 20 removed the `llvm.nvvm.ldg.global.*` intrinsics in favor of a regular
     # load from addrspace(1) carrying `!invariant.load` metadata, which the NVPTX
-    # backend lowers to `ld.global.nc` (see llvm/llvm-project#112834).
+    # backend lowers to `ld.global.nc` (see llvm/llvm-project#112834). We build that
+    # IR with the LLVM.jl IRBuilder, mirroring `LLVM.Interop.pointerref`. A single
+    # method covers both scalar and vector element types, since `convert(LLVMType, T)`
+    # already maps `NTuple{N, VecElement{T}}` to `<N x T>`.
+    @device_function @inline @generated function pointerref_ldg(ptr::LLVMPtr{T,AS.Global},
+                                                                i::I, ::Val{align}) where {T, I, align}
+        @dispose ctx=Context() begin
+            eltyp = convert(LLVMType, T)
+            T_idx = convert(LLVMType, I)
+            T_ptr = convert(LLVMType, ptr)
 
-    function ldg_llvm_type(@nospecialize(T::Type))
-        T === UInt8  || T === Int8    ? "i8"     :
-        T === UInt16 || T === Int16   ? "i16"    :
-        T === UInt32 || T === Int32   ? "i32"    :
-        T === UInt64 || T === Int64   ? "i64"    :
-        T === Float32                 ? "float"  :
-        T === Float64                 ? "double" :
-        error("Unsupported LDG type: $T")
-    end
+            llvm_f, _ = create_function(eltyp, [T_ptr, T_idx])
 
-    @device_function @generated function pointerref_ldg(base_ptr::LLVMPtr{T,AS.Global},
-                                                        i::Integer, ::Val{align}) where {T, align}
-        llvm_typ = ldg_llvm_type(T)
-        ir = """
-            define $llvm_typ @entry(ptr addrspace(1) %ptr) #0 {
-                %v = load $llvm_typ, ptr addrspace(1) %ptr, align $align, !invariant.load !0
-                ret $llvm_typ %v
-            }
-            attributes #0 = { alwaysinline }
-            !0 = !{}
-        """
-        quote
-            offset = i-one(i) # in elements
-            ptr = base_ptr + offset*sizeof(T)
-            Base.llvmcall(($ir, "entry"), T, Tuple{LLVMPtr{T,AS.Global}}, ptr)
-        end
-    end
+            @dispose builder=IRBuilder() begin
+                entry = BasicBlock(llvm_f, "entry")
+                position!(builder, entry)
+                gep = inbounds_gep!(builder, eltyp, parameters(llvm_f)[1],
+                                    [parameters(llvm_f)[2]])
+                ld = load!(builder, eltyp, gep)
+                metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global)
+                metadata(ld)[LLVM.MD_invariant_load] = MDNode(Metadata[])
+                alignment!(ld, align)
+                ret!(builder, ld)
+            end
 
-    @device_function @generated function pointerref_ldg(
-            base_ptr::LLVMPtr{NTuple{N, Base.VecElement{T}},AS.Global},
-            i::Integer, ::Val{align}) where {N, T, align}
-        llvm_typ = "<$N x $(ldg_llvm_type(T))>"
-        ir = """
-            define $llvm_typ @entry(ptr addrspace(1) %ptr) #0 {
-                %v = load $llvm_typ, ptr addrspace(1) %ptr, align $align, !invariant.load !0
-                ret $llvm_typ %v
-            }
-            attributes #0 = { alwaysinline }
-            !0 = !{}
-        """
-        quote
-            offset = i-one(i) # in elements
-            ptr = base_ptr + offset*N*sizeof(T)
-            Base.llvmcall(($ir, "entry"), NTuple{N, Base.VecElement{T}},
-                          Tuple{LLVMPtr{NTuple{N, Base.VecElement{T}},AS.Global}}, ptr)
+            call_function(llvm_f, T, Tuple{LLVMPtr{T,AS.Global}, I}, :ptr, :(i-one(I)))
         end
     end
 
