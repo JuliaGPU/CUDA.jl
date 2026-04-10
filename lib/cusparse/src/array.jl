@@ -295,7 +295,7 @@ Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = si
 Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
 Base.similar(Mat::CuSparseMatrixCOO{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
 # For dims higher than 3 we default to dense arrays as does Base
-Base.similar(::CuSparseMatrix{Tv}, dims::Vararg{Int, N}) where N = CuArray{Tv}(undef, dims)
+Base.similar(::CuSparseMatrix{Tv}, dims::Vararg{Int, N}) where {N, Tv} = CuArray{Tv}(undef, dims)
 
 Base.similar(Mat::CuSparseMatrixCSC, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
@@ -305,7 +305,7 @@ Base.similar(::CuSparseMatrix, T::Type, dims::NTuple{N, Int}) where N = CuArray{
 Base.similar(Mat::CuSparseMatrixCSC, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...)
-Base.similar(::CuSparseMatrix{Tv}, dims::NTuple{N, Int}) where N = CuArray{Tv}(undef, dims)
+Base.similar(::CuSparseMatrix{Tv}, dims::NTuple{N, Int}) where {N, Tv} = CuArray{Tv}(undef, dims)
 
 Base.similar(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
 
