@@ -5,8 +5,8 @@
     #       @vchuravy. It is currently not backported.
     ir = sprint(io->CUDA.code_llvm(io, (args...)->CUDACore.pointerref_ldg(args...), Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
     if Base.libllvm_version >= v"20"
-        # `@llvm.nvvm.ldg` was removed in LLVM 20; the auto-upgrade
-        # replaces it with a load bearing `!invariant.load` metadata
+        # LLVM 20 removed `@llvm.nvvm.ldg.*`; we now emit a plain load with
+        # `!invariant.load` metadata, which NVPTX lowers to `ld.global.nc`.
         @test occursin("!invariant.load", ir)
     else
         @test occursin("@llvm.nvvm.ldg", ir)
