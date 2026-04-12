@@ -47,7 +47,7 @@ if local_compiler
     using CUDA_Runtime_Discovery
     const CUDA_Compiler = CUDA_Runtime_Discovery
 else
-    using CUDA_Compiler_jll
+    import CUDA_Compiler_jll
     const CUDA_Compiler = CUDA_Compiler_jll
 end
 
