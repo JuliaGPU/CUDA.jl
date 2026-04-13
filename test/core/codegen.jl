@@ -22,6 +22,31 @@ end
     @test !occursin("@__nv_fmaf", ir)
 end
 
+@testset "fma uses LLVM intrinsic" begin
+    function fma_kernel(ptr)
+        unsafe_store!(ptr, fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+        return
+    end
+
+    for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
+        ir = sprint(io->CUDA.code_llvm(io, fma_kernel, Tuple{Ptr{T}}))
+        @test occursin("llvm.fma.$suffix", ir)
+        @test !occursin("__nv_fma", ir)
+    end
+end
+
+@testset "muladd uses LLVM intrinsic" begin
+    function muladd_kernel(ptr)
+        unsafe_store!(ptr, muladd(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+        return
+    end
+
+    for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
+        ir = sprint(io->CUDA.code_llvm(io, muladd_kernel, Tuple{Ptr{T}}))
+        @test occursin("llvm.fmuladd.$suffix", ir)
+    end
+end
+
 @testset "assume" begin
     foo(i) = cld(42, i)
     ir = sprint(io->CUDA.code_llvm(io, foo, Tuple{Int}))

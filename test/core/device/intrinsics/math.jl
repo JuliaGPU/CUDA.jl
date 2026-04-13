@@ -85,6 +85,35 @@ using SpecialFunctions
         end
     end
 
+    @testset "muladd" begin
+        for T in (Float16, Float32, Float64)
+            @test testf((x,y,z)->muladd.(x,y,z), rand(T, 1), rand(T, 1), rand(T, 1))
+            @test testf((x,y,z)->muladd.(x,y,z), rand(T, 1), -rand(T, 1), -rand(T, 1))
+        end
+    end
+
+    @testset "fma/muladd PTX codegen" begin
+        # fma and muladd should both lower to fma.rn in PTX
+        function fma_kernel(a, b, c)
+            @inbounds a[] = fma(b[], c[], a[])
+            return
+        end
+        function muladd_kernel(a, b, c)
+            @inbounds a[] = muladd(b[], c[], a[])
+            return
+        end
+
+        for T in (Float32, Float64)
+            asm = sprint(io->CUDA.code_ptx(io, fma_kernel,
+                NTuple{3,CuDeviceArray{T,1,AS.Global}}))
+            @test occursin("fma.rn", asm)
+
+            asm = sprint(io->CUDA.code_ptx(io, muladd_kernel,
+                NTuple{3,CuDeviceArray{T,1,AS.Global}}))
+            @test occursin("fma.rn", asm)
+        end
+    end
+
     # something from SpecialFunctions.jl
     @testset "erf" begin
         @test testf(a->SpecialFunctions.erf.(a), Float32[1.0])
