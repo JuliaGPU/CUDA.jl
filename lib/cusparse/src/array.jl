@@ -300,7 +300,8 @@ Base.similar(::CuSparseMatrix{Tv}, dims::Vararg{Int, N}) where {N, Tv} = CuArray
 Base.similar(Mat::CuSparseMatrixCSC, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
-Base.similar(::CuSparseMatrix, T::Type, dims::NTuple{N, Int}) where N = CuArray{T}(undef, dims)
+# The next one would overwrite `similar` for dims::Tuple{Int}, which breaks linearization
+# Base.similar(::CuSparseMatrix, T::Type, dims::NTuple{N, Int}) where N = CuArray{T}(undef, dims)
 
 Base.similar(Mat::CuSparseMatrixCSC, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims...)
