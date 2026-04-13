@@ -60,10 +60,20 @@ function memory_stats(dev::CuDevice=device())
   end
 end
 
-const _early_gc = LazyInitialized{Bool}()
+# stats for memory that isn't part of any device pool (unified, host). these
+# allocations are not tied to a specific device and can be migrated by the driver,
+# so we track them globally and size them against system RAM rather than GPU memory.
+const _host_stats = MemoryStats()
+
+# lazily-initialized mutable flag controlling whether `maybe_collect` runs.
+# `nothing` means uninitialized; once set it's read directly. mutable so we can
+# disable it at runtime if `cuMemGetInfo` starts failing (see below).
+const _early_gc = Ref{Union{Nothing,Bool}}(nothing)
 function maybe_collect(will_block::Bool=false)
-  enabled = get!(_early_gc) do
-    parse(Bool, get(ENV, "JULIA_CUDA_GC_EARLY", "true"))
+  enabled = _early_gc[]
+  if enabled === nothing
+    enabled = parse(Bool, get(ENV, "JULIA_CUDA_GC_EARLY", "true"))
+    _early_gc[] = enabled
   end
   enabled || return
   stats = memory_stats()
@@ -72,12 +82,27 @@ function maybe_collect(will_block::Bool=false)
   # periodically re-estimate the amount of memory available to this process.
   if current_time - stats.size_updated > 10
     limits = memory_limits()
-    Base.@atomic stats.size = if limits.hard > 0
+    new_size = if limits.hard > 0
       limits.hard
     elseif limits.soft > 0
       limits.soft
     else
-      size = free_memory() + stats.live
+      # `cuMemGetInfo` can fail in unusual contexts — e.g. when a prior kernel
+      # left the context in a sticky error state. propagating that error here
+      # would obscure the real cause (see issue #2795), so on failure we
+      # disable early GC for the rest of the session and bail out, letting
+      # the actual allocation surface a more meaningful error.
+      free = try
+        free_memory()
+      catch err
+        isa(err, CuError) || rethrow()
+        @warn "Failed to query free GPU memory; disabling early GC. \
+               This usually indicates a prior CUDA error left the context in \
+               a bad state." exception=(err, catch_backtrace())
+        _early_gc[] = false
+        return
+      end
+      size = free + stats.live
       # NOTE: we use stats.live so that we only count memory allocated here, ensuring
       #       the pressure calculation below reflects the heap we have control over.
 
@@ -89,11 +114,25 @@ function maybe_collect(will_block::Bool=false)
 
       size
     end
+    Base.@atomic stats.size = new_size
     Base.@atomic stats.size_updated = current_time
   end
 
-  # check that we're under memory pressure
-  pressure = stats.live / stats.size
+  # similarly re-estimate the host memory budget for unified/host allocations.
+  # `Sys.total_memory()` is cgroup-aware (it wraps `uv_get_constrained_memory`),
+  # so this does the right thing in containers without us reinventing it.
+  if current_time - _host_stats.size_updated > 10
+    Base.@atomic _host_stats.size = Sys.total_memory()
+    Base.@atomic _host_stats.size_updated = current_time
+  end
+
+  # compute pressure for both pools and operate on whichever is dominant.
+  device_pressure = stats.size > 0 ? stats.live / stats.size : 0.0
+  host_pressure = _host_stats.size > 0 ?
+    _host_stats.live / _host_stats.size : 0.0
+  pressure, dominant = device_pressure >= host_pressure ?
+    (device_pressure, stats) : (host_pressure, _host_stats)
+
   min_pressure = 0.75
   ## if we're about to block anyway, now may be a good time for a GC pause
   if will_block
@@ -104,12 +143,12 @@ function maybe_collect(will_block::Bool=false)
   end
 
   # ensure we don't collect too often by checking the GC rate
-  last_time = stats.last_time
-  gc_rate = stats.last_gc_time / (current_time - last_time)
+  last_time = dominant.last_time
+  gc_rate = dominant.last_gc_time / (current_time - last_time)
   ## we tolerate 5% GC time
   max_gc_rate = 0.05
   ## if we freed a lot last time, bump that up
-  if stats.last_freed > 0.1*stats.size
+  if dominant.last_freed > 0.1*dominant.size
     max_gc_rate *= 2
   end
   ## if we're about to block, we can be more aggressive
@@ -127,15 +166,18 @@ function maybe_collect(will_block::Bool=false)
     return
   end
   Base.@atomic stats.last_time = current_time
+  Base.@atomic _host_stats.last_time = current_time
 
-  # finally, call the GC
-  pre_gc_live = stats.live
+  # finally, call the GC. snapshot live for both pools before/after, since
+  # finalizers running during GC may free memory in either.
+  pre_device_live = stats.live
+  pre_host_live = _host_stats.live
   gc_time = Base.@elapsed GC.gc(false)
-  post_gc_live = stats.live
-  memory_freed = pre_gc_live - post_gc_live
-  Base.@atomic stats.last_freed = memory_freed
+  Base.@atomic stats.last_freed = pre_device_live - stats.live
+  Base.@atomic _host_stats.last_freed = pre_host_live - _host_stats.live
   ## GC times can vary, so smooth them out
   Base.@atomic stats.last_gc_time = 0.75*stats.last_gc_time + 0.25*gc_time
+  Base.@atomic _host_stats.last_gc_time = 0.75*_host_stats.last_gc_time + 0.25*gc_time
 
   return
 end
@@ -670,10 +712,19 @@ end
     mem
 end
 @inline function _pool_alloc(::Type{UnifiedMemory}, sz)
-  alloc(UnifiedMemory, sz)
+  # NOTE: no `retry_reclaim` here. `cuMemAllocManaged` allocates lazily and
+  # essentially never returns `ERROR_OUT_OF_MEMORY` — when host RAM is actually
+  # exhausted, the OS kills the process on the page fault before the driver
+  # call can fail. The only thing that can prevent OOM is the proactive
+  # `maybe_collect` call in `pool_alloc`, which uses `_host_stats`.
+  mem = alloc(UnifiedMemory, sz)
+  account!(_host_stats, sz)
+  mem
 end
 @inline function _pool_alloc(::Type{HostMemory}, sz)
-  alloc(HostMemory, sz)
+  mem = alloc(HostMemory, sz)
+  account!(_host_stats, sz)
+  mem
 end
 
 """
@@ -698,7 +749,10 @@ against the stream that last used the memory.
     Base.@atomic alloc_stats.free_bytes += sz
     Base.@atomic alloc_stats.total_time += time
   catch ex
-    Base.showerror_nostdio(ex, "WARNING: Error while freeing $mem")
+    # NOTE: avoid `show`ing `mem` here since the buffer may be in a bad state
+    # (often the reason free is failing); printing the byte count is safer.
+    Base.showerror_nostdio(ex,
+        "WARNING: Error while freeing $(Base.format_bytes(sz)) of GPU memory")
     Base.show_backtrace(Core.stdout, catch_backtrace())
     Core.println()
   end
@@ -724,8 +778,14 @@ end
     end
     account!(memory_stats(mem.dev), -sizeof(mem))
 end
-@inline _pool_free(mem::UnifiedMemory, stream::CuStream) = free(mem)
-@inline _pool_free(mem::HostMemory, stream::CuStream) = free(mem)
+@inline function _pool_free(mem::UnifiedMemory, stream::CuStream)
+  free(mem)
+  account!(_host_stats, -sizeof(mem))
+end
+@inline function _pool_free(mem::HostMemory, stream::CuStream)
+  free(mem)
+  account!(_host_stats, -sizeof(mem))
+end
 
 """
     reclaim([sz=typemax(Int)])

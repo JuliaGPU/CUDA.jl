@@ -290,6 +290,15 @@ end
 
   @test collect(reinterpret(Int32, CUDA.fill(1f0)))[] == reinterpret(Int32, 1f0)
 
+  @testset "reinterpret of view with non-aligned offset" begin
+    # reinterpreting a view to a larger element type where the byte offset
+    # is not a multiple of the new element size
+    a = CuArray(Float32[1,2,3,4,5,6,7,8,9])
+    v = view(a, 2:7)  # offset of 1 Float32 = 4 bytes
+    r = reinterpret(Float64, v)  # Float64 = 8 bytes; 4 is not a multiple of 8
+    @test Array(r) == reinterpret(Float64, @view Array(a)[2:7])
+  end
+
   @testset "unmanaged reinterpret" begin
     a = CuArray(Int32[-1,-2,-3])
     ptr = pointer(a, 2)
