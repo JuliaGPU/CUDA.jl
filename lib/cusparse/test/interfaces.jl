@@ -416,7 +416,7 @@ nB = 2
 
         S_all_csr = A_csr[CuVector(trues(m)), CuVector(trues(n))]
         @test S_all_csr isa CuSparseMatrixCSR
-        @allowscalar for i in eachindex(A, S_all_csr)
+        CUDA.@allowscalar for i in eachindex(A, S_all_csr)
             @test A[i] ≈ S_all_csr[i]
         end
 
