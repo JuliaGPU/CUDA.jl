@@ -524,14 +524,13 @@ end
 # slice matrix by masking rows and columns
 
 function Base.getindex(A::CuSparseMatrixCSR{Tv, Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv, Ti}
-    m, n = size(A)
-    length(Imask) == m || throw(DimensionMismatch("boolean row mask length $(length(Imask)) must match row count $m"))
-    length(Jmask) == n || throw(DimensionMismatch("boolean column mask length $(length(Jmask)) must match column count $n"))
+    @boundscheck checkbounds(A, Imask, Jmask)
 
+    m, n = size(A)
     rowmap = cumsum(Ti.(Imask))
     colmap = cumsum(Ti.(Jmask))
-    new_m = Int(CUDACore.@allowscalar rowmap[end])
-    new_n = Int(CUDACore.@allowscalar colmap[end])
+    new_m = m > 0 ? Int(CUDACore.@allowscalar rowmap[end]) : 0
+    new_n = n > 0 ? Int(CUDACore.@allowscalar colmap[end]) : 0
 
     # pass 1: count kept entries per new row
     counts = CUDACore.zeros(Ti, new_m)
@@ -603,6 +602,7 @@ end
 # CSC: reinterpret as transposed CSR, index with swapped masks, reinterpret back.
 # A CSC (colPtr, rowVal, nzVal, (m,n)) is the same layout as CSR (rowPtr, colVal, nzVal, (n,m)).
 function Base.getindex(A::CuSparseMatrixCSC{Tv, Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv, Ti}
+    @boundscheck checkbounds(A, Imask, Jmask)
     A_as_csr = CuSparseMatrixCSR{Tv, Ti}(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
     result_csr = A_as_csr[Jmask, Imask]
     return CuSparseMatrixCSC{Tv, Ti}(result_csr.rowPtr, result_csr.colVal, result_csr.nzVal, reverse(size(result_csr)))

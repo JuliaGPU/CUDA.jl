@@ -364,5 +364,98 @@ nB = 2
         CUDA.@allowscalar for i in eachindex(S_cpu, S_csr)
             @test S_cpu[i] ≈ S_csr[i]
         end
+
+        # wrong mask size: throws BoundsError for both too-long and too-short, matching the behaviour of dense Array.
+        @test_throws BoundsError A_csc[CuVector(trues(m + 1)), colmask_d]
+        @test_throws BoundsError A_csc[rowmask_d, CuVector(trues(n + 1))]
+        @test_throws BoundsError A_csc[CuVector(trues(m - 1)), colmask_d]
+        @test_throws BoundsError A_csc[rowmask_d, CuVector(trues(n - 1))]
+        @test_throws BoundsError A_csr[CuVector(trues(m + 1)), colmask_d]
+        @test_throws BoundsError A_csr[rowmask_d, CuVector(trues(n + 1))]
+        @test_throws BoundsError A_csr[CuVector(trues(m - 1)), colmask_d]
+        @test_throws BoundsError A_csr[rowmask_d, CuVector(trues(n - 1))]
+
+        # empty mask (all zeros): cumsum gives all-zero rowmap/colmap, new_m or new_n = 0,
+        # both kernels are guarded by `new_m > 0 && new_n > 0`, so nothing executes.
+        # new_rowPtr collapses to [1] (or all-ones), nnz = 0. Same as CPU SparseArrays.
+        S_empty_rows_csc = A_csc[CuVector(falses(m)), CuVector(trues(n))]
+        @test S_empty_rows_csc isa CuSparseMatrixCSC
+        @test size(S_empty_rows_csc) == (0, n)
+        @test nnz(S_empty_rows_csc) == 0
+
+        S_empty_cols_csc = A_csc[CuVector(trues(m)), CuVector(falses(n))]
+        @test S_empty_cols_csc isa CuSparseMatrixCSC
+        @test size(S_empty_cols_csc) == (m, 0)
+        @test nnz(S_empty_cols_csc) == 0
+
+        S_empty_rows_csr = A_csr[CuVector(falses(m)), CuVector(trues(n))]
+        @test S_empty_rows_csr isa CuSparseMatrixCSR
+        @test size(S_empty_rows_csr) == (0, n)
+        @test nnz(S_empty_rows_csr) == 0
+
+        S_empty_cols_csr = A_csr[CuVector(trues(m)), CuVector(falses(n))]
+        @test S_empty_cols_csr isa CuSparseMatrixCSR
+        @test size(S_empty_cols_csr) == (m, 0)
+        @test nnz(S_empty_cols_csr) == 0
+
+        S_empty_both_csc = A_csc[CuVector(falses(m)), CuVector(falses(n))]
+        @test S_empty_both_csc isa CuSparseMatrixCSC
+        @test size(S_empty_both_csc) == (0, 0)
+        @test nnz(S_empty_both_csc) == 0
+
+        S_empty_both_csr = A_csr[CuVector(falses(m)), CuVector(falses(n))]
+        @test S_empty_both_csr isa CuSparseMatrixCSR
+        @test size(S_empty_both_csr) == (0, 0)
+        @test nnz(S_empty_both_csr) == 0
+
+        # all-ones mask: rowmap = 1:m, colmap = 1:n, both kernels run unfiltered.
+        # Result should equal the full matrix. Same as CPU SparseArrays.
+        S_all_csc = A_csc[CuVector(trues(m)), CuVector(trues(n))]
+        @test S_all_csc isa CuSparseMatrixCSC
+        @test collect(S_all_csc) ≈ Matrix(A)
+
+        S_all_csr = A_csr[CuVector(trues(m)), CuVector(trues(n))]
+        @test S_all_csr isa CuSparseMatrixCSR
+        @allowscalar for i in eachindex(A, S_all_csr)
+            @test A[i] ≈ S_all_csr[i]
+        end
+
+        # zero-dimension matrix: accessing rowmap[end] / colmap[end] on an empty CuVector
+        # would crash without the `m > 0` / `n > 0` guard in the implementation.
+        A_zero_rows_csr = CuSparseMatrixCSR(spzeros(elty, 0, n))
+        S_zr = A_zero_rows_csr[CuVector{Bool}([]), CuVector(trues(n))]
+        @test S_zr isa CuSparseMatrixCSR
+        @test size(S_zr) == (0, n)
+        @test nnz(S_zr) == 0
+
+        A_zero_cols_csr = CuSparseMatrixCSR(spzeros(elty, m, 0))
+        S_zc = A_zero_cols_csr[CuVector(trues(m)), CuVector{Bool}([])]
+        @test S_zc isa CuSparseMatrixCSR
+        @test size(S_zc) == (m, 0)
+        @test nnz(S_zc) == 0
+
+        A_zero_both_csr = CuSparseMatrixCSR(spzeros(elty, 0, 0))
+        S_zb = A_zero_both_csr[CuVector{Bool}([]), CuVector{Bool}([])]
+        @test S_zb isa CuSparseMatrixCSR
+        @test size(S_zb) == (0, 0)
+        @test nnz(S_zb) == 0
+
+        A_zero_rows_csc = CuSparseMatrixCSC(spzeros(elty, 0, n))
+        S_zr_csc = A_zero_rows_csc[CuVector{Bool}([]), CuVector(trues(n))]
+        @test S_zr_csc isa CuSparseMatrixCSC
+        @test size(S_zr_csc) == (0, n)
+        @test nnz(S_zr_csc) == 0
+
+        A_zero_cols_csc = CuSparseMatrixCSC(spzeros(elty, m, 0))
+        S_zc_csc = A_zero_cols_csc[CuVector(trues(m)), CuVector{Bool}([])]
+        @test S_zc_csc isa CuSparseMatrixCSC
+        @test size(S_zc_csc) == (m, 0)
+        @test nnz(S_zc_csc) == 0
+
+        A_zero_both_csc = CuSparseMatrixCSC(spzeros(elty, 0, 0))
+        S_zb_csc = A_zero_both_csc[CuVector{Bool}([]), CuVector{Bool}([])]
+        @test S_zb_csc isa CuSparseMatrixCSC
+        @test size(S_zb_csc) == (0, 0)
+        @test nnz(S_zb_csc) == 0
     end
 end
