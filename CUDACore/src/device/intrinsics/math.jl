@@ -398,6 +398,8 @@ end
 @device_override FastMath.div_fast(x::Float64, y::Float64) = x * FastMath.inv_fast(y)
 
 @device_override Base.inv(x::Float32) = ccall("extern __nv_frcp_rn", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.inv(x::Float64) = ccall("extern __nv_drcp_rn", llvmcall, Cdouble, (Cdouble,), x)
+
 @device_override FastMath.inv_fast(x::Float32) = ccall("llvm.nvvm.rcp.approx.ftz.f", llvmcall, Float32, (Float32,), x)
 @device_override function FastMath.inv_fast(x::Float64)
     # Get the approximate reciprocal
