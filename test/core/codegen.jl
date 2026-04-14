@@ -205,6 +205,29 @@ end
     @test occursin("sqrt.approx.ftz", asm)
 end
 
+@testset "fma/muladd emit fma.rn" begin
+    # fma and muladd should both lower to fma.rn in PTX
+    function fma_kernel(a, b, c)
+        @inbounds a[] = fma(b[], c[], a[])
+        return
+    end
+    function muladd_kernel(a, b, c)
+        @inbounds a[] = muladd(b[], c[], a[])
+        return
+    end
+
+    for T in (Float16, Float32, Float64)
+        asm = sprint(io->CUDA.code_ptx(io, fma_kernel,
+            NTuple{3,CuDeviceArray{T,1,AS.Global}}))
+        @test occursin("fma.rn", asm)
+        @test !occursin("__nv_fma", asm)
+
+        asm = sprint(io->CUDA.code_ptx(io, muladd_kernel,
+            NTuple{3,CuDeviceArray{T,1,AS.Global}}))
+        @test occursin("fma.rn", asm)
+    end
+end
+
 end
 
 ############################################################################################
