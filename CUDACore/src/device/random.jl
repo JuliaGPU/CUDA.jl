@@ -93,6 +93,9 @@ end
 
 @device_override @inline Random.default_rng() = Philox2x32()
 
+# default to Float32 on GPU (matches CUDA convention, avoids expensive FP64)
+@device_override @inline Random.rand(rng::AbstractRNG) = Random.rand(rng, Float32)
+
 """
     Random.seed!(rng::Philox2x32, seed::Integer, [counter::Integer=0])
 
@@ -201,7 +204,7 @@ function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
     end
 end
 
-for var in [:ki, :wi, :fi, :ke, :we, :fe]
+for var in [:ke, :we, :fe]
     val = getfield(Random, var)
     gpu_var = Symbol("gpu_$var")
     arr_typ = :(CuDeviceArray{$(eltype(val)),$(ndims(val)),AS.Constant})
@@ -211,38 +214,27 @@ for var in [:ki, :wi, :fi, :ke, :we, :fe]
     end
 end
 
-## randn
+## randn — Box-Muller transform
+#
+# Uses @fastmath log + sincospi instead of Ziggurat to avoid warp divergence
+# from rejection sampling. Produces a pair but only returns one value; the
+# second is discarded (the branchless execution more than compensates).
 
-@device_override function Random.randn(rng::AbstractRNG)
-    while true
-        r = Random.rand(rng, Random.UInt52Raw()) % UInt64
-        @inbounds begin
-            r &= 0x000fffffffffffff
-            rabs = Int64(r>>1) # One bit for the sign
-            idx = rabs & 0xFF
-            x = ifelse(r % Bool, -rabs, rabs)*gpu_wi()[idx+1]
-            rabs < gpu_ki()[idx+1] && return x # 99.3% of the time we return here 1st try
-            result = randn_unlikely(rng, idx, rabs, x)
-            result !== nothing && return result
-        end
-    end
+using Base: FastMath
+
+## randn — Box-Muller transform
+#
+# Uses @fastmath log + sincospi instead of Ziggurat to avoid warp divergence
+# from rejection sampling.
+
+@device_override @inline function Random.randn(rng::AbstractRNG, ::Type{T}) where T <: AbstractFloat
+    U1 = max(Random.rand(rng, T), floatmin(T))  # avoid log(0)
+    U2 = Random.rand(rng, T)
+    sqrt(T(-2) * FastMath.log_fast(U1)) * first(sincospi(T(2) * U2))
 end
 
-# this unlikely branch is put in a separate function for better efficiency
-@noinline function randn_unlikely(rng, idx, rabs, x)
-    @inbounds if idx == 0
-        while true
-            xx = -Random.ziggurat_nor_inv_r*log(Random.rand(rng))
-            yy = -log(Random.rand(rng))
-            yy+yy > xx*xx &&
-                return (rabs >> 8) % Bool ? -Random.ziggurat_nor_r-xx : Random.ziggurat_nor_r+xx
-        end
-    elseif (gpu_fi()[idx] - gpu_fi()[idx+1])*Random.rand(rng) + gpu_fi()[idx+1] < exp(-0.5*x*x)
-        return x # return from the triangular area
-    else
-        return # retry
-    end
-end
+# untyped randn() defaults to Float32 on GPU
+@device_override @inline Random.randn(rng::AbstractRNG) = Random.randn(rng, Float32)
 
 ## randexp
 
