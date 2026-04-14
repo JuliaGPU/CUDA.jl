@@ -89,8 +89,13 @@ end
     fma(Float32(u), Float32(2)^(-32), Float32(2)^(-33))
 end
 
+# Pre-computed constants to avoid Float64 ^ calls that don't constant-fold on the GPU
+const F64_2P_NEG64 = Float64(2)^(-64)
+const F64_2P_NEG65 = Float64(2)^(-65)
+const F64_2P_NEG66 = Float64(2)^(-66)
+
 @inline function u01(::Type{Float64}, u::UInt64)
-    fma(Float64(u), Float64(2)^(-64), Float64(2)^(-65))
+    fma(Float64(u), F64_2P_NEG64, F64_2P_NEG65)
 end
 
 
@@ -128,11 +133,11 @@ const LOG_EVEN_F64  = (3.999999999940941908e-01, 2.222219843214978396e-01,
                        1.531383769920937332e-01)
 
 @inline function fast_log(::Type{Float64}, u::UInt64)
-    x = fma(Float64(u), Float64(2)^(-64), Float64(2)^(-65))
+    x = fma(Float64(u), F64_2P_NEG64, F64_2P_NEG65)
     ix = reinterpret(Int64, x) - SQRT_HALF_I64
     k = ix >> Int64(52)
     f_std = reinterpret(Float64, (ix & Int64(0x000fffffffffffff)) + SQRT_HALF_I64) - 1.0
-    f_comp = -fma(Float64(~u), Float64(2)^(-64), Float64(2)^(-65))
+    f_comp = -fma(Float64(~u), F64_2P_NEG64, F64_2P_NEG65)
     f = ifelse(k == Int64(0), f_comp, f_std)
     s = f / (2.0 + f)
     z = s * s; w = z * z
@@ -174,7 +179,7 @@ const COSPI_F64 = (1.0, -4.934802200544605, 4.0587121263978485,
 
 @inline function fast_sincospi(::Type{Float64}, u::UInt64)
     oct = (u % Int32) & Int32(7)
-    y = fma(Float64(u & ~UInt64(7)), Float64(2)^(-66), Float64(2)^(-64))
+    y = fma(Float64(u & ~UInt64(7)), F64_2P_NEG66, F64_2P_NEG64)
     sp = y * evalpoly(y * y, SINPI_F64)
     cp = evalpoly(y * y, COSPI_F64)
     swap    = !iszero(oct & Int32(1))
