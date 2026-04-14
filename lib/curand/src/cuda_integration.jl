@@ -3,29 +3,19 @@
 using CUDACore: AnyCuArray, CuArray, CuContext, active_state
 
 
-## native RNG handle cache
-
-function native_rng_ctor(ctx)
-    context!(ctx) do
-        NativeRNG()
-    end
-end
-function native_rng_dtor(ctx, rng) end
-const idle_native_rngs = HandleCache{CuContext,NativeRNG}(native_rng_ctor, native_rng_dtor)
+## native RNG (stateless GPUArrays.RNG, no GPU resources to cache)
 
 function native_rng()
     cuda = active_state()
 
-    LibraryState = @NamedTuple{rng::NativeRNG}
+    LibraryState = @NamedTuple{rng::GPUArrays.RNG}
     states = get!(task_local_storage(), :cuRAND_NativeRNG) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
 
     @noinline function new_state(cuda)
-        new_rng = pop!(idle_native_rngs, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_native_rngs, cuda.context, new_rng)
-        end
+        new_rng = GPUArrays.RNG()
+        Random.seed!(new_rng)
         (; rng=new_rng)
     end
     state = get!(states, cuda.context) do
