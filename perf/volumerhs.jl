@@ -37,28 +37,6 @@ for (jlf, f) in zip((:+, :*, :-), (:add, :mul, :sub))
     end
 end
 
-let (jlf, f) = (:div_arcp, :div)
-    for (T, llvmT) in ((:Float32, "float"), (:Float64, "double"))
-        ir = """
-            %x = f$f fast $llvmT %0, %1
-            ret $llvmT %x
-        """
-        @eval begin
-            # the @pure is necessary so that we can constant propagate.
-            @inline Base.@pure function $jlf(a::$T, b::$T)
-                Base.llvmcall($ir, $T, Tuple{$T, $T}, a, b)
-            end
-        end
-    end
-    @eval function $jlf(args...)
-        Base.$jlf(args...)
-    end
-end
-rcp(x) = div_arcp(one(x), x) # still leads to rcp.rn which is also a function call
-
-# div_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_fdividef", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-# rcp(x) = div_fast(one(x), x)
-
 # note the order of the fields below is also assumed in the code.
 const _nstate = 5
 const _ρ, _U, _V, _W, _E = 1:_nstate
@@ -130,8 +108,8 @@ function volumerhs!(rhs, Q, vgeo, gravity, D, nelem)
             # GPU performance trick
             # Allow optimizations to use the reciprocal of an argument rather than perform division.
             # IEEE floating-point division is implemented as a function call
-            ρinv = rcp(ρ)
-            ρ2inv = rcp(2ρ)
+            ρinv = inv(ρ)
+            ρ2inv = inv(2ρ)
             # ρ2inv = 0.5f0 * pinv
 
             P = gdm1*(E - (U^2 + V^2 + W^2)*ρ2inv - ρ*gravity*z)
