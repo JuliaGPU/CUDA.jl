@@ -275,7 +275,7 @@ end
 end
 @device_override Base.:(^)(x::Float64, y::Int32) = ccall("extern __nv_powi", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_override Base.:(^)(x::Float32, y::Int32) = ccall("extern __nv_powif", llvmcall, Cfloat, (Cfloat, Int32), x, y)
-@device_override @inline function Base.:(^)(x::Float32, y::Int64)
+@device_override @assume_effects :foldable @inline function Base.:(^)(x::Float32, y::Int64)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
@@ -283,7 +283,7 @@ end
     y == 3 && return x*x*x
     x ^ Float32(y)
 end
-@device_override @inline function Base.:(^)(x::Float64, y::Int64)
+@device_override @assume_effects :foldable @inline function Base.:(^)(x::Float64, y::Int64)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
