@@ -153,6 +153,69 @@ using SpecialFunctions
         @assert !contains(asm, "__nv")  # from libdevice
     end
 
+    @testset "inv" begin
+        # Base.inv should use accurate rcp instructions (rcp.rn)
+        for T in (Float32, Float64)
+            @test testf(x -> inv.(x), rand(T, 10) .+ T(0.1))
+            @test testf(x -> inv.(x), T[0.1, 0.5, 1.0, 2.0, 10.0, 100.0])
+        end
+
+        function kernel_inv_f32(a)
+            @inbounds a[] = inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_f32, NTuple{1, CuDeviceArray{Float32, 1, AS.Global}}))
+        @test contains(asm, "rcp.rn.f32")
+
+        function kernel_inv_f64(a)
+            @inbounds a[] = inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_f64, NTuple{1, CuDeviceArray{Float64, 1, AS.Global}}))
+        @test contains(asm, "rcp.rn.f64")
+    end
+
+    @testset "inv_fast" begin
+        # inv_fast(Float32) uses rcp.approx.ftz.f32 (~14 bits of mantissa)
+        function kernel_inv_fast_f32(a)
+            @inbounds a[] = @fastmath inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_fast_f32, NTuple{1, CuDeviceArray{Float32, 1, AS.Global}}))
+        @test contains(asm, "rcp.approx.ftz.f32")
+
+        xs32 = Float32[0.1, 0.5, 1.0, 2.0, 10.0, 100.0]
+        gpu_inv_fast_f32 = Array(map(x -> @fastmath inv(x), cu(xs32)))
+        @test gpu_inv_fast_f32 ≈ inv.(xs32) rtol = 1.0f-4
+
+        # inv_fast(Float64) uses rcp.approx.ftz.f64 refined with Newton-Raphson
+        function kernel_inv_fast_f64(a)
+            @inbounds a[] = @fastmath inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_fast_f64, NTuple{1, CuDeviceArray{Float64, 1, AS.Global}}))
+        @test contains(asm, "rcp.approx.ftz.f64")
+
+        xs64 = Float64[0.1, 0.5, 1.0, 2.0, 10.0, 100.0]
+        gpu_inv_fast_f64 = Array(map(x -> @fastmath inv(x), cu(xs64)))
+        @test gpu_inv_fast_f64 ≈ inv.(xs64) rtol = 1.0e-10
+    end
+
+    @testset "div_fast Float64" begin
+        # FastMath.div_fast(Float64) uses fast reciprocal: x * inv_fast(y)
+        function kernel_div_fast_f64(a, b, c)
+            @inbounds c[] = @fastmath a[] / b[]
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_div_fast_f64, NTuple{3, CuDeviceArray{Float64, 1, AS.Global}}))
+        @test contains(asm, "rcp.approx.ftz.f64")
+
+        xs = rand(Float64, 10) .+ 0.1
+        ys = rand(Float64, 10) .+ 0.1
+        gpu_div = Array(map((x, y) -> @fastmath x / y, CuArray(xs), CuArray(ys)))
+        @test gpu_div ≈ xs ./ ys rtol = 1.0e-10
+    end
+
     @testset "JuliaGPU/CUDA.jl#2111: min/max should return NaN" begin
         for T in [Float32, Float64]
             AT = CuArray{T}
