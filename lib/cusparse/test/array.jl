@@ -216,6 +216,12 @@
             @test d_coo[2, 2] == 0
             @test d_coo[1, 2] == 0
         end
+        let d_vec = CuSparseVector{Int}(CuArray(Int32[3, 1, 3]), CuArray([10, 7, -4]), 4)
+            @test d_vec[1] == 7
+            @test d_vec[3] == 6
+            @test d_vec[2] == 0
+            @test d_vec[4] == 0
+        end
         # Bool duplicates combine via OR, not integer sum.
         let d_bool = CuSparseMatrixCSR(
                 CuArray(Int32[1, 3, 3]),

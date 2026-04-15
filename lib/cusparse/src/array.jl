@@ -462,9 +462,11 @@ Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse
 
 function Base.getindex(A::CuSparseVector{Tv, Ti}, i::Integer) where {Tv, Ti}
     @boundscheck checkbounds(A, i)
-    ii = searchsortedfirst(A.iPtr, convert(Ti, i))
-    (ii > nnz(A) || A.iPtr[ii] != i) && return zero(Tv)
-    A.nzVal[ii]
+    result = zero(Tv)
+    for k in 1:nnz(A)
+        A.iPtr[k] == i && (result = sum_duplicate(result, A.nzVal[k]))
+    end
+    return result
 end
 
 # Scalar getindex methods linear-scan the minor axis rather than binary-searching
