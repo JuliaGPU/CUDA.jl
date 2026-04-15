@@ -126,14 +126,9 @@ else
         Random.seed!(Random.default_rng(), seed)
 end
 
-"""
-    Random.rand(rng::Philox2x32, UInt32)
-
-Generate a byte of random data using the on-device Tausworthe generator.
-"""
-function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
-    ctr1, ctr2, key = rng.ctr1, rng.ctr2, rng.key
-
+# R rounds of Philox2x32, unrolled at compile time
+@inline function philox2x_rounds(::Val{R}, ctr1::UInt32, ctr2::UInt32,
+                                  key::UInt32) where R
     if R > 0                               ctr1, ctr2 = philox2x_round(ctr1, ctr2, key); end
     if R > 1  key = philox2x_bumpkey(key); ctr1, ctr2 = philox2x_round(ctr1, ctr2, key); end
     if R > 2  key = philox2x_bumpkey(key); ctr1, ctr2 = philox2x_round(ctr1, ctr2, key); end
@@ -150,6 +145,16 @@ function Random.rand(rng::Philox2x32{R},::Type{UInt64}) where {R}
     if R > 13 key = philox2x_bumpkey(key); ctr1, ctr2 = philox2x_round(ctr1, ctr2, key); end
     if R > 14 key = philox2x_bumpkey(key); ctr1, ctr2 = philox2x_round(ctr1, ctr2, key); end
     if R > 15 key = philox2x_bumpkey(key); ctr1, ctr2 = philox2x_round(ctr1, ctr2, key); end
+    ctr1, ctr2
+end
+
+"""
+    Random.rand(rng::Philox2x32, UInt64)
+
+Generate 64 bits of random data using the on-device Philox2x32 generator.
+"""
+function Random.rand(rng::Philox2x32{R}, ::Type{UInt64}) where {R}
+    ctr1, ctr2 = philox2x_rounds(Val(R), rng.ctr1, rng.ctr2, rng.key)
 
     # update the warp counter
     # NOTE: this performs the same update on every thread in the warp, but each warp writes
@@ -214,19 +219,110 @@ for var in [:ke, :we, :fe]
     end
 end
 
-## randn — Box-Muller transform
+## Box-Muller helpers
 #
-# Uses @fastmath log + sincospi instead of Ziggurat to avoid warp divergence
-# from rejection sampling. Produces a pair but only returns one value; the
-# second is discarded (the branchless execution more than compensates).
+# Vendored from GPUArrays.jl, which uses them in its host-side Philox4x32-10
+# batched randn kernel. Keep constants in sync when upstream tunes them.
 
 using Base: FastMath
 
+# unsigned int → uniform float in (0, 1), strictly positive
+
+@inline u01(::Type{Float32}, u::UInt32) =
+    fma(Float32(u), Float32(2)^(-32), Float32(2)^(-33))
+
+# Bit-pattern construction avoids Float64(::UInt64) + FMA on consumer GPUs
+# (FP64 throughput as low as 1:64). Low mantissa bit set so result ∈ (0, 1) —
+# Box-Muller needs log(u) ≠ -Inf.
+@inline u01(::Type{Float64}, u::UInt64) =
+    reinterpret(Float64, ((u >> 12) | 0x1) | 0x3ff0000000000000) - 1.0
+
+# Polynomial sincospi(Float32): branchless, stays in Float32 (Base.sincospi
+# widens internally). Bottom 3 bits of u pick an octant (swap/negate); top
+# 29 bits give the reduced argument (+0.5-biased so y ≠ 0).
+
+const SP_F32 = (3.1415927f0, -5.167708f0, 2.5497673f0, -0.58907866f0)
+const CP_F32 = (1.0f0, -4.934788f0, 4.057578f0, -1.3061346f0)
+
+@inline function fast_sincospi(::Type{Float32}, u::UInt32)
+    oct = (u % Int32) & Int32(7)
+    y = fma(Float32(u & ~UInt32(7)), Float32(2)^(-34), Float32(2)^(-32))
+    sp = y * evalpoly(y * y, SP_F32)
+    cp = evalpoly(y * y, CP_F32)
+    swap    = !iszero(oct & Int32(1))
+    sin_neg = !iszero(oct & Int32(2))
+    cos_neg = !iszero(oct & Int32(4))
+    s_raw = ifelse(swap, cp, sp)
+    c_raw = ifelse(swap, sp, cp)
+    (ifelse(sin_neg, -s_raw, s_raw), ifelse(cos_neg, -c_raw, c_raw))
+end
+
+# Polynomial log(Float32), fdlibm-based. Consumes the raw UInt32 output; u01
+# is folded into the first FMA so there's no intermediate float.
+
+const SQRT_HALF_I32 = reinterpret(Int32, Float32(sqrt(0.5)))
+const LOG_ODD_F32   = (reinterpret(Float32, Int32(0x3f2aaaaa)),
+                       reinterpret(Float32, Int32(0x3e91e9ee)))
+const LOG_EVEN_F32  = (reinterpret(Float32, Int32(0x3eccce13)),
+                       reinterpret(Float32, Int32(0x3e789e26)))
+
+@inline function fast_log(::Type{Float32}, u::UInt32)
+    x = fma(Float32(u), Float32(2)^(-32), Float32(2)^(-33))
+    ix = reinterpret(Int32, x) - SQRT_HALF_I32
+    k = ix >> Int32(23)
+    f_std = reinterpret(Float32, (ix & Int32(0x007fffff)) + SQRT_HALF_I32) - 1.0f0
+    f_comp = -fma(Float32(~u), Float32(2)^(-32), Float32(2)^(-33))
+    f = ifelse(k == Int32(0), f_comp, f_std)
+    s = f / (2.0f0 + f)
+    z = s * s; w = z * z
+    R = z * evalpoly(w, LOG_ODD_F32) + w * evalpoly(w, LOG_EVEN_F32)
+    hfsq = 0.5f0 * f * f
+    Float32(k) * reinterpret(Float32, Int32(0x3f317180)) -
+        ((hfsq - (s * (hfsq + R) +
+          Float32(k) * reinterpret(Float32, Int32(0x3717f7d1)))) - f)
+end
+
+# Box-Muller: pair of uniforms → pair of standard normals
+
+@inline function boxmuller(::Type{T}, u1::UInt32, u2::UInt32) where T <: Union{Float16,Float32}
+    r = sqrt(-2f0 * fast_log(Float32, u2))
+    s, c = fast_sincospi(Float32, u1)
+    (T(r * s), T(r * c))
+end
+
+@inline function boxmuller(::Type{Float64}, u1::Float64, u2::Float64)
+    r = sqrt(-2.0 * FastMath.log_fast(u1))
+    s, c = sincospi(2 * u2)
+    (r * s, r * c)
+end
+
+
 ## randn — Box-Muller transform
 #
-# Uses @fastmath log + sincospi instead of Ziggurat to avoid warp divergence
-# from rejection sampling.
+# Uses Box-Muller instead of Ziggurat: rejection sampling would warp-diverge,
+# and the Ziggurat tables aren't device-accessible.
 
+# Specialization for Philox2x32: one Philox call produces exactly the pair of
+# UInt32s Box-Muller needs, halving the Philox work vs the generic path.
+@device_override @inline function Random.randn(rng::Philox2x32{R},
+                                                ::Type{T}) where {R, T <: Union{Float16,Float32}}
+    ctr1, ctr2 = philox2x_rounds(Val(R), rng.ctr1, rng.ctr2, rng.key)
+    rng.ctr1 += 1i32
+    n, _ = boxmuller(T, ctr1, ctr2)
+    n
+end
+
+# Float64 fundamentally needs 64 bits of entropy per uniform, so 2 Philox
+# calls. The u01 bit-trick avoids the expensive Float64(::UInt64) conversion.
+@device_override @inline function Random.randn(rng::Philox2x32{R},
+                                                ::Type{Float64}) where R
+    u1 = u01(Float64, Random.rand(rng, UInt64))
+    u2 = u01(Float64, Random.rand(rng, UInt64))
+    n, _ = boxmuller(Float64, u1, u2)
+    n
+end
+
+# Generic fallback for user-defined AbstractFloat types.
 @device_override @inline function Random.randn(rng::AbstractRNG, ::Type{T}) where T <: AbstractFloat
     U1 = max(Random.rand(rng, T), floatmin(T))  # avoid log(0)
     U2 = Random.rand(rng, T)
