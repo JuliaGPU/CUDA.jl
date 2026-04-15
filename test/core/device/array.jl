@@ -146,6 +146,24 @@ end
     @test array == Array(array_dev)
 end
 
+@testset "reshape of view" begin
+    function kernel(out, data, n)
+        i = threadIdx().x
+        if i <= n * n
+            mat = reshape(@view(data[1:n*n]), (n, n))
+            out[i] = mat[i]
+        end
+        return
+    end
+
+    n = 4
+    data = CuArray(Float32.(1:n*n))
+    out = CUDA.zeros(Float32, n * n)
+
+    @cuda threads=n*n kernel(out, data, n)
+    @test Array(out) == Float32.(1:n*n)
+end
+
 @testset "non-Int index to unsafe_load" begin
     function kernel(a)
         a[UInt64(1)] = 1

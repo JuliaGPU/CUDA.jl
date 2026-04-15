@@ -103,3 +103,7 @@ for op in (:(<), :(<=), :cmp)
         @device_override Base.$op(q::Rational, x::AbstractFloat) = $op(float(q), x)
     end
 end
+
+# reshape.jl
+@device_override Base._throw_dmrs(n, str, dims) =
+    @gputhrow "DimensionMismatch" "Dimensions mismatch when reshaping. New dimensions must be consistent with array size"
