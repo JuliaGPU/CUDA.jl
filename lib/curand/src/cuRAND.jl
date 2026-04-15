@@ -19,7 +19,7 @@ end
 @public functional
 @public rand, randn, seed!
 @public rand_logn, rand_logn!, rand_poisson, rand_poisson!
-@public LibraryRNG, NativeRNG, native_rng
+@public LibraryRNG, NativeRNG, library_rng, native_rng
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -54,9 +54,9 @@ function handle_dtor(ctx, handle)
         # TODO: early free?
     end
 end
-const idle_curand_rngs = HandleCache{CuContext,LibraryRNG}(handle_ctor, handle_dtor)
+const idle_library_rngs = HandleCache{CuContext,LibraryRNG}(handle_ctor, handle_dtor)
 
-function default_rng()
+function library_rng()
     cuda = CUDACore.active_state()
 
     # every task maintains library state per device
@@ -67,9 +67,9 @@ function default_rng()
 
     # get library state
     @noinline function new_state(cuda)
-        new_rng = pop!(idle_curand_rngs, cuda.context)
+        new_rng = pop!(idle_library_rngs, cuda.context)
         finalizer(current_task()) do task
-            push!(idle_curand_rngs, cuda.context, new_rng)
+            push!(idle_library_rngs, cuda.context, new_rng)
         end
 
         Random.seed!(new_rng)

@@ -39,22 +39,20 @@ end
 
 ## cuRAND.rand / cuRAND.randn / cuRAND.seed! — high-level API
 
-curand_rng() = default_rng()
-
 # The implicit default for CuArray dispatch is the GPUArrays RNG (stateless
 # Philox4x32-10 batched kernels). NativeRNG and LibraryRNG are available
-# explicitly via native_rng() and curand_rng() for perf comparison / RNGTest.
+# explicitly via native_rng() and library_rng() for perf comparison / RNGTest.
 function seed!(seed=Base.rand(UInt64))
     Random.seed!(GPUArrays.default_rng(CuArray), seed)
     Random.seed!(native_rng(), seed)
-    Random.seed!(curand_rng(), seed)
+    Random.seed!(library_rng(), seed)
 end
 
 # cuRAND in-place (convenience without explicit RNG, for the types cuRAND supports)
-Random.rand!(A::UniformArray) = Random.rand!(curand_rng(), A)
-Random.randn!(A::NormalArray; kwargs...) = Random.randn!(curand_rng(), A; kwargs...)
-rand_logn!(A::LognormalArray; kwargs...) = rand_logn!(curand_rng(), A; kwargs...)
-rand_poisson!(A::PoissonArray; kwargs...) = rand_poisson!(curand_rng(), A; kwargs...)
+Random.rand!(A::UniformArray) = Random.rand!(library_rng(), A)
+Random.randn!(A::NormalArray; kwargs...) = Random.randn!(library_rng(), A; kwargs...)
+rand_logn!(A::LognormalArray; kwargs...) = rand_logn!(library_rng(), A; kwargs...)
+rand_poisson!(A::PoissonArray; kwargs...) = rand_poisson!(library_rng(), A; kwargs...)
 
 # GPUArrays RNG fallback for types not supported by cuRAND
 Random.rand!(A::AnyCuArray) = Random.rand!(GPUArrays.default_rng(CuArray), A)
@@ -65,12 +63,12 @@ rand_poisson!(A::AnyCuArray; kwargs...) =
     error("cuRAND does not support generating Poisson-distributed random numbers of type $(eltype(A))")
 
 # cuRAND out-of-place
-rand(T::UniformType, dims::Dims) = Random.rand(curand_rng(), T, dims)
-randn(T::NormalType, dims::Dims; kwargs...) = Random.randn(curand_rng(), T, dims; kwargs...)
+rand(T::UniformType, dims::Dims) = Random.rand(library_rng(), T, dims)
+randn(T::NormalType, dims::Dims; kwargs...) = Random.randn(library_rng(), T, dims; kwargs...)
 rand(T::UniformType, dim1::Integer, dims::Integer...) =
-    Random.rand(curand_rng(), T, Dims((dim1, dims...)))
+    Random.rand(library_rng(), T, Dims((dim1, dims...)))
 randn(T::NormalType, dim1::Integer, dims::Integer...; kwargs...) =
-    Random.randn(curand_rng(), T, Dims((dim1, dims...)); kwargs...)
+    Random.randn(library_rng(), T, Dims((dim1, dims...)); kwargs...)
 
 # GPUArrays out-of-place (fallback for types not supported by cuRAND)
 rand(T::Type, dims::Dims) = Random.rand!(CuArray{T}(undef, dims...))
@@ -82,24 +80,24 @@ randn(T::Type, dim1::Integer, dims::Integer...; kwargs...) =
 
 # untyped out-of-place (defaults to cuRAND Float32)
 rand(dim1::Integer, dims::Integer...) =
-    Random.rand(curand_rng(), Dims((dim1, dims...)))
+    Random.rand(library_rng(), Dims((dim1, dims...)))
 randn(dim1::Integer, dims::Integer...; kwargs...) =
-    Random.randn(curand_rng(), Dims((dim1, dims...)); kwargs...)
+    Random.randn(library_rng(), Dims((dim1, dims...)); kwargs...)
 
 # out-of-place logn/poisson
-rand_logn(T::LognormalType, dims::Dims; kwargs...) = rand_logn(curand_rng(), T, dims; kwargs...)
-rand_poisson(T::PoissonType, dims::Dims; kwargs...) = rand_poisson(curand_rng(), T, dims; kwargs...)
+rand_logn(T::LognormalType, dims::Dims; kwargs...) = rand_logn(library_rng(), T, dims; kwargs...)
+rand_poisson(T::PoissonType, dims::Dims; kwargs...) = rand_poisson(library_rng(), T, dims; kwargs...)
 rand_logn(T::LognormalType, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_logn(curand_rng(), T, Dims((dim1, dims...)); kwargs...)
+    rand_logn(library_rng(), T, Dims((dim1, dims...)); kwargs...)
 rand_poisson(T::PoissonType, dim1::Integer, dims::Integer...; kwargs...) =
-    rand_poisson(curand_rng(), T, Dims((dim1, dims...)); kwargs...)
+    rand_poisson(library_rng(), T, Dims((dim1, dims...)); kwargs...)
 rand_logn(dim1::Integer, dims::Integer...; kwargs...) =
-    rand_logn(curand_rng(), Dims((dim1, dims...)); kwargs...)
+    rand_logn(library_rng(), Dims((dim1, dims...)); kwargs...)
 rand_poisson(dim1::Integer, dims::Integer...; kwargs...) =
-    rand_poisson(curand_rng(), Dims((dim1, dims...)); kwargs...)
+    rand_poisson(library_rng(), Dims((dim1, dims...)); kwargs...)
 
 # scalars
 rand(T::Type=Float32) = rand(T, 1)[]
 randn(T::Type=Float32; kwargs...) = randn(T, 1; kwargs...)[]
-rand_logn(T::Type=Float32; kwargs...) = rand_logn(curand_rng(), T, 1; kwargs...)[]
-rand_poisson(T::Type=Cuint; kwargs...) = rand_poisson(curand_rng(), T, 1; kwargs...)[]
+rand_logn(T::Type=Float32; kwargs...) = rand_logn(library_rng(), T, 1; kwargs...)[]
+rand_poisson(T::Type=Cuint; kwargs...) = rand_poisson(library_rng(), T, 1; kwargs...)[]
