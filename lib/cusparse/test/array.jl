@@ -127,6 +127,25 @@
             @test Array(d_x[i, :]) == x[i, :]
         end
     end
+    # scalar getindex at every (i, j) — regression test for #3100,
+    # where COO column search crossed into the next row's entries
+    let dense = sparse(reshape(1:16, 4, 4)),
+        d_dense = CuSparseMatrixCOO(dense)
+        CUDACore.@allowscalar begin
+            for j in 1:4, i in 1:4
+                @test d_dense[i, j] == dense[i, j]
+            end
+        end
+    end
+    # sparse case with empty rows and missing entries
+    let s = sparse([1, 1, 3, 4], [1, 3, 2, 4], [10, 20, 30, 40], 4, 4),
+        d_s = CuSparseMatrixCOO(s)
+        CUDACore.@allowscalar begin
+            for j in 1:4, i in 1:4
+                @test d_s[i, j] == s[i, j]
+            end
+        end
+    end
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCOO(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
