@@ -249,7 +249,7 @@ end
 @device_override Base.:(^)(x::Float32, y::Float32) = ccall("extern __nv_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override FastMath.pow_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 # pow_fast: Base methods call llvm.powi which NVPTX cannot lower (#3065)
-@device_override @inline function FastMath.pow_fast(x::Float64, y::Int32)
+@device_override @inline function FastMath.pow_fast(x::Float64, y::Integer)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
@@ -257,7 +257,7 @@ end
     y == 3 && return x*x*x
     x ^ y  # no fast variant for Float64; uses __nv_powi
 end
-@device_override @inline function FastMath.pow_fast(x::Float32, y::Int32)
+@device_override @inline function FastMath.pow_fast(x::Float32, y::Integer)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
@@ -265,7 +265,7 @@ end
     y == 3 && return x*x*x
     FastMath.pow_fast(x, Float32(y))  # uses __nv_fast_powf
 end
-@device_override @inline function FastMath.pow_fast(x::Float16, y::Int32)
+@device_override @inline function FastMath.pow_fast(x::Float16, y::Integer)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
