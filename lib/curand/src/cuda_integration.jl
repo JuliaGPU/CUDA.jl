@@ -39,20 +39,18 @@ end
 
 ## default RNG: task-local cached GPUArrays.RNG{CuArray} (the fast Philox4x32-10
 ## batched-kernel RNG). Used by Random.rand!/randn!(::AnyCuArray) when no rng
-## is supplied, and exposed via CUDA.RNG / CUDA.default_rng().
+## is supplied, and exposed via CUDA.RNG / CUDA.gpuarrays_rng().
 
-const DefaultRNG = GPUArrays.RNG{CuArray}
-
-function default_rng()
+function gpuarrays_rng()
     cuda = active_state()
 
-    LibraryState = @NamedTuple{rng::DefaultRNG}
+    LibraryState = @NamedTuple{rng::GPUArrays.RNG{CuArray}}
     states = get!(task_local_storage(), :cuRAND_DefaultRNG) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
 
     @noinline function new_state(cuda)
-        new_rng = DefaultRNG()
+        new_rng = GPUArrays.RNG{CuArray}()
         Random.seed!(new_rng)
         (; rng=new_rng)
     end
@@ -67,7 +65,7 @@ end
 ## cuRAND.rand / cuRAND.randn / cuRAND.seed! — high-level API
 
 function seed!(seed=Base.rand(UInt64))
-    Random.seed!(default_rng(), seed)
+    Random.seed!(gpuarrays_rng(), seed)
     Random.seed!(native_rng(), seed)
     Random.seed!(library_rng(), seed)
 end
@@ -79,8 +77,8 @@ rand_logn!(A::LognormalArray; kwargs...) = rand_logn!(library_rng(), A; kwargs..
 rand_poisson!(A::PoissonArray; kwargs...) = rand_poisson!(library_rng(), A; kwargs...)
 
 # GPUArrays RNG fallback for types not supported by cuRAND
-Random.rand!(A::AnyCuArray) = Random.rand!(default_rng(), A)
-Random.randn!(A::AnyCuArray) = Random.randn!(default_rng(), A)
+Random.rand!(A::AnyCuArray) = Random.rand!(gpuarrays_rng(), A)
+Random.randn!(A::AnyCuArray) = Random.randn!(gpuarrays_rng(), A)
 rand_logn!(A::AnyCuArray; kwargs...) =
     error("cuRAND does not support generating lognormally-distributed random numbers of type $(eltype(A))")
 rand_poisson!(A::AnyCuArray; kwargs...) =
