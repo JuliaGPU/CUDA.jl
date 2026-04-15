@@ -2,7 +2,7 @@
 
 @public fma, rsqrt, saturate, byte_perm, assume
 
-using Base: FastMath
+using Base: FastMath, @assume_effects
 
 
 ## helpers
@@ -248,9 +248,34 @@ end
 @device_override Base.:(^)(x::Float64, y::Float64) = ccall("extern __nv_pow", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.:(^)(x::Float32, y::Float32) = ccall("extern __nv_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override FastMath.pow_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+# pow_fast: Base methods call llvm.powi which NVPTX cannot lower (#3065)
+@device_override @assume_effects :foldable @inline function FastMath.pow_fast(x::Float64, y::Integer)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    x ^ y  # no fast variant for Float64; uses __nv_powi
+end
+@device_override @assume_effects :foldable @inline function FastMath.pow_fast(x::Float32, y::Integer)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    FastMath.pow_fast(x, Float32(y))  # uses __nv_fast_powf
+end
+@device_override @assume_effects :foldable @inline function FastMath.pow_fast(x::Float16, y::Integer)
+    y == -1 && return inv(x)
+    y == 0 && return one(x)
+    y == 1 && return x
+    y == 2 && return x*x
+    y == 3 && return x*x*x
+    Float16(FastMath.pow_fast(Float32(x), Float32(y)))
+end
 @device_override Base.:(^)(x::Float64, y::Int32) = ccall("extern __nv_powi", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_override Base.:(^)(x::Float32, y::Int32) = ccall("extern __nv_powif", llvmcall, Cfloat, (Cfloat, Int32), x, y)
-@device_override @inline function Base.:(^)(x::Float32, y::Int64)
+@device_override @assume_effects :foldable @inline function Base.:(^)(x::Float32, y::Int64)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
@@ -258,7 +283,7 @@ end
     y == 3 && return x*x*x
     x ^ Float32(y)
 end
-@device_override @inline function Base.:(^)(x::Float64, y::Int64)
+@device_override @assume_effects :foldable @inline function Base.:(^)(x::Float64, y::Int64)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
@@ -395,9 +420,26 @@ end
 @device_override Base.rem(x::Float16, y::Float16, ::RoundingMode{:Nearest}) = Float16(rem(Float32(x), Float32(y), RoundNearest))
 
 @device_override FastMath.div_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_fdividef", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override FastMath.div_fast(x::Float64, y::Float64) = x * FastMath.inv_fast(y)
 
 @device_override Base.inv(x::Float32) = ccall("extern __nv_frcp_rn", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.inv_fast(x::Union{Float32, Float64}) = @fastmath one(x) / x
+@device_override Base.inv(x::Float64) = ccall("extern __nv_drcp_rn", llvmcall, Cdouble, (Cdouble,), x)
+
+@device_override FastMath.inv_fast(x::Float32) = ccall("llvm.nvvm.rcp.approx.ftz.f", llvmcall, Float32, (Float32,), x)
+@device_override function FastMath.inv_fast(x::Float64)
+    # Get the approximate reciprocal
+    # https://docs.nvidia.com/cuda/parallel-thread-execution/#floating-point-instructions-rcp-approx-ftz-f64
+    # This instruction chops off last 32bits of mantissa and computes inverse
+    # while treating all subnormal numbers as 0.0
+    # If reciprocal would be subnormal, underflows to 0.0
+    # 32 least significant bits of the result are filled with 0s
+    inv_x = ccall("llvm.nvvm.rcp.approx.ftz.d", llvmcall, Float64, (Float64,), x)
+
+    # Approximate the missing 32bits of mantissa with a single cubic iteration
+    e = fma(inv_x, -x, 1.0)
+    e = fma(e, e, e)
+    inv_x = fma(e, inv_x, inv_x)
+end
 
 ## distributions
 
@@ -418,9 +460,13 @@ end
 @device_override Base.hypot(x::Float64, y::Float64) = ccall("extern __nv_hypot", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.hypot(x::Float32, y::Float32) = ccall("extern __nv_hypotf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
-@device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("extern __nv_fma", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("extern __nv_fmaf", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("llvm.fma.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+@device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("llvm.fma.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
 @device_override Base.fma(x::Float16, y::Float16, z::Float16) = ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+
+@device_override Base.muladd(x::Float64, y::Float64, z::Float64) = ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+@device_override Base.muladd(x::Float32, y::Float32, z::Float32) = ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.muladd(x::Float16, y::Float16, z::Float16) = ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
 @device_function sad(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_sad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
 @device_function sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, ccall("extern __nv_usad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z))

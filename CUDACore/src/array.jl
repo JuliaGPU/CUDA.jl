@@ -75,7 +75,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
   data::DataRef{Managed{M}}
 
   maxsize::Int  # maximum data size; excluding any selector bytes
-  offset::Int   # offset of the data in memory, in number of elements
+  offset::Int   # offset of the data in memory, in bytes
 
   dims::Dims{N}
 
@@ -463,9 +463,9 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 # defer the conversion to Managed, where we handle memory consistency
 # XXX: conversion to Memory or Managed memory by cconvert?
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::CuArray{T}) where {T} =
-  convert(typ, x.data[]) + x.offset * Base.elsize(x)
+  convert(typ, x.data[]) + x.offset
 Base.unsafe_convert(typ::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
-  convert(typ, x.data[]) + x.offset * Base.elsize(x)
+  convert(typ, x.data[]) + x.offset
 
 
 ## indexing
@@ -485,7 +485,7 @@ end
 
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
   CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, pointer(a)), size(a),
-                               a.maxsize - a.offset*Base.elsize(a))
+                               a.maxsize - a.offset)
 end
 
 
@@ -534,7 +534,10 @@ function typetagdata(a::CuArray, i=1; type=DeviceMemory)
   else
     error("unknown memory type")
   end
-  convert(PT, a.data[]) + a.maxsize + a.offset + i - 1
+  # for zero-size element types (e.g. singleton unions), the byte offset
+  # is always zero, so the corresponding element offset is also zero
+  elem_offset = iszero(Base.elsize(a)) ? 0 : a.offset ÷ Base.elsize(a)
+  convert(PT, a.data[]) + a.maxsize + elem_offset + i - 1
 end
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
@@ -851,7 +854,7 @@ end
 ## derived arrays
 
 function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
-  offset = (a.offset * Base.elsize(a)) ÷ aligned_sizeof(T) + offset
+  offset = a.offset + offset * aligned_sizeof(T)
   CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
 end
 

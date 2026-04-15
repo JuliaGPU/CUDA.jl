@@ -85,6 +85,13 @@ using SpecialFunctions
         end
     end
 
+    @testset "muladd" begin
+        for T in (Float16, Float32, Float64)
+            @test testf((x,y,z)->muladd.(x,y,z), rand(T, 1), rand(T, 1), rand(T, 1))
+            @test testf((x,y,z)->muladd.(x,y,z), rand(T, 1), -rand(T, 1), -rand(T, 1))
+        end
+    end
+
     # something from SpecialFunctions.jl
     @testset "erf" begin
         @test testf(a->SpecialFunctions.erf.(a), Float32[1.0])
@@ -112,6 +119,20 @@ using SpecialFunctions
         # JuliaGPU/CUDA.jl#2886: LLVM below v18 emits non-existing min.NaN.f64/max.NaN.f64
         f(a, b) = @fastmath max(a, b)
         @test Array(map(f, CuArray([1.0, 2.0]), CuArray([4.0, 3.0]))) == [4.0, 3.0]
+
+        # JuliaGPU/CUDA.jl#3065: pow_fast with integer exponent used unsupported llvm.powi
+        function fastpow_kernel(A, y)
+            i = threadIdx().x
+            @inbounds @fastmath A[i] = A[i]^y
+            return nothing
+        end
+        for T in (Float32, Float64)
+            A = CUDA.ones(T, 4)
+            @cuda threads=4 fastpow_kernel(A, Int32(3))
+            @test Array(A) == ones(T, 4)
+            @cuda threads=4 fastpow_kernel(A, 3)
+            @test Array(A) == ones(T, 4)
+        end
     end
 
     @testset "byte_perm" begin
@@ -151,6 +172,68 @@ using SpecialFunctions
         @assert contains(asm, "sin.approx.f32")
         @assert contains(asm, "cos.approx.f32")
         @assert !contains(asm, "__nv")  # from libdevice
+    end
+
+    @testset "inv" begin
+        # Base.inv should use accurate rcp instructions (rcp.rn)
+        for T in (Float32, Float64)
+            @test testf(x -> inv.(x), rand(T, 10) .+ T(0.1))
+            @test testf(x -> inv.(x), T[0.1, 0.5, 1.0, 2.0, 10.0, 100.0])
+        end
+
+        function kernel_inv_f32(a)
+            @inbounds a[] = inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_f32, NTuple{1, CuDeviceArray{Float32, 1, AS.Global}}))
+        @test contains(asm, "rcp.rn.f32")
+
+        function kernel_inv_f64(a)
+            @inbounds a[] = inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_f64, NTuple{1, CuDeviceArray{Float64, 1, AS.Global}}))
+        @test contains(asm, "rcp.rn.f64")
+    end
+
+    @testset "inv_fast" begin
+        # inv_fast(Float32) uses rcp.approx.ftz.f32 (~14 bits of mantissa)
+        function kernel_inv_fast_f32(a)
+            @inbounds a[] = @fastmath inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_fast_f32, NTuple{1, CuDeviceArray{Float32, 1, AS.Global}}))
+        @test contains(asm, "rcp.approx.ftz.f32")
+
+        fast_inv(x) = @fastmath inv(x)
+        xs32 = Float32[0.1, 0.5, 1.0, 2.0, 10.0, 100.0]
+        @test Array(map(fast_inv, cu(xs32))) ≈ inv.(xs32) rtol = 1.0f-4
+
+        # inv_fast(Float64) uses rcp.approx.ftz.f64 refined with Newton-Raphson
+        function kernel_inv_fast_f64(a)
+            @inbounds a[] = @fastmath inv(a[])
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_fast_f64, NTuple{1, CuDeviceArray{Float64, 1, AS.Global}}))
+        @test contains(asm, "rcp.approx.ftz.f64")
+
+        xs64 = Float64[0.1, 0.5, 1.0, 2.0, 10.0, 100.0]
+        @test Array(map(fast_inv, CuArray(xs64))) ≈ inv.(xs64) rtol = 1.0e-10
+    end
+
+    @testset "div_fast Float64" begin
+        # FastMath.div_fast(Float64) uses fast reciprocal: x * inv_fast(y)
+        function kernel_div_fast_f64(a, b, c)
+            @inbounds c[] = @fastmath a[] / b[]
+            return
+        end
+        asm = sprint(io -> CUDA.code_ptx(io, kernel_div_fast_f64, NTuple{3, CuDeviceArray{Float64, 1, AS.Global}}))
+        @test contains(asm, "rcp.approx.ftz.f64")
+
+        fast_div(x, y) = @fastmath x / y
+        xs = rand(Float64, 10) .+ 0.1
+        ys = rand(Float64, 10) .+ 0.1
+        @test Array(map(fast_div, CuArray(xs), CuArray(ys))) ≈ xs ./ ys rtol = 1.0e-10
     end
 
     @testset "JuliaGPU/CUDA.jl#2111: min/max should return NaN" begin

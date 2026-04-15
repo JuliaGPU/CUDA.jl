@@ -289,17 +289,17 @@ Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixC
 Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
 Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixCOO(CUDACore.zeros(Int32, 0), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
 
-Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M) 
-Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M) 
-Base.similar(Mat::CuSparseMatrixCOO{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M) 
+Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
+Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
+Base.similar(Mat::CuSparseMatrixCOO{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
 
-Base.similar(Mat::CuSparseMatrixCSC, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...) 
-Base.similar(Mat::CuSparseMatrixCSR, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...) 
-Base.similar(Mat::CuSparseMatrixCOO, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...) 
+Base.similar(Mat::CuSparseMatrixCSC, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
+Base.similar(Mat::CuSparseMatrixCSR, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
+Base.similar(Mat::CuSparseMatrixCOO, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 
-Base.similar(Mat::CuSparseMatrixCSC, dims::Tuple{Int, Int}) = similar(Mat, dims...) 
-Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims...) 
-Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...) 
+Base.similar(Mat::CuSparseMatrixCSC, dims::Tuple{Int, Int}) = similar(Mat, dims...)
+Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims...)
+Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 
 Base.similar(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
 
@@ -521,6 +521,94 @@ function Base.getindex(A::CuSparseArrayCSR{Tv, Ti, N}, i0::Integer, i1::Integer,
     CuSparseMatrixCSR(A.rowPtr[:,idxs...], A.colVal[:,idxs...], nonzeros(A)[:,idxs...], size(A)[1:2])[i0, i1]
 end
 
+# slice matrix by masking rows and columns
+
+function Base.getindex(A::CuSparseMatrixCSR{Tv, Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv, Ti}
+    @boundscheck checkbounds(A, Imask, Jmask)
+
+    m, n = size(A)
+    rowmap = cumsum(Ti.(Imask))
+    colmap = cumsum(Ti.(Jmask))
+    new_m = m > 0 ? Int(CUDACore.@allowscalar rowmap[end]) : 0
+    new_n = n > 0 ? Int(CUDACore.@allowscalar colmap[end]) : 0
+
+    # pass 1: count kept entries per new row
+    counts = CUDACore.zeros(Ti, new_m)
+    if new_m > 0 && new_n > 0
+        threads = min(256, m)
+        blocks = cld(m, threads)
+        @cuda threads = threads blocks = blocks _csr_count_kernel!(counts, A.rowPtr, A.colVal, Imask, Jmask, rowmap)
+    end
+
+    # build new rowPtr from counts: [1, 1+cumsum(counts)...]
+    new_rowPtr = vcat(CuVector{Ti}([one(Ti)]), cumsum(counts) .+ one(Ti))
+    new_nnz = Int(CUDACore.@allowscalar new_rowPtr[end]) - 1
+
+    # pass 2: fill entries
+    new_colVal = CuVector{Ti}(undef, new_nnz)
+    new_nzVal = CuVector{Tv}(undef, new_nnz)
+    if new_nnz > 0
+        threads = min(256, m)
+        blocks = cld(m, threads)
+        @cuda threads = threads blocks = blocks _csr_fill_kernel!(
+            new_colVal, new_nzVal, new_rowPtr, A.rowPtr, A.colVal, A.nzVal,
+            Imask, Jmask, rowmap, colmap
+        )
+    end
+
+    return CuSparseMatrixCSR{Tv, Ti}(new_rowPtr, new_colVal, new_nzVal, (new_m, new_n))
+end
+
+# CSR: one thread per original row — count entries where column is selected
+function _csr_count_kernel!(counts, rowPtr, colVal, Imask, Jmask, rowmap)
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    i > length(Imask) && return nothing
+    @inbounds begin
+        Imask[i] || return nothing
+        new_i = rowmap[i]
+        c = zero(eltype(counts))
+        for j in rowPtr[i]:(rowPtr[i + 1] - one(eltype(rowPtr)))
+            if Jmask[colVal[j]]
+                c += one(eltype(counts))
+            end
+        end
+        counts[new_i] = c
+    end
+    return nothing
+end
+
+# CSR: one thread per original row — fill entries with remapped column indices
+function _csr_fill_kernel!(
+        new_colVal, new_nzVal, new_rowPtr, rowPtr, colVal, nzVal,
+        Imask, Jmask, rowmap, colmap
+    )
+    i = threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x
+    i > length(Imask) && return nothing
+    @inbounds begin
+        Imask[i] || return nothing
+        offset = new_rowPtr[rowmap[i]]
+        for j in rowPtr[i]:(rowPtr[i + 1] - one(eltype(rowPtr)))
+            col = colVal[j]
+            if Jmask[col]
+                new_colVal[offset] = colmap[col]
+                new_nzVal[offset] = nzVal[j]
+                offset += one(eltype(new_rowPtr))
+            end
+        end
+    end
+    return nothing
+end
+
+# CSC: reinterpret as transposed CSR, index with swapped masks, reinterpret back.
+# A CSC (colPtr, rowVal, nzVal, (m,n)) is the same layout as CSR (rowPtr, colVal, nzVal, (n,m)).
+function Base.getindex(A::CuSparseMatrixCSC{Tv, Ti}, Imask::CuVector{Bool}, Jmask::CuVector{Bool}) where {Tv, Ti}
+    @boundscheck checkbounds(A, Imask, Jmask)
+    A_as_csr = CuSparseMatrixCSR{Tv, Ti}(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
+    result_csr = A_as_csr[Jmask, Imask]
+    return CuSparseMatrixCSC{Tv, Ti}(result_csr.rowPtr, result_csr.colVal, result_csr.nzVal, reverse(size(result_csr)))
+end
+
+
 ## interop with sparse CPU arrays
 
 # cpu to gpu
@@ -581,16 +669,32 @@ SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMat
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixBSR) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion (gpu_BSR -> gpu_CSR -> gpu_CSC -> cpu_CSC)
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_COO -> gpu_CSC -> cpu_CSC)
 
+# GPU array adaptor
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseVector) = CuSparseVector(xs)
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs)
-Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
-Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
+## preserve type parameters
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
+Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::SparseVector) where {T, N} = CuSparseVector{T}(xs)
+Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::SparseMatrixCSC) where {T, N} = CuSparseMatrixCSC{T}(xs)
+Adapt.adapt_storage(::Type{<:CuArray{T, N, M}}, xs::SparseVector) where {T, N, M} =
+  CuSparseVector(CuArray{Cint, 1, M}(xs.nzind), CuArray{T, 1, M}(xs.nzval), length(xs))
+Adapt.adapt_storage(::Type{<:CuArray{T, N, M}}, xs::SparseMatrixCSC) where {T, N, M} =
+  CuSparseMatrixCSC{T}(CuArray{Cint, 1, M}(xs.colptr), CuArray{Cint, 1, M}(xs.rowval),
+                       CuArray{T, 1, M}(xs.nzval), size(xs))
 
-Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor, xs::AbstractSparseArray) =
-  adapt(CuArray, xs)
-Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
-  adapt(CuArray{Float32}, xs)
+# opinionated adaptor
+Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor{M}, xs::AbstractSparseArray{Tv}) where {M, Tv} =
+  adapt(CuArray{Tv, 1, M}, xs)
+Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor{M}, xs::AbstractSparseArray{<:AbstractFloat}) where {M} =
+  adapt(CuArray{Float32, 1, M}, xs)
+Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor{M}, xs::AbstractSparseArray{<:Complex{<:AbstractFloat}}) where {M} =
+  adapt(CuArray{ComplexF32, 1, M}, xs)
+## not for Float16
+Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor{M}, xs::AbstractSparseArray{Tv}) where {M, Tv<:Union{Float16, CUDACore.BFloat16}} =
+  adapt(CuArray{Tv, 1, M}, xs)
 
+# CPU array adaptor
 Adapt.adapt_storage(::Type{Array}, xs::CuSparseVector) = SparseVector(xs)
 Adapt.adapt_storage(::Type{Array}, xs::CuSparseMatrixCSC) = SparseMatrixCSC(xs)
 

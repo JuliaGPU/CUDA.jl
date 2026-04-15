@@ -121,11 +121,11 @@ Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix})
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A.data)
-    return Eigen(syevd!('V', 'U', A2)...)
+    return Eigen(Xsyevd!('V', 'U', A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasComplex}
     A2 = copy(A.data)
-    return Eigen(heevd!('V', 'U', A2)...)
+    return Eigen(Xsyevd!('V', 'U', A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasReal}
     return eigen(Symmetric(A))
@@ -134,7 +134,7 @@ end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
     if issymmetric(A)
-        return Eigen(syevd!('V', 'U', A2)...)
+        return Eigen(Xsyevd!('V', 'U', A2)...)
     else
         W, _, VR = Xgeev!('N', 'V', A2)
         C = Complex{T}
@@ -157,7 +157,7 @@ end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
     if ishermitian(A)
-        return Eigen(heevd!('V', 'U', A2)...)
+        return Eigen(Xsyevd!('V', 'U', A2)...)
     else
         r = Xgeev!('N', 'V', A2)
         return Eigen(r[1], r[3])
@@ -168,11 +168,11 @@ end
 
 function LinearAlgebra.eigvals(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
     A2 = copy(A.data)
-    return syevd!('N', 'U', A2)
+    return Xsyevd!('N', 'U', A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
     A2 = copy(A.data)
-    return heevd!('N', 'U', A2)
+    return Xsyevd!('N', 'U', A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
     return eigvals(Symmetric(A))
@@ -181,7 +181,7 @@ end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
     A2 = copy(A)
     if issymmetric(A)
-        return syevd!('N', 'U', A2)
+        return Xsyevd!('N', 'U', A2)
     else
         return Xgeev!('N', 'N', A2)[1]
     end
@@ -189,7 +189,7 @@ end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
     A2 = copy(A)
     if ishermitian(A)
-        return heevd!('N', 'U', A2)
+        return Xsyevd!('N', 'U', A2)
     else
         return Xgeev!('N', 'N', A2)[1]
     end
