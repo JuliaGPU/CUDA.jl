@@ -489,13 +489,15 @@ end
 
 function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where T
     @boundscheck checkbounds(A, i0, i1)
+    # cuSPARSE only guarantees COO is sorted by row, not by column within
+    # each row, so binary-search the row range but linear-scan for the column.
     r1 = searchsortedfirst(A.rowInd, i0, Base.Order.Forward)
     (r1 > length(A.rowInd) || A.rowInd[r1] > i0) && return zero(T)
     r2 = searchsortedlast(A.rowInd, i0, Base.Order.Forward)
-    (r1 > r2) && return zero(T)
-    c1 = searchsortedfirst(A.colInd, i1, r1, r2, Base.Order.Forward)
-    (c1 > r2 || A.colInd[c1] != i1) && return zero(T)
-    nonzeros(A)[c1]
+    for k in r1:r2
+        A.colInd[k] == i1 && return nonzeros(A)[k]
+    end
+    return zero(T)
 end
 
 function Base.getindex(A::CuSparseMatrixBSR{T}, i0::Integer, i1::Integer) where T
