@@ -159,6 +159,33 @@
             end
         end
     end
+    # CSR with unsorted column indices within each row — can arise from
+    # SpGEMM and other operations, so getindex must not binary-search.
+    let dense = sparse(reshape(1:16, 4, 4)),
+        d_scrambled = CuSparseMatrixCSR(
+            CuArray(Int32[1, 5, 9, 13, 17]),
+            CuArray(Int32[4,2,1,3, 2,4,3,1, 3,1,4,2, 1,4,2,3]),
+            CuArray([13,5,1,9, 6,14,10,2, 11,3,15,7, 4,16,8,12]),
+            (4, 4))
+        CUDACore.@allowscalar begin
+            for j in axes(dense, 2), i in axes(dense, 1)
+                @test d_scrambled[i, j] == dense[i, j]
+            end
+        end
+    end
+    # CSC with unsorted row indices within each column
+    let dense = sparse(reshape(1:16, 4, 4)),
+        d_scrambled = CuSparseMatrixCSC(
+            CuArray(Int32[1, 5, 9, 13, 17]),
+            CuArray(Int32[4,2,1,3, 2,4,3,1, 3,1,4,2, 1,4,2,3]),
+            CuArray([4,2,1,3, 6,8,7,5, 11,9,12,10, 13,16,14,15]),
+            (4, 4))
+        CUDACore.@allowscalar begin
+            for j in axes(dense, 2), i in axes(dense, 1)
+                @test d_scrambled[i, j] == dense[i, j]
+            end
+        end
+    end
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCOO(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
