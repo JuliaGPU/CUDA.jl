@@ -46,7 +46,7 @@ end
 Random.seed!(rng::NativeRNG) = Random.seed!(rng, native_make_seed())
 
 # Grid-stride kernel that fills A by calling `f(device_rng, T)` for each slot.
-@inline function _native_fill!(f::F, A::AbstractArray{T}, seed::UInt32,
+@inline function native_fill!(f::F, A::AbstractArray{T}, seed::UInt32,
                                 counter::UInt32) where {F, T}
     device_rng = Random.default_rng()
     @inbounds Random.seed!(device_rng, seed, counter)
@@ -63,7 +63,7 @@ Random.seed!(rng::NativeRNG) = Random.seed!(rng, native_make_seed())
     return
 end
 
-function _native_advance!(rng::NativeRNG, n::Integer)
+function native_advance!(rng::NativeRNG, n::Integer)
     new_counter = Int64(rng.counter) + n
     overflow, remainder = fldmod(new_counter, typemax(UInt32))
     rng.seed += overflow
@@ -74,12 +74,12 @@ end
 function Random.rand!(rng::NativeRNG, A::AnyCuArray)
     isempty(A) && return A
     function kernel(A, seed, counter)
-        _native_fill!(Random.rand, A, seed, counter)
+        native_fill!(Random.rand, A, seed, counter)
     end
     threads = 32
     blocks = cld(length(A), threads)
     @cuda threads=threads blocks=blocks name="rand!" kernel(A, rng.seed, rng.counter)
-    _native_advance!(rng, length(A))
+    native_advance!(rng, length(A))
     A
 end
 
@@ -87,12 +87,12 @@ function Random.randn!(rng::NativeRNG, A::AnyCuArray{<:Union{AbstractFloat,
                                                               Complex{<:AbstractFloat}}})
     isempty(A) && return A
     function kernel(A, seed, counter)
-        _native_fill!(Random.randn, A, seed, counter)
+        native_fill!(Random.randn, A, seed, counter)
     end
     threads = 32
     blocks = cld(length(A), threads)
     @cuda threads=threads blocks=blocks name="randn!" kernel(A, rng.seed, rng.counter)
-    _native_advance!(rng, length(A))
+    native_advance!(rng, length(A))
     A
 end
 
