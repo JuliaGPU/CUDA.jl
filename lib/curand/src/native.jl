@@ -11,6 +11,13 @@ using CUDACore: AnyCuArray, CuArray
 A random number generator that launches a CUDA kernel which calls the
 device-side `rand()`/`randn()` on CUDACore's Philox2x32 generator.
 
+!!! warning
+    This RNG exists for testing, RNGTest statistical validation, and perf
+    comparison against alternative designs (cuRAND library, GPUArrays.RNG,
+    PhiloxRNG.jl). For production use prefer [`CUDA.RNG`](@ref), which
+    wraps the batched-kernel Philox4x32-10 RNG from GPUArrays and is several
+    times faster for bulk `rand!`/`randn!` calls.
+
 See also: `CUDACore.Philox2x32`, `CUDA.RNG`.
 """
 mutable struct NativeRNG <: Random.AbstractRNG
