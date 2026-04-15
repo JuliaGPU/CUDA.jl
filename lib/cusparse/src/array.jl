@@ -491,9 +491,10 @@ function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where 
     @boundscheck checkbounds(A, i0, i1)
     r1 = searchsortedfirst(A.rowInd, i0, Base.Order.Forward)
     (r1 > length(A.rowInd) || A.rowInd[r1] > i0) && return zero(T)
-    r2 = min(searchsortedfirst(A.rowInd, i0+1, Base.Order.Forward), length(A.rowInd))
+    r2 = searchsortedlast(A.rowInd, i0, Base.Order.Forward)
+    (r1 > r2) && return zero(T)
     c1 = searchsortedfirst(A.colInd, i1, r1, r2, Base.Order.Forward)
-    (c1 > r2 || c1 == length(A.colInd) + 1 || A.colInd[c1] > i1) && return zero(T)
+    (c1 > r2 || A.colInd[c1] != i1) && return zero(T)
     nonzeros(A)[c1]
 end
 
