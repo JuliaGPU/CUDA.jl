@@ -7,7 +7,7 @@ using CUDACore: unsafe_free!, retry_reclaim, initialize_context
 
 using CEnum: @cenum
 
-using Reexport: @reexport
+using Republic
 
 if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
