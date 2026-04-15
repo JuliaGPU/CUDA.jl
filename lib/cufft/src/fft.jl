@@ -399,7 +399,6 @@ function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) whe
             if (did_skip_y)
                 circshift!((@view y[:]), -to_skip_y)
             end
-            n=1
             for c in ci                
                 batch_start_x = sum(batch_strides_x .* (Tuple(c) .- 1)) + 1 + extra_x_index
                 batch_start_y = sum(batch_strides_y .* (Tuple(c) .- 1)) + 1 + extra_y_index
