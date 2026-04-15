@@ -50,12 +50,12 @@ end
 
 @testset "CUDA.jl_PR_Bug: 1 get_batch_dims for 5D+" begin
     # see https://github.com/JuliaGPU/CUDA.jl/pull/3052#issuecomment-4213439988
-    @test size(fft(CUDA.rand(ComplexF32, 3, 5, 7, 11, 2), (2, 4))) == (3,5,7,11,2)
+    @test size(fft(CUDACore.rand(ComplexF32, 3, 5, 7, 11, 2), (2, 4))) == (3,5,7,11,2)
 end
 
 @testset "CUDA.jl_PR_Bug 2: check rfft with external batch stride > 1" begin
     # see https://github.com/JuliaGPU/CUDA.jl/pull/3052#issuecomment-4213439988
-    x = CUDA.rand(Float32, 5, 3, 7, 4); xh = Array(x);
+    x = CUDACore.rand(Float32, 5, 3, 7, 4); xh = Array(x);
     xc = copy(x)
     y = rfft(x, (1, 3));
     @test x == xc
@@ -64,5 +64,5 @@ end
 
 @testset "CUDA.jl_PR_Bug 3: ArgumentError for replicate directions" begin
     # see https://github.com/JuliaGPU/CUDA.jl/pull/3052#issuecomment-4213439988
-    @test_throws ArgumentError plan_fft!(CUDA.rand(ComplexF32, 4, 4, 4), (1, 2, 1)) 
+    @test_throws ArgumentError plan_fft!(CUDACore.rand(ComplexF32, 4, 4, 4), (1, 2, 1)) 
 end
