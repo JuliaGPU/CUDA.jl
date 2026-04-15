@@ -85,6 +85,13 @@ using SpecialFunctions
         end
     end
 
+    @testset "muladd" begin
+        for T in (Float16, Float32, Float64)
+            @test testf((x,y,z)->muladd.(x,y,z), rand(T, 1), rand(T, 1), rand(T, 1))
+            @test testf((x,y,z)->muladd.(x,y,z), rand(T, 1), -rand(T, 1), -rand(T, 1))
+        end
+    end
+
     # something from SpecialFunctions.jl
     @testset "erf" begin
         @test testf(a->SpecialFunctions.erf.(a), Float32[1.0])

@@ -22,6 +22,31 @@ end
     @test !occursin("@__nv_fmaf", ir)
 end
 
+@testset "fma uses LLVM intrinsic" begin
+    function fma_kernel(ptr)
+        unsafe_store!(ptr, fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+        return
+    end
+
+    for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
+        ir = sprint(io->CUDA.code_llvm(io, fma_kernel, Tuple{Ptr{T}}))
+        @test occursin("llvm.fma.$suffix", ir)
+        @test !occursin("__nv_fma", ir)
+    end
+end
+
+@testset "muladd uses LLVM intrinsic" begin
+    function muladd_kernel(ptr)
+        unsafe_store!(ptr, muladd(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+        return
+    end
+
+    for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
+        ir = sprint(io->CUDA.code_llvm(io, muladd_kernel, Tuple{Ptr{T}}))
+        @test occursin("llvm.fmuladd.$suffix", ir)
+    end
+end
+
 @testset "assume" begin
     foo(i) = cld(42, i)
     ir = sprint(io->CUDA.code_llvm(io, foo, Tuple{Int}))
@@ -178,6 +203,29 @@ end
 
     asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
     @test occursin("sqrt.approx.ftz", asm)
+end
+
+@testset "fma/muladd emit fma.rn" begin
+    # fma and muladd should both lower to fma.rn in PTX
+    function fma_kernel(a, b, c)
+        @inbounds a[] = fma(b[], c[], a[])
+        return
+    end
+    function muladd_kernel(a, b, c)
+        @inbounds a[] = muladd(b[], c[], a[])
+        return
+    end
+
+    for T in (Float16, Float32, Float64)
+        asm = sprint(io->CUDA.code_ptx(io, fma_kernel,
+            NTuple{3,CuDeviceArray{T,1,AS.Global}}))
+        @test occursin("fma.rn", asm)
+        @test !occursin("__nv_fma", asm)
+
+        asm = sprint(io->CUDA.code_ptx(io, muladd_kernel,
+            NTuple{3,CuDeviceArray{T,1,AS.Global}}))
+        @test occursin("fma.rn", asm)
+    end
 end
 
 end
