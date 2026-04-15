@@ -128,9 +128,15 @@
         end
     end
     # scalar getindex at every (i, j) — regression test for #3100,
-    # where COO column search crossed into the next row's entries
+    # where COO column search crossed into the next row's entries.
+    # Construct the COO directly from row-sorted arrays to avoid depending
+    # on whether a given CUDA version's CSC→CSR→COO path sorts by row.
     let dense = sparse(reshape(1:16, 4, 4)),
-        d_dense = CuSparseMatrixCOO(dense)
+        d_dense = CuSparseMatrixCOO(
+            CuArray(Int32[1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4]),
+            CuArray(Int32[1,2,3,4, 1,2,3,4, 1,2,3,4, 1,2,3,4]),
+            CuArray([1,5,9,13, 2,6,10,14, 3,7,11,15, 4,8,12,16]),
+            (4, 4))
         CUDACore.@allowscalar begin
             for j in axes(dense, 2), i in axes(dense, 1)
                 @test d_dense[i, j] == dense[i, j]
@@ -139,7 +145,11 @@
     end
     # sparse case with empty rows and missing entries
     let s = sparse([1, 1, 3, 4], [1, 3, 2, 4], [10, 20, 30, 40], 4, 4),
-        d_s = CuSparseMatrixCOO(s)
+        d_s = CuSparseMatrixCOO(
+            CuArray(Int32[1, 1, 3, 4]),
+            CuArray(Int32[1, 3, 2, 4]),
+            CuArray([10, 20, 30, 40]),
+            (4, 4))
         CUDACore.@allowscalar begin
             for j in axes(s, 2), i in axes(s, 1)
                 @test d_s[i, j] == s[i, j]
