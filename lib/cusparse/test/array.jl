@@ -132,7 +132,7 @@
     let dense = sparse(reshape(1:16, 4, 4)),
         d_dense = CuSparseMatrixCOO(dense)
         CUDACore.@allowscalar begin
-            for j in 1:4, i in 1:4
+            for j in axes(dense, 2), i in axes(dense, 1)
                 @test d_dense[i, j] == dense[i, j]
             end
         end
@@ -141,7 +141,7 @@
     let s = sparse([1, 1, 3, 4], [1, 3, 2, 4], [10, 20, 30, 40], 4, 4),
         d_s = CuSparseMatrixCOO(s)
         CUDACore.@allowscalar begin
-            for j in 1:4, i in 1:4
+            for j in axes(s, 2), i in axes(s, 1)
                 @test d_s[i, j] == s[i, j]
             end
         end
