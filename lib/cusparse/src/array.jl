@@ -467,28 +467,36 @@ function Base.getindex(A::CuSparseVector{Tv, Ti}, i::Integer) where {Tv, Ti}
     A.nzVal[ii]
 end
 
-# Scalar getindex methods linear-scan the minor axis rather than binary-searching.
-# cuSPARSE formats don't guarantee sorted indices within a major-axis slice
-# (e.g. SpGEMM output may leave CSR columns unsorted within a row, and COO is
-# only guaranteed row-sorted), so a binary search can miss valid entries.
+# Scalar getindex methods linear-scan the minor axis rather than binary-searching
+# and sum across matching entries. cuSPARSE formats don't guarantee sorted indices
+# within a major-axis slice (e.g. SpGEMM output may leave CSR columns unsorted
+# within a row, and COO is only guaranteed row-sorted), nor uniqueness — duplicate
+# (i, j) entries are permitted and their values sum, matching the convention of
+# Julia's `sparse()` constructor and SciPy/CuPy. For Bool we OR instead of sum,
+# also matching `sparse()`, since Bool + Bool doesn't stay Bool.
+sum_duplicate(a, b) = a + b
+sum_duplicate(a::Bool, b::Bool) = a | b
+
 function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
     @boundscheck checkbounds(A, i0, i1)
     r1 = Int(A.colPtr[i1])
     r2 = Int(A.colPtr[i1+1]-1)
+    result = zero(T)
     for k in r1:r2
-        rowvals(A)[k] == i0 && return nonzeros(A)[k]
+        rowvals(A)[k] == i0 && (result = sum_duplicate(result, nonzeros(A)[k]))
     end
-    return zero(T)
+    return result
 end
 
 function Base.getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where T
     @boundscheck checkbounds(A, i0, i1)
     c1 = Int(A.rowPtr[i0])
     c2 = Int(A.rowPtr[i0+1]-1)
+    result = zero(T)
     for k in c1:c2
-        A.colVal[k] == i1 && return nonzeros(A)[k]
+        A.colVal[k] == i1 && (result = sum_duplicate(result, nonzeros(A)[k]))
     end
-    return zero(T)
+    return result
 end
 
 function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where T
@@ -498,10 +506,11 @@ function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where 
     r1 = searchsortedfirst(A.rowInd, i0, Base.Order.Forward)
     (r1 > length(A.rowInd) || A.rowInd[r1] > i0) && return zero(T)
     r2 = searchsortedlast(A.rowInd, i0, Base.Order.Forward)
+    result = zero(T)
     for k in r1:r2
-        A.colInd[k] == i1 && return nonzeros(A)[k]
+        A.colInd[k] == i1 && (result = sum_duplicate(result, nonzeros(A)[k]))
     end
-    return zero(T)
+    return result
 end
 
 function Base.getindex(A::CuSparseMatrixBSR{T}, i0::Integer, i1::Integer) where T
@@ -511,10 +520,11 @@ function Base.getindex(A::CuSparseMatrixBSR{T}, i0::Integer, i1::Integer) where 
     block_idx = (i0_idx - 1) * A.blockDim + i1_idx - 1
     c1 = Int(A.rowPtr[i0_block])
     c2 = Int(A.rowPtr[i0_block+1]-1)
+    result = zero(T)
     for k in c1:c2
-        A.colVal[k] == i1_block && return nonzeros(A)[k+block_idx]
+        A.colVal[k] == i1_block && (result = sum_duplicate(result, nonzeros(A)[k+block_idx]))
     end
-    return zero(T)
+    return result
 end
 
 # matrix slices

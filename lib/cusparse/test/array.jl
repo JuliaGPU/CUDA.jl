@@ -186,6 +186,46 @@
             end
         end
     end
+    # Duplicate (i, j) entries sum, matching SciPy/CuPy and Julia's sparse().
+    # Each format stores three entries at (1, 1) whose values sum to 3.
+    CUDACore.@allowscalar begin
+        let d_csr = CuSparseMatrixCSR(
+                CuArray(Int32[1, 4, 4]),
+                CuArray(Int32[1, 1, 1]),
+                CuArray([10, -3, -4]),
+                (2, 2))
+            @test d_csr[1, 1] == 3
+            @test d_csr[2, 2] == 0
+            @test d_csr[1, 2] == 0
+        end
+        let d_csc = CuSparseMatrixCSC(
+                CuArray(Int32[1, 4, 4]),
+                CuArray(Int32[1, 1, 1]),
+                CuArray([10, -3, -4]),
+                (2, 2))
+            @test d_csc[1, 1] == 3
+            @test d_csc[2, 2] == 0
+            @test d_csc[2, 1] == 0
+        end
+        let d_coo = CuSparseMatrixCOO(
+                CuArray(Int32[1, 1, 1]),
+                CuArray(Int32[1, 1, 1]),
+                CuArray([10, -3, -4]),
+                (2, 2))
+            @test d_coo[1, 1] == 3
+            @test d_coo[2, 2] == 0
+            @test d_coo[1, 2] == 0
+        end
+        # Bool duplicates combine via OR, not integer sum.
+        let d_bool = CuSparseMatrixCSR(
+                CuArray(Int32[1, 3, 3]),
+                CuArray(Int32[1, 1]),
+                CuArray([true, true]),
+                (2, 2))
+            @test d_bool[1, 1] === true
+            @test d_bool[2, 2] === false
+        end
+    end
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCOO(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
