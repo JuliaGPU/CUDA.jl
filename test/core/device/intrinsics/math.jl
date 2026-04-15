@@ -119,6 +119,20 @@ using SpecialFunctions
         # JuliaGPU/CUDA.jl#2886: LLVM below v18 emits non-existing min.NaN.f64/max.NaN.f64
         f(a, b) = @fastmath max(a, b)
         @test Array(map(f, CuArray([1.0, 2.0]), CuArray([4.0, 3.0]))) == [4.0, 3.0]
+
+        # JuliaGPU/CUDA.jl#3065: pow_fast with integer exponent used unsupported llvm.powi
+        function fastpow_kernel(A, y)
+            i = threadIdx().x
+            @inbounds @fastmath A[i] = A[i]^y
+            return nothing
+        end
+        for T in (Float32, Float64)
+            A = CUDA.ones(T, 4)
+            @cuda threads=4 fastpow_kernel(A, Int32(3))
+            @test Array(A) == ones(T, 4)
+            @cuda threads=4 fastpow_kernel(A, 3)
+            @test Array(A) == ones(T, 4)
+        end
     end
 
     @testset "byte_perm" begin
