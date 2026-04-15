@@ -7,7 +7,7 @@ DocTestSetup = quote
     import Random
     Random.seed!(0)
 
-    CURAND.seed!(0)
+    cuRAND.seed!(0)
 end
 ```
 
@@ -18,13 +18,21 @@ use of the `CuArray` type. Since we expose CUDA's functionality by implementing 
 Julia interfaces on the `CuArray` type, you should refer to the [upstream Julia
 documentation](https://docs.julialang.org) for more information on these operations.
 
+More specific functionality, such as linear algebra or randon number generation,
+is defined in separate packages like cuBLAS.jl or cuRAND.jl, loosely matching
+the structure of the CUDA libraries. Importing the CUDA.jl package will also
+import these packages, so you can use most of their functionality without having
+to reach within. It is possible to opt out of this by only importing the relevant
+subpackages, alongside with the CUDACore.jl package providing the core functionality
+of CUDA.jl.
+
 If you encounter missing functionality, or are running into operations that trigger
 so-called ["scalar iteration"](@ref UsageWorkflowScalar), have a look at the [issue
 tracker](https://github.com/JuliaGPU/CUDA.jl/issues) and file a new issue if there's none.
 Do note that you can always access the underlying CUDA APIs by calling into the relevant
 submodule. For example, if parts of the Random interface isn't properly implemented by
-CUDA.jl, you can look at the CURAND documentation and possibly call methods from the
-`CURAND` submodule directly. These submodules are available after importing the CUDA
+CUDA.jl, you can look at the cuRAND documentation and possibly call methods from the
+`cuRAND` submodule directly. These submodules are available after importing the CUDA
 package.
 
 
@@ -237,7 +245,7 @@ Base's convenience functions for generating random numbers are available in the 
 as well:
 
 ```jldoctest
-julia> CUDA.rand(2)
+julia> cuRAND.rand(2)
 2-element CuArray{Float32, 1, CUDACore.DeviceMemory}:
  0.74021935
  0.9209938
@@ -249,30 +257,30 @@ julia> CUDA.randn(Float64, 2, 1)
 ```
 
 Behind the scenes, these random numbers come from two different generators: one backed by
-[CURAND](https://docs.nvidia.com/cuda/curand/index.html), another by kernels defined in
-CUDA.jl. Operations on these generators are implemented using methods from the Random
+[cuRAND](https://docs.nvidia.com/cuda/curand/index.html), another by kernels defined in
+GPUArrays.jl. Operations on these generators are implemented using methods from the Random
 standard library:
 
 ```jldoctest
 julia> using Random
 
-julia> a = Random.rand(CURAND.default_rng(), Float32, 1)
+julia> a = Random.rand(cuRAND.library_rng(), Float32, 1)
 1-element CuArray{Float32, 1, CUDACore.DeviceMemory}:
  0.74021935
 
-julia> a = Random.rand!(CUDA.default_rng(), a)
+julia> a = Random.rand!(cuRAND.gpuarrays_rng(), a)
 1-element CuArray{Float32, 1, CUDACore.DeviceMemory}:
- 0.46691537
+ 0.9722412
 ```
 
-CURAND also supports generating lognormal and Poisson-distributed numbers:
+cuRAND also supports generating lognormal and Poisson-distributed numbers:
 
 ```jldoctest
-julia> CUDA.rand_logn(Float32, 1, 5; mean=2, stddev=20)
+julia> cuRAND.rand_logn(Float32, 1, 5; mean=2, stddev=20)
 1×5 CuArray{Float32, 2, CUDACore.DeviceMemory}:
  2567.61  4.256f-6  54.5948  0.00283999  9.81175f22
 
-julia> CUDA.rand_poisson(UInt32, 1, 10; lambda=100)
+julia> cuRAND.rand_poisson(UInt32, 1, 10; lambda=100)
 1×10 CuArray{UInt32, 2, CUDACore.DeviceMemory}:
  0x00000058  0x00000066  0x00000061  …  0x0000006b  0x0000005f  0x00000069
 ```
@@ -282,14 +290,16 @@ Note that these custom operations are only supported on a subset of types.
 
 ## Linear algebra
 
-CUDA's linear algebra functionality from the [CUBLAS](https://developer.nvidia.com/cublas)
+CUDA's linear algebra functionality from the [cuBLAS](https://developer.nvidia.com/cublas)
 library is exposed by implementing methods in the LinearAlgebra standard library:
 
 ```julia
-julia> # enable logging to demonstrate a CUBLAS kernel is used
-       CUBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
+julia> using cuBLAS
 
-julia> CUDA.rand(2,2) * CUDA.rand(2,2)
+julia> # enable logging to demonstrate a cuBLAS kernel is used
+       cuBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
+
+julia> cuRAND.rand(2,2) * cuRAND.rand(2,2)
 I! cuBLAS (v10.2) function cublasStatus_t cublasSgemm_v2(cublasContext*, cublasOperation_t, cublasOperation_t, int, int, int, const float*, const float*, int, const float*, int, const float*, float*, int) called
 2×2 CuArray{Float32, 2, CUDACore.DeviceMemory}:
  0.295727  0.479395
@@ -297,35 +307,35 @@ I! cuBLAS (v10.2) function cublasStatus_t cublasSgemm_v2(cublasContext*, cublasO
 ```
 
 Certain operations, like the above matrix-matrix multiplication, also have a native fallback
-written in Julia for the purpose of working with types that are not supported by CUBLAS:
+written in Julia for the purpose of working with types that are not supported by cuBLAS:
 
 ```julia
-julia> # enable logging to demonstrate no CUBLAS kernel is used
-       CUBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
+julia> # enable logging to demonstrate no cuBLAS kernel is used
+       cuBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
 
-julia> CUDA.rand(Int128, 2, 2) * CUDA.rand(Int128, 2, 2)
+julia> cuRAND.rand(Int128, 2, 2) * cuRAND.rand(Int128, 2, 2)
 2×2 CuArray{Int128, 2, CUDACore.DeviceMemory}:
  -147256259324085278916026657445395486093  -62954140705285875940311066889684981211
  -154405209690443624360811355271386638733  -77891631198498491666867579047988353207
 ```
 
-Operations that exist in CUBLAS, but are not (yet) covered by high-level constructs in the
-LinearAlgebra standard library, can be accessed directly from the CUBLAS submodule. Note
+Operations that exist in cuBLAS, but are not (yet) covered by high-level constructs in the
+LinearAlgebra standard library, can be accessed directly from the cuBLAS submodule. Note
 that you do not need to call the C wrappers directly (e.g. `cublasDdot`), as many operations
 have more high-level wrappers available as well (e.g. `dot`):
 
 ```jldoctest
-julia> x = CUDA.rand(2)
+julia> x = cuRAND.rand(2)
 2-element CuArray{Float32, 1, CUDACore.DeviceMemory}:
  0.74021935
  0.9209938
 
-julia> y = CUDA.rand(2)
+julia> y = cuRAND.rand(2)
 2-element CuArray{Float32, 1, CUDACore.DeviceMemory}:
  0.03902049
  0.9689629
 
-julia> CUBLAS.dot(2, x, y)
+julia> cuBLAS.dot(2, x, y)
 0.92129254f0
 
 julia> using LinearAlgebra
@@ -338,13 +348,13 @@ julia> dot(Array(x), Array(y))
 ## Solver
 
 LAPACK-like functionality as found in the
-[CUSOLVER](https://docs.nvidia.com/cuda/cusolver/index.html) library can be accessed through
+[cuSOLVER](https://docs.nvidia.com/cuda/cusolver/index.html) library can be accessed through
 methods in the LinearAlgebra standard library too:
 
 ```jldoctest
-julia> using LinearAlgebra
+julia> using LinearAlgebra, cuSOLVER
 
-julia> a = CUDA.rand(2,2)
+julia> a = cuRAND.rand(2,2)
 2×2 CuArray{Float32, 2, CUDACore.DeviceMemory}:
  0.740219  0.0390205
  0.920994  0.968963
@@ -365,12 +375,12 @@ U factor:
 Other operations are bound to the left-division operator:
 
 ```jldoctest
-julia> a = CUDA.rand(2,2)
+julia> a = cuRAND.rand(2,2)
 2×2 CuArray{Float32, 2, CUDACore.DeviceMemory}:
  0.740219  0.0390205
  0.920994  0.968963
 
-julia> b = CUDA.rand(2,2)
+julia> b = cuRAND.rand(2,2)
 2×2 CuArray{Float32, 2, CUDACore.DeviceMemory}:
  0.925141  0.667319
  0.44635   0.109931
@@ -390,11 +400,11 @@ julia> Array(a) \ Array(b)
 ## Sparse arrays
 
 Sparse array functionality from the
-[CUSPARSE](https://docs.nvidia.com/cuda/cusparse/index.html) library is mainly available
+[cuSPARSE](https://docs.nvidia.com/cuda/cusparse/index.html) library is mainly available
 through functionality from the SparseArrays package applied to `CuSparseArray` objects:
 
 ```jldoctest
-julia> using SparseArrays
+julia> using SparseArrays, cuSPARSE
 
 julia> x = sprand(10,0.2)
 10-element SparseVector{Float64, Int64} with 5 stored entries:
@@ -403,8 +413,6 @@ julia> x = sprand(10,0.2)
   [6 ]  =  0.258478
   [7 ]  =  0.338949
   [10]  =  0.424742
-
-julia> using CUDA.CUSPARSE
 
 julia> d_x = CuSparseVector(x)
 10-element CuSparseVector{Float64, Int32} with 5 stored entries:
@@ -428,22 +436,22 @@ julia> nnz(d_x)
 
 For 2-D arrays the `CuSparseMatrixCSC` and `CuSparseMatrixCSR` can be used.
 
-Non-integrated functionality can be access directly in the CUSPARSE submodule again.
+Non-integrated functionality can be access directly in the cuSPARSE submodule again.
 
 
 ## FFTs
 
-Functionality from [CUFFT](https://docs.nvidia.com/cuda/cufft/index.html) is integrated with
+Functionality from [cuFFT](https://docs.nvidia.com/cuda/cufft/index.html) is integrated with
 the interfaces from the [AbstractFFTs.jl](https://github.com/JuliaMath/AbstractFFTs.jl)
 package:
 
 ```jldoctest
-julia> a = CUDA.rand(2,2)
+julia> a = cuRAND.rand(2,2)
 2×2 CuArray{Float32, 2, CUDACore.DeviceMemory}:
  0.740219  0.0390205
  0.920994  0.968963
 
-julia> using CUDA.CUFFT
+julia> using cuFFT
 
 julia> fft(a)
 2×2 CuArray{ComplexF32, 2, CUDACore.DeviceMemory}:

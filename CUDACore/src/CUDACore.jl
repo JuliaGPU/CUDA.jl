@@ -112,7 +112,6 @@ include("accumulate.jl")
 include("reverse.jl")
 include("iterator.jl")
 include("sorting.jl")
-include("random.jl")
 
 # shared library types
 include("complex.jl")
