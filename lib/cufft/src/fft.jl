@@ -171,16 +171,16 @@ end
 # retrieves the size to allocate even if the external batch dimensions do no transform
 get_osz(osz, x) = ntuple((d)->(d>length(osz) ? size(x, d) : osz[d]), ndims(x))
 
-ensure_raising(num::Number) = num
+ensure_increasing(num::Number) = num
 
 # it is convenient to use sort on tuples, but since this is only implemented as of Julia 1.12
 # and the dimensions are anyway limited to maximally three, we hand code the cases here:
-ensure_raising(sequence::NTuple{1, Int}) = sequence
-ensure_raising(sequence::NTuple{2, Int}) = (sequence[1] < sequence[2]) ? sequence : sequence[2:-1:1]
-ensure_raising(sequence::NTuple{3, Int}) = (sequence[1] < sequence[2]) ?
+ensure_increasing(sequence::NTuple{1, Int}) = sequence
+ensure_increasing(sequence::NTuple{2, Int}) = (sequence[1] < sequence[2]) ? sequence : sequence[2:-1:1]
+ensure_increasing(sequence::NTuple{3, Int}) = (sequence[1] < sequence[2]) ?
             ((sequence[2]<sequence[3]) ? sequence : (sequence[1]<sequence[3]) ? sequence[[1,3,2]] : sequence[[3,1,2]]) :
             ((sequence[1]<sequence[3]) ? sequence[[2,1,3]] : (sequence[2]<sequence[3]) ? sequence[[2,3,1]] : sequence[[3,2,1]])
-function ensure_raising(sequence::NTuple)
+function ensure_increasing(sequence::NTuple)
     throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
 end
 
@@ -196,7 +196,7 @@ for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
             region = unique(region)
             R = length(region)
             region = NTuple{R,Int}(region)
-            region = ensure_raising(region)
+            region = ensure_increasing(region)
             $f(X, region)
         end
     end
@@ -206,7 +206,7 @@ end
 function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = true
-    region = ensure_raising(Tuple(region))
+    region = ensure_increasing(Tuple(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -216,7 +216,7 @@ end
 function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = true
-    region = ensure_raising(Tuple(region))
+    region = ensure_increasing(Tuple(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -227,7 +227,7 @@ end
 function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = false
-    region = ensure_raising(Tuple(region))
+    region = ensure_increasing(Tuple(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -237,7 +237,7 @@ end
 function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
-    region = ensure_raising(Tuple(region))
+    region = ensure_increasing(Tuple(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 
