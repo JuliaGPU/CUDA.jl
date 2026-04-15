@@ -19,7 +19,7 @@ end
 @public functional
 @public rand, randn, seed!
 @public rand_logn, rand_logn!, rand_poisson, rand_poisson!
-@public NativeRNG, native_rng
+@public LibraryRNG, NativeRNG, native_rng
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -45,7 +45,7 @@ include("cuda_integration.jl")
 
 function handle_ctor(ctx)
     context!(ctx) do
-        RNG()
+        LibraryRNG()
     end
 end
 function handle_dtor(ctx, handle)
@@ -54,13 +54,13 @@ function handle_dtor(ctx, handle)
         # TODO: early free?
     end
 end
-const idle_curand_rngs = HandleCache{CuContext,RNG}(handle_ctor, handle_dtor)
+const idle_curand_rngs = HandleCache{CuContext,LibraryRNG}(handle_ctor, handle_dtor)
 
 function default_rng()
     cuda = CUDACore.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{rng::RNG}
+    LibraryState = @NamedTuple{rng::LibraryRNG}
     states = get!(task_local_storage(), :CURAND) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}

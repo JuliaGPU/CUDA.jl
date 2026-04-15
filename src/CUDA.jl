@@ -57,8 +57,15 @@ Base.@deprecate_binding CURAND cuRAND true
 # Forward cuRAND identifiers
 using cuRAND: rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
 @public rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
-Base.@deprecate_binding RNG cuRAND.NativeRNG false
-Base.@deprecate default_rng() cuRAND.native_rng() false
+
+# The default RNG for CuArrays is GPUArrays.RNG (fast Philox4x32-10). The
+# kernel-based cuRAND.NativeRNG and library-backed cuRAND.LibraryRNG remain
+# available for perf comparisons and explicit use.
+using CUDACore: GPUArrays
+using CUDACore.GPUArrays: RNG
+@public RNG
+default_rng() = GPUArrays.default_rng(CuArray)
+@public default_rng
 
 Base.@deprecate_binding has_cusolvermg cuSOLVER.has_cusolvermg false
 

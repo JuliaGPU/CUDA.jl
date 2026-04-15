@@ -32,7 +32,7 @@
         @test eltype(A) == T
     end
 
-    # unsupported types that fall back to the native generator
+    # unsupported types that fall back to the GPUArrays RNG
     for (f,T) in ((cuRAND.rand,Int64), (cuRAND.randn,ComplexF64)),
         args in ((T, 0), (T, 2), (T, 2, 2), (T, (2, 2)), (T, 3), (T, 3, 3), (T, (3, 3)))
         A = f(args...)
@@ -50,10 +50,17 @@
     # seeding
     cuRAND.seed!()
     cuRAND.seed!(1)
+    ## cuRAND library
     cuRAND.seed!(1)
     A = cuRAND.rand(Float32, 1)
     cuRAND.seed!(1)
     B = cuRAND.rand(Float32, 1)
+    @test all(A .== B)
+    ## GPUArrays fallback
+    cuRAND.seed!(1)
+    A = cuRAND.rand(Int64, 1)
+    cuRAND.seed!(1)
+    B = cuRAND.rand(Int64, 1)
     @test all(A .== B)
 
     # scalar number generation
