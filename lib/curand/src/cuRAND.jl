@@ -19,7 +19,7 @@ end
 @public functional
 @public rand, randn, seed!
 @public rand_logn, rand_logn!, rand_poisson, rand_poisson!
-@public LibraryRNG, NativeRNG, library_rng, native_rng
+@public LibraryRNG, NativeRNG, library_rng, native_rng, default_rng
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]

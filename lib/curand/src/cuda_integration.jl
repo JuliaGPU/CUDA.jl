@@ -37,13 +37,37 @@ function native_rng()
 end
 
 
+## default RNG: task-local cached GPUArrays.RNG{CuArray} (the fast Philox4x32-10
+## batched-kernel RNG). Used by Random.rand!/randn!(::AnyCuArray) when no rng
+## is supplied, and exposed via CUDA.RNG / CUDA.default_rng().
+
+const DefaultRNG = GPUArrays.RNG{CuArray}
+
+function default_rng()
+    cuda = active_state()
+
+    LibraryState = @NamedTuple{rng::DefaultRNG}
+    states = get!(task_local_storage(), :cuRAND_DefaultRNG) do
+        Dict{CuContext,LibraryState}()
+    end::Dict{CuContext,LibraryState}
+
+    @noinline function new_state(cuda)
+        new_rng = DefaultRNG()
+        Random.seed!(new_rng)
+        (; rng=new_rng)
+    end
+    state = get!(states, cuda.context) do
+        new_state(cuda)
+    end
+
+    return state.rng
+end
+
+
 ## cuRAND.rand / cuRAND.randn / cuRAND.seed! — high-level API
 
-# The implicit default for CuArray dispatch is the GPUArrays RNG (stateless
-# Philox4x32-10 batched kernels). NativeRNG and LibraryRNG are available
-# explicitly via native_rng() and library_rng() for perf comparison / RNGTest.
 function seed!(seed=Base.rand(UInt64))
-    Random.seed!(GPUArrays.default_rng(CuArray), seed)
+    Random.seed!(default_rng(), seed)
     Random.seed!(native_rng(), seed)
     Random.seed!(library_rng(), seed)
 end
@@ -55,8 +79,8 @@ rand_logn!(A::LognormalArray; kwargs...) = rand_logn!(library_rng(), A; kwargs..
 rand_poisson!(A::PoissonArray; kwargs...) = rand_poisson!(library_rng(), A; kwargs...)
 
 # GPUArrays RNG fallback for types not supported by cuRAND
-Random.rand!(A::AnyCuArray) = Random.rand!(GPUArrays.default_rng(CuArray), A)
-Random.randn!(A::AnyCuArray) = Random.randn!(GPUArrays.default_rng(CuArray), A)
+Random.rand!(A::AnyCuArray) = Random.rand!(default_rng(), A)
+Random.randn!(A::AnyCuArray) = Random.randn!(default_rng(), A)
 rand_logn!(A::AnyCuArray; kwargs...) =
     error("cuRAND does not support generating lognormally-distributed random numbers of type $(eltype(A))")
 rand_poisson!(A::AnyCuArray; kwargs...) =
