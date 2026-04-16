@@ -112,8 +112,8 @@ GPUArrays.dense_array_type(::Type{<:CuSparseVector}) = CuArray
 GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSC}) = CuArray
 GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSR}) = CuArray
 
-GPUArrays.csc_type(::Type{CuSparseMatrixCSR}) = CuSparseMatrixCSC
-GPUArrays.csr_type(::Type{CuSparseMatrixCSC}) = CuSparseMatrixCSR
+GPUArrays.csc_type(::Type{<:CuSparseMatrixCSR}) = CuSparseMatrixCSC
+GPUArrays.csr_type(::Type{<:CuSparseMatrixCSC}) = CuSparseMatrixCSR
 GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}} = CuSparseMatrixCOO
 GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}} = CuSparseMatrixCOO
 
