@@ -7,6 +7,8 @@
 # information about the exception type and reason in the `ExceptionInfo` struct, where it
 # will be read by the GPU runtime and printed to the console.
 
+@public @gputhrow
+
 macro gputhrow(subtype, reason)
     quote
         info = kernel_state().exception_info
