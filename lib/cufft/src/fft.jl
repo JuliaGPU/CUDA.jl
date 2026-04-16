@@ -171,19 +171,20 @@ end
 # retrieves the size to allocate even if the external batch dimensions do no transform
 get_osz(osz, x) = ntuple((d)->(d>length(osz) ? size(x, d) : osz[d]), ndims(x))
 
-ensure_increasing(num::Number) = num
-
 # it is convenient to use sort on tuples, but since this is only implemented as of Julia 1.12
 # and the dimensions are anyway limited to maximally three, we hand code the cases here:
-ensure_increasing(sequence::NTuple{1, Int}) = sequence
-ensure_increasing(sequence::NTuple{2, Int}) = (sequence[1] < sequence[2]) ? sequence : sequence[2:-1:1]
-ensure_increasing(sequence::NTuple{3, Int}) = (sequence[1] < sequence[2]) ?
-            ((sequence[2]<sequence[3]) ? sequence : (sequence[1]<sequence[3]) ? sequence[[1,3,2]] : sequence[[3,1,2]]) :
-            ((sequence[1]<sequence[3]) ? sequence[[2,1,3]] : (sequence[2]<sequence[3]) ? sequence[[2,3,1]] : sequence[[3,2,1]])
-function ensure_increasing(sequence::NTuple)
+ensure_increasing(num::Number) = num
+ensure_increasing(s::NTuple{1, Int}) = s
+ensure_increasing(s::NTuple{2, Int}) = s[1] > s[2] ? (s[2], s[1]) : s
+function ensure_increasing(s::NTuple{3, Int})
+    s[1] > s[2] && (s = (s[2], s[1], s[3]))
+    s[2] > s[3] && (s = (s[1], s[3], s[2]))
+    s[1] > s[2] && (s = (s[2], s[1], s[3]))
+    s
+end
+function ensure_increasing(::NTuple)
     throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
 end
-
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
 
