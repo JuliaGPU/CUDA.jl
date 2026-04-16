@@ -41,7 +41,7 @@ GPU.
     Most CUSPARSE operations work with CSR formatted matrices, rather
     than CSC.
 """
-mutable struct CuSparseMatrixCSC{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSC{Tv, Ti}
+mutable struct CuSparseMatrixCSC{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     colPtr::CuVector{Ti}
     rowVal::CuVector{Ti}
     nzVal::CuVector{Tv}
@@ -82,7 +82,7 @@ GPU.
 !!! compat "CUDA 11"
     Support of indices type rather than `Cint` (`Int32`) requires at least CUDA 11.
 """
-mutable struct CuSparseMatrixCSR{Tv, Ti} <: GPUArrays.AbstractGPUSparseMatrixCSR{Tv, Ti}
+mutable struct CuSparseMatrixCSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     rowPtr::CuVector{Ti}
     colVal::CuVector{Ti}
     nzVal::CuVector{Tv}
