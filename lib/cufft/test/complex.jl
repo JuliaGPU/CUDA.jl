@@ -133,8 +133,6 @@ end
         X = rand(T, dims)
         batched(X,region)
     end
-
-    # @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "Batch 2D (in 4D)" begin

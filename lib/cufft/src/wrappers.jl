@@ -39,7 +39,7 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
 
     # make the plan
     worksize_ref = Ref{Csize_t}()
-    rsz = length(sz) > 1 ? rsz = reverse(sz) : sz
+    rsz = length(sz) > 1 ? reverse(sz) : sz
     if nrank > 3
         throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
     end
@@ -49,7 +49,7 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
     cufftCreate(handle_ref)
     handle = handle_ref[]
 
-    if (region...,) == ((1:nrank)...,)
+    if region === ntuple(identity, nrank)
         # handle simple case, transforming the first nrank dimensions, ... simply! (for robustness)
         # arguments are: plan, rank, transform-sizes, inembed, istride, idist, itype, onembed, ostride, odist, otype, batch
         execution_type = promote_type(input_type, output_type)

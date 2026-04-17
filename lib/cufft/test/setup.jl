@@ -109,6 +109,8 @@ end
 N1 = 8
 N2 = 32
 N3 = 64
+# N4 is deliberately odd so that R2C external-batch strides are not
+# multiples of sizeof(Complex{Float32}), exercising the alignment path.
 N4 = 9
 N5 = 2
 

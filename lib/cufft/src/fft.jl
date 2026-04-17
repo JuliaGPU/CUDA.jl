@@ -140,8 +140,8 @@ All other dimensions are external batch dimensions.
     internal_batch_dims, external_batch_dims = get_batch_dims(region, sz)
 
 # Parameters:
-+ `region`: Tuple of dimensions to transform
-+ `sz`: size of the array to transform. All dimensions not in `region` are considered as batch dimensions.
+- `region`: Tuple of dimensions to transform
+- `sz`: size of the array to transform. All dimensions not in `region` are considered as batch dimensions.
         This size Tuple is only used to determine the best set of consecutive dimensions to be used for internal batching.
 """
 function get_batch_dims(region, sz)
@@ -345,7 +345,7 @@ end
 # a version of unsafe_execute which applies the plan to each element of external batch dimensions not covered by the plan.
 # Note that for plans, with external batch non-transform dimensions, views are created for each of such element.
 # Such views each have lower dimensions and are then transformed by the lower dimension low-level Cuda plan.
-# All of this is a work-around to deal with the limitations of the current limitations of cufftXtMakePlanMany in the cuFFT library
+# Work-around for cuFFT's lack of support for arbitrary batch layouts in cufftXtMakePlanMany.
 function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) where {T,S,K,inplace}
     # For R2C/C2R transforms, dimension 1 should not be in external batches (alignment requirement)
     internal_batch_dims, external_batch_dims = get_batch_dims(p.region, p.output_size)
@@ -368,60 +368,61 @@ function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) whe
             batch_start_x = sum(batch_strides_x .* (Tuple(c) .- 1)) + 1
             batch_start_y = sum(batch_strides_y .* (Tuple(c) .- 1)) + 1
             # for Real array type, cufftXtMakePlanMany has alignment limitations which require each real number to start
-            # at even c-style indices , i.e. odd Julia indices. Therefore we first ignore all even indices here and process them later. 
-            if (eltype(x) <: Real && iseven(batch_start_x))
+            # at a C-side byte offset that is a multiple of sizeof(Complex{T}), i.e. odd Julia indices.
+            # We first ignore all even indices here and process them later.
+            if eltype(x) <: Real && iseven(batch_start_x)
                 did_skip_x = true
-                if (to_skip_x == 0)
+                if to_skip_x == 0
                     to_skip_x = batch_start_x - 1
                     # if x was previously skipped and is now rotated, we need to write to a different result location y:
                     extra_y_index = batch_start_y - 1
                 end
-                continue;
+                continue
             end
-            # batch_start_y refers to the result index and the y to the result array 
-            if (eltype(y) <: Real && iseven(batch_start_y))
+            # batch_start_y refers to the result index and the y to the result array
+            if eltype(y) <: Real && iseven(batch_start_y)
                 did_skip_y = true
-                if (to_skip_y == 0)
+                if to_skip_y == 0
                     to_skip_y = batch_start_y - 1
-                    # if the result y was previously skipped and is now rotated, we need to read from a different sourc location x:
+                    # if the result y was previously skipped and is now rotated, we need to read from a different source location x:
                     extra_x_index = batch_start_x - 1
                 end
-                continue;
+                continue
             end
             vx = @view x[batch_start_x:end]
             vy = @view y[batch_start_y:end]
             unsafe_execute!(p, vx, vy)
         end
         # If there was at least one skip due to real Float32 alignment, we need to cyclicly rotate the whole array in place and run again
-        if (did_skip_x || did_skip_y)
-            if (did_skip_x)
+        if did_skip_x || did_skip_y
+            if did_skip_x
                 circshift!((@view x[:]), -to_skip_x)
             end
-            if (did_skip_y)
+            if did_skip_y
                 circshift!((@view y[:]), -to_skip_y)
             end
-            for c in ci                
+            for c in ci
                 batch_start_x = sum(batch_strides_x .* (Tuple(c) .- 1)) + 1 + extra_x_index
                 batch_start_y = sum(batch_strides_y .* (Tuple(c) .- 1)) + 1 + extra_y_index
-                if (isodd(prod(sze)) && c==last(ci))
+                if isodd(prod(sze)) && c == last(ci)
                     # avoids a wrap-around effect reprocessing data
-                    continue;
+                    continue
                 end
-                if (eltype(x) <: Real && iseven(batch_start_x))
-                    continue;
+                if eltype(x) <: Real && iseven(batch_start_x)
+                    continue
                 end
-                if (eltype(y) <: Real && iseven(batch_start_y))
-                    continue;
+                if eltype(y) <: Real && iseven(batch_start_y)
+                    continue
                 end
                 vx = @view x[batch_start_x:end]
                 vy = @view y[batch_start_y:end]
                 unsafe_execute!(p, vx, vy)
             end
             # shift these sub-arrays back to their original locations in place
-            if (did_skip_x)
+            if did_skip_x
                 circshift!((@view x[:]), to_skip_x)
             end
-            if (did_skip_y)
+            if did_skip_y
                 circshift!((@view y[:]), to_skip_y)
             end
         end
