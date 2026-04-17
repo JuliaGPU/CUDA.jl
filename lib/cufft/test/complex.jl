@@ -142,7 +142,7 @@ end
         batched(X,region)
     end
 
-    for region in [(1,4),(3,4)]
+    for region in [(1,4),(2,4),(3,4)]
         X = rand(T, dims)
         if T <: ComplexF16
             # cuFFT half-precision transforms require all transform dim sizes
