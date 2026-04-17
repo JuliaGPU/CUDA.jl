@@ -218,6 +218,15 @@ for op in (:(+), :(-))
                  B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T <: BlasFloat} =
             CuSparseMatrixCOO($(op)(CuSparseMatrixCSR(A), CuSparseMatrixCSR(B)))
     end
+
+    # Symmetric/Hermitian wrappers: materialize, then defer. (issue #3043)
+    for (wrap, _) in adjtrans_wrappers,
+        SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO)
+
+        W = wrap(:($SparseMatrixType{T}))
+        @eval Base.$op(A::HermOrSym{T,<:$SparseMatrixType}, B::$W) where {T <: BlasFloat} = $op(sparse(A), B)
+        @eval Base.$op(A::$W, B::HermOrSym{T,<:$SparseMatrixType}) where {T <: BlasFloat} = $op(A, sparse(B))
+    end
 end
 
 # triangular

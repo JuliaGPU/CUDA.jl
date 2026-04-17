@@ -187,6 +187,20 @@ nB = 2
                 end
             end
         end
+        @testset "A ± HermOrSym(B) (CUDA.jl#3043)" begin
+            A = sprand(elty, n, n, 0.3)
+            B = sprand(elty, n, n, 0.3)
+            @testset "$SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+                dA = SparseMatrixType(A)
+                dB = SparseMatrixType(B)
+                for wrap in (Symmetric, Hermitian), uplo in (:U, :L),
+                    opa in (identity, transpose, adjoint), op in (+, -)
+
+                    @test collect(op(opa(dA), wrap(dB, uplo))) ≈ op(opa(A), wrap(B, uplo))
+                    @test collect(op(wrap(dB, uplo), opa(dA))) ≈ op(wrap(B, uplo), opa(A))
+                end
+            end
+        end
         @testset "ldiv $elty $triangle" for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
             A  = rand(elty, m, m)
             A  = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
