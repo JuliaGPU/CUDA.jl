@@ -1,11 +1,11 @@
-include("setup.jl")
+using cuBLAS
+using ParallelTestRunner
 
-@testset verbose=true "cuBLAS" begin
-    for (root, _, files) in walkdir(@__DIR__)
-        for file in sort(files)
-            endswith(file, ".jl") || continue
-            file in ("setup.jl", "runtests.jl") && continue
-            include(joinpath(root, file))
-        end
-    end
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
 end
+
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuBLAS, ARGS; init_code, testsuite)
