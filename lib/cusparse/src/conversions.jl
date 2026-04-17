@@ -138,6 +138,34 @@ for (wrapa, unwrapa) in adjtrans_wrappers
     end
 end
 
+# The SparseArrays fallback recurses forever on AbstractSparseArray parents
+# (issue #3042), so materialize the full matrix from the referenced triangle.
+function sparse_symmherm(A::Union{Symmetric{T},Hermitian{T}}, fmt::Symbol) where T
+    P = CuSparseMatrixCOO(parent(A))
+    diag_mask = P.rowInd .== P.colInd
+    strict_mask = A.uplo == 'U' ? P.rowInd .< P.colInd : P.rowInd .> P.colInd
+    op = A isa Hermitian ? conj : identity
+    diag_vals = A isa Hermitian ? T.(real.(P.nzVal[diag_mask])) : P.nzVal[diag_mask]
+    strict_rows = P.rowInd[strict_mask]
+    strict_cols = P.colInd[strict_mask]
+    strict_vals = P.nzVal[strict_mask]
+    diag_rows = P.rowInd[diag_mask]
+    m, n = size(A)
+    sparse(vcat(diag_rows, strict_rows, strict_cols),
+           vcat(diag_rows, strict_cols, strict_rows),
+           vcat(diag_vals, strict_vals, op.(strict_vals)),
+           m, n; fmt)
+end
+
+for (SparseMatrixType, fmt) in ((:CuSparseMatrixCSC, :csc),
+                                (:CuSparseMatrixCSR, :csr),
+                                (:CuSparseMatrixCOO, :coo))
+    @eval SparseArrays.sparse(A::Symmetric{T,<:$SparseMatrixType}) where {T} =
+        sparse_symmherm(A, $(QuoteNode(fmt)))
+    @eval SparseArrays.sparse(A::Hermitian{T,<:$SparseMatrixType}) where {T} =
+        sparse_symmherm(A, $(QuoteNode(fmt)))
+end
+
 function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}, index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
