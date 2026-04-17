@@ -1,6 +1,6 @@
 [general]
 library_name = "libnvml"
-output_file_path = "../../CUDACore/lib/nvml/libnvml.jl"
+output_file_path = "../../lib/nvml/libnvml.jl"
 prologue_file_path = "./libnvml_prologue.jl"
 
 output_ignorelist = []
