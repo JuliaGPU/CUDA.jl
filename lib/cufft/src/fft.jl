@@ -179,6 +179,18 @@ function ensure_unique(s::NTuple{N, Int}) where N
     s
 end
 
+# rfft/brfft cannot reorder region: cuFFT halves region[1], and AbstractFFTs
+# uses `first(region)` to size the output (definitions.jl:343,349). So the
+# user must already supply region in strictly increasing order.
+function ensure_strictly_increasing(s::NTuple{N, Int}) where N
+    for i in 1:N-1
+        s[i] >= s[i+1] && throw(ArgumentError(
+            "for rfft/brfft, region must be in strictly increasing order " *
+            "(its first element is the dimension reduced from N to N÷2+1); got $s"))
+    end
+    s
+end
+
 # Sort on tuples is only implemented as of Julia 1.12, and cuFFT supports at most
 # three transform dimensions per plan, so we hand-code the cases here.
 ensure_increasing(s::NTuple{1, Int}) = s
@@ -260,8 +272,7 @@ end
 function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftReals,N,R}
     K = CUFFT_FORWARD
     inplace = false
-    # for rfft we cannot sort the transform dimensions, since the meaning in fftw is that the first dimension in the list is reduced.
-    # so we let the plan throw an error
+    region = ensure_strictly_increasing(region)
 
     handle = cufftGetPlan(complex(T), T, size(X), region)
 
@@ -286,6 +297,7 @@ end
 function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
+    region = ensure_strictly_increasing(region)
 
     xdims = size(X)
     ydims = Base.setindex(xdims, d, region[1])
