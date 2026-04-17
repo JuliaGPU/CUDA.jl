@@ -28,6 +28,20 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
     if any(region .< 1 .|| region .> length(input_size))
         throw(ArgumentError("transformed dims can only refer to valid dimensions"))
     end
+    # cuFFT half-precision transforms require all transform dim sizes to be
+    # powers of 2 (NVIDIA cuFFT docs, "Half-precision transforms"). Catch this
+    # up-front so the user sees a Julia error rather than a bare
+    # CUFFT_INCOMPLETE_PARAMETER_LIST from inside the wrapper.
+    if input_type <: Union{Float16, Complex{Float16}} ||
+       output_type <: Union{Float16, Complex{Float16}}
+        for d in region
+            n = input_size[d]
+            ispow2(n) || throw(ArgumentError(
+                "cuFFT half-precision transforms require all transform " *
+                "dimensions to be powers of 2; got region $region with " *
+                "input size $input_size (dim $d has size $n)"))
+        end
+    end
     nrank = length(region)
 
     sz = ntuple((d) -> input_size[region[d]], nrank)

@@ -86,12 +86,11 @@ end
         batched(X,region)
     end
     for region in [(2,4),(1,4),(3,4)]
-        if (T <: Float16)
-            # for odd dimensions covering axes of or between transform axes
-            # there is a rather unspecific CUFFTError: "CUFFT_INCOMPLETE_PARAMETER_LIST" thrown. This should be caught elsewhere to give more specific hint
-            # on how to avoid this. Maybe as of Cuda 13 this issue is removed?
-            X = rand(T, dims);
-            @test_throws CUFFTError batched(X,region)
+        if T <: Float16
+            # cuFFT half-precision transforms require all transform dim sizes
+            # to be powers of 2; N4=9 violates that.
+            X = rand(T, dims)
+            @test_throws ArgumentError batched(X,region)
         else
             batched(X,region)
         end
