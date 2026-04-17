@@ -114,6 +114,11 @@ end
 
 ## plan cache
 
+# The cache key includes the full input size (not just the transform/internal-
+# batch dims), so plans that differ only in *external* batch dim sizes are not
+# shared. For typical workloads the cache stays small; if a caller iterates
+# over many distinct batch dim sizes, consider keying on a normalised shape
+# instead.
 const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
 function handle_ctor((ctx, args...))
     context!(ctx) do
