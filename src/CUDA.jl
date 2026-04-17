@@ -2,7 +2,8 @@ module CUDA
 
 using Republic
 
-@republic reexport=true inherit=true begin
+# Re-export exported names and re-public public names (bringing them into CUDA)
+@reexport inherit=true begin
     using CUDACore
     using CUDATools
 end

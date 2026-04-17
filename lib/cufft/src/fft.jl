@@ -1,6 +1,6 @@
 # integration with AbstractFFTs.jl
 
-@republic reexport=true using AbstractFFTs
+@reexport using AbstractFFTs
 
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
     plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft, irfft,
