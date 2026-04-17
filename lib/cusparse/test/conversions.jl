@@ -74,6 +74,21 @@ end
     end
 end
 
+@testset "sparse(::Symmetric/::Hermitian) (CUDA.jl#3042)" begin
+    for typ in (Float32, ComplexF32, Float64, ComplexF64)
+        A = sprand(typ, 10, 10, 0.3)
+        for T in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO),
+            wrap in (Symmetric, Hermitian),
+            uplo in (:U, :L)
+
+            dA = T(A)
+            dS = sparse(wrap(dA, uplo))
+            @test dS isa T
+            @test Array(dS) ≈ Array(sparse(wrap(A, uplo)))
+        end
+    end
+end
+
 @testset "CuSparseMatrix(::Diagonal)" begin
     X = Diagonal(rand(10))
     dX = cu(X)
