@@ -1,580 +1,175 @@
-using Distributed
-using InteractiveUtils
-using Dates
-import REPL
-using Printf: @sprintf
+using CUDA
+using CUDACore
+using cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
+using cuDNN, cuTENSOR, cuTensorNet, cuStateVec
+using GPUArrays
+using ParallelTestRunner
+using Pkg
+using InteractiveUtils: versioninfo
 using Base.Filesystem: path_separator
 
-# parse some command-line arguments
-function extract_flag!(args, flag, default=nothing; typ=typeof(default))
-    for f in args
-        if startswith(f, flag)
-            # Check if it's just `--flag` or if it's `--flag=foo`
-            if f != flag
-                val = split(f, '=')[2]
-                if !(typ === Nothing || typ <: AbstractString)
-                  val = parse(typ, val)
-                end
-            else
-                val = default
-            end
+# load helpers, CUDATestRecord, and ParallelTestRunner overrides on the main
+# process. The same file is re-`include`d on every worker via `init_worker_code`
+# below; the record type must exist on both sides of the Malt boundary.
+include(joinpath(@__DIR__, "setup.jl"))
 
-            # Drop this value from our args
-            filter!(x -> x != f, args)
-            return (true, val)
-        end
-    end
-    return (false, default)
-end
-do_help, _ = extract_flag!(ARGS, "--help")
-if do_help
-    println("""
-        Usage: runtests.jl [--help] [--list] [--jobs=N] [--all] [TESTS...]
+# parse command-line arguments (--sanitize[=tool] and --all are CUDA-specific)
+args = parse_args(ARGS; custom = ["sanitize", "all"])
 
-               --help             Show this text.
-               --list             List all available tests.
-               --all              Also include subpackage tests (libraries/*).
-               --verbose          Print more information during testing.
-               --quickfail        Fail the entire run as soon as a single test errored.
-               --jobs=N           Launch `N` processes to perform tests (default: Sys.CPU_THREADS).
-               --gpu=0,1,...      Comma-separated list of GPUs to use (default: 0)
-               --sanitize[=tool]  Run the tests under `compute-sanitizer`.
-
-               Remaining arguments filter the tests that will be executed.""")
-    exit(0)
-end
-set_jobs, jobs = extract_flag!(ARGS, "--jobs"; typ=Int)
-do_sanitize, sanitize_tool = extract_flag!(ARGS, "--sanitize", "memcheck")
-do_verbose, _ = extract_flag!(ARGS, "--verbose")
-do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
-do_all, _ = extract_flag!(ARGS, "--all")
-do_gpu_list, gpu_list = extract_flag!(ARGS, "--gpu")
-do_list, _ = extract_flag!(ARGS, "--list")
-## no options should remain
-optlike_args = filter(startswith("-"), ARGS)
-if !isempty(optlike_args)
-    error("Unknown test options `$(join(optlike_args, " "))` (try `--help` for usage instructions)")
+# check that CI is using the requested toolkit
+toolkit_release = Base.thisminor(CUDA.runtime_version())
+label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
+if label_match !== nothing
+    @test toolkit_release == VersionNumber(label_match.captures[1])
 end
 
-include("setup.jl")     # make sure everything is precompiled
+# forcibly precompile the current environment in parallel (Pkg somehow ignores
+# the dependencies that are pointed through via [sources])
+Pkg.precompile()
 
-# choose tests
-const tests = []
-const test_runners = Dict()
-## files in the test folder
-for (rootpath, dirs, files) in walkdir(@__DIR__)
-  # find Julia files
-  filter!(files) do file
-    endswith(file, ".jl") && file !== "setup.jl" && file !== "runtests.jl"
-  end
-  isempty(files) && continue
+@info "Julia information:\n" * sprint(io -> versioninfo(io))
+@info "CUDA information:\n" * sprint(io -> CUDA.versioninfo(io))
 
-  # strip extension
-  files = map(files) do file
-    file[1:end-3]
-  end
 
-  # prepend subdir
-  subdir = relpath(rootpath, @__DIR__)
-  if subdir != "."
-    files = map(files) do file
-      joinpath(subdir, file)
-    end
-  end
+## test discovery
 
-  # unify path separators
-  files = map(files) do file
-    replace(file, path_separator => '/')
-  end
+# core tests from the top-level test directory, plus GPUArrays' testsuite.
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
 
-  append!(tests, files)
-  for file in files
-    test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
-  end
+# scalar-indexing tests only make sense when device memory supports it
+for name in keys(TestSuite.tests)
+    testsuite["gpuarrays/$name"] = :(TestSuite.tests[$name](CuArray))
 end
-sort!(tests; by=(file)->stat("$(@__DIR__)/$file.jl").size, rev=true)
-## subpackage tests (enabled with --all, or by selecting libraries/*)
+if CUDACore.default_memory != CUDA.DeviceMemory
+    delete!(testsuite, "gpuarrays/indexing scalar")
+end
+
+# subpackage tests under lib/*/test/ — include when requested via `--all` or
+# by explicitly selecting a `libraries/*` positional.
 const subpackages = ["cublas", "cusparse", "cusolver", "cufft", "curand",
                      "cudnn", "cutensor", "cutensornet", "custatevec"]
-for pkg in subpackages
-    testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
-    isdir(testdir) || continue
-    for (rootpath, dirs, files) in walkdir(testdir)
-        filter!(files) do file
-            endswith(file, ".jl") && file ∉ ("setup.jl", "runtests.jl")
-        end
-        isempty(files) && continue
-        for file in files
-            name = file[1:end-3]
-            subdir = relpath(rootpath, testdir)
-            if subdir != "."
-                name = joinpath(subdir, name)
-            end
-            name = replace(name, path_separator => '/')
-            testname = "libraries/$pkg/$name"
-            filepath = joinpath(rootpath, file)
-            setuppath = joinpath(testdir, "setup.jl")
-            projectpath = joinpath(testdir, "Project.toml")
-            push!(tests, testname)
-            test_runners[testname] = () -> begin
+function include_subpackages!(testsuite)
+    for pkg in subpackages
+        testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
+        isdir(testdir) || continue
+        sub_tests = find_tests(testdir)
+        delete!(sub_tests, "setup")
+        delete!(sub_tests, "runtests")
+        setuppath = joinpath(testdir, "setup.jl")
+        projectpath = joinpath(testdir, "Project.toml")
+        for (name, include_expr) in sub_tests
+            # include_expr is of the form `:(include($path))`
+            path = include_expr.args[end]
+            testsuite["libraries/$pkg/$name"] = quote
                 old_project = Base.active_project()
                 try
-                    if isfile(projectpath)
-                        Base.set_active_project(projectpath)
+                    if isfile($projectpath)
+                        Base.set_active_project($projectpath)
                     end
-                    include(setuppath)
-                    include(filepath)
+                    include($setuppath)
+                    include($path)
                 finally
                     Base.set_active_project(old_project)
                 end
             end
         end
     end
+    return testsuite
 end
-## GPUArrays testsuite
-for name in keys(TestSuite.tests)
-    pushfirst!(tests, "gpuarrays/$name")
-    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
-end
-## finalize
-pushfirst!(tests, "core/initialization")
-unique!(tests)
 
-# list tests, if requested
-if do_list
-    println("Available tests:")
-    for test in sort(tests)
-        println(" - $test")
+want_all = args.custom["all"] !== nothing
+want_libraries = any(startswith("libraries/"), args.positionals)
+if want_all || want_libraries
+    include_subpackages!(testsuite)
+end
+
+# default filter (no positionals given): package extensions require extra
+# deps not in test/Project.toml, and subpackages are opt-in via `--all`.
+if isempty(args.positionals)
+    filter!(testsuite) do (name, _)
+        if startswith(name, "extensions")
+            return false
+        end
+        if startswith(name, "libraries/") && !want_all
+            return false
+        end
+        return true
     end
-    exit(0)
 end
 
-# filter tests
-if isempty(ARGS)
-  # default to running all tests, except:
-  filter!(tests) do test
-    # package extensions often require additional dependencies,
-    # which we don't want to put in our test env by default.
-    startswith(test, "extensions") && return false
 
-    # subpackage tests are only included with --all
-    if !do_all && startswith(test, "libraries/")
-        return false
-    end
+## GPU-memory-based parallelism
 
-    if CUDACore.default_memory != CUDA.DeviceMemory && test == "gpuarrays/indexing scalar"
-        # GPUArrays' scalar indexing tests assume that indexing is not supported
-        return false
-    end
+# pick the first visible device and use its free memory to cap worker count.
+# (Set `CUDA_VISIBLE_DEVICES` to choose which device is used.)
+first_gpu = first(devices())
+gpu_free = device!(first_gpu) do
+    mem = CUDA.free_memory()
+    device_reset!()
+    mem
+end
+gpu_jobs = max(1, Int(gpu_free) ÷ (2 * 2^30))
 
-    return true
-  end
-else
-  # let the user filter
-  filter!(tests) do test
-    any(arg->startswith(test, arg), ARGS)
-  end
+if args.jobs === nothing
+    default_jobs = min(ParallelTestRunner.default_njobs(), gpu_jobs)
+    args = ParallelTestRunner.ParsedArgs(
+        Some(default_jobs), args.verbose, args.quickfail, args.list,
+        args.custom, args.positionals,
+    )
 end
 
-# check that CI is using the requested toolkit
-toolkit_release = Base.thisminor(CUDA.runtime_version())
-label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
-if label_match !== nothing
-  @test toolkit_release == VersionNumber(label_match.captures[1])
-end
 
-# forcibly precompile the current environment in parallel (Pkg somehow ignores
-# the dependencies that are pointed through via [sources])
-using Pkg
-Pkg.precompile()
+## compute-sanitizer wrapping (optional)
 
-@info "Julia information:\n" * sprint(io->versioninfo(io))
-
-using cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
-using cuDNN, cuTENSOR, cuTensorNet, cuStateVec
-@info "CUDA information:\n" * sprint(io->CUDA.versioninfo(io))
-
-# select devices
-function gpu_entry(dev)
-    id = deviceid(dev)
-    name = CUDA.name(dev)
-    uuid = CUDA.uuid(dev)
-    cap = capability(dev)
-    mig = uuid != parent_uuid(dev)
-    compute_mode = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE)
-    free_memory = device!(dev) do
-        mem = CUDA.free_memory()
-        device_reset!()
-        mem
-    end
-    (; id, name, cap, uuid="$(mig ? "MIG" : "GPU")-$uuid", compute_mode, free_memory)
-end
-gpus = if do_gpu_list
-    # parse the list of GPUs
-    map(split(gpu_list, ',')) do str
-        id = parse(Int, str)
-        gpu_entry(CuDevice(id))
-    end
-else
-    # pick the first non-exclusive GPU
-    entries = map(gpu_entry, devices())
-    filter!(entry->entry.compute_mode != CUDA.COMPUTEMODE_PROHIBITED, entries)
-    first(entries, 1)
-end
-@info("Testing using device " * join(map(gpu->"$(gpu.id) ($(gpu.name))", gpus), ", ", " and ") *
-      ". To change this, specify the `--gpu` argument to the tests, or set the `CUDA_VISIBLE_DEVICES` environment variable.")
-ENV["CUDA_VISIBLE_DEVICES"] = join(map(gpu->gpu.uuid, gpus), ",")
-
-# determine parallelism
-if !set_jobs
-    cpu_jobs = Sys.CPU_THREADS
-    cpu_memory_jobs = Int(Sys.free_memory()) ÷ (2 * 2^30)
-    gpu_memory_jobs = first(gpus).free_memory ÷ (2 * 2^30)
-    jobs = max(1, min(cpu_jobs, cpu_memory_jobs, gpu_memory_jobs))
-end
-@info "Running $jobs tests in parallel. If this is too many, specify the `--jobs` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable."
-if first(gpus).compute_mode == CUDACore.COMPUTEMODE_EXCLUSIVE_PROCESS
-    @warn "Running tests on a GPU in exclusive mode; reducing parallelism to 1."
-    jobs = 1
-end
-
-# install compute sanitizer
-if do_sanitize
+exename = nothing
+if args.custom["sanitize"] !== nothing
+    tool_val = args.custom["sanitize"].value
+    tool = tool_val === nothing ? "memcheck" : tool_val
     # install CUDA_SDK_jll in a temporary environment
     project = Base.active_project()
-    Pkg.activate(; temp=true)
+    Pkg.activate(; temp = true)
     Pkg.add("CUDA_SDK_jll")
-    using CUDA_SDK_jll
+    @eval using CUDA_SDK_jll
     Pkg.activate(project)
 
-    compute_sanitizer = joinpath(CUDA_SDK_jll.artifact_dir, "cuda/compute-sanitizer/compute-sanitizer")
+    compute_sanitizer = joinpath(CUDA_SDK_jll.artifact_dir,
+                                 "cuda", "compute-sanitizer", "compute-sanitizer")
     if Sys.iswindows()
         compute_sanitizer *= ".exe"
     end
     @info "Running under " * read(`$compute_sanitizer --version`, String)
+    exename = `$compute_sanitizer --tool=$tool --launch-timeout=0 --target-processes=all --report-api-errors=no $(Base.julia_cmd()[1])`
 end
 
-# add workers
-const test_exeflags = Base.julia_cmd()
-filter!(test_exeflags.exec) do c
-    return !(startswith(c, "--depwarn") || startswith(c, "--check-bounds"))
-end
-push!(test_exeflags.exec, "--check-bounds=yes")
-push!(test_exeflags.exec, "--startup-file=no")
-push!(test_exeflags.exec, "--depwarn=yes")
-push!(test_exeflags.exec, "--project=$(Base.active_project())")
-const test_exename = popfirst!(test_exeflags.exec)
-function addworker(X; kwargs...)
-    exename = if do_sanitize
-        ```$compute_sanitizer --tool $sanitize_tool
-                              --launch-timeout=0
-                              --target-processes=all
-                              --report-api-errors=no
-                              $test_exename```
-    else
-        test_exename
-    end
 
-    withenv("JULIA_NUM_THREADS" => 1, "OPENBLAS_NUM_THREADS" => 1) do
-        procs = addprocs(X; exename=exename, exeflags=test_exeflags, kwargs...)
-        @everywhere procs include($(joinpath(@__DIR__, "setup.jl")))
-        procs
-    end
-end
-addworker(min(jobs, length(tests)))
+## worker setup
 
-# pretty print information about gc and mem usage
-testgroupheader = "Test"
-workerheader = "(Worker)"
-name_align        = maximum([textwidth(testgroupheader) + textwidth(" ") +
-                             textwidth(workerheader); map(x -> textwidth(x) +
-                             3 + ndigits(nworkers()), tests)])
-elapsed_align     = textwidth("Time (s)")
-gc_align      = textwidth("GC (s)")
-percent_align = textwidth("GC %")
-alloc_align   = textwidth("Alloc (MB)")
-rss_align     = textwidth("RSS (MB)")
-printstyled(" "^(name_align + textwidth(testgroupheader) - 3), " | ")
-printstyled("         | ---------------- GPU ---------------- | ---------------- CPU ---------------- |\n", color=:white)
-printstyled(testgroupheader, color=:white)
-printstyled(lpad(workerheader, name_align - textwidth(testgroupheader) + 1), " | ", color=:white)
-printstyled("Time (s) | GC (s) | GC % | Alloc (MB) | RSS (MB) | GC (s) | GC % | Alloc (MB) | RSS (MB) |\n", color=:white)
-print_lock = stdout isa Base.LibuvStream ? stdout.lock : ReentrantLock()
-if stderr isa Base.LibuvStream
-    stderr.lock = print_lock
-end
-function print_testworker_stats(test, wrkr, resp)
-    @nospecialize resp
-    lock(print_lock)
-    try
-        printstyled(test, color=:white)
-        printstyled(lpad("($wrkr)", name_align - textwidth(test) + 1, " "), " | ", color=:white)
-        time_str = @sprintf("%7.2f",resp[2])
-        printstyled(lpad(time_str, elapsed_align, " "), " | ", color=:white)
-
-        gpu_gc_str = @sprintf("%5.2f", resp[7])
-        printstyled(lpad(gpu_gc_str, gc_align, " "), " | ", color=:white)
-        # since there may be quite a few digits in the percentage,
-        # the left-padding here is less to make sure everything fits
-        gpu_percent_str = @sprintf("%4.1f", 100 * resp[7] / resp[2])
-        printstyled(lpad(gpu_percent_str, percent_align, " "), " | ", color=:white)
-        gpu_alloc_str = @sprintf("%5.2f", resp[6] / 2^20)
-        printstyled(lpad(gpu_alloc_str, alloc_align, " "), " | ", color=:white)
-
-        gpu_rss_str = ismissing(resp[10]) ? "N/A" : @sprintf("%5.2f", resp[10] / 2^20)
-        printstyled(lpad(gpu_rss_str, rss_align, " "), " | ", color=:white)
-
-        cpu_gc_str = @sprintf("%5.2f", resp[4])
-        printstyled(lpad(cpu_gc_str, gc_align, " "), " | ", color=:white)
-        cpu_percent_str = @sprintf("%4.1f", 100 * resp[4] / resp[2])
-        printstyled(lpad(cpu_percent_str, percent_align, " "), " | ", color=:white)
-        cpu_alloc_str = @sprintf("%5.2f", resp[3] / 2^20)
-        printstyled(lpad(cpu_alloc_str, alloc_align, " "), " | ", color=:white)
-
-        cpu_rss_str = @sprintf("%5.2f", resp[9] / 2^20)
-        printstyled(lpad(cpu_rss_str, rss_align, " "), " |\n", color=:white)
-    finally
-        unlock(print_lock)
-    end
-end
-global print_testworker_started = (name, wrkr)->begin
-    if do_sanitize || do_verbose
-        lock(print_lock)
-        try
-            printstyled(name, color=:white)
-            printstyled(lpad("($wrkr)", name_align - textwidth(name) + 1, " "), " |",
-                " "^elapsed_align, "started at $(now())\n", color=:white)
-        finally
-            unlock(print_lock)
-        end
-    end
-end
-function print_testworker_errored(name, wrkr)
-    lock(print_lock)
-    try
-        printstyled(name, color=:red)
-        printstyled(lpad("($wrkr)", name_align - textwidth(name) + 1, " "), " |",
-            " "^elapsed_align, " failed at $(now())\n", color=:red)
-    finally
-        unlock(print_lock)
-    end
+const init_worker_code = quote
+    include($(joinpath(@__DIR__, "setup.jl")))
 end
 
-# run tasks
-t0 = now()
-results = []
-all_tasks = Task[]
-try
-    # Monitor stdin and kill this task on ^C
-    # but don't do this on Windows, because it may deadlock in the kernel
-    t = current_task()
-    running_tests = Dict{String, DateTime}()
-    if !Sys.iswindows() && isa(stdin, Base.TTY)
-        stdin_monitor = @async begin
-            term = REPL.Terminals.TTYTerminal("xterm", stdin, stdout, stderr)
-            try
-                REPL.Terminals.raw!(term, true)
-                while true
-                    c = read(term, Char)
-                    if c == '\x3'
-                        Base.throwto(t, InterruptException())
-                        break
-                    elseif c == '?'
-                        println("Currently running: ")
-                        tests = sort(collect(running_tests), by=x->x[2])
-                        foreach(tests) do (test, date)
-                            println(test, " (running for ", round(now()-date, Minute), ")")
-                        end
-                    end
-                end
-            catch e
-                isa(e, InterruptException) || rethrow()
-            finally
-                REPL.Terminals.raw!(term, false)
-            end
-        end
-    end
-    @sync begin
-        function recycle_worker(p)
-            if isdefined(CUDA, :to)
-                to = remotecall_fetch(p) do
-                    CUDA.to
-                end
-                push!(timings, to)
-            end
-
-            rmprocs(p, waitfor=30)
-
-            return nothing
-        end
-
-        for p in workers()
-            @async begin
-                push!(all_tasks, current_task())
-                while length(tests) > 0
-                    test = popfirst!(tests)
-
-                    # sometimes a worker failed, and we need to spawn a new one
-                    if p === nothing
-                        p = addworker(1)[1]
-                    end
-                    wrkr = p
-
-                    local resp
-
-                    # tests that muck with the context should not be timed with CUDA events,
-                    # since they won't be valid at the end of the test anymore.
-                    time_source = in(test, ["core/initialization",
-                                            "core/cudadrv"]) ? :julia : :cuda
-
-                    # run the test
-                    running_tests[test] = now()
-                    try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, time_source)
-                    catch e
-                        isa(e, InterruptException) && return
-                        resp = Any[e]
-                    end
-                    delete!(running_tests, test)
-                    push!(results, (test, resp))
-
-                    # act on the results
-                    if resp[1] isa Exception
-                        print_testworker_errored(test, wrkr)
-                        do_quickfail && Base.throwto(t, InterruptException())
-
-                        # the worker encountered some failure, recycle it
-                        # so future tests get a fresh environment
-                        p = recycle_worker(p)
-                    else
-                        print_testworker_stats(test, wrkr, resp)
-                    end
-
-                    # resetting the context breaks certain CUDA libraries,
-                    # so spawn a new worker when the test did so
-                    if test in ["core/initialization", "core/cudadrv"]
-                        p = recycle_worker(p)
-                    end
-                end
-
-                if p !== nothing
-                    recycle_worker(p)
-                end
-            end
-        end
-    end
-catch e
-    isa(e, InterruptException) || rethrow()
-    # If the test suite was merely interrupted, still print the
-    # summary, which can be useful to diagnose what's going on
-    foreach(task -> begin
-            istaskstarted(task) || return
-            istaskdone(task) && return
-            try
-                schedule(task, InterruptException(); error=true)
-            catch ex
-                @error "InterruptException" exception=ex,catch_backtrace()
-            end
-        end, all_tasks)
-    for t in all_tasks
-        # NOTE: we can't just wait, but need to discard the exception,
-        #       because the throwto for --quickfail also kills the worker.
-        try
-            wait(t)
-        catch e
-            showerror(stderr, e)
-        end
-    end
-finally
-    if @isdefined stdin_monitor
-        schedule(stdin_monitor, InterruptException(); error=true)
-    end
+const init_code = quote
+    include($(joinpath(@__DIR__, "helpers.jl")))
 end
-t1 = now()
-elapsed = canonicalize(Dates.CompoundPeriod(t1-t0))
-println("Testing finished in $elapsed")
 
-# construct a testset to render the test results
-o_ts = Test.DefaultTestSet("Overall")
-function with_testset(f, testset)
-    @static if VERSION >= v"1.13.0-DEV.1044"
-        Test.@with_testset testset f()
-    else
-        Test.push_testset(testset)
-        try
-            f()
-        finally
-            Test.pop_testset()
-        end
+# `core/initialization` and `core/cudadrv` destroy the CUDA context mid-test.
+# CUDA events become invalid once the context is gone, so these tests use plain
+# Julia timing. We also isolate them on a fresh worker so subsequent tests
+# aren't affected by the torn-down context.
+const context_destroying_tests = ("core/initialization", "core/cudadrv")
+function test_worker(name, init_worker_code)
+    if name in context_destroying_tests
+        return addworker(; exename, init_worker_code)
     end
+    return nothing
 end
-with_testset(o_ts) do
-    completed_tests = Set{String}()
-    for (testname, (resp,)) in results
-        push!(completed_tests, testname)
-        if isa(resp, Test.DefaultTestSet)
-            with_testset(resp) do
-                Test.record(o_ts, resp)
-            end
-        elseif isa(resp, Tuple{Int,Int})
-            fake = Test.DefaultTestSet(testname)
-            for i in 1:resp[1]
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-            end
-            for i in 1:resp[2]
-                Test.record(fake, Test.Broken(:test, nothing))
-            end
-            with_testset(fake) do
-                Test.record(o_ts, fake)
-            end
-        elseif isa(resp, RemoteException) && isa(resp.captured.ex, Test.TestSetException)
-            println("Worker $(resp.pid) failed running test $(testname):")
-            Base.showerror(stdout, resp.captured)
-            println()
-            fake = Test.DefaultTestSet(testname)
-            for i in 1:resp.captured.ex.pass
-                Test.record(fake, Test.Pass(:test, nothing, nothing, nothing, nothing))
-            end
-            for i in 1:resp.captured.ex.broken
-                Test.record(fake, Test.Broken(:test, nothing))
-            end
-            for t in resp.captured.ex.errors_and_fails
-                Test.record(fake, t)
-            end
-            with_testset(fake) do
-                Test.record(o_ts, fake)
-            end
-        else
-            if !isa(resp, Exception)
-                resp = ErrorException(string("Unknown result type : ", typeof(resp)))
-            end
-            # If this test raised an exception that is not a remote testset exception,
-            # i.e. not a RemoteException capturing a TestSetException that means
-            # the test runner itself had some problem, so we may have hit a segfault,
-            # deserialization errors or something similar.  Record this testset as Errored.
-            fake = Test.DefaultTestSet(testname)
-            Test.record(fake, Test.Error(:nontest_error, testname, nothing, Base.ExceptionStack([(exception=resp,backtrace=[])]), LineNumberNode(1)))
-            with_testset(fake) do
-                Test.record(o_ts, fake)
-            end
-        end
-    end
-    for test in tests
-        (test in completed_tests) && continue
-        fake = Test.DefaultTestSet(test)
-        Test.record(fake, Test.Error(:test_interrupted, test, nothing, Base.ExceptionStack([(exception="skipped",backtrace=[])]), LineNumberNode(1)))
-        with_testset(fake) do
-            Test.record(o_ts, fake)
-        end
-    end
-end
-println()
-Test.print_test_results(o_ts, 1)
-if (VERSION >= v"1.13.0-DEV.1037" && !Test.anynonpass(o_ts)) ||
-   (VERSION < v"1.13.0-DEV.1037" && !o_ts.anynonpass)
-    println("    \033[32;1mSUCCESS\033[0m")
-else
-    println("    \033[31;1mFAILURE\033[0m\n")
-    Test.print_test_errors(o_ts)
-    throw(Test.FallbackTestSetException("Test run finished with errors"))
-end
+
+
+## run
+
+runtests(CUDA, args;
+         testsuite, init_code, init_worker_code, test_worker,
+         RecordType = CUDATestRecord,
+         custom_args = (; julia_timed_tests = context_destroying_tests),
+         exename)
