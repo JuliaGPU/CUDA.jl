@@ -359,89 +359,105 @@ function unsafe_execute!(plan::CuFFTPlan{T,S,K,inplace}, x::DenseCuArray{S}, y::
     cufftXtExec(plan, x, y, K)
 end
 
-# a version of unsafe_execute which applies the plan to each element of external batch dimensions not covered by the plan.
-# Note that for plans, with external batch non-transform dimensions, views are created for each of such element.
-# Such views each have lower dimensions and are then transformed by the lower dimension low-level Cuda plan.
-# Work-around for cuFFT's lack of support for arbitrary batch layouts in cufftXtMakePlanMany.
+# 0-based footprint of one cuFFT execution, in elements: max linear offset
+# touched + 1. cuFFT covers all combinations of (region ∪ internal_batch_dims);
+# each external batch dim is fixed at the current index.
+function plan_footprint(sizes::Dims, region, internal_batch_dims)
+    covered = (region..., internal_batch_dims...)
+    isempty(covered) && return 1
+    max_off = 0
+    for d in covered
+        stride_d = prod(sizes[1:d-1])
+        max_off += (sizes[d] - 1) * stride_d
+    end
+    return max_off + 1
+end
+
+# Out-of-place left-rotation by `shift`: dest[i] = src[mod(i - 1 + shift, n) + 1]
+# for i in 1..n. Does not mutate `src`.
+function shift_copy!(dest::DenseCuArray, src::DenseCuArray, shift::Integer)
+    n = length(src)
+    shift = mod(shift, n)
+    shift == 0 && return unsafe_copyto!(dest, 1, src, 1, n)
+    unsafe_copyto!(dest, 1, src, shift + 1, n - shift)
+    unsafe_copyto!(dest, n - shift + 1, src, 1, shift)
+    return dest
+end
+
+# A version of unsafe_execute! that handles external batch dims (dims outside
+# the cuFFT plan's internal batching) by issuing one cuFFT call per external
+# index. cuFFT's R2C/C2R APIs require each call's base address to be
+# Complex-aligned; in 1-based Julia indices that means the batch's linear
+# start (`bs`) must be odd when its side of the transform has Real eltype.
+#
+# Two strategies are used, picked by which side is Real:
+#
+#   * R2C (input Real, output Complex): rotate x into a fresh aligned
+#     `scratch_x` once and read misaligned batches from it. The user's input
+#     is never mutated and the extra cost is O(length(x)) regardless of how
+#     many batches are misaligned.
+#
+#   * C2R (input Complex, output Real): per-misaligned-batch
+#     read-modify-write through a small `scratch_y` of size `foot_y`. Other
+#     external batches share the same footprint range in y, so we seed
+#     scratch_y with y's current contents before each cuFFT call and copy
+#     back after, preserving their writes.
 function unsafe_execute_external_batches!(p::CuFFTPlan{T,S,K,inplace}, x, y) where {T,S,K,inplace}
-    # For R2C/C2R transforms, dimension 1 should not be in external batches (alignment requirement)
-    internal_batch_dims, external_batch_dims = get_batch_dims(p.region, p.output_size)
-    if isempty(external_batch_dims)
+    region = p.region
+    internal_dims, external_dims = get_batch_dims(region, p.output_size)
+    if isempty(external_dims)
         unsafe_execute!(p, x, y)
-    else
-        # flatten the memory as a view as otherwise the input is not correctly interpreted as a contiguous Cuda memory
-        external_batch_ids = [external_batch_dims...]
-        batch_strides_x = (1, cumprod(size(x))...)[external_batch_ids]
-        batch_strides_y = (1, cumprod(size(y))...)[external_batch_ids]
-        did_skip_x = false
-        to_skip_x = 0
-        did_skip_y = false
-        to_skip_y = 0
-        extra_x_index = 0
-        extra_y_index = 0
-        sze = size(x)[external_batch_ids]
-        ci = CartesianIndices(sze)
+        return
+    end
+
+    prefix_prod_x = (1, cumprod(size(x))...)
+    prefix_prod_y = (1, cumprod(size(y))...)
+    ext_stride_x = map(d -> prefix_prod_x[d], external_dims)
+    ext_stride_y = map(d -> prefix_prod_y[d], external_dims)
+    ext_size = map(d -> size(x, d), external_dims)
+    ci = CartesianIndices(ext_size)
+    foot_x = plan_footprint(size(x), region, internal_dims)
+    foot_y = plan_footprint(size(y), region, internal_dims)
+
+    # R2C side: find the first misaligned external batch (if any) and pre-rotate
+    # x into scratch_x once. The same shift aligns every other misaligned batch
+    # in the same stride orbit.
+    to_skip_x = 0
+    scratch_x = nothing
+    if S <: Real
         for c in ci
-            batch_start_x = sum(batch_strides_x .* (Tuple(c) .- 1)) + 1
-            batch_start_y = sum(batch_strides_y .* (Tuple(c) .- 1)) + 1
-            # for Real array type, cufftXtMakePlanMany has alignment limitations which require each real number to start
-            # at a C-side byte offset that is a multiple of sizeof(Complex{T}), i.e. odd Julia indices.
-            # We first ignore all even indices here and process them later.
-            if eltype(x) <: Real && iseven(batch_start_x)
-                did_skip_x = true
-                if to_skip_x == 0
-                    to_skip_x = batch_start_x - 1
-                    # if x was previously skipped and is now rotated, we need to write to a different result location y:
-                    extra_y_index = batch_start_y - 1
-                end
-                continue
-            end
-            # batch_start_y refers to the result index and the y to the result array
-            if eltype(y) <: Real && iseven(batch_start_y)
-                did_skip_y = true
-                if to_skip_y == 0
-                    to_skip_y = batch_start_y - 1
-                    # if the result y was previously skipped and is now rotated, we need to read from a different source location x:
-                    extra_x_index = batch_start_x - 1
-                end
-                continue
-            end
-            vx = @view x[batch_start_x:end]
-            vy = @view y[batch_start_y:end]
-            unsafe_execute!(p, vx, vy)
+            bs = sum(ext_stride_x .* (Tuple(c) .- 1)) + 1
+            if iseven(bs); to_skip_x = bs - 1; break; end
         end
-        # If there was at least one skip due to real Float32 alignment, we need to cyclicly rotate the whole array in place and run again
-        if did_skip_x || did_skip_y
-            if did_skip_x
-                circshift!((@view x[:]), -to_skip_x)
-            end
-            if did_skip_y
-                circshift!((@view y[:]), -to_skip_y)
-            end
-            for c in ci
-                batch_start_x = sum(batch_strides_x .* (Tuple(c) .- 1)) + 1 + extra_x_index
-                batch_start_y = sum(batch_strides_y .* (Tuple(c) .- 1)) + 1 + extra_y_index
-                if isodd(prod(sze)) && c == last(ci)
-                    # avoids a wrap-around effect reprocessing data
-                    continue
-                end
-                if eltype(x) <: Real && iseven(batch_start_x)
-                    continue
-                end
-                if eltype(y) <: Real && iseven(batch_start_y)
-                    continue
-                end
-                vx = @view x[batch_start_x:end]
-                vy = @view y[batch_start_y:end]
-                unsafe_execute!(p, vx, vy)
-            end
-            # shift these sub-arrays back to their original locations in place
-            if did_skip_x
-                circshift!((@view x[:]), to_skip_x)
-            end
-            if did_skip_y
-                circshift!((@view y[:]), to_skip_y)
-            end
+        if to_skip_x > 0
+            scratch_x = shift_copy!(CuArray{S}(undef, length(x)), x, to_skip_x)
+        end
+    end
+
+    # C2R side: per-misaligned-batch scratch, allocated lazily.
+    scratch_y = nothing
+
+    for c in ci
+        bs_x = sum(ext_stride_x .* (Tuple(c) .- 1)) + 1
+        bs_y = sum(ext_stride_y .* (Tuple(c) .- 1)) + 1
+        misaligned_x = S <: Real && iseven(bs_x)
+        misaligned_y = T <: Real && iseven(bs_y)
+
+        vx = misaligned_x ?
+            (@view scratch_x[bs_x - to_skip_x : end]) :
+            (@view x[bs_x : end])
+        vy = if misaligned_y
+            scratch_y === nothing && (scratch_y = CuArray{T}(undef, foot_y))
+            unsafe_copyto!(scratch_y, 1, y, bs_y, foot_y)
+            @view scratch_y[1:foot_y]
+        else
+            @view y[bs_y : end]
+        end
+
+        unsafe_execute!(p, vx, vy)
+
+        if misaligned_y
+            unsafe_copyto!(y, bs_y, scratch_y, 1, foot_y)
         end
     end
     return

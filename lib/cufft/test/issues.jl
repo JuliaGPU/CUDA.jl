@@ -76,3 +76,25 @@ end
     y = fft(x, (2, 3))
     @test maximum(abs.(Array(y) .- fft(xh, (2, 3)))) < 1e-4
 end
+
+@testset "PR3052: scratch-buffer copy preserves input across alignment hazard" begin
+    # Float32 rfft with odd dim sizes between/before transform dims forces
+    # multiple external batches at misaligned linear offsets. Verify that
+    # (a) the input array is not mutated, and (b) the result matches CPU FFTW.
+    for region in [(1, 3), (1, 4), (3, 4)]
+        x = CUDACore.rand(Float32, 5, 3, 7, 9)
+        xref = copy(x)
+        y = rfft(x, region)
+        @test x == xref                                          # input preserved
+        @test maximum(abs.(Array(y) .- rfft(Array(xref), region))) < 1e-4
+    end
+end
+
+@testset "PR3052: rfft → irfft round-trip exercises C2R external-batch path" begin
+    x = CUDACore.rand(Float32, 5, 3, 7, 9)
+    xref = copy(x)
+    y = rfft(x, (1, 3))
+    @test x == xref
+    z = irfft(y, size(x, 1), (1, 3))
+    @test maximum(abs.(Array(z) .- Array(xref))) < 1e-3
+end
