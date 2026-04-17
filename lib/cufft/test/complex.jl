@@ -47,6 +47,7 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     d_X = CuArray(X)
     p = plan_fft(d_X,region)
     d_Y = p * d_X
+
     d_X2 = reshape(d_X, (size(d_X)..., 1))
     @test_throws ArgumentError p * d_X2
 
@@ -128,24 +129,47 @@ end
 
 @testset "Batch 2D (in 3D)" begin
     dims = (N1,N2,N3)
-    for region in [(1,2),(2,3),(1,3)]
+    for region in [(1,2),(2,3),(1,3),(3,1)]
         X = rand(T, dims)
         batched(X,region)
     end
-
-    X = rand(T, dims)
-    @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4),(1,3),(2,3),(2,),(3,)]
+    for region in [(1,2),(1,3),(3,),(2,),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(2,4)]
+
+    for region in [(1,4),(2,4),(3,4)]
         X = rand(T, dims)
-        @test_throws ArgumentError batched(X,region)
+        if T <: ComplexF16
+            # cuFFT half-precision transforms require all transform dim sizes
+            # to be powers of 2; N4=9 violates that.
+            @test_throws ArgumentError batched(X, region)
+        else
+            batched(X,region)
+        end
+    end
+end
+
+@testset "Batch 3D (in 5D)" begin
+    dims = (N1,N2,N3,N4,N5)
+    for region in [(1,2,3),(2,3,5)]
+        X = rand(T, dims)
+        batched(X,region)
+    end
+
+    for region in [(1,2,4),(2,3,4),(3,4,5)]
+        X = rand(T, dims)
+        if T <: ComplexF16
+            # cuFFT half-precision transforms require all transform dim sizes
+            # to be powers of 2; N4=9 violates that.
+            @test_throws ArgumentError batched(X,region)
+        else
+            batched(X,region)
+        end
     end
 end
 
