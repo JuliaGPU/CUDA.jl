@@ -123,15 +123,17 @@ end
 ## compute-sanitizer wrapping (optional)
 
 exename = nothing
+sanitizer_log_dir = nothing
 if args.custom["sanitize"] !== nothing
     tool_val = args.custom["sanitize"].value
     tool = tool_val === nothing ? "memcheck" : tool_val
-    # install CUDA_SDK_jll in a temporary environment
+    # install CUDA_SDK_jll in a temporary environment so we only grab the
+    # tool for this run.
     project = Base.active_project()
-    Pkg.activate(; temp = true)
-    Pkg.add("CUDA_SDK_jll")
+    Pkg.activate(; temp = true, io = devnull)
+    Pkg.add("CUDA_SDK_jll"; io = devnull)
     @eval using CUDA_SDK_jll
-    Pkg.activate(project)
+    Pkg.activate(project, io = devnull)
 
     compute_sanitizer = joinpath(CUDA_SDK_jll.artifact_dir,
                                  "cuda", "compute-sanitizer", "compute-sanitizer")
@@ -139,7 +141,13 @@ if args.custom["sanitize"] !== nothing
         compute_sanitizer *= ".exe"
     end
     @info "Running under " * read(`$compute_sanitizer --version`, String)
-    exename = `$compute_sanitizer --tool=$tool --launch-timeout=0 --target-processes=all --report-api-errors=no $(Base.julia_cmd()[1])`
+    # Route sanitizer output to per-process log files: its banner/reports on
+    # stdout would otherwise collide with Malt's port handshake on the worker.
+    # `%p` expands to the sanitizer process's PID. We surface relevant logs
+    # after the run finishes.
+    sanitizer_log_dir = mktempdir(prefix = "cuda-sanitizer-")
+    log_pattern = joinpath(sanitizer_log_dir, "%p.log")
+    exename = `$compute_sanitizer --tool=$tool --launch-timeout=0 --target-processes=all --report-api-errors=no --log-file=$log_pattern $(Base.julia_cmd()[1])`
 end
 
 
@@ -168,8 +176,39 @@ end
 
 ## run
 
-runtests(CUDA, args;
-         testsuite, init_code, init_worker_code, test_worker,
-         RecordType = CUDATestRecord,
-         custom_args = (; julia_timed_tests = context_destroying_tests),
-         exename)
+function report_sanitizer_logs(log_dir)
+    log_dir === nothing && return
+    files = filter(endswith(".log"), readdir(log_dir; join = true))
+    isempty(files) && return
+    total_workers = length(files)
+    flagged = String[]
+    for file in files
+        content = read(file, String)
+        if !occursin("ERROR SUMMARY: 0 errors", content)
+            push!(flagged, file)
+        end
+    end
+    println()
+    if isempty(flagged)
+        printstyled("compute-sanitizer: $total_workers workers checked, no errors\n";
+                    color = :green, bold = true)
+    else
+        printstyled("compute-sanitizer: $(length(flagged))/$total_workers workers reported issues:\n";
+                    color = :red, bold = true)
+        for file in flagged
+            println("\n--- ", basename(file), " ---")
+            print(read(file, String))
+        end
+    end
+    println()
+end
+
+try
+    runtests(CUDA, args;
+             testsuite, init_code, init_worker_code, test_worker,
+             RecordType = CUDATestRecord,
+             custom_args = (; julia_timed_tests = context_destroying_tests),
+             exename)
+finally
+    report_sanitizer_logs(sanitizer_log_dir)
+end
