@@ -71,10 +71,12 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
         idist = prod(input_size[1:internal_batch_dims[1]-1])
         cdist = prod(cdims[1:internal_batch_dims[1]-1])
 
-        # Embedded storage sizes (C-order): first entry >= n[0] (use idist),
-        # remaining entries are products of sizes between consecutive transform dims
-        inembed = Clonglong[idist, (prod(input_size[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
-        cnembed = Clonglong[cdist, (prod(cdims[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
+        # Embedded storage sizes (C-order): cuFFT requires the first entry >= n[0]
+        # (the outermost transform size, which in C-order is rsz[1]). Use idist when
+        # it already satisfies this; otherwise pad up to n[0].
+        # Remaining entries are products of sizes between consecutive transform dims.
+        inembed = Clonglong[max(idist, rsz[1]), (prod(input_size[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
+        cnembed = Clonglong[max(cdist, rsz[1]), (prod(cdims[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
 
         num_internal_batches = prod(input_size[collect(internal_batch_dims)])
 

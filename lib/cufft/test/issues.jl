@@ -64,5 +64,13 @@ end
 
 @testset "CUDA.jl_PR_Bug 3: ArgumentError for replicate directions" begin
     # see https://github.com/JuliaGPU/CUDA.jl/pull/3052#issuecomment-4213439988
-    @test_throws ArgumentError plan_fft!(CUDACore.rand(ComplexF32, 4, 4, 4), (1, 2, 1)) 
+    @test_throws ArgumentError plan_fft!(CUDACore.rand(ComplexF32, 4, 4, 4), (1, 2, 1))
+end
+
+@testset "PR3052: inembed[0] >= n[0] when internal batch dim is 1" begin
+    # region=(2,3) in 3D forces internal_batch_dims=(1,) and idist=1, which used
+    # to violate cuFFT's documented inembed[0] >= n[0] precondition.
+    x = CUDACore.rand(ComplexF32, 4, 5, 7); xh = Array(x)
+    y = fft(x, (2, 3))
+    @test maximum(abs.(Array(y) .- fft(xh, (2, 3)))) < 1e-4
 end
