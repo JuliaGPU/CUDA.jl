@@ -171,9 +171,8 @@ end
 # retrieves the size to allocate even if the external batch dimensions do no transform
 get_osz(osz, x) = ntuple((d)->(d>length(osz) ? size(x, d) : osz[d]), ndims(x))
 
-# it is convenient to use sort on tuples, but since this is only implemented as of Julia 1.12
-# and the dimensions are anyway limited to maximally three, we hand code the cases here:
-ensure_increasing(num::Number) = num
+# Sort on tuples is only implemented as of Julia 1.12, and cuFFT supports at most
+# three transform dimensions per plan, so we hand-code the cases here.
 ensure_increasing(s::NTuple{1, Int}) = s
 ensure_increasing(s::NTuple{2, Int}) = s[1] > s[2] ? (s[2], s[1]) : s
 function ensure_increasing(s::NTuple{3, Int})
@@ -182,8 +181,8 @@ function ensure_increasing(s::NTuple{3, Int})
     s[1] > s[2] && (s = (s[2], s[1], s[3]))
     s
 end
-function ensure_increasing(::NTuple)
-    throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
+function ensure_increasing(s::NTuple{N, Int}) where N
+    throw(ArgumentError("cuFFT supports at most 3 transform dimensions per plan; got $N"))
 end
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
