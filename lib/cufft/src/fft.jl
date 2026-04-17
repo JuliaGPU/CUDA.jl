@@ -171,6 +171,14 @@ end
 # retrieves the size to allocate even if the external batch dimensions do no transform
 get_osz(osz, x) = ntuple((d)->(d>length(osz) ? size(x, d) : osz[d]), ndims(x))
 
+function ensure_unique(s::NTuple{N, Int}) where N
+    for i in 1:N, j in i+1:N
+        s[i] == s[j] && throw(ArgumentError(
+            "FFT region dimensions must be unique; got $s"))
+    end
+    s
+end
+
 # Sort on tuples is only implemented as of Julia 1.12, and cuFFT supports at most
 # three transform dimensions per plan, so we hand-code the cases here.
 ensure_increasing(s::NTuple{1, Int}) = s
@@ -193,10 +201,8 @@ end
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
         Base.@constprop :aggressive function $f(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
-            region = unique(region)
             R = length(region)
             region = NTuple{R,Int}(region)
-            region = ensure_increasing(region)
             $f(X, region)
         end
     end
@@ -206,7 +212,7 @@ end
 function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = true
-    region = ensure_increasing(Tuple(region))
+    region = ensure_increasing(ensure_unique(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -216,7 +222,7 @@ end
 function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = true
-    region = ensure_increasing(Tuple(region))
+    region = ensure_increasing(ensure_unique(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -227,7 +233,7 @@ end
 function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = false
-    region = ensure_increasing(Tuple(region))
+    region = ensure_increasing(ensure_unique(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 
@@ -237,7 +243,7 @@ end
 function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
-    region = ensure_increasing(Tuple(region))
+    region = ensure_increasing(ensure_unique(region))
 
     handle = cufftGetPlan(T, T, size(X), region)
 

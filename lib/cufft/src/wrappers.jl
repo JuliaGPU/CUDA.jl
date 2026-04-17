@@ -23,7 +23,7 @@ low level interface to the CUDA library CuFFT for the function cufftXtMakePlanMa
 """
 function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, input_size::Dims, region)
     if any(diff(collect(region)) .< 1)
-        throw(ArgumentError("transformed dims for rfft-type transforms must be an increasing sequence"))
+        throw(ArgumentError("FFT region dimensions must be in strictly increasing order; got $region"))
     end
     if any(region .< 1 .|| region .> length(input_size))
         throw(ArgumentError("transformed dims can only refer to valid dimensions"))
