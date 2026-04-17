@@ -545,12 +545,12 @@ end
     @gcsafe_ccall libcutensor.cutensorBlockSparseContract(handle::cutensorHandle_t,
                                                           plan::cutensorPlan_t,
                                                           alpha::Ptr{Cvoid},
-                                                          A::Ptr{Ptr{Cvoid}},
-                                                          B::Ptr{Ptr{Cvoid}},
+                                                          A::Ptr{CuPtr{Cvoid}},
+                                                          B::Ptr{CuPtr{Cvoid}},
                                                           beta::Ptr{Cvoid},
-                                                          C::Ptr{Ptr{Cvoid}},
-                                                          D::Ptr{Ptr{Cvoid}},
-                                                          workspace::Ptr{Cvoid},
+                                                          C::Ptr{CuPtr{Cvoid}},
+                                                          D::Ptr{CuPtr{Cvoid}},
+                                                          workspace::CuPtr{Cvoid},
                                                           workspaceSize::UInt64,
                                                           stream::cudaStream_t)::cutensorStatus_t
 end
