@@ -4,7 +4,7 @@ using CUDACore
 using GPUArrays
 using NVML: has_nvml, NVML
 using ParallelTestRunner
-using ParallelTestRunner: AbstractTestRecord, WorkerTestSet
+using ParallelTestRunner: AbstractTestRecord, TestRecord, WorkerTestSet
 using Test: DefaultTestSet
 using Printf: @sprintf
 using Random
@@ -50,20 +50,11 @@ CUDA.precompile_runtime()
 ## custom test record capturing CUDA-specific statistics
 
 struct CUDATestRecord <: AbstractTestRecord
-    value::DefaultTestSet
-    time::Float64
-    bytes::UInt64
-    gctime::Float64
-    compile_time::Float64
-    rss::UInt64
-    total_time::Float64
-    # CUDA-specific:
+    base::TestRecord
     gpu_bytes::UInt64
     gpu_time::Float64
     gpu_rss::Union{UInt64, Missing}
 end
-
-ParallelTestRunner.memory_usage(rec::CUDATestRecord) = rec.rss
 
 # GPU per-process memory via NVML. Returns `missing` in containers or on
 # devices without NVML support.
@@ -87,40 +78,34 @@ end
 
 function ParallelTestRunner.execute(::Type{CUDATestRecord}, mod::Module, f, name,
                                     start_time, custom_args)
-    use_cuda_timing = !(name in custom_args.julia_timed_tests)
+    # Context-destroying tests use plain Julia timing: CUDA events can't survive
+    # the context teardown. Delegate to PTR's default `execute` for those and
+    # wrap with empty GPU stats.
+    if name in custom_args.julia_timed_tests
+        base = ParallelTestRunner.execute(TestRecord, mod, f, name, start_time, custom_args)
+        return CUDATestRecord(base, UInt64(0), 0.0, missing)
+    end
+
     data = @eval mod begin
         GC.gc(true)
         Random.seed!(1)
-        if $use_cuda_timing
-            stats = CUDA.@timed @testset WorkerTestSet "placeholder" begin
-                @testset DefaultTestSet $name begin
-                    $f
-                end
+        stats = CUDA.@timed @testset WorkerTestSet "placeholder" begin
+            @testset DefaultTestSet $name begin
+                $f
             end
-            (; testset = stats.value, stats.time,
-               bytes = UInt64(stats.cpu_bytes), gctime = Float64(stats.cpu_gctime),
-               compile_time = 0.0,
-               gpu_bytes = UInt64(stats.gpu_bytes),
-               gpu_time = Float64(stats.gpu_memtime))
-        else
-            stats = @timed @testset WorkerTestSet "placeholder" begin
-                @testset DefaultTestSet $name begin
-                    $f
-                end
-            end
-            compile_time = @static VERSION >= v"1.11" ? stats.compile_time : 0.0
-            (; testset = stats.value, stats.time, stats.bytes, stats.gctime,
-               compile_time, gpu_bytes = UInt64(0), gpu_time = 0.0)
         end
+        (; testset = stats.value,
+           stats.time,
+           cpu_bytes = UInt64(stats.cpu_bytes),
+           cpu_gctime = Float64(stats.cpu_gctime),
+           gpu_bytes = UInt64(stats.gpu_bytes),
+           gpu_time = Float64(stats.gpu_memtime))
     end
 
-    gpu_rss = use_cuda_timing ? gpu_rss_nvml() : missing
     rss = Sys.maxrss()
-    record = CUDATestRecord(
-        data.testset, data.time, data.bytes, data.gctime, data.compile_time,
-        rss, time() - start_time,
-        data.gpu_bytes, data.gpu_time, gpu_rss,
-    )
+    base = TestRecord(data.testset, data.time, data.cpu_bytes, data.cpu_gctime,
+                      0.0, rss, time() - start_time)
+    record = CUDATestRecord(base, data.gpu_bytes, data.gpu_time, gpu_rss_nvml())
     GC.gc(true)
     CUDA.reclaim()
     return record
@@ -161,17 +146,18 @@ end
 
 function print_cuda_row(io::IO, record::CUDATestRecord, wrkr, test, ctx::ParallelTestRunner.TestIOContext;
                        color::Symbol = :white)
+    base = record.base
     printstyled(io, test, color = color)
     printstyled(io, lpad("($wrkr)", ctx.name_align - textwidth(test) + 1, " "), " │ ", color = color)
 
-    time_str = @sprintf("%7.2f", record.time)
+    time_str = @sprintf("%7.2f", base.time)
     printstyled(io, lpad(time_str, ctx.elapsed_align, " "), " │ ", color = color)
 
     if ctx.verbose
-        init_time_str = @sprintf("%7.2f", record.total_time - record.time)
+        init_time_str = @sprintf("%7.2f", base.total_time - base.time)
         printstyled(io, lpad(init_time_str, ctx.elapsed_align, " "), " │ ", color = color)
         if VERSION >= v"1.11"
-            ct = record.time > 0 ? 100 * record.compile_time / record.time : 0.0
+            ct = base.time > 0 ? 100 * base.compile_time / base.time : 0.0
             ct_str = @sprintf("%7.2f", Float64(ct))
             printstyled(io, lpad(ct_str, ctx.compile_align, " "), " │ ", color = color)
         end
@@ -186,14 +172,14 @@ function print_cuda_row(io::IO, record::CUDATestRecord, wrkr, test, ctx::Paralle
     printstyled(io, lpad(gpu_rss_str, GPU_RSS_ALIGN, " "), " │ ", color = color)
 
     # CPU columns
-    gc_str = @sprintf("%5.2f", record.gctime)
+    gc_str = @sprintf("%5.2f", base.gctime)
     printstyled(io, lpad(gc_str, ctx.gc_align, " "), " │ ", color = color)
-    pct = record.time > 0 ? 100 * record.gctime / record.time : 0.0
+    pct = base.time > 0 ? 100 * base.gctime / base.time : 0.0
     pct_str = @sprintf("%4.1f", pct)
     printstyled(io, lpad(pct_str, ctx.percent_align, " "), " │ ", color = color)
-    alloc_str = @sprintf("%5.2f", record.bytes / 2^20)
+    alloc_str = @sprintf("%5.2f", base.bytes / 2^20)
     printstyled(io, lpad(alloc_str, ctx.alloc_align, " "), " │ ", color = color)
-    rss_str = @sprintf("%5.2f", record.rss / 2^20)
+    rss_str = @sprintf("%5.2f", base.rss / 2^20)
     printstyled(io, lpad(rss_str, ctx.rss_align, " "), " │\n", color = color)
 end
 
