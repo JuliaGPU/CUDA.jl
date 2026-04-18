@@ -46,34 +46,38 @@ function handle_dtor(ctx, handle)
 end
 const idle_handles = HandleCache{CuContext,custatevecHandle_t}(handle_ctor, handle_dtor)
 
-# fat handle, includes a cache
-struct cuStateVecHandle
-    handle::custatevecHandle_t
-    cache::CuVector{UInt8}
+# fat handle: bundles the raw cuStateVec handle with a cache buffer and a
+# context reference. Mutable so an object-bound finalizer can release both
+# the buffer and the handle when the wrapper becomes unreachable (on
+# reclaim or task GC).
+mutable struct cuStateVecHandle
+    const handle::custatevecHandle_t
+    const ctx::CuContext
+    const cache::CuVector{UInt8}
 end
 Base.unsafe_convert(::Type{Ptr{custatevecContext}}, handle::cuStateVecHandle) =
     handle.handle
 
+function handle_finalizer(h::cuStateVecHandle)
+    CUDACore.unsafe_free!(h.cache)
+    push!(idle_handles, h.ctx, h.handle)
+end
+
+const LibraryState = @NamedTuple{handle::cuStateVecHandle, stream::CuStream}
+const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUQUANTUM)
+
 function handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cuStateVecHandle, stream::CuStream}
-    states = get!(task_local_storage(), :CUQUANTUM) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(state_cache)
 
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
 
         cache = CuVector{UInt8}(undef, 0)
-        fat_handle = cuStateVecHandle(new_handle, cache)
-
-        finalizer(current_task()) do task
-            CUDACore.unsafe_free!(cache)
-            push!(idle_handles, cuda.context, new_handle)
-        end
+        fat_handle = cuStateVecHandle(new_handle, cuda.context, cache)
+        finalizer(handle_finalizer, fat_handle)
 
         custatevecSetStream(new_handle, cuda.stream)
 
@@ -145,6 +149,9 @@ function __init__()
         custatevecLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
         custatevecLoggerSetLevel(5)
     end
+
+    CUDACore.register_reclaimable!(idle_handles)
+    CUDACore.register_reclaimable!(state_cache)
 
     _initialized[] = true
 end

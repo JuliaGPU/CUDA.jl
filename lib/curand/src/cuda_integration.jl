@@ -4,36 +4,17 @@ using CUDACore: AnyCuArray, CuArray, CuContext, active_state
 using CUDACore: GPUArrays
 
 
-## native RNG handle cache (kernel-based Philox2x32)
+## native RNG (kernel-based Philox2x32)
+#
+# Holds no GPU memory, just two UInt32s, so no HandleCache is needed: each
+# task constructs its own and TLS-drop / task-GC frees it.
 
-function native_rng_ctor(ctx)
-    context!(ctx) do
-        NativeRNG()
-    end
-end
-function native_rng_dtor(ctx, rng) end
-const idle_native_rngs = HandleCache{CuContext,NativeRNG}(native_rng_ctor, native_rng_dtor)
+const native_state_cache = CUDACore.TaskLocalCache{CuContext, NativeRNG}(:cuRAND_NativeRNG)
 
 function native_rng()
     cuda = active_state()
-
-    LibraryState = @NamedTuple{rng::NativeRNG}
-    states = get!(task_local_storage(), :cuRAND_NativeRNG) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
-
-    @noinline function new_state(cuda)
-        new_rng = pop!(idle_native_rngs, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_native_rngs, cuda.context, new_rng)
-        end
-        (; rng=new_rng)
-    end
-    state = get!(states, cuda.context) do
-        new_state(cuda)
-    end
-
-    return state.rng
+    states = CUDACore.task_dict(native_state_cache)
+    get!(() -> NativeRNG(), states, cuda.context)
 end
 
 
@@ -41,24 +22,16 @@ end
 ## batched-kernel RNG). Used by Random.rand!/randn!(::AnyCuArray) when no rng
 ## is supplied, and exposed via CUDA.RNG / CUDA.gpuarrays_rng().
 
+const gpuarrays_state_cache = CUDACore.TaskLocalCache{CuContext, GPUArrays.RNG{CuArray}}(:cuRAND_DefaultRNG)
+
 function gpuarrays_rng()
     cuda = active_state()
-
-    LibraryState = @NamedTuple{rng::GPUArrays.RNG{CuArray}}
-    states = get!(task_local_storage(), :cuRAND_DefaultRNG) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
-
-    @noinline function new_state(cuda)
+    states = CUDACore.task_dict(gpuarrays_state_cache)
+    get!(states, cuda.context) do
         new_rng = GPUArrays.RNG{CuArray}()
         Random.seed!(new_rng)
-        (; rng=new_rng)
+        new_rng
     end
-    state = get!(states, cuda.context) do
-        new_state(cuda)
-    end
-
-    return state.rng
 end
 
 
