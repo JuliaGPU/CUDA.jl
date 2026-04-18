@@ -458,6 +458,12 @@ end
 
 const reclaim_hooks = Any[]
 
+# Hooks that run *before* `reclaim_hooks`, followed by a forced GC. Intended
+# for library bindings to drop their task-local state so that finalizers can
+# run (freeing e.g. cached workspace buffers) before the HandleCache and
+# pool-trim stages release their own resources.
+const pre_reclaim_hooks = Any[]
+
 """
     retry_reclaim(retry_if) do
         # code that may fail due to insufficient GPU memory
@@ -505,6 +511,17 @@ end
         for hook in reclaim_hooks
           hook()
         end
+      elseif phase == 7
+        # drop library-held TLS state (fat handles, cached workspaces) and
+        # finalize so the underlying buffers actually get freed
+        for hook in pre_reclaim_hooks
+          hook()
+        end
+        GC.gc(true)
+        for hook in reclaim_hooks
+          hook()
+        end
+        trim(pool_create(state.device))
       else
         break
       end
@@ -514,6 +531,14 @@ end
       elseif phase == 2
         GC.gc(true)
       elseif phase == 3
+        for hook in reclaim_hooks
+          hook()
+        end
+      elseif phase == 4
+        for hook in pre_reclaim_hooks
+          hook()
+        end
+        GC.gc(true)
         for hook in reclaim_hooks
           hook()
         end
@@ -797,6 +822,16 @@ actually reclaimed.
 """
 function reclaim(sz::Int=typemax(Int))
   dev = device()
+  # Drop library-held state first (TLS-pinned fat handles, workspace caches,
+  # etc.), then run a full GC so finalizers release the underlying buffers
+  # and return idle handles to their caches. Only then do we tear down the
+  # caches themselves and trim the pool.
+  for hook in pre_reclaim_hooks
+    hook()
+  end
+  if !isempty(pre_reclaim_hooks)
+    GC.gc(true)
+  end
   for hook in reclaim_hooks
     hook()
   end
