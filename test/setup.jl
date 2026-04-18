@@ -127,7 +127,7 @@ function ParallelTestRunner.print_header(::Type{CUDATestRecord}, ctx::ParallelTe
         printstyled(ctx.stdout, "  Test   │", color = :white)
         ctx.verbose && printstyled(ctx.stdout, "   Init   │", color = :white)
         VERSION >= v"1.11" && ctx.verbose && printstyled(ctx.stdout, " Compile │", color = :white)
-        printstyled(ctx.stdout, " ─────────── GPU ─────────── │", color = :white)
+        printstyled(ctx.stdout, " ──────────── GPU ───────────── │", color = :white)
         printstyled(ctx.stdout, " ──────────────── CPU ──────────────── │\n", color = :white)
 
         # lower band
