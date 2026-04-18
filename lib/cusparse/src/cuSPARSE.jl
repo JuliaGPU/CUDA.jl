@@ -72,11 +72,25 @@ function handle_dtor(ctx, handle)
 end
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}(handle_ctor, handle_dtor)
 
+# mutable wrapper so the raw handle is released via an object-bound finalizer:
+# when TLS state is cleared (e.g. on reclaim) and GC runs, the wrapper is
+# collected and its finalizer returns the handle to the idle cache instead
+# of the handle being pinned for the entire lifetime of the owning task.
+mutable struct cusparseHandle
+    const handle::cusparseHandle_t
+    const ctx::CuContext
+end
+Base.unsafe_convert(::Type{cusparseHandle_t}, h::cusparseHandle) = h.handle
+
+function handle_finalizer(h::cusparseHandle)
+    push!(idle_handles, h.ctx, h.handle)
+end
+
 function handle()
     cuda = CUDACore.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cusparseHandle_t, stream::CuStream}
+    LibraryState = @NamedTuple{handle::cusparseHandle, stream::CuStream}
     states = get!(task_local_storage(), :CUSPARSE) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
@@ -84,13 +98,12 @@ function handle()
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle)
-        end
+        wrapped = cusparseHandle(new_handle, cuda.context)
+        finalizer(handle_finalizer, wrapped)
 
         cusparseSetStream(new_handle, cuda.stream)
 
-        (; handle=new_handle, cuda.stream)
+        (; handle=wrapped, cuda.stream)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -128,7 +141,15 @@ function __init__()
         libcusparse = CUDA_Runtime_jll.libcusparse
     end
 
+    # drop task-local cuSPARSE state on reclaim so handles can be destroyed
+    push!(CUDACore.pre_reclaim_hooks, drop_library_state!)
+
     _initialized[] = true
+end
+
+function drop_library_state!()
+    delete!(task_local_storage(), :CUSPARSE)
+    return
 end
 
 # KernelAbstractions integration

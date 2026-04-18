@@ -82,11 +82,25 @@ function handle_dtor(ctx, handle)
 end
 const idle_handles = HandleCache{CuContext,cublasHandle_t}(handle_ctor, handle_dtor)
 
+# mutable wrapper so the raw handle is released via an object-bound finalizer:
+# when TLS state is cleared (e.g. on reclaim) and GC runs, the wrapper is
+# collected and its finalizer returns the handle to the idle cache instead
+# of the handle being pinned for the entire lifetime of the owning task.
+mutable struct cublasHandle
+    const handle::cublasHandle_t
+    const ctx::CuContext
+end
+Base.unsafe_convert(::Type{cublasHandle_t}, handle::cublasHandle) = handle.handle
+
+function handle_finalizer(h::cublasHandle)
+    push!(idle_handles, h.ctx, h.handle)
+end
+
 function handle()
     cuda = CUDACore.active_state()
 
     # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cublasHandle_t, stream::CuStream, math_mode::CUDACore.MathMode}
+    LibraryState = @NamedTuple{handle::cublasHandle, stream::CuStream, math_mode::CUDACore.MathMode}
     states = get!(task_local_storage(), :CUBLAS) do
         Dict{CuContext,LibraryState}()
     end::Dict{CuContext,LibraryState}
@@ -94,15 +108,14 @@ function handle()
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle)
-        end
+        wrapped = cublasHandle(new_handle, cuda.context)
+        finalizer(handle_finalizer, wrapped)
 
         cublasSetStream_v2(new_handle, cuda.stream)
         cublasSetPointerMode_v2(new_handle, CUBLAS_POINTER_MODE_DEVICE)
         math_mode!(new_handle, cuda.math_mode)
 
-        (; handle=new_handle, cuda.stream, cuda.math_mode)
+        (; handle=wrapped, cuda.stream, cuda.math_mode)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -144,6 +157,17 @@ end
 const idle_xt_handles =
     HandleCache{Vector{CuContext},cublasXtHandle_t}(xt_handle_ctor, xt_handle_dtor)
 
+# mutable wrapper for the xt handle, see `cublasHandle` for rationale.
+mutable struct cublasXtHandle
+    const handle::cublasXtHandle_t
+    const ctxs::Vector{CuContext}
+end
+Base.unsafe_convert(::Type{cublasXtHandle_t}, h::cublasXtHandle) = h.handle
+
+function xt_handle_finalizer(h::cublasXtHandle)
+    push!(idle_xt_handles, h.ctxs, h.handle)
+end
+
 function devices!(devs::Vector{CuDevice})
     task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
     return
@@ -160,7 +184,7 @@ function xt_handle()
     cuda = CUDACore.active_state()
 
     # every task maintains library state per set of devices
-    LibraryState = @NamedTuple{handle::cublasXtHandle_t}
+    LibraryState = @NamedTuple{handle::cublasXtHandle}
     states = get!(task_local_storage(), :CUBLASxt) do
         Dict{UInt,LibraryState}()
     end::Dict{UInt,LibraryState}
@@ -177,9 +201,8 @@ function xt_handle()
         ctxs = [context(dev) for dev in devices()]
 
         new_handle = pop!(idle_xt_handles, ctxs)
-        finalizer(current_task()) do task
-            push!(idle_xt_handles, ctxs, new_handle)
-        end
+        wrapped = cublasXtHandle(new_handle, ctxs)
+        finalizer(xt_handle_finalizer, wrapped)
 
         # if we're using the stream-ordered allocator,
         # make sure allocations are visible on all devices
@@ -193,7 +216,7 @@ function xt_handle()
         devs = convert.(Cint, devices())
         cublasXtDeviceSelect(new_handle, length(devs), devs)
 
-        (; handle=new_handle)
+        (; handle=wrapped)
     end
     state = get!(states, key) do
         new_state(cuda)
@@ -278,7 +301,16 @@ function __init__()
         atexit(flush_log_messages)
     end
 
+    # drop task-local cuBLAS state on reclaim so handles can be destroyed
+    push!(CUDACore.pre_reclaim_hooks, drop_library_state!)
+
     _initialized[] = true
+end
+
+function drop_library_state!()
+    delete!(task_local_storage(), :CUBLAS)
+    delete!(task_local_storage(), :CUBLASxt)
+    return
 end
 
 include("precompile.jl")
