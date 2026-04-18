@@ -1,3 +1,4 @@
+using Adapt
 using cuSPARSE
 using SparseArrays
 using LinearAlgebra

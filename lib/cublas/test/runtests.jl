@@ -1,13 +1,11 @@
 include("setup.jl")
-@test cuBLAS.functional()
 
 @testset verbose=true "cuBLAS" begin
-
-include("level1.jl")
-include("level2.jl")
-include("level3.jl")
-include("extensions.jl")
-include("xt.jl")
-include("linalg.jl")
-
+    for (root, _, files) in walkdir(@__DIR__)
+        for file in sort(files)
+            endswith(file, ".jl") || continue
+            file in ("setup.jl", "runtests.jl") && continue
+            include(joinpath(root, file))
+        end
+    end
 end
