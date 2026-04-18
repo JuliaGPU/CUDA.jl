@@ -105,7 +105,7 @@ end
 # claims. A CUDA worker needs its own context + libraries (~0.5–1 GiB baseline)
 # plus room for peak per-test allocations; 4 GiB is the per-worker budget.
 # (Set `CUDA_VISIBLE_DEVICES` to choose which device is used.)
-const gpu_memory_per_worker = 2 * 2^30
+const gpu_memory_per_worker = 1 * 2^30
 first_gpu = first(devices())
 gpu_free = device!(first_gpu) do
     mem = CUDA.free_memory()
