@@ -73,6 +73,7 @@ include("pointer.jl")
 
 # core utilities
 include("utils/call.jl")
+include("utils/reclaim.jl")
 include("utils/cache.jl")
 include("utils/struct_size.jl")
 include("../lib/cudadrv/CUDAdrv.jl")

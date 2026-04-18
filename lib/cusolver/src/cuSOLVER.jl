@@ -92,14 +92,13 @@ function dense_handle_finalizer(dh::cusolverDnHandle)
     push!(idle_dense_handles, dh.ctx, dh.handle)
 end
 
+const DenseLibraryState = @NamedTuple{handle::cusolverDnHandle, stream::CuStream}
+const dense_state_cache = CUDACore.TaskLocalCache{CuContext, DenseLibraryState}(:CUSOLVER_dense)
+
 function dense_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cusolverDnHandle, stream::CuStream}
-    states = get!(task_local_storage(), :CUSOLVER_dense) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(dense_state_cache)
 
     # get library state
     @noinline function new_state(cuda)
@@ -161,14 +160,13 @@ function sparse_handle_finalizer(sh::cusolverSpHandle)
     push!(idle_sparse_handles, sh.ctx, sh.handle)
 end
 
+const SparseLibraryState = @NamedTuple{handle::cusolverSpHandle, stream::CuStream}
+const sparse_state_cache = CUDACore.TaskLocalCache{CuContext, SparseLibraryState}(:CUSOLVER_sparse)
+
 function sparse_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cusolverSpHandle, stream::CuStream}
-    states = get!(task_local_storage(), :CUSOLVER_sparse) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(sparse_state_cache)
 
     # get or create handle
     @noinline function new_state(cuda)
@@ -228,14 +226,13 @@ function mg_handle_finalizer(mh::cusolverMgHandle)
     end
 end
 
+const MgLibraryState = @NamedTuple{handle::cusolverMgHandle}
+const mg_state_cache = CUDACore.TaskLocalCache{UInt, MgLibraryState}(:CUSOLVERmg)
+
 function mg_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per set of devices
-    LibraryState = @NamedTuple{handle::cusolverMgHandle}
-    states = get!(task_local_storage(), :CUSOLVERmg) do
-        Dict{UInt,LibraryState}()
-    end::Dict{UInt,LibraryState}
+    states = CUDACore.task_dict(mg_state_cache)
 
     # derive a key from the active and selected devices
     key = hash(cuda.context)
@@ -290,18 +287,13 @@ function __init__()
         end
     end
 
-    # Drop task-local cuSOLVER state on reclaim so the cached workspace
-    # CuVectors (sometimes hundreds of MiB) become GC-able.
-    push!(CUDACore.pre_reclaim_hooks, drop_library_state!)
+    CUDACore.register_reclaimable!(idle_dense_handles)
+    CUDACore.register_reclaimable!(idle_sparse_handles)
+    CUDACore.register_reclaimable!(dense_state_cache)
+    CUDACore.register_reclaimable!(sparse_state_cache)
+    CUDACore.register_reclaimable!(mg_state_cache)
 
     _initialized[] = true
-end
-
-function drop_library_state!()
-    delete!(task_local_storage(), :CUSOLVER_dense)
-    delete!(task_local_storage(), :CUSOLVER_sparse)
-    delete!(task_local_storage(), :CUSOLVERmg)
-    return
 end
 
 include("precompile.jl")

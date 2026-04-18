@@ -96,14 +96,13 @@ function handle_finalizer(h::cublasHandle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
+const LibraryState = @NamedTuple{handle::cublasHandle, stream::CuStream, math_mode::CUDACore.MathMode}
+const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUBLAS)
+
 function handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cublasHandle, stream::CuStream, math_mode::CUDACore.MathMode}
-    states = get!(task_local_storage(), :CUBLAS) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(state_cache)
 
     # get library state
     @noinline function new_state(cuda)
@@ -180,14 +179,13 @@ end::Vector{CuDevice}
 
 ndevices() = length(devices())
 
+const XtLibraryState = @NamedTuple{handle::cublasXtHandle}
+const xt_state_cache = CUDACore.TaskLocalCache{UInt, XtLibraryState}(:CUBLASxt)
+
 function xt_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per set of devices
-    LibraryState = @NamedTuple{handle::cublasXtHandle}
-    states = get!(task_local_storage(), :CUBLASxt) do
-        Dict{UInt,LibraryState}()
-    end::Dict{UInt,LibraryState}
+    states = CUDACore.task_dict(xt_state_cache)
 
     # for performance, don't use a tuple of contexts to index the TLS
     key = zero(UInt)
@@ -301,16 +299,14 @@ function __init__()
         atexit(flush_log_messages)
     end
 
-    # drop task-local cuBLAS state on reclaim so handles can be destroyed
-    push!(CUDACore.pre_reclaim_hooks, drop_library_state!)
+    # wire up reclaim (precompile-captured constructors can't push into
+    # CUDACore's registry themselves)
+    CUDACore.register_reclaimable!(idle_handles)
+    CUDACore.register_reclaimable!(idle_xt_handles)
+    CUDACore.register_reclaimable!(state_cache)
+    CUDACore.register_reclaimable!(xt_state_cache)
 
     _initialized[] = true
-end
-
-function drop_library_state!()
-    delete!(task_local_storage(), :CUBLAS)
-    delete!(task_local_storage(), :CUBLASxt)
-    return
 end
 
 include("precompile.jl")

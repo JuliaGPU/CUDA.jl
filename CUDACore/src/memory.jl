@@ -456,105 +456,97 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
     end
 end
 
-const reclaim_hooks = Any[]
+## reclaim escalation
+#
+# `Reclaimable`/`register_reclaimable!`/`TaskLocalCache`/`drop!`/`purge!`
+# are defined in utils/reclaim.jl. Here we add the ladder that drives
+# them along with the allocator-specific sync/trim steps.
 
-# Hooks that run *before* `reclaim_hooks`, followed by a forced GC. Intended
-# for library bindings to drop their task-local state so that finalizers can
-# run (freeing e.g. cached workspace buffers) before the HandleCache and
-# pool-trim stages release their own resources.
-const pre_reclaim_hooks = Any[]
+"""
+    ReclaimLevel
+
+Escalation levels shared by `reclaim(level)` and `retry_reclaim`, ordered
+from cheapest to most aggressive:
+
+| Level                  | Action                                                   |
+| :---                   | :---                                                     |
+| `RECLAIM_SYNC`         | synchronize the current task's stream                    |
+| `RECLAIM_DEVICE_SYNC`  | synchronize the whole device                             |
+| `RECLAIM_GC_MINOR`     | minor Julia GC (and device sync)                         |
+| `RECLAIM_GC_FULL`      | full Julia GC (and device sync)                          |
+| `RECLAIM_POOL_TRIM`    | trim unused memory from the pool                         |
+| `RECLAIM_PURGE_CACHES` | empty `HandleCache`s (destroy idle handles)              |
+| `RECLAIM_DROP_STATE`   | also drop task-local library state, then GC+purge+trim   |
+
+Steps that don't apply to the current allocator (e.g. stream sync on a
+non-stream-ordered device) are silently skipped.
+"""
+@enum ReclaimLevel::Int begin
+    RECLAIM_SYNC         = 1
+    RECLAIM_DEVICE_SYNC  = 2
+    RECLAIM_GC_MINOR     = 3
+    RECLAIM_GC_FULL      = 4
+    RECLAIM_POOL_TRIM    = 5
+    RECLAIM_PURGE_CACHES = 6
+    RECLAIM_DROP_STATE   = 7
+end
+
 
 """
     retry_reclaim(retry_if) do
         # code that may fail due to insufficient GPU memory
     end
 
-Run a block of code repeatedly until it successfully allocates the memory it needs.
-Retries are only attempted when calling `retry_if` with the current return value is true.
-At each try, more and more memory is freed from the CUDA memory pool. When that is not
-possible anymore, the latest returned value will be returned.
+Run a block of code repeatedly while `retry_if(ret)` holds for its return
+value, escalating one `ReclaimLevel` between attempts. Returns the final
+(or most recent) return value of the block.
 
-This function is intended for use with CUDA APIs, which sometimes allocate (outside of the
-CUDA memory pool) and return a specific error code when failing to. It is similar to
-`Base.retry`, but deals with return values instead of exceptions for performance reasons.
+This is intended for CUDA APIs that allocate outside the pool and report
+failure via a status code. It's like `Base.retry`, but works on return
+values instead of exceptions for performance reasons.
 """
 @inline function retry_reclaim(f, retry_if)
-  ret = f()
-  if retry_if(ret)
-    return retry_reclaim_slow(f, retry_if, ret)
-  else
-    return ret
-  end
-end
-## slow path, incrementally reclaiming more memory until we succeed
-@noinline function retry_reclaim_slow(f, retry_if, orig_ret)
-  state = active_state()
-  is_stream_ordered = stream_ordered(state.device)
-
-  phase = 1
-  while true
-    if is_stream_ordered
-      if phase == 1
-        synchronize(state.stream)
-      elseif phase == 2
-        device_synchronize()
-      elseif phase == 3
-        GC.gc(false)
-        device_synchronize()
-      elseif phase == 4
-        GC.gc(true)
-        device_synchronize()
-      elseif phase == 5
-        # in case we had a release threshold configured
-        trim(pool_create(state.device))
-      elseif phase == 6
-        for hook in reclaim_hooks
-          hook()
-        end
-      elseif phase == 7
-        # drop library-held TLS state (fat handles, cached workspaces) and
-        # finalize so the underlying buffers actually get freed
-        for hook in pre_reclaim_hooks
-          hook()
-        end
-        GC.gc(true)
-        for hook in reclaim_hooks
-          hook()
-        end
-        trim(pool_create(state.device))
-      else
-        break
-      end
-    else
-      if phase == 1
-        GC.gc(false)
-      elseif phase == 2
-        GC.gc(true)
-      elseif phase == 3
-        for hook in reclaim_hooks
-          hook()
-        end
-      elseif phase == 4
-        for hook in pre_reclaim_hooks
-          hook()
-        end
-        GC.gc(true)
-        for hook in reclaim_hooks
-          hook()
-        end
-      else
-        break
-      end
-    end
-    phase += 1
-
     ret = f()
-    if !retry_if(ret)
-      return ret
-    end
-  end
+    retry_if(ret) || return ret
+    return retry_reclaim_slow(f, retry_if, ret)
+end
 
-  return orig_ret
+@noinline function retry_reclaim_slow(f, retry_if, ret)
+    state = active_state()
+    sync = stream_ordered(state.device)
+    for level in instances(ReclaimLevel)
+        reclaim_step(level, state, sync)
+        ret = f()
+        retry_if(ret) || return ret
+    end
+    return ret
+end
+
+# single step of the reclaim ladder; no-op on allocator modes where it
+# doesn't apply. Split out so `retry_reclaim` can escalate one rung at a
+# time while `reclaim()` can run the whole ladder cumulatively.
+function reclaim_step(level::ReclaimLevel, state, sync::Bool)
+    if level == RECLAIM_SYNC
+        sync && synchronize(state.stream)
+    elseif level == RECLAIM_DEVICE_SYNC
+        sync && device_synchronize()
+    elseif level == RECLAIM_GC_MINOR
+        GC.gc(false)
+        sync && device_synchronize()
+    elseif level == RECLAIM_GC_FULL
+        GC.gc(true)
+        sync && device_synchronize()
+    elseif level == RECLAIM_POOL_TRIM
+        sync && trim(pool_create(state.device))
+    elseif level == RECLAIM_PURGE_CACHES
+        foreach_reclaimable(purge!)
+    elseif level == RECLAIM_DROP_STATE
+        foreach_reclaimable(drop!)
+        GC.gc(true)
+        foreach_reclaimable(purge!)
+        sync && trim(pool_create(state.device))
+    end
+    return
 end
 
 
@@ -814,34 +806,24 @@ end
 end
 
 """
-    reclaim([sz=typemax(Int)])
+    reclaim([level::ReclaimLevel = RECLAIM_DROP_STATE])
 
-Reclaims `sz` bytes of cached memory. Use this to free GPU memory before calling into
-functionality that does not use the CUDA memory pool. Returns the number of bytes
-actually reclaimed.
+Free GPU memory by walking the reclaim ladder up to `level`. Use this before
+calling into functionality that does not use the CUDA memory pool. Returns
+`nothing`.
+
+The default drops task-local library state, runs a full GC so handle
+wrappers finalize and return their raw handles to caches, then destroys
+those caches and trims the pool.
 """
-function reclaim(sz::Int=typemax(Int))
-  dev = device()
-  # Drop library-held state first (TLS-pinned fat handles, workspace caches,
-  # etc.), then run a full GC so finalizers release the underlying buffers
-  # and return idle handles to their caches. Only then do we tear down the
-  # caches themselves and trim the pool.
-  for hook in pre_reclaim_hooks
-    hook()
-  end
-  if !isempty(pre_reclaim_hooks)
-    GC.gc(true)
-  end
-  for hook in reclaim_hooks
-    hook()
-  end
-  if stream_ordered(dev)
-      device_synchronize()
-      synchronize(context())
-      trim(pool_create(dev))
-  else
-    0
-  end
+function reclaim(level::ReclaimLevel = RECLAIM_DROP_STATE)
+    state = active_state()
+    sync = stream_ordered(state.device)
+    for l in instances(ReclaimLevel)
+        l <= level || break
+        reclaim_step(l, state, sync)
+    end
+    return
 end
 
 
@@ -944,7 +926,9 @@ macro timed(ex)
          gpu_bytes=gpu_mem_stats.alloc_bytes, gpu_memtime=gpu_mem_stats.total_time, gpu_memstats=gpu_mem_stats)
     end
 end
-@public @allocated, @time, @timed, used_memory, cached_memory, pool_status, reclaim
+@public @allocated, @time, @timed, used_memory, cached_memory, pool_status, reclaim,
+        ReclaimLevel, RECLAIM_SYNC, RECLAIM_DEVICE_SYNC, RECLAIM_GC_MINOR, RECLAIM_GC_FULL,
+        RECLAIM_POOL_TRIM, RECLAIM_PURGE_CACHES, RECLAIM_DROP_STATE
 
 """
     used_memory()

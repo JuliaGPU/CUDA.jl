@@ -31,8 +31,8 @@ end
 end
 
 @testset "reclaim" begin
-    CUDA.reclaim(1024)
     CUDA.reclaim()
+    CUDA.reclaim(CUDACore.RECLAIM_GC_FULL)
 
     @test CUDACore.retry_reclaim(isequal(42)) do
             42

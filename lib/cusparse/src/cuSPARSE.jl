@@ -86,14 +86,13 @@ function handle_finalizer(h::cusparseHandle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
+const LibraryState = @NamedTuple{handle::cusparseHandle, stream::CuStream}
+const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUSPARSE)
+
 function handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cusparseHandle, stream::CuStream}
-    states = get!(task_local_storage(), :CUSPARSE) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(state_cache)
 
     # get library state
     @noinline function new_state(cuda)
@@ -141,15 +140,10 @@ function __init__()
         libcusparse = CUDA_Runtime_jll.libcusparse
     end
 
-    # drop task-local cuSPARSE state on reclaim so handles can be destroyed
-    push!(CUDACore.pre_reclaim_hooks, drop_library_state!)
+    CUDACore.register_reclaimable!(idle_handles)
+    CUDACore.register_reclaimable!(state_cache)
 
     _initialized[] = true
-end
-
-function drop_library_state!()
-    delete!(task_local_storage(), :CUSPARSE)
-    return
 end
 
 # KernelAbstractions integration
