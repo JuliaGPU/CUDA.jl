@@ -55,3 +55,7 @@ cuSPARSE = {path = "../lib/cusparse"}
 cuStateVec = {path = "../lib/custatevec"}
 cuTENSOR = {path = "../lib/cutensor"}
 cuTensorNet = {path = "../lib/cutensornet"}
+ParallelTestRunner = {url = "https://github.com/JuliaTesting/ParallelTestRunner.jl", rev = "tb/cuda"}
+
+[compat]
+ParallelTestRunner = "2.6.0"
