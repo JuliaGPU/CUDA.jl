@@ -55,3 +55,6 @@ cuSPARSE = {path = "../lib/cusparse"}
 cuStateVec = {path = "../lib/custatevec"}
 cuTENSOR = {path = "../lib/cutensor"}
 cuTensorNet = {path = "../lib/cutensornet"}
+
+[compat]
+ParallelTestRunner = "2.6.0"
