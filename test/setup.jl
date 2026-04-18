@@ -122,6 +122,7 @@ function ParallelTestRunner.execute(::Type{CUDATestRecord}, mod::Module, f, name
         data.gpu_bytes, data.gpu_time, gpu_rss,
     )
     GC.gc(true)
+    CUDA.reclaim()
     return record
 end
 
