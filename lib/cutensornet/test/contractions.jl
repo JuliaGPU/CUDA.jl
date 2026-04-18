@@ -1,6 +1,5 @@
 n = 8
 m = 16
-k = 32
 @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "Simple serial" begin
         modesA = ['m', 'h', 'k', 'n']

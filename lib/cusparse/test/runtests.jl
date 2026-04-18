@@ -1,12 +1,12 @@
 include("setup.jl")
 @test cuSPARSE.version() isa VersionNumber
 
-include("array.jl")
-include("construction.jl")
-include("conversion.jl")
-include("preconditioners.jl")
-include("solvers.jl")
-include("operations.jl")
-include("gtsv2.jl")
-include("misc.jl")
-include("kernelabstractions.jl")
+@testset verbose=true "cuSPARSE" begin
+    for (root, _, files) in walkdir(@__DIR__)
+        for file in sort(files)
+            endswith(file, ".jl") || continue
+            file in ("setup.jl", "runtests.jl") && continue
+            include(joinpath(root, file))
+        end
+    end
+end

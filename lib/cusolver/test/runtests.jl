@@ -1,12 +1,11 @@
 include("setup.jl")
 
 @testset verbose=true "cuSOLVER" begin
-
-include("base.jl")
-include("dense.jl")
-include("dense_generic.jl")
-include("sparse.jl")
-include("sparse_factorizations.jl")
-include("multigpu.jl")
-
+    for (root, _, files) in walkdir(@__DIR__)
+        for file in sort(files)
+            endswith(file, ".jl") || continue
+            file in ("setup.jl", "runtests.jl") && continue
+            include(joinpath(root, file))
+        end
+    end
 end
