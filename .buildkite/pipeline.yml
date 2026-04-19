@@ -40,7 +40,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail"
+              test_args: "--quickfail --verbose"
               allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
               dirs:
