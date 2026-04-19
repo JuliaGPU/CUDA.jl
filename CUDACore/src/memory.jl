@@ -470,18 +470,28 @@ from cheapest to most aggressive:
 
 | Level                  | Action                                                   |
 | :---                   | :---                                                     |
+| `RECLAIM_PURGE_IDLE`   | empty `HandleCache`s (fast path, no sync/GC)             |
 | `RECLAIM_SYNC`         | synchronize the current task's stream                    |
 | `RECLAIM_DEVICE_SYNC`  | synchronize the whole device                             |
 | `RECLAIM_GC_MINOR`     | minor Julia GC (and device sync)                         |
 | `RECLAIM_GC_FULL`      | full Julia GC (and device sync)                          |
 | `RECLAIM_POOL_TRIM`    | trim unused memory from the pool                         |
-| `RECLAIM_PURGE_CACHES` | empty `HandleCache`s (destroy idle handles)              |
+| `RECLAIM_PURGE_CACHES` | empty `HandleCache`s again (catches GC-populated entries)|
 | `RECLAIM_DROP_STATE`   | also drop task-local library state, then GC+purge+trim   |
+
+`RECLAIM_PURGE_IDLE` and `RECLAIM_PURGE_CACHES` run the same action
+(`purge!` on every `Reclaimable`). The first is an opportunistic fast
+path before any sync/GC cost: if a library is sitting on cached idle
+handles, we can release them immediately. The second runs after GC has
+had a chance to populate caches via finalizers, catching those new
+entries without escalating to `RECLAIM_DROP_STATE` (which would also
+drop the current task's live state).
 
 Steps that don't apply to the current allocator (e.g. stream sync on a
 non-stream-ordered device) are silently skipped.
 """
 @enum ReclaimLevel::Int begin
+    RECLAIM_PURGE_IDLE   = 0
     RECLAIM_SYNC         = 1
     RECLAIM_DEVICE_SYNC  = 2
     RECLAIM_GC_MINOR     = 3
@@ -526,7 +536,9 @@ end
 # doesn't apply. Split out so `retry_reclaim` can escalate one rung at a
 # time while `reclaim()` can run the whole ladder cumulatively.
 function reclaim_step(level::ReclaimLevel, state, sync::Bool)
-    if level == RECLAIM_SYNC
+    if level == RECLAIM_PURGE_IDLE || level == RECLAIM_PURGE_CACHES
+        foreach_reclaimable(purge!)
+    elseif level == RECLAIM_SYNC
         sync && synchronize(state.stream)
     elseif level == RECLAIM_DEVICE_SYNC
         sync && device_synchronize()
@@ -538,8 +550,6 @@ function reclaim_step(level::ReclaimLevel, state, sync::Bool)
         sync && device_synchronize()
     elseif level == RECLAIM_POOL_TRIM
         sync && trim(pool_create(state.device))
-    elseif level == RECLAIM_PURGE_CACHES
-        foreach_reclaimable(purge!)
     elseif level == RECLAIM_DROP_STATE
         foreach_reclaimable(drop!)
         GC.gc(true)
@@ -927,8 +937,9 @@ macro timed(ex)
     end
 end
 @public @allocated, @time, @timed, used_memory, cached_memory, pool_status, reclaim,
-        ReclaimLevel, RECLAIM_SYNC, RECLAIM_DEVICE_SYNC, RECLAIM_GC_MINOR, RECLAIM_GC_FULL,
-        RECLAIM_POOL_TRIM, RECLAIM_PURGE_CACHES, RECLAIM_DROP_STATE
+        ReclaimLevel, RECLAIM_PURGE_IDLE, RECLAIM_SYNC, RECLAIM_DEVICE_SYNC,
+        RECLAIM_GC_MINOR, RECLAIM_GC_FULL, RECLAIM_POOL_TRIM, RECLAIM_PURGE_CACHES,
+        RECLAIM_DROP_STATE
 
 """
     used_memory()
