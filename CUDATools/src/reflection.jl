@@ -126,7 +126,7 @@ function disassemble_cubin(io::IO, cubin::Vector{Cchar}; raw::Bool)
         write(cubin_io, cubin)
         flush(cubin_io)
 
-        cmd = `$(CUDA_Compiler_jll.nvdisasm()) --print-code --print-line-info $cubin_path`
+        cmd = `$(CUDACore.CUDA_Compiler.nvdisasm()) --print-code --print-line-info $cubin_path`
         for line in readlines(cmd)
             if !raw
                 # nvdisasm output is pretty verbose;
