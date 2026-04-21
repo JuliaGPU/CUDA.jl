@@ -295,6 +295,22 @@ Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims.
 
 Base.similar(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
 
+
+function Base.similar(mat::CuSparseMatrixCOO, ::Type{T}, dims::Dims{2}) where {T}
+    new_rowInd = similar(mat.rowInd)
+    new_colInd = similar(mat.colInd)
+    new_nzVal = similar(mat.nzVal, T)
+    return CuSparseMatrixCOO(new_rowInd, new_colInd, new_nzVal, dims)
+end
+
+function Base.similar(mat::CuSparseMatrixBSR{Tv, Ti}, ::Type{T}, dims::Dims{2}) where {Tv, Ti, T}
+    new_rowPtr = similar(mat.rowPtr)
+    new_colVal = similar(mat.colVal)
+    new_nzVal = similar(mat.nzVal, T) 
+    
+    return CuSparseMatrixBSR{T, Ti}(new_rowPtr, new_colVal, new_nzVal, dims, mat.blockDim, mat.dir, mat.nnzb)
+end
+
 ## array interface
 
 Base.length(g::CuSparseVector) = g.len
