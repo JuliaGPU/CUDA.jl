@@ -604,10 +604,11 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
     end
 
     # set pool visibility
-    if stream_ordered(source_device)
-      pool = pool_create(source_device)
-      access!(pool, state.device, ACCESS_FLAGS_PROT_READWRITE)
-    end
+    # XXX: disabled because of NVIDIA bug #6098762
+    #if stream_ordered(source_device)
+    #  pool = pool_create(source_device)
+    #  access!(pool, state.device, ACCESS_FLAGS_PROT_READWRITE)
+    #end
   end
 
   # accessing memory on another stream: ensure the data is ready and take ownership
