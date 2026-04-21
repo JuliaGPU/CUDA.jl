@@ -199,15 +199,15 @@ end
             shape = CUDA.WMMA.get_hl_shape(mnk[1], mnk[2], mnk[3])
 
             # Get the function names
-            lda_func = getfield(Main, Symbol("llvm_wmma_load_a_$(a_layout)_$(shape)_global_stride_$(ab_elem_type)"))
-            ldb_func = getfield(Main, Symbol("llvm_wmma_load_b_$(b_layout)_$(shape)_global_stride_$(ab_elem_type)"))
-            ldc_func = getfield(Main, Symbol("llvm_wmma_load_c_col_$(shape)_global_stride_$(c_elem_type)"))
+            lda_func = getfield(@__MODULE__, Symbol("llvm_wmma_load_a_$(a_layout)_$(shape)_global_stride_$(ab_elem_type)"))
+            ldb_func = getfield(@__MODULE__, Symbol("llvm_wmma_load_b_$(b_layout)_$(shape)_global_stride_$(ab_elem_type)"))
+            ldc_func = getfield(@__MODULE__, Symbol("llvm_wmma_load_c_col_$(shape)_global_stride_$(c_elem_type)"))
             # Account for half and int/subint/bf16 mma different naming conventions
             # Int/subint and bf16 mma functions are distinguished by the a/b element type
             mma_sym = (d_ty == Int32 || ab_elem_type == "bf16") ? Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(ab_elem_type)") :
                                       Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_$(shape)_$(d_elem_type)_$(c_elem_type)")
-            mma_func = getfield(Main, mma_sym)
-            std_func = getfield(Main, Symbol("llvm_wmma_store_d_col_$(shape)_global_stride_$(d_elem_type)"))
+            mma_func = getfield(@__MODULE__, mma_sym)
+            std_func = getfield(@__MODULE__, Symbol("llvm_wmma_store_d_col_$(shape)_global_stride_$(d_elem_type)"))
 
             a_shape   = get_array_shape("a", mnk, a_layout)
             a         = rand(ab_ty, a_shape)

@@ -1,20 +1,11 @@
-include("setup.jl")
-@test cuDNN.functional()
+using cuDNN
+using ParallelTestRunner
 
-@testset verbose=true "cuDNN" begin
-
-# include all tests
-for entry in readdir(@__DIR__)
-    endswith(entry, ".jl") || continue
-    entry in ["runtests.jl", "setup.jl"] && continue
-
-    # generate a testset
-    name = splitext(entry)[1]
-    @eval begin
-        @testset $name begin
-            include($entry)
-        end
-    end
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
 end
 
-end
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuDNN, ARGS; init_code, testsuite)

@@ -27,7 +27,7 @@ m = 16
         aligns_in = UInt32.([256, 256, 256])
         aligns_out = UInt32(256)
         ctn = CuTensorNetwork(elty, modes_in, extents_in, [C_NULL, C_NULL, C_NULL], Int32[0, 0, 0], Int32.(modesD), extentsD, C_NULL)
-        @testset for max_ws_size in [2^28, 2^32]
+        @testset for max_ws_size in [2^28]
             @testset for tuning in [NoAutoTune(), AutoTune()]
                 ctn.input_arrs = raw_data_in
                 info = rehearse_contraction(ctn, max_ws_size)

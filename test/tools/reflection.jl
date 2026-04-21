@@ -1,6 +1,6 @@
-dummy() = return
-
 @testset "reflection" begin
+    dummy() = return
+
     CUDA.code_lowered(dummy, Tuple{})
     CUDA.code_typed(dummy, Tuple{})
     CUDA.code_warntype(devnull, dummy, Tuple{})

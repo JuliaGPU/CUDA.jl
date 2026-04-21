@@ -2,8 +2,12 @@
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 cuBLAS = "182d3088-87b7-4494-8cad-fc6afaa545bc"
 cuSOLVER = "887afef0-6a32-4de5-add4-7827692ba8fc"
 cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
+
+[compat]
+ParallelTestRunner = "2"

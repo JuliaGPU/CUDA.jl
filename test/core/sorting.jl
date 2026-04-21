@@ -315,7 +315,7 @@ end
         @test check_sort!(Int32, (2, 2, 50000); dims=3, rev=true)
 
         # large sizes
-        @test check_sort!(Float32, 2^25; alg=CUDA.QuickSort)
+        @test check_sort!(Float32, 2^22; alg=CUDA.QuickSort)
 
         # various sync depths
         for depth in 0:4

@@ -1,23 +1,26 @@
-using Distributed, Test, CUDA
-using CUDA: i32
+using Test
+using CUDA
+using CUDACore
+using GPUArrays
+using NVML: has_nvml, NVML
+using ParallelTestRunner
+using ParallelTestRunner: AbstractTestRecord, TestRecord, WorkerTestSet
+using Test: DefaultTestSet
+using Printf: @sprintf
+using Random
 
 # ensure CUDA.jl is functional
 @assert CUDA.functional(true)
 
-# GPUArrays has a testsuite that isn't part of the main package.
-# Include it directly.
-import GPUArrays
-gpuarrays = pathof(GPUArrays)
-gpuarrays_root = dirname(dirname(gpuarrays))
-include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
-testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
-
-using Random
-
-using Adapt
+# GPUArrays has a testsuite that isn't part of the main package; include it
+# directly. After this runs, module `TestSuite` is available to tests.
+let gpuarrays = pathof(GPUArrays),
+    gpuarrays_root = dirname(dirname(gpuarrays))
+    include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
+end
 
 if VERSION >= v"1.13.0-DEV.1044"
-using Base.ScopedValues
+    using Base.ScopedValues
 end
 
 # detect compute-sanitizer, to disable incompatible tests (e.g. using CUPTI)
@@ -32,7 +35,7 @@ function can_use_cupti()
         return false
     end
 
-    # Tegra requires running as root and and modifying the device tree
+    # Tegra requires running as root and modifying the device tree
     if CUDA.is_tegra()
         return false
     end
@@ -44,164 +47,163 @@ end
 CUDA.precompile_runtime()
 
 
-## entry point
+## custom test record capturing CUDA-specific statistics
 
-function runtests(f, name, time_source=:cuda)
-    function inner()
-        # generate a temporary module to execute the tests in
-        mod_name = Symbol("Test", rand(1:100), "Main_", replace(name, '/' => '_'))
-        mod = @eval(Main, module $mod_name end)
-        @eval(mod, using Test, Random, CUDA)
+struct CUDATestRecord <: AbstractTestRecord
+    base::TestRecord
+    gpu_bytes::UInt64
+    gpu_time::Float64
+    gpu_rss::Union{UInt64, Missing}
+end
 
-        let id = myid()
-            wait(@spawnat 1 print_testworker_started(name, id))
-        end
-
-        ex = quote
-            GC.gc(true)
-            Random.seed!(1)
-
-            if $(QuoteNode(time_source)) == :cuda
-                CUDA.@timed @testset $name begin
-                    $f()
-                end
-            elseif $(QuoteNode(time_source)) == :julia
-                res = @timed @testset $name begin
-                    $f()
-                end
-                res..., 0, 0, 0
-            else
-                error("Unknown time source: " * $(string(time_source)))
-            end
-        end
-        data = Core.eval(mod, ex)
-        #data[1] is the testset
-
-        # process results
-        cpu_rss = Sys.maxrss()
-        cuda_dev = device()
-        gpu_rss = if has_nvml()
-            mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
-            nvml_dev = NVML.Device(uuid(cuda_dev); mig)
-            try
-                gpu_processes = NVML.compute_processes(nvml_dev)
-                if haskey(gpu_processes, getpid())
-                    gpu_processes[getpid()].used_gpu_memory
-                else
-                    # happens when we didn't do compute, or when using containers:
-                    # https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
-                    missing
-                end
-            catch err
-                (isa(err, NVML.NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
-                missing
-            end
+# GPU per-process memory via NVML. Returns `missing` in containers or on
+# devices without NVML support.
+function gpu_rss_nvml()
+    has_nvml() || return missing
+    cuda_dev = device()
+    mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
+    nvml_dev = NVML.Device(uuid(cuda_dev); mig)
+    try
+        gpu_processes = NVML.compute_processes(nvml_dev)
+        if haskey(gpu_processes, getpid())
+            return gpu_processes[getpid()].used_gpu_memory
         else
-            missing
+            return missing
         end
-        if VERSION >= v"1.11.0-DEV.1529"
-            tc = Test.get_test_counts(data[1])
-            passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
-                tc.passes, tc.fails, tc.errors, tc.broken, tc.cumulative_passes,
-                tc.cumulative_fails, tc.cumulative_errors, tc.cumulative_broken
-        else
-            passes,fails,errors,broken,c_passes,c_fails,c_errors,c_broken =
-                Test.get_test_counts(data[1])
-        end
-        if data[1].anynonpass == false
-            data = ((passes+c_passes,broken+c_broken),
-                    data[2],
-                    data[3],
-                    data[4],
-                    data[5],
-                    data[6],
-                    data[7],
-                    data[8])
-        end
-        res = vcat(collect(data), cpu_rss, gpu_rss)
+    catch err
+        (isa(err, NVML.NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
+        return missing
+    end
+end
 
+function ParallelTestRunner.execute(::Type{CUDATestRecord}, mod::Module, f, name,
+                                    start_time, custom_args)
+    # Context-destroying tests use plain Julia timing: CUDA events can't survive
+    # the context teardown. Delegate to PTR's default `execute` for those and
+    # wrap with empty GPU stats.
+    if name in custom_args.julia_timed_tests
+        base = ParallelTestRunner.execute(TestRecord, mod, f, name, start_time, custom_args)
+        return CUDATestRecord(base, UInt64(0), 0.0, missing)
+    end
+
+    data = @eval mod begin
         GC.gc(true)
-        res
-    end
-
-    @static if VERSION >= v"1.13.0-DEV.1044"
-        @with Test.TESTSET_PRINT_ENABLE=>false begin
-            inner()
-        end
-    else
-        old_print_setting = Test.TESTSET_PRINT_ENABLE[]
-        Test.TESTSET_PRINT_ENABLE[] = false
-        try
-            inner()
-        finally
-            Test.TESTSET_PRINT_ENABLE[] = old_print_setting
-        end
-    end
-end
-
-
-## auxiliary stuff
-
-# NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
-macro grab_output(ex)
-    quote
-        mktemp() do fname, fout
-            ret = nothing
-            open(fname, "w") do fout
-                redirect_stdout(fout) do
-                    ret = $(esc(ex))
-
-                    # NOTE: CUDA requires a 'proper' sync to flush its printf buffer
-                    synchronize(context())
-                end
+        Random.seed!(1)
+        stats = CUDA.@timed @testset WorkerTestSet "placeholder" begin
+            @testset DefaultTestSet $name begin
+                $f
             end
-            ret, read(fname, String)
         end
+        (; testset = stats.value,
+           stats.time,
+           cpu_bytes = UInt64(stats.cpu_bytes),
+           cpu_gctime = Float64(stats.cpu_gctime),
+           gpu_bytes = UInt64(stats.gpu_bytes),
+           gpu_time = Float64(stats.gpu_memtime))
+    end
+
+    rss = Sys.maxrss()
+    base = TestRecord(data.testset, data.time, data.cpu_bytes, data.cpu_gctime,
+                      0.0, rss, time() - start_time)
+    record = CUDATestRecord(base, data.gpu_bytes, data.gpu_time, gpu_rss_nvml())
+    GC.gc(true)
+    CUDA.reclaim()
+    return record
+end
+
+
+## print overrides: extend the default layout with GPU columns
+
+const GPU_TIME_ALIGN = textwidth("GC (s)")
+const GPU_ALLOC_ALIGN = textwidth("Alloc (MB)")
+const GPU_RSS_ALIGN = textwidth("RSS (MB)")
+
+function ParallelTestRunner.print_header(::Type{CUDATestRecord}, ctx::ParallelTestRunner.TestIOContext,
+                                         testgroupheader, workerheader)
+    lock(ctx.lock)
+    try
+        # upper band
+        printstyled(ctx.stdout, " "^(ctx.name_align + textwidth(testgroupheader) - 3), " │ ", color = :white)
+        printstyled(ctx.stdout, "  Test   │", color = :white)
+        ctx.verbose && printstyled(ctx.stdout, "   Init   │", color = :white)
+        VERSION >= v"1.11" && ctx.verbose && printstyled(ctx.stdout, " Compile │", color = :white)
+        printstyled(ctx.stdout, " ──────────── GPU ───────────── │", color = :white)
+        printstyled(ctx.stdout, " ──────────────── CPU ──────────────── │\n", color = :white)
+
+        # lower band
+        printstyled(ctx.stdout, testgroupheader, color = :white)
+        printstyled(ctx.stdout, lpad(workerheader, ctx.name_align - textwidth(testgroupheader) + 1), " │ ", color = :white)
+        printstyled(ctx.stdout, "time (s) │", color = :white)
+        ctx.verbose && printstyled(ctx.stdout, " time (s) │", color = :white)
+        VERSION >= v"1.11" && ctx.verbose && printstyled(ctx.stdout, "   (%)   │", color = :white)
+        printstyled(ctx.stdout, " GC (s) │ Alloc (MB) │ RSS (MB) │", color = :white)
+        printstyled(ctx.stdout, " GC (s) │ GC % │ Alloc (MB) │ RSS (MB) │\n", color = :white)
+        flush(ctx.stdout)
+    finally
+        unlock(ctx.lock)
     end
 end
 
-# Run some code on-device
-macro on_device(ex...)
-    code = ex[end]
-    kwargs = ex[1:end-1]
+function print_cuda_row(io::IO, record::CUDATestRecord, wrkr, test, ctx::ParallelTestRunner.TestIOContext;
+                       color::Symbol = :white)
+    base = record.base
+    printstyled(io, test, color = color)
+    printstyled(io, lpad("($wrkr)", ctx.name_align - textwidth(test) + 1, " "), " │ ", color = color)
 
-    @gensym kernel
-    esc(quote
-        let
-            function $kernel()
-                $code
-                return
-            end
+    time_str = @sprintf("%7.2f", base.time)
+    printstyled(io, lpad(time_str, ctx.elapsed_align, " "), " │ ", color = color)
 
-            CUDA.@sync @cuda $(kwargs...) $kernel()
+    if ctx.verbose
+        init_time_str = @sprintf("%7.2f", base.total_time - base.time)
+        printstyled(io, lpad(init_time_str, ctx.elapsed_align, " "), " │ ", color = color)
+        if VERSION >= v"1.11"
+            ct = base.time > 0 ? 100 * base.compile_time / base.time : 0.0
+            ct_str = @sprintf("%7.2f", Float64(ct))
+            printstyled(io, lpad(ct_str, ctx.compile_align, " "), " │ ", color = color)
         end
-    end)
+    end
+
+    # GPU columns
+    gpu_time_str = @sprintf("%5.2f", record.gpu_time)
+    printstyled(io, lpad(gpu_time_str, GPU_TIME_ALIGN, " "), " │ ", color = color)
+    gpu_alloc_str = @sprintf("%5.2f", record.gpu_bytes / 2^20)
+    printstyled(io, lpad(gpu_alloc_str, GPU_ALLOC_ALIGN, " "), " │ ", color = color)
+    gpu_rss_str = ismissing(record.gpu_rss) ? "N/A" : @sprintf("%5.2f", record.gpu_rss / 2^20)
+    printstyled(io, lpad(gpu_rss_str, GPU_RSS_ALIGN, " "), " │ ", color = color)
+
+    # CPU columns
+    gc_str = @sprintf("%5.2f", base.gctime)
+    printstyled(io, lpad(gc_str, ctx.gc_align, " "), " │ ", color = color)
+    pct = base.time > 0 ? 100 * base.gctime / base.time : 0.0
+    pct_str = @sprintf("%4.1f", pct)
+    printstyled(io, lpad(pct_str, ctx.percent_align, " "), " │ ", color = color)
+    alloc_str = @sprintf("%5.2f", base.bytes / 2^20)
+    printstyled(io, lpad(alloc_str, ctx.alloc_align, " "), " │ ", color = color)
+    rss_str = @sprintf("%5.2f", base.rss / 2^20)
+    printstyled(io, lpad(rss_str, ctx.rss_align, " "), " │\n", color = color)
 end
 
-# helper function for sinking a value to prevent the callee from getting optimized away
-@inline sink(i::Int32) =
-    Base.llvmcall("""%slot = alloca i32
-                     store volatile i32 %0, i32* %slot
-                     %value = load volatile i32, i32* %slot
-                     ret i32 %value""", Int32, Tuple{Int32}, i)
-@inline sink(i::Int64) =
-    Base.llvmcall("""%slot = alloca i64
-                     store volatile i64 %0, i64* %slot
-                     %value = load volatile i64, i64* %slot
-                     ret i64 %value""", Int64, Tuple{Int64}, i)
-
-function julia_exec(args::Cmd, env...)
-    # FIXME: this doesn't work when the compute mode is set to exclusive
-    cmd = Base.julia_cmd()
-    cmd = `$cmd --project=$(Base.active_project()) --color=no $args`
-
-    out = Pipe()
-    err = Pipe()
-    proc = run(pipeline(addenv(cmd, env...), stdout=out, stderr=err), wait=false)
-    close(out.in)
-    close(err.in)
-    wait(proc)
-    proc, read(out, String), read(err, String)
+function ParallelTestRunner.print_test_finished(record::CUDATestRecord, wrkr, test,
+                                                ctx::ParallelTestRunner.TestIOContext)
+    lock(ctx.lock)
+    try
+        print_cuda_row(ctx.stdout, record, wrkr, test, ctx; color = :white)
+        flush(ctx.stdout)
+    finally
+        unlock(ctx.lock)
+    end
 end
 
-nothing # File is loaded via a remotecall to "include". Ensure it returns "nothing".
+function ParallelTestRunner.print_test_failed(record::CUDATestRecord, wrkr, test,
+                                              ctx::ParallelTestRunner.TestIOContext)
+    lock(ctx.lock)
+    try
+        print_cuda_row(ctx.stderr, record, wrkr, test, ctx; color = :red)
+        flush(ctx.stderr)
+    finally
+        unlock(ctx.lock)
+    end
+end
+
+
+nothing # File is loaded via include; ensure it returns "nothing".

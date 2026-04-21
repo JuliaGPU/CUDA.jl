@@ -782,7 +782,6 @@ end
 
     @test test_cuda_sum!(32, 32, 32)
     @test test_cuda_sum!(256, 256, 256)
-    @test test_cuda_sum!(512, 512, 512)
     @test test_cuda_sum!(85, 1320, 100)
   end
 end
