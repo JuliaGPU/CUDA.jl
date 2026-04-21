@@ -459,7 +459,12 @@ function Base.get!(constructor::F, x::PerDevice{T}, dev::CuDevice) where {F <: B
         if y[id] === nothing || (y[id]::Tuple)[1] !== ctx
             Base.@lock x.lock begin
                 if y[id] === nothing || (y[id]::Tuple)[1] !== ctx
-                    y[id] = (context(), constructor())
+                    # store the device's own context (it may be created during `constructor()`),
+                    # so subsequent lookups — which compare against `device_context(id)`, not
+                    # the currently-active context — hit the cache regardless of which context
+                    # was active when the value was constructed.
+                    value = constructor()
+                    y[id] = (context(dev), value)
                 end
             end
         end
