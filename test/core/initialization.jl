@@ -1,21 +1,36 @@
 @test has_cuda(true)
 @test has_cuda_gpu(true)
 
-# the API shouldn't have been initialized
-@test_throws UndefRefError current_context()
-@test_throws UndefRefError current_device()
+# The "CUDA hasn't been initialized yet" assertions only hold in a Julia
+# process that truly has a fresh runtime state, which isn't the case for us:
+# ParallelTestRunner's `init_worker_code` runs `setup.jl`, which already
+# touches `CUDA.functional`, `precompile_runtime`, the memory pool, etc.
+# Run the fresh-state checks in a subprocess.
+@testset "initialization semantics (subprocess)" begin
+    script = """
+        using CUDA, Test
+        # the API shouldn't have been initialized
+        @test_throws UndefRefError current_context()
+        @test_throws UndefRefError current_device()
+
+        ctx = context()
+        dev = device()
+
+        # querying Julia's side of things shouldn't cause initialization
+        @test_throws UndefRefError current_context()
+        @test_throws UndefRefError current_device()
+
+        # now cause initialization
+        a = CuArray([42])
+        @test current_context() == ctx
+        @test current_device() == dev
+    """
+    proc, _, _ = julia_exec(`-e $script`)
+    @test success(proc)
+end
 
 ctx = context()
 dev = device()
-
-# querying Julia's side of things shouldn't cause initialization
-@test_throws UndefRefError current_context()
-@test_throws UndefRefError current_device()
-
-# now cause initialization
-a = CuArray([42])
-@test current_context() == ctx
-@test current_device() == dev
 
 # ... on a different task
 task = @async begin

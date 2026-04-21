@@ -8,9 +8,10 @@
     @test ndims(d_x)  == 1
     dense_d_x = CuVector(x)
     dense_d_x2 = CuVector(d_x)
+    ctx = :module => @__MODULE__
     CUDACore.@allowscalar begin
-        @test sprint(show, d_x) == replace(sprint(show, x), "SparseVector{Float64, Int64}"=>"cuSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
-        @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseVector{Float64, Int64}"=>"CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
+        @test sprint(show, d_x; context=ctx) == replace(sprint(show, x; context=ctx), "SparseVector{Float64, Int64}"=>"cuSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
+        @test sprint(show, MIME"text/plain"(), d_x; context=ctx) == replace(sprint(show, MIME"text/plain"(), x; context=ctx), "SparseVector{Float64, Int64}"=>"CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
@@ -45,8 +46,8 @@
     @test size(d_x,3) == 1
     @test ndims(d_x)  == 2
     CUDACore.@allowscalar begin
-        @test sprint(show, d_x) == sprint(show, SparseMatrixCSC(d_x))
-        @test sprint(show, MIME"text/plain"(), d_x) == replace(sprint(show, MIME"text/plain"(), x), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
+        @test sprint(show, d_x; context=ctx) == sprint(show, SparseMatrixCSC(d_x); context=ctx)
+        @test sprint(show, MIME"text/plain"(), d_x; context=ctx) == replace(sprint(show, MIME"text/plain"(), x; context=ctx), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
         @test Array(d_x[:])        == x[:]
         @test d_x[:, :]            == x[:, :]
         @test d_tx[:, :]           == transpose(x)[:, :]
@@ -247,7 +248,7 @@
     # to hit the CuSparseArrayCSR path
     CUDACore.unsafe_free!(repeat(d_x, 1, 1, 3))
     CUDACore.@allowscalar begin
-        @test startswith(sprint(show, MIME"text/plain"(), repeat(d_x, 1, 1, 2)), "$m×$n×2 CuSparseArrayCSR{Float64, Int32, 3} with $(2*nnz(d_x)) stored entries:\n")
+        @test startswith(sprint(show, MIME"text/plain"(), repeat(d_x, 1, 1, 2); context=ctx), "$m×$n×2 CuSparseArrayCSR{Float64, Int32, 3} with $(2*nnz(d_x)) stored entries:\n")
     end
     @test length(d_x) == m*n
     @test_throws ArgumentError copyto!(d_y,d_x)
