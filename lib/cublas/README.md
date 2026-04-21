@@ -16,12 +16,12 @@ CUBLAS functions:
 * [x] copy
 * [x] dot, dotc, dotu
 * [x] nrm2
-* [ ] rot (not implemented in julia blas.jl)
-* [ ] rotg (not implemented in julia blas.jl)
-* [ ] rotm (not implemented in julia blas.jl)
-* [ ] rotmg (not implemented in julia blas.jl)
+* [x] rot
+* [x] rotg
+* [x] rotm
+* [x] rotmg
 * [x] scal
-* [ ] swap (not implemented in julia blas.jl)
+* [x] swap
 
 ## Level 2
 
@@ -73,14 +73,14 @@ CUBLAS functions:
 * [x] symm (in julia/blas.jl)
 * [x] syrk (in julia/blas.jl)
 * [x] syr2k (in julia/blas.jl)
-* [ ] syrkx
+* [x] syrkx
 * [x] trmm (in julia/blas.jl)
 * [x] trsm (in julia/blas.jl)
 * [x] trsmBatched
 * [x] hemm
 * [x] herk (in julia/blas.jl)
 * [x] her2k (in julia/blas.jl)
-* [ ] herkx
+* [x] herkx
 
 ## BLAS-like extensions
 
@@ -91,5 +91,6 @@ CUBLAS functions:
 * [x] getriBatched
 * [x] geqrfBatched
 * [x] gelsBatched
+* [x] gemmEx
 * [ ] tpttr
 * [ ] trttp
