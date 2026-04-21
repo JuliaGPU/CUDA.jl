@@ -1,8 +1,8 @@
 using cuSPARSE
 using LinearAlgebra, SparseArrays
 
-m = 10
 @testset "T = $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    m = 10
     A  = sprand(T, m, m, 0.2)
     B  = sprand(T, m, m, 0.3)
     ZA = spzeros(T, m, m)
@@ -35,8 +35,8 @@ m = 10
             end
         end
         @testset "kronecker product with I opa = $opa" for opa in (identity, transpose, adjoint)
-            @test collect(kron(opa(dA), C)) ≈ kron(opa(A), C) 
-            @test collect(kron(C, opa(dA))) ≈ kron(C, opa(A)) 
+            @test collect(kron(opa(dA), C)) ≈ kron(opa(A), C)
+            @test collect(kron(C, opa(dA))) ≈ kron(C, opa(A))
             @test collect(kron(opa(dZA), C)) ≈ kron(opa(ZA), C)
             @test collect(kron(C, opa(dZA))) ≈ kron(C, opa(ZA))
         end

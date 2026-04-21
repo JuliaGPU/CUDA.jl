@@ -1,13 +1,11 @@
-include("setup.jl")
-@test cuBLAS.functional()
+using cuBLAS
+using ParallelTestRunner
 
-@testset verbose=true "cuBLAS" begin
-
-include("level1.jl")
-include("level2.jl")
-include("level3.jl")
-include("extensions.jl")
-include("xt.jl")
-include("linalg.jl")
-
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
 end
+
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuBLAS, ARGS; init_code, testsuite)

@@ -57,8 +57,9 @@ Base.@deprecate_binding CURAND cuRAND true
 # Forward cuRAND identifiers
 using cuRAND: rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
 @public rand, randn, seed!, rand_logn!, rand_logn, rand_poisson!, rand_poisson
-Base.@deprecate_binding RNG cuRAND.NativeRNG false
-Base.@deprecate default_rng() cuRAND.native_rng() false
+@public RNG, default_rng
+const RNG = CUDACore.GPUArrays.RNG{CuArray}
+default_rng() = cuRAND.gpuarrays_rng()
 
 Base.@deprecate_binding has_cusolvermg cuSOLVER.has_cusolvermg false
 

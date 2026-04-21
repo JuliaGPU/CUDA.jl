@@ -348,7 +348,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--gpu=0,1 --quickfail core libraries/cublas/xt"
+              test_args: "--quickfail core libraries/cublas/xt"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src

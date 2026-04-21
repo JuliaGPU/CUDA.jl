@@ -1,13 +1,11 @@
-include("setup.jl")
-@test cuStateVec.functional()
+using cuStateVec
+using ParallelTestRunner
 
-@testset verbose=true "cuStateVec" begin
-    include("errors.jl")
-    include("apply_matrix.jl")
-    include("apply_pauli.jl")
-    include("measure.jl")
-    include("collapse.jl")
-    include("utilities.jl")
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
 end
 
-include("multigpu.jl")
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuStateVec, ARGS; init_code, testsuite)

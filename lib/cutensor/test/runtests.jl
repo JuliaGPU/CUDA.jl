@@ -1,27 +1,11 @@
-include("setup.jl")
-@test cuTENSOR.functional()
+using cuTENSOR
+using ParallelTestRunner
 
-@testset verbose=true "cuTENSOR" begin
-
-include("base.jl")
-
-include("elementwise_binary.jl")
-include("elementwise_trinary.jl")
-include("permutations.jl")
-include("contractions.jl")
-include("reductions.jl")
-
-# we should have some kernels in the cache after this
-if CUDACore.runtime_version() >= v"11.8" && capability(device()) >= v"8.0"
-@testset "kernel cache" begin
-    mktempdir() do dir
-    cd(dir) do
-        cuTENSOR.write_cache!("kernelCache.bin")
-        @test isfile("kernelCache.bin")
-        cuTENSOR.read_cache!("kernelCache.bin")
-    end
-    end
-end
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
 end
 
-end
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuTENSOR, ARGS; init_code, testsuite)
