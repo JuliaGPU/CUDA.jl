@@ -24,9 +24,11 @@ export
             idx = call!(builder, intr_typ, intr)
 
             # attach range metadata
-            range_metadata = MDNode([ConstantInt(range.start % Int32),
-                                     ConstantInt((range.stop + 1) % Int32)])
-            metadata(idx)[LLVM.MD_range] = range_metadata
+            if range.stop < typemax(Int32)
+                range_metadata = MDNode([ConstantInt(range.start % Int32),
+                                         ConstantInt((range.stop + 1) % Int32)])
+                metadata(idx)[LLVM.MD_range] = range_metadata
+            end
 
             ret!(builder, idx)
         end
