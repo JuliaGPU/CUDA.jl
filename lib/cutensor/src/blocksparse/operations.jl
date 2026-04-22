@@ -97,7 +97,7 @@ function plan_contraction(
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)
 
     plan = CuTensorPlan(desc[], plan_pref[]; workspacePref=workspace)
-    # cutensorDestroyOperationDescriptor(desc[])
+    cutensorDestroyOperationDescriptor(desc[])
     cutensorDestroyPlanPreference(plan_pref[])
     return plan
 end
