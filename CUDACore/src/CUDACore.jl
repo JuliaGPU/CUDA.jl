@@ -35,11 +35,6 @@ using CUDA_Compiler_jll
 
 import CUDA_Runtime_jll
 const local_toolkit = CUDA_Runtime_jll.host_platform["cuda_local"] == "true"
-const toolkit_version = if CUDA_Runtime_jll.host_platform["cuda"] == "none"
-    nothing
-else
-    parse(VersionNumber, CUDA_Runtime_jll.host_platform["cuda"])
-end
 if local_toolkit
     using CUDA_Runtime_Discovery
     const CUDA_Runtime = CUDA_Runtime_Discovery
