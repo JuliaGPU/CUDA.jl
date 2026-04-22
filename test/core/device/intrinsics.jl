@@ -338,3 +338,16 @@ end
 
 ############################################################################################
 
+@testset "intrinsic range metadata" begin
+    # Create tiny kernels to isolate the x-dimension
+    kernel_block() = CUDA.blockDim().x
+    kernel_grid()  = CUDA.gridDim().x
+
+    ir_block = sprint(io -> CUDA.code_llvm(io, kernel_block, Tuple{}; dump_module=true, raw=true))
+    @test occursin("!range", ir_block)
+
+    ir_grid = sprint(io -> CUDA.code_llvm(io, kernel_grid, Tuple{}; dump_module=true, raw=true))
+    @test !occursin("!range", ir_grid)
+end
+
+############################################################################################
