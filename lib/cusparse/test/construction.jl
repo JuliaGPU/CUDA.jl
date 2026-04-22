@@ -88,4 +88,28 @@ if capability(device()) >= v"5.3"
         end
     end
 end
+
+@testset "similar for COO and BSR with custom types/dims" begin
+    row = CuVector{Cint}([1, 2, 3])
+    col = CuVector{Cint}([1, 2, 3])
+    val = CuVector{Float32}([1.0, 2.0, 3.0])
+    coo_mat = CuSparseMatrixCOO(row, col, val, (3, 3))
+
+    coo_sim = similar(coo_mat, Float64, (3, 3))
+    @test eltype(coo_sim) == Float64
+    @test size(coo_sim) == (3, 3)
+    @test typeof(coo_sim) <: CuSparseMatrixCOO
+
+    rowPtr = CuVector{Cint}([1, 2, 3])
+    colVal = CuVector{Cint}([1, 2])
+    valBSR = CuVector{Float32}([1.0, 2.0, 3.0, 4.0]) 
+    bsr_mat = CuSparseMatrixBSR(rowPtr, colVal, valBSR, 2, 'R', 1, (4, 4))
+
+    bsr_sim = similar(bsr_mat, Float64, (4, 4))
+    @test eltype(bsr_sim) == Float64
+    @test size(bsr_sim) == (4, 4)
+    @test typeof(bsr_sim) <: CuSparseMatrixBSR
+    @test bsr_sim.blockDim == bsr_mat.blockDim
+end
+
 end
