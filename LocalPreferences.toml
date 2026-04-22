@@ -3,8 +3,7 @@
 # set this preference if you want to precompile CUDA.jl in an envirnonment without CUDA
 #version = "11.8"
 
-# whether to use a local CUDA installation. if CUDA isn't available during precompilation,
-# you will also need to set the "version" preference, matching the local CUDA version.
+# whether to use a local CUDA installation.
 #local = "false"
 
 [CUDA]
