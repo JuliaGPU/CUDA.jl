@@ -194,12 +194,6 @@ eltypes_compact = [
      (Float64, Float64, Float64, Float64),
      (ComplexF64, ComplexF64, ComplexF64, Float64)
 ]
-## There are runtime issues in the cuTENSOR C library for versions 13.1, 12.6 and 12.0. 
-## These errors are fixed in other versions.
-if !(CUDACore.runtime_version() ∈ [
-    v"13.2", v"13.1", 
-    v"12.8", v"12.6",v"12.0"
-    ])
     @testset "Blocksparse Contraction" begin
         ## There are many unsupported types because this is a new functionality
         ## So I will test with Float32 and ComplexF32 only
@@ -251,6 +245,5 @@ if !(CUDACore.runtime_version() ∈ [
             @test C[2] ≈ reshape(permutedims(A[3], (2,1,3)), (25, 10 * 30)) * reshape(B[1], (10 * 30))
         end
     end
-end
 
 end
