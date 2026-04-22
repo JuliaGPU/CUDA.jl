@@ -55,7 +55,12 @@ function versioninfo(io::IO=stdout)
         print(io, "- unknown driver")
     end
     println(io, " for $(driver_version().major).$(driver_version().minor)")
-    println(io, "- compiler $(compiler_version().major).$(compiler_version().minor)")
+    print(io, "- compiler $(compiler_version().major).$(compiler_version().minor), ")
+    if local_compiler
+        println(io, "local installation")
+    else
+        println(io, "artifact installation")
+    end
     println(io)
 
     println(io, "CUDA libraries: ")
