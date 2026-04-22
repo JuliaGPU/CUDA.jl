@@ -51,7 +51,6 @@ function contractBS!(plan::CuTensorPlan,
                                             Ref{scalar_type}(alpha), A_ptrs, B_ptrs, 
                                             Ref{scalar_type}(beta),  C_ptrs, C_ptrs, 
                                             plan.workspace, sizeof(plan.workspace), stream())
-    synchronize(stream())
     return C
 end
 
