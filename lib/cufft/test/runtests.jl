@@ -1,7 +1,11 @@
-include("setup.jl")
-@test cuFFT.version() isa VersionNumber
+using cuFFT
+using ParallelTestRunner
 
-include("complex.jl")
-include("real.jl")
-include("integer.jl")
-include("issues.jl")
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
+end
+
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuFFT, ARGS; init_code, testsuite)

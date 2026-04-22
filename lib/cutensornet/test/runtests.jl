@@ -1,9 +1,11 @@
-include("setup.jl")
-@test cuTENSOR.functional()
-@test cuTensorNet.functional()
+using cuTensorNet
+using ParallelTestRunner
 
-@testset verbose=true "cuTensorNet" begin
-    include("helpers.jl")
-    include("errors.jl")
-    include("contractions.jl")
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
 end
+
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuTensorNet, ARGS; init_code, testsuite)
