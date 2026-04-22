@@ -13,7 +13,7 @@ GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDACore = "=6.0.0"
-CUDA_Runtime_Discovery = "1"
+CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.21"
 GPUToolbox = "1.1"
 julia = "1.10"

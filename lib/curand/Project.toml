@@ -19,7 +19,7 @@ RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDACore = "=6.0.0"
-CUDA_Runtime_Discovery = "1"
+CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.21"
 GPUToolbox = "0.3, 1"
 Random = "1"

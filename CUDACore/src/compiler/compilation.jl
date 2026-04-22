@@ -32,7 +32,7 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
         return
     end
 
-    lib = parse(LLVM.Module, read(libdevice))
+    lib = parse(LLVM.Module, read(CUDA_Compiler.libdevice))
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
@@ -339,7 +339,7 @@ function compile(@nospecialize(job::CompilerJob))
         "--output-file", ptxas_output,
         ptx_input
     ])
-    proc, log = run_and_collect(`$(ptxas()) $ptxas_opts`)
+    proc, log = run_and_collect(`$(CUDA_Compiler.ptxas()) $ptxas_opts`)
     log = strip(log)
     if !success(proc)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
@@ -370,12 +370,12 @@ function compile(@nospecialize(job::CompilerJob))
         append!(nvlink_opts, [
             "--verbose", "--extra-warnings",
             "--arch", arch,
-            "--library-path", dirname(libcudadevrt),
+            "--library-path", dirname(CUDA_Compiler.libcudadevrt),
             "--library", "cudadevrt",
             "--output-file", nvlink_output,
             ptxas_output
         ])
-        proc, log = run_and_collect(`$(nvlink()) $nvlink_opts`)
+        proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()) $nvlink_opts`)
         log = strip(log)
         if !success(proc)
             reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :

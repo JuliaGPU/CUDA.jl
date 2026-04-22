@@ -100,7 +100,7 @@ other tools. This is version separately from the CUDA Runtime, in order to ensur
 compatibility with the driver, and make sure we use the latest compatible version regardless
 of the selected runtime.
 """
-compiler_version() = CUDA_Compiler_jll.cuda_version
+compiler_version() = CUDA_Compiler.cuda_version
 
 
 ## helpers
