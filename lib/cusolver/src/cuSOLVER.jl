@@ -71,24 +71,34 @@ end
 const idle_dense_handles =
     HandleCache{CuContext,cusolverDnHandle_t}(dense_handle_ctor, dense_handle_dtor)
 
-# fat handle, includes a cache
-struct cusolverDnHandle
-    handle::cusolverDnHandle_t
-    workspace_gpu::CuVector{UInt8}
-    workspace_cpu::Vector{UInt8}
-    info::CuVector{Cint}
+# fat handle, holds the raw cuSOLVER handle together with reusable workspace
+# and info buffers. Mutable so the finalizer can be attached to the object
+# itself: once no one references this struct (e.g. after the owning task dies
+# or we clear it from task-local storage on reclaim), GC runs the finalizer
+# which returns the buffers to the pool and the raw handle to the idle cache.
+mutable struct DnHandle
+    const handle::cusolverDnHandle_t
+    const ctx::CuContext
+    const workspace_gpu::CuVector{UInt8}
+    const workspace_cpu::Vector{UInt8}
+    const info::CuVector{Cint}
 end
-Base.unsafe_convert(::Type{Ptr{cusolverDnContext}}, handle::cusolverDnHandle) =
+Base.unsafe_convert(::Type{Ptr{cusolverDnContext}}, handle::DnHandle) =
     handle.handle
+
+function dense_handle_finalizer(dh::DnHandle)
+    CUDACore.unsafe_free!(dh.workspace_gpu)
+    CUDACore.unsafe_free!(dh.info)
+    push!(idle_dense_handles, dh.ctx, dh.handle)
+end
+
+const DenseLibraryState = @NamedTuple{handle::DnHandle, stream::CuStream}
+const dense_state_cache = CUDACore.TaskLocalCache{CuContext, DenseLibraryState}(:CUSOLVER_dense)
 
 function dense_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cusolverDnHandle, stream::CuStream}
-    states = get!(task_local_storage(), :CUSOLVER_dense) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(dense_state_cache)
 
     # get library state
     @noinline function new_state(cuda)
@@ -97,13 +107,9 @@ function dense_handle()
         workspace_gpu = CuVector{UInt8}(undef, 0)
         workspace_cpu = Vector{UInt8}(undef, 0)
         info = CuVector{Cint}(undef, 1)
-        fat_handle = cusolverDnHandle(new_handle, workspace_gpu, workspace_cpu, info)
-
-        finalizer(current_task()) do task
-            CUDACore.unsafe_free!(workspace_gpu)
-            CUDACore.unsafe_free!(info)
-            push!(idle_dense_handles, cuda.context, new_handle)
-        end
+        fat_handle = DnHandle(new_handle, cuda.context, workspace_gpu,
+                                      workspace_cpu, info)
+        finalizer(dense_handle_finalizer, fat_handle)
 
         cusolverDnSetStream(new_handle, cuda.stream)
 
@@ -141,25 +147,36 @@ end
 const idle_sparse_handles =
     HandleCache{CuContext,cusolverSpHandle_t}(sparse_handle_ctor, sparse_handle_dtor)
 
+# mutable wrapper so the raw sparse handle is released via an object-bound
+# finalizer (see `DnHandle` for rationale).
+mutable struct SpHandle
+    const handle::cusolverSpHandle_t
+    const ctx::CuContext
+end
+Base.unsafe_convert(::Type{cusolverSpHandle_t}, handle::SpHandle) =
+    handle.handle
+
+function sparse_handle_finalizer(sh::SpHandle)
+    push!(idle_sparse_handles, sh.ctx, sh.handle)
+end
+
+const SparseLibraryState = @NamedTuple{handle::SpHandle, stream::CuStream}
+const sparse_state_cache = CUDACore.TaskLocalCache{CuContext, SparseLibraryState}(:CUSOLVER_sparse)
+
 function sparse_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cusolverSpHandle_t, stream::CuStream}
-    states = get!(task_local_storage(), :CUSOLVER_sparse) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(sparse_state_cache)
 
     # get or create handle
     @noinline function new_state(cuda)
         new_handle = pop!(idle_sparse_handles, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_sparse_handles, cuda.context, new_handle)
-        end
+        wrapped = SpHandle(new_handle, cuda.context)
+        finalizer(sparse_handle_finalizer, wrapped)
 
         cusolverSpSetStream(new_handle, cuda.stream)
 
-        (; handle=new_handle, cuda.stream)
+        (; handle=wrapped, cuda.stream)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -194,14 +211,28 @@ end::Vector{CuDevice}
 
 ndevices() = length(devices())
 
+# mutable wrapper so the mg handle is destroyed when its owning state struct
+# becomes unreachable, rather than being pinned for the lifetime of the task.
+mutable struct MgHandle
+    const handle::cusolverMgHandle_t
+    const ctx::CuContext
+end
+Base.unsafe_convert(::Type{cusolverMgHandle_t}, handle::MgHandle) =
+    handle.handle
+
+function mg_handle_finalizer(mh::MgHandle)
+    context!(mh.ctx; skip_destroyed=true) do
+        cusolverMgDestroy(mh.handle)
+    end
+end
+
+const MgLibraryState = @NamedTuple{handle::MgHandle}
+const mg_state_cache = CUDACore.TaskLocalCache{UInt, MgLibraryState}(:CUSOLVERmg)
+
 function mg_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per set of devices
-    LibraryState = @NamedTuple{handle::cusolverMgHandle_t}
-    states = get!(task_local_storage(), :CUSOLVERmg) do
-        Dict{UInt,LibraryState}()
-    end::Dict{UInt,LibraryState}
+    states = CUDACore.task_dict(mg_state_cache)
 
     # derive a key from the active and selected devices
     key = hash(cuda.context)
@@ -214,17 +245,13 @@ function mg_handle()
     @noinline function new_state(cuda)
         # we can't reuse cusolverMg handles because they can only be assigned devices once
         new_handle = cusolverMgCreate()
-
-        finalizer(current_task()) do task
-            context!(cuda.context; skip_destroyed=true) do
-                cusolverMgDestroy(new_handle)
-            end
-        end
+        wrapped = MgHandle(new_handle, cuda.context)
+        finalizer(mg_handle_finalizer, wrapped)
 
         devs = convert.(Cint, devices())
         cusolverMgDeviceSelect(new_handle, length(devs), devs)
 
-        (; handle=new_handle)
+        (; handle=wrapped)
     end
     state = get!(states, key) do
         new_state(cuda)
@@ -259,6 +286,12 @@ function __init__()
             libcusolverMg = CUDA_Runtime_jll.libcusolverMg
         end
     end
+
+    CUDACore.register_reclaimable!(idle_dense_handles)
+    CUDACore.register_reclaimable!(idle_sparse_handles)
+    CUDACore.register_reclaimable!(dense_state_cache)
+    CUDACore.register_reclaimable!(sparse_state_cache)
+    CUDACore.register_reclaimable!(mg_state_cache)
 
     _initialized[] = true
 end

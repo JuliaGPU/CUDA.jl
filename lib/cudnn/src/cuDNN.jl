@@ -76,25 +76,37 @@ function handle_dtor(ctx, handle)
 end
 const idle_handles = HandleCache{CuContext,cudnnHandle_t}(handle_ctor, handle_dtor)
 
+# mutable wrapper so the raw handle is released via an object-bound
+# finalizer: when TLS state is cleared on reclaim (or the owning task is
+# collected) and GC runs, the wrapper is collected and its finalizer
+# returns the handle to the idle cache.
+mutable struct Handle
+    const handle::cudnnHandle_t
+    const ctx::CuContext
+end
+Base.unsafe_convert(::Type{cudnnHandle_t}, h::Handle) = h.handle
+
+function handle_finalizer(h::Handle)
+    push!(idle_handles, h.ctx, h.handle)
+end
+
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
+const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:cuDNN)
+
 function handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cudnnHandle_t, stream::CuStream}
-    states = get!(task_local_storage(), :cuDNN) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(state_cache)
 
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle)
-        end
+        wrapped = Handle(new_handle, cuda.context)
+        finalizer(handle_finalizer, wrapped)
 
         cudnnSetStream(new_handle, cuda.stream)
 
-        (; handle=new_handle, cuda.stream)
+        (; handle=wrapped, cuda.stream)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -173,6 +185,9 @@ function __init__()
                               (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Ptr{UInt8}))
         cudnnSetCallback(typemax(UInt32), C_NULL, callback)
     end
+
+    CUDACore.register_reclaimable!(idle_handles)
+    CUDACore.register_reclaimable!(state_cache)
 
     _initialized[] = true
 end
