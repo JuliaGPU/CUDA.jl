@@ -50,20 +50,20 @@ const idle_handles = HandleCache{CuContext,custatevecHandle_t}(handle_ctor, hand
 # context reference. Mutable so an object-bound finalizer can release both
 # the buffer and the handle when the wrapper becomes unreachable (on
 # reclaim or task GC).
-mutable struct cuStateVecHandle
+mutable struct Handle
     const handle::custatevecHandle_t
     const ctx::CuContext
     const cache::CuVector{UInt8}
 end
-Base.unsafe_convert(::Type{Ptr{custatevecContext}}, handle::cuStateVecHandle) =
+Base.unsafe_convert(::Type{Ptr{custatevecContext}}, handle::Handle) =
     handle.handle
 
-function handle_finalizer(h::cuStateVecHandle)
+function handle_finalizer(h::Handle)
     CUDACore.unsafe_free!(h.cache)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::cuStateVecHandle, stream::CuStream}
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUQUANTUM)
 
 function handle()
@@ -76,7 +76,7 @@ function handle()
         new_handle = pop!(idle_handles, cuda.context)
 
         cache = CuVector{UInt8}(undef, 0)
-        fat_handle = cuStateVecHandle(new_handle, cuda.context, cache)
+        fat_handle = Handle(new_handle, cuda.context, cache)
         finalizer(handle_finalizer, fat_handle)
 
         custatevecSetStream(new_handle, cuda.stream)

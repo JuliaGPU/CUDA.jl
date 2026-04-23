@@ -76,17 +76,17 @@ const idle_handles = HandleCache{CuContext,cusparseHandle_t}(handle_ctor, handle
 # when TLS state is cleared (e.g. on reclaim) and GC runs, the wrapper is
 # collected and its finalizer returns the handle to the idle cache instead
 # of the handle being pinned for the entire lifetime of the owning task.
-mutable struct cusparseHandle
+mutable struct Handle
     const handle::cusparseHandle_t
     const ctx::CuContext
 end
-Base.unsafe_convert(::Type{cusparseHandle_t}, h::cusparseHandle) = h.handle
+Base.unsafe_convert(::Type{cusparseHandle_t}, h::Handle) = h.handle
 
-function handle_finalizer(h::cusparseHandle)
+function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::cusparseHandle, stream::CuStream}
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUSPARSE)
 
 function handle()
@@ -97,7 +97,7 @@ function handle()
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        wrapped = cusparseHandle(new_handle, cuda.context)
+        wrapped = Handle(new_handle, cuda.context)
         finalizer(handle_finalizer, wrapped)
 
         cusparseSetStream(new_handle, cuda.stream)
