@@ -86,17 +86,17 @@ const idle_handles = HandleCache{CuContext,cublasHandle_t}(handle_ctor, handle_d
 # when TLS state is cleared (e.g. on reclaim) and GC runs, the wrapper is
 # collected and its finalizer returns the handle to the idle cache instead
 # of the handle being pinned for the entire lifetime of the owning task.
-mutable struct cublasHandle
+mutable struct Handle
     const handle::cublasHandle_t
     const ctx::CuContext
 end
-Base.unsafe_convert(::Type{cublasHandle_t}, handle::cublasHandle) = handle.handle
+Base.unsafe_convert(::Type{cublasHandle_t}, handle::Handle) = handle.handle
 
-function handle_finalizer(h::cublasHandle)
+function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::cublasHandle, stream::CuStream, math_mode::CUDACore.MathMode}
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUBLAS)
 
 function handle()
@@ -107,7 +107,7 @@ function handle()
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        wrapped = cublasHandle(new_handle, cuda.context)
+        wrapped = Handle(new_handle, cuda.context)
         finalizer(handle_finalizer, wrapped)
 
         cublasSetStream_v2(new_handle, cuda.stream)
@@ -156,14 +156,14 @@ end
 const idle_xt_handles =
     HandleCache{Vector{CuContext},cublasXtHandle_t}(xt_handle_ctor, xt_handle_dtor)
 
-# mutable wrapper for the xt handle, see `cublasHandle` for rationale.
-mutable struct cublasXtHandle
+# mutable wrapper for the xt handle, see `Handle` for rationale.
+mutable struct XtHandle
     const handle::cublasXtHandle_t
     const ctxs::Vector{CuContext}
 end
-Base.unsafe_convert(::Type{cublasXtHandle_t}, h::cublasXtHandle) = h.handle
+Base.unsafe_convert(::Type{cublasXtHandle_t}, h::XtHandle) = h.handle
 
-function xt_handle_finalizer(h::cublasXtHandle)
+function xt_handle_finalizer(h::XtHandle)
     push!(idle_xt_handles, h.ctxs, h.handle)
 end
 
@@ -179,7 +179,7 @@ end::Vector{CuDevice}
 
 ndevices() = length(devices())
 
-const XtLibraryState = @NamedTuple{handle::cublasXtHandle}
+const XtLibraryState = @NamedTuple{handle::XtHandle}
 const xt_state_cache = CUDACore.TaskLocalCache{UInt, XtLibraryState}(:CUBLASxt)
 
 function xt_handle()
@@ -199,7 +199,7 @@ function xt_handle()
         ctxs = [context(dev) for dev in devices()]
 
         new_handle = pop!(idle_xt_handles, ctxs)
-        wrapped = cublasXtHandle(new_handle, ctxs)
+        wrapped = XtHandle(new_handle, ctxs)
         finalizer(xt_handle_finalizer, wrapped)
 
         # if we're using the stream-ordered allocator,

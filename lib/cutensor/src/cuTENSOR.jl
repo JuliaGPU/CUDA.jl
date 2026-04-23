@@ -62,17 +62,17 @@ const idle_handles = HandleCache{CuContext,cutensorHandle_t}(handle_ctor, handle
 # finalizer: when TLS state is cleared on reclaim (or the owning task is
 # collected) and GC runs, the wrapper is collected and its finalizer
 # returns the handle to the idle cache.
-mutable struct cutensorHandle
+mutable struct Handle
     const handle::cutensorHandle_t
     const ctx::CuContext
 end
-Base.unsafe_convert(::Type{cutensorHandle_t}, h::cutensorHandle) = h.handle
+Base.unsafe_convert(::Type{cutensorHandle_t}, h::Handle) = h.handle
 
-function handle_finalizer(h::cutensorHandle)
+function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::cutensorHandle}
+const LibraryState = @NamedTuple{handle::Handle}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:cuTENSOR)
 
 function handle()
@@ -83,7 +83,7 @@ function handle()
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        wrapped = cutensorHandle(new_handle, cuda.context)
+        wrapped = Handle(new_handle, cuda.context)
         finalizer(handle_finalizer, wrapped)
 
         (; handle=wrapped)
