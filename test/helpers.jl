@@ -8,7 +8,8 @@ using CUDA: i32
 using Adapt
 using ..Main: TestSuite, can_use_cupti, sanitize
 
-testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
+testf(@nospecialize(f), @nospecialize(xs...); kwargs...) =
+    TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 # NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
 macro grab_output(ex)
