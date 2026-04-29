@@ -2,11 +2,53 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
+@public AbstractBackend, NativeBackend, kernel_convert, kernel_compile
+
+
+## backend dispatch
+
+"""
+    AbstractBackend
+
+Abstract supertype for `@cuda` backend dispatch. The default backend is
+[`NativeBackend`](@ref), which compiles SIMT/PTX kernels via
+[`cufunction`](@ref). Other backends (e.g. Tile IR via cuTile.jl) register
+a subtype and define methods for [`kernel_convert`](@ref) and
+[`kernel_compile`](@ref); `@cuda backend=...` then routes through them.
+"""
+abstract type AbstractBackend end
+
+"""
+    NativeBackend()
+
+Default `@cuda` backend. Compiles SIMT/PTX kernels via [`cufunction`](@ref)
+and converts arguments via [`cudaconvert`](@ref).
+"""
+struct NativeBackend <: AbstractBackend end
+
+"""
+    kernel_convert(backend, x)
+
+Convert a host-side launch argument to its kernel-side form. The default
+implementation for [`NativeBackend`](@ref) forwards to [`cudaconvert`](@ref);
+other backends override to produce backend-specific argument types.
+"""
+kernel_convert(::NativeBackend, x) = cudaconvert(x)
+
+"""
+    kernel_compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
+
+Compile a function for the given backend. Returns an [`AbstractKernel`](@ref)
+callable as `kernel(args...; launch_kwargs...)` to launch on the GPU. The
+default implementation for [`NativeBackend`](@ref) is [`cufunction`](@ref).
+"""
+kernel_compile(::NativeBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
+    cufunction(f, tt; kwargs...)
 
 
 ## high-level @cuda interface
 
-const MACRO_KWARGS = [:dynamic, :launch]
+const MACRO_KWARGS = [:dynamic, :launch, :backend]
 const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx]
 const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clustersize, :shmem, :stream]
 
@@ -50,17 +92,16 @@ macro cuda(ex...)
     code = quote end
     vars, var_exprs = assign_args!(code, args)
 
-    # group keyword argument
+    # group keyword argument. Backend-specific compiler kwargs land in
+    # `other_kwargs` and are forwarded to `kernel_compile`; the backend
+    # validates them.
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs, MACRO_KWARGS, COMPILER_KWARGS, LAUNCH_KWARGS)
-    if !isempty(other_kwargs)
-        key,val = first(other_kwargs).args
-        throw(ArgumentError("Unsupported keyword argument '$key'"))
-    end
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
     launch = true
+    backend_expr = :($NativeBackend())
     for kwarg in macro_kwargs
         key::Symbol, val = kwarg.args
         if key === :dynamic
@@ -69,6 +110,8 @@ macro cuda(ex...)
         elseif key === :launch
             isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
             launch = val::Bool
+        elseif key === :backend
+            backend_expr = val
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
@@ -79,12 +122,14 @@ macro cuda(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym f_var kernel_f kernel_args kernel_tt kernel
+    @gensym f_var kernel_f kernel_args kernel_tt kernel backend
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
         #        IR when processing the dynamic parallelism marker
         isempty(compiler_kwargs) || error("@cuda dynamic parallelism does not support compiler keyword arguments")
+        isempty(other_kwargs) ||
+            error("@cuda dynamic parallelism does not support backend-specific compiler keyword arguments")
 
         # dynamic, device-side kernel launch
         push!(code.args,
@@ -105,12 +150,14 @@ macro cuda(ex...)
         # while keeping the original arguments alive
         push!(code.args,
             quote
+                $backend = $backend_expr
                 $f_var = $f
                 GC.@preserve $(vars...) $f_var begin
-                    $kernel_f = $cudaconvert($f_var)
-                    $kernel_args = map($cudaconvert, ($(var_exprs...),))
+                    $kernel_f = $kernel_convert($backend, $f_var)
+                    $kernel_args = map(x -> $kernel_convert($backend, x), ($(var_exprs...),))
                     $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                    $kernel = $kernel_compile($backend, $kernel_f, $kernel_tt;
+                                              $(compiler_kwargs...), $(other_kwargs...))
                     if $launch
                         $kernel($kernel_args...; $(call_kwargs...), convert=Val(false))
                     end
