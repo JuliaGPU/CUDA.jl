@@ -122,7 +122,20 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
     return entry
 end
 
+# stamp `.version` with the ISA we want `ptxas` to validate against
+# and `.target` with the arch that `--gpu-name` will use
 function rewrite_ptx_header(asm, ptx, cap)
+    return replace(asm,
+        r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
+        r"\.target sm_\d+\w*" => ".target sm_$(cap.major)$(cap.minor)")
+end
+
+function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
+    @assert format == LLVM.API.LLVMAssemblyFile
+    asm = invoke(GPUCompiler.mcgen,
+                 Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
+                 job, mod, format)
+
     # remove extraneous debug info on lower debug levels
     if Base.JLOptions().debug_level < 2
         # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
@@ -137,20 +150,12 @@ function rewrite_ptx_header(asm, ptx, cap)
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
-    # stamp `.version` with the ISA we want `ptxas` to validate against
-    # and `.target` with the arch that `--gpu-name` will use
-    return replace(asm,
-        r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
-        r"\.target sm_\d+\w*" => ".target sm_$(cap.major)$(cap.minor)")
-end
+    (; ptx, cap) = job.config.params
+    if job.config.target.ptx != ptx || job.config.target.cap != cap
+        asm = rewrite_ptx_header(asm, ptx, cap)
+    end
 
-function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
-    @assert format == LLVM.API.LLVMAssemblyFile
-    asm = invoke(GPUCompiler.mcgen,
-                 Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
-                 job, mod, format)
-
-    return rewrite_ptx_header(asm, job.config.params.ptx, job.config.params.cap)
+    return asm
 end
 
 
