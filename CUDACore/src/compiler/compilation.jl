@@ -148,7 +148,11 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         asm = replace(asm, r"(\.version .+)" => ".version $(ptx.major).$(ptx.minor)")
     end
 
-    # no need to bump the `.target` directive; we can do that by passing `-arch` to `ptxas`
+    # align `.target` with the arch that gets passed to `ptxas`
+    if job.config.target.cap != job.config.params.cap
+        cap = job.config.params.cap
+        asm = replace(asm, r"\.target sm_\d+\w*" => ".target sm_$(cap.major)$(cap.minor)")
+    end
 
     asm
 end
