@@ -122,12 +122,7 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
     return entry
 end
 
-function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
-    @assert format == LLVM.API.LLVMAssemblyFile
-    asm = invoke(GPUCompiler.mcgen,
-                 Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
-                 job, mod, format)
-
+function rewrite_ptx_header(asm, ptx, cap)
     # remove extraneous debug info on lower debug levels
     if Base.JLOptions().debug_level < 2
         # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
@@ -142,19 +137,20 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
-    # if LLVM couldn't target the requested PTX ISA, bump it in the assembly.
-    if job.config.target.ptx != job.config.params.ptx
-        ptx = job.config.params.ptx
-        asm = replace(asm, r"(\.version .+)" => ".version $(ptx.major).$(ptx.minor)")
-    end
+    # stamp `.version` with the ISA we want `ptxas` to validate against
+    # and `.target` with the arch that `--gpu-name` will use
+    return replace(asm,
+        r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
+        r"\.target sm_\d+\w*" => ".target sm_$(cap.major)$(cap.minor)")
+end
 
-    # align `.target` with the arch that gets passed to `ptxas`
-    if job.config.target.cap != job.config.params.cap
-        cap = job.config.params.cap
-        asm = replace(asm, r"\.target sm_\d+\w*" => ".target sm_$(cap.major)$(cap.minor)")
-    end
+function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
+    @assert format == LLVM.API.LLVMAssemblyFile
+    asm = invoke(GPUCompiler.mcgen,
+                 Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
+                 job, mod, format)
 
-    asm
+    return rewrite_ptx_header(asm, job.config.params.ptx, job.config.params.cap)
 end
 
 
