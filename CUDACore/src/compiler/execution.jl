@@ -2,7 +2,7 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
-@public AbstractBackend, NativeBackend, kernel_convert, kernel_compile
+@public AbstractBackend, LLVMBackend, kernel_convert, kernel_compile
 
 
 ## backend dispatch
@@ -11,38 +11,42 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
     AbstractBackend
 
 Abstract supertype for `@cuda` backend dispatch. The default backend is
-[`NativeBackend`](@ref), which compiles SIMT/PTX kernels via
+[`LLVMBackend`](@ref), which compiles SIMT/PTX kernels via
 [`cufunction`](@ref). Other backends (e.g. Tile IR via cuTile.jl) register
 a subtype and define methods for [`kernel_convert`](@ref) and
 [`kernel_compile`](@ref); `@cuda backend=...` then routes through them.
+
+`@cuda backend=...` accepts either an `AbstractBackend` instance or a
+module that defines `DefaultBackend()` returning one (e.g.
+`@cuda backend=cuTile ...` resolves to `cuTile.DefaultBackend()`).
 """
 abstract type AbstractBackend end
 
 """
-    NativeBackend()
+    LLVMBackend()
 
 Default `@cuda` backend. Compiles SIMT/PTX kernels via [`cufunction`](@ref)
 and converts arguments via [`cudaconvert`](@ref).
 """
-struct NativeBackend <: AbstractBackend end
+struct LLVMBackend <: AbstractBackend end
 
 """
     kernel_convert(backend, x)
 
 Convert a host-side launch argument to its kernel-side form. The default
-implementation for [`NativeBackend`](@ref) forwards to [`cudaconvert`](@ref);
+implementation for [`LLVMBackend`](@ref) forwards to [`cudaconvert`](@ref);
 other backends override to produce backend-specific argument types.
 """
-kernel_convert(::NativeBackend, x) = cudaconvert(x)
+kernel_convert(::LLVMBackend, x) = cudaconvert(x)
 
 """
     kernel_compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
 
 Compile a function for the given backend. Returns an [`AbstractKernel`](@ref)
 callable as `kernel(args...; launch_kwargs...)` to launch on the GPU. The
-default implementation for [`NativeBackend`](@ref) is [`cufunction`](@ref).
+default implementation for [`LLVMBackend`](@ref) is [`cufunction`](@ref).
 """
-kernel_compile(::NativeBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
+kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
     cufunction(f, tt; kwargs...)
 
 
@@ -101,7 +105,7 @@ macro cuda(ex...)
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
     launch = true
-    backend_expr = :($NativeBackend())
+    backend_expr = :($LLVMBackend())
     for kwarg in macro_kwargs
         key::Symbol, val = kwarg.args
         if key === :dynamic
@@ -150,7 +154,12 @@ macro cuda(ex...)
         # while keeping the original arguments alive
         push!(code.args,
             quote
-                $backend = $backend_expr
+                # Accept either an `AbstractBackend` instance or a module
+                # providing `DefaultBackend()` (e.g. `backend=cuTile`).
+                # Inference folds the branch away on concretely-typed inputs.
+                $backend = let _b = $backend_expr
+                    _b isa $AbstractBackend ? _b : _b.DefaultBackend()
+                end
                 $f_var = $f
                 GC.@preserve $(vars...) $f_var begin
                     $kernel_f = $kernel_convert($backend, $f_var)
@@ -286,10 +295,12 @@ The following keyword arguments are supported:
 AbstractKernel
 
 function Base.show(io::IO, k::AbstractKernel{F,TT}) where {F,TT}
-    print(io, "CUDACore.$(nameof(typeof(k)))($(k.f))")
+    T = typeof(k)
+    print(io, "$(parentmodule(T)).$(nameof(T))($(k.f))")
 end
 function Base.show(io::IO, ::MIME"text/plain", k::AbstractKernel{F,TT}) where {F,TT}
-    print(io, "CUDACore.$(nameof(typeof(k))) for $(k.f)($(join(TT.parameters, ", ")))")
+    T = typeof(k)
+    print(io, "$(parentmodule(T)).$(nameof(T)) for $(k.f)($(join(TT.parameters, ", ")))")
 end
 
 @inline @generated function (kernel::AbstractKernel{F,TT})(args::Vararg{Any,N};
