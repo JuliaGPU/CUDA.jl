@@ -228,6 +228,39 @@ end
     end
 end
 
+@testset "header rewrite (.target/.version bump)" begin
+    # When LLVM's NVPTX backend can't reach the device cap (e.g. Julia 1.12 +
+    # LLVM 18 on a Blackwell device), `_compiler_config` produces a split
+    # config and `mcgen` rewrites `.target`/`.version` in the emitted asm.
+    # `.attribute(.unified)` is target-gated on sm_90+ across CUDA 12.0+ —
+    # picked here as a stable cross-toolkit feature gate that exercises the
+    # rewrite without requiring Blackwell hardware in CI.
+    asm_pre = """
+    .version 8.0
+    .target sm_75
+    .address_size 64
+
+    .global .attribute(.unified(19, 95)) .f32 f;
+    """
+
+    function run_ptxas(src::String, gpu::String)
+        ptx = tempname() * ".ptx"; write(ptx, src)
+        out = tempname() * ".cubin"
+        opts = ["--compile-only", "--gpu-name", gpu, "--output-file", out, ptx]
+        proc = run(pipeline(ignorestatus(`$(CUDACore.CUDA_Compiler.ptxas()) $opts`);
+                            stdout=devnull, stderr=devnull); wait=true)
+        rm(ptx; force=true); rm(out; force=true)
+        proc
+    end
+
+    @test !success(run_ptxas(asm_pre, "sm_75"))
+
+    asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0")
+    @test occursin(".target sm_90", asm_post)
+
+    @test success(run_ptxas(asm_post, "sm_90"))
+end
+
 end
 
 ############################################################################################
