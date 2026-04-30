@@ -136,9 +136,10 @@ end
     @test haskey(BackendStub.last_kwargs[], :opt_level)
     @test BackendStub.last_kwargs[][:opt_level] == 2
 
-    # dynamic + backend kwargs are rejected
+    # dynamic + backend kwargs are rejected (errors at macro-expansion time,
+    # so wrap in @macroexpand to defer)
     @test_throws "does not support backend-specific" begin
-        @cuda dynamic=true opt_level=2 dummy()
+        @macroexpand @cuda dynamic=true opt_level=2 dummy()
     end
 end
 
