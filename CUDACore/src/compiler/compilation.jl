@@ -3,24 +3,24 @@
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
     cap::VersionNumber
     ptx::VersionNumber
-    kind::PTXTargetKind = Baseline
+    feature_set::Symbol = :baseline
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.cap, h)
     h = hash(params.ptx, h)
-    h = hash(params.kind, h)
+    h = hash(params.feature_set, h)
 
     return h
 end
 
-# Format a `(cap, kind)` tuple as the `sm_NNN[a|f]` string used by both the `.target`
-# directive and the `--gpu-name` flag. The two must agree on suffix for `kind=Architectural`
-# (ptxas requires exact match) and need to be in the same major family for `kind=Family`;
-# emitting the same string on both sides handles all three kinds correctly.
-function format_target(cap::VersionNumber, kind::PTXTargetKind)
-    suffix = kind === Architectural ? "a" :
-             kind === Family        ? "f" : ""
+# Format a `(cap, feature_set)` tuple as the `sm_NNN[a|f]` string used by both the `.target`
+# directive and the `--gpu-name` flag. The two must agree on suffix for `feature_set=:architecture`
+# (ptxas requires exact match) and need to be in the same major family for `feature_set=:family`;
+# emitting the same string on both sides handles all three feature sets correctly.
+function format_target(cap::VersionNumber, feature_set::Symbol)
+    suffix = feature_set === :architecture ? "a" :
+             feature_set === :family       ? "f" : ""
     return "sm_$(cap.major)$(cap.minor)$suffix"
 end
 
@@ -136,10 +136,10 @@ end
 
 # stamp `.version` with the ISA we want `ptxas` to validate against
 # and `.target` with the arch that `--gpu-name` will use
-function rewrite_ptx_header(asm, ptx, cap, kind=Baseline)
+function rewrite_ptx_header(asm, ptx, cap, feature_set)
     return replace(asm,
         r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
-        r"\.target sm_\d+\w*" => ".target $(format_target(cap, kind))")
+        r"\.target sm_\d+\w*" => ".target $(format_target(cap, feature_set))")
 end
 
 function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
@@ -162,9 +162,12 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
-    (; ptx, cap, kind) = job.config.params
-    if job.config.target.ptx != ptx || job.config.target.cap != cap || kind !== Baseline
-        asm = rewrite_ptx_header(asm, ptx, cap, kind)
+    (; ptx, cap, feature_set) = job.config.params
+    needs_rewrite = job.config.target.ptx != ptx ||
+                    job.config.target.cap != cap ||
+                    feature_set !== :baseline
+    if needs_rewrite
+        asm = rewrite_ptx_header(asm, ptx, cap, feature_set)
     end
 
     return asm
@@ -196,7 +199,7 @@ function compiler_config(dev; kwargs...)
     return config
 end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         cap=nothing, ptx=nothing, kwargs...)
+                                         cap=nothing, ptx=nothing, feature_set=nothing, kwargs...)
     # determine the toolchain
     llvm_support = llvm_compat()
     cuda_support = cuda_compat()
@@ -253,15 +256,22 @@ end
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = runtime_version() >= v"11.7"
 
-    # pick the target feature set based on the device cap. Architectural is the
-    # JIT-correct choice on devices where it's available (CC >= 9.0): it's a strict
-    # superset of Baseline, and the cubin is per-device anyway so portability isn't on
-    # the table. Pre-Hopper devices have no `a` flavor and stay on Baseline.
-    kind = cuda_cap >= v"9.0" ? Architectural : Baseline
+    # Pick the target feature set based on the device cap.
+    # Architecture-specific is chosen for devices where it's
+    # available (CC >= 9.0) since it's a strict superset of
+    # the baseline and family feature sets.
+    if feature_set === nothing
+        feature_set = if cuda_cap >= v"9.0" && cuda_ptx >= v"8.0"
+            :architecture
+        else
+            :baseline
+        end
+    end
+    validate_feature_set(cuda_cap, cuda_ptx, feature_set)
 
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx, kind)
+    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx, feature_set)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
@@ -296,10 +306,8 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    ptx = job.config.params.ptx
-    cap = job.config.params.cap
-    kind = job.config.params.kind
-    arch = format_target(cap, kind)
+    (; ptx, cap, feature_set) = job.config.params
+    arch = format_target(cap, feature_set)
 
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
