@@ -259,6 +259,38 @@ end
     @test occursin(".target sm_90", asm_post)
 
     @test success(run_ptxas(asm_post, "sm_90"))
+
+    # Architectural kind appends an `a` suffix to the .target directive (and the same
+    # string is what `compile()` passes to --gpu-name, since ptxas requires exact match
+    # for `a`-mode).
+    asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0", CUDACore.Architectural)
+    @test occursin(".target sm_90a", asm_arch)
+    @test success(run_ptxas(asm_arch, "sm_90a"))
+
+    # Family kind appends `f`. Requires PTX 8.8+ at the `.target` line.
+    asm_family = CUDACore.rewrite_ptx_header(asm_pre, v"8.8", v"10.0", CUDACore.Family)
+    @test occursin(".target sm_100f", asm_family)
+    @test success(run_ptxas(asm_family, "sm_100f"))
+end
+
+@testset "CUDACompilerParams hash discriminates on kind" begin
+    # Without `kind` in the hash, two params differing only on kind would collide in
+    # the compiler cache and silently return a cubin compiled for the wrong feature set.
+    base = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", kind=CUDACore.Baseline)
+    arch = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", kind=CUDACore.Architectural)
+    @test hash(base) != hash(arch)
+    @test base != arch
+end
+
+@testset "validate_target_kind" begin
+    # Architectural needs CC >= 9.0 and PTX >= 8.0; Family needs CC >= 10.0 and PTX >= 8.8.
+    @test_throws ErrorException CUDACore.validate_target_kind(v"8.6", v"8.0", CUDACore.Architectural)
+    @test_throws ErrorException CUDACore.validate_target_kind(v"9.0", v"7.8", CUDACore.Architectural)
+    @test_throws ErrorException CUDACore.validate_target_kind(v"9.0", v"8.0", CUDACore.Family)
+    @test_throws ErrorException CUDACore.validate_target_kind(v"10.0", v"8.7", CUDACore.Family)
+    @test CUDACore.validate_target_kind(v"9.0",  v"8.0", CUDACore.Architectural) === nothing
+    @test CUDACore.validate_target_kind(v"10.0", v"8.8", CUDACore.Family) === nothing
+    @test CUDACore.validate_target_kind(v"5.0",  v"6.2", CUDACore.Baseline) === nothing
 end
 
 end
