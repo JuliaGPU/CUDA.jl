@@ -1,5 +1,9 @@
 # compatibility of Julia, CUDA and LLVM
 
+const lowest = v"0"
+const highest = v"999"
+
+
 # PTX compilation targets come in three feature-set flavors, selected via the suffix on the
 # `.target` directive (and the matching `--gpu-name` to ptxas):
 #
@@ -8,32 +12,20 @@
 #   - Family (`f` suffix, e.g. sm_100f): a superset of Baseline. Same-major-family-portable;
 #     code compiled for sm_100f runs on sm_100, sm_103, etc., but not across families.
 #     Introduced with CC 10.0; requires PTX >= 8.8 regardless of cap.
-#   - Architectural (`a` suffix, e.g. sm_90a): a strict superset of Family. Locked to one
-#     exact CC; code compiled for sm_90a runs only on CC 9.0 devices. Introduced with
+#   - Architecture (`a` suffix, e.g. sm_90a): a superset of Family. Locked to one
+#     exact CC; code compiled for sm_103a runs only on CC 10.3 devices. Introduced with
 #     CC 9.0; uses the same PTX requirement as the plain target.
 #
-# baseline ⊆ family ⊆ architectural. Architectural unlocks the full PTX surface (wgmma,
-# tcgen05, FP4/MXFP cvt, TMA, setmaxnreg, …); family unlocks the subset shared across
-# devices in the same major family; baseline unlocks only the forward-portable set.
-
-const lowest = v"0"
-const highest = v"999"
-
-# PTX compilation target feature set; see top-of-file note for the hierarchy and rules.
-@enum PTXTargetKind Baseline Family Architectural
-
-# Validate that `kind` is reachable at the requested `cap`/`ptx`. The cap floors and the
-# kind PTX floors are uniform across caps, so we encode them here rather than in the
-# per-cap tables (which would just repeat the same rule for every entry). The `a` syntax
-# was introduced in PTX 8.0; the `f` syntax in PTX 8.8.
-function validate_target_kind(cap::VersionNumber, ptx::VersionNumber, kind::PTXTargetKind)
-    if kind === Architectural
-        cap >= v"9.0" || error("Architectural targets require compute capability >= 9.0; got $cap")
-        ptx >= v"8.0" || error("Architectural targets require PTX ISA >= 8.0; got $ptx")
+function validate_feature_set(cap::VersionNumber, ptx::VersionNumber, feature_set::Symbol)
+    if !(feature_set in (:baseline, :family, :architecture))
+        error("feature_set must be one of :baseline, :family, :architecture; got $(repr(feature_set))")
     end
-    if kind === Family
-        cap >= v"10.0" || error("Family targets require compute capability >= 10.0; got $cap")
-        ptx >= v"8.8"  || error("Family targets require PTX ISA >= 8.8; got $ptx")
+    if feature_set === :architecture
+        cap >= v"9.0" || error("Architecture-specific targets require compute capability >= 9.0; got $cap")
+        ptx >= v"8.0" || error("Architecture-specific targets require PTX ISA >= 8.0; got $ptx")
+    elseif feature_set === :family
+        cap >= v"10.0" || error("Family-specific targets require compute capability >= 10.0; got $cap")
+        ptx >= v"8.8"  || error("Family-specific targets require PTX ISA >= 8.8; got $ptx")
     end
     return
 end
