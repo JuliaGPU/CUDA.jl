@@ -1,13 +1,42 @@
 # compatibility of Julia, CUDA and LLVM
 
-# NOTE: Target architectures with suffix “a”, such as sm_90a, include
-# architecture-accelerated features that are supported on the specified architecture only,
-# hence such targets do not follow the onion layer model. Therefore, PTX code generated for
-# such targets cannot be run on later generation devices. Architecture-accelerated features
-# can only be used with targets that support these features.
+# PTX compilation targets come in three feature-set flavors, selected via the suffix on the
+# `.target` directive (and the matching `--gpu-name` to ptxas):
+#
+#   - Baseline (no suffix, e.g. sm_90): the forward-compatible feature set. Code compiled
+#     for sm_X runs on any sm_Y with Y >= X (onion model).
+#   - Family (`f` suffix, e.g. sm_100f): a superset of Baseline. Same-major-family-portable;
+#     code compiled for sm_100f runs on sm_100, sm_103, etc., but not across families.
+#     Introduced with CC 10.0; requires PTX >= 8.8 regardless of cap.
+#   - Architectural (`a` suffix, e.g. sm_90a): a strict superset of Family. Locked to one
+#     exact CC; code compiled for sm_90a runs only on CC 9.0 devices. Introduced with
+#     CC 9.0; uses the same PTX requirement as the plain target.
+#
+# baseline ⊆ family ⊆ architectural. Architectural unlocks the full PTX surface (wgmma,
+# tcgen05, FP4/MXFP cvt, TMA, setmaxnreg, …); family unlocks the subset shared across
+# devices in the same major family; baseline unlocks only the forward-portable set.
 
 const lowest = v"0"
 const highest = v"999"
+
+# PTX compilation target feature set; see top-of-file note for the hierarchy and rules.
+@enum PTXTargetKind Baseline Family Architectural
+
+# Validate that `kind` is reachable at the requested `cap`/`ptx`. The cap floors and the
+# kind PTX floors are uniform across caps, so we encode them here rather than in the
+# per-cap tables (which would just repeat the same rule for every entry). The `a` syntax
+# was introduced in PTX 8.0; the `f` syntax in PTX 8.8.
+function validate_target_kind(cap::VersionNumber, ptx::VersionNumber, kind::PTXTargetKind)
+    if kind === Architectural
+        cap >= v"9.0" || error("Architectural targets require compute capability >= 9.0; got $cap")
+        ptx >= v"8.0" || error("Architectural targets require PTX ISA >= 8.0; got $ptx")
+    end
+    if kind === Family
+        cap >= v"10.0" || error("Family targets require compute capability >= 10.0; got $cap")
+        ptx >= v"8.8"  || error("Family targets require PTX ISA >= 8.8; got $ptx")
+    end
+    return
+end
 
 
 ## version range
@@ -163,22 +192,11 @@ const ptx_cap_db = Dict(
     v"8.7"   => between(v"7.4", highest),
     v"8.9"   => between(v"7.8", highest),
     v"9.0"   => between(v"7.8", highest),
-    #v"9.0a" => between(v"8.0", highest)
     v"10.0"  => between(v"8.6", highest),
-    #v"10.0a"=> between(v"8.6", highest),
-    #v"10.0f"=> between(v"8.8", highest),
     v"10.1"  => between(v"8.6", highest),
-    #v"10.1a"=> between(v"8.6", highest),
-    #v"10.1f"=> between(v"8.8", highest),
     v"10.3"  => between(v"8.8", highest),
-    #v"10.3a"=> between(v"8.8", highest),
-    #v"10.3f"=> between(v"8.8", highest),
     v"12.0"  => between(v"8.7", highest),
-    #v"12.0a"=> between(v"8.7", highest),
-    #v"12.0f"=> between(v"8.8", highest),
     v"12.1"  => between(v"8.8", highest),
-    #v"12.1a"=> between(v"8.8", highest),
-    #v"12.1f"=> between(v"8.8", highest),
 )
 
 function ptx_cap_support(ver::VersionNumber)
@@ -216,17 +234,11 @@ const llvm_cap_db = Dict(
     v"8.7"   => between(v"16", highest),
     v"8.9"   => between(v"16", highest),
     v"9.0"   => between(v"16", highest),
-    #v"9.0a" => between(v"18", highest),
     v"10.0"  => between(v"20", highest),
-    #v"10.0a"=> between(v"20", highest),
     v"10.1"  => between(v"20", highest),
-    #v"10.1a"=> between(v"20", highest),
     v"10.3"  => between(v"21", highest),
-    #v"10.3a"=> between(v"21", highest),
     v"12.0"  => between(v"20", highest),
-    #v"12.0a"=> between(v"20", highest),
     v"12.1"  => between(v"21", highest),
-    #v"12.1a"=> between(v"21", highest),
 )
 
 function llvm_cap_support(ver::VersionNumber)
