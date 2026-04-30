@@ -256,17 +256,9 @@ end
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = runtime_version() >= v"11.7"
 
-    # Pick the target feature set based on the device cap.
-    # Architecture-specific is chosen for devices where it's
-    # available (CC >= 9.0) since it's a strict superset of
-    # the baseline and family feature sets.
-    if feature_set === nothing
-        feature_set = if cuda_cap >= v"9.0" && cuda_ptx >= v"8.0"
-            :architecture
-        else
-            :baseline
-        end
-    end
+    # Conservatively pick baseline for backward compatibility,
+    # requiring explicit opt-in for family- and architecture-specific instructions. 
+    feature_set = something(feature_set, :baseline)
     validate_feature_set(cuda_cap, cuda_ptx, feature_set)
 
     # create GPUCompiler objects
