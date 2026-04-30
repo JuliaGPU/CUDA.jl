@@ -1,7 +1,7 @@
 name = "cuSOLVER"
 uuid = "887afef0-6a32-4de5-add4-7827692ba8fc"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "6.0.0"
+version = "6.1.0"
 
 [workspace]
 projects = ["test"]
@@ -23,12 +23,12 @@ cuSPARSE = {path = "../cusparse"}
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDACore = "=6.0.0"
+CUDACore = "=6.1.0"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.21"
 GPUToolbox = "0.3, 1"
 LinearAlgebra = "1"
 SparseArrays = "1"
-cuBLAS = "=6.0.0"
-cuSPARSE = "=6.0.0"
+cuBLAS = "=6.1.0"
+cuSPARSE = "=6.1.0"
 julia = "1.10"

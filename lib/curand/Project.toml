@@ -1,7 +1,7 @@
 name = "cuRAND"
 uuid = "20fd9a0b-12d5-4c2f-a8af-7c34e9e60431"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "6.0.0"
+version = "6.1.0"
 
 [workspace]
 projects = ["test"]
@@ -18,7 +18,7 @@ RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDACore = "=6.0.0"
+CUDACore = "=6.1.0"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.21"
 GPUToolbox = "0.3, 1"

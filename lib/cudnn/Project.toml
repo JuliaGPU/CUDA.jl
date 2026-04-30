@@ -1,7 +1,7 @@
 name = "cuDNN"
 uuid = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "6.0.0"
+version = "6.1.0"
 
 [workspace]
 projects = ["test"]
@@ -14,7 +14,7 @@ CUDNN_jll = "62b44479-cb7b-5706-934f-f13b2eb2e645"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDACore = "=6.0.0"
+CUDACore = "=6.1.0"
 CUDA_Runtime_Discovery = "2"
 CUDNN_jll = "9.20"
 julia = "1.10"
