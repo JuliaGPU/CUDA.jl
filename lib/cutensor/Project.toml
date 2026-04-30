@@ -1,7 +1,7 @@
 name = "cuTENSOR"
 uuid = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "6.0.0"
+version = "6.1.0"
 
 [workspace]
 projects = ["test"]
@@ -16,7 +16,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDACore = "=6.0.0"
+CUDACore = "=6.1.0"
 CUDA_Runtime_Discovery = "2"
 CUTENSOR_jll = "2.5"
 LinearAlgebra = "1"

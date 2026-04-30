@@ -1,6 +1,6 @@
 name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "6.0.0"
+version = "6.1.0"
 
 [workspace]
 projects = ["test", "docs", "perf", "examples",
@@ -33,12 +33,12 @@ cuSPARSE = {path = "lib/cusparse"}
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 
 [compat]
-CUDACore = "=6.0.0"
-CUDATools = "=6.0.0"
+CUDACore = "=6.1.0"
+CUDATools = "=6.1.0"
 Reexport = "1.0"
-cuBLAS = "=6.0.0"
-cuFFT = "=6.0.0"
-cuRAND = "=6.0.0"
-cuSOLVER = "=6.0.0"
-cuSPARSE = "=6.0.0"
+cuBLAS = "=6.1.0"
+cuFFT = "=6.1.0"
+cuRAND = "=6.1.0"
+cuSOLVER = "=6.1.0"
+cuSPARSE = "=6.1.0"
 julia = "1.10"

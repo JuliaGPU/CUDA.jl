@@ -1,7 +1,7 @@
 name = "cuSPARSE"
 uuid = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "6.0.0"
+version = "6.1.0"
 
 [workspace]
 projects = ["test"]
@@ -27,7 +27,7 @@ SparseMatricesCSRExt = "SparseMatricesCSR"
 [compat]
 Adapt = "4.4"
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDACore = "=6.0.0"
+CUDACore = "=6.1.0"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.21"
 GPUArrays = "11.4.1"

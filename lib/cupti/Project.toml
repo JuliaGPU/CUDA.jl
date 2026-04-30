@@ -1,7 +1,7 @@
 name = "CUPTI"
 uuid = "9e67e8f6-ba02-4b6c-a7db-3b11ae1e7ab7"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "6.0.0"
+version = "6.1.0"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
@@ -12,7 +12,7 @@ GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
 
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDACore = "=6.0.0"
+CUDACore = "=6.1.0"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.21"
 GPUToolbox = "1.1"
