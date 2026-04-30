@@ -2,11 +2,67 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
+@public AbstractBackend, LLVMBackend, DefaultBackend, kernel_convert, kernel_compile
+
+
+## backend dispatch
+
+"""
+    AbstractBackend
+
+Abstract supertype for `@cuda` backend dispatch. The default backend is
+[`LLVMBackend`](@ref), which compiles SIMT/PTX kernels via
+[`cufunction`](@ref). Other backends (e.g. Tile IR via cuTile.jl) register
+a subtype and define methods for [`kernel_convert`](@ref) and
+[`kernel_compile`](@ref); `@cuda backend=...` then routes through them.
+
+`@cuda backend=...` accepts either an `AbstractBackend` instance or a
+module that defines `DefaultBackend()` returning one (e.g.
+`@cuda backend=cuTile ...` resolves to `cuTile.DefaultBackend()`).
+"""
+abstract type AbstractBackend end
+
+"""
+    LLVMBackend()
+
+Default `@cuda` backend. Compiles SIMT/PTX kernels via [`cufunction`](@ref)
+and converts arguments via [`cudaconvert`](@ref).
+"""
+struct LLVMBackend <: AbstractBackend end
+
+"""
+    DefaultBackend()
+
+Returns the default `@cuda` backend for this module ([`LLVMBackend`](@ref)).
+This makes `@cuda backend=CUDA ...` (or `backend=CUDACore`) resolve to
+[`LLVMBackend`](@ref), mirroring the convention used by other backend
+packages (e.g. `@cuda backend=cuTile ...` resolves to `cuTile.DefaultBackend()`).
+"""
+DefaultBackend() = LLVMBackend()
+
+"""
+    kernel_convert(backend, x)
+
+Convert a host-side launch argument to its kernel-side form. The default
+implementation for [`LLVMBackend`](@ref) forwards to [`cudaconvert`](@ref);
+other backends override to produce backend-specific argument types.
+"""
+kernel_convert(::LLVMBackend, x) = cudaconvert(x)
+
+"""
+    kernel_compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
+
+Compile a function for the given backend. Returns an [`AbstractKernel`](@ref)
+callable as `kernel(args...; launch_kwargs...)` to launch on the GPU. The
+default implementation for [`LLVMBackend`](@ref) is [`cufunction`](@ref).
+"""
+kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
+    cufunction(f, tt; kwargs...)
 
 
 ## high-level @cuda interface
 
-const MACRO_KWARGS = [:dynamic, :launch]
+const MACRO_KWARGS = [:dynamic, :launch, :backend]
 const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx]
 const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clustersize, :shmem, :stream]
 
@@ -24,6 +80,10 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
   kernel object should be launched by calling it and passing arguments again.
 - `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
+- `backend`: which compiler backend to use, defaults to [`LLVMBackend`](@ref). Either an
+  [`AbstractBackend`](@ref) instance or a module that defines `DefaultBackend()` (e.g.
+  `backend=CUDA` resolves to `CUDA.DefaultBackend()`). Backend-specific compiler kwargs
+  not recognized by `@cuda` itself are forwarded to [`kernel_compile`](@ref).
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
 - arguments that influence kernel launch: see [`CUDACore.HostKernel`](@ref) and
@@ -50,17 +110,16 @@ macro cuda(ex...)
     code = quote end
     vars, var_exprs = assign_args!(code, args)
 
-    # group keyword argument
+    # group keyword argument. Backend-specific compiler kwargs land in
+    # `other_kwargs` and are forwarded to `kernel_compile`; the backend
+    # validates them.
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs, MACRO_KWARGS, COMPILER_KWARGS, LAUNCH_KWARGS)
-    if !isempty(other_kwargs)
-        key,val = first(other_kwargs).args
-        throw(ArgumentError("Unsupported keyword argument '$key'"))
-    end
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
     launch = true
+    backend_expr = :($LLVMBackend())
     for kwarg in macro_kwargs
         key::Symbol, val = kwarg.args
         if key === :dynamic
@@ -69,6 +128,8 @@ macro cuda(ex...)
         elseif key === :launch
             isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
             launch = val::Bool
+        elseif key === :backend
+            backend_expr = val
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
@@ -79,12 +140,14 @@ macro cuda(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym f_var kernel_f kernel_args kernel_tt kernel
+    @gensym f_var kernel_f kernel_args kernel_tt kernel backend backend_raw
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
         #        IR when processing the dynamic parallelism marker
         isempty(compiler_kwargs) || error("@cuda dynamic parallelism does not support compiler keyword arguments")
+        isempty(other_kwargs) ||
+            error("@cuda dynamic parallelism does not support backend-specific compiler keyword arguments")
 
         # dynamic, device-side kernel launch
         push!(code.args,
@@ -105,12 +168,19 @@ macro cuda(ex...)
         # while keeping the original arguments alive
         push!(code.args,
             quote
+                # Accept either an `AbstractBackend` instance or a module
+                # providing `DefaultBackend()` (e.g. `backend=cuTile`).
+                # Inference folds the branch away on concretely-typed inputs.
+                $backend = let $backend_raw = $backend_expr
+                    $backend_raw isa $AbstractBackend ? $backend_raw : $backend_raw.DefaultBackend()
+                end
                 $f_var = $f
                 GC.@preserve $(vars...) $f_var begin
-                    $kernel_f = $cudaconvert($f_var)
-                    $kernel_args = map($cudaconvert, ($(var_exprs...),))
+                    $kernel_f = $kernel_convert($backend, $f_var)
+                    $kernel_args = map(x -> $kernel_convert($backend, x), ($(var_exprs...),))
                     $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                    $kernel = $kernel_compile($backend, $kernel_f, $kernel_tt;
+                                              $(compiler_kwargs...), $(other_kwargs...))
                     if $launch
                         $kernel($kernel_args...; $(call_kwargs...), convert=Val(false))
                     end
@@ -239,10 +309,12 @@ The following keyword arguments are supported:
 AbstractKernel
 
 function Base.show(io::IO, k::AbstractKernel{F,TT}) where {F,TT}
-    print(io, "CUDACore.$(nameof(typeof(k)))($(k.f))")
+    T = typeof(k)
+    print(io, "$(parentmodule(T)).$(nameof(T))($(k.f))")
 end
 function Base.show(io::IO, ::MIME"text/plain", k::AbstractKernel{F,TT}) where {F,TT}
-    print(io, "CUDACore.$(nameof(typeof(k))) for $(k.f)($(join(TT.parameters, ", ")))")
+    T = typeof(k)
+    print(io, "$(parentmodule(T)).$(nameof(T)) for $(k.f)($(join(TT.parameters, ", ")))")
 end
 
 @inline @generated function (kernel::AbstractKernel{F,TT})(args::Vararg{Any,N};

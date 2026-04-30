@@ -80,6 +80,70 @@ end
 end
 
 
+@testset "backend dispatch" begin
+    # instance form: explicit LLVMBackend
+    @cuda backend=CUDACore.LLVMBackend() dummy()
+    k = @cuda launch=false backend=CUDACore.LLVMBackend() dummy()
+    @test k isa CUDACore.HostKernel
+    k()
+
+    # instance form via the re-exported CUDA name
+    @cuda backend=CUDA.LLVMBackend() dummy()
+
+    # module form: CUDA / CUDACore both define DefaultBackend()
+    @cuda backend=CUDA dummy()
+    @cuda backend=CUDACore dummy()
+
+    # custom backend stub: assert kernel_convert/kernel_compile are called
+    # and that unknown kwargs are forwarded
+    @eval module BackendStub
+        using CUDA
+        const compile_calls = Ref(0)
+        const convert_calls = Ref(0)
+        const last_kwargs = Ref{Any}(nothing)
+
+        struct Backend <: CUDACore.AbstractBackend end
+        DefaultBackend() = Backend()
+
+        struct Kernel{F}
+            f::F
+        end
+        (::Kernel)(args...; kwargs...) = nothing
+
+        CUDACore.kernel_convert(::Backend, x) = (convert_calls[] += 1; x)
+        function CUDACore.kernel_compile(::Backend, f::F, tt::Type{<:Tuple};
+                                         kwargs...) where {F}
+            compile_calls[] += 1
+            last_kwargs[] = (; kwargs...)
+            Kernel{F}(f)
+        end
+    end
+
+    BackendStub.compile_calls[] = 0
+    BackendStub.convert_calls[] = 0
+    BackendStub.last_kwargs[] = nothing
+    @cuda backend=BackendStub.Backend() dummy()
+    @test BackendStub.compile_calls[] == 1
+    # f + 0 args, all routed through kernel_convert
+    @test BackendStub.convert_calls[] == 1
+
+    # module-as-backend resolution for the custom backend
+    @cuda backend=BackendStub dummy()
+    @test BackendStub.compile_calls[] == 2
+
+    # other_kwargs forwarding to kernel_compile
+    @cuda backend=BackendStub.Backend() opt_level=2 dummy()
+    @test haskey(BackendStub.last_kwargs[], :opt_level)
+    @test BackendStub.last_kwargs[][:opt_level] == 2
+
+    # dynamic + backend kwargs are rejected (errors at macro-expansion time,
+    # so wrap in @macroexpand to defer)
+    @test_throws "does not support backend-specific" begin
+        @macroexpand @cuda dynamic=true opt_level=2 dummy()
+    end
+end
+
+
 @testset "streams" begin
     s = CuStream()
     @cuda stream=s dummy()
