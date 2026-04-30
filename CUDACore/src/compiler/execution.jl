@@ -434,8 +434,7 @@ The following keyword arguments are supported:
 - `always_inline`: inline all function calls in the kernel
 - `fastmath`: use less precise square roots and flush denormals
 - `cap` and `ptx`: to override the compute capability and PTX version to compile for
-- `feature_set`: PTX feature set (`:baseline`, `:family`, or `:architecture`); defaults to the
-  most specific supported by the device
+- `feature_set`: PTX feature set, one of `:baseline` (default), `:family`, or `:architecture`
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when
