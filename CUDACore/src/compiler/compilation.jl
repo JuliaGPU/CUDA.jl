@@ -196,7 +196,7 @@ function compiler_config(dev; kwargs...)
     return config
 end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         cap=nothing, ptx=nothing, kind=nothing, kwargs...)
+                                         cap=nothing, ptx=nothing, kwargs...)
     # determine the toolchain
     llvm_support = llvm_compat()
     cuda_support = cuda_compat()
@@ -253,14 +253,11 @@ end
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = runtime_version() >= v"11.7"
 
-    # default the target feature set based on the device cap. Architectural is the
+    # pick the target feature set based on the device cap. Architectural is the
     # JIT-correct choice on devices where it's available (CC >= 9.0): it's a strict
     # superset of Baseline, and the cubin is per-device anyway so portability isn't on
     # the table. Pre-Hopper devices have no `a` flavor and stay on Baseline.
-    if kind === nothing
-        kind = cuda_cap >= v"9.0" ? Architectural : Baseline
-    end
-    validate_target_kind(cuda_cap, cuda_ptx, kind)
+    kind = cuda_cap >= v"9.0" ? Architectural : Baseline
 
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
