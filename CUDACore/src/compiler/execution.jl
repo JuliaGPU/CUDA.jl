@@ -2,7 +2,7 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
-@public AbstractBackend, LLVMBackend, kernel_convert, kernel_compile
+@public AbstractBackend, LLVMBackend, DefaultBackend, kernel_convert, kernel_compile
 
 
 ## backend dispatch
@@ -29,6 +29,16 @@ Default `@cuda` backend. Compiles SIMT/PTX kernels via [`cufunction`](@ref)
 and converts arguments via [`cudaconvert`](@ref).
 """
 struct LLVMBackend <: AbstractBackend end
+
+"""
+    DefaultBackend()
+
+Returns the default `@cuda` backend for this module ([`LLVMBackend`](@ref)).
+This makes `@cuda backend=CUDA ...` (or `backend=CUDACore`) resolve to
+[`LLVMBackend`](@ref), mirroring the convention used by other backend
+packages (e.g. `@cuda backend=cuTile ...` resolves to `cuTile.DefaultBackend()`).
+"""
+DefaultBackend() = LLVMBackend()
 
 """
     kernel_convert(backend, x)
@@ -70,6 +80,10 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
   kernel object should be launched by calling it and passing arguments again.
 - `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
+- `backend`: which compiler backend to use, defaults to [`LLVMBackend`](@ref). Either an
+  [`AbstractBackend`](@ref) instance or a module that defines `DefaultBackend()` (e.g.
+  `backend=CUDA` resolves to `CUDA.DefaultBackend()`). Backend-specific compiler kwargs
+  not recognized by `@cuda` itself are forwarded to [`kernel_compile`](@ref).
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
 - arguments that influence kernel launch: see [`CUDACore.HostKernel`](@ref) and
@@ -126,7 +140,7 @@ macro cuda(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym f_var kernel_f kernel_args kernel_tt kernel backend
+    @gensym f_var kernel_f kernel_args kernel_tt kernel backend backend_raw
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -157,8 +171,8 @@ macro cuda(ex...)
                 # Accept either an `AbstractBackend` instance or a module
                 # providing `DefaultBackend()` (e.g. `backend=cuTile`).
                 # Inference folds the branch away on concretely-typed inputs.
-                $backend = let _b = $backend_expr
-                    _b isa $AbstractBackend ? _b : _b.DefaultBackend()
+                $backend = let $backend_raw = $backend_expr
+                    $backend_raw isa $AbstractBackend ? $backend_raw : $backend_raw.DefaultBackend()
                 end
                 $f_var = $f
                 GC.@preserve $(vars...) $f_var begin
