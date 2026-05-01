@@ -255,10 +255,42 @@ end
 
     @test !success(run_ptxas(asm_pre, "sm_75"))
 
-    asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0")
+    asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0", :baseline)
     @test occursin(".target sm_90", asm_post)
 
     @test success(run_ptxas(asm_post, "sm_90"))
+
+    # Architecture-specific feature set appends an `a` suffix to the .target directive (and the same
+    # string is what `compile()` passes to --gpu-name, since ptxas requires exact match for `a`-mode).
+    asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0", :arch)
+    @test occursin(".target sm_90a", asm_arch)
+    @test success(run_ptxas(asm_arch, "sm_90a"))
+
+    # Family-specific appends `f`. Requires PTX 8.8+ at the `.target` line.
+    asm_family = CUDACore.rewrite_ptx_header(asm_pre, v"8.8", v"10.0", :family)
+    @test occursin(".target sm_100f", asm_family)
+    @test success(run_ptxas(asm_family, "sm_100f"))
+end
+
+@testset "CUDACompilerParams hash discriminates on feature_set" begin
+    # Without feature_set in the hash, two params differing only on feature_set would collide
+    # in the compiler cache and silently return a cubin compiled for the wrong feature set.
+    base = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", feature_set=:baseline)
+    arch = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", feature_set=:arch)
+    @test hash(base) != hash(arch)
+    @test base != arch
+end
+
+@testset "validate_feature_set" begin
+    # Architecture-specific needs CC >= 9.0 and PTX >= 8.0
+    # Family-specific needs CC >= 10.0 and PTX >= 8.8.
+    @test_throws ErrorException CUDACore.validate_feature_set(v"8.6", v"8.0", :arch)
+    @test_throws ErrorException CUDACore.validate_feature_set(v"9.0", v"7.8", :arch)
+    @test_throws ErrorException CUDACore.validate_feature_set(v"9.0", v"8.0", :family)
+    @test_throws ErrorException CUDACore.validate_feature_set(v"10.0", v"8.7", :family)
+    @test CUDACore.validate_feature_set(v"9.0",  v"8.0", :arch) === nothing
+    @test CUDACore.validate_feature_set(v"10.0", v"8.8", :family) === nothing
+    @test CUDACore.validate_feature_set(v"5.0",  v"6.2", :baseline) === nothing
 end
 
 end

@@ -3,13 +3,25 @@
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
     cap::VersionNumber
     ptx::VersionNumber
+    feature_set::Symbol = :baseline
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.cap, h)
     h = hash(params.ptx, h)
+    h = hash(params.feature_set, h)
 
     return h
+end
+
+# Format a `(cap, feature_set)` tuple as the `sm_NNN[a|f]` string used by both the `.target`
+# directive and the `--gpu-name` flag. The two must agree on suffix for `feature_set=:arch`
+# (ptxas requires exact match) and need to be in the same major family for `feature_set=:family`;
+# emitting the same string on both sides handles all three feature sets correctly.
+function format_target(cap::VersionNumber, feature_set::Symbol)
+    suffix = feature_set === :arch ? "a" :
+             feature_set === :family       ? "f" : ""
+    return "sm_$(cap.major)$(cap.minor)$suffix"
 end
 
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
@@ -124,10 +136,10 @@ end
 
 # stamp `.version` with the ISA we want `ptxas` to validate against
 # and `.target` with the arch that `--gpu-name` will use
-function rewrite_ptx_header(asm, ptx, cap)
+function rewrite_ptx_header(asm, ptx, cap, feature_set)
     return replace(asm,
         r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
-        r"\.target sm_\d+\w*" => ".target sm_$(cap.major)$(cap.minor)")
+        r"\.target sm_\d+\w*" => ".target $(format_target(cap, feature_set))")
 end
 
 function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
@@ -150,9 +162,12 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
-    (; ptx, cap) = job.config.params
-    if job.config.target.ptx != ptx || job.config.target.cap != cap
-        asm = rewrite_ptx_header(asm, ptx, cap)
+    (; ptx, cap, feature_set) = job.config.params
+    needs_rewrite = job.config.target.ptx != ptx ||
+                    job.config.target.cap != cap ||
+                    feature_set !== :baseline
+    if needs_rewrite
+        asm = rewrite_ptx_header(asm, ptx, cap, feature_set)
     end
 
     return asm
@@ -184,7 +199,7 @@ function compiler_config(dev; kwargs...)
     return config
 end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         cap=nothing, ptx=nothing, kwargs...)
+                                         cap=nothing, ptx=nothing, feature_set=nothing, kwargs...)
     # determine the toolchain
     llvm_support = llvm_compat()
     cuda_support = cuda_compat()
@@ -241,9 +256,14 @@ end
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = runtime_version() >= v"11.7"
 
+    # Conservatively pick baseline for backward compatibility,
+    # requiring explicit opt-in for family- and architecture-specific instructions. 
+    feature_set = something(feature_set, :baseline)
+    validate_feature_set(cuda_cap, cuda_ptx, feature_set)
+
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx)
+    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx, feature_set)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
@@ -278,9 +298,8 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    ptx = job.config.params.ptx
-    cap = job.config.params.cap
-    arch = "sm_$(cap.major)$(cap.minor)"
+    (; ptx, cap, feature_set) = job.config.params
+    arch = format_target(cap, feature_set)
 
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt

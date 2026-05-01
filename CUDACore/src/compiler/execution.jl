@@ -63,7 +63,7 @@ kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx, :feature_set]
 const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clustersize, :shmem, :stream]
 
 
@@ -434,6 +434,7 @@ The following keyword arguments are supported:
 - `always_inline`: inline all function calls in the kernel
 - `fastmath`: use less precise square roots and flush denormals
 - `cap` and `ptx`: to override the compute capability and PTX version to compile for
+- `feature_set`: PTX feature set, one of `:baseline` (default), `:family`, or `:arch`
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when
