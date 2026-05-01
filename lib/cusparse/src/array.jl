@@ -277,9 +277,10 @@ Base.similar(Mat::CuSparseMatrixCSR, T::Type) = CuSparseMatrixCSR(copy(Mat.rowPt
 Base.similar(Mat::CuSparseMatrixBSR, T::Type) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
 Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
 
-Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N, M))
-Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
-Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixCOO(CUDACore.zeros(Int32, 0), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
+Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixCSC(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixCSR(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCOO{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixCOO(CUDACore.zeros(Ti, 0), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixBSR{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixBSR(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), Mat.blockDim, Mat.dir, 0, (N, M))
 
 Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
 Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
@@ -454,57 +455,39 @@ Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse
 
 function Base.getindex(A::CuSparseVector{Tv, Ti}, i::Integer) where {Tv, Ti}
     @boundscheck checkbounds(A, i)
-    result = zero(Tv)
-    for k in 1:nnz(A)
-        A.iPtr[k] == i && (result = sum_duplicate(result, A.nzVal[k]))
-    end
-    return result
+    ii = searchsortedfirst(A.iPtr, convert(Ti, i))
+    (ii > nnz(A) || A.iPtr[ii] != i) && return zero(Tv)
+    A.nzVal[ii]
 end
-
-# Scalar getindex methods linear-scan the minor axis rather than binary-searching
-# and sum across matching entries. cuSPARSE formats don't guarantee sorted indices
-# within a major-axis slice (e.g. SpGEMM output may leave CSR columns unsorted
-# within a row, and COO is only guaranteed row-sorted), nor uniqueness — duplicate
-# (i, j) entries are permitted and their values sum, matching the convention of
-# Julia's `sparse()` constructor and SciPy/CuPy. For Bool we OR instead of sum,
-# also matching `sparse()`, since Bool + Bool doesn't stay Bool.
-sum_duplicate(a, b) = a + b
-sum_duplicate(a::Bool, b::Bool) = a | b
 
 function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
     @boundscheck checkbounds(A, i0, i1)
     r1 = Int(A.colPtr[i1])
     r2 = Int(A.colPtr[i1+1]-1)
-    result = zero(T)
-    for k in r1:r2
-        rowvals(A)[k] == i0 && (result = sum_duplicate(result, nonzeros(A)[k]))
-    end
-    return result
+    (r1 > r2) && return zero(T)
+    r1 = searchsortedfirst(rowvals(A), i0, r1, r2, Base.Order.Forward)
+    (r1 > r2 || rowvals(A)[r1] != i0) && return zero(T)
+    nonzeros(A)[r1]
 end
 
 function Base.getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where T
     @boundscheck checkbounds(A, i0, i1)
     c1 = Int(A.rowPtr[i0])
     c2 = Int(A.rowPtr[i0+1]-1)
-    result = zero(T)
-    for k in c1:c2
-        A.colVal[k] == i1 && (result = sum_duplicate(result, nonzeros(A)[k]))
-    end
-    return result
+    (c1 > c2) && return zero(T)
+    c1 = searchsortedfirst(A.colVal, i1, c1, c2, Base.Order.Forward)
+    (c1 > c2 || A.colVal[c1] != i1) && return zero(T)
+    nonzeros(A)[c1]
 end
 
 function Base.getindex(A::CuSparseMatrixCOO{T}, i0::Integer, i1::Integer) where T
     @boundscheck checkbounds(A, i0, i1)
-    # cuSPARSE only guarantees COO is sorted by row, so binary-search the row
-    # range but linear-scan for the column.
     r1 = searchsortedfirst(A.rowInd, i0, Base.Order.Forward)
     (r1 > length(A.rowInd) || A.rowInd[r1] > i0) && return zero(T)
-    r2 = searchsortedlast(A.rowInd, i0, Base.Order.Forward)
-    result = zero(T)
-    for k in r1:r2
-        A.colInd[k] == i1 && (result = sum_duplicate(result, nonzeros(A)[k]))
-    end
-    return result
+    r2 = min(searchsortedfirst(A.rowInd, i0+1, Base.Order.Forward), length(A.rowInd))
+    c1 = searchsortedfirst(A.colInd, i1, r1, r2, Base.Order.Forward)
+    (c1 > r2 || c1 == length(A.colInd) + 1 || A.colInd[c1] > i1) && return zero(T)
+    nonzeros(A)[c1]
 end
 
 function Base.getindex(A::CuSparseMatrixBSR{T}, i0::Integer, i1::Integer) where T
@@ -514,11 +497,10 @@ function Base.getindex(A::CuSparseMatrixBSR{T}, i0::Integer, i1::Integer) where 
     block_idx = (i0_idx - 1) * A.blockDim + i1_idx - 1
     c1 = Int(A.rowPtr[i0_block])
     c2 = Int(A.rowPtr[i0_block+1]-1)
-    result = zero(T)
-    for k in c1:c2
-        A.colVal[k] == i1_block && (result = sum_duplicate(result, nonzeros(A)[k+block_idx]))
-    end
-    return result
+    (c1 > c2) && return zero(T)
+    c1 = searchsortedfirst(A.colVal, i1_block, c1, c2, Base.Order.Forward)
+    (c1 > c2 || A.colVal[c1] != i1_block) && return zero(T)
+    nonzeros(A)[c1+block_idx]
 end
 
 # matrix slices
