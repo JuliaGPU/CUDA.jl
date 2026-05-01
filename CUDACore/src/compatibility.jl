@@ -17,10 +17,10 @@ const highest = v"999"
 #     CC 9.0; uses the same PTX requirement as the plain target.
 #
 function validate_feature_set(cap::VersionNumber, ptx::VersionNumber, feature_set::Symbol)
-    if !(feature_set in (:baseline, :family, :architecture))
-        error("feature_set must be one of :baseline, :family, :architecture; got $(repr(feature_set))")
+    if !(feature_set in (:baseline, :family, :arch))
+        error("feature_set must be one of :baseline, :family, :arch; got $(repr(feature_set))")
     end
-    if feature_set === :architecture
+    if feature_set === :arch
         cap >= v"9.0" || error("Architecture-specific targets require compute capability >= 9.0; got $cap")
         ptx >= v"8.0" || error("Architecture-specific targets require PTX ISA >= 8.0; got $ptx")
     elseif feature_set === :family
