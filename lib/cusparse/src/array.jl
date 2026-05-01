@@ -277,9 +277,10 @@ Base.similar(Mat::CuSparseMatrixCSR, T::Type) = CuSparseMatrixCSR(copy(Mat.rowPt
 Base.similar(Mat::CuSparseMatrixBSR, T::Type) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
 Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
 
-Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N, M))
-Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
-Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixCOO(CUDACore.zeros(Int32, 0), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
+Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixCSC(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixCSR(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCOO{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixCOO(CUDACore.zeros(Ti, 0), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixBSR{Tv, Ti}, ::Type{T}, N::Int, M::Int) where {Tv, Ti, T} = CuSparseMatrixBSR(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), Mat.blockDim, Mat.dir, 0, (N, M))
 
 Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
 Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
@@ -294,22 +295,6 @@ Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims.
 Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 
 Base.similar(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
-
-
-function Base.similar(mat::CuSparseMatrixCOO, ::Type{T}, dims::Dims{2}) where {T}
-    new_rowInd = similar(mat.rowInd)
-    new_colInd = similar(mat.colInd)
-    new_nzVal = similar(mat.nzVal, T)
-    return CuSparseMatrixCOO{T, Ti}(new_rowInd, new_colInd, new_nzVal, dims)
-end
-
-function Base.similar(mat::CuSparseMatrixBSR{Tv, Ti}, ::Type{T}, dims::Dims{2}) where {Tv, Ti, T}
-    new_rowPtr = similar(mat.rowPtr)
-    new_colVal = similar(mat.colVal)
-    new_nzVal = similar(mat.nzVal, T) 
-    
-    return CuSparseMatrixBSR{T, Ti}(new_rowPtr, new_colVal, new_nzVal, dims, mat.blockDim, mat.dir, mat.nnzb)
-end
 
 ## array interface
 
