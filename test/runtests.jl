@@ -101,15 +101,20 @@ end
 
 ## GPU-memory-based parallelism
 
-# pick the first visible device and use its free memory to cap worker count.
+# Cap worker count by how much of the primary device's free memory each worker
+# claims. A CUDA worker needs its own context + libraries (~0.5–1 GiB baseline)
+# plus room for peak per-test allocations; 4 GiB is the per-worker budget.
 # (Set `CUDA_VISIBLE_DEVICES` to choose which device is used.)
+const gpu_memory_per_worker = 1 * 2^30
 first_gpu = first(devices())
 gpu_free = device!(first_gpu) do
     mem = CUDA.free_memory()
     device_reset!()
     mem
 end
-gpu_jobs = max(1, Int(gpu_free) ÷ (2 * 2^30))
+gpu_jobs = max(1, Int(gpu_free) ÷ gpu_memory_per_worker)
+
+@info "Parallelism budget" device = "$(CUDA.name(first_gpu)) ($(deviceid(first_gpu)))" gpu_free = Base.format_bytes(gpu_free) gpu_jobs cpu_threads = Sys.CPU_THREADS cpu_free = Base.format_bytes(Sys.free_memory())
 
 if args.jobs === nothing
     default_jobs = min(ParallelTestRunner.default_njobs(), gpu_jobs)
