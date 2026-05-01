@@ -15,11 +15,11 @@ function Base.hash(params::CUDACompilerParams, h::UInt)
 end
 
 # Format a `(cap, feature_set)` tuple as the `sm_NNN[a|f]` string used by both the `.target`
-# directive and the `--gpu-name` flag. The two must agree on suffix for `feature_set=:architecture`
+# directive and the `--gpu-name` flag. The two must agree on suffix for `feature_set=:arch`
 # (ptxas requires exact match) and need to be in the same major family for `feature_set=:family`;
 # emitting the same string on both sides handles all three feature sets correctly.
 function format_target(cap::VersionNumber, feature_set::Symbol)
-    suffix = feature_set === :architecture ? "a" :
+    suffix = feature_set === :arch ? "a" :
              feature_set === :family       ? "f" : ""
     return "sm_$(cap.major)$(cap.minor)$suffix"
 end

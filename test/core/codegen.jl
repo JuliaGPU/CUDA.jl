@@ -262,7 +262,7 @@ end
 
     # Architecture-specific feature set appends an `a` suffix to the .target directive (and the same
     # string is what `compile()` passes to --gpu-name, since ptxas requires exact match for `a`-mode).
-    asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0", :architecture)
+    asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0", :arch)
     @test occursin(".target sm_90a", asm_arch)
     @test success(run_ptxas(asm_arch, "sm_90a"))
 
@@ -276,7 +276,7 @@ end
     # Without feature_set in the hash, two params differing only on feature_set would collide
     # in the compiler cache and silently return a cubin compiled for the wrong feature set.
     base = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", feature_set=:baseline)
-    arch = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", feature_set=:architecture)
+    arch = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", feature_set=:arch)
     @test hash(base) != hash(arch)
     @test base != arch
 end
@@ -284,11 +284,11 @@ end
 @testset "validate_feature_set" begin
     # Architecture-specific needs CC >= 9.0 and PTX >= 8.0
     # Family-specific needs CC >= 10.0 and PTX >= 8.8.
-    @test_throws ErrorException CUDACore.validate_feature_set(v"8.6", v"8.0", :architecture)
-    @test_throws ErrorException CUDACore.validate_feature_set(v"9.0", v"7.8", :architecture)
+    @test_throws ErrorException CUDACore.validate_feature_set(v"8.6", v"8.0", :arch)
+    @test_throws ErrorException CUDACore.validate_feature_set(v"9.0", v"7.8", :arch)
     @test_throws ErrorException CUDACore.validate_feature_set(v"9.0", v"8.0", :family)
     @test_throws ErrorException CUDACore.validate_feature_set(v"10.0", v"8.7", :family)
-    @test CUDACore.validate_feature_set(v"9.0",  v"8.0", :architecture) === nothing
+    @test CUDACore.validate_feature_set(v"9.0",  v"8.0", :arch) === nothing
     @test CUDACore.validate_feature_set(v"10.0", v"8.8", :family) === nothing
     @test CUDACore.validate_feature_set(v"5.0",  v"6.2", :baseline) === nothing
 end
