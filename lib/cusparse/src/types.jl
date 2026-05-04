@@ -12,7 +12,7 @@ function Base.convert(::Type{cusparseIndexType_t}, T::DataType)
     end
 end
 
-function Base.convert(::Type{Type}, T::cusparseIndexType_t)
+function Base.Type(T::cusparseIndexType_t)
     if T == CUSPARSE_INDEX_32I
         return Int32
     elseif T == CUSPARSE_INDEX_64I

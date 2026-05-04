@@ -37,8 +37,8 @@ end
     @test convert(cuSPARSE.cusparseIndexType_t, Int32) == cuSPARSE.CUSPARSE_INDEX_32I
     @test convert(cuSPARSE.cusparseIndexType_t, Int64) == cuSPARSE.CUSPARSE_INDEX_64I
     @test_throws ArgumentError("CUSPARSE type equivalent for index type Int8 does not exist!") convert(cuSPARSE.cusparseIndexType_t, Int8)
-    @test convert(Type, cuSPARSE.CUSPARSE_INDEX_32I) == Int32
-    @test convert(Type, cuSPARSE.CUSPARSE_INDEX_64I) == Int64
+    @test Type(cuSPARSE.CUSPARSE_INDEX_32I) == Int32
+    @test Type(cuSPARSE.CUSPARSE_INDEX_64I) == Int64
 
     @test convert(cuSPARSE.cusparseIndexBase_t, 0) == cuSPARSE.CUSPARSE_INDEX_BASE_ZERO
     @test convert(cuSPARSE.cusparseIndexBase_t, 1) == cuSPARSE.CUSPARSE_INDEX_BASE_ONE
