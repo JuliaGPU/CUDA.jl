@@ -683,7 +683,19 @@ SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMat
 # GPU array adaptor
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseVector) = CuSparseVector(xs)
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs)
+
+# Explicit sparse formats
+Adapt.adapt_storage(::Type{<:CuSparseVector}, xs::AbstractSparseVector) = CuSparseVector(xs)
+Adapt.adapt_storage(::Type{<:CuSparseMatrixCSC}, xs::AbstractSparseMatrix) = CuSparseMatrixCSC(xs)
+Adapt.adapt_storage(::Type{<:CuSparseMatrixCSR}, xs::AbstractSparseMatrix) = CuSparseMatrixCSR(xs)
+Adapt.adapt_storage(::Type{<:CuSparseMatrixCOO}, xs::AbstractSparseMatrix) = CuSparseMatrixCOO(xs)
+
 ## preserve type parameters
+Adapt.adapt_storage(::Type{<:CuSparseVector{T}}, xs::AbstractSparseVector) where {T} = CuSparseVector{T}(xs)
+Adapt.adapt_storage(::Type{<:CuSparseMatrixCSC{T}}, xs::AbstractSparseMatrix) where {T} = CuSparseMatrixCSC{T}(xs)
+Adapt.adapt_storage(::Type{<:CuSparseMatrixCSR{T}}, xs::AbstractSparseMatrix) where {T} = CuSparseMatrixCSR{T}(xs)
+Adapt.adapt_storage(::Type{<:CuSparseMatrixCOO{T}}, xs::AbstractSparseMatrix) where {T} = CuSparseMatrixCOO{T}(xs)
+
 Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
 Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
 Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::SparseVector) where {T, N} = CuSparseVector{T}(xs)
