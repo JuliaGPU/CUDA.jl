@@ -64,6 +64,19 @@ end
 end
 
 
+@testset "launch failure: opt-in shmem + thread overrun" begin
+    # A non-SMEM launch failure on a kernel that opted into >48 KiB dynamic SMEM
+    # must report the real cause, not a spurious "exceeds device limit" SMEM message.
+    # Only meaningful on Volta+ (Maxwell/Pascal have no >48 KiB opt-in).
+    optin = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN)
+    if optin > 48*1024
+        k = @cuda launch=false maxthreads=1 dummy()
+        attributes(k.fun)[CUDA.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = optin
+        @test_throws "exceeds kernel limit" k(; threads=2, shmem=optin)
+    end
+end
+
+
 @testset "inference" begin
     foo() = @cuda dummy()
     @inferred foo()
