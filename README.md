@@ -114,7 +114,7 @@ The latest version of CUDA.jl also has certain requirements that cannot be enfor
 package manager:
 
 - Host platform: only 64-bit Linux and Windows are supported;
-- Device hardware: only NVIDIA GPUs with **compute capability 7.5** (Turing) or higher are
+- Device hardware: only NVIDIA GPUs with **compute capability 5.0** (Maxwell) or higher are
   supported;
 - NVIDIA driver: a driver for **CUDA 12** or newer is required;
 - CUDA toolkit (in case you need to use your own): only **CUDA toolkit 12.0** or newer are
@@ -128,6 +128,26 @@ If you cannot meet these requirements, you may need to install an older version 
 * CUDA.jl v4.0 is the last version to work with CUDA 10.2 (removed in v4.1)
 * CUDA.jl v3.8 is the last version to work with CUDA 10.1 (removed in v3.9)
 * CUDA.jl v1.3 is the last version to work with CUDA 9-10.0 (removed in v2.0)
+
+
+## Selecting a CUDA Toolkit
+
+CUDA.jl will automatically download and use the latest CUDA Toolkit as supported
+by your NVIDIA driver. There are two cases where you may want to select a
+different version:
+
+- **You have a GPU that is not supported by the latest CUDA Toolkit**. For
+  example, CUDA 13 has removed support for Maxwell, Pascal and Volta, even
+  though the latest NVIDIA driver for CUDA 13 still supports these
+  architectures. In this case, call e.g. `CUDA.set_runtime_version!(v"12.9")` to
+  use the latest CUDA Toolkit in the 12.x series, which still supports these
+  architectures.
+- **You want to use a CUDA Toolkit that is already installed on your system**.
+  This is not recommended, but if you want to do it anyway, call
+  `CUDA.set_runtime_version!(local_toolkit=true)`.
+
+Both these options will be remembered across sessions via a local preference,
+which can also be set directly (see `LocalPreferences.toml`).
 
 
 ## Supporting and Citing
