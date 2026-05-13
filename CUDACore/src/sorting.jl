@@ -1045,7 +1045,7 @@ function Base.sortperm!(ix::AnyCuArray, A::AnyCuArray; initialized=false, kwargs
     if axes(ix) != axes(A)
         throw(ArgumentError("index array must have the same size/axes as the source array, $(axes(ix)) != $(axes(A))"))
     end
-
+    isempty(A) && return ix # don't sort an empty array
     if !initialized
         ix .= LinearIndices(A)
     end
