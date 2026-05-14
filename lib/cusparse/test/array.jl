@@ -1,3 +1,5 @@
+using Adapt
+
 @testset "array" begin
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
@@ -365,5 +367,31 @@
     # the plain constructor must keep its non-opinionated semantics
     let A = sprand(Float64, m, n, 0.2)
         @test CuSparseMatrixCSC(A) isa CuSparseMatrixCSC{Float64}
+    end
+
+    @testset "adapt" begin
+        # CPU sparse array to specific GPU sparse array
+        let A = sprand(Float64, m, n, 0.2)
+            @test Adapt.adapt(CuSparseMatrixCSC, A) isa CuSparseMatrixCSC{Float64}
+            @test Adapt.adapt(CuSparseMatrixCSR, A) isa CuSparseMatrixCSR{Float64}
+            @test Adapt.adapt(CuSparseMatrixCOO, A) isa CuSparseMatrixCOO{Float64}
+            @test Adapt.adapt(CuSparseMatrixCSC{Float32}, A) isa CuSparseMatrixCSC{Float32}
+            @test Adapt.adapt(CuSparseMatrixCSR{Float32}, A) isa CuSparseMatrixCSR{Float32}
+            @test Adapt.adapt(CuSparseMatrixCOO{Float32}, A) isa CuSparseMatrixCOO{Float32}
+        end
+        let v = sprand(Float64, m, 0.2)
+            @test Adapt.adapt(CuSparseVector, v) isa CuSparseVector{Float64}
+            @test Adapt.adapt(CuSparseVector{Float32}, v) isa CuSparseVector{Float32}
+        end
+
+        # CuArray target keeps defaults
+        let A = sprand(Float64, m, n, 0.2)
+            @test Adapt.adapt(CuArray, A) isa CuSparseMatrixCSC{Float64}
+            @test Adapt.adapt(CuArray{Float32}, A) isa CuSparseMatrixCSC{Float32}
+        end
+        let v = sprand(Float64, m, 0.2)
+            @test Adapt.adapt(CuArray, v) isa CuSparseVector{Float64}
+            @test Adapt.adapt(CuArray{Float32}, v) isa CuSparseVector{Float32}
+        end
     end
 end
