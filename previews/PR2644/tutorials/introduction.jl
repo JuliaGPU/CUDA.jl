@@ -188,8 +188,7 @@ fill!(y_d, 2)
 # Aside from using the `CuArray`s `x_d` and `y_d`, the only GPU-specific part of this is the
 # *kernel launch* via `@cuda`. The first time you issue this `@cuda` statement, it will
 # compile the kernel (`gpu_add1!`) for execution on the GPU. Once compiled, future
-# invocations are fast. You can see what `@cuda` expands to using `?@cuda` from the Julia
-# prompt.
+# invocations are fast.
 
 # Let's benchmark this:
 
@@ -238,12 +237,13 @@ CUDA.@profile trace=true bench_gpu1!(y_d, x_d)
 # ### Writing a parallel GPU kernel
 
 # To speed up the kernel, we want to parallelize it, which means assigning different tasks
-# to different threads.  To facilitate the assignment of work, each CUDA thread gets access
+# to different threads. To facilitate the assignment of work, each CUDA thread gets access
 # to variables that indicate its own unique identity, much as
-# [`Threads.threadid()`](https://docs.julialang.org/en/latest/manual/parallel-computing/#Multi-Threading-(Experimental)-1)
-# does for CPU threads. The CUDA analogs of `threadid` and `nthreads` are called
-# `threadIdx` and `blockDim`, respectively; one difference is that these return a
-# 3-dimensional structure with fields `x`, `y`, and `z` to simplify cartesian indexing for
+# [`Threads.threadid()`](https://docs.julialang.org/en/v1/base/multi-threading/) does for
+# CPU threads. The CUDA analogs of `threadid` and `nthreads` are called `threadIdx` and
+# `blockDim`, respectively, and are used in almost any GPU kernel to differentiate execution
+# between threads. One difference with their CPU counterparts is that these functions return
+# a 3-dimensional structure with fields `x`, `y`, and `z` to simplify cartesian indexing for
 # up to 3-dimensional arrays. Consequently we can assign unique work in the following way:
 
 function gpu_add2!(y, x)
