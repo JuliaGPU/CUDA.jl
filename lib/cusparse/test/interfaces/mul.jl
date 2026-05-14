@@ -9,21 +9,27 @@ using LinearAlgebra, SparseArrays
     alpha = rand(elty)
     beta  = rand(elty)
 
+    # mixed-eltype sparse/dense products (CUDA.jl#3128)
     if elty <: Real
-        eltya = elty
-        eltyb = complex(elty)
-        @testset "CuSparseMatrix * CuVector -- mul!(c, A, b) mixed ($eltya, $eltyb) opa = $opa" for opa in (identity, transpose, adjoint)
-            A = opa == identity ? sprand(eltya, n, m, 0.5) : sprand(eltya, m, n, 0.5)
+        eltya = complex(elty)
+        eltyb = elty
+        @testset "mixed-eltype sparse↔dense $SparseMatrixType" for
+            SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+
+            A = sprand(eltya, n, m, 0.5)
+            B = rand(eltyb, m, k)
             b = rand(eltyb, m)
-            c = rand(eltyb, n)
-
-            dA = CuSparseMatrixCSR(A)
+            dA = SparseMatrixType(A)
+            dB = CuArray(B)
             db = CuArray(b)
-            dc = CuArray(c)
+            @test collect(dA * dB) ≈ A * B
+            @test collect(dA * db) ≈ A * b
 
-            mul!(c, opa(A), b)
-            mul!(dc, opa(dA), db)
-            @test c ≈ collect(dc)
+            # dense × sparse (reverse direction); COO must be column-sorted on the right
+            dA_r = SparseMatrixType == CuSparseMatrixCOO ? sort_coo(dA, 'C') : dA
+            Br = rand(eltyb, k, n)
+            dBr = CuArray(Br)
+            @test collect(dBr * dA_r) ≈ Br * A
         end
     end
 
