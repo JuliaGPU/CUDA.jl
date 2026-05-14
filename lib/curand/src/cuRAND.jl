@@ -56,31 +56,38 @@ function handle_dtor(ctx, handle)
 end
 const idle_library_rngs = HandleCache{CuContext,LibraryRNG}(handle_ctor, handle_dtor)
 
+# wrapper owning a LibraryRNG borrowed from `idle_library_rngs`. Held in
+# task-local storage so that, on reclaim or task GC, the wrapper becomes
+# unreachable and its finalizer returns the RNG to the idle cache. From
+# there, `purge!` on the cache would free the underlying generator.
+mutable struct BorrowedLibraryRNG
+    const rng::LibraryRNG
+    const ctx::CuContext
+end
+
+function library_rng_finalizer(b::BorrowedLibraryRNG)
+    push!(idle_library_rngs, b.ctx, b.rng)
+end
+
+const library_state_cache = CUDACore.TaskLocalCache{CuContext, BorrowedLibraryRNG}(:CURAND)
+
 function library_rng()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{rng::LibraryRNG}
-    states = get!(task_local_storage(), :CURAND) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(library_state_cache)
 
-    # get library state
     @noinline function new_state(cuda)
         new_rng = pop!(idle_library_rngs, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_library_rngs, cuda.context, new_rng)
-        end
-
+        wrapped = BorrowedLibraryRNG(new_rng, cuda.context)
+        finalizer(library_rng_finalizer, wrapped)
         Random.seed!(new_rng)
-
-        (; rng=new_rng)
+        wrapped
     end
-    state = get!(states, cuda.context) do
+    borrowed = get!(states, cuda.context) do
         new_state(cuda)
     end
 
-    return state.rng
+    return borrowed.rng
 end
 
 
@@ -102,6 +109,11 @@ function __init__()
     else
         libcurand = CUDA_Runtime_jll.libcurand
     end
+
+    CUDACore.register_reclaimable!(idle_library_rngs)
+    CUDACore.register_reclaimable!(library_state_cache)
+    CUDACore.register_reclaimable!(native_state_cache)
+    CUDACore.register_reclaimable!(gpuarrays_state_cache)
 
     _initialized[] = true
 end
