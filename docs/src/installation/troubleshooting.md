@@ -11,7 +11,8 @@ re-run with the `JULIA_DEBUG` environment variable set to `CUDA_Driver_jll`.
 
 If you encounter this error, there are several known issues that may be causing it:
 
-- a mismatch between the CUDA driver and driver library: on Linux, look for clues in `dmesg`
+- a mismatch between the CUDA driver and driver library: on Linux, look for clues in `dmesg`.
+- some issue with the forwards-compatible driver library: try running with `JULIA_CUDA_USE_COMPAT=false` (or set the equivalent preference).
 - the CUDA driver is in a bad state: this can happen after resume. **Try rebooting**.
 
 Generally though, it's impossible to say what's the reason for the error, but Julia is
