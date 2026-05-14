@@ -155,6 +155,15 @@ using SpecialFunctions
             @cuda threads=4 fastpow_kernel(A, 3)
             @test Array(A) == ones(T, 4)
         end
+
+        # Float16 hardware approximations: tanh.approx.f16 / ex2.approx.f16 on sm_75+
+        if capability(device()) >= v"7.5"
+            tanh_fast_kernel(x) = @fastmath tanh(x)
+            exp2_fast_kernel(x) = @fastmath exp2(x)
+            xs = Float16[-1, -0.5, 0, 0.5, 1]
+            @test Array(map(tanh_fast_kernel, cu(xs))) ≈ tanh.(xs) atol = Float16(1e-3)
+            @test Array(map(exp2_fast_kernel, cu(xs))) ≈ exp2.(xs) atol = Float16(1e-3)
+        end
     end
 
     @testset "byte_perm" begin
