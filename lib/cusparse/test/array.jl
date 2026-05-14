@@ -394,4 +394,24 @@ using Adapt
             @test Adapt.adapt(CuArray{Float32}, v) isa CuSparseVector{Float32}
         end
     end
+
+    @testset "similar (out-of-shape) — $SparseT" for SparseT in
+            (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        A = SparseT(sprand(Float32, m, n, 0.2))
+        # 2D — sparse representation preserved
+        @test similar(A, 4, 4)            isa SparseT{Float32}
+        @test similar(A, Float64, (4, 4)) isa SparseT{Float64}
+        # 1D — sparse vector, matching SparseArrays.jl
+        @test similar(A, 7)               isa CuSparseVector{Float32}
+        @test similar(A, Float64, (7,))   isa CuSparseVector{Float64}
+        @test length(similar(A, 7))       == 7
+        # N≥3 — dense CuArray, matching SparseArrays.jl's fallback to Array (issue #3061)
+        for shape in ((4, 4, 4), (3, 4, 5, 2))
+            @test similar(A, shape...)          isa CuArray{Float32, length(shape)}
+            @test similar(A, shape)             isa CuArray{Float32, length(shape)}
+            @test similar(A, Float64, shape...) isa CuArray{Float64, length(shape)}
+            @test similar(A, Float64, shape)    isa CuArray{Float64, length(shape)}
+            @test size(similar(A, shape...))    == shape
+        end
+    end
 end

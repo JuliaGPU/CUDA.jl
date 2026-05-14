@@ -293,6 +293,21 @@ Base.similar(Mat::CuSparseMatrixCSC, dims::Tuple{Int, Int}) = similar(Mat, dims.
 Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 
+# 1D `similar` returns an empty `CuSparseVector`, mirroring `SparseArrays.jl`. The
+# index type is hardcoded to `Int32` to match the 2D methods above (cuSPARSE's
+# canonical index type) rather than being inherited from the source matrix.
+Base.similar(Mat::CuSparseMatrix, ::Type{T}, dims::Dims{1}) where {T} =
+    CuSparseVector(CuVector{Int32}(undef, 0), CuVector{T}(undef, 0), dims[1])
+Base.similar(Mat::CuSparseMatrix, dims::Dims{1}) = similar(Mat, eltype(Mat), dims)
+
+# For shapes that can't be represented as a sparse matrix (N≥3), fall back to a
+# dense `CuArray`, mirroring `SparseArrays.jl`'s fallback to a regular `Array`.
+# The 1D method above and the existing concrete 2D methods are more specific and
+# take precedence; this catches everything else.
+# TODO: lift to `AbstractGPUSparseArray` in GPUArrays.jl using `dense_array_type`.
+Base.similar(::CuSparseMatrix, ::Type{T}, dims::Dims) where {T} = CuArray{T}(undef, dims)
+Base.similar(Mat::CuSparseMatrix, dims::Dims) = similar(Mat, eltype(Mat), dims)
+
 Base.similar(Mat::CuSparseArrayCSR) = CuSparseArrayCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
 
 ## array interface
@@ -405,6 +420,17 @@ Base.getindex(A::AbstractCuSparseMatrix, i, ::Colon)       = getindex(A, i, 1:si
 Base.getindex(A::AbstractCuSparseMatrix, ::Colon, i)       = getindex(A, 1:size(A, 1), i)
 Base.getindex(A::AbstractCuSparseMatrix, I::Tuple{Integer,Integer}) = getindex(A, I[1], I[2])
 
+# Indexing paths that produce a 1-D sparse result are implemented via a host-side
+# round-trip through `SparseMatrixCSC`. This keeps `Base._unsafe_getindex` out of
+# the picture: it would otherwise call `setindex!` on the `CuSparseVector` returned
+# by `similar`, which we don't define.
+# TODO: implement directly on the device. For CSC the linearization is mechanical
+# (no sort needed); CSR/COO/BSR need either a sort or a CSC conversion first.
+Base.getindex(A::CuSparseMatrix, ::Colon)                            = CuSparseVector(SparseMatrixCSC(A)[:])
+Base.getindex(A::CuSparseMatrix, I::AbstractUnitRange)               = CuSparseVector(SparseMatrixCSC(A)[I])
+Base.getindex(A::CuSparseMatrix, i::AbstractUnitRange, j::Integer)   = CuSparseVector(SparseMatrixCSC(A)[i, j])
+Base.getindex(A::CuSparseMatrix, i::Integer, j::AbstractUnitRange)   = CuSparseVector(SparseMatrixCSC(A)[i, j])
+
 # column slices
 function Base.getindex(x::CuSparseMatrixCSC, ::Colon, j::Integer)
     checkbounds(x, :, j)
@@ -448,9 +474,10 @@ function Base.getindex(x::CuSparseMatrixCOO{T}, ::Colon, j::Integer) where {T}
     end
 end
 
-# row slices
-Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(sparse(A[i, 1:end]))  # TODO: optimize
-Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse(A[1:end, j]))  # TODO: optimize
+# row slices (the off-axis ones; on-axis variants are above)
+# TODO: optimize (currently round-trips through the CPU)
+Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(SparseMatrixCSC(A)[i, :])
+Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(SparseMatrixCSC(A)[:, j])
 
 function Base.getindex(A::CuSparseVector{Tv, Ti}, i::Integer) where {Tv, Ti}
     @boundscheck checkbounds(A, i)
