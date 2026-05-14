@@ -27,6 +27,45 @@ using LinearAlgebra, SparseArrays
         end
     end
 
+    # issue CUDA.jl#3128: mixed-eltype products where the sparse side is complex
+    if elty <: Real
+        eltya = complex(elty)
+        eltyb = elty
+        @testset "mixed-eltype sparse*dense ($eltya, $eltyb) $SparseMatrixType opa = $opa" for
+            SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO),
+            opa in (identity, transpose, adjoint)
+
+            A = opa == identity ? sprand(eltya, n, m, 0.5) : sprand(eltya, m, n, 0.5)
+            B = rand(eltyb, m, k)
+            b = rand(eltyb, m)
+            dA = SparseMatrixType(A)
+            dB = CuArray(B)
+            db = CuArray(b)
+
+            # sparse * dense matrix
+            C  = opa(A) * B
+            dC = opa(dA) * dB
+            @test C ≈ collect(dC)
+            @test dC isa CuMatrix
+
+            # sparse * dense vector
+            c  = opa(A) * b
+            dc = opa(dA) * db
+            @test c ≈ collect(dc)
+            @test dc isa CuVector
+
+            # dense * sparse matrix (reverse direction)
+            # cusparseSpMM requires a column-sorted COO when the sparse arg is on the right
+            dA_r = SparseMatrixType == CuSparseMatrixCOO ? sort_coo(dA, 'C') : dA
+            Br = rand(eltyb, k, n)
+            dBr = CuArray(Br)
+            Cr  = Br * opa(A)
+            dCr = dBr * opa(dA_r)
+            @test Cr ≈ collect(dCr)
+            @test dCr isa CuMatrix
+        end
+    end
+
     @testset "CuMatrix ops opa = $opa" for opa in (identity, transpose, adjoint)
         A_mv  = opa == identity ? rand(elty, n, m) : rand(elty, m, n)
         dA_mv = CuArray(A_mv)
