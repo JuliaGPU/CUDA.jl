@@ -21,7 +21,7 @@ assignees: ''
   that information, make sure to post it as part of the issue.
 
 - [ ] Always ensure you're using the latest version of CUDA.jl, and if possible, please
-  check the master branch to see if your issue hasn't been resolved yet.
+  check the main branch to see if your issue hasn't been resolved yet.
 
 If your bug is still valid, please go ahead and fill out the template below.
 

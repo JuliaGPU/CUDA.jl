@@ -8,10 +8,10 @@ permissions:
 on:
   pull_request_target:
     branches:
-      - master
+      - main
   push:
     branches:
-      - master
+      - main
 
 jobs:
   benchmark:

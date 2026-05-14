@@ -13,10 +13,10 @@
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://cuda.juliagpu.org/dev/
 
-[buildkite-img]: https://badge.buildkite.com/27aaeb352a9420297ed2d30cb055ac383a399ea8f121599912.svg?branch=master
+[buildkite-img]: https://badge.buildkite.com/27aaeb352a9420297ed2d30cb055ac383a399ea8f121599912.svg?branch=main
 [buildkite-url]: https://buildkite.com/julialang/cuda-dot-jl
 
-[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/master/graph/badge.svg
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDA.jl
 
 [benchmark-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
@@ -155,7 +155,7 @@ Much of the software in this ecosystem was developed as part of academic researc
 would like to help support it, please star the repository as such metrics may help us secure
 funding in the future. If you use our software as part of your research, teaching, or other
 activities, we would be grateful if you could cite our work. The
-[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/master/CITATION.bib) file in the
+[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/main/CITATION.bib) file in the
 root of this repository lists the relevant papers.
 
 

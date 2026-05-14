@@ -2,7 +2,7 @@
     cuDNN
 
 High level interface to cuDNN functions. See
-[README.md](https://github.com/JuliaGPU/CUDA.jl/blob/master/lib/cudnn/README.md) for a
+[README.md](https://github.com/JuliaGPU/CUDA.jl/blob/main/lib/cudnn/README.md) for a
 design overview.
 """
 module cuDNN

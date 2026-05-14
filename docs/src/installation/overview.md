@@ -23,7 +23,7 @@ Or, equivalently, via the `Pkg` API:
 julia> import Pkg; Pkg.add("CUDA")
 ```
 
-In some cases, you might need to use the `master` version of this package, e.g., because it
+In some cases, you might need to use the `main` version of this package, e.g., because it
 includes a specific fix you need. Often, however, the development version of this package
 itself relies on unreleased versions of other packages. This information is recorded in the
 manifest at the root of the repository, which you can use by starting Julia from the CUDA.jl

@@ -66,7 +66,7 @@
 # [Advanced Julia GPU
 # Training](https://github.com/JuliaComputing/Training/tree/master/AdvancedGPU).
 
-# Also see the [perf](https://github.com/JuliaGPU/CUDA.jl/tree/master/perf) folder for some
+# Also see the [perf](https://github.com/JuliaGPU/CUDA.jl/tree/main/perf) folder for some
 # optimised code examples.
 
 # ## Julia Specific Tips
