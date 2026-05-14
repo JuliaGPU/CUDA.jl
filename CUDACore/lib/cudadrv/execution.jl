@@ -152,11 +152,6 @@ end
              error("Thread block cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > 1). (The device does not support thread block clusters.)")
          end
     end
-    ## shared memory limit
-    shmem_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
-    if shmem > shmem_lim
-        error("Amount of dynamic shared memory exceeds device limit ($(Base.format_bytes(shmem)) > $(Base.format_bytes(shmem_lim))).")
-    end
 
     # check kernel limits
     fattr = attributes(f)
