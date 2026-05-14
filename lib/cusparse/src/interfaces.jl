@@ -63,17 +63,20 @@ sparse_with_eltype(A::CuSparseMatrixCOO, ::Type{T}) where {T} =
 sparse_with_eltype(A::CuSparseVector, ::Type{T}) where {T} =
     CuSparseVector(nonzeroinds(A), convert(CuVector{T}, nonzeros(A)), length(A))
 
-# Mixed-eltype products: Julia's generic `*(::AbstractMatrix, ::AbstractMatrix)` allocates
-# its output as `similar(B, TS)` (on 1.10; via `matprod_dest` on 1.11+) — both return a
-# `CuSparseMatrix` when B is sparse, which then forces a scalar fallback. Override `*` to
-# allocate a dense result and dispatch to `mul!` (our relaxed `generic_matmatmul!` handles
-# the mixed-eltype case). The loop-generated single-T `*` methods below remain more
-# specific and take precedence when `eltype(A) == eltype(B)`.
+# Mixed-eltype `dense × sparse`: Julia's generic `*(::AbstractMatrix, ::AbstractMatrix)`
+# allocates its output as `similar(B, TS)` (on 1.10; via `matprod_dest` on 1.11+); when
+# B is sparse, that returns a `CuSparseMatrix`, which then forces a scalar fallback.
+# Allocate a dense result and dispatch to `mul!` instead (our relaxed `generic_matmatmul!`
+# handles the mixed-eltype case). The loop-generated single-T `*` methods below remain
+# more specific and continue to win when `eltype(A) == eltype(B)`.
+#
+# No override needed for `sparse × dense`: `similar(B_dense, TS)` already returns dense,
+# so Julia's default `*` allocates the right container and dispatches via `mul!`.
 const DenseCuMatOrAdj = Union{DenseCuMatrix, AdjOrTrans{<:Any, <:DenseCuMatrix},
                               HermOrSym{<:Any, <:DenseCuMatrix}}
 const CuSparseMatOrAdj = Union{CuSparseMatrix, AdjOrTrans{<:Any, <:CuSparseMatrix},
                                HermOrSym{<:Any, <:CuSparseMatrix}}
-function Base.:(*)(A::DenseCuMatOrAdj, B::CuSparseMatOrAdj)
+function Base.:(*)(@nospecialize(A::DenseCuMatOrAdj), @nospecialize(B::CuSparseMatOrAdj))
     T = promote_type(eltype(A), eltype(B))
     C = CuMatrix{T}(undef, size(A, 1), size(B, 2))
     return mul!(C, A, B, true, false)

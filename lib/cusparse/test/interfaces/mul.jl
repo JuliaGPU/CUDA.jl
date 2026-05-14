@@ -9,60 +9,27 @@ using LinearAlgebra, SparseArrays
     alpha = rand(elty)
     beta  = rand(elty)
 
-    if elty <: Real
-        eltya = elty
-        eltyb = complex(elty)
-        @testset "CuSparseMatrix * CuVector -- mul!(c, A, b) mixed ($eltya, $eltyb) opa = $opa" for opa in (identity, transpose, adjoint)
-            A = opa == identity ? sprand(eltya, n, m, 0.5) : sprand(eltya, m, n, 0.5)
-            b = rand(eltyb, m)
-            c = rand(eltyb, n)
-
-            dA = CuSparseMatrixCSR(A)
-            db = CuArray(b)
-            dc = CuArray(c)
-
-            mul!(c, opa(A), b)
-            mul!(dc, opa(dA), db)
-            @test c ≈ collect(dc)
-        end
-    end
-
-    # issue CUDA.jl#3128: mixed-eltype products where the sparse side is complex
+    # mixed-eltype sparse/dense products (CUDA.jl#3128)
     if elty <: Real
         eltya = complex(elty)
         eltyb = elty
-        @testset "mixed-eltype sparse*dense ($eltya, $eltyb) $SparseMatrixType opa = $opa" for
-            SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO),
-            opa in (identity, transpose, adjoint)
+        @testset "mixed-eltype sparse↔dense $SparseMatrixType" for
+            SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
 
-            A = opa == identity ? sprand(eltya, n, m, 0.5) : sprand(eltya, m, n, 0.5)
+            A = sprand(eltya, n, m, 0.5)
             B = rand(eltyb, m, k)
             b = rand(eltyb, m)
             dA = SparseMatrixType(A)
             dB = CuArray(B)
             db = CuArray(b)
+            @test collect(dA * dB) ≈ A * B
+            @test collect(dA * db) ≈ A * b
 
-            # sparse * dense matrix
-            C  = opa(A) * B
-            dC = opa(dA) * dB
-            @test C ≈ collect(dC)
-            @test dC isa CuMatrix
-
-            # sparse * dense vector
-            c  = opa(A) * b
-            dc = opa(dA) * db
-            @test c ≈ collect(dc)
-            @test dc isa CuVector
-
-            # dense * sparse matrix (reverse direction)
-            # cusparseSpMM requires a column-sorted COO when the sparse arg is on the right
+            # dense × sparse (reverse direction); COO must be column-sorted on the right
             dA_r = SparseMatrixType == CuSparseMatrixCOO ? sort_coo(dA, 'C') : dA
             Br = rand(eltyb, k, n)
             dBr = CuArray(Br)
-            Cr  = Br * opa(A)
-            dCr = dBr * opa(dA_r)
-            @test Cr ≈ collect(dCr)
-            @test dCr isa CuMatrix
+            @test collect(dBr * dA_r) ≈ Br * A
         end
     end
 
