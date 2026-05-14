@@ -1,3 +1,7 @@
+# Based on:
+# * <https://docs.github.com/en/actions/publishing-packages/publishing-docker-images>
+# * <https://docs.docker.com/build/ci/github-actions/multi-platform/#distribute-build-across-multiple-runners>
+
 name: Publish Docker container
 
 on:
@@ -18,8 +22,12 @@ on:
     branches:
       - main
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
-  push_to_registry:
+  build:
     name: Container for ${{ matrix.platform }} - Julia ${{ matrix.julia }} - CUDA ${{ matrix.cuda }}
     permissions:
       contents: read
@@ -68,55 +76,177 @@ jobs:
           VERSION=$(grep "^version = " Project.toml | cut -d'"' -f2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Get CUDA major version
-        id: cuda
+      - name: Compute build variables
+        id: vars
         run: |
-          CUDA_MAJOR=$(echo ${{ matrix.cuda }} | cut -d'.' -f1)
-          echo "major=${CUDA_MAJOR}" >> $GITHUB_OUTPUT
+          # Docker rejects uppercase image names.
+          image=$(echo "${IMAGE_NAME}" | tr 'A-Z' 'a-z')
+          echo "image=${image}" >> $GITHUB_OUTPUT
 
-      - name: Set CPU target
-        id: cpu_target
-        run: |
+          cuda_major=$(echo ${{ matrix.cuda }} | cut -d'.' -f1)
+          echo "cuda_major=${cuda_major}" >> $GITHUB_OUTPUT
+          echo "variant=julia${{ matrix.julia }}-cuda${cuda_major}" >> $GITHUB_OUTPUT
+
+          # platform is e.g. linux/amd64 — use a slug for filenames and artifact names.
+          echo "platform_slug=$(echo "${{ matrix.platform }}" | tr / -)" >> $GITHUB_OUTPUT
+
           if [[ "${{ matrix.platform }}" == "linux/amd64" ]]; then
-            echo "target=generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" >> $GITHUB_OUTPUT
+            echo "cpu_target=generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1)" >> $GITHUB_OUTPUT
           elif [[ "${{ matrix.platform }}" == "linux/arm64" ]]; then
-            echo "target=generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3);neoverse-512tvb,base(3)" >> $GITHUB_OUTPUT
+            echo "cpu_target=generic;cortex-a57;thunderx2t99;carmel,clone_all;apple-m1,base(3);neoverse-512tvb,base(3)" >> $GITHUB_OUTPUT
           fi
-
-      - name: Log in to registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-              type=raw,value=${{ steps.pkg.outputs.name }}-julia${{ matrix.julia }}-cuda${{ steps.cuda.outputs.major }}
-              type=raw,value=${{ steps.pkg.outputs.name }},enable=${{ matrix.default == true && (github.ref_type == 'tag' || inputs.tag != '') }}
-              type=raw,value=latest,enable=${{ matrix.default == true && (github.ref_type == 'tag' || (inputs.tag != '' && inputs.mark_as_latest)) }}
-              type=raw,value=dev,enable=${{ matrix.default == true && github.ref_type == 'branch' && inputs.tag == '' }}
-          labels: |
-              org.opencontainers.image.version=${{ steps.pkg.outputs.version }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and push image
+      - name: Log in to registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image by digest
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
-          provenance: false
           platforms: ${{ matrix.platform }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          labels: |
+            org.opencontainers.image.version=${{ steps.pkg.outputs.version }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ steps.vars.outputs.image }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             JULIA_VERSION=${{ matrix.julia }}
             CUDA_VERSION=${{ matrix.cuda }}
             PACKAGE_REF=${{ steps.pkg.outputs.ref }}
-            JULIA_CPU_TARGET=${{ steps.cpu_target.outputs.target }}
+            JULIA_CPU_TARGET=${{ steps.vars.outputs.cpu_target }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          # "__" separator avoids collisions with hyphens in either part.
+          echo "${{ steps.build.outputs.digest }}" \
+            > "/tmp/digests/${{ steps.vars.outputs.variant }}__${{ steps.vars.outputs.platform_slug }}"
+
+      - name: Mark default variant
+        if: matrix.default
+        run: |
+          # The filename carries the variant name; the file itself is empty.
+          # Multiple default matrix cells upload the same filename, so the
+          # merge job sees one marker regardless of how many defaults exist.
+          mkdir -p /tmp/default
+          touch "/tmp/default/${{ steps.vars.outputs.variant }}.default"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ steps.vars.outputs.variant }}-${{ steps.vars.outputs.platform_slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload default-variant marker
+        if: matrix.default
+        uses: actions/upload-artifact@v7
+        with:
+          name: default-${{ steps.vars.outputs.platform_slug }}
+          path: /tmp/default/*.default
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge multi-arch manifests
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Get package spec
+        id: pkg
+        run: |
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            echo "name=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Lowercase image name
+        id: image
+        run: |
+          echo "name=$(echo "${IMAGE_NAME}" | tr 'A-Z' 'a-z')" >> $GITHUB_OUTPUT
+
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - name: Download default-variant marker
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/default
+          pattern: default-*
+          merge-multiple: true
+
+      - name: Read default variant
+        id: default
+        run: |
+          marker=$(ls /tmp/default/*.default | head -n1)
+          variant=$(basename "${marker}" .default)
+          echo "variant=${variant}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest lists
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}
+          PKG_NAME: ${{ steps.pkg.outputs.name }}
+          DEFAULT_VARIANT: ${{ steps.default.outputs.variant }}
+          IS_TAGGED: ${{ github.ref_type == 'tag' || inputs.tag != '' }}
+          IS_LATEST: ${{ github.ref_type == 'tag' || (inputs.tag != '' && inputs.mark_as_latest) }}
+          IS_DEV: ${{ github.ref_type == 'branch' && inputs.tag == '' }}
+        run: |
+          set -euo pipefail
+
+          # Group digest files by variant (everything before "__").
+          declare -A variants
+          for file in /tmp/digests/*; do
+            name=${file##*/}
+            variants[${name%%__*}]=1
+          done
+
+          for variant in "${!variants[@]}"; do
+            sources=()
+            for file in /tmp/digests/"${variant}"__*; do
+              sources+=("${IMAGE}@$(cat "${file}")")
+            done
+
+            tags=("${IMAGE}:${PKG_NAME}-${variant}")
+            if [[ "${variant}" == "${DEFAULT_VARIANT}" ]]; then
+              [[ "${IS_TAGGED}" == "true" ]] && tags+=("${IMAGE}:${PKG_NAME}")
+              [[ "${IS_LATEST}" == "true" ]] && tags+=("${IMAGE}:latest")
+              [[ "${IS_DEV}"    == "true" ]] && tags+=("${IMAGE}:dev")
+            fi
+
+            tag_args=()
+            for tag in "${tags[@]}"; do
+              tag_args+=(--tag "${tag}")
+            done
+
+            echo "Creating manifest ${tags[*]} from ${#sources[@]} platforms"
+            docker buildx imagetools create "${tag_args[@]}" "${sources[@]}"
+          done
