@@ -97,7 +97,7 @@ end
     nregs   = CUDA.registers(k)
     reglim  = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK)
     threads = fld(reglim, nregs) + 1
-    @test_throws "Register pressure exceeds device limit" begin
+    @test_throws "Block register count exceeds device limit" begin
         @assert threads > CUDA.maxthreads(k)
         k(workspace, workspace; threads=threads)
     end

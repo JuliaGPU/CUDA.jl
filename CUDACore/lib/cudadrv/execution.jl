@@ -161,7 +161,8 @@ end
     nregs = fattr[FUNC_ATTRIBUTE_NUM_REGS]
     reg_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK)
     if nregs * nthreads > reg_lim
-        error("Register pressure exceeds device limit ($nregs regs/thread * $nthreads threads/block = $(nregs * nthreads) regs/block > $reg_lim regs/block).")
+        error("Block register count exceeds device limit ($nregs regs/thread * $nthreads threads/block = $(nregs * nthreads) > $reg_lim regs/block). " *
+              "Reduce per-thread register use (e.g. via the `maxregs` compiler kwarg) or launch with fewer threads per block.")
     end
     ## thread limit
     threadlim = fattr[FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
