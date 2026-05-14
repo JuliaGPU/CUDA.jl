@@ -46,14 +46,19 @@ end
 # precompile the runtime library
 CUDA.precompile_runtime()
 
-# Cap the amount of memory the CUDA pool caches (default: unbounded). Freed
-# stream-ordered buffers now go back to the driver almost immediately, which
-# keeps each test's GPU RSS close to its peak live allocation rather than the
-# running max across the test's lifetime. Trades per-call pool-alloc cost
-# for lower NVML-reported memory.
-let dev = device(), pool = CUDACore.pool_create(dev)
-    CUDACore.attribute!(pool, CUDACore.MEMPOOL_ATTR_RELEASE_THRESHOLD,
-                        UInt64(64 * 2^20))
+# Cap the amount of memory the CUDA pool keeps cached after frees (default:
+# unbounded). Above this watermark, freed stream-ordered buffers go back to
+# the driver, which keeps each test's GPU RSS close to its peak live
+# allocation rather than the running max across the test's lifetime. The
+# threshold trades per-alloc pool-refill cost for lower NVML-reported memory;
+# tune up if test wall-time regresses, down if a worker's RSS budget is tight.
+const pool_release_threshold = 256 * 2^20  # 256 MiB
+let dev = device()
+    if CUDACore.stream_ordered(dev)
+        pool = CUDACore.pool_create(dev)
+        CUDACore.attribute!(pool, CUDACore.MEMPOOL_ATTR_RELEASE_THRESHOLD,
+                            UInt64(pool_release_threshold))
+    end
 end
 
 

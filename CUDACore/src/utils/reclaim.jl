@@ -13,11 +13,7 @@
 #    returned library handles. Released via `purge!` — the cache is
 #    emptied and each entry's destructor runs.
 #
-# `Reclaimable` unifies both. Instances are registered via
-# `register_reclaimable!` — typically from a library's `__init__`, since
-# mutations to this registry performed during the precompilation of a
-# downstream package don't carry over to module load (see
-# `register_reclaimable!` for details).
+# `Reclaimable` unifies both. Register instances via `register_reclaimable!`.
 
 abstract type Reclaimable end
 
@@ -42,13 +38,9 @@ const reclaimables_lock = ReentrantLock()
 """
     CUDACore.register_reclaimable!(r::Reclaimable)
 
-Register `r` so that `reclaim` invokes its `drop!` and `purge!` methods.
-Idempotent: re-registering the same instance is a no-op. Returns `r`.
-
-Call this from a package's `__init__`: top-level constructor calls are
-captured by Julia's precompilation cache, but mutations they perform on
-dependencies (like pushing into CUDACore's registry) do not persist to
-module load time.
+Register `r` so `reclaim` invokes its `drop!` and `purge!` methods.
+Idempotent; returns `r`. Call from the owning package's `__init__`
+(registry mutations performed during precompile don't survive to load).
 """
 function register_reclaimable!(r::Reclaimable)
     @lock reclaimables_lock begin
@@ -57,16 +49,16 @@ function register_reclaimable!(r::Reclaimable)
     return r
 end
 
-# invoke f(r) per Reclaimable with per-hook error isolation, modelled
-# after Base's `atexit_hooks`: one bad hook mustn't prevent the others.
+# Snapshot the registry under the lock, then run callbacks unlocked
+# (Base.atexit-style): callbacks may take a while and may transitively
+# trigger reclaim, so we don't want to hold the lock across them.
 function foreach_reclaimable(f)
-    @lock reclaimables_lock begin
-        for r in reclaimables
-            try
-                f(r)
-            catch ex
-                @error "reclaim callback failed" type=typeof(r) exception=(ex, catch_backtrace())
-            end
+    snapshot = @lock reclaimables_lock copy(reclaimables)
+    for r in snapshot
+        try
+            f(r)
+        catch ex
+            @error "reclaim callback failed" type=typeof(r) exception=(ex, catch_backtrace())
         end
     end
 end
@@ -79,10 +71,10 @@ end
 
 Declarative marker for a library's per-task cache stored under `key` in
 `task_local_storage()`. Must be `register_reclaimable!`'d from the owning
-package's `__init__` so that `RECLAIM_DROP_STATE` clears the current
-task's entry, letting the stored values (typically mutable handle wrappers)
-be garbage-collected. Their finalizers then return the underlying
-resources to a `HandleCache`.
+package's `__init__` so that `RECLAIM_DROP` clears the current task's
+entry, letting the stored values (typically mutable handle wrappers) be
+garbage-collected. Their finalizers then return the underlying resources
+to a `HandleCache`.
 
 Usage:
 
@@ -110,7 +102,14 @@ struct TaskLocalCache{K,V} <: Reclaimable
 end
 
 @inline function task_dict(s::TaskLocalCache{K,V}) where {K,V}
-    get!(() -> Dict{K,V}(), task_local_storage(), s.key)::Dict{K,V}
+    # spelled out instead of get!(()->Dict, ...) to avoid the closure alloc
+    tls = task_local_storage()
+    d = get(tls, s.key, nothing)
+    if d === nothing
+        d = Dict{K,V}()
+        tls[s.key] = d
+    end
+    return d::Dict{K,V}
 end
 
 function drop!(s::TaskLocalCache)

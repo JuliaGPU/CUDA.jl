@@ -103,7 +103,8 @@ end
 
 # Cap worker count by how much of the primary device's free memory each worker
 # claims. A CUDA worker needs its own context + libraries (~0.5–1 GiB baseline)
-# plus room for peak per-test allocations; 4 GiB is the per-worker budget.
+# plus room for peak per-test allocations; with pool caching capped in
+# `test/setup.jl`, 1 GiB is enough.
 # (Set `CUDA_VISIBLE_DEVICES` to choose which device is used.)
 const gpu_memory_per_worker = 1 * 2^30
 first_gpu = first(devices())
