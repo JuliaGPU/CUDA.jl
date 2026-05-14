@@ -62,10 +62,19 @@ command that initializes the toolkit) will issue a warning.
 For quick testing, you can also use [the `juliagpu/cuda.jl` container
 image](https://github.com/JuliaGPU/CUDA.jl/pkgs/container/cuda.jl/versions) from the GitHub
 Container Registry, which provides Julia, a precompiled version of CUDA.jl, and a matching
-CUDA toolkit:
+CUDA toolkit. Tags are named after the CUDA major version (`cuda12` or `cuda13`); the
+bare tag tracks the latest stable release, while `<version>-cuda<major>` pins to a
+specific release and `dev-cuda<major>` tracks the latest `main` build:
 
 ```sh
-docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:latest  # other tags available too
+# latest stable release, CUDA 13
+docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:cuda13
+
+# a specific release, CUDA 12
+docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:v6.1.0-cuda12
+
+# latest main build, CUDA 13
+docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:dev-cuda13
 ```
 
 For more usage instructions and other information, please refer to [the
