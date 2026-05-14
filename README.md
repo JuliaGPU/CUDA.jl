@@ -132,16 +132,15 @@ If you cannot meet these requirements, you may need to install an older version 
 
 ## Selecting a CUDA Toolkit
 
-CUDA.jl will automatically download and use the latest CUDA Toolkit as supported
-by your NVIDIA driver. There are two cases where you may want to select a
-different version:
+CUDA.jl will automatically download and use a CUDA Toolkit that's supported
+by your NVIDIA driver as well as most of the devices in your system. There are
+two cases where you may want to select a different version:
 
-- **You have a GPU that is not supported by the latest CUDA Toolkit**. For
-  example, CUDA 13 has removed support for Maxwell, Pascal and Volta, even
-  though the latest NVIDIA driver for CUDA 13 still supports these
-  architectures. In this case, call e.g. `CUDA.set_runtime_version!(v"12.9")` to
-  use the latest CUDA Toolkit in the 12.x series, which still supports these
-  architectures.
+- **You have a GPU that is not supported by the latest CUDA Toolkit**.
+  Although CUDA.jl tries to select a runtime that supports most of your GPUs,
+  specific devices may end up being unsuported by the active toolkit.
+  In that case, call e.g. `CUDA.set_runtime_version!(v"12.9")` to
+  use a specific toolkit which still supports the device in question.
 - **You want to use a CUDA Toolkit that is already installed on your system**.
   This is not recommended, but if you want to do it anyway, call
   `CUDA.set_runtime_version!(local_toolkit=true)`.
