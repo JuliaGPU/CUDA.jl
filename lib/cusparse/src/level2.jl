@@ -1,20 +1,20 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-export sv2!, sv2, gemvi!
+export sv2!, sv2, mv2!, gemvi!
 
 for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseDbsrmv, :Float64),
                      (:cusparseCbsrmv, :ComplexF32),
                      (:cusparseZbsrmv, :ComplexF64))
     @eval begin
-        function mv!(transa::SparseChar,
-                     alpha::Number,
-                     A::CuSparseMatrixBSR{$elty},
-                     X::CuVector{$elty},
-                     beta::Number,
-                     Y::CuVector{$elty},
-                     index::SparseChar)
+        function mv2!(transa::SparseChar,
+                      alpha::Number,
+                      A::CuSparseMatrixBSR{$elty},
+                      X::CuVector{$elty},
+                      beta::Number,
+                      Y::CuVector{$elty},
+                      index::SparseChar)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa

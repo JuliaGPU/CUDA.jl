@@ -58,15 +58,22 @@ if cuSPARSE.version() >= v"12.5.1"
                                      cuSPARSE.CUSPARSE_SPMM_BSR_ALG1]
 end
 
+if cuSPARSE.version() >= v"12.6.3"
+    SPMV_ALGOS[CuSparseMatrixBSR] = [cuSPARSE.CUSPARSE_SPMV_ALG_DEFAULT,
+                                     cuSPARSE.CUSPARSE_SPMV_BSR_ALG1]
+end
+
 for SparseMatrixType in keys(SPMV_ALGOS)
     @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
         @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                (SparseMatrixType == CuSparseMatrixBSR) && (transa != 'N') && continue
                 A = sprand(T, 20, 10, 0.1)
                 B = transa == 'N' ? rand(T, 10) : rand(T, 20)
                 C = transa == 'N' ? rand(T, 20) : rand(T, 10)
-                dA = SparseMatrixType(A)
+                # BSR generic SpMV does not support block dim 1
+                dA = SparseMatrixType == CuSparseMatrixBSR ? SparseMatrixType(A, 2) : SparseMatrixType(A)
                 dB = CuArray(B)
                 dC = CuArray(C)
 

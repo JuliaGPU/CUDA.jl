@@ -230,8 +230,10 @@ function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}, inde
     return result[]
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixCSC{TA},CuSparseMatrixCSR{TA},CuSparseMatrixCOO{TA}}, X::DenseCuVector{T},
+function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_SPMV_ALG_DEFAULT) where {TA, T}
+
+    (A isa CuSparseMatrixBSR) && (cuSPARSE.version() < v"12.6.3") && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -309,11 +311,8 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        # Uncomment if we find a way to reuse the buffer (issue #1362)
-        # cusparseSpMM_preprocess(
-        #     handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-        #     descC, T, algo, buffer)
-        # end
+        # `cusparseSpMM_preprocess` is skipped: we recreate descriptors and
+        # buffers each call, so there is no buffer to reuse (see issue #1362).
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
@@ -404,12 +403,8 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        # We should find a way to reuse the buffer (issue #1362)
-        if !(A isa CuSparseMatrixCOO)
-            cusparseSpMM_preprocess(
-                handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-                descC, T, algo, buffer)
-        end
+        # `cusparseSpMM_preprocess` is skipped: we recreate descriptors and
+        # buffers each call, so there is no buffer to reuse (see issue #1362).
         cusparseSpMM(
             handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
             descC, T, algo, buffer)
