@@ -1,6 +1,11 @@
 # math functionality
 
 @public fma, rsqrt, saturate, byte_perm, assume
+@public add_rn, add_rz, add_rm, add_rp
+@public sub_rn, sub_rz, sub_rm, sub_rp
+@public mul_rn, mul_rz, mul_rm, mul_rp
+@public div_rn, div_rz, div_rm, div_rp
+@public fma_rn, fma_rz, fma_rm, fma_rp
 
 using Base: FastMath, @assume_effects
 
@@ -551,6 +556,40 @@ end
 @device_override Base.muladd(x::Float64, y::Float64, z::Float64) = ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
 @device_override Base.muladd(x::Float32, y::Float32, z::Float32) = ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
 @device_override Base.muladd(x::Float16, y::Float16, z::Float16) = ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+
+# Directed rounding for binary arithmetic and fma. NVPTX exposes
+# `{add,mul,div,fma}.{rn,rz,rm,rp}.{f32,f64}` directly; there is no `sub`
+# intrinsic, so subtraction reuses add(x, -y) (negation is bit-exact for IEEE
+# floats). Names match the CUDA C intrinsics (`__fadd_rn`, `__dadd_rn`, ...) so
+# users porting from CUDA C can find the corresponding Julia method by dropping
+# the `__f`/`__d` prefix. We don't extend `Base.fma` / `Base.:+` etc. with a
+# `RoundingMode` argument because Base has no precedent for per-call rounding
+# on hardware floats (BigFloat reads a thread-local mode instead).
+for rnd in ("rn", "rz", "rm", "rp")
+    for op in (:add, :mul, :div)
+        fname = Symbol(op, :_, rnd)
+        intrinsic_f = "llvm.nvvm.$(op).$(rnd).f"
+        intrinsic_d = "llvm.nvvm.$(op).$(rnd).d"
+        @eval @device_function $fname(x::Float32, y::Float32) =
+            ccall($intrinsic_f, llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+        @eval @device_function $fname(x::Float64, y::Float64) =
+            ccall($intrinsic_d, llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+    end
+
+    # NVPTX has no sub.<rnd> intrinsic; reuse add with negated y.
+    sub_fname = Symbol(:sub_, rnd)
+    add_fname = Symbol(:add_, rnd)
+    @eval @device_function $sub_fname(x::T, y::T) where {T<:Union{Float32, Float64}} =
+        $add_fname(x, -y)
+
+    fma_fname = Symbol(:fma_, rnd)
+    intrinsic_f = "llvm.nvvm.fma.$(rnd).f"
+    intrinsic_d = "llvm.nvvm.fma.$(rnd).d"
+    @eval @device_function $fma_fname(x::Float32, y::Float32, z::Float32) =
+        ccall($intrinsic_f, llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+    @eval @device_function $fma_fname(x::Float64, y::Float64, z::Float64) =
+        ccall($intrinsic_d, llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+end
 
 @device_function sad(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_sad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
 @device_function sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, ccall("extern __nv_usad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z))
