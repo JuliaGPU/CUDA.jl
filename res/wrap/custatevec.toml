@@ -135,8 +135,19 @@ needs_context = false
 [api.custatevecSwapIndexBits.argtypes]
 2 = "CuPtr{Cvoid}"
 
+[api.custatevecMeasureBatched.argtypes]
+2 = "CuPtr{Cvoid}"
+7 = "PtrOrCuPtr{custatevecIndex_t}"
+10 = "PtrOrCuPtr{Cdouble}"
+
+[api.custatevecComputeExpectationBatchedGetWorkspaceSize.argtypes]
+6 = "PtrOrCuPtr{Cvoid}"
+
 [api.custatevecComputeExpectationBatched.argtypes]
-7 = "Ptr{ComplexF64}"
+2 = "CuPtr{Cvoid}"
+7 = "PtrOrCuPtr{ComplexF64}"
+8 = "PtrOrCuPtr{Cvoid}"
+15 = "CuPtr{Cvoid}"
 
 [api.custatevecAccessorGet.argtypes]
 3 = "PtrOrCuPtr{Cvoid}"
