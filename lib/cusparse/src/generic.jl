@@ -163,6 +163,13 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
         end
         cusparseDenseToSparse_convert(handle(), desc_dense, desc_sparse, algo, buffer)
     end
+    # cusparseDenseToSparse_convert does not initialize colPtr/rowPtr for empty matrices;
+    # fill with the empty-matrix sentinel for the active indexing mode.
+    if fmt == :csc && iszero(n)
+        fill!(B.colPtr, index == 'O' ? one(Cint) : zero(Cint))
+    elseif fmt == :csr && iszero(m)
+        fill!(B.rowPtr, index == 'O' ? one(Cint) : zero(Cint))
+    end
     return B
 end
 

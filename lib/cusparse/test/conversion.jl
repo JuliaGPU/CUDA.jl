@@ -135,7 +135,7 @@ end
     J = [2,3,4] |> cu
     V = Float32[1,2,3] |> cu
 
-    dense = rand(3,3) |> cu
+    dense = rand(Float32, 3,3) |> cu
 
     # check defaults
     @test sparse(I, J, V) isa CuSparseMatrixCSC
@@ -164,6 +164,35 @@ end
     end
     @test_throws ArgumentError("Format :bad not available, use :csc, :csr, :bsr or :coo.") sparse(dense; fmt=:bad)
     @test_throws ArgumentError("Format :bad not available, use :csc, :csr, or :coo.") sparse(I, J, V; fmt=:bad)
+end
+
+@testset "sparse -- empty matrix" begin
+    m, n = 0, 0
+    I = CuVector{Cint}(undef, 0)
+    J = CuVector{Cint}(undef, 0)
+    V = CuVector{Float32}(undef, 0)
+    dense = CuMatrix{Float32}(undef, m, n)
+
+    for (fmt, T) in [(:coo, CuSparseMatrixCOO),
+                     (:csc, CuSparseMatrixCSC),
+                     (:csr, CuSparseMatrixCSR),
+                     (:bsr, CuSparseMatrixBSR)]
+        @testset "sparse $T" begin
+            if fmt != :bsr # bsr not supported from (I, J, V)
+                x = sparse(I, J, V, m, n; fmt=fmt)
+                @test x isa T{Float32}
+                @test size(x) == (m, n)
+                fmt == :csc && @test collect(x.colPtr) == [1]
+                fmt == :csr && @test collect(x.rowPtr) == [1]
+            end
+
+            x = sparse(dense; fmt=fmt)
+            @test x isa T{Float32}
+            @test size(x) == (m, n)
+            fmt == :csc && @test collect(x.colPtr) == [1]
+            fmt == :csr && @test collect(x.rowPtr) == [1]
+        end
+    end
 end
 
 @testset "unsorted sparse (CUDA.jl#1407)" begin
