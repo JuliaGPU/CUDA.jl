@@ -912,4 +912,6 @@ end
 
 @test isa(CUDA.runtime_version(), VersionNumber)
 
+@test isa(CUDA.compiler_version(), VersionNumber)
+
 end

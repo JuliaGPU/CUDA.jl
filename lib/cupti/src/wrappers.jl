@@ -32,7 +32,10 @@ const cupti_versions = [
 function version()
     version_ref = Ref{Cuint}()
     cuptiGetVersion(version_ref)
-    if CUDACore.runtime_version() < v"13"
+    # CUPTI changed the encoding of cuptiGetVersion in CUDA 13: pre-13 it returns a small
+    # index into a hand-maintained table, from 13 onwards it encodes major.minor.patch
+    # directly (so >= 130000).
+    if version_ref[] < 1000
         cupti_versions[version_ref[]]
     else
         major, ver = divrem(version_ref[], 10000)
@@ -295,9 +298,6 @@ function process(f, cfg::ActivityConfig)
         CUPTI_ACTIVITY_KIND_MARKER              => CUpti_ActivityMarker2,
         CUPTI_ACTIVITY_KIND_MARKER_DATA         => CUpti_ActivityMarkerData,
     )
-    # NOTE: the CUPTI version is unreliable, e.g., both CUDA 11.5 and 11.6 have CUPTI 16,
-    #       yet CUpti_ActivityMemset4 is only available in CUDA 11.6.
-    cuda_version = CUDACore.runtime_version()
     ## kernel activities
     activity_types[CUPTI_ACTIVITY_KIND_KERNEL] =
         CUpti_ActivityKernel9

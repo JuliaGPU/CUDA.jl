@@ -381,11 +381,8 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2,
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
+        CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
     ]
-    if CUDACore.runtime_version() >= v"12.0"
-        # additional data on NVTX markers
-        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA)
-    end
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
     # wait for the device to become idle
@@ -452,7 +449,6 @@ function capture(cfg)
     # memory_kind fields are sometimes typed CUpti_ActivityMemoryKind, sometimes UInt
     as_memory_kind(x) = isa(x, CUPTI.CUpti_ActivityMemoryKind) ? x : CUPTI.CUpti_ActivityMemoryKind(x)
 
-    cuda_version = CUDACore.runtime_version()
     CUPTI.process(cfg) do ctx, stream_id, record
         # driver API calls
         if record.kind in [CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,

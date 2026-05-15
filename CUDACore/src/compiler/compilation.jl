@@ -204,7 +204,7 @@ end
             error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
         llvm_ptx = maximum(llvm_ptxs)
         isempty(cuda_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA $(runtime_version())")
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA $(compiler_version())")
         cuda_ptx = maximum(cuda_ptxs)
     end
 
@@ -234,7 +234,7 @@ end
     end
 
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
-    debuginfo = runtime_version() >= v"11.7"
+    debuginfo = compiler_version() >= v"11.7"
 
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)

@@ -9,7 +9,8 @@ function versioninfo(io::IO=stdout)
 
     println(io, "CUDA toolchain: ")
 
-    print(io, "- runtime $(runtime_version().major).$(runtime_version().minor), ")
+    rv = runtime_version()
+    print(io, "- runtime $(rv.major).$(rv.minor).$(rv.patch), ")
     if CUDACore.local_toolkit
         println(io, "local installation")
     else
@@ -21,7 +22,8 @@ function versioninfo(io::IO=stdout)
         print(io, "- unknown driver")
     end
     println(io, " for $(driver_version().major).$(driver_version().minor)")
-    print(io, "- compiler $(compiler_version().major).$(compiler_version().minor), ")
+    cv = compiler_version()
+    print(io, "- compiler $(cv.major).$(cv.minor).$(cv.patch), ")
     if CUDACore.local_compiler
         println(io, "local installation")
     else
