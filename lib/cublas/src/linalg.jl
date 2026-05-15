@@ -209,16 +209,16 @@ function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}},
     return dotu(n, x, y)
 end
 
-function LinearAlgebra.norm(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}},
+function LinearAlgebra.norm(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}},
                             p::Real=2)
     if p == 2
         return nrm2(x)
     else
-        return invoke(norm, Tuple{AbstractGPUArray, Real}, x, p)
+        return invoke(norm, Tuple{AnyGPUArray, Real}, x, p)
     end
 end
 LinearAlgebra.norm(x::Diagonal{T, <:StridedCuVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, CublasFloat}} = norm(x.diag, p)
-LinearAlgebra.norm2(x::DenseCuArray{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
+LinearAlgebra.norm2(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
 
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
