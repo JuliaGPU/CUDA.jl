@@ -27,15 +27,53 @@ end
     runtime_version()
 
 Returns the CUDA Runtime version.
+
+On Linux, this calls `cudaRuntimeGetVersion`, which returns a compile-time constant baked
+into the loaded `libcudart`. On Windows we instead read the cudart DLL's PE file version
+directly, because NVIDIA's `cudaRuntimeGetVersion` there delegates to a driver-bundled
+"hybrid" runtime and reports the driver's version rather than the loaded toolkit's.
 """
 function runtime_version()
-    version_ref = Ref{Cint}()
-    check() do
-        @ccall libcudart.cudaRuntimeGetVersion(version_ref::Ptr{Cint})::CUresult
-    end
-    major, ver = divrem(version_ref[], 1000)
-    minor, patch = divrem(ver, 10)
-    return VersionNumber(major, minor, patch)
+    @memoize begin
+        @static if Sys.iswindows()
+            # Read the cudart DLL's PE VS_FIXEDFILEINFO via Win32. NVIDIA encodes the
+            # toolkit major.minor in the low 16 bits of dwFileVersionLS as a decimal MMm0
+            # (e.g. 13010 → 13.1.0).
+            path = Libdl.dlpath(libcudart)
+            hver = Libdl.dlopen("version.dll")
+            GetFileVersionInfoSizeA = Libdl.dlsym(hver, :GetFileVersionInfoSizeA)
+            GetFileVersionInfoA     = Libdl.dlsym(hver, :GetFileVersionInfoA)
+            VerQueryValueA          = Libdl.dlsym(hver, :VerQueryValueA)
+
+            handle_ref = Ref{Culong}(0)
+            sz = ccall(GetFileVersionInfoSizeA, Culong, (Cstring, Ptr{Culong}), path, handle_ref)
+            sz == 0 && error("GetFileVersionInfoSizeA returned 0 for $path")
+            buf = Vector{UInt8}(undef, sz)
+            ok = ccall(GetFileVersionInfoA, Cint, (Cstring, Culong, Culong, Ptr{UInt8}), path, 0, sz, buf)
+            ok == 0 && error("GetFileVersionInfoA failed for $path")
+
+            info_ptr = Ref{Ptr{UInt8}}(C_NULL)
+            len_ref  = Ref{Cuint}(0)
+            ok = ccall(VerQueryValueA, Cint, (Ptr{UInt8}, Cstring, Ptr{Ptr{UInt8}}, Ptr{Cuint}),
+                       buf, "\\", info_ptr, len_ref)
+            ok == 0 && error("VerQueryValueA failed for $path")
+
+            # VS_FIXEDFILEINFO: dwSignature, dwStrucVersion, dwFileVersionMS, dwFileVersionLS, ...
+            dwFileVersionLS = unsafe_load(reinterpret(Ptr{UInt32}, info_ptr[]), 4)
+            encoded = Int(dwFileVersionLS & 0xffff)
+            major, ver = divrem(encoded, 1000)
+            minor, patch = divrem(ver, 10)
+            VersionNumber(major, minor, patch)
+        else
+            v = Ref{Cint}()
+            check() do
+                @ccall libcudart.cudaRuntimeGetVersion(v::Ptr{Cint})::CUresult
+            end
+            major, ver = divrem(v[], 1000)
+            minor, patch = divrem(ver, 10)
+            VersionNumber(major, minor, patch)
+        end
+    end::VersionNumber
 end
 
 """
@@ -96,11 +134,22 @@ end
     compiler_version()
 
 Returns the CUDA toolkit version that is used to provide the CUDA compiler (`ptxas`) and
-other tools. This is version separately from the CUDA Runtime, in order to ensure
+other tools. This is versioned separately from the CUDA Runtime, in order to ensure
 compatibility with the driver, and make sure we use the latest compatible version regardless
 of the selected runtime.
+
+Derived by parsing `ptxas --version`.
 """
-compiler_version() = CUDA_Compiler.cuda_version
+function compiler_version()
+    @memoize begin
+        output = readchomp(`$(CUDA_Compiler.ptxas()) --version`)
+        m = match(r"release (\d+)\.(\d+),\s*V(\d+)\.(\d+)\.(\d+)", output)
+        m === nothing && error("Could not parse `ptxas --version` output: $output")
+        VersionNumber(parse(Int, m.captures[3]),
+                      parse(Int, m.captures[4]),
+                      parse(Int, m.captures[5]))
+    end::VersionNumber
+end
 
 
 ## helpers

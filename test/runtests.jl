@@ -17,9 +17,9 @@ include(joinpath(@__DIR__, "setup.jl"))
 args = parse_args(ARGS; custom = ["sanitize", "all"])
 
 # check that CI is using the requested toolkit
-toolkit_release = Base.thisminor(CUDA.runtime_version())
 label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
 if label_match !== nothing
+    toolkit_release = Base.thisminor(CUDA.runtime_version())
     @test toolkit_release == VersionNumber(label_match.captures[1])
 end
 

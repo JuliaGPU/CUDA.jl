@@ -301,19 +301,22 @@ function llvm_compat(version=LLVM.version())
     return (cap=cap_support, ptx=ptx_support)
 end
 
-function cuda_compat(version=runtime_version())
+function cuda_compat(runtime=runtime_version(), compiler=compiler_version())
     # we don't have to check the driver version, because it offers backwards compatbility
     # beyond the CUDA toolkit version (e.g. R580 for CUDA 13 still supports Volta as
     # deprecated in CUDA 13), and we don't have a reliable way to query the actual version
     # as NVML isn't available on all platforms. let's instead simply assume that unsupported
     # devices will not be exposed to the CUDA runtime and thus won't be visible to us.
 
-    # we also don't have to check the compiler version, because CUDA_Compiler_jll is
-    # guaranteed to have the same major version as CUDA_Runtime_jll, meaning that the
-    # compiler will always support at least the same devices as the runtime.
-
-    cap_support = sort(collect(cuda_cap_support(version)))
-    ptx_support = sort(collect(cuda_ptx_support(version)))
+    # the compiler and runtime are versioned independently (and either can come from a
+    # local install), so we need to consider both:
+    # - device caps are dropped when either ptxas can't emit for them or the runtime
+    #   libraries drop them. take the intersection of both supported sets.
+    # - PTX ISA availability is a property of ptxas; the runtime doesn't care which ISA
+    #   compiled cubin came from.
+    cap_support = sort(collect(intersect(cuda_cap_support(runtime),
+                                         cuda_cap_support(compiler))))
+    ptx_support = sort(collect(cuda_ptx_support(compiler)))
 
     return (cap=cap_support, ptx=ptx_support)
 end
