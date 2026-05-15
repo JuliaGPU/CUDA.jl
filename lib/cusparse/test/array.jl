@@ -401,9 +401,10 @@ using Adapt
         # 2D — sparse representation preserved
         @test similar(A, 4, 4)            isa SparseT{Float32}
         @test similar(A, Float64, (4, 4)) isa SparseT{Float64}
-        # 1D — sparse vector, matching SparseArrays.jl
-        @test similar(A, 7)               isa CuSparseVector{Float32}
-        @test similar(A, Float64, (7,))   isa CuSparseVector{Float64}
+        # 1D — sparse vector, matching SparseArrays.jl (and inheriting the index type)
+        Ti = typeof(A).parameters[2]
+        @test similar(A, 7)               isa CuSparseVector{Float32, Ti}
+        @test similar(A, Float64, (7,))   isa CuSparseVector{Float64, Ti}
         @test length(similar(A, 7))       == 7
         # N≥3 — dense CuArray, matching SparseArrays.jl's fallback to Array (issue #3061)
         for shape in ((4, 4, 4), (3, 4, 5, 2))

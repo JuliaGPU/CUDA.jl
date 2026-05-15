@@ -294,10 +294,9 @@ Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims.
 Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 
 # 1D `similar` returns an empty `CuSparseVector`, mirroring `SparseArrays.jl`. The
-# index type is hardcoded to `Int32` to match the 2D methods above (cuSPARSE's
-# canonical index type) rather than being inherited from the source matrix.
-Base.similar(Mat::CuSparseMatrix, ::Type{T}, dims::Dims{1}) where {T} =
-    CuSparseVector(CuVector{Int32}(undef, 0), CuVector{T}(undef, 0), dims[1])
+# index type is inherited from the source matrix.
+Base.similar(Mat::CuSparseMatrix{Tv, Ti}, ::Type{T}, dims::Dims{1}) where {Tv, Ti, T} =
+    CuSparseVector(CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), dims[1])
 Base.similar(Mat::CuSparseMatrix, dims::Dims{1}) = similar(Mat, eltype(Mat), dims)
 
 # For shapes that can't be represented as a sparse matrix (N≥3), fall back to a
