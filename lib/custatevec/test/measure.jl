@@ -37,3 +37,26 @@ end
         @test bitstr == [1, 1, 0]
     end
 end
+@testset "measureBatched!" begin
+    n_svs = 2
+    bit_ordering = [2, 1, 0]
+    @testset for elty in [ComplexF32, ComplexF64]
+        # mirrors NVIDIA's cuQuantum samples/bindings/custatevec/batched_measure.py:
+        # two copies of the same 3-qubit SV measured with different randoms
+        # collapse to different basis states.
+        sv_data = elty[0.0, 0.1*im, 0.1+0.1*im, 0.1+0.2*im, 0.2+0.2*im, 0.3+0.3im, 0.3+0.4*im, 0.4+0.5*im]
+        h_sv = vcat(sv_data, sv_data)
+        sv   = CuStateVec(h_sv)
+        sv, bitstrs = measureBatched!(sv, n_svs, bit_ordering, [0.009, 0.5], cuStateVec.CUSTATEVEC_COLLAPSE_NORMALIZE_AND_ZERO)
+        @test bitstrs == [0b100, 0b011]
+        # each sub-vector collapses to a single basis state
+        sv_result = collect(sv.data)
+        expected_sv0 = elty[0.0, 0.0+1.0*im, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        expected_sv1 = elty[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6+0.8*im, 0.0]
+        @test sv_result[1:8]  ≈ expected_sv0
+        @test sv_result[9:16] ≈ expected_sv1
+
+        @test_throws ArgumentError measureBatched!(CuStateVec(h_sv), n_svs, bit_ordering, [0.5])
+        @test_throws ArgumentError measureBatched!(CuStateVec(h_sv), n_svs, bit_ordering, [0.5, 1.5])
+    end
+end
