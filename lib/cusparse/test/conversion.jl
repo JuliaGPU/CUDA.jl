@@ -280,8 +280,6 @@ for (n_loc, bd, p_loc) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)
         A = sprand(n_loc, n_loc, p_loc)
         bd_loc = bd
         for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
-            # TODO: conversion to CuSparseMatrixBSR breaks with (0x0) matrices
-            CuSparseMatrixType1 == CuSparseMatrixBSR && n_loc == 0 && continue
             dA1 = CuSparseMatrixType1 == CuSparseMatrixBSR ? CuSparseMatrixType1(A, bd_loc) : CuSparseMatrixType1(A)
             @testset "conversion $CuSparseMatrixType1 --> SparseMatrixCSC" begin
                 valid_ptr(dA1)
@@ -289,8 +287,6 @@ for (n_loc, bd, p_loc) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)
             end
             for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
                 CuSparseMatrixType1 == CuSparseMatrixType2 && continue
-                # TODO: conversion to CuSparseMatrixBSR breaks with (0x0) matrices
-                CuSparseMatrixType2 == CuSparseMatrixBSR && n_loc == 0 && continue
                 dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, bd_loc) : CuSparseMatrixType2(dA1)
                 @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
                     valid_ptr(dA2)

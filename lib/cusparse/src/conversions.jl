@@ -541,9 +541,18 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                                           dir::SparseChar='R', index::SparseChar='O',
                                           indc::SparseChar='O') where {Ti}
             m,n = size(csr)
-            nnz_ref = Ref{Cint}(1)
             mb = cld(m, blockDim)
             nb = cld(n, blockDim)
+            # cusparseXcsr2bsrNnz rejects zero-dim inputs with CUSPARSE_STATUS_INVALID_VALUE;
+            # the result is unambiguously empty, so construct it directly.
+            if iszero(m) || iszero(n)
+                bsrRowPtr = CuArray{Ti}(undef, mb + 1)
+                bsrRowPtr .= (indc == 'O' ? one(Ti) : zero(Ti))
+                bsrColInd = CuArray{Ti}(undef, 0)
+                bsrNzVal  = CuArray{$elty}(undef, 0)
+                return CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, size(csr), blockDim, dir, 0)
+            end
+            nnz_ref = Ref{Cint}(1)
             bsrRowPtr = CUDACore.zeros(Ti, mb + 1)
             cudesca = CuMatrixDescriptor('G', 'L', 'N', index)
             cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
@@ -573,7 +582,12 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
             nb = cld(n, bsr.blockDim)
             cudesca = CuMatrixDescriptor('G', 'L', 'N', index)
             cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
-            csrRowPtr = CUDACore.zeros(Ti, m + 1)
+            csrRowPtr = CuArray{Ti}(undef, m + 1)
+            # cusparse*bsr2csr does not initialize csrRowPtr when the block grid
+            # is empty; pre-fill with the empty-matrix sentinel.
+            if iszero(mb) || iszero(nb)
+                csrRowPtr .= (indc == 'O' ? one(Ti) : zero(Ti))
+            end
             csrColInd = CUDACore.zeros(Ti, nnz(bsr))
             csrNzVal  = CUDACore.zeros($elty, nnz(bsr))
             $fname(handle(), bsr.dir, mb, nb,
