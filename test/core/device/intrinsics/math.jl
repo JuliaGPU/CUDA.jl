@@ -2,7 +2,9 @@ using SpecialFunctions
 
 @testset "math" begin
     @testset "log10" begin
-        @test testf(a->log10.(a), Float32[100])
+        for T in (Float32, Float64)
+            @test testf(a->log10.(a), T[100])
+        end
     end
 
     @testset "pow" begin
@@ -12,28 +14,34 @@ using SpecialFunctions
             @test testf((x,y)->x.^y, rand(Float32, 1), -rand(range, 1))
         end
     end
+    
+    @testset "min/max" begin
+        for T in (Float32, Float64)
+            @test testf((x,y)->max.(x, y), rand(Float32, 1), rand(T, 1))
+            @test testf((x,y)->min.(x, y), rand(Float32, 1), rand(T, 1))
+        end
+    end
 
     @testset "isinf" begin
-      for x in (Inf32, Inf, NaN32, NaN)
+      for x in (Inf32, Inf, NaN16, NaN32, NaN)
         @test testf(x->isinf.(x), [x])
       end
     end
 
     @testset "isnan" begin
-      for x in (Inf32, Inf, NaN32, NaN)
+      for x in (Inf32, Inf, NaN16, NaN32, NaN)
         @test testf(x->isnan.(x), [x])
       end
     end
 
     for op in (exp, angle, exp2, exp10,)
         @testset "$op" begin
-            for T in (Float16, Float32, Float64)
+            for T in (Float32, Float64)
                 @test testf(x->op.(x), rand(T, 1))
                 @test testf(x->op.(x), -rand(T, 1))
             end
         end
     end
-
     for op in (expm1,)
         @testset "$op" begin
             # FIXME: add expm1(::Float16) to Base
@@ -50,7 +58,6 @@ using SpecialFunctions
                 @test testf(x->op.(x), rand(T, 1))
                 @test testf(x->op.(x), -rand(T, 1))
             end
-
         end
     end
     @testset "mod and rem" begin
@@ -104,6 +111,21 @@ using SpecialFunctions
         # JuliaGPU/CUDA.jl#1085: exp uses Base.sincos performing a global CPU load
         @test testf(x->exp.(x), [1e7im])
     end
+    
+    @testset "Real - $op" for op in (abs, abs2, exp, exp10, log, log10)
+        @testset "$T" for T in (Float16, Float32, Float64)
+            @test testf(x->op.(x), rand(T, 1))
+        end
+    end
+    
+    @testset "Float16 - $op" for op in (exp,exp2,exp10,log,log2,log10)
+        all_float_16 = collect(reinterpret(Float16, pattern) for pattern in  UInt16(0):UInt16(1):typemax(UInt16))
+        all_float_16 = filter(!isnan, all_float_16)
+        if op in (log, log2, log10)
+            all_float_16 = filter(>=(0), all_float_16)
+        end
+        @test testf(x->map(op, x), all_float_16)
+    end
 
     @testset "fastmath" begin
         # libdevice provides some fast math functions
@@ -132,6 +154,15 @@ using SpecialFunctions
             @test Array(A) == ones(T, 4)
             @cuda threads=4 fastpow_kernel(A, 3)
             @test Array(A) == ones(T, 4)
+        end
+
+        # Float16 hardware approximations: tanh.approx.f16 / ex2.approx.f16 on sm_75+
+        if capability(device()) >= v"7.5"
+            tanh_fast_kernel(x) = @fastmath tanh(x)
+            exp2_fast_kernel(x) = @fastmath exp2(x)
+            xs = Float16[-1, -0.5, 0, 0.5, 1]
+            @test Array(map(tanh_fast_kernel, cu(xs))) ≈ tanh.(xs) atol = Float16(1e-3)
+            @test Array(map(exp2_fast_kernel, cu(xs))) ≈ exp2.(xs) atol = Float16(1e-3)
         end
     end
 
