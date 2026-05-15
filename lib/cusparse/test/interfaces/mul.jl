@@ -25,11 +25,10 @@ using LinearAlgebra, SparseArrays
             @test collect(dA * dB) ≈ A * B
             @test collect(dA * db) ≈ A * b
 
-            # dense × sparse (reverse direction); COO must be column-sorted on the right
-            dA_r = SparseMatrixType == CuSparseMatrixCOO ? sort_coo(dA, 'C') : dA
+            # dense × sparse (reverse direction)
             Br = rand(eltyb, k, n)
             dBr = CuArray(Br)
-            @test collect(dBr * dA_r) ≈ Br * A
+            @test collect(dBr * dA) ≈ Br * A
         end
     end
 
@@ -59,9 +58,6 @@ using LinearAlgebra, SparseArrays
             B  = opb == identity ? sprand(elty, k, n, 0.2) : sprand(elty, n, k, 0.2)
             for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
                 dB = SparseMatrixType(B)
-                if SparseMatrixType == CuSparseMatrixCOO
-                    dB = sort_coo(dB, 'C')
-                end
                 @testset "CuMatrix * $SparseMatrixType" begin
                     @testset "A * B" begin
                         C  = opa(A) * opb(B)
