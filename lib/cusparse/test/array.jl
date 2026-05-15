@@ -398,11 +398,11 @@ using Adapt
     @testset "similar (out-of-shape) — $SparseT" for SparseT in
             (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
         A = SparseT(sprand(Float32, m, n, 0.2))
-        # 2D — sparse representation preserved
-        @test similar(A, 4, 4)            isa SparseT{Float32}
-        @test similar(A, Float64, (4, 4)) isa SparseT{Float64}
-        # 1D — sparse vector, matching SparseArrays.jl (and inheriting the index type)
         Ti = typeof(A).parameters[2]
+        # 2D — sparse, with Ti inherited from source
+        @test similar(A, 4, 4)            isa SparseT{Float32, Ti}
+        @test similar(A, Float64, (4, 4)) isa SparseT{Float64, Ti}
+        # 1D — sparse vector, with Ti inherited from source
         @test similar(A, 7)               isa CuSparseVector{Float32, Ti}
         @test similar(A, Float64, (7,))   isa CuSparseVector{Float64, Ti}
         @test length(similar(A, 7))       == 7
@@ -414,5 +414,24 @@ using Adapt
             @test similar(A, Float64, shape)    isa CuArray{Float64, length(shape)}
             @test size(similar(A, shape...))    == shape
         end
+    end
+
+    @testset "similar (explicit Ti override) — $SparseT" for SparseT in
+            (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        A = SparseT(sprand(Float32, m, n, 0.2))
+        # Structure-preserving (no dims): types swap, sparsity pattern copied
+        let B = similar(A, Float64, Int64)
+            @test B isa SparseT{Float64, Int64}
+            @test size(B) == size(A)
+            @test nnz(B) == nnz(A)
+        end
+        # 2D with explicit Ti
+        @test similar(A, Float64, Int64, 4, 4)      isa SparseT{Float64, Int64}
+        @test similar(A, Float64, Int64, (4, 4))    isa SparseT{Float64, Int64}
+        # 1D with explicit Ti
+        @test similar(A, Float64, Int64, 7)         isa CuSparseVector{Float64, Int64}
+        @test similar(A, Float64, Int64, (7,))      isa CuSparseVector{Float64, Int64}
+        # N≥3 with explicit Ti is not supported (matches SparseArrays.jl)
+        @test_throws MethodError similar(A, Float64, Int64, (4, 4, 4))
     end
 end

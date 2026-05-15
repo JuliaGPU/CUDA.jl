@@ -265,45 +265,106 @@ CuSparseMatrixCOO(rowInd::DenseCuArray, colInd::DenseCuArray, nzVal::DenseCuArra
 CuSparseArrayCSR(rowPtr::DenseCuArray, colVal::DenseCuArray, nzVal::DenseCuArray{T}, dims::NTuple{N,<:Integer}) where {T,N} =
     CuSparseArrayCSR{T}(rowPtr, colVal, nzVal, dims)
 
-Base.similar(Vec::CuSparseVector) = CuSparseVector(copy(nonzeroinds(Vec)), similar(nonzeros(Vec)), length(Vec))
-Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat)), size(Mat))
-Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
-Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
-Base.similar(Mat::CuSparseMatrixCOO) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat)), size(Mat), nnz(Mat))
+# Base.similar — mirrors SparseArrays.jl's contract.
+#
+# Two families of methods exist:
+#   - Implicit `Ti` (inherited from the source):
+#       similar(M)
+#       similar(M, TvNew)
+#       similar(M, TvNew, dims::Union{Dims{1}, Dims{2}})  (and Integer-vararg forms)
+#   - Explicit `Ti` (caller-supplied, overrides the source):
+#       similar(M, TvNew, TiNew)
+#       similar(M, TvNew, TiNew, dims::Union{Dims{1}, Dims{2}})  (and Integer-vararg forms)
+#
+# For shapes that can't be represented as a sparse matrix (N≥3) we fall back to a
+# dense `CuArray`, mirroring SparseArrays.jl's fallback to `Array`. The explicit-Ti
+# family is restricted to Dims{1}/Dims{2}, matching SparseArrays.jl — for N≥3 the
+# index type is irrelevant since the result is dense.
+#
+# Every method below routes through the fully-parameterized struct constructor
+# (e.g. `CuSparseMatrixCSC{Tv, Ti}(...)`). The single-Tv-parameter convenience
+# constructors (line ~220) canonicalize `Ti` to `Cint`, which would silently
+# discard whatever index type was requested or inherited here.
 
-Base.similar(Vec::CuSparseVector, T::Type) = CuSparseVector(copy(nonzeroinds(Vec)), similar(nonzeros(Vec), T), length(Vec))
-Base.similar(Mat::CuSparseMatrixCSC, T::Type) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat), T), size(Mat))
-Base.similar(Mat::CuSparseMatrixCSR, T::Type) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), size(Mat))
-Base.similar(Mat::CuSparseMatrixBSR, T::Type) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), Mat.blockDim, Mat.dir, nnz(Mat), size(Mat))
-Base.similar(Mat::CuSparseMatrixCOO, T::Type) = CuSparseMatrixCOO(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
+# --- 0-dim: preserve everything (Tv, Ti, sparsity pattern) ---
+Base.similar(Vec::CuSparseVector{Tv, Ti}) where {Tv, Ti} =
+    CuSparseVector{Tv, Ti}(copy(nonzeroinds(Vec)), similar(nonzeros(Vec)), length(Vec))
+Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}) where {Tv, Ti} =
+    CuSparseMatrixCSC{Tv, Ti}(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat)), size(Mat))
+Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}) where {Tv, Ti} =
+    CuSparseMatrixCSR{Tv, Ti}(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat))
+Base.similar(Mat::CuSparseMatrixBSR{Tv, Ti}) where {Tv, Ti} =
+    CuSparseMatrixBSR{Tv, Ti}(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), size(Mat), Mat.blockDim, Mat.dir, nnz(Mat))
+Base.similar(Mat::CuSparseMatrixCOO{Tv, Ti}) where {Tv, Ti} =
+    CuSparseMatrixCOO{Tv, Ti}(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat)), size(Mat), nnz(Mat))
 
-Base.similar(Mat::CuSparseMatrixCSC, T::Type, N::Int, M::Int) =  CuSparseMatrixCSC(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N, M))
-Base.similar(Mat::CuSparseMatrixCSR, T::Type, N::Int, M::Int) =  CuSparseMatrixCSR(CUDACore.zeros(Int32, 1), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
-Base.similar(Mat::CuSparseMatrixCOO, T::Type, N::Int, M::Int) =  CuSparseMatrixCOO(CUDACore.zeros(Int32, 0), CUDACore.zeros(Int32, 0), CuVector{T}(undef, 0), (N,M))
+# --- 1 type arg (TvNew): change eltype, preserve Ti and sparsity pattern ---
+Base.similar(Vec::CuSparseVector{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseVector{T, Ti}(copy(nonzeroinds(Vec)), similar(nonzeros(Vec), T), length(Vec))
+Base.similar(Mat::CuSparseMatrixCSC{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixCSC{T, Ti}(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat), T), size(Mat))
+Base.similar(Mat::CuSparseMatrixCSR{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixCSR{T, Ti}(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), size(Mat))
+Base.similar(Mat::CuSparseMatrixBSR{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixBSR{T, Ti}(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat), T), size(Mat), Mat.blockDim, Mat.dir, nnz(Mat))
+Base.similar(Mat::CuSparseMatrixCOO{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixCOO{T, Ti}(copy(Mat.rowInd), copy(Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
 
-Base.similar(Mat::CuSparseMatrixCSC{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
-Base.similar(Mat::CuSparseMatrixCSR{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
-Base.similar(Mat::CuSparseMatrixCOO{Tv, Ti}, N::Int, M::Int) where {Tv, Ti} = similar(Mat, Tv, N, M)
+# --- 2 type args (TvNew, TiNew): structure-preserving, with explicit index type ---
+Base.similar(Vec::CuSparseVector, ::Type{T}, ::Type{Ti}) where {T, Ti} =
+    CuSparseVector{T, Ti}(copyto!(similar(nonzeroinds(Vec), Ti), nonzeroinds(Vec)), similar(nonzeros(Vec), T), length(Vec))
+Base.similar(Mat::CuSparseMatrixCSC, ::Type{T}, ::Type{Ti}) where {T, Ti} =
+    CuSparseMatrixCSC{T, Ti}(copyto!(similar(Mat.colPtr, Ti), Mat.colPtr), copyto!(similar(rowvals(Mat), Ti), rowvals(Mat)), similar(nonzeros(Mat), T), size(Mat))
+Base.similar(Mat::CuSparseMatrixCSR, ::Type{T}, ::Type{Ti}) where {T, Ti} =
+    CuSparseMatrixCSR{T, Ti}(copyto!(similar(Mat.rowPtr, Ti), Mat.rowPtr), copyto!(similar(Mat.colVal, Ti), Mat.colVal), similar(nonzeros(Mat), T), size(Mat))
+Base.similar(Mat::CuSparseMatrixBSR, ::Type{T}, ::Type{Ti}) where {T, Ti} =
+    CuSparseMatrixBSR{T, Ti}(copyto!(similar(Mat.rowPtr, Ti), Mat.rowPtr), copyto!(similar(Mat.colVal, Ti), Mat.colVal), similar(nonzeros(Mat), T), size(Mat), Mat.blockDim, Mat.dir, nnz(Mat))
+Base.similar(Mat::CuSparseMatrixCOO, ::Type{T}, ::Type{Ti}) where {T, Ti} =
+    CuSparseMatrixCOO{T, Ti}(copyto!(similar(Mat.rowInd, Ti), Mat.rowInd), copyto!(similar(Mat.colInd, Ti), Mat.colInd), similar(nonzeros(Mat), T), size(Mat), nnz(Mat))
+
+# --- 2D with shape: empty sparse matrix. `Ti` is inherited from source, or supplied. ---
+Base.similar(Mat::CuSparseMatrixCSC{<:Any, Ti}, ::Type{T}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixCSC{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCSR{<:Any, Ti}, ::Type{T}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixCSR{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCOO{<:Any, Ti}, ::Type{T}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixCOO{T, Ti}(CUDACore.zeros(Ti, 0), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+
+Base.similar(Mat::CuSparseMatrixCSC, ::Type{T}, ::Type{Ti}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixCSC{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCSR, ::Type{T}, ::Type{Ti}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixCSR{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixCOO, ::Type{T}, ::Type{Ti}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixCOO{T, Ti}(CUDACore.zeros(Ti, 0), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+
+# Forwarders: no T (eltype inherited) → (Tv, n, m); tuple shape → varargs.
+Base.similar(Mat::CuSparseMatrixCSC{Tv}, N::Int, M::Int) where {Tv} = similar(Mat, Tv, N, M)
+Base.similar(Mat::CuSparseMatrixCSR{Tv}, N::Int, M::Int) where {Tv} = similar(Mat, Tv, N, M)
+Base.similar(Mat::CuSparseMatrixCOO{Tv}, N::Int, M::Int) where {Tv} = similar(Mat, Tv, N, M)
 
 Base.similar(Mat::CuSparseMatrixCSC, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 
+Base.similar(Mat::CuSparseMatrixCSC, T::Type, Ti::Type, dims::Tuple{Int, Int}) = similar(Mat, T, Ti, dims...)
+Base.similar(Mat::CuSparseMatrixCSR, T::Type, Ti::Type, dims::Tuple{Int, Int}) = similar(Mat, T, Ti, dims...)
+Base.similar(Mat::CuSparseMatrixCOO, T::Type, Ti::Type, dims::Tuple{Int, Int}) = similar(Mat, T, Ti, dims...)
+
 Base.similar(Mat::CuSparseMatrixCSC, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 
-# 1D `similar` returns an empty `CuSparseVector`, mirroring `SparseArrays.jl`. The
-# index type is inherited from the source matrix.
-Base.similar(Mat::CuSparseMatrix{Tv, Ti}, ::Type{T}, dims::Dims{1}) where {Tv, Ti, T} =
-    CuSparseVector(CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), dims[1])
+# --- 1D with shape: empty CuSparseVector. `Ti` inherited or supplied. ---
+Base.similar(Mat::CuSparseMatrix{<:Any, Ti}, ::Type{T}, dims::Dims{1}) where {Ti, T} =
+    CuSparseVector{T, Ti}(CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), dims[1])
+Base.similar(Mat::CuSparseMatrix, ::Type{T}, ::Type{Ti}, dims::Dims{1}) where {T, Ti} =
+    CuSparseVector{T, Ti}(CuVector{Ti}(undef, 0), CuVector{T}(undef, 0), dims[1])
 Base.similar(Mat::CuSparseMatrix, dims::Dims{1}) = similar(Mat, eltype(Mat), dims)
 
-# For shapes that can't be represented as a sparse matrix (N≥3), fall back to a
-# dense `CuArray`, mirroring `SparseArrays.jl`'s fallback to a regular `Array`.
-# The 1D method above and the existing concrete 2D methods are more specific and
-# take precedence; this catches everything else.
-# TODO: lift to `AbstractGPUSparseArray` in GPUArrays.jl using `dense_array_type`.
+# Integer-vararg forwarders for the explicit-Ti family (SparseArrays.jl has these).
+Base.similar(Mat::CuSparseMatrix, T::Type, Ti::Type, m::Integer) = similar(Mat, T, Ti, (Int(m),))
+
+# --- N≥3: dense CuArray (Ti is irrelevant; no explicit-Ti variant per SparseArrays). ---
 Base.similar(::CuSparseMatrix, ::Type{T}, dims::Dims) where {T} = CuArray{T}(undef, dims)
 Base.similar(Mat::CuSparseMatrix, dims::Dims) = similar(Mat, eltype(Mat), dims)
 
