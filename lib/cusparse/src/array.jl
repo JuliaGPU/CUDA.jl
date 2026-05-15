@@ -420,16 +420,86 @@ Base.getindex(A::AbstractCuSparseMatrix, i, ::Colon)       = getindex(A, i, 1:si
 Base.getindex(A::AbstractCuSparseMatrix, ::Colon, i)       = getindex(A, 1:size(A, 1), i)
 Base.getindex(A::AbstractCuSparseMatrix, I::Tuple{Integer,Integer}) = getindex(A, I[1], I[2])
 
-# Indexing paths that produce a 1-D sparse result are implemented via a host-side
-# round-trip through `SparseMatrixCSC`. This keeps `Base._unsafe_getindex` out of
-# the picture: it would otherwise call `setindex!` on the `CuSparseVector` returned
-# by `similar`, which we don't define.
-# TODO: implement directly on the device. For CSC the linearization is mechanical
-# (no sort needed); CSR/COO/BSR need either a sort or a CSC conversion first.
-Base.getindex(A::CuSparseMatrix, ::Colon)                            = CuSparseVector(SparseMatrixCSC(A)[:])
-Base.getindex(A::CuSparseMatrix, I::AbstractUnitRange)               = CuSparseVector(SparseMatrixCSC(A)[I])
-Base.getindex(A::CuSparseMatrix, i::AbstractUnitRange, j::Integer)   = CuSparseVector(SparseMatrixCSC(A)[i, j])
-Base.getindex(A::CuSparseMatrix, i::Integer, j::AbstractUnitRange)   = CuSparseVector(SparseMatrixCSC(A)[i, j])
+# Indexing paths that produce a 1-D sparse result. These have to bypass
+# `Base._unsafe_getindex` — it would otherwise call `setindex!` on the
+# `CuSparseVector` returned by `similar`, which we don't define.
+
+# Linearization: write `(j-1)*nrows + rowVal[k]` per entry. CSC storage order is
+# already column-major with sorted rows within each column, so the output `iPtr` is
+# monotonically increasing without an explicit sort. Other formats convert to CSC.
+function _csc_linearize_kernel!(iPtr_out, colPtr, rowVal, nrows)
+    Ti = eltype(colPtr)
+    j = Ti(threadIdx().x + (blockIdx().x - Int32(1)) * blockDim().x)
+    j > Ti(length(colPtr) - 1) && return nothing
+    @inbounds for k in colPtr[j]:(colPtr[j + one(Ti)] - one(Ti))
+        iPtr_out[k] = (j - one(Ti)) * Ti(nrows) + rowVal[k]
+    end
+    return nothing
+end
+
+function Base.getindex(A::CuSparseMatrixCSC{Tv, Ti}, ::Colon) where {Tv, Ti}
+    nnz_A = nnz(A)
+    iPtr = CuVector{Ti}(undef, nnz_A)
+    if nnz_A > 0
+        ncols = size(A, 2)
+        threads = min(256, ncols)
+        blocks = cld(ncols, threads)
+        @cuda threads=threads blocks=blocks _csc_linearize_kernel!(
+            iPtr, A.colPtr, A.rowVal, size(A, 1)
+        )
+    end
+    return CuSparseVector(iPtr, copy(nonzeros(A)), prod(size(A)))
+end
+Base.getindex(A::CuSparseMatrixCSR, ::Colon) = CuSparseMatrixCSC(A)[:]
+Base.getindex(A::CuSparseMatrixCOO, ::Colon) = CuSparseMatrixCSC(A)[:]
+Base.getindex(A::CuSparseMatrixBSR, ::Colon) = CuSparseMatrixCSC(A)[:]
+
+# Range linearization: slice the full linearization. Wasteful for short ranges, but
+# avoids a second specialized kernel.
+function Base.getindex(A::CuSparseMatrix{Tv, Ti}, I::AbstractUnitRange) where {Tv, Ti}
+    @boundscheck checkbounds(LinearIndices(A), I)
+    v = A[:]
+    inds = nonzeroinds(v)
+    lo, hi = Ti(first(I)), Ti(last(I))
+    mask = (inds .>= lo) .& (inds .<= hi)
+    return CuSparseVector(inds[mask] .- (lo - one(Ti)), nonzeros(v)[mask], length(I))
+end
+
+# Row/column subset of a single column/row: walk one column (CSC) or row (CSR) of
+# storage and filter by the range. Two scalar `colPtr`/`rowPtr` reads at the
+# boundary, matching the existing `::Colon, j` / `i, ::Colon` methods below —
+# callers must enable scalar indexing if those rules are in effect.
+function Base.getindex(A::CuSparseMatrixCSC{Tv, Ti}, I::AbstractUnitRange, j::Integer) where {Tv, Ti}
+    @boundscheck checkbounds(A, I, j)
+    r1 = Int(A.colPtr[j])
+    r2 = Int(A.colPtr[j + 1]) - 1
+    r1 > r2 && return CuSparseVector(CuVector{Ti}(undef, 0), CuVector{Tv}(undef, 0), length(I))
+    rows = rowvals(A)[r1:r2]
+    vals = nonzeros(A)[r1:r2]
+    lo, hi = Ti(first(I)), Ti(last(I))
+    mask = (rows .>= lo) .& (rows .<= hi)
+    return CuSparseVector(rows[mask] .- (lo - one(Ti)), vals[mask], length(I))
+end
+
+function Base.getindex(A::CuSparseMatrixCSR{Tv, Ti}, i::Integer, J::AbstractUnitRange) where {Tv, Ti}
+    @boundscheck checkbounds(A, i, J)
+    c1 = Int(A.rowPtr[i])
+    c2 = Int(A.rowPtr[i + 1]) - 1
+    c1 > c2 && return CuSparseVector(CuVector{Ti}(undef, 0), CuVector{Tv}(undef, 0), length(J))
+    cols = A.colVal[c1:c2]
+    vals = nonzeros(A)[c1:c2]
+    lo, hi = Ti(first(J)), Ti(last(J))
+    mask = (cols .>= lo) .& (cols .<= hi)
+    return CuSparseVector(cols[mask] .- (lo - one(Ti)), vals[mask], length(J))
+end
+
+# Off-axis range slices for the other format: round-trip via CSC.
+Base.getindex(A::CuSparseMatrixCSR, I::AbstractUnitRange, j::Integer) = CuSparseMatrixCSC(A)[I, j]
+Base.getindex(A::CuSparseMatrixCSC, i::Integer, J::AbstractUnitRange) = CuSparseMatrixCSR(A)[i, J]
+Base.getindex(A::CuSparseMatrixCOO, I::AbstractUnitRange, j::Integer) = CuSparseMatrixCSC(A)[I, j]
+Base.getindex(A::CuSparseMatrixCOO, i::Integer, J::AbstractUnitRange) = CuSparseMatrixCSR(A)[i, J]
+Base.getindex(A::CuSparseMatrixBSR, I::AbstractUnitRange, j::Integer) = CuSparseMatrixCSC(A)[I, j]
+Base.getindex(A::CuSparseMatrixBSR, i::Integer, J::AbstractUnitRange) = CuSparseMatrixCSR(A)[i, J]
 
 # column slices
 function Base.getindex(x::CuSparseMatrixCSC, ::Colon, j::Integer)
@@ -474,10 +544,22 @@ function Base.getindex(x::CuSparseMatrixCOO{T}, ::Colon, j::Integer) where {T}
     end
 end
 
-# row slices (the off-axis ones; on-axis variants are above)
-# TODO: optimize (currently round-trips through the CPU)
-Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(SparseMatrixCSC(A)[i, :])
-Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(SparseMatrixCSC(A)[:, j])
+# Off-axis row/column slices: convert to COO (cheap on-device pointer expansion) and
+# mask. Output ordering of the result comes from COO's secondary-axis sort:
+#   - CSC→COO is sorted by row then col, so masking by row yields col-sorted output;
+#   - CSR→COO is sorted by row then col natively, so masking by col yields row-sorted output.
+function Base.getindex(A::CuSparseMatrixCSC{Tv, Ti}, i::Integer, ::Colon) where {Tv, Ti}
+    @boundscheck checkbounds(A, i, :)
+    coo = CuSparseMatrixCOO(A)
+    mask = coo.rowInd .== Cint(i)
+    return CuSparseVector(coo.colInd[mask], nonzeros(coo)[mask], size(A, 2))
+end
+function Base.getindex(A::CuSparseMatrixCSR{Tv, Ti}, ::Colon, j::Integer) where {Tv, Ti}
+    @boundscheck checkbounds(A, :, j)
+    coo = CuSparseMatrixCOO(A)
+    mask = coo.colInd .== Cint(j)
+    return CuSparseVector(coo.rowInd[mask], nonzeros(coo)[mask], size(A, 1))
+end
 
 function Base.getindex(A::CuSparseVector{Tv, Ti}, i::Integer) where {Tv, Ti}
     @boundscheck checkbounds(A, i)
