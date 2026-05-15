@@ -92,6 +92,149 @@ using SpecialFunctions
         end
     end
 
+    @testset "directed rounding" begin
+        # Verify each NVPTX directed-rounding intrinsic lowers to the expected
+        # PTX instruction. The full PTX listing also catches accidental
+        # round-trips through fp32 or libdevice helpers.
+        #
+        # `.rn` is the default PTX rounding mode, so on older LLVM the suffix
+        # is elided (`add.f32` ≡ `add.rn.f32`). For the same reason LLVM may
+        # fold `sub_rn(x,y) = add_rn(x,-y)` back to `sub.f32`. The non-rn modes
+        # always emit the explicit suffix since the default doesn't apply.
+        for op in (:add, :mul, :div, :fma), rnd in (:rn, :rz, :rm, :rp)
+            fname = Symbol(op, :_, rnd)
+            f = getfield(CUDA, fname)
+            for (T, suffix) in ((Float32, "f32"), (Float64, "f64"))
+                args = ntuple(_ -> T(1), op === :fma ? 3 : 2)
+                kernel = if op === :fma
+                    (out, x, y, z) -> (out[] = f(x, y, z); nothing)
+                else
+                    (out, x, y) -> (out[] = f(x, y); nothing)
+                end
+                buf = CuArray{T}(undef, 1)
+                ptx = sprint(io->(@device_code_ptx io=io @cuda launch=false kernel(buf, args...)))
+                accepted = rnd === :rn ?
+                    ("$(op).rn.$(suffix)", "$(op).$(suffix)") :
+                    ("$(op).$(rnd).$(suffix)",)
+                @test any(s -> occursin(s, ptx), accepted)
+            end
+        end
+
+        # NVPTX has no sub.<rnd> intrinsic; sub_<rnd>(x,y) reuses add_<rnd>(x,-y).
+        # For non-rn modes LLVM keeps the rounded add; for rn (the default) it
+        # may fold back to a plain `sub`.
+        for rnd in (:rn, :rz, :rm, :rp)
+            f = getfield(CUDA, Symbol(:sub_, rnd))
+            for (T, suffix) in ((Float32, "f32"), (Float64, "f64"))
+                kernel = (out, x, y) -> (out[] = f(x, y); nothing)
+                buf = CuArray{T}(undef, 1)
+                ptx = sprint(io->(@device_code_ptx io=io @cuda launch=false kernel(buf, T(1), T(1))))
+                accepted = rnd === :rn ?
+                    ("add.rn.$(suffix)", "add.$(suffix)", "sub.$(suffix)") :
+                    ("add.$(rnd).$(suffix)",)
+                @test any(s -> occursin(s, ptx), accepted)
+            end
+        end
+
+        # Numerical checks: pick inputs whose true result is not exactly
+        # representable, so the four rounding modes give distinct outputs.
+
+        @testset "fma_($T)" for T in (Float32, Float64)
+            # The true value of fma(1, 1, 2^-prec) is 1.0 + half-ulp, an exact
+            # tie that distinguishes all four rounding modes for positive values.
+            prec = T === Float32 ? 24 : 53
+            eps_step = T(2)^-prec
+            function fma_kernel(out, x, y, z)
+                out[1] = CUDA.fma_rn(x, y, z)
+                out[2] = CUDA.fma_rz(x, y, z)
+                out[3] = CUDA.fma_rp(x, y, z)
+                out[4] = CUDA.fma_rm(x, y, z)
+                return
+            end
+            out_d = CUDA.zeros(T, 4)
+            @cuda threads=1 fma_kernel(out_d, one(T), one(T), eps_step)
+            out = Array(out_d)
+            @test out[1] == one(T)                # RN ties to even (mantissa LSB 0)
+            @test out[2] == one(T)                # RZ
+            @test out[3] == nextfloat(one(T))     # RP
+            @test out[4] == one(T)                # RM
+        end
+
+        @testset "add_/mul_/div_($T)" for T in (Float32, Float64)
+            # 0.1*3 ≠ 0.3 in any binary float, so mul_rn and mul_rp differ from
+            # mul_rz and mul_rm by one ulp.
+            x, y = T(1)/T(10), T(3)
+            function mul_kernel(out, x, y)
+                out[1] = CUDA.mul_rn(x, y)
+                out[2] = CUDA.mul_rz(x, y)
+                out[3] = CUDA.mul_rp(x, y)
+                out[4] = CUDA.mul_rm(x, y)
+                return
+            end
+            out_d = CUDA.zeros(T, 4)
+            @cuda threads=1 mul_kernel(out_d, x, y)
+            mul_out = Array(out_d)
+            @test mul_out[4] <= mul_out[1] <= mul_out[3]   # RM ≤ RN ≤ RP
+            @test mul_out[2] == mul_out[4]                 # RZ == RM for positive
+            @test mul_out[3] == nextfloat(mul_out[4])      # 1 ulp gap
+
+            # div 1/3 is inexact and positive.
+            function div_kernel(out, x, y)
+                out[1] = CUDA.div_rn(x, y)
+                out[2] = CUDA.div_rz(x, y)
+                out[3] = CUDA.div_rp(x, y)
+                out[4] = CUDA.div_rm(x, y)
+                return
+            end
+            out_d = CUDA.zeros(T, 4)
+            @cuda threads=1 div_kernel(out_d, T(1), T(3))
+            div_out = Array(out_d)
+            @test div_out[4] <= div_out[1] <= div_out[3]
+            @test div_out[2] == div_out[4]
+            @test div_out[3] == nextfloat(div_out[4])
+
+            # add 1 + 2^-(prec+1) lies strictly between 1.0 and nextfloat(1.0).
+            prec = T === Float32 ? 24 : 53
+            eps_half = T(2)^-(prec+1)
+            function add_kernel(out, x, y)
+                out[1] = CUDA.add_rn(x, y)
+                out[2] = CUDA.add_rz(x, y)
+                out[3] = CUDA.add_rp(x, y)
+                out[4] = CUDA.add_rm(x, y)
+                return
+            end
+            out_d = CUDA.zeros(T, 4)
+            @cuda threads=1 add_kernel(out_d, one(T), eps_half)
+            add_out = Array(out_d)
+            @test add_out[1] == one(T)              # RN ties to even
+            @test add_out[2] == one(T)              # RZ
+            @test add_out[3] == nextfloat(one(T))   # RP
+            @test add_out[4] == one(T)              # RM
+        end
+
+        @testset "sub_($T)" for T in (Float32, Float64)
+            # Pick a y whose addition to x is inexact so we can see directed
+            # rounding. 1.0 - 2^-(prec+1) is exactly halfway between
+            # prevfloat(1.0) and 1.0.
+            prec = T === Float32 ? 24 : 53
+            eps_half = T(2)^-(prec+1)
+            function sub_kernel(out, x, y)
+                out[1] = CUDA.sub_rn(x, y)
+                out[2] = CUDA.sub_rz(x, y)
+                out[3] = CUDA.sub_rp(x, y)
+                out[4] = CUDA.sub_rm(x, y)
+                return
+            end
+            out_d = CUDA.zeros(T, 4)
+            @cuda threads=1 sub_kernel(out_d, one(T), eps_half)
+            sub_out = Array(out_d)
+            @test sub_out[1] == one(T)              # RN ties to even
+            @test sub_out[2] == prevfloat(one(T))   # RZ
+            @test sub_out[3] == one(T)              # RP
+            @test sub_out[4] == prevfloat(one(T))   # RM
+        end
+    end
+
     @testset "muladd" begin
         for T in (Float16, Float32, Float64)
             @test testf((x,y,z)->muladd.(x,y,z), rand(T, 1), rand(T, 1), rand(T, 1))
