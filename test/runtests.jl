@@ -2,6 +2,7 @@ using CUDA
 using CUDACore
 using cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
 using cuDNN, cuTENSOR, cuTensorNet, cuStateVec
+using BFloat16s
 using GPUArrays
 using ParallelTestRunner
 using Pkg
@@ -43,6 +44,16 @@ for name in keys(TestSuite.tests)
 end
 if CUDACore.default_memory != CUDA.DeviceMemory
     delete!(testsuite, "gpuarrays/indexing scalar")
+end
+
+# BFloat16 kernel tests target native bf16 codegen (JuliaGPU/CUDA.jl#2441);
+# skip unless BFloat16s emits native bf16 LLVM IR, the NVPTX backend can lower
+# it (LLVM 17+; 1.11/LLVM 16 miscompiles bf16), and the device speaks PTX bf16
+# (sm_80+).
+if !BFloat16s.llvm_arithmetic ||
+   Base.libllvm_version < v"17" ||
+   capability(device()) < v"8.0"
+    delete!(testsuite, "core/device/bfloat16")
 end
 
 # subpackage tests under lib/*/test/ — include when requested via `--all` or
