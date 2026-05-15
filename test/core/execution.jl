@@ -79,6 +79,31 @@ end
 end
 
 
+@testset "launch failure: register pressure" begin
+    # Force ptxas to keep N live values across a barrier. The stores into
+    # `out` are the observable side effect that prevents the optimizer from
+    # eliminating the loads as dead code.
+    function reg_kernel(out, inp, ::Val{N}) where N
+        i = threadIdx().x
+        v = ntuple(j -> inp[i + (j-1)*N], Val(N))
+        sync_threads()
+        ntuple(j -> (out[i + (j-1)*N] = v[j]; nothing), Val(N))
+        return
+    end
+    N = 256
+    hw_cap = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+    workspace = CuArray{Float32}(undef, hw_cap + N^2)
+    k       = @cuda launch=false reg_kernel(workspace, workspace, Val(N))
+    nregs   = CUDA.registers(k)
+    reglim  = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK)
+    threads = fld(reglim, nregs) + 1
+    @test_throws "Block register count exceeds device limit" begin
+        @assert threads > CUDA.maxthreads(k)
+        k(workspace, workspace; threads=threads)
+    end
+end
+
+
 @testset "inference" begin
     foo() = @cuda dummy()
     @inferred foo()
