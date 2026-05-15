@@ -257,20 +257,43 @@ if !(v"12.0" <= cuSPARSE.version() < v"12.1")
     end
 end
 
-for (n_loc, bd, p_loc) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5)]
+function valid_ptr(A::CuSparseMatrixCSC)
+    colPtr = collect(A.colPtr)
+    @test length(A.colPtr) >= 1
+    @test colPtr[1] == 1 # assuming one-based indexing (index='O')
+    @test issorted(colPtr)
+end
+
+function valid_ptr(A::CuSparseMatrixCSR)
+    rowPtr = collect(A.rowPtr)
+    @test length(A.rowPtr) >= 1
+    @test rowPtr[1] == 1 # assuming one-based indexing (index='O')
+    @test issorted(rowPtr)
+end
+
+valid_ptr(::CuSparseMatrixCOO) = nothing
+valid_ptr(::CuSparseMatrixBSR) = nothing
+
+for (n_loc, bd, p_loc) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)]
     v"12.0" <= cuSPARSE.version() < v"12.1" && n_loc == 4 && continue
     @testset "conversions between CuSparseMatrices (n, bd, p) = ($n_loc, $bd, $p_loc)" begin
         A = sprand(n_loc, n_loc, p_loc)
         bd_loc = bd
         for CuSparseMatrixType1 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+            # TODO: conversion to CuSparseMatrixBSR breaks with (0x0) matrices
+            CuSparseMatrixType1 == CuSparseMatrixBSR && n_loc == 0 && continue
             dA1 = CuSparseMatrixType1 == CuSparseMatrixBSR ? CuSparseMatrixType1(A, bd_loc) : CuSparseMatrixType1(A)
             @testset "conversion $CuSparseMatrixType1 --> SparseMatrixCSC" begin
+                valid_ptr(dA1)
                 @test SparseMatrixCSC(dA1) ≈ A
             end
             for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
                 CuSparseMatrixType1 == CuSparseMatrixType2 && continue
+                # TODO: conversion to CuSparseMatrixBSR breaks with (0x0) matrices
+                CuSparseMatrixType2 == CuSparseMatrixBSR && n_loc == 0 && continue
                 dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, bd_loc) : CuSparseMatrixType2(dA1)
                 @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
+                    valid_ptr(dA2)
                     @test collect(dA1) ≈ collect(dA2)
                 end
             end
