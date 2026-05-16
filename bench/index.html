@@ -203,7 +203,7 @@
       <div class="small">Powered by <a rel="noopener" href="https://github.com/marketplace/actions/continuous-benchmark">github-action-benchmark</a></div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.2/dist/Chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.2/dist/Chart.bundle.min.js"></script>
     <script src="data.js"></script>
     <script id="main-script">
       'use strict';
@@ -359,12 +359,15 @@
           function buildChart(canvas, name, dataset) {
             const color = toolColors[dataset.length > 0 ? dataset[0].tool : '_'];
             const values = dataset.map(d => d.bench.value);
+            const points = dataset.map(d => ({
+              x: new Date(d.commit.timestamp),
+              y: d.bench.value,
+            }));
             const data = {
-              labels: dataset.map(d => d.commit.id.slice(0, 7)),
               datasets: [
                 {
                   label: name,
-                  data: values,
+                  data: points,
                   borderColor: color,
                   backgroundColor: color + '60', // Add alpha for #rrggbbaa
                 }
@@ -392,26 +395,41 @@
               scales: {
                 xAxes: [
                   {
-                    scaleLabel: {
-                      display: true,
-                      labelString: 'commit',
+                    type: 'time',
+                    time: {
+                      // Let Chart.js pick day / week / month / quarter / year
+                      // based on the visible range; format each unit nicely.
+                      displayFormats: {
+                        day: 'D MMM',
+                        week: 'D MMM',
+                        month: 'MMM YYYY',
+                        quarter: 'MMM YYYY',
+                        year: 'YYYY',
+                      },
+                      tooltipFormat: 'D MMM YYYY',
                     },
+                    scaleLabel: { display: false },
                   }
                 ],
                 yAxes: [yAxis],
               },
               tooltips: {
                 callbacks: {
+                  title: items => {
+                    const {index} = items[0];
+                    const commit = dataset[index].commit;
+                    return new Date(commit.timestamp).toDateString() + ' · ' + commit.id.slice(0, 7);
+                  },
                   afterTitle: items => {
                     const {index} = items[0];
                     const data = dataset[index];
                     return '\n' + data.commit.message + '\n\n' + data.commit.timestamp + ' committed by @' + data.commit.committer.username + '\n';
                   },
                   label: item => {
-                    let label = formatValue(item.value, unit);
-                    const { range } = dataset[item.index].bench;
-                    if (range) {
-                      label += ' (' + range + ')';
+                    const bench = dataset[item.index].bench;
+                    let label = formatValue(bench.value, unit);
+                    if (bench.range) {
+                      label += ' (' + bench.range + ')';
                     }
                     return label;
                   },
