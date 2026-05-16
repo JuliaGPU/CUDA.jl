@@ -137,6 +137,16 @@
         border-radius: 12px;
         background-color: #f4f4f4;
         color: #555;
+        cursor: pointer;
+        user-select: none;
+        border: 1px solid transparent;
+      }
+      .summary-pill:hover {
+        filter: brightness(0.95);
+      }
+      .summary-pill.active {
+        border-color: #333;
+        box-shadow: 0 0 0 1px #333 inset;
       }
       .summary-pill.regr { background-color: #fde2e2; color: #9b2020; }
       .summary-pill.impr { background-color: #def0e2; color: #1f6a30; }
@@ -175,7 +185,8 @@
         width: 100%;
       }
       .bench-wrapper[data-window-hidden],
-      .bench-wrapper[data-search-hidden] {
+      .bench-wrapper[data-search-hidden],
+      .bench-wrapper[data-trend-hidden] {
         display: none;
       }
       .bench-header {
@@ -389,6 +400,29 @@
           }
 
           let currentCutoff = cutoffFromValue('3m');
+          // null | 'regressed' | 'stable' | 'improved' — clicking a summary
+          // pill toggles this on; clicking the same pill again clears it.
+          let currentTrendFilter = null;
+
+          function trendCategory(wrapper) {
+            const t = wrapper._trend;
+            if (t == null || !Number.isFinite(t)) return 'stable';
+            const cls = classifyTrend(t * 100);
+            if (cls === 'strong-up' || cls === 'mild-up') return 'regressed';
+            if (cls === 'strong-down' || cls === 'mild-down') return 'improved';
+            return 'stable';
+          }
+
+          function applyTrendFilter() {
+            const wrappers = document.querySelectorAll('.bench-wrapper');
+            for (const w of wrappers) {
+              if (!currentTrendFilter || trendCategory(w) === currentTrendFilter) {
+                delete w.dataset.trendHidden;
+              } else {
+                w.dataset.trendHidden = '';
+              }
+            }
+          }
 
           // Pick a single display unit for the chart based on the median of
           // the data, converting nanoseconds to µs / ms / s as appropriate.
@@ -819,12 +853,17 @@
             const reg = counts['strong-up'] + counts['mild-up'];
             const imp = counts['strong-down'] + counts['mild-down'];
             const flat = counts['flat'] + counts['unknown'];
+            const pillCls = (variant, cat) => 'summary-pill ' + variant
+              + (currentTrendFilter === cat ? ' active' : '');
             const parts = [];
-            parts.push(`<span class="summary-pill regr">${reg} ▲ regressed`
+            parts.push(`<span class="${pillCls('regr', 'regressed')}" data-category="regressed" title="Show only regressions">`
+                       + `${reg} ▲ regressed`
                        + (counts['strong-up'] ? ` (${counts['strong-up']} strong)` : '')
                        + `</span>`);
-            parts.push(`<span class="summary-pill flat">${flat} stable</span>`);
-            parts.push(`<span class="summary-pill impr">${imp} ▼ improved`
+            parts.push(`<span class="${pillCls('flat', 'stable')}" data-category="stable" title="Show only stable benchmarks">`
+                       + `${flat} stable</span>`);
+            parts.push(`<span class="${pillCls('impr', 'improved')}" data-category="improved" title="Show only improvements">`
+                       + `${imp} ▼ improved`
                        + (counts['strong-down'] ? ` (${counts['strong-down']} strong)` : '')
                        + `</span>`);
             bar.innerHTML = parts.join('');
@@ -847,10 +886,11 @@
                 wrapper.dataset.searchHidden = '';
               }
               const hasData = !('windowHidden' in wrapper.dataset);
+              const matchesTrend = !('trendHidden' in wrapper.dataset);
               if (hasData) totalBenches++;
-              if (matchesSearch && hasData) totalVisible++;
+              if (matchesSearch && hasData && matchesTrend) totalVisible++;
             }
-            if (query) {
+            if (query || currentTrendFilter) {
               status.textContent = totalVisible + ' / ' + totalBenches + ' shown';
             } else {
               status.textContent = totalBenches + ' charts';
@@ -863,8 +903,21 @@
           }
 
           sortWrappers();
-          applyFilter();
           updateSummary();
+          applyTrendFilter();
+          applyFilter();
+
+          // Summary pills — click to toggle a category filter.
+          document.getElementById('summary-bar').addEventListener('click', (e) => {
+            const pill = e.target.closest('.summary-pill');
+            if (!pill) return;
+            const cat = pill.dataset.category;
+            if (!cat) return;
+            currentTrendFilter = (currentTrendFilter === cat) ? null : cat;
+            applyTrendFilter();
+            updateSummary();
+            applyFilter();
+          });
 
           // Search input
           input.addEventListener('input', applyFilter);
@@ -883,8 +936,9 @@
               populateBench(wrapper);
             }
             sortWrappers();
-            applyFilter();
             updateSummary();
+            applyTrendFilter();
+            applyFilter();
           });
         }
 
