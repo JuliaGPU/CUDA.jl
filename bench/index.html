@@ -544,6 +544,7 @@
           function renderBenchHeader(wrapper, name, dataset, unit) {
             const header = document.createElement('div');
             header.className = 'bench-header';
+            wrapper.appendChild(header);
 
             const nameElem = document.createElement('span');
             nameElem.className = 'bench-header-name';
