@@ -192,7 +192,7 @@
       }
       .bench-placeholder {
         width: 100%;
-        min-height: 300px;
+        min-height: 200px;
       }
       .bench-controls {
         position: absolute;
@@ -255,7 +255,6 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.2/dist/Chart.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@0.7.7/chartjs-plugin-zoom.min.js"></script>
     <script src="data.js"></script>
     <script id="main-script">
@@ -472,6 +471,9 @@
               yAxis.type = 'logarithmic';
             }
             const options = {
+              // Wider than tall — default is 2, this packs more charts per
+              // screen on the dashboard.
+              aspectRatio: 2.5,
               // The chart name lives in the per-chart header above the canvas,
               // so the single-series legend is redundant.
               legend: { display: false },
@@ -578,7 +580,7 @@
             resetBtn.type = 'button';
             resetBtn.className = 'control-btn';
             resetBtn.textContent = 'reset';
-            resetBtn.title = 'Reset zoom (drag on the chart to zoom in)';
+            resetBtn.title = 'Reset zoom';
             controls.appendChild(resetBtn);
             chartContainer.appendChild(controls);
 
