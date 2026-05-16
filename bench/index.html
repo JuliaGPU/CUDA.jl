@@ -261,9 +261,9 @@
     <div class="toolbar">
       <input type="search" id="search-input" class="search-input" placeholder="Filter benchmarks (e.g. reduce, reverse, latency)" autocomplete="off" />
       <select id="window-select" class="window-select" title="Time window">
-        <option value="3m">Last 3 months</option>
+        <option value="3m" selected>Last 3 months</option>
         <option value="6m">Last 6 months</option>
-        <option value="1y" selected>Last year</option>
+        <option value="1y">Last year</option>
         <option value="2y">Last 2 years</option>
         <option value="all">All time</option>
       </select>
@@ -388,7 +388,7 @@
             return dataset.filter(d => new Date(d.commit.timestamp) >= cutoff);
           }
 
-          let currentCutoff = cutoffFromValue('1y');
+          let currentCutoff = cutoffFromValue('3m');
 
           // Pick a single display unit for the chart based on the median of
           // the data, converting nanoseconds to µs / ms / s as appropriate.
