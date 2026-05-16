@@ -125,6 +125,22 @@
         outline: none;
         border-color: #3273dc;
       }
+      .summary-bar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 0 0 12px;
+        font-size: 0.9em;
+      }
+      .summary-pill {
+        padding: 3px 10px;
+        border-radius: 12px;
+        background-color: #f4f4f4;
+        color: #555;
+      }
+      .summary-pill.regr { background-color: #fde2e2; color: #9b2020; }
+      .summary-pill.impr { background-color: #def0e2; color: #1f6a30; }
+      .summary-pill.flat { background-color: #f0f0f0; color: #666; }
       .group {
         margin: 12px 0;
         border: 1px solid #eee;
@@ -186,9 +202,11 @@
       .bench-stat-value {
         color: #555;
       }
-      .bench-stat-delta.up   { color: #d63030; }
-      .bench-stat-delta.down { color: #2c8b3f; }
-      .bench-stat-delta.flat { color: #aaa; }
+      .bench-stat-delta.strong-up   { color: #c01818; font-weight: 600; }
+      .bench-stat-delta.mild-up     { color: #c97a00; }
+      .bench-stat-delta.flat        { color: #aaa; }
+      .bench-stat-delta.mild-down   { color: #4a9858; }
+      .bench-stat-delta.strong-down { color: #1f7e30; font-weight: 600; }
       .bench-chart-container {
         position: relative;
         width: 100%;
@@ -251,6 +269,7 @@
       </select>
       <span id="search-status" class="search-status"></span>
     </div>
+    <div id="summary-bar" class="summary-bar"></div>
     <main id="main"></main>
     <footer>
       <button id="dl-button">Download data as JSON</button>
@@ -409,18 +428,40 @@
               : sorted[mid];
           }
 
-          // Compare the median of the recent half of the window to the median
-          // of the older half. Returns a fractional change (e.g. 0.05 = +5%)
-          // robust to single-point noise, or null if there aren't enough
-          // samples to compare.
+          // Trend: median of a small recent sample vs. median of a small
+          // baseline sample at the start of the visible window. Inspired by
+          // codespeed's "current vs. average of N-oldest" but symmetric, so a
+          // single noisy run smooths out at both ends. Sampling small
+          // endpoints (rather than splitting the window in half) means a
+          // step change anywhere in the middle still shows its full
+          // magnitude, since both samples sit on opposite sides of the step.
+          //
+          // Returns a fractional change (0.05 = +5%) or null when there
+          // aren't enough samples to compare.
           function computeTrend(values) {
             if (values.length < 4) return null;
-            const half = Math.floor(values.length / 2);
-            const older = values.slice(0, half);
-            const recent = values.slice(half);
-            const baseline = median(older);
+            // Sample 15% of the series at each end, clamped to [3, 10].
+            let k = Math.min(10, Math.max(3, Math.floor(values.length * 0.15)));
+            if (k * 2 > values.length) k = Math.floor(values.length / 2);
+            const baseline = median(values.slice(0, k));
+            const recent = median(values.slice(-k));
             if (!Number.isFinite(baseline) || baseline <= 0) return null;
-            return (median(recent) - baseline) / baseline;
+            return (recent - baseline) / baseline;
+          }
+
+          // Two-tier classification: |trend| > MAJOR → strong, > MINOR → mild,
+          // else flat. Matches codespeed's red/green vs yellow/lightgreen
+          // scheme for "definite change" vs "drifting".
+          const TREND_MINOR = 3;  // percent
+          const TREND_MAJOR = 7;
+
+          function classifyTrend(pct) {
+            if (!Number.isFinite(pct)) return 'unknown';
+            if (pct >= TREND_MAJOR)  return 'strong-up';
+            if (pct >= TREND_MINOR)  return 'mild-up';
+            if (pct > -TREND_MINOR)  return 'flat';
+            if (pct > -TREND_MAJOR)  return 'mild-down';
+            return 'strong-down';
           }
 
           // Compute a robust y-axis range using Tukey fences (Q1 - 1.5*IQR,
@@ -700,14 +741,15 @@
 
               if (trend != null && Number.isFinite(trend)) {
                 const pct = trend * 100;
-                const threshold = 3; // % — below this we treat as noise
-                const dir = pct > threshold ? 'up' : pct < -threshold ? 'down' : 'flat';
-                const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '·';
+                const cls = classifyTrend(pct);
+                const arrow = cls.endsWith('-up') ? '▲'
+                            : cls.endsWith('-down') ? '▼'
+                            : '·';
                 const sign = pct > 0 ? '+' : '';
                 const deltaElem = document.createElement('span');
-                deltaElem.className = 'bench-stat-delta ' + dir;
+                deltaElem.className = 'bench-stat-delta ' + cls;
                 deltaElem.textContent = arrow + ' ' + sign + pct.toFixed(1) + '%';
-                deltaElem.title = 'Trend: median of recent half vs. older half of the window';
+                deltaElem.title = 'Trend: median of recent samples vs. median of baseline samples in the visible window';
                 stats.appendChild(deltaElem);
               }
             }
@@ -735,32 +777,58 @@
           }
 
           // Reorder wrappers so the worst regressions float to the top.
-          // Comparison rules (worst first):
-          //   1. Regressions (trend > +threshold) sorted by descending trend.
-          //   2. Flat (|trend| <= threshold or null) sorted alphabetically.
-          //   3. Improvements (trend < -threshold) sorted by ascending trend.
+          // Five buckets, in display order: strong-up, mild-up, flat/unknown,
+          // mild-down, strong-down. Within a regression/improvement bucket,
+          // larger magnitude comes first.
+          function bucketIndex(wrapper) {
+            const t = wrapper._trend;
+            if (t == null || !Number.isFinite(t)) return 2;
+            const cls = classifyTrend(t * 100);
+            return { 'strong-up': 0, 'mild-up': 1, 'flat': 2, 'mild-down': 3, 'strong-down': 4 }[cls];
+          }
+
           function sortWrappers() {
-            const threshold = 0.03;
             const containers = document.querySelectorAll('.benchmark-graphs');
             for (const container of containers) {
               const wrappers = Array.from(container.querySelectorAll(':scope > .bench-wrapper'));
-              const bucket = w => {
-                const t = w._trend;
-                if (t != null && Number.isFinite(t)) {
-                  if (t > threshold) return 0;   // regression
-                  if (t < -threshold) return 2;  // improvement
-                }
-                return 1;                        // flat / unknown
-              };
               wrappers.sort((a, b) => {
-                const ba = bucket(a), bb = bucket(b);
+                const ba = bucketIndex(a), bb = bucketIndex(b);
                 if (ba !== bb) return ba - bb;
-                if (ba === 0) return b._trend - a._trend;  // worst first
-                if (ba === 2) return a._trend - b._trend;  // best improvement first
+                if (ba <= 1) return b._trend - a._trend;  // regressions: worst first
+                if (ba >= 3) return a._trend - b._trend;  // improvements: best first
                 return a._name.localeCompare(b._name);
               });
               for (const w of wrappers) container.appendChild(w);
             }
+          }
+
+          function updateSummary() {
+            const wrappers = document.querySelectorAll('.bench-wrapper');
+            const counts = { 'strong-up': 0, 'mild-up': 0, 'flat': 0, 'mild-down': 0, 'strong-down': 0, 'unknown': 0 };
+            let inWindow = 0;
+            for (const w of wrappers) {
+              if ('windowHidden' in w.dataset) continue;
+              inWindow++;
+              const t = w._trend;
+              const cls = t == null || !Number.isFinite(t)
+                ? 'unknown'
+                : classifyTrend(t * 100);
+              counts[cls]++;
+            }
+            const bar = document.getElementById('summary-bar');
+            const reg = counts['strong-up'] + counts['mild-up'];
+            const imp = counts['strong-down'] + counts['mild-down'];
+            const flat = counts['flat'] + counts['unknown'];
+            const parts = [];
+            parts.push(`<span class="summary-pill regr">${reg} ▲ regressed`
+                       + (counts['strong-up'] ? ` (${counts['strong-up']} strong)` : '')
+                       + `</span>`);
+            parts.push(`<span class="summary-pill flat">${flat} stable</span>`);
+            parts.push(`<span class="summary-pill impr">${imp} ▼ improved`
+                       + (counts['strong-down'] ? ` (${counts['strong-down']} strong)` : '')
+                       + `</span>`);
+            bar.innerHTML = parts.join('');
+            bar.style.display = inWindow === 0 ? 'none' : '';
           }
 
           const input = document.getElementById('search-input');
@@ -796,6 +864,7 @@
 
           sortWrappers();
           applyFilter();
+          updateSummary();
 
           // Search input
           input.addEventListener('input', applyFilter);
@@ -815,6 +884,7 @@
             }
             sortWrappers();
             applyFilter();
+            updateSummary();
           });
         }
 
