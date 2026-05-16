@@ -295,15 +295,16 @@
           // the data, converting nanoseconds to µs / ms / s as appropriate.
           // Non-time units are passed through unchanged.
           function pickUnit(rawUnit, values) {
-            if (rawUnit !== 'ns') return { divisor: 1, label: rawUnit };
+            if (rawUnit !== 'ns') return { divisor: 1, label: rawUnit, dimension: rawUnit };
             const finite = values.filter(v => Number.isFinite(v) && v > 0);
-            if (finite.length === 0) return { divisor: 1, label: 'ns' };
+            const pick = (divisor, label) => ({ divisor, label, dimension: 'time' });
+            if (finite.length === 0) return pick(1, 'ns');
             const sorted = [...finite].sort((a, b) => a - b);
             const median = sorted[Math.floor(sorted.length / 2)];
-            if (median >= 1e9) return { divisor: 1e9, label: 's' };
-            if (median >= 1e6) return { divisor: 1e6, label: 'ms' };
-            if (median >= 1e3) return { divisor: 1e3, label: 'µs' };
-            return { divisor: 1, label: 'ns' };
+            if (median >= 1e9) return pick(1e9, 's');
+            if (median >= 1e6) return pick(1e6, 'ms');
+            if (median >= 1e3) return pick(1e3, 'µs');
+            return pick(1, 'ns');
           }
 
           function formatValue(v, unit) {
@@ -380,7 +381,7 @@
             const yAxis = {
               scaleLabel: {
                 display: true,
-                labelString: unit.label,
+                labelString: unit.dimension,
               },
               ticks: tickConfig,
             };
