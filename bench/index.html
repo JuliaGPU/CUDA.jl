@@ -139,6 +139,7 @@
         color: #888;
       }
       .bench-wrapper {
+        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -148,6 +149,33 @@
         width: 100%;
         max-width: 1000px;
         min-height: 320px;
+      }
+      .bench-controls {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        z-index: 1;
+        display: flex;
+        gap: 4px;
+      }
+      .control-btn {
+        background-color: rgba(255, 255, 255, 0.92);
+        color: #666;
+        border: 1px solid #ddd;
+        padding: 2px 8px;
+        font-size: 0.75rem;
+        font-family: inherit;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .control-btn:hover {
+        background-color: #f0f0f0;
+        color: #333;
+      }
+      .control-btn.active {
+        background-color: #3273dc;
+        color: #fff;
+        border-color: #3273dc;
       }
     </style>
     <title>Benchmarks</title>
@@ -263,19 +291,67 @@
             }
           }, { rootMargin: '300px' });
 
+          // Compute a robust y-axis range using Tukey fences (Q1 - 1.5*IQR,
+          // Q3 + 1.5*IQR) so a single outlier run doesn't squash all the
+          // recent variation into a flat line at the bottom.
+          function computeYRange(values) {
+            const finite = values.filter(v => Number.isFinite(v));
+            if (finite.length < 4) return {};
+
+            const sorted = [...finite].sort((a, b) => a - b);
+            const quantile = p => {
+              const i = p * (sorted.length - 1);
+              const lo = Math.floor(i);
+              const hi = Math.ceil(i);
+              return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+            };
+            const q1 = quantile(0.25);
+            const q3 = quantile(0.75);
+            const median = quantile(0.5);
+            const iqr = q3 - q1;
+
+            let min = q1 - 1.5 * iqr;
+            let max = q3 + 1.5 * iqr;
+
+            // For flat-ish series open a ~10% window around the median, so the
+            // chart isn't drawn as a straight line glued to the axis.
+            const minSpan = Math.max(Math.abs(median) * 0.1, 1);
+            if (max - min < minSpan) {
+              min = median - minSpan / 2;
+              max = median + minSpan / 2;
+            }
+
+            // For non-negative data, don't dip the axis below zero.
+            if (min < 0 && sorted[0] >= 0) min = 0;
+
+            return { min, max };
+          }
+
           function buildChart(canvas, name, dataset) {
             const color = toolColors[dataset.length > 0 ? dataset[0].tool : '_'];
+            const values = dataset.map(d => d.bench.value);
             const data = {
               labels: dataset.map(d => d.commit.id.slice(0, 7)),
               datasets: [
                 {
                   label: name,
-                  data: dataset.map(d => d.bench.value),
+                  data: values,
                   borderColor: color,
                   backgroundColor: color + '60', // Add alpha for #rrggbbaa
                 }
               ],
             };
+            const yAxis = {
+              scaleLabel: {
+                display: true,
+                labelString: dataset.length > 0 ? dataset[0].bench.unit : '',
+              },
+            };
+            if (canvas._logScale) {
+              yAxis.type = 'logarithmic';
+            } else {
+              yAxis.ticks = computeYRange(values);
+            }
             const options = {
               scales: {
                 xAxes: [
@@ -286,17 +362,7 @@
                     },
                   }
                 ],
-                yAxes: [
-                  {
-                    scaleLabel: {
-                      display: true,
-                      labelString: dataset.length > 0 ? dataset[0].bench.unit : '',
-                    },
-                    ticks: {
-                      beginAtZero: true,
-                    }
-                  }
-                ],
+                yAxes: [yAxis],
               },
               tooltips: {
                 callbacks: {
@@ -331,7 +397,7 @@
               },
             };
 
-            new Chart(canvas, {
+            canvas._chartInstance = new Chart(canvas, {
               type: 'line',
               data,
               options,
@@ -344,11 +410,35 @@
             wrapper.dataset.benchName = name.toLowerCase();
             parent.appendChild(wrapper);
 
+            const controls = document.createElement('div');
+            controls.className = 'bench-controls';
+            const logBtn = document.createElement('button');
+            logBtn.type = 'button';
+            logBtn.className = 'control-btn';
+            logBtn.textContent = 'log';
+            logBtn.title = 'Toggle logarithmic y-axis';
+            controls.appendChild(logBtn);
+            wrapper.appendChild(controls);
+
             const canvas = document.createElement('canvas');
             canvas.className = 'benchmark-chart bench-placeholder';
             canvas._chartName = name;
             canvas._chartDataset = dataset;
+            canvas._logScale = false;
             wrapper.appendChild(canvas);
+
+            logBtn.addEventListener('click', () => {
+              canvas._logScale = !canvas._logScale;
+              logBtn.classList.toggle('active', canvas._logScale);
+              if (canvas._chartInstance) {
+                canvas._chartInstance.destroy();
+                canvas._chartInstance = null;
+              }
+              // The user is interacting with this chart, so rebuild now rather
+              // than waiting for the lazy observer.
+              canvas._chartBuilt = true;
+              buildChart(canvas, canvas._chartName, canvas._chartDataset);
+            });
 
             lazyObserver.observe(canvas);
           }
