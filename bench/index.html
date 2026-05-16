@@ -82,6 +82,73 @@
       .benchmark-chart {
         max-width: 1000px;
       }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background-color: #fff;
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .search-input {
+        flex: 1 1 240px;
+        max-width: 420px;
+        padding: 6px 10px;
+        font-size: 1em;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .search-input:focus {
+        outline: none;
+        border-color: #3273dc;
+      }
+      .search-status {
+        font-size: 0.85em;
+        color: #888;
+      }
+      .group {
+        margin: 12px 0;
+        border: 1px solid #eee;
+        border-radius: 6px;
+        padding: 0 12px;
+      }
+      .group[open] {
+        padding-bottom: 8px;
+      }
+      .group-summary {
+        cursor: pointer;
+        padding: 10px 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        user-select: none;
+      }
+      .group-name {
+        color: #333;
+      }
+      .group-count {
+        font-size: 0.8rem;
+        font-weight: 400;
+        color: #888;
+      }
+      .bench-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+      }
+      .bench-placeholder {
+        width: 100%;
+        max-width: 1000px;
+        min-height: 320px;
+      }
     </style>
     <title>Benchmarks</title>
   </head>
@@ -97,6 +164,10 @@
         <a id="repository-link" rel="noopener"></a>
       </div>
     </header>
+    <div class="toolbar">
+      <input type="search" id="search-input" class="search-input" placeholder="Filter benchmarks (e.g. reduce, reverse, latency)" autocomplete="off" />
+      <span id="search-status" class="search-status"></span>
+    </div>
     <main id="main"></main>
     <footer>
       <button id="dl-button">Download data as JSON</button>
@@ -178,11 +249,21 @@
 
         function renderAllChars(dataSets) {
 
-          function renderGraph(parent, name, dataset) {
-            const canvas = document.createElement('canvas');
-            canvas.className = 'benchmark-chart';
-            parent.appendChild(canvas);
+          // Lazy chart instantiation: build the Chart only when the canvas
+          // scrolls into view, so opening the page with hundreds of charts
+          // doesn't block on Chart.js construction.
+          const lazyObserver = new IntersectionObserver((entries, obs) => {
+            for (const entry of entries) {
+              if (!entry.isIntersecting) continue;
+              const canvas = entry.target;
+              if (canvas._chartBuilt) continue;
+              canvas._chartBuilt = true;
+              buildChart(canvas, canvas._chartName, canvas._chartDataset);
+              obs.unobserve(canvas);
+            }
+          }, { rootMargin: '300px' });
 
+          function buildChart(canvas, name, dataset) {
             const color = toolColors[dataset.length > 0 ? dataset[0].tool : '_'];
             const data = {
               labels: dataset.map(d => d.commit.id.slice(0, 7)),
@@ -257,6 +338,49 @@
             });
           }
 
+          function renderBench(parent, name, dataset) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'bench-wrapper';
+            wrapper.dataset.benchName = name.toLowerCase();
+            parent.appendChild(wrapper);
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'benchmark-chart bench-placeholder';
+            canvas._chartName = name;
+            canvas._chartDataset = dataset;
+            wrapper.appendChild(canvas);
+
+            lazyObserver.observe(canvas);
+          }
+
+          function renderGroup(parent, groupName, items) {
+            const group = document.createElement('details');
+            group.className = 'group';
+            group.open = true;
+            group.dataset.groupName = groupName.toLowerCase();
+            parent.appendChild(group);
+
+            const summary = document.createElement('summary');
+            summary.className = 'group-summary';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'group-name';
+            nameSpan.textContent = groupName;
+            const countSpan = document.createElement('span');
+            countSpan.className = 'group-count';
+            countSpan.textContent = items.length + (items.length === 1 ? ' chart' : ' charts');
+            summary.appendChild(nameSpan);
+            summary.appendChild(countSpan);
+            group.appendChild(summary);
+
+            const graphs = document.createElement('div');
+            graphs.className = 'benchmark-graphs';
+            group.appendChild(graphs);
+
+            for (const {benchName, benches} of items) {
+              renderBench(graphs, benchName, benches);
+            }
+          }
+
           function renderBenchSet(name, benchSet, main) {
             const setElem = document.createElement('div');
             setElem.className = 'benchmark-set';
@@ -267,12 +391,20 @@
             nameElem.textContent = name;
             setElem.appendChild(nameElem);
 
-            const graphsElem = document.createElement('div');
-            graphsElem.className = 'benchmark-graphs';
-            setElem.appendChild(graphsElem);
-
+            // Group benches by the first path segment of their name.
+            const groups = new Map();
             for (const [benchName, benches] of benchSet.entries()) {
-              renderGraph(graphsElem, benchName, benches)
+              const slash = benchName.indexOf('/');
+              const groupName = slash === -1 ? benchName : benchName.slice(0, slash);
+              if (!groups.has(groupName)) groups.set(groupName, []);
+              groups.get(groupName).push({benchName, benches});
+            }
+
+            const sortedGroupNames = [...groups.keys()].sort();
+            for (const groupName of sortedGroupNames) {
+              const items = groups.get(groupName);
+              items.sort((a, b) => a.benchName.localeCompare(b.benchName));
+              renderGroup(setElem, groupName, items);
             }
           }
 
@@ -280,6 +412,60 @@
           for (const {name, dataSet} of dataSets) {
             renderBenchSet(name, dataSet, main);
           }
+
+          initSearch();
+        }
+
+        function initSearch() {
+          const input = document.getElementById('search-input');
+          const status = document.getElementById('search-status');
+          const groups = Array.from(document.querySelectorAll('.group'));
+          // Remember each group's user-toggled open state, so a search-driven
+          // auto-expand doesn't permanently override what the user collapsed.
+          const groupUserOpen = new Map(groups.map(g => [g, g.open]));
+          for (const g of groups) {
+            g.addEventListener('toggle', () => {
+              if (input.value.trim() === '') groupUserOpen.set(g, g.open);
+            });
+          }
+
+          function applyFilter() {
+            const query = input.value.trim().toLowerCase();
+            let totalVisible = 0;
+            let totalBenches = 0;
+            for (const group of groups) {
+              let visibleCount = 0;
+              const benches = group.querySelectorAll('.bench-wrapper');
+              totalBenches += benches.length;
+              for (const bench of benches) {
+                const match = !query || bench.dataset.benchName.includes(query);
+                bench.style.display = match ? '' : 'none';
+                if (match) visibleCount++;
+              }
+              group.style.display = visibleCount === 0 ? 'none' : '';
+              totalVisible += visibleCount;
+              if (query) {
+                group.open = visibleCount > 0;
+              } else {
+                group.open = groupUserOpen.get(group);
+              }
+            }
+            if (query) {
+              status.textContent = totalVisible + ' / ' + totalBenches + ' shown';
+            } else {
+              status.textContent = '';
+            }
+          }
+
+          input.addEventListener('input', applyFilter);
+          // Focus the search bar on '/' for quick keyboard access.
+          document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && document.activeElement !== input) {
+              e.preventDefault();
+              input.focus();
+              input.select();
+            }
+          });
         }
 
         renderAllChars(init()); // Start
