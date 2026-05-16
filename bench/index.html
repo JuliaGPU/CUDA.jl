@@ -111,6 +111,20 @@
         font-size: 0.85em;
         color: #888;
       }
+      .window-select {
+        padding: 6px 10px;
+        font-size: 0.9em;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        color: #333;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .window-select:focus {
+        outline: none;
+        border-color: #3273dc;
+      }
       .group {
         margin: 12px 0;
         border: 1px solid #eee;
@@ -224,6 +238,13 @@
     </header>
     <div class="toolbar">
       <input type="search" id="search-input" class="search-input" placeholder="Filter benchmarks (e.g. reduce, reverse, latency)" autocomplete="off" />
+      <select id="window-select" class="window-select" title="Time window">
+        <option value="3m">Last 3 months</option>
+        <option value="6m">Last 6 months</option>
+        <option value="1y" selected>Last year</option>
+        <option value="2y">Last 2 years</option>
+        <option value="all">All time</option>
+      </select>
       <span id="search-status" class="search-status"></span>
     </div>
     <main id="main"></main>
@@ -320,6 +341,30 @@
               obs.unobserve(canvas);
             }
           }, { rootMargin: '300px' });
+
+          // Time window: charts and stats only consider points within the
+          // currently selected cutoff. Changing the toolbar select re-runs
+          // populateBench for every wrapper.
+          function cutoffFromValue(value) {
+            if (value === 'all') return null;
+            const now = new Date();
+            const c = new Date(now);
+            switch (value) {
+              case '3m': c.setMonth(now.getMonth() - 3); break;
+              case '6m': c.setMonth(now.getMonth() - 6); break;
+              case '1y': c.setFullYear(now.getFullYear() - 1); break;
+              case '2y': c.setFullYear(now.getFullYear() - 2); break;
+              default: return null;
+            }
+            return c;
+          }
+
+          function filterDataset(dataset, cutoff) {
+            if (!cutoff) return dataset;
+            return dataset.filter(d => new Date(d.commit.timestamp) >= cutoff);
+          }
+
+          let currentCutoff = cutoffFromValue('1y');
 
           // Pick a single display unit for the chart based on the median of
           // the data, converting nanoseconds to µs / ms / s as appropriate.
@@ -493,20 +538,16 @@
             });
           }
 
-          function renderBench(parent, name, dataset) {
+          function renderBench(parent, name, fullDataset) {
             const wrapper = document.createElement('div');
             wrapper.className = 'bench-wrapper';
             wrapper.dataset.benchName = name.toLowerCase();
+            wrapper._fullDataset = fullDataset;
+            wrapper._name = name;
             parent.appendChild(wrapper);
-
-            const values = dataset.map(d => d.bench.value);
-            const rawUnit = dataset.length > 0 ? dataset[0].bench.unit : '';
-            const unit = pickUnit(rawUnit, values);
-            renderBenchHeader(wrapper, name, dataset, unit);
 
             const chartContainer = document.createElement('div');
             chartContainer.className = 'bench-chart-container';
-            wrapper.appendChild(chartContainer);
 
             const controls = document.createElement('div');
             controls.className = 'bench-controls';
@@ -521,9 +562,12 @@
             const canvas = document.createElement('canvas');
             canvas.className = 'benchmark-chart bench-placeholder';
             canvas._chartName = name;
-            canvas._chartDataset = dataset;
             canvas._logScale = false;
             chartContainer.appendChild(canvas);
+
+            wrapper.appendChild(chartContainer);
+            wrapper._canvas = canvas;
+            wrapper._chartContainer = chartContainer;
 
             logBtn.addEventListener('click', () => {
               canvas._logScale = !canvas._logScale;
@@ -538,13 +582,35 @@
               buildChart(canvas, canvas._chartName, canvas._chartDataset);
             });
 
+            populateBench(wrapper);
+          }
+
+          // Apply the current time window to a wrapper: rebuild its header from
+          // the filtered dataset and reset its chart so the lazy observer
+          // builds it on demand with the new data.
+          function populateBench(wrapper) {
+            const dataset = filterDataset(wrapper._fullDataset, currentCutoff);
+            const values = dataset.map(d => d.bench.value);
+            const rawUnit = dataset.length > 0 ? dataset[0].bench.unit : '';
+            const unit = pickUnit(rawUnit, values);
+
+            if (wrapper._header) wrapper._header.remove();
+            wrapper._header = createBenchHeader(wrapper._name, dataset, unit);
+            wrapper.insertBefore(wrapper._header, wrapper._chartContainer);
+
+            const canvas = wrapper._canvas;
+            canvas._chartDataset = dataset;
+            if (canvas._chartInstance) {
+              canvas._chartInstance.destroy();
+              canvas._chartInstance = null;
+            }
+            canvas._chartBuilt = false;
             lazyObserver.observe(canvas);
           }
 
-          function renderBenchHeader(wrapper, name, dataset, unit) {
+          function createBenchHeader(name, dataset, unit) {
             const header = document.createElement('div');
             header.className = 'bench-header';
-            wrapper.appendChild(header);
 
             const nameElem = document.createElement('span');
             nameElem.className = 'bench-header-name';
@@ -578,6 +644,8 @@
                 }
               }
             }
+
+            return header;
           }
 
           function renderGroup(parent, groupName, items) {
@@ -640,7 +708,18 @@
             renderBenchSet(name, dataSet, main);
           }
 
+          function initWindowSelect() {
+            const select = document.getElementById('window-select');
+            select.addEventListener('change', () => {
+              currentCutoff = cutoffFromValue(select.value);
+              for (const wrapper of document.querySelectorAll('.bench-wrapper')) {
+                populateBench(wrapper);
+              }
+            });
+          }
+
           initSearch();
+          initWindowSelect();
         }
 
         function initSearch() {
