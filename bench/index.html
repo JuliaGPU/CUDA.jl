@@ -161,6 +161,14 @@
             a.click();
           };
 
+          // Sort entries by commit timestamp so the chart x-axis is chronological
+          // regardless of the order in which benchmark runs were uploaded.
+          for (const name of Object.keys(data.entries)) {
+            data.entries[name].sort((a, b) =>
+              new Date(a.commit.timestamp) - new Date(b.commit.timestamp)
+            );
+          }
+
           // Prepare data points for charts
           return Object.keys(data.entries).map(name => ({
             name,
