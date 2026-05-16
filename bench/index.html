@@ -158,6 +158,10 @@
         align-items: center;
         width: 100%;
       }
+      .bench-wrapper[data-window-hidden],
+      .bench-wrapper[data-search-hidden] {
+        display: none;
+      }
       .bench-header {
         display: flex;
         justify-content: space-between;
@@ -621,6 +625,15 @@
           // builds it on demand with the new data.
           function populateBench(wrapper) {
             const dataset = filterDataset(wrapper._fullDataset, currentCutoff);
+
+            // Hide charts that have nothing meaningful to show in this window
+            // (need at least 2 points for a line segment and a delta).
+            if (dataset.length < 2) {
+              wrapper.dataset.windowHidden = '';
+            } else {
+              delete wrapper.dataset.windowHidden;
+            }
+
             const values = dataset.map(d => d.bench.value);
             const rawUnit = dataset.length > 0 ? dataset[0].bench.unit : '';
             const unit = pickUnit(rawUnit, values);
@@ -741,11 +754,15 @@
 
           function initWindowSelect() {
             const select = document.getElementById('window-select');
+            const searchInput = document.getElementById('search-input');
             select.addEventListener('change', () => {
               currentCutoff = cutoffFromValue(select.value);
               for (const wrapper of document.querySelectorAll('.bench-wrapper')) {
                 populateBench(wrapper);
               }
+              // Re-run the search filter so group visibility and the
+              // "X / Y shown" count reflect newly window-hidden wrappers.
+              searchInput.dispatchEvent(new Event('input'));
             });
           }
 
@@ -772,15 +789,30 @@
             let totalBenches = 0;
             for (const group of groups) {
               let visibleCount = 0;
+              let dataCount = 0;
               const benches = group.querySelectorAll('.bench-wrapper');
-              totalBenches += benches.length;
               for (const bench of benches) {
-                const match = !query || bench.dataset.benchName.includes(query);
-                bench.style.display = match ? '' : 'none';
-                if (match) visibleCount++;
+                const matchesSearch = !query || bench.dataset.benchName.includes(query);
+                if (matchesSearch) {
+                  delete bench.dataset.searchHidden;
+                } else {
+                  bench.dataset.searchHidden = '';
+                }
+                // A wrapper counts toward visibility only if it passes both
+                // the search filter and has enough data for the window.
+                const hasData = !('windowHidden' in bench.dataset);
+                if (hasData) dataCount++;
+                if (matchesSearch && hasData) visibleCount++;
               }
-              group.style.display = visibleCount === 0 ? 'none' : '';
+              // Group count in the summary reflects charts with data in
+              // the current window, not the all-time total.
+              const countElem = group.querySelector('.group-count');
+              if (countElem) {
+                countElem.textContent = dataCount + (dataCount === 1 ? ' chart' : ' charts');
+              }
+              totalBenches += dataCount;
               totalVisible += visibleCount;
+              group.style.display = visibleCount === 0 ? 'none' : '';
               if (query) {
                 group.open = visibleCount > 0;
               } else {
@@ -793,6 +825,10 @@
               status.textContent = '';
             }
           }
+
+          // Compute initial visibility, since populateBench has already
+          // marked window-hidden wrappers but nothing has updated counts yet.
+          applyFilter();
 
           input.addEventListener('input', applyFilter);
           // Focus the search bar on '/' for quick keyboard access.
