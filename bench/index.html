@@ -496,28 +496,26 @@
               },
               tooltips: {
                 callbacks: {
+                  // Just the first line of the commit message; full details are
+                  // a click away via the chart's onClick handler.
                   title: items => {
-                    const {index} = items[0];
-                    const commit = dataset[index].commit;
-                    return new Date(commit.timestamp).toDateString() + ' · ' + commit.id.slice(0, 7);
-                  },
-                  afterTitle: items => {
-                    const {index} = items[0];
-                    const data = dataset[index];
-                    return '\n' + data.commit.message + '\n\n' + data.commit.timestamp + ' committed by @' + data.commit.committer.username + '\n';
+                    const commit = dataset[items[0].index].commit;
+                    return commit.message.split('\n')[0];
                   },
                   label: item => {
-                    const bench = dataset[item.index].bench;
-                    let label = formatValue(bench.value, unit);
-                    if (bench.range) {
-                      label += ' (' + bench.range + ')';
+                    const i = item.index;
+                    let label = formatValue(dataset[i].bench.value, unit);
+                    if (i > 0) {
+                      const prev = dataset[i - 1].bench.value;
+                      const cur = dataset[i].bench.value;
+                      if (prev > 0 && Number.isFinite(prev)) {
+                        const pct = (cur - prev) / prev * 100;
+                        const sign = pct > 0 ? '+' : '';
+                        label += '  ' + sign + pct.toFixed(1) + '%';
+                      }
                     }
                     return label;
                   },
-                  afterLabel: item => {
-                    const { extra } = dataset[item.index].bench;
-                    return extra ? '\n' + extra : '';
-                  }
                 }
               },
               onClick: (_mouseEvent, activeElems) => {
