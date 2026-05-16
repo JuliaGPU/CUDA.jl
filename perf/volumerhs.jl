@@ -108,8 +108,8 @@ function volumerhs!(rhs, Q, vgeo, gravity, D, nelem)
             # GPU performance trick
             # Allow optimizations to use the reciprocal of an argument rather than perform division.
             # IEEE floating-point division is implemented as a function call
-            ρinv = inv(ρ)
-            ρ2inv = inv(2ρ)
+            ρinv = @fastmath inv(ρ)
+            ρ2inv = @fastmath inv(2ρ)
             # ρ2inv = 0.5f0 * pinv
 
             P = gdm1*(E - (U^2 + V^2 + W^2)*ρ2inv - ρ*gravity*z)
