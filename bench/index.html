@@ -400,6 +400,29 @@
             return formatted + ' ' + unit.label;
           }
 
+          function median(values) {
+            if (values.length === 0) return NaN;
+            const sorted = [...values].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0
+              ? (sorted[mid - 1] + sorted[mid]) / 2
+              : sorted[mid];
+          }
+
+          // Compare the median of the recent half of the window to the median
+          // of the older half. Returns a fractional change (e.g. 0.05 = +5%)
+          // robust to single-point noise, or null if there aren't enough
+          // samples to compare.
+          function computeTrend(values) {
+            if (values.length < 4) return null;
+            const half = Math.floor(values.length / 2);
+            const older = values.slice(0, half);
+            const recent = values.slice(half);
+            const baseline = median(older);
+            if (!Number.isFinite(baseline) || baseline <= 0) return null;
+            return (median(recent) - baseline) / baseline;
+          }
+
           // Compute a robust y-axis range using Tukey fences (Q1 - 1.5*IQR,
           // Q3 + 1.5*IQR) so a single outlier run doesn't squash all the
           // recent variation into a flat line at the bottom.
@@ -627,7 +650,7 @@
             const dataset = filterDataset(wrapper._fullDataset, currentCutoff);
 
             // Hide charts that have nothing meaningful to show in this window
-            // (need at least 2 points for a line segment and a delta).
+            // (need at least 2 points for a line segment).
             if (dataset.length < 2) {
               wrapper.dataset.windowHidden = '';
             } else {
@@ -637,9 +660,12 @@
             const values = dataset.map(d => d.bench.value);
             const rawUnit = dataset.length > 0 ? dataset[0].bench.unit : '';
             const unit = pickUnit(rawUnit, values);
+            const trend = computeTrend(values);
+            // Stored on the wrapper for sortWrappers().
+            wrapper._trend = trend;
 
             if (wrapper._header) wrapper._header.remove();
-            wrapper._header = createBenchHeader(wrapper._name, dataset, unit);
+            wrapper._header = createBenchHeader(wrapper._name, dataset, unit, trend);
             wrapper.insertBefore(wrapper._header, wrapper._chartContainer);
 
             const canvas = wrapper._canvas;
@@ -652,7 +678,7 @@
             lazyObserver.observe(canvas);
           }
 
-          function createBenchHeader(name, dataset, unit) {
+          function createBenchHeader(name, dataset, unit, trend) {
             const header = document.createElement('div');
             header.className = 'bench-header';
 
@@ -672,52 +698,21 @@
               valueElem.textContent = formatValue(latest, unit);
               stats.appendChild(valueElem);
 
-              if (dataset.length >= 2) {
-                const prev = dataset[dataset.length - 2].bench.value;
-                if (prev > 0 && Number.isFinite(prev)) {
-                  const pct = (latest - prev) / prev * 100;
-                  const threshold = 3; // % — below this we treat as noise
-                  const dir = pct > threshold ? 'up' : pct < -threshold ? 'down' : 'flat';
-                  const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '·';
-                  const sign = pct > 0 ? '+' : '';
-                  const deltaElem = document.createElement('span');
-                  deltaElem.className = 'bench-stat-delta ' + dir;
-                  deltaElem.textContent = arrow + ' ' + sign + pct.toFixed(1) + '%';
-                  deltaElem.title = 'Change vs. previous run';
-                  stats.appendChild(deltaElem);
-                }
+              if (trend != null && Number.isFinite(trend)) {
+                const pct = trend * 100;
+                const threshold = 3; // % — below this we treat as noise
+                const dir = pct > threshold ? 'up' : pct < -threshold ? 'down' : 'flat';
+                const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '·';
+                const sign = pct > 0 ? '+' : '';
+                const deltaElem = document.createElement('span');
+                deltaElem.className = 'bench-stat-delta ' + dir;
+                deltaElem.textContent = arrow + ' ' + sign + pct.toFixed(1) + '%';
+                deltaElem.title = 'Trend: median of recent half vs. older half of the window';
+                stats.appendChild(deltaElem);
               }
             }
 
             return header;
-          }
-
-          function renderGroup(parent, groupName, items) {
-            const group = document.createElement('details');
-            group.className = 'group';
-            group.open = true;
-            group.dataset.groupName = groupName.toLowerCase();
-            parent.appendChild(group);
-
-            const summary = document.createElement('summary');
-            summary.className = 'group-summary';
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'group-name';
-            nameSpan.textContent = groupName;
-            const countSpan = document.createElement('span');
-            countSpan.className = 'group-count';
-            countSpan.textContent = items.length + (items.length === 1 ? ' chart' : ' charts');
-            summary.appendChild(nameSpan);
-            summary.appendChild(countSpan);
-            group.appendChild(summary);
-
-            const graphs = document.createElement('div');
-            graphs.className = 'benchmark-graphs';
-            group.appendChild(graphs);
-
-            for (const {benchName, benches} of items) {
-              renderBench(graphs, benchName, benches);
-            }
           }
 
           function renderBenchSet(name, benchSet, main) {
@@ -730,20 +725,67 @@
             nameElem.textContent = name;
             setElem.appendChild(nameElem);
 
-            // Group benches by the first path segment of their name.
-            const groups = new Map();
-            for (const [benchName, benches] of benchSet.entries()) {
-              const slash = benchName.indexOf('/');
-              const groupName = slash === -1 ? benchName : benchName.slice(0, slash);
-              if (!groups.has(groupName)) groups.set(groupName, []);
-              groups.get(groupName).push({benchName, benches});
-            }
+            const graphs = document.createElement('div');
+            graphs.className = 'benchmark-graphs';
+            setElem.appendChild(graphs);
 
-            const sortedGroupNames = [...groups.keys()].sort();
-            for (const groupName of sortedGroupNames) {
-              const items = groups.get(groupName);
-              items.sort((a, b) => a.benchName.localeCompare(b.benchName));
-              renderGroup(setElem, groupName, items);
+            for (const [benchName, benches] of benchSet.entries()) {
+              renderBench(graphs, benchName, benches);
+            }
+          }
+
+          // Reorder wrappers so the worst regressions float to the top.
+          // Comparison rules (worst first):
+          //   1. Regressions (trend > +threshold) sorted by descending trend.
+          //   2. Flat (|trend| <= threshold or null) sorted alphabetically.
+          //   3. Improvements (trend < -threshold) sorted by ascending trend.
+          function sortWrappers() {
+            const threshold = 0.03;
+            const containers = document.querySelectorAll('.benchmark-graphs');
+            for (const container of containers) {
+              const wrappers = Array.from(container.querySelectorAll(':scope > .bench-wrapper'));
+              const bucket = w => {
+                const t = w._trend;
+                if (t != null && Number.isFinite(t)) {
+                  if (t > threshold) return 0;   // regression
+                  if (t < -threshold) return 2;  // improvement
+                }
+                return 1;                        // flat / unknown
+              };
+              wrappers.sort((a, b) => {
+                const ba = bucket(a), bb = bucket(b);
+                if (ba !== bb) return ba - bb;
+                if (ba === 0) return b._trend - a._trend;  // worst first
+                if (ba === 2) return a._trend - b._trend;  // best improvement first
+                return a._name.localeCompare(b._name);
+              });
+              for (const w of wrappers) container.appendChild(w);
+            }
+          }
+
+          const input = document.getElementById('search-input');
+          const status = document.getElementById('search-status');
+
+          function applyFilter() {
+            const query = input.value.trim().toLowerCase();
+            const wrappers = document.querySelectorAll('.bench-wrapper');
+            let totalVisible = 0;
+            let totalBenches = 0;
+            for (const wrapper of wrappers) {
+              const matchesSearch = !query || wrapper.dataset.benchName.includes(query);
+              if (matchesSearch) {
+                delete wrapper.dataset.searchHidden;
+              } else {
+                wrapper.dataset.searchHidden = '';
+              }
+              const hasData = !('windowHidden' in wrapper.dataset);
+              if (hasData) totalBenches++;
+              if (matchesSearch && hasData) totalVisible++;
+            }
+            if (query) {
+              status.textContent = totalVisible + ' / ' + totalBenches + ' shown';
+            } else {
+              status.textContent = totalBenches + ' charts';
             }
           }
 
@@ -752,92 +794,27 @@
             renderBenchSet(name, dataSet, main);
           }
 
-          function initWindowSelect() {
-            const select = document.getElementById('window-select');
-            const searchInput = document.getElementById('search-input');
-            select.addEventListener('change', () => {
-              currentCutoff = cutoffFromValue(select.value);
-              for (const wrapper of document.querySelectorAll('.bench-wrapper')) {
-                populateBench(wrapper);
-              }
-              // Re-run the search filter so group visibility and the
-              // "X / Y shown" count reflect newly window-hidden wrappers.
-              searchInput.dispatchEvent(new Event('input'));
-            });
-          }
-
-          initSearch();
-          initWindowSelect();
-        }
-
-        function initSearch() {
-          const input = document.getElementById('search-input');
-          const status = document.getElementById('search-status');
-          const groups = Array.from(document.querySelectorAll('.group'));
-          // Remember each group's user-toggled open state, so a search-driven
-          // auto-expand doesn't permanently override what the user collapsed.
-          const groupUserOpen = new Map(groups.map(g => [g, g.open]));
-          for (const g of groups) {
-            g.addEventListener('toggle', () => {
-              if (input.value.trim() === '') groupUserOpen.set(g, g.open);
-            });
-          }
-
-          function applyFilter() {
-            const query = input.value.trim().toLowerCase();
-            let totalVisible = 0;
-            let totalBenches = 0;
-            for (const group of groups) {
-              let visibleCount = 0;
-              let dataCount = 0;
-              const benches = group.querySelectorAll('.bench-wrapper');
-              for (const bench of benches) {
-                const matchesSearch = !query || bench.dataset.benchName.includes(query);
-                if (matchesSearch) {
-                  delete bench.dataset.searchHidden;
-                } else {
-                  bench.dataset.searchHidden = '';
-                }
-                // A wrapper counts toward visibility only if it passes both
-                // the search filter and has enough data for the window.
-                const hasData = !('windowHidden' in bench.dataset);
-                if (hasData) dataCount++;
-                if (matchesSearch && hasData) visibleCount++;
-              }
-              // Group count in the summary reflects charts with data in
-              // the current window, not the all-time total.
-              const countElem = group.querySelector('.group-count');
-              if (countElem) {
-                countElem.textContent = dataCount + (dataCount === 1 ? ' chart' : ' charts');
-              }
-              totalBenches += dataCount;
-              totalVisible += visibleCount;
-              group.style.display = visibleCount === 0 ? 'none' : '';
-              if (query) {
-                group.open = visibleCount > 0;
-              } else {
-                group.open = groupUserOpen.get(group);
-              }
-            }
-            if (query) {
-              status.textContent = totalVisible + ' / ' + totalBenches + ' shown';
-            } else {
-              status.textContent = '';
-            }
-          }
-
-          // Compute initial visibility, since populateBench has already
-          // marked window-hidden wrappers but nothing has updated counts yet.
+          sortWrappers();
           applyFilter();
 
+          // Search input
           input.addEventListener('input', applyFilter);
-          // Focus the search bar on '/' for quick keyboard access.
           document.addEventListener('keydown', (e) => {
             if (e.key === '/' && document.activeElement !== input) {
               e.preventDefault();
               input.focus();
               input.select();
             }
+          });
+
+          // Time-window select
+          document.getElementById('window-select').addEventListener('change', (e) => {
+            currentCutoff = cutoffFromValue(e.target.value);
+            for (const wrapper of document.querySelectorAll('.bench-wrapper')) {
+              populateBench(wrapper);
+            }
+            sortWrappers();
+            applyFilter();
           });
         }
 
