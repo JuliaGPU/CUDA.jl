@@ -76,6 +76,19 @@ using LinearAlgebra
         @test norm(dDx, 2) ≈ norm(Dx, 2)
         @test norm(dDx, Inf) ≈ norm(Dx, Inf)
     end
+
+    @testset "norm of strided views" begin # JuliaGPU/CUDA.jl#2280
+        # 1D contiguous view: should hit the cuBLAS nrm2 fast path.
+        x = rand(T, m)
+        dx = CuArray(x)
+        @test norm(@view(dx[2:end-1]), 2) ≈ norm(@view(x[2:end-1]), 2)
+        # Multi-dim non-contiguous view: must avoid scalar iteration.
+        y = rand(T, 10, 10)
+        dy = CuArray(y)
+        @test norm(@view(dy[2:end-1, 2:end-1]), 1) ≈ norm(@view(y[2:end-1, 2:end-1]), 1)
+        @test norm(@view(dy[2:end-1, 2:end-1]), 2) ≈ norm(@view(y[2:end-1, 2:end-1]), 2)
+        @test norm(@view(dy[2:end-1, 2:end-1]), Inf) ≈ norm(@view(y[2:end-1, 2:end-1]), Inf)
+    end
 end
 
 @testset for T in [Float16, ComplexF16]
