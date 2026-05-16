@@ -255,6 +255,8 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.2/dist/Chart.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@0.7.7/chartjs-plugin-zoom.min.js"></script>
     <script src="data.js"></script>
     <script id="main-script">
       'use strict';
@@ -473,6 +475,23 @@
               // The chart name lives in the per-chart header above the canvas,
               // so the single-series legend is redundant.
               legend: { display: false },
+              plugins: {
+                zoom: {
+                  // Wheel zoom would fight page scroll on this long page;
+                  // keep zoom to an explicit drag-to-select gesture, plus
+                  // pinch on touch devices via hammerjs.
+                  pan: { enabled: false },
+                  zoom: {
+                    enabled: true,
+                    mode: 'x',
+                    drag: {
+                      backgroundColor: 'rgba(50, 115, 220, 0.15)',
+                      borderColor: 'rgba(50, 115, 220, 0.6)',
+                      borderWidth: 1,
+                    },
+                  },
+                },
+              },
               scales: {
                 xAxes: [
                   {
@@ -555,6 +574,12 @@
             logBtn.textContent = 'log';
             logBtn.title = 'Toggle logarithmic y-axis';
             controls.appendChild(logBtn);
+            const resetBtn = document.createElement('button');
+            resetBtn.type = 'button';
+            resetBtn.className = 'control-btn';
+            resetBtn.textContent = 'reset';
+            resetBtn.title = 'Reset zoom (drag on the chart to zoom in)';
+            controls.appendChild(resetBtn);
             chartContainer.appendChild(controls);
 
             const canvas = document.createElement('canvas');
@@ -578,6 +603,12 @@
               // than waiting for the lazy observer.
               canvas._chartBuilt = true;
               buildChart(canvas, canvas._chartName, canvas._chartDataset);
+            });
+
+            resetBtn.addEventListener('click', () => {
+              if (canvas._chartInstance && canvas._chartInstance.resetZoom) {
+                canvas._chartInstance.resetZoom();
+              }
             });
 
             populateBench(wrapper);
