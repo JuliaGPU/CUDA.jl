@@ -370,6 +370,9 @@
                   data: points,
                   borderColor: color,
                   backgroundColor: color + '60', // Add alpha for #rrggbbaa
+                  // Straight segments between points; the default Bezier
+                  // curve invents motion that isn't in the data.
+                  lineTension: 0,
                 }
               ],
             };
