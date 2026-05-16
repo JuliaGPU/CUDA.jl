@@ -291,6 +291,34 @@
             }
           }, { rootMargin: '300px' });
 
+          // Pick a single display unit for the chart based on the median of
+          // the data, converting nanoseconds to µs / ms / s as appropriate.
+          // Non-time units are passed through unchanged.
+          function pickUnit(rawUnit, values) {
+            if (rawUnit !== 'ns') return { divisor: 1, label: rawUnit };
+            const finite = values.filter(v => Number.isFinite(v) && v > 0);
+            if (finite.length === 0) return { divisor: 1, label: 'ns' };
+            const sorted = [...finite].sort((a, b) => a - b);
+            const median = sorted[Math.floor(sorted.length / 2)];
+            if (median >= 1e9) return { divisor: 1e9, label: 's' };
+            if (median >= 1e6) return { divisor: 1e6, label: 'ms' };
+            if (median >= 1e3) return { divisor: 1e3, label: 'µs' };
+            return { divisor: 1, label: 'ns' };
+          }
+
+          function formatValue(v, unit) {
+            if (!Number.isFinite(v)) return String(v);
+            const scaled = v / unit.divisor;
+            const abs = Math.abs(scaled);
+            let formatted;
+            if (abs === 0) formatted = '0';
+            else if (abs >= 100) formatted = scaled.toFixed(0);
+            else if (abs >= 10) formatted = scaled.toFixed(1);
+            else if (abs >= 1) formatted = scaled.toFixed(2);
+            else formatted = scaled.toPrecision(3);
+            return formatted + ' ' + unit.label;
+          }
+
           // Compute a robust y-axis range using Tukey fences (Q1 - 1.5*IQR,
           // Q3 + 1.5*IQR) so a single outlier run doesn't squash all the
           // recent variation into a flat line at the bottom.
@@ -341,16 +369,23 @@
                 }
               ],
             };
+            const rawUnit = dataset.length > 0 ? dataset[0].bench.unit : '';
+            const unit = pickUnit(rawUnit, values);
+            const tickConfig = {
+              callback: value => formatValue(value, unit),
+            };
+            if (!canvas._logScale) {
+              Object.assign(tickConfig, computeYRange(values));
+            }
             const yAxis = {
               scaleLabel: {
                 display: true,
-                labelString: dataset.length > 0 ? dataset[0].bench.unit : '',
+                labelString: unit.label,
               },
+              ticks: tickConfig,
             };
             if (canvas._logScale) {
               yAxis.type = 'logarithmic';
-            } else {
-              yAxis.ticks = computeYRange(values);
             }
             const options = {
               scales: {
@@ -372,9 +407,8 @@
                     return '\n' + data.commit.message + '\n\n' + data.commit.timestamp + ' committed by @' + data.commit.committer.username + '\n';
                   },
                   label: item => {
-                    let label = item.value;
-                    const { range, unit } = dataset[item.index].bench;
-                    label += ' ' + unit;
+                    let label = formatValue(item.value, unit);
+                    const { range } = dataset[item.index].bench;
                     if (range) {
                       label += ' (' + range + ')';
                     }
