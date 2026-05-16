@@ -139,16 +139,46 @@
         color: #888;
       }
       .bench-wrapper {
-        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
         width: 100%;
       }
-      .bench-placeholder {
+      .bench-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
         width: 100%;
         max-width: 1000px;
-        min-height: 320px;
+        padding: 8px 4px 2px;
+        gap: 12px;
+      }
+      .bench-header-name {
+        font-weight: 600;
+        color: #333;
+        font-size: 0.95rem;
+      }
+      .bench-header-stats {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        font-size: 0.85rem;
+        font-variant-numeric: tabular-nums;
+      }
+      .bench-stat-value {
+        color: #555;
+      }
+      .bench-stat-delta.up   { color: #d63030; }
+      .bench-stat-delta.down { color: #2c8b3f; }
+      .bench-stat-delta.flat { color: #aaa; }
+      .bench-chart-container {
+        position: relative;
+        width: 100%;
+        max-width: 1000px;
+      }
+      .bench-placeholder {
+        width: 100%;
+        min-height: 300px;
       }
       .bench-controls {
         position: absolute;
@@ -395,6 +425,9 @@
               yAxis.type = 'logarithmic';
             }
             const options = {
+              // The chart name lives in the per-chart header above the canvas,
+              // so the single-series legend is redundant.
+              legend: { display: false },
               scales: {
                 xAxes: [
                   {
@@ -466,6 +499,15 @@
             wrapper.dataset.benchName = name.toLowerCase();
             parent.appendChild(wrapper);
 
+            const values = dataset.map(d => d.bench.value);
+            const rawUnit = dataset.length > 0 ? dataset[0].bench.unit : '';
+            const unit = pickUnit(rawUnit, values);
+            renderBenchHeader(wrapper, name, dataset, unit);
+
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'bench-chart-container';
+            wrapper.appendChild(chartContainer);
+
             const controls = document.createElement('div');
             controls.className = 'bench-controls';
             const logBtn = document.createElement('button');
@@ -474,14 +516,14 @@
             logBtn.textContent = 'log';
             logBtn.title = 'Toggle logarithmic y-axis';
             controls.appendChild(logBtn);
-            wrapper.appendChild(controls);
+            chartContainer.appendChild(controls);
 
             const canvas = document.createElement('canvas');
             canvas.className = 'benchmark-chart bench-placeholder';
             canvas._chartName = name;
             canvas._chartDataset = dataset;
             canvas._logScale = false;
-            wrapper.appendChild(canvas);
+            chartContainer.appendChild(canvas);
 
             logBtn.addEventListener('click', () => {
               canvas._logScale = !canvas._logScale;
@@ -497,6 +539,44 @@
             });
 
             lazyObserver.observe(canvas);
+          }
+
+          function renderBenchHeader(wrapper, name, dataset, unit) {
+            const header = document.createElement('div');
+            header.className = 'bench-header';
+
+            const nameElem = document.createElement('span');
+            nameElem.className = 'bench-header-name';
+            nameElem.textContent = name;
+            header.appendChild(nameElem);
+
+            const stats = document.createElement('span');
+            stats.className = 'bench-header-stats';
+            header.appendChild(stats);
+
+            if (dataset.length > 0) {
+              const latest = dataset[dataset.length - 1].bench.value;
+              const valueElem = document.createElement('span');
+              valueElem.className = 'bench-stat-value';
+              valueElem.textContent = formatValue(latest, unit);
+              stats.appendChild(valueElem);
+
+              if (dataset.length >= 2) {
+                const prev = dataset[dataset.length - 2].bench.value;
+                if (prev > 0 && Number.isFinite(prev)) {
+                  const pct = (latest - prev) / prev * 100;
+                  const threshold = 3; // % — below this we treat as noise
+                  const dir = pct > threshold ? 'up' : pct < -threshold ? 'down' : 'flat';
+                  const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '·';
+                  const sign = pct > 0 ? '+' : '';
+                  const deltaElem = document.createElement('span');
+                  deltaElem.className = 'bench-stat-delta ' + dir;
+                  deltaElem.textContent = arrow + ' ' + sign + pct.toFixed(1) + '%';
+                  deltaElem.title = 'Change vs. previous run';
+                  stats.appendChild(deltaElem);
+                }
+              }
+            }
           }
 
           function renderGroup(parent, groupName, items) {
