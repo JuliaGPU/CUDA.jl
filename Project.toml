@@ -3,12 +3,7 @@ uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
 version = "6.1.0"
 
 [workspace]
-projects = ["test", "docs", "perf", "examples",
-            "CUDACore",
-            "CUDATools",
-            "lib/cupti", "lib/nvml",
-            "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
-            "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"]
+projects = ["test", "docs", "perf", "examples", "CUDACore", "CUDATools", "lib/cupti", "lib/nvml", "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand", "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"]
 
 [deps]
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
@@ -20,20 +15,29 @@ cuRAND = "20fd9a0b-12d5-4c2f-a8af-7c34e9e60431"
 cuSOLVER = "887afef0-6a32-4de5-add4-7827692ba8fc"
 cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 
-[sources]
-CUDACore = {path = "CUDACore"}
-CUDATools = {path = "CUDATools"}
-cuBLAS = {path = "lib/cublas"}
-cuFFT = {path = "lib/cufft"}
-cuRAND = {path = "lib/curand"}
-cuSOLVER = {path = "lib/cusolver"}
-cuSPARSE = {path = "lib/cusparse"}
+[sources.CUDACore]
+path = "CUDACore"
 
-[extras]
-CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+[sources.CUDATools]
+path = "CUDATools"
+
+[sources.cuBLAS]
+path = "lib/cublas"
+
+[sources.cuFFT]
+path = "lib/cufft"
+
+[sources.cuRAND]
+path = "lib/curand"
+
+[sources.cuSOLVER]
+path = "lib/cusolver"
+
+[sources.cuSPARSE]
+path = "lib/cusparse"
 
 [compat]
-CUDACore = "=6.1.0"
+CUDACore = "=6.1.0, 6"
 CUDATools = "=6.1.0"
 Reexport = "1.0"
 cuBLAS = "=6.1.0"
@@ -42,3 +46,6 @@ cuRAND = "=6.1.0"
 cuSOLVER = "=6.1.0"
 cuSPARSE = "=6.1.0"
 julia = "1.10"
+
+[extras]
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
