@@ -17,7 +17,7 @@ if :NVPTX in LLVM.backends()
             llvm_ptx = maximum(filter(>=(v"6.2"), llvm_support.ptx))
 
             target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo=true)
-            params = CUDACompilerParams(; cap=llvm_cap, ptx=llvm_ptx)
+            params = CUDACompilerParams(; sm=SMVersion(llvm_cap.major, llvm_cap.minor), ptx=llvm_ptx)
             config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
 
             tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}

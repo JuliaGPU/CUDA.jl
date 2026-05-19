@@ -80,6 +80,7 @@ include("../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
 include("initialization.jl")
+include("compiler/sm.jl")
 include("compatibility.jl")
 include("debug.jl")
 

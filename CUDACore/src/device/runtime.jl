@@ -19,7 +19,7 @@ function precompile_runtime()
             # NOTE: this often runs when we don't have a functioning set-up,
             #       so we don't use `compiler_config` which requires NVML
             target = PTXCompilerTarget(; cap, ptx, debuginfo)
-            params = CUDACompilerParams(; cap, ptx)
+            params = CUDACompilerParams(; sm=SMVersion(cap.major, cap.minor), ptx)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
             GPUCompiler.load_runtime(job)

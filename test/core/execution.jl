@@ -50,17 +50,40 @@ end
     @cuda threads=2 dummy()
 
     # sm_10 isn't supported by LLVM
-    @test_throws "not supported by LLVM" @cuda launch=false cap=v"1.0" dummy()
+    @test_throws "not supported by LLVM" @cuda launch=false cap=sm"1.0" dummy()
     # sm_20 is, but not by any CUDA version we support
-    @test_throws "Failed to compile PTX code" @cuda launch=false cap=v"2.0" dummy()
+    @test_throws "Failed to compile PTX code" @cuda launch=false cap=sm"2.0" dummy()
     # there isn't any capability other than the device's that's guaruanteed to work
-    @cuda launch=false cap=capability(device()) dummy()
+    dev_cap = capability(device())
+    dev_sm = SMVersion(dev_cap.major, dev_cap.minor)
+    @cuda launch=false cap=dev_sm dummy()
     # but we should be able to see it in the generated PTX code
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"5.0"))
     @test contains(asm, ".target sm_50")
 
     asm = sprint(io->CUDA.code_ptx(io, dummy, (); ptx=v"6.3"))
     @test contains(asm, ".version 6.3")
+
+    # feature_set is selected by the suffix on the sm"..." string; the suffix should
+    # surface in the .target directive in the PTX output.
+    if dev_cap >= v"9.0"
+        sm_a = SMVersion(dev_cap.major, dev_cap.minor, :arch)
+        asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm_a))
+        @test contains(asm, ".target $(CUDACore.cpu_name(sm_a))")
+        # arch-specific cubin should also actually launch on the matching device
+        @cuda cap=sm_a dummy()
+    end
+    if dev_cap >= v"10.0"
+        sm_f = SMVersion(dev_cap.major, dev_cap.minor, :family)
+        asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm_f))
+        @test contains(asm, ".target $(CUDACore.cpu_name(sm_f))")
+        @cuda cap=sm_f dummy()
+    end
+
+    # passing a VersionNumber to `cap` is deprecated; check the depwarn fires while
+    # the path still produces the right PTX. (Uses code_ptx to skip ptxas, which on
+    # newer CUDA toolkits no longer accepts sm_50.)
+    @test_deprecated sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
 end
 
 

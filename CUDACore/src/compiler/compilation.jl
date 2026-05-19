@@ -1,27 +1,15 @@
 ## gpucompiler interface implementation
 
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
-    cap::VersionNumber
+    sm::SMVersion
     ptx::VersionNumber
-    feature_set::Symbol = :baseline
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
-    h = hash(params.cap, h)
+    h = hash(params.sm, h)
     h = hash(params.ptx, h)
-    h = hash(params.feature_set, h)
 
     return h
-end
-
-# Format a `(cap, feature_set)` tuple as the `sm_NNN[a|f]` string used by both the `.target`
-# directive and the `--gpu-name` flag. The two must agree on suffix for `feature_set=:arch`
-# (ptxas requires exact match) and need to be in the same major family for `feature_set=:family`;
-# emitting the same string on both sides handles all three feature sets correctly.
-function format_target(cap::VersionNumber, feature_set::Symbol)
-    suffix = feature_set === :arch ? "a" :
-             feature_set === :family       ? "f" : ""
-    return "sm_$(cap.major)$(cap.minor)$suffix"
 end
 
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
@@ -131,10 +119,10 @@ end
 
 # stamp `.version` with the ISA we want `ptxas` to validate against
 # and `.target` with the arch that `--gpu-name` will use
-function rewrite_ptx_header(asm, ptx, cap, feature_set)
+function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
     return replace(asm,
         r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
-        r"\.target sm_\d+\w*" => ".target $(format_target(cap, feature_set))")
+        r"\.target sm_\d+\w*" => ".target $(cpu_name(sm))")
 end
 
 function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
@@ -157,12 +145,16 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
-    (; ptx, cap, feature_set) = job.config.params
+    # The rewrite stamps `.target`/`.version` with the *requested* (cuda-side) values.
+    # When the GPUCompiler-side target matches, LLVM already emits the right header
+    # (including the `a`/`f` suffix, via the CPU name); we only rewrite when they differ,
+    # e.g. when we had to clamp the target down for LLVM compatibility.
+    (; ptx, sm) = job.config.params
     needs_rewrite = job.config.target.ptx != ptx ||
-                    job.config.target.cap != cap ||
-                    feature_set !== :baseline
+                    job.config.target.cap != base_version(sm) ||
+                    job.config.target.feature_set !== sm.feature_set
     if needs_rewrite
-        asm = rewrite_ptx_header(asm, ptx, cap, feature_set)
+        asm = rewrite_ptx_header(asm, ptx, sm)
     end
 
     return asm
@@ -194,7 +186,14 @@ function compiler_config(dev; kwargs...)
     return config
 end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         cap=nothing, ptx=nothing, feature_set=nothing, kwargs...)
+                                         cap=nothing, ptx=nothing, kwargs...)
+    # convert / deprecate VersionNumber cap
+    if cap isa VersionNumber
+        Base.depwarn("Passing a VersionNumber to `cap=` is deprecated; use the `sm\"$(cap.major).$(cap.minor)\"` string macro instead.",
+                     :cufunction)
+        cap = SMVersion(cap.major, cap.minor, :baseline)
+    end
+
     # determine the toolchain
     llvm_support = llvm_compat()
     cuda_support = cuda_compat()
@@ -225,9 +224,12 @@ end
 
     # determine the compute capabilities to use. this should match the capability of the
     # current device, but if LLVM doesn't support it, we can target an older capability
-    # and pass a different `-arch` to `ptxas`.
+    # and pass a different `-arch` to `ptxas`. The feature_set rides on `cap::SMVersion`;
+    # the clamp logic below operates on the base version, with the feature_set carried
+    # through unchanged.
     ptx_support = ptx_compat(cuda_ptx)
-    requested_cap = @something(cap, min(capability(dev), maximum(ptx_support.cap)))
+    base_cap = cap === nothing ? nothing : base_version(cap)
+    requested_cap = @something(base_cap, min(capability(dev), maximum(ptx_support.cap)))
     llvm_caps = filter(<=(requested_cap), llvm_support.cap)
     if cap !== nothing
         ## use the highest capability supported by LLVM
@@ -235,30 +237,53 @@ end
             error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
         llvm_cap = maximum(llvm_caps)
         ## use the capability as-is to invoke CUDA
-        cuda_cap = cap
+        cuda_sm = cap
     else
         ## use the highest capability supported by LLVM
         isempty(llvm_caps) &&
             error("Compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
         llvm_cap = maximum(llvm_caps)
-        ## use the highest capability supported by CUDA
+        ## use the highest capability supported by CUDA -- always baseline when defaulted
+        ## from the device (the device cap has no feature_set)
         cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
         isempty(cuda_caps) &&
             error("Compute capability $(requested_cap) is not supported by CUDA $(runtime_version())")
-        cuda_cap = maximum(cuda_caps)
+        cuda_sm = SMVersion(maximum(cuda_caps).major, maximum(cuda_caps).minor, :baseline)
     end
 
     # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
     debuginfo = compiler_version() >= v"11.7"
 
-    # Conservatively pick baseline for backward compatibility,
-    # requiring explicit opt-in for family- and architecture-specific instructions. 
-    feature_set = something(feature_set, :baseline)
-    validate_feature_set(cuda_cap, cuda_ptx, feature_set)
+    # An invalid (cap, feature_set, ptx) variant combination simply has no entry in
+    # `ptx_cap_db`: e.g. `sm"7.0a"` (no `*a` below CC 9.0) or `sm"10.0f"` at PTX 8.7
+    # (`*f` needs 8.8). Only enforced for variants -- baseline lets inspection tools
+    # like `code_ptx` mix `cap` and `ptx` freely, even if the result won't actually load.
+    if cuda_sm.feature_set !== :baseline
+        cuda_sm in ptx_cap_support(cuda_ptx) ||
+            error("$(cpu_name(cuda_sm)) is not supported by PTX ISA $(cuda_ptx)")
+    end
+
+    # GPUCompiler's PTXCompilerTarget needs an `sm` the *installed* LLVM understands
+    # (the `*a`/`*f` CPU names are version-gated, see `llvm_cap_db`). If LLVM is too
+    # old to know the variant for the LLVM-side cap, fall back to baseline; the post-mcgen
+    # rewrite then patches `.target` to the requested value -- which is enough for
+    # inline-PTX users but won't unlock LLVM's arch-accelerated code paths. ptxas is more
+    # permissive than LLVM about claiming a more-specific `.target` than the IR actually
+    # uses, so the upgrade is safe; the reverse would not be.
+    llvm_sm = SMVersion(llvm_cap.major, llvm_cap.minor, cuda_sm.feature_set)
+    if !(llvm_sm in llvm_cap_support(LLVM.version()))
+        if cuda_sm.feature_set !== :baseline
+            @warn "LLVM $(LLVM.version()) does not support $(cpu_name(llvm_sm)) " *
+                  "(needed to compile for $(cpu_name(cuda_sm))); LLVM will emit baseline " *
+                  "code (inline PTX assembly is unaffected)."
+        end
+        llvm_sm = SMVersion(llvm_sm.major, llvm_sm.minor, :baseline)
+    end
 
     # create GPUCompiler objects
-    target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx, feature_set)
+    target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,
+                                 feature_set=llvm_sm.feature_set, debuginfo, kwargs...)
+    params = CUDACompilerParams(; sm=cuda_sm, ptx=cuda_ptx)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
@@ -293,8 +318,9 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    (; ptx, cap, feature_set) = job.config.params
-    arch = format_target(cap, feature_set)
+    (; ptx, sm) = job.config.params
+    cap = base_version(sm)
+    arch = cpu_name(sm)
 
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
@@ -307,7 +333,7 @@ function compile(@nospecialize(job::CompilerJob))
     end
     if param_usage > param_limit
         msg = """Kernel invocation uses too much parameter memory.
-                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by sm_$(cap.major)$(cap.minor) / PTX v$(ptx.major).$(ptx.minor)."""
+                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by $(arch) / PTX v$(ptx.major).$(ptx.minor)."""
 
         try
             details = "\n\nRelevant parameters:"

@@ -63,7 +63,7 @@ kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx, :feature_set]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx]
 const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clustersize, :shmem, :stream]
 
 
@@ -433,8 +433,11 @@ The following keyword arguments are supported:
 - `name`: override the name that the kernel will have in the generated code
 - `always_inline`: inline all function calls in the kernel
 - `fastmath`: use less precise square roots and flush denormals
-- `cap` and `ptx`: to override the compute capability and PTX version to compile for
-- `feature_set`: PTX feature set, one of `:baseline` (default), `:family`, or `:arch`
+- `cap` and `ptx`: to override the compute capability and PTX version to compile for.
+  `cap` accepts an [`SMVersion`](@ref) via the `sm"..."` string macro, e.g.
+  `cap=sm"10.3a"` for architecture-accelerated codegen on CC 10.3, or `cap=sm"10.0f"`
+  for family-portable Blackwell codegen. The bare form `cap=sm"10.3"` selects baseline
+  (forward-compatible) codegen. Passing a `VersionNumber` is deprecated.
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when

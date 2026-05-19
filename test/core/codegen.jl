@@ -255,42 +255,74 @@ end
 
     @test !success(run_ptxas(asm_pre, "sm_75"))
 
-    asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0", :baseline)
+    asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", sm"9.0")
     @test occursin(".target sm_90", asm_post)
 
     @test success(run_ptxas(asm_post, "sm_90"))
 
     # Architecture-specific feature set appends an `a` suffix to the .target directive (and the same
     # string is what `compile()` passes to --gpu-name, since ptxas requires exact match for `a`-mode).
-    asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0", :arch)
+    asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", sm"9.0a")
     @test occursin(".target sm_90a", asm_arch)
     @test success(run_ptxas(asm_arch, "sm_90a"))
 
     # Family-specific appends `f`. Requires PTX 8.8+ at the `.target` line.
-    asm_family = CUDACore.rewrite_ptx_header(asm_pre, v"8.8", v"10.0", :family)
+    asm_family = CUDACore.rewrite_ptx_header(asm_pre, v"8.8", sm"10.0f")
     @test occursin(".target sm_100f", asm_family)
     @test success(run_ptxas(asm_family, "sm_100f"))
+end
+
+@testset "SMVersion and sm\"...\" macro" begin
+    @test sm"9.0"   == SMVersion(9, 0, :baseline)
+    @test sm"9.0a"  == SMVersion(9, 0, :arch)
+    @test sm"10.0f" == SMVersion(10, 0, :family)
+    # printing roundtrips via the macro form
+    @test sprint(show, sm"10.3a") == "sm\"10.3a\""
+    @test sprint(show, sm"10.0")  == "sm\"10.0\""
+    # cpu_name reflects feature_set
+    @test CUDACore.cpu_name(sm"9.0")   == "sm_90"
+    @test CUDACore.cpu_name(sm"9.0a")  == "sm_90a"
+    @test CUDACore.cpu_name(sm"10.0f") == "sm_100f"
+    # base_version drops the suffix back to a comparable VersionNumber
+    @test CUDACore.base_version(sm"10.3a") == v"10.3"
+    # constructor rejects bogus feature_set
+    @test_throws ErrorException SMVersion(9, 0, :bogus)
+    # macro rejects malformed strings
+    @test_throws ErrorException CUDACore._parse_sm("103a")     # missing dot
+    @test_throws ErrorException CUDACore._parse_sm("10.3x")    # unknown suffix
+    @test_throws ErrorException CUDACore._parse_sm("10")       # missing minor
 end
 
 @testset "CUDACompilerParams hash discriminates on feature_set" begin
     # Without feature_set in the hash, two params differing only on feature_set would collide
     # in the compiler cache and silently return a cubin compiled for the wrong feature set.
-    base = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", feature_set=:baseline)
-    arch = CUDACore.CUDACompilerParams(cap=v"9.0", ptx=v"8.0", feature_set=:arch)
+    base = CUDACore.CUDACompilerParams(sm=sm"9.0",  ptx=v"8.0")
+    arch = CUDACore.CUDACompilerParams(sm=sm"9.0a", ptx=v"8.0")
     @test hash(base) != hash(arch)
     @test base != arch
 end
 
-@testset "validate_feature_set" begin
-    # Architecture-specific needs CC >= 9.0 and PTX >= 8.0
-    # Family-specific needs CC >= 10.0 and PTX >= 8.8.
-    @test_throws ErrorException CUDACore.validate_feature_set(v"8.6", v"8.0", :arch)
-    @test_throws ErrorException CUDACore.validate_feature_set(v"9.0", v"7.8", :arch)
-    @test_throws ErrorException CUDACore.validate_feature_set(v"9.0", v"8.0", :family)
-    @test_throws ErrorException CUDACore.validate_feature_set(v"10.0", v"8.7", :family)
-    @test CUDACore.validate_feature_set(v"9.0",  v"8.0", :arch) === nothing
-    @test CUDACore.validate_feature_set(v"10.0", v"8.8", :family) === nothing
-    @test CUDACore.validate_feature_set(v"5.0",  v"6.2", :baseline) === nothing
+@testset "ptx_cap_support" begin
+    # Architecture-specific needs CC >= 9.0 (i.e. no `*a` keys below sm"9.0") and PTX >= 8.0.
+    # Family-specific needs CC >= 10.0 (no `*f` keys below sm"10.0") and PTX >= 8.8.
+    @test !(sm"8.6a" in CUDACore.ptx_cap_support(v"8.0"))   # no `*a` below CC 9.0
+    @test !(sm"9.0a" in CUDACore.ptx_cap_support(v"7.8"))   # `*a` requires PTX >= 8.0
+    @test !(sm"9.0f" in CUDACore.ptx_cap_support(v"8.0"))   # no `*f` below CC 10.0
+    @test !(sm"10.0f" in CUDACore.ptx_cap_support(v"8.7"))  # `*f` requires PTX >= 8.8
+    @test  sm"9.0a"  in CUDACore.ptx_cap_support(v"8.0")
+    @test  sm"10.0f" in CUDACore.ptx_cap_support(v"8.8")
+    @test  sm"5.0"   in CUDACore.ptx_cap_support(v"6.2")
+end
+
+@testset "llvm_cap_support" begin
+    # Floors come from `def : Proc<"sm_NNa", ...>` etc. in NVPTX.td.
+    @test  sm"10.3a" in CUDACore.llvm_cap_support(v"21")
+    @test  sm"10.0f" in CUDACore.llvm_cap_support(v"21")
+    @test  sm"9.0a"  in CUDACore.llvm_cap_support(v"18")
+    @test !(sm"9.0a"  in CUDACore.llvm_cap_support(v"17"))  # sm_90a added in LLVM 18
+    @test !(sm"10.3a" in CUDACore.llvm_cap_support(v"20"))  # sm_103a added in LLVM 21
+    @test !(sm"10.0f" in CUDACore.llvm_cap_support(v"20"))  # sm_100f added in LLVM 21
+    @test  sm"7.0"   in CUDACore.llvm_cap_support(v"15")
 end
 
 end

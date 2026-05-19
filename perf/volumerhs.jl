@@ -232,10 +232,32 @@ function main()
               - $(Base.format_bytes(CUDA.memory(kernel).local)) local memory,
                 $(Base.format_bytes(CUDA.memory(kernel).shared)) shared memory,
                 $(Base.format_bytes(CUDA.memory(kernel).constant)) constant memory"""
+
+    # Run once to validate: the result must be finite and the L1 sum must
+    # match a baked-in reference computed from this same StableRNG(123)
+    # seed. cuTile/perf/volumerhs.jl uses the same reference so the two
+    # implementations can be cross-checked.
+    CUDA.@sync kernel(rhs, Q, vgeo, DFloat(grav), D, nelem;
+                       threads=threads, blocks=nelem)
+    rhs_h = Array(rhs)
+    @assert all(isfinite, rhs_h) "kernel produced non-finite values"
+    rsum = sum(rhs_h)
+    ref  = 1.4227473f10
+    rel  = abs(rsum - ref) / abs(ref)
+    @assert rel < 1f-3 "rhs checksum off by $rel (got $rsum, expected $ref)"
+    @info "validation passed" rhs_sum=rsum reference=ref rel_err=rel
+    fill!(rhs, 0)
+
     results = @benchmark begin
+        # zero rhs each iteration so accumulation stays meaningful
+        fill!($rhs, 0)
         CUDA.@sync blocking=true $kernel($rhs, $Q, $vgeo, $(DFloat(grav)), $D, $nelem;
                                          threads=$threads, blocks=$nelem)
     end
+
+    bytes = nelem * 28 * Nq^3 * sizeof(DFloat)
+    bw    = bytes / (minimum(results).time / 1e9) / 1e9
+    @info "SIMT volumerhs! benchmark" min_ms=minimum(results).time/1e6 median_ms=median(results).time/1e6 effective_BW="$(round(Int, bw)) GB/s"
 
     # BenchmarkTools captures inputs, JuliaCI/BenchmarkTools.jl#127, so forcibly free them
     CUDA.unsafe_free!(rhs)
