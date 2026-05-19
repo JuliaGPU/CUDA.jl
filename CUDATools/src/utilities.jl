@@ -142,5 +142,27 @@ function versioninfo(io::IO=stdout)
             query_cuda()
         end
         println(io, "  $(i-1): $str (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
+
+        # report the default compilation target we'd select for this device
+        config = try
+            CUDACore.compiler_config(dev)
+        catch
+            nothing
+        end
+        if config !== nothing
+            ptxas_sm  = config.params.sm
+            ptxas_ptx = config.params.ptx
+            llvm_sm   = CUDACore.SMVersion(config.target.cap.major,
+                                           config.target.cap.minor,
+                                           config.target.feature_set)
+            llvm_ptx  = config.target.ptx
+            ptxas_str = "$(CUDACore.cpu_name(ptxas_sm)) / PTX $(ptxas_ptx.major).$(ptxas_ptx.minor)"
+            if llvm_sm == ptxas_sm && llvm_ptx == ptxas_ptx
+                println(io, "     compiles to $ptxas_str")
+            else
+                llvm_str = "$(CUDACore.cpu_name(llvm_sm)) / PTX $(llvm_ptx.major).$(llvm_ptx.minor)"
+                println(io, "     compiles to $ptxas_str (LLVM: $llvm_str)")
+            end
+        end
     end
 end
