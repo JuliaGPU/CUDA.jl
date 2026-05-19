@@ -288,9 +288,9 @@ end
     # constructor rejects bogus feature_set
     @test_throws ErrorException SMVersion(9, 0, :bogus)
     # macro rejects malformed strings
-    @test_throws ErrorException CUDACore._parse_sm("103a")     # missing dot
-    @test_throws ErrorException CUDACore._parse_sm("10.3x")    # unknown suffix
-    @test_throws ErrorException CUDACore._parse_sm("10")       # missing minor
+    @test_throws ErrorException parse(SMVersion, "103a")     # missing dot
+    @test_throws ErrorException parse(SMVersion, "10.3x")    # unknown suffix
+    @test_throws ErrorException parse(SMVersion, "10")       # missing minor
 end
 
 @testset "CUDACompilerParams hash discriminates on feature_set" begin

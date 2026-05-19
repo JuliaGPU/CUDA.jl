@@ -28,6 +28,16 @@ struct SMVersion
     end
 end
 
+function Base.parse(::Type{SMVersion}, s::AbstractString)
+    m = match(r"^(\d+)\.(\d+)([af]?)$", s)
+    m === nothing && error("invalid sm version string: $(repr(s)); expected e.g. \"10.3\", \"10.3a\", or \"10.0f\"")
+    major = parse(Int, m.captures[1])
+    minor = parse(Int, m.captures[2])
+    fs = m.captures[3] == "a" ? :arch :
+         m.captures[3] == "f" ? :family : :baseline
+    return SMVersion(major, minor, fs)
+end
+
 # Suffix on the LLVM CPU name / `.target` directive
 suffix(sm::SMVersion) = sm.feature_set === :arch    ? "a" :
                         sm.feature_set === :family  ? "f" : ""
@@ -58,16 +68,6 @@ end
 
 Base.show(io::IO, sm::SMVersion) = print(io, "sm\"", sm.major, ".", sm.minor, suffix(sm), "\"")
 
-function _parse_sm(s::AbstractString)
-    m = match(r"^(\d+)\.(\d+)([af]?)$", s)
-    m === nothing && error("invalid sm version string: $(repr(s)); expected e.g. \"10.3\", \"10.3a\", or \"10.0f\"")
-    major = parse(Int, m.captures[1])
-    minor = parse(Int, m.captures[2])
-    fs = m.captures[3] == "a" ? :arch :
-         m.captures[3] == "f" ? :family : :baseline
-    return SMVersion(major, minor, fs)
-end
-
 macro sm_str(s)
-    return _parse_sm(s)
+    return :(Base.parse($SMVersion, $(esc(s))))
 end
