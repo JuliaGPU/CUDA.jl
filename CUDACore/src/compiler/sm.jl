@@ -11,7 +11,7 @@ subtarget feature set selected by the suffix on its `.target` directive. Printed
 parsed in NVIDIA's compact form -- `sm"90"` for compute capability 9.0, `sm"103a"`
 for 10.3 architecture-accelerated, etc. -- to mirror the `.target sm_NN[a|f]`
 notation in the PTX ISA reference and to distinguish visually from a device-level
-[`VersionNumber`](@ref) like `v"9.0"`.
+`VersionNumber` like `v"9.0"`.
 
 The single-argument constructors normalize various inputs to an `SMVersion`:
 
