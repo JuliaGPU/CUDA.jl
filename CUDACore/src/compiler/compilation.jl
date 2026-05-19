@@ -195,12 +195,9 @@ end
                      :cufunction)
         arch = cap
     end
-    # `arch=` accepts a plain `VersionNumber` (treated as baseline) or an `SMVersion`.
-    if arch isa VersionNumber
-        arch = SMVersion(arch.major, arch.minor, :baseline)
-    end
-    arch === nothing || arch isa SMVersion ||
-        throw(ArgumentError("`arch=` must be a VersionNumber, SMVersion, or nothing; got $(typeof(arch))"))
+    # `SMVersion` is the universal normalizer: identity for an SMVersion, baseline-promotes
+    # a VersionNumber, parses a string. Anything else falls out as a MethodError naturally.
+    arch === nothing || (arch = SMVersion(arch))
 
     # inspect the toolchain
     llvm_support = llvm_compat()

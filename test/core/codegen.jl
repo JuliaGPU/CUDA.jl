@@ -292,6 +292,14 @@ end
     @test_throws ErrorException parse(SMVersion, "100x")     # unknown suffix
     @test_throws ErrorException parse(SMVersion, "1")        # only one digit (need at least major + minor)
     @test_throws ErrorException parse(SMVersion, "")         # empty
+
+    # `SMVersion(x)` as the universal normalizer:
+    @test SMVersion(sm"103a")          === sm"103a"                        # identity
+    @test SMVersion(v"10.3")           == SMVersion(10, 3, :baseline)      # VersionNumber → baseline
+    @test SMVersion("103a")            == sm"103a"                         # bare string
+    @test SMVersion("sm_103a")         == sm"103a"                         # accepts NVIDIA prefix
+    # the macro is just a parse-time call to the constructor
+    @test sm"103a"                     == SMVersion("103a")
 end
 
 @testset "CUDACompilerParams hash discriminates on feature_set" begin
