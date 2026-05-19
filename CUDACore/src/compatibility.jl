@@ -36,12 +36,12 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
     v > r.upper ? (v:r.upper) : (v:v)
 
 
-## devices supported by the CUDA toolkit
+## devices supported by ptxas
 
 # Source:
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
-const cuda_cap_db = Dict(
+const ptxas_cap_db = Dict(
     v"1.0"   => between(lowest, v"6.5"),
     v"1.1"   => between(lowest, v"6.5"),
     v"1.2"   => between(lowest, v"6.5"),
@@ -73,9 +73,9 @@ const cuda_cap_db = Dict(
     v"12.1"  => between(v"12.9", highest),
 )
 
-function cuda_cap_support(ver::VersionNumber)
+function ptxas_cap_support(ver::VersionNumber)
     caps = Set{VersionNumber}()
-    for (cap,r) in cuda_cap_db
+    for (cap,r) in ptxas_cap_db
         if ver in r
             push!(caps, cap)
         end
@@ -84,10 +84,10 @@ function cuda_cap_support(ver::VersionNumber)
 end
 
 
-## PTX ISAs supported by the CUDA toolkit
+## PTX ISAs supported by ptxas
 
 # Source: PTX ISA document, Release History table
-const cuda_ptx_db = Dict(
+const ptxas_ptx_db = Dict(
     v"1.0" => between(v"1.0", highest),
     v"1.1" => between(v"1.1", highest),
     v"1.2" => between(v"2.0", highest),
@@ -135,9 +135,9 @@ const cuda_ptx_db = Dict(
     v"9.2" => between(v"13.2", highest),
 )
 
-function cuda_ptx_support(ver::VersionNumber)
+function ptxas_ptx_support(ver::VersionNumber)
     caps = Set{VersionNumber}()
-    for (cap,r) in cuda_ptx_db
+    for (cap,r) in ptxas_ptx_db
         if ver in r
             push!(caps, cap)
         end
@@ -203,17 +203,6 @@ function ptx_cap_support(ver::VersionNumber)
     return caps
 end
 
-# Baseline-only view, returned as `VersionNumber`s for use by the cap-clamp logic.
-function ptx_baseline_caps(ver::VersionNumber)
-    caps = Set{VersionNumber}()
-    for (cap, r) in ptx_cap_db
-        if cap.feature_set === :baseline && ver in r
-            push!(caps, base_version(cap))
-        end
-    end
-    return caps
-end
-
 
 ## devices supported by the LLVM NVPTX back-end
 
@@ -265,17 +254,6 @@ function llvm_cap_support(ver::VersionNumber)
     for (cap, r) in llvm_cap_db
         if ver in r
             push!(caps, cap)
-        end
-    end
-    return caps
-end
-
-# Baseline-only view, returned as `VersionNumber`s for use by the cap-clamp logic.
-function llvm_baseline_caps(ver::VersionNumber)
-    caps = Set{VersionNumber}()
-    for (cap, r) in llvm_cap_db
-        if cap.feature_set === :baseline && ver in r
-            push!(caps, base_version(cap))
         end
     end
     return caps
@@ -337,37 +315,11 @@ end
 function llvm_compat(version=LLVM.version())
     LLVM.InitializeNVPTXTarget()
 
-    # the `.cap` field is used for the base-cap clamp in `_compiler_config`, so only
-    # baseline entries are surfaced here. Variant support is queried point-wise via
-    # `sm in llvm_cap_support(...)`.
-    cap_support = sort(collect(llvm_baseline_caps(version)))
-    ptx_support = sort(collect(llvm_ptx_support(version)))
-
-    return (cap=cap_support, ptx=ptx_support)
+    return (cap=llvm_cap_support(version),
+            ptx=llvm_ptx_support(version))
 end
 
-function cuda_compat(runtime=runtime_version(), compiler=compiler_version())
-    # we don't have to check the driver version, because it offers backwards compatbility
-    # beyond the CUDA toolkit version (e.g. R580 for CUDA 13 still supports Volta as
-    # deprecated in CUDA 13), and we don't have a reliable way to query the actual version
-    # as NVML isn't available on all platforms. let's instead simply assume that unsupported
-    # devices will not be exposed to the CUDA runtime and thus won't be visible to us.
-
-    # the compiler and runtime are versioned independently (and either can come from a
-    # local install), so we need to consider both:
-    # - device caps are dropped when either ptxas can't emit for them or the runtime
-    #   libraries drop them. take the intersection of both supported sets.
-    # - PTX ISA availability is a property of ptxas; the runtime doesn't care which ISA
-    #   compiled cubin came from.
-    cap_support = sort(collect(intersect(cuda_cap_support(runtime),
-                                         cuda_cap_support(compiler))))
-    ptx_support = sort(collect(cuda_ptx_support(compiler)))
-
-    return (cap=cap_support, ptx=ptx_support)
-end
-
-function ptx_compat(ptx)
-    # Baseline view for the clamp; variant support is queried point-wise via
-    # `sm in ptx_cap_support(...)`.
-    return (cap=ptx_baseline_caps(ptx),)
+function ptxas_compat(version=compiler_version())
+    return (cap=ptxas_cap_support(version),
+            ptx=ptxas_ptx_support(version))
 end

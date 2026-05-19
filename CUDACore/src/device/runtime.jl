@@ -12,14 +12,16 @@ function precompile_runtime()
     f = ()->return
     mi = methodinstance(typeof(f), Tuple{})
 
-    caps = llvm_compat().cap
+    # `.cap` is now keyed by `SMVersion` and includes variants; runtime caches are
+    # feature_set-agnostic, so we only warm the baseline entries.
+    sms = filter(sm -> sm.feature_set === :baseline, llvm_compat().cap)
     ptx = maximum(llvm_compat().ptx)
     JuliaContext() do ctx
-        for cap in caps, debuginfo in [false, true]
+        for sm in sms, debuginfo in [false, true]
             # NOTE: this often runs when we don't have a functioning set-up,
             #       so we don't use `compiler_config` which requires NVML
-            target = PTXCompilerTarget(; cap, ptx, debuginfo)
-            params = CUDACompilerParams(; sm=SMVersion(cap.major, cap.minor), ptx)
+            target = PTXCompilerTarget(; cap=base_version(sm), ptx, debuginfo)
+            params = CUDACompilerParams(; sm, ptx)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
             GPUCompiler.load_runtime(job)

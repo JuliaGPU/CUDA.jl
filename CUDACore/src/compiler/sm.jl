@@ -39,6 +39,23 @@ cpu_name(sm::SMVersion) = "sm_$(sm.major)$(sm.minor)$(suffix(sm))"
 # usable against the version-keyed compatibility databases.
 base_version(sm::SMVersion) = VersionNumber(sm.major, sm.minor)
 
+# Would a cubin compiled for `sm` actually load and run on a device with capability
+# `dev_cap`? Per NVIDIA's PTX ISA reference (.target directive):
+#   - baseline: forward-compatible (onion model) -- any sm_X runs on sm_Y for Y >= X.
+#   - family:   same architecture family (currently == same major) and forward-portable
+#               within the family.
+#   - arch:     locked to one exact CC; cubin only loads on devices with that exact cap.
+function runs_on(sm::SMVersion, dev_cap::VersionNumber)
+    if sm.feature_set === :arch
+        return base_version(sm) == dev_cap
+    elseif sm.feature_set === :family
+        return sm.major == dev_cap.major && base_version(sm) <= dev_cap
+    else  # :baseline
+        return base_version(sm) <= dev_cap
+    end
+end
+
+
 Base.show(io::IO, sm::SMVersion) = print(io, "sm\"", sm.major, ".", sm.minor, suffix(sm), "\"")
 
 function _parse_sm(s::AbstractString)

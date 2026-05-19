@@ -227,7 +227,7 @@ function context(dev::CuDevice)
                maxlog=1, _id=devidx)
     end
     # ... or too new
-    if !in(capability(dev), cuda_compat().cap)
+    if !in(capability(dev), ptxas_compat().cap)
         @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not fully supported by CUDA $(runtime_version()).
                  Some functionality may be broken. Ensure you are using the latest version of CUDA.jl in combination with an up-to-date NVIDIA driver.
                  If that does not help, please file an issue to add support for the latest CUDA toolkit.""",
