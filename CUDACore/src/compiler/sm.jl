@@ -1,21 +1,45 @@
-# SMVersion: a PTX compilation target, identifying a CUDA compute capability together
-# with its subtarget feature set.
-#
-# Constructed via the `sm"..."` string macro, which accepts the dotted form used in
-# CUDA's documentation: `sm"10.3a"` is compute capability 10.3 with architecture-
-# accelerated features. The bare form `sm"10.3"` is the default, forward-compatible
-# feature set (the "onion model").
-#
-# See `lib/Target/NVPTX/NVPTX.td` in LLVM for the corresponding subtarget feature
-# definitions, and CUDA's PTX ISA documentation under `.target` for the runtime
-# compatibility implications:
-#
-#   :baseline (no suffix)   - forward-compatible (sm_X for any sm_Y >= X)
-#   :family   ('f' suffix)  - same-major-family-portable
-#   :arch     ('a' suffix)  - locked to one exact CC
-
 export SMVersion, @sm_str
 
+"""
+    SMVersion(major, minor, [feature_set])
+
+A PTX compilation target, identifying a CUDA compute capability together with the
+subtarget feature set selected by the suffix on its `.target` directive.
+
+`feature_set` is one of:
+
+- `:baseline` (no suffix, e.g. `sm_90`) — forward-compatible (the "onion model"):
+  PTX compiled for `sm_X` runs on any `sm_Y` with `Y >= X`.
+- `:family` (`f` suffix, e.g. `sm_100f`) — same-major-family-portable: PTX runs on
+  any device in the same architecture family (currently == same major version) at
+  or above this CC.
+- `:arch` (`a` suffix, e.g. `sm_90a`) — locked to one exact CC: PTX runs only on
+  devices with exactly this compute capability, but in exchange gets access to
+  architecture-accelerated features.
+
+See NVIDIA's PTX ISA reference under `.target` for the full compatibility rules,
+and `lib/Target/NVPTX/NVPTX.td` in LLVM for the corresponding subtarget feature
+definitions.
+
+Public fields:
+- `sm.major::Int`
+- `sm.minor::Int`
+- `sm.feature_set::Symbol`
+
+See also [`@sm_str`](@ref) for an ergonomic string-macro constructor.
+
+# Examples
+```julia
+julia> SMVersion(9, 0)            # baseline
+sm"9.0"
+
+julia> SMVersion(9, 0, :arch)
+sm"9.0a"
+
+julia> sm"10.0f" == SMVersion(10, 0, :family)
+true
+```
+"""
 struct SMVersion
     major::Int
     minor::Int
@@ -68,6 +92,22 @@ end
 
 Base.show(io::IO, sm::SMVersion) = print(io, "sm\"", sm.major, ".", sm.minor, suffix(sm), "\"")
 
+"""
+    @sm_str
+
+String macro used to parse a string to an [`SMVersion`](@ref). Accepts the dotted form
+used in NVIDIA's PTX ISA reference: `sm"9.0"` for baseline, `sm"9.0a"` for
+architecture-accelerated, `sm"10.0f"` for family-specific.
+
+# Examples
+```julia
+julia> sm"10.3a"
+sm"10.3a"
+
+julia> sm"10.0f" == SMVersion(10, 0, :family)
+true
+```
+"""
 macro sm_str(s)
     return :(Base.parse($SMVersion, $(esc(s))))
 end
