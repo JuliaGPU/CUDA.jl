@@ -186,13 +186,21 @@ function compiler_config(dev; kwargs...)
     return config
 end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         cap=nothing, ptx=nothing, kwargs...)
-    # convert / deprecate VersionNumber cap
-    if cap isa VersionNumber
-        Base.depwarn("Passing a VersionNumber to `cap=` is deprecated; use the `sm\"$(cap.major).$(cap.minor)\"` string macro instead.",
+                                         arch=nothing, cap=nothing, ptx=nothing, kwargs...)
+    # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
+    if cap !== nothing
+        arch === nothing ||
+            throw(ArgumentError("pass either `arch=` or the deprecated `cap=`, not both"))
+        Base.depwarn("the `cap=` kwarg is deprecated; use `arch=` (matching nvcc/ptxas `-arch`) instead.",
                      :cufunction)
-        cap = SMVersion(cap.major, cap.minor, :baseline)
+        arch = cap
     end
+    # `arch=` accepts a plain `VersionNumber` (treated as baseline) or an `SMVersion`.
+    if arch isa VersionNumber
+        arch = SMVersion(arch.major, arch.minor, :baseline)
+    end
+    arch === nothing || arch isa SMVersion ||
+        throw(ArgumentError("`arch=` must be a VersionNumber, SMVersion, or nothing; got $(typeof(arch))"))
 
     # inspect the toolchain
     llvm_support = llvm_compat()
@@ -226,29 +234,29 @@ end
 
     # determine the compute capability to use.
     ## ptxas
-    ptx_caps = ptx_cap_support(ptxas_ptx)
-    if cap !== nothing
+    ptx_sms = ptx_sm_support(ptxas_ptx)
+    if arch !== nothing
         # explicit request: take it as-is, validating against the PTX ISA
-        cap in ptx_caps ||
-            error("$(cpu_name(cap)) is not supported by PTX ISA $(ptxas_ptx)")
-        ptxas_sm = cap
+        arch in ptx_sms ||
+            error("$(cpu_name(arch)) is not supported by PTX ISA $(ptxas_ptx)")
+        ptxas_sm = arch
     else
         # pick the most specific capability the selected PTX ISA supports whose cubin
         # would actually load on the current device. For baseline that's the onion model;
         # `:arch` requires an exact CC match, `:family` a same-family match.
-        ptxas_candidates = filter(sm -> runs_on(sm, capability(dev)), ptx_caps)
+        ptxas_candidates = filter(sm -> runs_on(sm, capability(dev)), ptx_sms)
         isempty(ptxas_candidates) &&
             error("Compute capability $(capability(dev)) is not supported by ptxas " *
                   "$(compiler_version()) at PTX ISA $(ptxas_ptx)")
         ptxas_sm = argmax(sm_key, ptxas_candidates)
     end
     ## LLVM
-    if ptxas_sm in llvm_support.cap
+    if ptxas_sm in llvm_support.sm
         llvm_sm = ptxas_sm
     else
         # Exact `ptxas_sm` unavailable in LLVM. Fall back to baseline LLVM at a
         # lower base, since arch/family features don't carry across versions.
-        baseline_candidates = filter(llvm_support.cap) do sm
+        baseline_candidates = filter(llvm_support.sm) do sm
             sm.feature_set === :baseline && base_version(sm) <= base_version(ptxas_sm)
         end
         isempty(baseline_candidates) &&

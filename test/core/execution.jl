@@ -50,15 +50,20 @@ end
     @cuda threads=2 dummy()
 
     # sm_10 isn't supported by LLVM
-    @test_throws "not supported by LLVM" @cuda launch=false cap=sm"10" dummy()
+    @test_throws "not supported by LLVM" @cuda launch=false arch=sm"10" dummy()
     # sm_20 is, but not by any CUDA version we support
-    @test_throws "Failed to compile PTX code" @cuda launch=false cap=sm"20" dummy()
+    @test_throws "Failed to compile PTX code" @cuda launch=false arch=sm"20" dummy()
     # there isn't any capability other than the device's that's guaruanteed to work
     dev_cap = capability(device())
     dev_sm = SMVersion(dev_cap.major, dev_cap.minor)
-    @cuda launch=false cap=dev_sm dummy()
+    @cuda launch=false arch=dev_sm dummy()
+    # `arch=` also accepts a plain `VersionNumber` -- treated as baseline. Equivalent
+    # to constructing the SMVersion directly.
+    @cuda launch=false arch=dev_cap dummy()
     # but we should be able to see it in the generated PTX code
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"50"))
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm"50"))
+    @test contains(asm, ".target sm_50")
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=v"5.0"))
     @test contains(asm, ".target sm_50")
 
     # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
@@ -79,23 +84,22 @@ end
     sm_f = SMVersion(dev_cap.major, dev_cap.minor, :family)
 
     if dev_cap >= v"9.0"
-        asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm_a))
+        asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm_a))
         @test contains(asm, ".target $(CUDACore.cpu_name(sm_a))")
         # arch-specific cubin should also actually launch on the matching device
-        @cuda cap=sm_a dummy()
+        @cuda arch=sm_a dummy()
     end
     if dev_cap >= v"10.0"
-        asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm_f))
+        asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm_f))
         @test contains(asm, ".target $(CUDACore.cpu_name(sm_f))")
-        @cuda cap=sm_f dummy()
+        @cuda arch=sm_f dummy()
     end
 
-    # passing a VersionNumber to `cap` is deprecated; check the depwarn fires while
-    # the path still produces the right PTX. (Uses code_ptx to skip ptxas, which on
-    # newer CUDA toolkits no longer accepts sm_50.)
-    @test_deprecated sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
+    # `cap=` is the deprecated alias for `arch=`; check the depwarn fires while
+    # the path still produces the right PTX.
+    @test_deprecated sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"50"))
 
-    # With no explicit `cap=`, we default to architecture-specific code paths on CC >=9.0
+    # With no explicit `arch=`, we default to architecture-specific code paths on CC >=9.0
     # since we know the exact device. The cuda-side `.target` is the variant regardless of
     # LLVM support (the mcgen rewrite stamps it in); only the LLVM-emitted code differs.
     if dev_cap >= v"9.0"
@@ -121,7 +125,7 @@ end
     @cuda threads=1 read_feature_set!(out)
     # arch features come through `target_feature_set()` only when LLVM natively supported
     # the variant; otherwise we fell back to baseline LLVM and the global reflects that.
-    arch_in_llvm = sm_a in CUDACore.llvm_cap_support(CUDACore.LLVM.version())
+    arch_in_llvm = sm_a in CUDACore.llvm_sm_support(CUDACore.LLVM.version())
     expected = dev_cap >= v"9.0" && arch_in_llvm ? UInt32(2) : UInt32(0)
     @test Array(out)[1] == expected
 end

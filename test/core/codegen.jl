@@ -288,9 +288,10 @@ end
     # constructor rejects bogus feature_set
     @test_throws ErrorException SMVersion(9, 0, :bogus)
     # macro rejects malformed strings
-    @test_throws ErrorException parse(SMVersion, "103a")     # missing dot
-    @test_throws ErrorException parse(SMVersion, "10.3x")    # unknown suffix
-    @test_throws ErrorException parse(SMVersion, "10")       # missing minor
+    @test_throws ErrorException parse(SMVersion, "10.3a")    # dotted form (NVIDIA uses dotless)
+    @test_throws ErrorException parse(SMVersion, "100x")     # unknown suffix
+    @test_throws ErrorException parse(SMVersion, "1")        # only one digit (need at least major + minor)
+    @test_throws ErrorException parse(SMVersion, "")         # empty
 end
 
 @testset "CUDACompilerParams hash discriminates on feature_set" begin
@@ -302,27 +303,27 @@ end
     @test base != arch
 end
 
-@testset "ptx_cap_support" begin
+@testset "ptx_sm_support" begin
     # Architecture-specific needs CC >= 9.0 (i.e. no `*a` keys below sm"90") and PTX >= 8.0.
     # Family-specific needs CC >= 10.0 (no `*f` keys below sm"100") and PTX >= 8.8.
-    @test !(sm"86a" in CUDACore.ptx_cap_support(v"8.0"))   # no `*a` below CC 9.0
-    @test !(sm"90a" in CUDACore.ptx_cap_support(v"7.8"))   # `*a` requires PTX >= 8.0
-    @test !(sm"90f" in CUDACore.ptx_cap_support(v"8.0"))   # no `*f` below CC 10.0
-    @test !(sm"100f" in CUDACore.ptx_cap_support(v"8.7"))  # `*f` requires PTX >= 8.8
-    @test  sm"90a"  in CUDACore.ptx_cap_support(v"8.0")
-    @test  sm"100f" in CUDACore.ptx_cap_support(v"8.8")
-    @test  sm"50"   in CUDACore.ptx_cap_support(v"6.2")
+    @test !(sm"86a" in CUDACore.ptx_sm_support(v"8.0"))   # no `*a` below CC 9.0
+    @test !(sm"90a" in CUDACore.ptx_sm_support(v"7.8"))   # `*a` requires PTX >= 8.0
+    @test !(sm"90f" in CUDACore.ptx_sm_support(v"8.0"))   # no `*f` below CC 10.0
+    @test !(sm"100f" in CUDACore.ptx_sm_support(v"8.7"))  # `*f` requires PTX >= 8.8
+    @test  sm"90a"  in CUDACore.ptx_sm_support(v"8.0")
+    @test  sm"100f" in CUDACore.ptx_sm_support(v"8.8")
+    @test  sm"50"   in CUDACore.ptx_sm_support(v"6.2")
 end
 
-@testset "llvm_cap_support" begin
+@testset "llvm_sm_support" begin
     # Floors come from `def : Proc<"sm_NNa", ...>` etc. in NVPTX.td.
-    @test  sm"103a" in CUDACore.llvm_cap_support(v"21")
-    @test  sm"100f" in CUDACore.llvm_cap_support(v"21")
-    @test  sm"90a"  in CUDACore.llvm_cap_support(v"18")
-    @test !(sm"90a"  in CUDACore.llvm_cap_support(v"17"))  # sm_90a added in LLVM 18
-    @test !(sm"103a" in CUDACore.llvm_cap_support(v"20"))  # sm_103a added in LLVM 21
-    @test !(sm"100f" in CUDACore.llvm_cap_support(v"20"))  # sm_100f added in LLVM 21
-    @test  sm"70"   in CUDACore.llvm_cap_support(v"15")
+    @test  sm"103a" in CUDACore.llvm_sm_support(v"21")
+    @test  sm"100f" in CUDACore.llvm_sm_support(v"21")
+    @test  sm"90a"  in CUDACore.llvm_sm_support(v"18")
+    @test !(sm"90a"  in CUDACore.llvm_sm_support(v"17"))  # sm_90a added in LLVM 18
+    @test !(sm"103a" in CUDACore.llvm_sm_support(v"20"))  # sm_103a added in LLVM 21
+    @test !(sm"100f" in CUDACore.llvm_sm_support(v"20"))  # sm_100f added in LLVM 21
+    @test  sm"70"   in CUDACore.llvm_sm_support(v"15")
 end
 
 end

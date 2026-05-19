@@ -13,12 +13,12 @@ if :NVPTX in LLVM.backends()
             end
 
             llvm_support = llvm_compat()
-            # `.cap` is keyed by `SMVersion` and includes variants; pick the highest
-            # baseline cap <= v"7.5" for a portable precompile artifact.
+            # `.sm` is `Set{SMVersion}` (with variants); pick the highest baseline
+            # entry <= v"7.5" for a portable precompile artifact.
             llvm_sm = argmax(base_version,
                              filter(sm -> sm.feature_set === :baseline &&
                                           base_version(sm) <= v"7.5",
-                                    llvm_support.cap))
+                                    llvm_support.sm))
             llvm_ptx = maximum(filter(>=(v"6.2"), llvm_support.ptx))
 
             target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx, debuginfo=true)

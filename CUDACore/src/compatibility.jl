@@ -16,7 +16,7 @@ const highest = v"999"
 #     exact CC; code compiled for sm_103a runs only on CC 10.3 devices.
 #
 # Which feature sets exist for a given CC, and which PTX ISA / LLVM versions ptxas / NVPTX
-# require for them, is encoded directly in the keys of `ptx_cap_db` and `llvm_cap_db`
+# require for them, is encoded directly in the keys of `ptx_sm_db` and `llvm_sm_db`
 # below: an unsupported combination simply has no entry.
 
 
@@ -150,7 +150,7 @@ end
 
 # Source: PTX ISA document, Release History table. Architecture-specific (`*a`) variants
 # were introduced at CC 9.0 / PTX 8.0; family-specific (`*f`) variants at CC 10.0 / PTX 8.8.
-const ptx_cap_db = Dict{SMVersion, VersionRange}(
+const ptx_sm_db = Dict{SMVersion, VersionRange}(
     sm"10"   => between(v"1.0", highest),
     sm"11"   => between(v"1.0", highest),
     sm"12"   => between(v"1.2", highest),
@@ -193,9 +193,9 @@ const ptx_cap_db = Dict{SMVersion, VersionRange}(
 )
 
 # Set of `SMVersion`s (across all feature sets) whose ptxas floor is met by `ver`.
-function ptx_cap_support(ver::VersionNumber)
+function ptx_sm_support(ver::VersionNumber)
     caps = Set{SMVersion}()
-    for (cap, r) in ptx_cap_db
+    for (cap, r) in ptx_sm_db
         if ver in r
             push!(caps, cap)
         end
@@ -209,7 +209,7 @@ end
 # Source: LLVM/lib/Target/NVPTX/NVPTX.td. Each `def : Proc<"sm_NN[a|f]", ...>` shows up
 # here as a separate entry; without an entry LLVM does not know the variant CPU name and
 # constructing a TargetMachine with it would fall back to a generic subtarget.
-const llvm_cap_db = Dict{SMVersion, VersionRange}(
+const llvm_sm_db = Dict{SMVersion, VersionRange}(
     sm"20"   => between(v"3.2", highest),
     sm"21"   => between(v"3.2", highest),
     sm"30"   => between(v"3.2", highest),
@@ -249,9 +249,9 @@ const llvm_cap_db = Dict{SMVersion, VersionRange}(
 )
 
 # Set of `SMVersion`s (across all feature sets) supported by LLVM `ver`.
-function llvm_cap_support(ver::VersionNumber)
+function llvm_sm_support(ver::VersionNumber)
     caps = Set{SMVersion}()
-    for (cap, r) in llvm_cap_db
+    for (cap, r) in llvm_sm_db
         if ver in r
             push!(caps, cap)
         end
@@ -315,7 +315,10 @@ end
 function llvm_compat(version=LLVM.version())
     LLVM.InitializeNVPTXTarget()
 
-    return (cap=llvm_cap_support(version),
+    # `.sm` is `Set{SMVersion}` (with variants); `.ptx` is `Set{VersionNumber}`.
+    # `ptxas_compat()` returns `.cap` as `Set{VersionNumber}` because ptxas-level
+    # support is per-CC -- the names track the value type.
+    return (sm=llvm_sm_support(version),
             ptx=llvm_ptx_support(version))
 end
 

@@ -14,7 +14,7 @@ function precompile_runtime()
 
     # `.cap` is now keyed by `SMVersion` and includes variants; runtime caches are
     # feature_set-agnostic, so we only warm the baseline entries.
-    sms = filter(sm -> sm.feature_set === :baseline, llvm_compat().cap)
+    sms = filter(sm -> sm.feature_set === :baseline, llvm_compat().sm)
     ptx = maximum(llvm_compat().ptx)
     JuliaContext() do ctx
         for sm in sms, debuginfo in [false, true]
