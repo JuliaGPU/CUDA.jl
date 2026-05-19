@@ -50,15 +50,15 @@ end
     @cuda threads=2 dummy()
 
     # sm_10 isn't supported by LLVM
-    @test_throws "not supported by LLVM" @cuda launch=false cap=sm"1.0" dummy()
+    @test_throws "not supported by LLVM" @cuda launch=false cap=sm"10" dummy()
     # sm_20 is, but not by any CUDA version we support
-    @test_throws "Failed to compile PTX code" @cuda launch=false cap=sm"2.0" dummy()
+    @test_throws "Failed to compile PTX code" @cuda launch=false cap=sm"20" dummy()
     # there isn't any capability other than the device's that's guaruanteed to work
     dev_cap = capability(device())
     dev_sm = SMVersion(dev_cap.major, dev_cap.minor)
     @cuda launch=false cap=dev_sm dummy()
     # but we should be able to see it in the generated PTX code
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"5.0"))
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"50"))
     @test contains(asm, ".target sm_50")
 
     # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the

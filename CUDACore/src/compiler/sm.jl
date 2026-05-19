@@ -4,7 +4,11 @@ export SMVersion, @sm_str
     SMVersion(major, minor, [feature_set])
 
 A PTX compilation target, identifying a CUDA compute capability together with the
-subtarget feature set selected by the suffix on its `.target` directive.
+subtarget feature set selected by the suffix on its `.target` directive. Printed and
+parsed in NVIDIA's compact form -- `sm"90"` for compute capability 9.0, `sm"103a"`
+for 10.3 architecture-accelerated, etc. -- to mirror the `.target sm_NN[a|f]`
+notation in the PTX ISA reference and to distinguish visually from a device-level
+[`VersionNumber`](@ref) like `v"9.0"`.
 
 `feature_set` is one of:
 
@@ -31,12 +35,12 @@ See also [`@sm_str`](@ref) for an ergonomic string-macro constructor.
 # Examples
 ```julia
 julia> SMVersion(9, 0)            # baseline
-sm"9.0"
+sm"90"
 
 julia> SMVersion(9, 0, :arch)
-sm"9.0a"
+sm"90a"
 
-julia> sm"10.0f" == SMVersion(10, 0, :family)
+julia> sm"100f" == SMVersion(10, 0, :family)
 true
 ```
 """
@@ -53,8 +57,11 @@ struct SMVersion
 end
 
 function Base.parse(::Type{SMVersion}, s::AbstractString)
-    m = match(r"^(\d+)\.(\d+)([af]?)$", s)
-    m === nothing && error("invalid sm version string: $(repr(s)); expected e.g. \"10.3\", \"10.3a\", or \"10.0f\"")
+    # Mirrors NVIDIA's `sm_NN[a|f]` notation: the last digit before the optional suffix
+    # is the minor, everything before it is the major. Always one minor digit (NVIDIA
+    # has never minted a CC with minor >= 10, and rolls the major over instead).
+    m = match(r"^(\d+)(\d)([af]?)$", s)
+    m === nothing && error("invalid sm version string: $(repr(s)); expected e.g. \"103\", \"103a\", or \"100f\"")
     major = parse(Int, m.captures[1])
     minor = parse(Int, m.captures[2])
     fs = m.captures[3] == "a" ? :arch :
@@ -90,21 +97,22 @@ function runs_on(sm::SMVersion, dev_cap::VersionNumber)
 end
 
 
-Base.show(io::IO, sm::SMVersion) = print(io, "sm\"", sm.major, ".", sm.minor, suffix(sm), "\"")
+Base.show(io::IO, sm::SMVersion) = print(io, "sm\"", sm.major, sm.minor, suffix(sm), "\"")
 
 """
     @sm_str
 
-String macro used to parse a string to an [`SMVersion`](@ref). Accepts the dotted form
-used in NVIDIA's PTX ISA reference: `sm"9.0"` for baseline, `sm"9.0a"` for
-architecture-accelerated, `sm"10.0f"` for family-specific.
+String macro used to parse a string to an [`SMVersion`](@ref). Accepts NVIDIA's
+compact `sm_NN[a|f]` notation (without the `sm_` prefix): `sm"90"` for baseline,
+`sm"90a"` for architecture-accelerated, `sm"100f"` for family-specific. The last
+digit before the optional suffix is the minor; everything before it is the major.
 
 # Examples
 ```julia
-julia> sm"10.3a"
-sm"10.3a"
+julia> sm"103a"
+sm"103a"
 
-julia> sm"10.0f" == SMVersion(10, 0, :family)
+julia> sm"100f" == SMVersion(10, 0, :family)
 true
 ```
 """

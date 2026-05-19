@@ -435,8 +435,8 @@ The following keyword arguments are supported:
 - `fastmath`: use less precise square roots and flush denormals
 - `cap` and `ptx`: to override the compute capability and PTX version to compile for.
   `cap` accepts an [`SMVersion`](@ref) via the `sm"..."` string macro, e.g.
-  `cap=sm"10.3a"` for architecture-accelerated codegen on CC 10.3, or `cap=sm"10.0f"`
-  for family-portable Blackwell codegen. The bare form `cap=sm"10.3"` selects baseline
+  `cap=sm"103a"` for architecture-accelerated codegen on CC 10.3, or `cap=sm"100f"`
+  for family-portable Blackwell codegen. The bare form `cap=sm"103"` selects baseline
   (forward-compatible) codegen. Passing a `VersionNumber` is deprecated.
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
