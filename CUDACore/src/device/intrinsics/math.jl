@@ -319,10 +319,9 @@ end
 
 ## roots and powers
 
-@device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
-# sqrt(::Float16) inherits from Julia (Float16(sqrt(Float32(x)))), routing through __nv_sqrtf.
-@device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
+# `Base.sqrt` inherits from Julia (`llvm.sqrt.f{32,64}`); routing through
+# libdevice's `__nv_sqrtf` would force `sqrt.approx.*` unconditionally, since
+# LLVM's NVVMReflectPass folds `__CUDA_PREC_SQRT` to 0.
 
 @device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)
@@ -508,27 +507,15 @@ end
 @device_override Base.rem(x::Float32, y::Float32, ::RoundingMode{:Nearest}) = ccall("extern __nv_remainderf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override Base.rem(x::Float16, y::Float16, ::RoundingMode{:Nearest}) = Float16(rem(Float32(x), Float32(y), RoundNearest))
 
-@device_override FastMath.div_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_fdividef", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override FastMath.div_fast(x::Float64, y::Float64) = x * FastMath.inv_fast(y)
-
-@device_override Base.inv(x::Float32) = ccall("extern __nv_frcp_rn", llvmcall, Cfloat, (Cfloat,), x)
-@device_override Base.inv(x::Float64) = ccall("extern __nv_drcp_rn", llvmcall, Cdouble, (Cdouble,), x)
-
-@device_override FastMath.inv_fast(x::Float32) = ccall("llvm.nvvm.rcp.approx.ftz.f", llvmcall, Float32, (Float32,), x)
-@device_override function FastMath.inv_fast(x::Float64)
-    # Get the approximate reciprocal
-    # https://docs.nvidia.com/cuda/parallel-thread-execution/#floating-point-instructions-rcp-approx-ftz-f64
-    # This instruction chops off last 32bits of mantissa and computes inverse
-    # while treating all subnormal numbers as 0.0
-    # If reciprocal would be subnormal, underflows to 0.0
-    # 32 least significant bits of the result are filled with 0s
-    inv_x = ccall("llvm.nvvm.rcp.approx.ftz.d", llvmcall, Float64, (Float64,), x)
-
-    # Approximate the missing 32bits of mantissa with a single cubic iteration
-    e = fma(inv_x, -x, 1.0)
-    e = fma(e, e, e)
-    inv_x = fma(e, inv_x, inv_x)
-end
+# `Base.{/, inv}` and `Base.FastMath.div_fast` inherit from Julia:
+# GPUCompiler's `PTXFDivFastPass` handles the `afn`-flagged fdiv these emit,
+# and NVPTX pattern-matches plain `fdiv 1.0, x` to `rcp.rn`.
+#
+# `Base.FastMath.inv_fast(::AbstractFloat)` is unimplemented upstream (only
+# `Complex` has a method) and the catch-all fallback drops `afn`; route it
+# through `div_fast` so the pass sees the flag.
+@device_override FastMath.inv_fast(x::Union{Float32, Float64}) =
+    FastMath.div_fast(one(x), x)
 
 ## distributions
 

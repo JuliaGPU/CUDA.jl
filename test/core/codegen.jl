@@ -203,6 +203,43 @@ end
 
     asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
     @test occursin("sqrt.approx.ftz", asm)
+
+    # Pin down PTX for `/` and `inv` across {f32, f64} × {plain, @fastmath}
+    # × {default, fastmath=true job}, since `Base.{/, inv}` and their fast
+    # variants are now handled entirely by GPUCompiler's `PTXFDivFastPass`.
+    fdiv(x, y) = x / y
+    finv(x) = inv(x)
+    fdiv_fast(x, y) = @fastmath x / y
+    finv_fast(x) = @fastmath inv(x)
+
+    # plain: precise lowering (inv via NVPTX matching `fdiv 1.0, x` to rcp.rn).
+    for T in (Float32, Float64)
+        suffix = T === Float32 ? "f32" : "f64"
+        @test occursin("div.rn.$suffix", sprint(io->CUDA.code_ptx(io, fdiv, Tuple{T,T})))
+        @test occursin("rcp.rn.$suffix", sprint(io->CUDA.code_ptx(io, finv, Tuple{T,})))
+    end
+
+    # @fastmath: per-call `afn` reaches the pass. f64 → rcp + Newton (no
+    # native fast f64 fdiv); f32 stays non-FTZ since the job isn't fast.
+    asm = sprint(io->CUDA.code_ptx(io, fdiv_fast, Tuple{Float32,Float32}))
+    @test occursin("div.approx.f32", asm) && !occursin("div.approx.ftz", asm)
+    asm = sprint(io->CUDA.code_ptx(io, finv_fast, Tuple{Float32,}))
+    @test occursin("div.approx.f32", asm) && !occursin("div.approx.ftz", asm)
+    @test occursin("rcp.approx.ftz.f64",
+                   sprint(io->CUDA.code_ptx(io, fdiv_fast, Tuple{Float64,Float64})))
+    @test occursin("rcp.approx.ftz.f64",
+                   sprint(io->CUDA.code_ptx(io, finv_fast, Tuple{Float64,})))
+
+    # fastmath=true job: `apply_fastmath!` stamps `afn` on plain ops; f32
+    # additionally picks up FTZ.
+    @test occursin("div.approx.ftz.f32",
+                   sprint(io->CUDA.code_ptx(io, fdiv, Tuple{Float32,Float32}; fastmath=true)))
+    @test occursin("div.approx.ftz.f32",
+                   sprint(io->CUDA.code_ptx(io, finv, Tuple{Float32,}; fastmath=true)))
+    @test occursin("rcp.approx.ftz.f64",
+                   sprint(io->CUDA.code_ptx(io, fdiv, Tuple{Float64,Float64}; fastmath=true)))
+    @test occursin("rcp.approx.ftz.f64",
+                   sprint(io->CUDA.code_ptx(io, finv, Tuple{Float64,}; fastmath=true)))
 end
 
 @testset "fma/muladd emit fma.rn" begin
