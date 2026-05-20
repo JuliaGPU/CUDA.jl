@@ -1,5 +1,8 @@
 # math functionality
 
+# we only use libdevice where needed. if possible, we go through LLVM instead,
+# ideally relying on Julia's existing definitions.
+
 @public fma, rsqrt, saturate, byte_perm, assume
 @public add_rn, add_rz, add_rm, add_rp
 @public sub_rn, sub_rz, sub_rm, sub_rp
