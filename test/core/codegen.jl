@@ -257,6 +257,83 @@ end
     end
 end
 
+@testset "math intrinsics lower without libdevice" begin
+    # Pin down PTX for the ops whose `@device_override`s were dropped, since
+    # they now rely on Julia emitting canonical LLVM IR and NVPTX lowering it.
+    # No libdevice (`__nv_*`) calls should remain in any of these.
+
+    suffix(::Type{Float32}) = "f32"
+    suffix(::Type{Float64}) = "f64"
+    asm_of(f, T) = sprint(io->CUDA.code_ptx(io, f, T))
+    asm_fast(f, T) = sprint(io->CUDA.code_ptx(io, f, T; fastmath=true))
+
+    # `abs` lowers to a single instruction for both floats and ints.
+    for T in (Float32, Float64)
+        asm = asm_of(x->abs(x), Tuple{T})
+        @test occursin("abs.$(suffix(T))", asm) && !occursin("__nv_", asm)
+    end
+    for (T, s) in ((Int32, "s32"), (Int64, "s64"))
+        asm = asm_of(x->abs(x), Tuple{T})
+        @test occursin("abs.$s", asm) && !occursin("__nv_", asm)
+    end
+
+    # floor/ceil/trunc → `cvt.r{m,p,z}i.fXX.fXX`.
+    for (op, rnd) in ((floor, "rmi"), (ceil, "rpi"), (trunc, "rzi"))
+        for T in (Float32, Float64)
+            s = suffix(T)
+            asm = asm_of(x->op(x), Tuple{T})
+            @test occursin("cvt.$rnd.$s.$s", asm) && !occursin("__nv_", asm)
+        end
+    end
+
+    # FP predicates: should be pure compare/bit-test, no libdevice.
+    for T in (Float32, Float64)
+        for op in (isnan, isinf, isfinite, signbit)
+            asm = asm_of(x->op(x), Tuple{T})
+            @test !occursin("__nv_", asm)
+        end
+    end
+    # isnan is the cleanest: a single `setp.nan.fXX`.
+    @test occursin("setp.nan.f32", asm_of(x->isnan(x), Tuple{Float32}))
+    @test occursin("setp.nan.f64", asm_of(x->isnan(x), Tuple{Float64}))
+
+    # copysign: no libdevice, no single instruction (bit-twiddle on NVPTX).
+    for T in (Float32, Float64)
+        asm = asm_of((x, y) -> copysign(x, y), Tuple{T, T})
+        @test !occursin("__nv_", asm)
+    end
+
+    # Default `min`/`max` propagate NaN (Julia semantics). f32 on sm_80+ +
+    # LLVM 14+ gets the dedicated `min.NaN`/`max.NaN`; f64 emulates via PTX.
+    for (op, instr) in ((min, "min"), (max, "max"))
+        for T in (Float32, Float64)
+            asm = asm_of((x, y) -> op(x, y), Tuple{T, T})
+            @test occursin("$instr.", asm)
+        end
+    end
+    @test occursin("min.NaN.f32", asm_of((x, y) -> min(x, y), Tuple{Float32, Float32}))
+    @test occursin("max.NaN.f32", asm_of((x, y) -> max(x, y), Tuple{Float32, Float32}))
+
+    # `@fastmath min/max` drops NaN handling, becoming a plain compare+select.
+    for T in (Float32, Float64)
+        asm = asm_of((x, y) -> @fastmath(min(x, y)), Tuple{T, T})
+        @test occursin("setp.lt.$(suffix(T))", asm) && occursin("selp.$(suffix(T))", asm)
+        asm = asm_of((x, y) -> @fastmath(max(x, y)), Tuple{T, T})
+        @test occursin("setp.lt.$(suffix(T))", asm) && occursin("selp.$(suffix(T))", asm)
+    end
+
+    # job-wide `fastmath=true` propagates `afn` via `apply_fastmath!`. The
+    # ops here don't use `afn` to pick variants, but `apply_fastmath!` also
+    # sets `denormal-fp-math-f32="preserve-sign"`, which NVPTX' `useF32FTZ`
+    # reads to pick FTZ variants for *every* f32 op (`abs.ftz.f32`,
+    # `cvt.r{m,p,z}i.ftz.*`, etc.). f64 stays unchanged since NVPTX has no
+    # FTZ behavior on f64.
+    @test occursin("abs.ftz.f32", asm_fast(x->abs(x), Tuple{Float32}))
+    @test occursin("abs.f64", asm_fast(x->abs(x), Tuple{Float64}))
+    @test occursin("cvt.rmi.ftz.f32.f32", asm_fast(x->floor(x), Tuple{Float32}))
+    @test occursin("cvt.rmi.f64.f64", asm_fast(x->floor(x), Tuple{Float64}))
+end
+
 @testset "header rewrite (.target/.version bump)" begin
     # When LLVM's NVPTX backend can't reach the device cap (e.g. Julia 1.12 +
     # LLVM 18 on a Blackwell device), `_compiler_config` produces a split
