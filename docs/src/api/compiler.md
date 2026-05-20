@@ -25,6 +25,14 @@ registers
 memory
 ```
 
+The PTX compilation target is identified by an `SMVersion`, constructed via the
+`sm"..."` string macro:
+
+```@docs
+SMVersion
+@sm_str
+```
+
 To plug in alternative compiler back-ends (e.g. cuTile.jl), `@cuda` dispatches
 through a small protocol:
 

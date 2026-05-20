@@ -13,11 +13,16 @@ if :NVPTX in LLVM.backends()
             end
 
             llvm_support = llvm_compat()
-            llvm_cap = maximum(filter(<=(v"7.5"), llvm_support.cap))
+            # `.sm` is `Set{SMVersion}` (with variants); pick the highest baseline
+            # entry <= v"7.5" for a portable precompile artifact.
+            llvm_sm = argmax(base_version,
+                             filter(sm -> sm.feature_set === :baseline &&
+                                          base_version(sm) <= v"7.5",
+                                    llvm_support.sm))
             llvm_ptx = maximum(filter(>=(v"6.2"), llvm_support.ptx))
 
-            target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo=true)
-            params = CUDACompilerParams(; cap=llvm_cap, ptx=llvm_ptx)
+            target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx, debuginfo=true)
+            params = CUDACompilerParams(; sm=llvm_sm, ptx=llvm_ptx)
             config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
 
             tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}

@@ -63,7 +63,7 @@ kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :cap, :ptx]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
 const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clustersize, :shmem, :stream]
 
 
@@ -433,7 +433,12 @@ The following keyword arguments are supported:
 - `name`: override the name that the kernel will have in the generated code
 - `always_inline`: inline all function calls in the kernel
 - `fastmath`: use less precise square roots and flush denormals
-- `cap` and `ptx`: to override the compute capability and PTX version to compile for
+- `arch` and `ptx`: override the GPU architecture (matching nvcc/ptxas `-arch`) and the
+  PTX ISA version to compile for. `arch` accepts either an [`SMVersion`](@ref) via the
+  `sm"..."` string macro (e.g. `arch=sm"103a"` for architecture-accelerated codegen on
+  CC 10.3, or `arch=sm"100f"` for family-portable Blackwell codegen) or a `VersionNumber`
+  (e.g. `arch=v"10.3"`, treated as baseline / forward-compatible). The old kwarg name
+  `cap=` is accepted as a deprecated alias.
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when

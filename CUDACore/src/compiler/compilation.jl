@@ -1,12 +1,12 @@
 ## gpucompiler interface implementation
 
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
-    cap::VersionNumber
+    sm::SMVersion
     ptx::VersionNumber
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
-    h = hash(params.cap, h)
+    h = hash(params.sm, h)
     h = hash(params.ptx, h)
 
     return h
@@ -119,10 +119,10 @@ end
 
 # stamp `.version` with the ISA we want `ptxas` to validate against
 # and `.target` with the arch that `--gpu-name` will use
-function rewrite_ptx_header(asm, ptx, cap)
+function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
     return replace(asm,
         r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
-        r"\.target sm_\d+\w*" => ".target sm_$(cap.major)$(cap.minor)")
+        r"\.target sm_\d+\w*" => ".target $(cpu_name(sm))")
 end
 
 function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
@@ -145,9 +145,16 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
-    (; ptx, cap) = job.config.params
-    if job.config.target.ptx != ptx || job.config.target.cap != cap
-        asm = rewrite_ptx_header(asm, ptx, cap)
+    # The rewrite stamps `.target`/`.version` with the *requested* (cuda-side) values.
+    # When the GPUCompiler-side target matches, LLVM already emits the right header
+    # (including the `a`/`f` suffix, via the CPU name); we only rewrite when they differ,
+    # e.g. when we had to clamp the target down for LLVM compatibility.
+    (; ptx, sm) = job.config.params
+    needs_rewrite = job.config.target.ptx != ptx ||
+                    job.config.target.cap != base_version(sm) ||
+                    job.config.target.feature_set !== sm.feature_set
+    if needs_rewrite
+        asm = rewrite_ptx_header(asm, ptx, sm)
     end
 
     return asm
@@ -179,66 +186,86 @@ function compiler_config(dev; kwargs...)
     return config
 end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         cap=nothing, ptx=nothing, kwargs...)
-    # determine the toolchain
-    llvm_support = llvm_compat()
-    cuda_support = cuda_compat()
+                                         arch=nothing, cap=nothing, ptx=nothing, kwargs...)
+    # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
+    if cap !== nothing
+        arch === nothing ||
+            throw(ArgumentError("pass either `arch=` or the deprecated `cap=`, not both"))
+        Base.depwarn("the `cap=` kwarg is deprecated; use `arch=` (matching nvcc/ptxas `-arch`) instead.",
+                     :cufunction)
+        arch = cap
+    end
+    # `SMVersion` is the universal normalizer: identity for an SMVersion, baseline-promotes
+    # a VersionNumber, parses a string. Anything else falls out as a MethodError naturally.
+    arch === nothing || (arch = SMVersion(arch))
 
-    # determine the PTX ISA to use. we want at least 6.2, but will use newer if possible.
-    requested_ptx = something(ptx, v"6.2")
-    llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
-    cuda_ptxs = filter(>=(requested_ptx), cuda_support.ptx)
+    # inspect the toolchain
+    llvm_support = llvm_compat()
+    ptxas_support = ptxas_compat()
+
+    # determine the PTX ISA to use.
     if ptx !== nothing
-        # the user requested a specific PTX ISA
-        ## use the highest ISA supported by LLVM
-        isempty(llvm_ptxs) &&
+        # explicit request: take it exactly, validating against the toolchain
+        ptx in llvm_support.ptx ||
             error("Requested PTX ISA $ptx is not supported by LLVM $(LLVM.version())")
-        llvm_ptx = maximum(llvm_ptxs)
-        ## use the ISA as-is to invoke CUDA
-        cuda_ptx = ptx
+        ptx in ptxas_support.ptx ||
+            error("Requested PTX ISA $ptx is not supported by ptxas $(compiler_version())")
+        llvm_ptx = ptxas_ptx = ptx
     else
-        # try to do the best thing (i.e., use the newest PTX ISA)
-        # XXX: is it safe to just use the latest PTX ISA? isn't it possible for, e.g.,
-        #      instructions to get deprecated?
+        # default: pick the newest PTX ISA supported by the toolchain (>=v6.2)
+        requested_ptx = v"6.2"
+        llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
+        ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
         isempty(llvm_ptxs) &&
             error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
-        llvm_ptx = maximum(llvm_ptxs)
-        isempty(cuda_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA $(compiler_version())")
-        cuda_ptx = maximum(cuda_ptxs)
+        isempty(ptxas_ptxs) &&
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
+        ptxas_ptx = maximum(ptxas_ptxs)
+        llvm_ptx = min(maximum(llvm_ptxs), ptxas_ptx)
     end
 
-    # determine the compute capabilities to use. this should match the capability of the
-    # current device, but if LLVM doesn't support it, we can target an older capability
-    # and pass a different `-arch` to `ptxas`.
-    ptx_support = ptx_compat(cuda_ptx)
-    requested_cap = @something(cap, min(capability(dev), maximum(ptx_support.cap)))
-    llvm_caps = filter(<=(requested_cap), llvm_support.cap)
-    if cap !== nothing
-        ## use the highest capability supported by LLVM
-        isempty(llvm_caps) &&
-            error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
-        llvm_cap = maximum(llvm_caps)
-        ## use the capability as-is to invoke CUDA
-        cuda_cap = cap
+    # when selecting compute capabilities, we prefer the most recent one, as
+    # well as prefer to use architecture-accelerated features when available.
+    fs_rank(fs::Symbol) = fs === :arch ? 2 : fs === :family ? 1 : 0
+    sm_key(sm::SMVersion) = (base_version(sm), fs_rank(sm.feature_set))
+
+    # determine the compute capability to use.
+    ## ptxas
+    ptx_sms = ptx_sm_support(ptxas_ptx)
+    if arch !== nothing
+        # explicit request: take it as-is, validating against the PTX ISA
+        arch in ptx_sms ||
+            error("$(cpu_name(arch)) is not supported by PTX ISA $(ptxas_ptx)")
+        ptxas_sm = arch
     else
-        ## use the highest capability supported by LLVM
-        isempty(llvm_caps) &&
-            error("Compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
-        llvm_cap = maximum(llvm_caps)
-        ## use the highest capability supported by CUDA
-        cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
-        isempty(cuda_caps) &&
-            error("Compute capability $(requested_cap) is not supported by CUDA $(runtime_version())")
-        cuda_cap = maximum(cuda_caps)
+        # pick the most specific capability the selected PTX ISA supports whose cubin
+        # would actually load on the current device. For baseline that's the onion model;
+        # `:arch` requires an exact CC match, `:family` a same-family match.
+        ptxas_candidates = filter(sm -> runs_on(sm, capability(dev)), ptx_sms)
+        isempty(ptxas_candidates) &&
+            error("Compute capability $(capability(dev)) is not supported by ptxas " *
+                  "$(compiler_version()) at PTX ISA $(ptxas_ptx)")
+        ptxas_sm = argmax(sm_key, ptxas_candidates)
     end
-
-    # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
-    debuginfo = compiler_version() >= v"11.7"
+    ## LLVM
+    if ptxas_sm in llvm_support.sm
+        llvm_sm = ptxas_sm
+    else
+        # Exact `ptxas_sm` unavailable in LLVM. Fall back to baseline LLVM at a
+        # lower base, since arch/family features don't carry across versions.
+        baseline_candidates = filter(llvm_support.sm) do sm
+            sm.feature_set === :baseline && base_version(sm) <= base_version(ptxas_sm)
+        end
+        isempty(baseline_candidates) &&
+            error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(LLVM.version())")
+        llvm_sm = argmax(sm_key, baseline_candidates)
+    end
 
     # create GPUCompiler objects
-    target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx)
+    target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,
+                                 feature_set=llvm_sm.feature_set,
+                                 debuginfo=true, kwargs...)
+    params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
@@ -273,9 +300,9 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    ptx = job.config.params.ptx
-    cap = job.config.params.cap
-    arch = "sm_$(cap.major)$(cap.minor)"
+    (; ptx, sm) = job.config.params
+    cap = base_version(sm)
+    arch = cpu_name(sm)
 
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
@@ -288,7 +315,7 @@ function compile(@nospecialize(job::CompilerJob))
     end
     if param_usage > param_limit
         msg = """Kernel invocation uses too much parameter memory.
-                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by sm_$(cap.major)$(cap.minor) / PTX v$(ptx.major).$(ptx.minor)."""
+                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by $(arch) / PTX v$(ptx.major).$(ptx.minor)."""
 
         try
             details = "\n\nRelevant parameters:"

@@ -255,10 +255,51 @@ end
 
     @test !success(run_ptxas(asm_pre, "sm_75"))
 
-    asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", v"9.0")
+    asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", sm"90")
     @test occursin(".target sm_90", asm_post)
 
     @test success(run_ptxas(asm_post, "sm_90"))
+
+    # Architecture-specific feature set appends an `a` suffix to the .target directive (and the same
+    # string is what `compile()` passes to --gpu-name, since ptxas requires exact match for `a`-mode).
+    asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", sm"90a")
+    @test occursin(".target sm_90a", asm_arch)
+    @test success(run_ptxas(asm_arch, "sm_90a"))
+
+    # Family-specific appends `f`. Requires PTX 8.8+ at the `.target` line.
+    asm_family = CUDACore.rewrite_ptx_header(asm_pre, v"8.8", sm"100f")
+    @test occursin(".target sm_100f", asm_family)
+    @test success(run_ptxas(asm_family, "sm_100f"))
+end
+
+@testset "SMVersion and sm\"...\" macro" begin
+    @test sm"90"   == SMVersion(9, 0, :baseline)
+    @test sm"90a"  == SMVersion(9, 0, :arch)
+    @test sm"100f" == SMVersion(10, 0, :family)
+    # printing roundtrips via the macro form
+    @test sprint(show, sm"103a") == "sm\"103a\""
+    @test sprint(show, sm"100")  == "sm\"100\""
+    # cpu_name reflects feature_set
+    @test CUDACore.cpu_name(sm"90")   == "sm_90"
+    @test CUDACore.cpu_name(sm"90a")  == "sm_90a"
+    @test CUDACore.cpu_name(sm"100f") == "sm_100f"
+    # base_version drops the suffix back to a comparable VersionNumber
+    @test CUDACore.base_version(sm"103a") == v"10.3"
+    # constructor rejects bogus feature_set
+    @test_throws ErrorException SMVersion(9, 0, :bogus)
+    # macro rejects malformed strings
+    @test_throws ErrorException parse(SMVersion, "10.3a")    # dotted form (NVIDIA uses dotless)
+    @test_throws ErrorException parse(SMVersion, "100x")     # unknown suffix
+    @test_throws ErrorException parse(SMVersion, "1")        # only one digit (need at least major + minor)
+    @test_throws ErrorException parse(SMVersion, "")         # empty
+
+    # `SMVersion(x)` as the universal normalizer:
+    @test SMVersion(sm"103a")          === sm"103a"                        # identity
+    @test SMVersion(v"10.3")           == SMVersion(10, 3, :baseline)      # VersionNumber → baseline
+    @test SMVersion("103a")            == sm"103a"                         # bare string
+    @test SMVersion("sm_103a")         == sm"103a"                         # accepts NVIDIA prefix
+    # the macro is just a parse-time call to the constructor
+    @test sm"103a"                     == SMVersion("103a")
 end
 
 end

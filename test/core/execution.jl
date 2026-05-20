@@ -50,17 +50,84 @@ end
     @cuda threads=2 dummy()
 
     # sm_10 isn't supported by LLVM
-    @test_throws "not supported by LLVM" @cuda launch=false cap=v"1.0" dummy()
+    @test_throws "not supported by LLVM" @cuda launch=false arch=sm"10" dummy()
     # sm_20 is, but not by any CUDA version we support
-    @test_throws "Failed to compile PTX code" @cuda launch=false cap=v"2.0" dummy()
+    @test_throws "Failed to compile PTX code" @cuda launch=false arch=sm"20" dummy()
     # there isn't any capability other than the device's that's guaruanteed to work
-    @cuda launch=false cap=capability(device()) dummy()
+    dev_cap = capability(device())
+    dev_sm = SMVersion(dev_cap.major, dev_cap.minor)
+    @cuda launch=false arch=dev_sm dummy()
+    # `arch=` also accepts a plain `VersionNumber` -- treated as baseline. Equivalent
+    # to constructing the SMVersion directly.
+    @cuda launch=false arch=dev_cap dummy()
     # but we should be able to see it in the generated PTX code
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm"50"))
+    @test contains(asm, ".target sm_50")
+    asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=v"5.0"))
     @test contains(asm, ".target sm_50")
 
+    # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
+    # `.version` line should match what was asked for, independently of what LLVM and
+    # ptxas would natively pick.
     asm = sprint(io->CUDA.code_ptx(io, dummy, (); ptx=v"6.3"))
     @test contains(asm, ".version 6.3")
+
+    # explicit `ptx=` is validated against BOTH LLVM and ptxas (not just LLVM as it
+    # used to be); a clearly out-of-range value must error at config time.
+    @test_throws "not supported" @cuda launch=false ptx=v"99.0" dummy()
+
+    # feature_set is selected by the suffix on the sm"..." string; the suffix should
+    # surface in the .target directive in the PTX output. The cuda-side `.target` is
+    # the variant regardless of LLVM support -- the mcgen rewrite stamps it in even
+    # when LLVM clamped to baseline for codegen.
+    sm_a = SMVersion(dev_cap.major, dev_cap.minor, :arch)
+    sm_f = SMVersion(dev_cap.major, dev_cap.minor, :family)
+
+    if dev_cap >= v"9.0"
+        asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm_a))
+        @test contains(asm, ".target $(CUDACore.cpu_name(sm_a))")
+        # arch-specific cubin should also actually launch on the matching device
+        @cuda arch=sm_a dummy()
+    end
+    if dev_cap >= v"10.0"
+        asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm_f))
+        @test contains(asm, ".target $(CUDACore.cpu_name(sm_f))")
+        @cuda arch=sm_f dummy()
+    end
+
+    # `cap=` is the deprecated alias for `arch=`; check the depwarn fires while
+    # the path still produces the right PTX.
+    @test_deprecated sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"50"))
+
+    # With no explicit `arch=`, we default to architecture-specific code paths on CC >=9.0
+    # since we know the exact device. The cuda-side `.target` is the variant regardless of
+    # LLVM support (the mcgen rewrite stamps it in); only the LLVM-emitted code differs.
+    if dev_cap >= v"9.0"
+        asm = sprint(io->CUDA.code_ptx(io, dummy, ()))
+        @test contains(asm, ".target $(CUDACore.cpu_name(sm_a))")
+    end
+
+    # `target_feature_set()` reads back the feature set the *LLVM-emitted* code was built
+    # for (not the cuda-side .target): when LLVM doesn't natively support the exact variant,
+    # we fall back to baseline LLVM, so the global reflects baseline. The if-chain folds at
+    # codegen time, so the launched kernel writes a single constant.
+    function read_feature_set!(out)
+        @inbounds out[1] = if target_feature_set() === :arch
+            UInt32(2)
+        elseif target_feature_set() === :family
+            UInt32(1)
+        else
+            UInt32(0)
+        end
+        return
+    end
+    out = CuArray{UInt32}([typemax(UInt32)])
+    @cuda threads=1 read_feature_set!(out)
+    # arch features come through `target_feature_set()` only when LLVM natively supported
+    # the variant; otherwise we fell back to baseline LLVM and the global reflects that.
+    arch_in_llvm = sm_a in CUDACore.llvm_sm_support(CUDACore.LLVM.version())
+    expected = dev_cap >= v"9.0" && arch_in_llvm ? UInt32(2) : UInt32(0)
+    @test Array(out)[1] == expected
 end
 
 
