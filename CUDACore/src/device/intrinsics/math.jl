@@ -286,15 +286,11 @@ end
 
 ## floating-point handling
 
-@device_override Base.isfinite(x::Float32) = (ccall("extern __nv_finitef", llvmcall, Int32, (Cfloat,), x)) != 0
-@device_override Base.isfinite(x::Float64) = (ccall("extern __nv_isfinited", llvmcall, Int32, (Cdouble,), x)) != 0
-
-@device_override Base.isinf(x::Float64) = (ccall("extern __nv_isinfd", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.isinf(x::Float32) = (ccall("extern __nv_isinff", llvmcall, Int32, (Cfloat,), x)) != 0
-
-@device_override Base.isnan(x::Float64) = (ccall("extern __nv_isnand", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.isnan(x::Float32) = (ccall("extern __nv_isnanf", llvmcall, Int32, (Cfloat,), x)) != 0
-# isnan(::Float16) inherits from Julia (x != x), which compiles to a single setp.neu.f16.
+# isfinite/isinf/isnan inherit from Julia, which uses pure FP comparisons and
+# integer bit tricks: e.g. `isnan(x) = x != x` compiles to `setp.neu.f{16,32,64}`,
+# `isinf(x) = abs(x) == Inf` to `abs.f32 + setp.eq.f32`. The libdevice
+# `__nv_is{inf,nan,finite}*` wrappers do the same in their bodies, so the
+# overrides produced equivalent PTX after inlining.
 
 @device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
 @device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
@@ -305,17 +301,10 @@ end
 
 ## sign handling
 
-@device_override Base.signbit(x::Float64) = (ccall("extern __nv_signbitd", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.signbit(x::Float32) = (ccall("extern __nv_signbitf", llvmcall, Int32, (Cfloat,), x)) != 0
-
-@device_override Base.copysign(x::Float64, y::Float64) = ccall("extern __nv_copysign", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-@device_override Base.copysign(x::Float32, y::Float32) = ccall("extern __nv_copysignf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-
-@device_override Base.abs(x::Int32) =   ccall("extern __nv_abs", llvmcall, Int32, (Int32,), x)
-@device_override Base.abs(f::Float64) = ccall("extern __nv_fabs", llvmcall, Cdouble, (Cdouble,), f)
-@device_override Base.abs(f::Float32) = ccall("extern __nv_fabsf", llvmcall, Cfloat, (Cfloat,), f)
-# abs(::Float16) inherits from Julia (abs_float intrinsic), lowering to and.b16.
-@device_override Base.abs(x::Int64) =   ccall("extern __nv_llabs", llvmcall, Int64, (Int64,), x)
+# signbit/copysign/abs inherit from Julia. Julia emits canonical LLVM ops:
+# `signbit` is a sign-bit extract; `copysign` is `llvm.copysign.f{32,64}`
+# (NVPTX has custom lowering to bit-twiddle); `abs` is `llvm.fabs.f{32,64}`
+# (NVPTX legal → `abs.f{32,64}`) for floats, or two-complement for ints.
 
 ## roots and powers
 
@@ -394,14 +383,8 @@ end
 #@device_override Base.rint(x::Float64) = ccall("extern __nv_rint", llvmcall, Cdouble, (Cdouble,), x)
 #@device_override Base.rint(x::Float32) = ccall("extern __nv_rintf", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.trunc(x::Float64) = ccall("extern __nv_trunc", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.trunc(x::Float32) = ccall("extern __nv_truncf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.ceil(x::Float64) = ccall("extern __nv_ceil", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.ceil(x::Float32) = ccall("extern __nv_ceilf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.floor(f::Float64) = ccall("extern __nv_floor", llvmcall, Cdouble, (Cdouble,), f)
-@device_override Base.floor(f::Float32) = ccall("extern __nv_floorf", llvmcall, Cfloat, (Cfloat,), f)
+# trunc/ceil/floor inherit from Julia (`llvm.{trunc,ceil,floor}.f{32,64}`),
+# which NVPTX lowers natively to `cvt.r{zi,pi,mi}.f{32,64}.f{32,64}`.
 
 #@device_override Base.min(x::Int32, y::Int32) = ccall("extern __nv_min", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.min(x::Int64, y::Int64) = ccall("extern __nv_llmin", llvmcall, Int64, (Int64, Int64), x, y)
@@ -536,13 +519,16 @@ end
 @device_override Base.hypot(x::Float64, y::Float64) = ccall("extern __nv_hypot", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.hypot(x::Float32, y::Float32) = ccall("extern __nv_hypotf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
-@device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("llvm.fma.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("llvm.fma.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.fma(x::Float16, y::Float16, z::Float16) = ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
-
-@device_override Base.muladd(x::Float64, y::Float64, z::Float64) = ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.muladd(x::Float32, y::Float32, z::Float32) = ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.muladd(x::Float16, y::Float16, z::Float16) = ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+# fma/muladd inherit from Julia. `Base.fma(::Float{32,64})` branches on
+# `julia.cpu.have_fma.f{32,64}`, which GPUCompiler folds to `true` on PTX,
+# leaving `llvm.fma`. `Base.muladd` emits `fmul contract + fadd contract`,
+# fused by the backend. Both lower to `fma.rn.f{32,64}` on NVPTX.
+#
+# `Base.fma(::Float16,...)` instead branches on a runtime `jl_have_fma` call
+# that GPUCompiler can't fold (see GPUCompiler's `cpu_features!`), so we
+# keep an explicit override for that one type.
+@device_override Base.fma(x::Float16, y::Float16, z::Float16) =
+    ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
 # Directed rounding for binary arithmetic and fma. NVPTX exposes
 # `{add,mul,div,fma}.{rn,rz,rm,rp}.{f32,f64}` directly; there is no `sub`

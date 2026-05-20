@@ -35,17 +35,9 @@ end
     end
 end
 
-@testset "muladd uses LLVM intrinsic" begin
-    function muladd_kernel(ptr)
-        unsafe_store!(ptr, muladd(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
-        return
-    end
-
-    for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
-        ir = sprint(io->CUDA.code_llvm(io, muladd_kernel, Tuple{Ptr{T}}))
-        @test occursin("llvm.fmuladd.$suffix", ir)
-    end
-end
+# muladd is no longer overridden — Julia emits `fmul contract + fadd contract`,
+# which the backend fuses. The "fma/muladd emit fma.rn" PTX testset below
+# verifies the actual end-to-end result on every supported FP type.
 
 @testset "assume" begin
     foo(i) = cld(42, i)
