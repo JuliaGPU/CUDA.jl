@@ -29,6 +29,20 @@ end
     end
 end
 
+@testset "muladd uses LLVM intrinsic" begin
+    # `Base.muladd` emits `fmul contract + fadd contract` upstream, which the
+    # backend usually fuses to `fma.rn`. On GPU the fusion is unreliable under
+    # vectorization (JuliaGPU/CUDA.jl#3149), so the override routes through
+    # `llvm.fmuladd.fXX` directly.
+    for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
+        @test @filecheck CUDA.code_llvm(Tuple{Ptr{T}}) do ptr
+            @check "llvm.fmuladd.$suffix"
+            unsafe_store!(ptr, muladd(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+            return
+        end
+    end
+end
+
 @testset "assume" begin
     @test @filecheck CUDA.code_llvm(Tuple{Int}) do i
         @check "@gpu_report_exception"

@@ -475,7 +475,7 @@ end
 
 # `Base.FastMath.inv_fast(::AbstractFloat)` is unimplemented upstream (only
 # `Complex` has a method) and the catch-all fallback drops `afn`
-@device_override FastMath.inv_fast(x::Union{Float32, Float64}) =
+@device_override FastMath.inv_fast(x::Union{Float16, Float32, Float64}) =
     FastMath.div_fast(one(x), x)
 
 
@@ -501,6 +501,17 @@ end
 # `Base.fma(::Float16,...)` branches on `jl_have_fma`
 @device_override Base.fma(x::Float16, y::Float16, z::Float16) =
     ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+
+# `Base.muladd(x, y, z) = fma(x, y, z)` is the natural choice on GPU: NVPTX
+# always lowers `llvm.fmuladd.fXX` to `fma.rn`, and routing through
+# `llvm.fmuladd` (rather than Julia's default `fmul contract + fadd contract`)
+# keeps the fusion robust under vectorization (per JuliaGPU/CUDA.jl#3149).
+@device_override Base.muladd(x::Float64, y::Float64, z::Float64) =
+    ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+@device_override Base.muladd(x::Float32, y::Float32, z::Float32) =
+    ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.muladd(x::Float16, y::Float16, z::Float16) =
+    ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
 # Directed rounding for binary arithmetic and fma. NVPTX exposes
 # `{add,mul,div,fma}.{rn,rz,rm,rp}.{f32,f64}` directly; there is no `sub`
