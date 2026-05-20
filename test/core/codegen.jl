@@ -35,10 +35,6 @@ end
     end
 end
 
-# muladd is no longer overridden — Julia emits `fmul contract + fadd contract`,
-# which the backend fuses. The "fma/muladd emit fma.rn" PTX testset below
-# verifies the actual end-to-end result on every supported FP type.
-
 @testset "assume" begin
     foo(i) = cld(42, i)
     ir = sprint(io->CUDA.code_llvm(io, foo, Tuple{Int}))

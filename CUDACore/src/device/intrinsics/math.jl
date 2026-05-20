@@ -286,12 +286,6 @@ end
 
 ## floating-point handling
 
-# isfinite/isinf/isnan inherit from Julia, which uses pure FP comparisons and
-# integer bit tricks: e.g. `isnan(x) = x != x` compiles to `setp.neu.f{16,32,64}`,
-# `isinf(x) = abs(x) == Inf` to `abs.f32 + setp.eq.f32`. The libdevice
-# `__nv_is{inf,nan,finite}*` wrappers do the same in their bodies, so the
-# overrides produced equivalent PTX after inlining.
-
 @device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
 @device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
 
@@ -299,18 +293,7 @@ end
 @device_function nextafter(x::Float32, y::Float32) = ccall("extern __nv_nextafterf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
 
-## sign handling
-
-# signbit/copysign/abs inherit from Julia. Julia emits canonical LLVM ops:
-# `signbit` is a sign-bit extract; `copysign` is `llvm.copysign.f{32,64}`
-# (NVPTX has custom lowering to bit-twiddle); `abs` is `llvm.fabs.f{32,64}`
-# (NVPTX legal → `abs.f{32,64}`) for floats, or two-complement for ints.
-
 ## roots and powers
-
-# `Base.sqrt` inherits from Julia (`llvm.sqrt.f{32,64}`); routing through
-# libdevice's `__nv_sqrtf` would force `sqrt.approx.*` unconditionally, since
-# LLVM's NVVMReflectPass folds `__CUDA_PREC_SQRT` to 0.
 
 @device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)
@@ -382,9 +365,6 @@ end
 #@device_override Base.rint(x::Float32) = ccall("extern __nv_llrintf", llvmcall, Int64, (Cfloat,), x)
 #@device_override Base.rint(x::Float64) = ccall("extern __nv_rint", llvmcall, Cdouble, (Cdouble,), x)
 #@device_override Base.rint(x::Float32) = ccall("extern __nv_rintf", llvmcall, Cfloat, (Cfloat,), x)
-
-# trunc/ceil/floor inherit from Julia (`llvm.{trunc,ceil,floor}.f{32,64}`),
-# which NVPTX lowers natively to `cvt.r{zi,pi,mi}.f{32,64}.f{32,64}`.
 
 #@device_override Base.min(x::Int32, y::Int32) = ccall("extern __nv_min", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.min(x::Int64, y::Int64) = ccall("extern __nv_llmin", llvmcall, Int64, (Int64, Int64), x, y)
@@ -490,15 +470,11 @@ end
 @device_override Base.rem(x::Float32, y::Float32, ::RoundingMode{:Nearest}) = ccall("extern __nv_remainderf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override Base.rem(x::Float16, y::Float16, ::RoundingMode{:Nearest}) = Float16(rem(Float32(x), Float32(y), RoundNearest))
 
-# `Base.{/, inv}` and `Base.FastMath.div_fast` inherit from Julia:
-# GPUCompiler's `PTXFDivFastPass` handles the `afn`-flagged fdiv these emit,
-# and NVPTX pattern-matches plain `fdiv 1.0, x` to `rcp.rn`.
-#
 # `Base.FastMath.inv_fast(::AbstractFloat)` is unimplemented upstream (only
-# `Complex` has a method) and the catch-all fallback drops `afn`; route it
-# through `div_fast` so the pass sees the flag.
+# `Complex` has a method) and the catch-all fallback drops `afn`
 @device_override FastMath.inv_fast(x::Union{Float32, Float64}) =
     FastMath.div_fast(one(x), x)
+
 
 ## distributions
 
@@ -519,14 +495,7 @@ end
 @device_override Base.hypot(x::Float64, y::Float64) = ccall("extern __nv_hypot", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.hypot(x::Float32, y::Float32) = ccall("extern __nv_hypotf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
-# fma/muladd inherit from Julia. `Base.fma(::Float{32,64})` branches on
-# `julia.cpu.have_fma.f{32,64}`, which GPUCompiler folds to `true` on PTX,
-# leaving `llvm.fma`. `Base.muladd` emits `fmul contract + fadd contract`,
-# fused by the backend. Both lower to `fma.rn.f{32,64}` on NVPTX.
-#
-# `Base.fma(::Float16,...)` instead branches on a runtime `jl_have_fma` call
-# that GPUCompiler can't fold (see GPUCompiler's `cpu_features!`), so we
-# keep an explicit override for that one type.
+# `Base.fma(::Float16,...)` branches on `jl_have_fma`
 @device_override Base.fma(x::Float16, y::Float16, z::Float16) =
     ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
