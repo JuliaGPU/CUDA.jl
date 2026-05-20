@@ -1,15 +1,14 @@
 @testset "ldg" begin
-    # NOTE: This is necessary because it seems that code_llvm has a bug which causes it to ignore
-    #       the method table. Wrapping it in a function gets us what we want currently but the PR
-    #       here: https://github.com/JuliaLang/julia/pull/60718 will likely fix this according to
-    #       @vchuravy. It is currently not backported.
-    ir = sprint(io->CUDA.code_llvm(io, (args...)->CUDACore.pointerref_ldg(args...), Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
-    if Base.libllvm_version >= v"20"
-        # LLVM 20 removed `@llvm.nvvm.ldg.*`; we now emit a plain load with
-        # `!invariant.load` metadata, which NVPTX lowers to `ld.global.nc`.
-        @test occursin("!invariant.load", ir)
-    else
-        @test occursin("@llvm.nvvm.ldg", ir)
+    # NOTE: the wrapping function is necessary because code_llvm has a bug
+    # that causes it to ignore the method table; JuliaLang/julia#60718 will
+    # likely fix this according to @vchuravy.
+    # LLVM 20 removed `@llvm.nvvm.ldg.*`; we now emit a plain load with
+    # `!invariant.load` metadata, which NVPTX lowers to `ld.global.nc`.
+    new_llvm = Base.libllvm_version >= v"20"
+    @test @filecheck CUDA.code_llvm(Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true) do args...
+        @check cond=new_llvm  "!invariant.load"
+        @check cond=!new_llvm "@llvm.nvvm.ldg"
+        CUDACore.pointerref_ldg(args...)
     end
 end
 

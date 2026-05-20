@@ -61,16 +61,22 @@ end
     # to constructing the SMVersion directly.
     @cuda launch=false arch=dev_cap dummy()
     # but we should be able to see it in the generated PTX code
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm"50"))
-    @test contains(asm, ".target sm_50")
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=v"5.0"))
-    @test contains(asm, ".target sm_50")
+    @test @filecheck CUDA.code_ptx((); arch=sm"50") do
+        @check ".target sm_50"
+        dummy()
+    end
+    @test @filecheck CUDA.code_ptx((); arch=v"5.0") do
+        @check ".target sm_50"
+        dummy()
+    end
 
     # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
     # `.version` line should match what was asked for, independently of what LLVM and
     # ptxas would natively pick.
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); ptx=v"6.3"))
-    @test contains(asm, ".version 6.3")
+    @test @filecheck CUDA.code_ptx((); ptx=v"6.3") do
+        @check ".version 6.3"
+        dummy()
+    end
 
     # explicit `ptx=` is validated against BOTH LLVM and ptxas (not just LLVM as it
     # used to be); a clearly out-of-range value must error at config time.
@@ -84,14 +90,18 @@ end
     sm_f = SMVersion(dev_cap.major, dev_cap.minor, :family)
 
     if dev_cap >= v"9.0"
-        asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm_a))
-        @test contains(asm, ".target $(CUDACore.cpu_name(sm_a))")
+        @test @filecheck CUDA.code_ptx((); arch=sm_a) do
+            @check ".target $(CUDACore.cpu_name(sm_a))"
+            dummy()
+        end
         # arch-specific cubin should also actually launch on the matching device
         @cuda arch=sm_a dummy()
     end
     if dev_cap >= v"10.0"
-        asm = sprint(io->CUDA.code_ptx(io, dummy, (); arch=sm_f))
-        @test contains(asm, ".target $(CUDACore.cpu_name(sm_f))")
+        @test @filecheck CUDA.code_ptx((); arch=sm_f) do
+            @check ".target $(CUDACore.cpu_name(sm_f))"
+            dummy()
+        end
         @cuda arch=sm_f dummy()
     end
 
@@ -103,8 +113,10 @@ end
     # since we know the exact device. The cuda-side `.target` is the variant regardless of
     # LLVM support (the mcgen rewrite stamps it in); only the LLVM-emitted code differs.
     if dev_cap >= v"9.0"
-        asm = sprint(io->CUDA.code_ptx(io, dummy, ()))
-        @test contains(asm, ".target $(CUDACore.cpu_name(sm_a))")
+        @test @filecheck CUDA.code_ptx(()) do
+            @check ".target $(CUDACore.cpu_name(sm_a))"
+            dummy()
+        end
     end
 
     # `target_feature_set()` reads back the feature set the *LLVM-emitted* code was built
