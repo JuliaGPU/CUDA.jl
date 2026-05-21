@@ -298,8 +298,11 @@ end
 
 ## roots and powers
 
-@device_function rsqrt(x::Float64) = @fastmath 1.0 / sqrt(x)
-@device_function rsqrt(x::Float32) = @fastmath 1f0 / sqrt(x)
+# NVPTX has native `rsqrt.approx.{f32,f64}`; call the intrinsic directly. The
+# obvious alternative, `@fastmath 1/sqrt(x)`, also lowers to `rsqrt.approx`
+# (via `PTXRSqrtFastPass`), but is too aggressive wrt. fast-math behavior.
+@device_function rsqrt(x::Float64) = ccall("llvm.nvvm.rsqrt.approx.d", llvmcall, Cdouble, (Cdouble,), x)
+@device_function rsqrt(x::Float32) = ccall("llvm.nvvm.rsqrt.approx.f", llvmcall, Cfloat, (Cfloat,), x)
 @device_function rsqrt(x::Float16) = Float16(rsqrt(Float32(x)))
 
 @device_override Base.cbrt(x::Float64) = ccall("extern __nv_cbrt", llvmcall, Cdouble, (Cdouble,), x)

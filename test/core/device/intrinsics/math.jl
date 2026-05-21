@@ -554,10 +554,10 @@ using SpecialFunctions
     end
 
     @testset "rsqrt PTX" begin
-        # `CUDA.rsqrt(x)` is `@fastmath 1/sqrt(x)`; GPUCompiler's
-        # `PTXRSqrtFastPass` folds the `afn 1/sqrt(x)` pattern to a single
-        # `nvvm.rsqrt.approx.{f,d}` call. f16 computes in f32, so it still
-        # hits the f32 instruction.
+        # `CUDA.rsqrt(x)` directly calls the NVPTX `rsqrt.approx.{f,d}`
+        # intrinsic — no libdevice, and no `@fastmath` so caller-side NaN/Inf
+        # checks aren't DCE'd by `nnan`/`ninf` propagation. f16 computes in
+        # f32, so it still hits the f32 instruction.
         for (T, s) in ((Float32, "f32"), (Float64, "f64"))
             @test @filecheck CUDA.code_ptx(Tuple{T}) do x
                 @check "rsqrt.approx.$s"
