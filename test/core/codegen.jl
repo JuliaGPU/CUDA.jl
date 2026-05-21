@@ -1,61 +1,59 @@
 @testset "LLVM IR" begin
 
 @testset "JuliaLang/julia#21121" begin
-    function foobar()
+    @test @filecheck CUDA.code_llvm(Tuple{}) do
+        @check_not "inttoptr"
         weight_matrix = CuStaticSharedArray(Float32, (16, 16))
         sync_threads()
         weight_matrix[1, 16] *= 2
         sync_threads()
     end
-
-    ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}))
-    @test !occursin("inttoptr", ir)
 end
 
 @testset "CUDA.jl#553" begin
-    function kernel(ptr)
-       unsafe_store!(ptr, CUDA.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
-       return
+    @test @filecheck CUDA.code_llvm(Tuple{Ptr{Float32}}) do ptr
+        @check_not "@__nv_fmaf"
+        unsafe_store!(ptr, CUDA.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+        return
     end
-
-    ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{Ptr{Float32}}))
-    @test !occursin("@__nv_fmaf", ir)
 end
 
 @testset "fma uses LLVM intrinsic" begin
-    function fma_kernel(ptr)
-        unsafe_store!(ptr, fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
-        return
-    end
-
     for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
-        ir = sprint(io->CUDA.code_llvm(io, fma_kernel, Tuple{Ptr{T}}))
-        @test occursin("llvm.fma.$suffix", ir)
-        @test !occursin("__nv_fma", ir)
+        @test @filecheck CUDA.code_llvm(Tuple{Ptr{T}}) do ptr
+            @check "llvm.fma.$suffix"
+            @check_not "__nv_fma"
+            unsafe_store!(ptr, fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+            return
+        end
     end
 end
 
 @testset "muladd uses LLVM intrinsic" begin
-    function muladd_kernel(ptr)
-        unsafe_store!(ptr, muladd(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
-        return
-    end
-
+    # `Base.muladd` emits `fmul contract + fadd contract` upstream, which the
+    # backend usually fuses to `fma.rn`. On GPU the fusion is unreliable under
+    # vectorization (JuliaGPU/CUDA.jl#3149), so the override routes through
+    # `llvm.fmuladd.fXX` directly.
     for (T, suffix) in ((Float32, "f32"), (Float64, "f64"), (Float16, "f16"))
-        ir = sprint(io->CUDA.code_llvm(io, muladd_kernel, Tuple{Ptr{T}}))
-        @test occursin("llvm.fmuladd.$suffix", ir)
+        @test @filecheck CUDA.code_llvm(Tuple{Ptr{T}}) do ptr
+            @check "llvm.fmuladd.$suffix"
+            unsafe_store!(ptr, muladd(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+            return
+        end
     end
 end
 
 @testset "assume" begin
-    foo(i) = cld(42, i)
-    ir = sprint(io->CUDA.code_llvm(io, foo, Tuple{Int}))
-    @test occursin("@gpu_report_exception", ir)
+    @test @filecheck CUDA.code_llvm(Tuple{Int}) do i
+        @check "@gpu_report_exception"
+        cld(42, i)
+    end
 
-
-    bar(i) = (CUDA.assume(i > 0); cld(42, i))
-    ir = sprint(io->CUDA.code_llvm(io, bar, Tuple{Int}))
-    @test !occursin("gpu_report_exception", ir)
+    @test @filecheck CUDA.code_llvm(Tuple{Int}) do i
+        @check_not "gpu_report_exception"
+        CUDA.assume(i > 0)
+        cld(42, i)
+    end
 end
 
 @testset "stripping invariant.load" begin
@@ -144,87 +142,29 @@ end
 @testset "PTX" begin
 
 @testset "always_inline" begin
-    function f_expensive(x)
-        Base.Cartesian.@nexprs 30 i -> x = sin(x)+i
+    # without `always_inline`, the helper survives as a separate `.func`;
+    # with it set, the helper is inlined and no `.func julia_f_expensive`
+    # declaration remains. The closure-form lambdas below recreate the
+    # `f_expensive` helper at each test site, so each parent has its own
+    # call edge to verify the kwarg sticks.
+    f_expensive(x) = (Base.Cartesian.@nexprs 30 i -> x = sin(x)+i; x)
+    for always_inline in (false, true)
+        @test @filecheck CUDA.code_ptx(Tuple{Float64}; always_inline) do x
+            @check     cond=!always_inline "{{\\.func .*julia_f_expensive}}"
+            @check_not cond=always_inline  "{{\\.func .*julia_f_expensive}}"
+            f_expensive(x)
+            return
+        end
     end
-
-    function g(x)
-        f_expensive(x)
-        return
-    end
-    function h(x)
-        f_expensive(x)
-        return
-    end
-
-    asm = sprint(io->CUDA.code_ptx(io, g, Tuple{Float64}))
-    @test occursin(r"\.func .*julia_f_expensive", asm)
-
-    asm = sprint(io->CUDA.code_ptx(io, g, Tuple{Float64}; always_inline=true))
-    @test !occursin(r"\.func .*julia_f_expensive", asm)
-
-    asm = sprint(io->CUDA.code_ptx(io, h, Tuple{Float64}; always_inline=true))
-    @test !occursin(r"\.func .*julia_f_expensive", asm)
-
-    asm = sprint(io->CUDA.code_ptx(io, h, Tuple{Float64}))
-    @test occursin(r"\.func .*julia_f_expensive", asm)
 end
 
 @testset "local memory stores due to byval" begin
     # JuliaGPU/GPUCompiler.jl#92
-    function kernel(y1, y2)
+    @test @filecheck CUDA.code_ptx(NTuple{2,CuDeviceArray{Float32,1,AS.Global}}) do y1, y2
+        @check_not ".local"
         y = threadIdx().x == 1 ? y1 : y2
         @inbounds y[] = 0
         return
-    end
-
-    asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{2,CuDeviceArray{Float32,1,AS.Global}}))
-    @test !occursin(".local", asm)
-end
-
-@testset "fastmath" begin
-    function div_kernel(x)
-        i = threadIdx().x
-        @fastmath @inbounds x[i] = 1 / x[i]
-        return
-    end
-
-    asm = sprint(io->CUDA.code_ptx(io, div_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
-    @test occursin("div.approx.ftz", asm)
-
-    function sqrt_kernel(x)
-        i = threadIdx().x
-        @inbounds x[i] = sqrt(x[i])
-        return
-    end
-
-    asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}))
-    @test occursin("sqrt.r", asm)
-
-    asm = sprint(io->CUDA.code_ptx(io, sqrt_kernel, Tuple{CuDeviceArray{Float32,1,AS.Global}}; fastmath=true))
-    @test occursin("sqrt.approx.ftz", asm)
-end
-
-@testset "fma/muladd emit fma.rn" begin
-    # fma and muladd should both lower to fma.rn in PTX
-    function fma_kernel(a, b, c)
-        @inbounds a[] = fma(b[], c[], a[])
-        return
-    end
-    function muladd_kernel(a, b, c)
-        @inbounds a[] = muladd(b[], c[], a[])
-        return
-    end
-
-    for T in (Float16, Float32, Float64)
-        asm = sprint(io->CUDA.code_ptx(io, fma_kernel,
-            NTuple{3,CuDeviceArray{T,1,AS.Global}}))
-        @test occursin("fma.rn", asm)
-        @test !occursin("__nv_fma", asm)
-
-        asm = sprint(io->CUDA.code_ptx(io, muladd_kernel,
-            NTuple{3,CuDeviceArray{T,1,AS.Global}}))
-        @test occursin("fma.rn", asm)
     end
 end
 

@@ -478,36 +478,26 @@ end
 
 @testset "Codegen addressing" begin
     @testset "Global" begin
-        function kernel(d)
+        @test @filecheck CUDA.code_ptx((CuDeviceArray{Float32,1,CUDA.AS.Global},)) do d
+            @check "{{wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32}}"
+            @check_not "{{wmma.store.d.sync(.aligned)?.col.m16n16k16.f32}}"
             conf = WMMA.Config{16, 16, 16, Float32}
-
             d_frag = WMMA.fill_c(Float32(0), conf)
             WMMA.store_d(pointer(d), d_frag, 16, WMMA.ColMajor, conf)
-
             return
         end
-
-        ptx = sprint(io -> CUDA.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDA.AS.Global},)))
-
-        @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
-        @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)
     end
 
     @testset "Shared" begin
-        function kernel()
+        @test @filecheck CUDA.code_ptx(()) do
+            @check "{{wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32}}"
+            @check_not "{{wmma.store.d.sync(.aligned)?.col.m16n16k16.f32}}"
             shmem = CuStaticSharedArray(Float32, (16, 16))
             conf = WMMA.Config{16, 16, 16, Float32}
-
             d_frag = WMMA.fill_c(Float32(0), conf)
             WMMA.store_d(pointer(shmem), d_frag, 16, WMMA.ColMajor, conf)
-
             return
         end
-
-        ptx = sprint(io -> CUDA.code_ptx(io, kernel, ()))
-
-        @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
-        @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
     end
 end
 

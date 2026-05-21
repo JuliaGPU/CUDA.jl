@@ -338,72 +338,34 @@ using SpecialFunctions
 
     @testset "@fastmath sincos" begin
         # JuliaGPU/CUDA.jl#1606: FastMath.sincos fell back to regular sin/cos
-        function kernel(a, b, c)
+        @test @filecheck CUDA.code_ptx(NTuple{3,CuDeviceArray{Float32,1,AS.Global}}) do a, b, c
+            @check "sin.approx.f32"
+            @check "cos.approx.f32"
+            @check_not "__nv"  # from libdevice
             @inbounds b[], c[] = @fastmath sincos(a[])
             return
         end
-        asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{3,CuDeviceArray{Float32,1,AS.Global}}))
-        @assert contains(asm, "sin.approx.f32")
-        @assert contains(asm, "cos.approx.f32")
-        @assert !contains(asm, "__nv")  # from libdevice
     end
 
     @testset "inv" begin
-        # Base.inv should use accurate rcp instructions (rcp.rn)
+        # Base.inv should use accurate rcp instructions (rcp.rn).
+        # PTX-level patterns for inv / inv_fast / div / div_fast live in
+        # `test/core/math.jl`; here we only sanity-check correctness on GPU.
         for T in (Float32, Float64)
             @test testf(x -> inv.(x), rand(T, 10) .+ T(0.1))
             @test testf(x -> inv.(x), T[0.1, 0.5, 1.0, 2.0, 10.0, 100.0])
         end
-
-        function kernel_inv_f32(a)
-            @inbounds a[] = inv(a[])
-            return
-        end
-        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_f32, NTuple{1, CuDeviceArray{Float32, 1, AS.Global}}))
-        @test contains(asm, "rcp.rn.f32")
-
-        function kernel_inv_f64(a)
-            @inbounds a[] = inv(a[])
-            return
-        end
-        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_f64, NTuple{1, CuDeviceArray{Float64, 1, AS.Global}}))
-        @test contains(asm, "rcp.rn.f64")
     end
 
     @testset "inv_fast" begin
-        # inv_fast(Float32) uses rcp.approx.ftz.f32 (~14 bits of mantissa)
-        function kernel_inv_fast_f32(a)
-            @inbounds a[] = @fastmath inv(a[])
-            return
-        end
-        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_fast_f32, NTuple{1, CuDeviceArray{Float32, 1, AS.Global}}))
-        @test contains(asm, "rcp.approx.ftz.f32")
-
         fast_inv(x) = @fastmath inv(x)
         xs32 = Float32[0.1, 0.5, 1.0, 2.0, 10.0, 100.0]
         @test Array(map(fast_inv, cu(xs32))) ≈ inv.(xs32) rtol = 1.0f-4
-
-        # inv_fast(Float64) uses rcp.approx.ftz.f64 refined with Newton-Raphson
-        function kernel_inv_fast_f64(a)
-            @inbounds a[] = @fastmath inv(a[])
-            return
-        end
-        asm = sprint(io -> CUDA.code_ptx(io, kernel_inv_fast_f64, NTuple{1, CuDeviceArray{Float64, 1, AS.Global}}))
-        @test contains(asm, "rcp.approx.ftz.f64")
-
         xs64 = Float64[0.1, 0.5, 1.0, 2.0, 10.0, 100.0]
         @test Array(map(fast_inv, CuArray(xs64))) ≈ inv.(xs64) rtol = 1.0e-10
     end
 
     @testset "div_fast Float64" begin
-        # FastMath.div_fast(Float64) uses fast reciprocal: x * inv_fast(y)
-        function kernel_div_fast_f64(a, b, c)
-            @inbounds c[] = @fastmath a[] / b[]
-            return
-        end
-        asm = sprint(io -> CUDA.code_ptx(io, kernel_div_fast_f64, NTuple{3, CuDeviceArray{Float64, 1, AS.Global}}))
-        @test contains(asm, "rcp.approx.ftz.f64")
-
         fast_div(x, y) = @fastmath x / y
         xs = rand(Float64, 10) .+ 0.1
         ys = rand(Float64, 10) .+ 0.1
@@ -418,6 +380,248 @@ using SpecialFunctions
 
             @test isequal(Array(max.(AT([NaN]), AT([-Inf]))), [NaN])
             @test isequal(maximum(AT([NaN])), NaN)
+        end
+    end
+
+    # PTX lowering pins for the standard math ops. Most of these used to
+    # require `@device_override`s pointing at libdevice; now they're handled
+    # by Julia + the NVPTX backend + GPUCompiler's `apply_fastmath!`,
+    # `PTXFDivFastPass`, and `PTXFSqrtFastPass`. Each testset pins the actual
+    # PTX so the wiring stays put across {f32, f64} × {plain, `@fastmath`} ×
+    # {default, job-wide `fastmath=true`}.
+
+    @testset "abs PTX" begin
+        for fastmath in (false, true)
+            # f32: job-wide fastmath flips to the `.ftz` variant.
+            @test @filecheck CUDA.code_ptx(Tuple{Float32}; fastmath) do x
+                @check cond=fastmath  "abs.ftz.f32"
+                @check cond=!fastmath "abs.f32"
+                @check_not "__nv_"
+                abs(x)
+            end
+            # f64: no FTZ on PTX for f64.
+            @test @filecheck CUDA.code_ptx(Tuple{Float64}; fastmath) do x
+                @check "abs.f64"
+                @check_not "__nv_"
+                abs(x)
+            end
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Int32}) do x
+            @check "abs.s32"
+            @check_not "__nv_"
+            abs(x)
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Int64}) do x
+            @check "abs.s64"
+            @check_not "__nv_"
+            abs(x)
+        end
+    end
+
+    @testset "floor/ceil/trunc PTX" begin
+        for (op, rnd) in ((floor, "rmi"), (ceil, "rpi"), (trunc, "rzi"))
+            for fastmath in (false, true)
+                @test @filecheck CUDA.code_ptx(Tuple{Float32}; fastmath) do x
+                    @check cond=fastmath  "cvt.$rnd.ftz.f32.f32"
+                    @check cond=!fastmath "cvt.$rnd.f32.f32"
+                    @check_not "__nv_"
+                    op(x)
+                end
+                @test @filecheck CUDA.code_ptx(Tuple{Float64}; fastmath) do x
+                    @check "cvt.$rnd.f64.f64"
+                    @check_not "__nv_"
+                    op(x)
+                end
+            end
+        end
+    end
+
+    @testset "isnan/isinf/isfinite PTX" begin
+        # All three should be pure FP compares / bit-tests, no libdevice.
+        for T in (Float32, Float64), op in (isnan, isinf, isfinite)
+            @test @filecheck CUDA.code_ptx(Tuple{T}) do x
+                @check_not "__nv_"
+                op(x)
+            end
+        end
+        # `isnan(x) = x != x` is the cleanest: a single `setp.nan.fXX`.
+        @test @filecheck CUDA.code_ptx(Tuple{Float32}) do x
+            @check "setp.nan.f32"
+            isnan(x)
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float64}) do x
+            @check "setp.nan.f64"
+            isnan(x)
+        end
+    end
+
+    @testset "signbit PTX" begin
+        for T in (Float32, Float64)
+            @test @filecheck CUDA.code_ptx(Tuple{T}) do x
+                @check_not "__nv_"
+                signbit(x)
+            end
+        end
+    end
+
+    @testset "copysign PTX" begin
+        # NVPTX has no single copysign instruction (custom-lowered to bit ops);
+        # we just verify libdevice isn't on the path.
+        for T in (Float32, Float64)
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
+                @check_not "__nv_"
+                copysign(x, y)
+            end
+        end
+    end
+
+    @testset "min/max PTX" begin
+        # Plain `min`/`max` propagate NaN (Julia semantics). f32 with sm_80+
+        # + LLVM 14+ gets `min.NaN.f32`/`max.NaN.f32` directly; f64 has to
+        # emulate since PTX has no `.NaN` variant for f64. Pin `arch=sm"80"`
+        # so the test is deterministic regardless of the CI runner's device.
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
+            @check "min.NaN.f32"
+            min(x, y)
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
+            @check "max.NaN.f32"
+            max(x, y)
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}) do x, y
+            @check_not "__nv_"
+            min(x, y)
+        end
+
+        # `@fastmath min/max` = `ifelse(y > x, x, y)`, a plain compare + select.
+        for (T, s) in ((Float32, "f32"), (Float64, "f64"))
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
+                @check "setp.lt.$s"
+                @check "selp.$s"
+                @fastmath min(x, y)
+            end
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
+                @check "setp.lt.$s"
+                @check "selp.$s"
+                @fastmath max(x, y)
+            end
+        end
+    end
+
+    @testset "fma/muladd PTX" begin
+        # `Base.fma` lowers to `llvm.fma.fXX` (have_fma branch folded for
+        # f32/f64 by GPUCompiler; for f16 we keep an explicit override).
+        # `Base.muladd` lowers to `fmul contract + fadd contract`, which the
+        # backend fuses. Either way: a single `fma.rn` per type.
+        for (T, s) in ((Float16, "f16"), (Float32, "f32"), (Float64, "f64"))
+            @test @filecheck CUDA.code_ptx(Tuple{T, T, T}) do x, y, z
+                @check "fma.rn.$s"
+                @check_not "__nv_fma"
+                fma(x, y, z)
+            end
+            @test @filecheck CUDA.code_ptx(Tuple{T, T, T}) do x, y, z
+                @check "fma.rn.$s"
+                muladd(x, y, z)
+            end
+        end
+    end
+
+    @testset "sqrt PTX" begin
+        # Inherits from Julia (`llvm.sqrt.fXX`). Plain → `sqrt.rn.fXX`;
+        # per-call `@fastmath` → `sqrt.approx.fXX` (via `PTXFSqrtFastPass`);
+        # job-wide `fastmath=true` → the FTZ variant via `apply_fastmath!`.
+        for (T, s) in ((Float32, "f32"), (Float64, "f64"))
+            @test @filecheck CUDA.code_ptx(Tuple{T}) do x
+                @check "sqrt.rn.$s"
+                @check_not "sqrt.approx"
+                sqrt(x)
+            end
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float32}) do x
+            @check "sqrt.approx.f32"
+            @check_not "sqrt.approx.ftz"
+            @fastmath sqrt(x)
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float32}; fastmath=true) do x
+            @check "sqrt.approx.ftz.f32"
+            sqrt(x)
+        end
+        # NVPTX has no native fast f64 sqrt; backend builds it from rsqrt + rcp.
+        @test @filecheck CUDA.code_ptx(Tuple{Float64}) do x
+            @check "rsqrt.approx.f64"
+            @fastmath sqrt(x)
+        end
+    end
+
+    @testset "rsqrt PTX" begin
+        # `CUDA.rsqrt(x)` directly calls the NVPTX `rsqrt.approx.{f,d}`
+        # intrinsic — no libdevice, and no `@fastmath` so caller-side NaN/Inf
+        # checks aren't DCE'd by `nnan`/`ninf` propagation. f16 computes in
+        # f32, so it still hits the f32 instruction.
+        for (T, s) in ((Float32, "f32"), (Float64, "f64"))
+            @test @filecheck CUDA.code_ptx(Tuple{T}) do x
+                @check "rsqrt.approx.$s"
+                @check_not "sqrt.approx"
+                @check_not "__nv_"
+                CUDA.rsqrt(x)
+            end
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float16}) do x
+            @check "rsqrt.approx.f32"
+            @check_not "__nv_"
+            CUDA.rsqrt(x)
+        end
+    end
+
+    @testset "div/inv PTX" begin
+        # `Base.{/, inv}` and their fast variants are handled by GPUCompiler's
+        # `PTXFDivFastPass`. `inv(x) = 1/x`; NVPTX pattern-matches
+        # `fdiv 1.0, x` to `rcp.rn`.
+        for (T, s) in ((Float32, "f32"), (Float64, "f64"))
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
+                @check "div.rn.$s"
+                x / y
+            end
+            @test @filecheck CUDA.code_ptx(Tuple{T}) do x
+                @check "rcp.rn.$s"
+                inv(x)
+            end
+        end
+
+        # `@fastmath` on f32: pass picks the non-FTZ `div.approx.f32` since
+        # the job isn't fast; f64 always uses rcp+Newton.
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}) do x, y
+            @check "div.approx.f32"
+            @check_not "div.approx.ftz"
+            @fastmath x / y
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float32}) do x
+            @check "div.approx.f32"
+            @check_not "div.approx.ftz"
+            @fastmath inv(x)
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}) do x, y
+            @check "rcp.approx.ftz.f64"
+            @fastmath x / y
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float64}) do x
+            @check "rcp.approx.ftz.f64"
+            @fastmath inv(x)
+        end
+
+        # Job-wide `fastmath=true` stamps `afn` on every fdiv → same as
+        # `@fastmath`, and f32 additionally picks up FTZ.
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; fastmath=true) do x, y
+            @check "div.approx.ftz.f32"
+            x / y
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float32}; fastmath=true) do x
+            @check "div.approx.ftz.f32"
+            inv(x)
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}; fastmath=true) do x, y
+            @check "rcp.approx.ftz.f64"
+            x / y
         end
     end
 end

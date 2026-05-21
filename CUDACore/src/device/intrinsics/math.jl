@@ -1,5 +1,8 @@
 # math functionality
 
+# we only use libdevice where needed. if possible, we go through LLVM instead,
+# ideally relying on Julia's existing definitions.
+
 @public fma, rsqrt, saturate, byte_perm, assume
 @public add_rn, add_rz, add_rm, add_rp
 @public sub_rn, sub_rz, sub_rm, sub_rp
@@ -286,16 +289,6 @@ end
 
 ## floating-point handling
 
-@device_override Base.isfinite(x::Float32) = (ccall("extern __nv_finitef", llvmcall, Int32, (Cfloat,), x)) != 0
-@device_override Base.isfinite(x::Float64) = (ccall("extern __nv_isfinited", llvmcall, Int32, (Cdouble,), x)) != 0
-
-@device_override Base.isinf(x::Float64) = (ccall("extern __nv_isinfd", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.isinf(x::Float32) = (ccall("extern __nv_isinff", llvmcall, Int32, (Cfloat,), x)) != 0
-
-@device_override Base.isnan(x::Float64) = (ccall("extern __nv_isnand", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.isnan(x::Float32) = (ccall("extern __nv_isnanf", llvmcall, Int32, (Cfloat,), x)) != 0
-# isnan(::Float16) inherits from Julia (x != x), which compiles to a single setp.neu.f16.
-
 @device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
 @device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
 
@@ -303,29 +296,13 @@ end
 @device_function nextafter(x::Float32, y::Float32) = ccall("extern __nv_nextafterf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
 
-## sign handling
-
-@device_override Base.signbit(x::Float64) = (ccall("extern __nv_signbitd", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.signbit(x::Float32) = (ccall("extern __nv_signbitf", llvmcall, Int32, (Cfloat,), x)) != 0
-
-@device_override Base.copysign(x::Float64, y::Float64) = ccall("extern __nv_copysign", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-@device_override Base.copysign(x::Float32, y::Float32) = ccall("extern __nv_copysignf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-
-@device_override Base.abs(x::Int32) =   ccall("extern __nv_abs", llvmcall, Int32, (Int32,), x)
-@device_override Base.abs(f::Float64) = ccall("extern __nv_fabs", llvmcall, Cdouble, (Cdouble,), f)
-@device_override Base.abs(f::Float32) = ccall("extern __nv_fabsf", llvmcall, Cfloat, (Cfloat,), f)
-# abs(::Float16) inherits from Julia (abs_float intrinsic), lowering to and.b16.
-@device_override Base.abs(x::Int64) =   ccall("extern __nv_llabs", llvmcall, Int64, (Int64,), x)
-
 ## roots and powers
 
-@device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
-# sqrt(::Float16) inherits from Julia (Float16(sqrt(Float32(x)))), routing through __nv_sqrtf.
-@device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
-
-@device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)
+# NVPTX has native `rsqrt.approx.{f32,f64}`; call the intrinsic directly. The
+# obvious alternative, `@fastmath 1/sqrt(x)`, also lowers to `rsqrt.approx`
+# (via `PTXRSqrtFastPass`), but is too aggressive wrt. fast-math behavior.
+@device_function rsqrt(x::Float64) = ccall("llvm.nvvm.rsqrt.approx.d", llvmcall, Cdouble, (Cdouble,), x)
+@device_function rsqrt(x::Float32) = ccall("llvm.nvvm.rsqrt.approx.f", llvmcall, Cfloat, (Cfloat,), x)
 @device_function rsqrt(x::Float16) = Float16(rsqrt(Float32(x)))
 
 @device_override Base.cbrt(x::Float64) = ccall("extern __nv_cbrt", llvmcall, Cdouble, (Cdouble,), x)
@@ -394,15 +371,6 @@ end
 #@device_override Base.rint(x::Float32) = ccall("extern __nv_llrintf", llvmcall, Int64, (Cfloat,), x)
 #@device_override Base.rint(x::Float64) = ccall("extern __nv_rint", llvmcall, Cdouble, (Cdouble,), x)
 #@device_override Base.rint(x::Float32) = ccall("extern __nv_rintf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.trunc(x::Float64) = ccall("extern __nv_trunc", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.trunc(x::Float32) = ccall("extern __nv_truncf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.ceil(x::Float64) = ccall("extern __nv_ceil", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.ceil(x::Float32) = ccall("extern __nv_ceilf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.floor(f::Float64) = ccall("extern __nv_floor", llvmcall, Cdouble, (Cdouble,), f)
-@device_override Base.floor(f::Float32) = ccall("extern __nv_floorf", llvmcall, Cfloat, (Cfloat,), f)
 
 #@device_override Base.min(x::Int32, y::Int32) = ccall("extern __nv_min", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.min(x::Int64, y::Int64) = ccall("extern __nv_llmin", llvmcall, Int64, (Int64, Int64), x, y)
@@ -508,27 +476,11 @@ end
 @device_override Base.rem(x::Float32, y::Float32, ::RoundingMode{:Nearest}) = ccall("extern __nv_remainderf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override Base.rem(x::Float16, y::Float16, ::RoundingMode{:Nearest}) = Float16(rem(Float32(x), Float32(y), RoundNearest))
 
-@device_override FastMath.div_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_fdividef", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override FastMath.div_fast(x::Float64, y::Float64) = x * FastMath.inv_fast(y)
+# `Base.FastMath.inv_fast(::AbstractFloat)` is unimplemented upstream (only
+# `Complex` has a method) and the catch-all fallback drops `afn`
+@device_override FastMath.inv_fast(x::Union{Float16, Float32, Float64}) =
+    FastMath.div_fast(one(x), x)
 
-@device_override Base.inv(x::Float32) = ccall("extern __nv_frcp_rn", llvmcall, Cfloat, (Cfloat,), x)
-@device_override Base.inv(x::Float64) = ccall("extern __nv_drcp_rn", llvmcall, Cdouble, (Cdouble,), x)
-
-@device_override FastMath.inv_fast(x::Float32) = ccall("llvm.nvvm.rcp.approx.ftz.f", llvmcall, Float32, (Float32,), x)
-@device_override function FastMath.inv_fast(x::Float64)
-    # Get the approximate reciprocal
-    # https://docs.nvidia.com/cuda/parallel-thread-execution/#floating-point-instructions-rcp-approx-ftz-f64
-    # This instruction chops off last 32bits of mantissa and computes inverse
-    # while treating all subnormal numbers as 0.0
-    # If reciprocal would be subnormal, underflows to 0.0
-    # 32 least significant bits of the result are filled with 0s
-    inv_x = ccall("llvm.nvvm.rcp.approx.ftz.d", llvmcall, Float64, (Float64,), x)
-
-    # Approximate the missing 32bits of mantissa with a single cubic iteration
-    e = fma(inv_x, -x, 1.0)
-    e = fma(e, e, e)
-    inv_x = fma(e, inv_x, inv_x)
-end
 
 ## distributions
 
@@ -549,13 +501,20 @@ end
 @device_override Base.hypot(x::Float64, y::Float64) = ccall("extern __nv_hypot", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.hypot(x::Float32, y::Float32) = ccall("extern __nv_hypotf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
-@device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("llvm.fma.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("llvm.fma.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.fma(x::Float16, y::Float16, z::Float16) = ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+# `Base.fma(::Float16,...)` branches on `jl_have_fma`
+@device_override Base.fma(x::Float16, y::Float16, z::Float16) =
+    ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
-@device_override Base.muladd(x::Float64, y::Float64, z::Float64) = ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.muladd(x::Float32, y::Float32, z::Float32) = ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.muladd(x::Float16, y::Float16, z::Float16) = ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+# `Base.muladd(x, y, z) = fma(x, y, z)` is the natural choice on GPU: NVPTX
+# always lowers `llvm.fmuladd.fXX` to `fma.rn`, and routing through
+# `llvm.fmuladd` (rather than Julia's default `fmul contract + fadd contract`)
+# keeps the fusion robust under vectorization (per JuliaGPU/CUDA.jl#3149).
+@device_override Base.muladd(x::Float64, y::Float64, z::Float64) =
+    ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+@device_override Base.muladd(x::Float32, y::Float32, z::Float32) =
+    ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.muladd(x::Float16, y::Float16, z::Float16) =
+    ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
 # Directed rounding for binary arithmetic and fma. NVPTX exposes
 # `{add,mul,div,fma}.{rn,rz,rm,rp}.{f32,f64}` directly; there is no `sub`

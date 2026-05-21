@@ -6,6 +6,7 @@
 using CUDA, CUDACore, GPUArrays
 using CUDA: i32
 using Adapt
+using FileCheck
 using ..Main: TestSuite, can_use_cupti, sanitize
 
 testf(@nospecialize(f), @nospecialize(xs...); kwargs...) =

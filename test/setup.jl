@@ -1,6 +1,7 @@
 using Test
 using CUDA
 using CUDACore
+using FileCheck
 using GPUArrays
 using NVML: has_nvml, NVML
 using ParallelTestRunner
