@@ -478,12 +478,13 @@ using SpecialFunctions
     @testset "min/max PTX" begin
         # Plain `min`/`max` propagate NaN (Julia semantics). f32 with sm_80+
         # + LLVM 14+ gets `min.NaN.f32`/`max.NaN.f32` directly; f64 has to
-        # emulate since PTX has no `.NaN` variant for f64.
-        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}) do x, y
+        # emulate since PTX has no `.NaN` variant for f64. Pin `arch=sm"80"`
+        # so the test is deterministic regardless of the CI runner's device.
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
             @check "min.NaN.f32"
             min(x, y)
         end
-        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}) do x, y
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
             @check "max.NaN.f32"
             max(x, y)
         end
@@ -549,6 +550,26 @@ using SpecialFunctions
         @test @filecheck CUDA.code_ptx(Tuple{Float64}) do x
             @check "rsqrt.approx.f64"
             @fastmath sqrt(x)
+        end
+    end
+
+    @testset "rsqrt PTX" begin
+        # `CUDA.rsqrt(x)` is `@fastmath 1/sqrt(x)`; GPUCompiler's
+        # `PTXRSqrtFastPass` folds the `afn 1/sqrt(x)` pattern to a single
+        # `nvvm.rsqrt.approx.{f,d}` call. f16 computes in f32, so it still
+        # hits the f32 instruction.
+        for (T, s) in ((Float32, "f32"), (Float64, "f64"))
+            @test @filecheck CUDA.code_ptx(Tuple{T}) do x
+                @check "rsqrt.approx.$s"
+                @check_not "sqrt.approx"
+                @check_not "__nv_"
+                CUDA.rsqrt(x)
+            end
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{Float16}) do x
+            @check "rsqrt.approx.f32"
+            @check_not "__nv_"
+            CUDA.rsqrt(x)
         end
     end
 

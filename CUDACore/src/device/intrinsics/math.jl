@@ -298,8 +298,8 @@ end
 
 ## roots and powers
 
-@device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)
+@device_function rsqrt(x::Float64) = @fastmath 1.0 / sqrt(x)
+@device_function rsqrt(x::Float32) = @fastmath 1f0 / sqrt(x)
 @device_function rsqrt(x::Float16) = Float16(rsqrt(Float32(x)))
 
 @device_override Base.cbrt(x::Float64) = ccall("extern __nv_cbrt", llvmcall, Cdouble, (Cdouble,), x)
