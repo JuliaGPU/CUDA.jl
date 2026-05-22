@@ -120,9 +120,11 @@ using SpecialFunctions
             end
         end
 
-        # NVPTX has no sub.<rnd> intrinsic; sub_<rnd>(x,y) reuses add_<rnd>(x,-y).
-        # For non-rn modes LLVM keeps the rounded add; for rn (the default) it
-        # may fold back to a plain `sub`.
+        # NVPTX has no `llvm.nvvm.sub.<rnd>` intrinsic, so sub_<rnd>(x,y) is
+        # implemented as add_<rnd>(x,-y). PTX itself does accept rounding
+        # modifiers on `sub`, so the backend may fold back to a real
+        # `sub.<rnd>.<suffix>` (LLVM 22) or keep the rounded add (older LLVM).
+        # For `rn` the suffix may be elided entirely.
         for rnd in (:rn, :rz, :rm, :rp)
             f = getfield(CUDA, Symbol(:sub_, rnd))
             for (T, suffix) in ((Float32, "f32"), (Float64, "f64"))
@@ -130,8 +132,9 @@ using SpecialFunctions
                 buf = CuArray{T}(undef, 1)
                 ptx = sprint(io->(@device_code_ptx io=io @cuda launch=false kernel(buf, T(1), T(1))))
                 accepted = rnd === :rn ?
-                    ("add.rn.$(suffix)", "add.$(suffix)", "sub.$(suffix)") :
-                    ("add.$(rnd).$(suffix)",)
+                    ("add.rn.$(suffix)", "add.$(suffix)",
+                     "sub.rn.$(suffix)", "sub.$(suffix)") :
+                    ("add.$(rnd).$(suffix)", "sub.$(rnd).$(suffix)")
                 @test any(s -> occursin(s, ptx), accepted)
             end
         end
