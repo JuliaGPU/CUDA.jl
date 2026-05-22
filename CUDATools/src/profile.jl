@@ -934,8 +934,13 @@ function Base.show(io::IO, results::ProfileResults)
             println(io, "\nDevice-side activity: GPU was busy for $(format_time(device_time)) ($(format_percentage(device_ratio)) of the trace)")
         end
 
-        # add memory throughput information
-        device = merge(device, (; throughput=device.size ./ device.time))
+        # add memory throughput information. CUPTI's timestamp resolution
+        # can round very short events down to 0 ns, so guard against the
+        # resulting Inf throughput (which would later trip up format_bytes).
+        throughput = map(device.size, device.time) do s, t
+            (s === missing || !isfinite(t) || t == 0) ? missing : s / t
+        end
+        device = merge(device, (; throughput))
 
         if isempty(device.id)
             println(io, "\nNo device-side activity was recorded.")
