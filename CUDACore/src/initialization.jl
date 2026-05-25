@@ -228,7 +228,6 @@ export has_cuda, has_cuda_gpu
 
 Check whether the local system provides an installation of the CUDA driver and runtime.
 Use this function if your code loads packages that require CUDA.jl.
-```
 """
 has_cuda(show_reason::Bool=false) = functional(show_reason)
 
