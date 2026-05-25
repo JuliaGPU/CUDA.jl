@@ -190,19 +190,26 @@ steps:
 
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
+              # TODO(#3150): revert to registered Enzyme before merge. Points at
+              # EnzymeAD/Enzyme.jl#3112 for the matching `GLOBAL_METHOD_TABLE`
+              # overlay + `EnzymeCore._deferred_marker` shell.
+              enzyme_spec = PackageSpec(; name="Enzyme",
+                                          url="https://github.com/EnzymeAD/Enzyme.jl",
+                                          rev="deferred-codegen-overlay")
+
               # add Enzyme to the test deps
               Pkg.activate("test")
-              Pkg.add(["Enzyme", "EnzymeCore"])
+              Pkg.add([enzyme_spec, PackageSpec("EnzymeCore")])
 
               # to check compatibility, also add Enzyme to the main environment
               # (or Pkg.test, which merges both environments, could fail)
               Pkg.activate(".")
               # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
               try
-                Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
+                Pkg.develop([enzyme_spec, PackageSpec("KernelAbstractions")])
               catch err
                 try
-                  Pkg.develop([PackageSpec("Enzyme")])
+                  Pkg.develop([enzyme_spec])
                 catch err
                   @error "Could not install Enzyme" exception=(err,catch_backtrace())
                   exit(3)

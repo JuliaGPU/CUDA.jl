@@ -13,6 +13,45 @@ else
 end
 using GPUArrays
 
+# Two overlays in `CUDACore.method_table` that route deferred-codegen through
+# CUDA's `GPUInterpreter` during kernel compilation:
+#
+# 1. `EnzymeCore._deferred_marker(id::UInt)` — its body holds the
+#    `extern deferred_codegen` ccall marker that GPUCompiler's scanner picks
+#    up to link the inner Enzyme adjoint into the kernel module. The
+#    default body in EnzymeCore is just `reinterpret(Ptr{Cvoid}, id)`, so
+#    host-side Julia codegen never has to resolve an extern symbol — this
+#    keeps the sysimage build clean (EnzymeAD/Enzyme.jl#3091). Enzyme.jl
+#    provides a matching overlay in `GPUCompiler.GLOBAL_METHOD_TABLE` for
+#    higher-order CPU AD via its own interpreter.
+#
+# 2. `EnzymeCore.autodiff(::ReverseMode|::ForwardMode, …)` — redirect to
+#    `autodiff_deferred` so user kernels can call plain
+#    `Enzyme.autodiff(...)` and get the deferred-codegen path inside CUDA
+#    compilation. Eliminates the manual `autodiff` vs `autodiff_deferred`
+#    choice that KernelAbstractions's `gpu_fwd` makes today.
+Base.Experimental.@overlay CUDACore.method_table @inline function EnzymeCore._deferred_marker(id::UInt)
+    return ccall("extern deferred_codegen", llvmcall, Ptr{Cvoid}, (UInt,), id)
+end
+
+Base.Experimental.@overlay CUDACore.method_table @inline function EnzymeCore.autodiff(
+        mode::EnzymeCore.ReverseMode,
+        f::EnzymeCore.Annotation,
+        ::Type{A},
+        args::Vararg{EnzymeCore.Annotation, Nargs},
+    ) where {A <: EnzymeCore.Annotation, Nargs}
+    return EnzymeCore.autodiff_deferred(mode, f, A, args...)
+end
+
+Base.Experimental.@overlay CUDACore.method_table @inline function EnzymeCore.autodiff(
+        mode::EnzymeCore.ForwardMode,
+        f::EnzymeCore.Annotation,
+        ::Type{A},
+        args::Vararg{EnzymeCore.Annotation, Nargs},
+    ) where {A <: EnzymeCore.Annotation, Nargs}
+    return EnzymeCore.autodiff_deferred(mode, f, A, args...)
+end
+
 function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDACore.context!), args...)
     return nothing
 end
