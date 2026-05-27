@@ -725,7 +725,10 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
 
-    if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
+    # native CSC support was added in cuSPARSE 12.8.1 (CUDA 13.3); older versions
+    # model a CSC matrix as its transposed CSR, which cannot represent transa = 'C'.
+    csc_workaround = isa(A, CuSparseMatrixCSC) && version() < v"12.8.1"
+    if csc_workaround && transa == 'C' && T <: Complex
         throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR or COO matrix instead."))
     end
 
@@ -737,8 +740,7 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     (mX != mA) && throw(DimensionMismatch("X must have length $mA, but has length $mX"))
     (mY != mA) && throw(DimensionMismatch("Y must have length $mA, but has length $mY"))
 
-    if isa(A, CuSparseMatrixCSC)
-        # cusparseSpSV doesn't support CSC matrices so we use Aᵀ to model them as CSR matrices.
+    if csc_workaround
         descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         transa = transa == 'N' ? 'T' : 'N'
         uplo = uplo == 'U' ? 'L' : 'U'
@@ -780,7 +782,10 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     # In that case we need to update the descriptor of C such that it represents Bᵀ.
     is_C_transposed = (B === C) && (transb != 'N')
 
-    if isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
+    # native CSC support was added in cuSPARSE 12.8.1 (CUDA 13.3); older versions
+    # model a CSC matrix as its transposed CSR, which cannot represent transa = 'C'.
+    csc_workaround = isa(A, CuSparseMatrixCSC) && version() < v"12.8.1"
+    if csc_workaround && transa == 'C' && T <: Complex
         throw(ArgumentError("Backward and forward sweeps with the adjoint of a complex CSC matrix is not supported. Use a CSR or COO matrix instead."))
     end
 
@@ -795,8 +800,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     (nB != nC) && (transb == 'N') && throw(DimensionMismatch("B and C must have the same number of columns, but B has $nB columns and C has $nC columns"))
     (mB != nC) && (transb != 'N') && throw(DimensionMismatch("B must have the same the number of rows that C has as columns, but B has $mB rows and C has $nC columns"))
 
-    if isa(A, CuSparseMatrixCSC)
-        # cusparseSpSM doesn't support CSC matrices so we use Aᵀ to model them as CSR matrices.
+    if csc_workaround
         descA = CuSparseMatrixDescriptor(A, index, transposed=true)
         transa = transa == 'N' ? 'T' : 'N'
         uplo = uplo == 'U' ? 'L' : 'U'
