@@ -272,6 +272,20 @@ end
 
 Base.unsafe_convert(::Type{cusparseSpGEMMDescr_t}, desc::CuSpGEMMDescriptor) = desc.handle
 
+mutable struct CuSpGEAMDescriptor
+    handle::cusparseSpGEAMDescr_t
+
+    function CuSpGEAMDescriptor()
+        descr_ref = Ref{cusparseSpGEAMDescr_t}()
+        cusparseSpGEAM_createDescr(descr_ref)
+        obj = new(descr_ref[])
+        finalizer(cusparseSpGEAM_destroyDescr, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusparseSpGEAMDescr_t}, desc::CuSpGEAMDescriptor) = desc.handle
+
 mutable struct CuSparseSpSVDescriptor
     handle::cusparseSpSVDescr_t
 

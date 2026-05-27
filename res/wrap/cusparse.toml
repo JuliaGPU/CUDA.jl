@@ -920,6 +920,21 @@ needs_context = false
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
 
+[api.cusparseSpGEAM_bufferSize.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+12 = "Ref{Csize_t}"
+
+[api.cusparseSpGEAM_nnz.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cusparseSpGEAM.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
 [api.cusparseConstrainedGeMM.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"

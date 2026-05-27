@@ -6247,15 +6247,15 @@ end
     @gcsafe_ccall libcusparse.cusparseSpGEAM_bufferSize(handle::cusparseHandle_t,
                                                         opA::cusparseOperation_t,
                                                         opB::cusparseOperation_t,
-                                                        alpha::Ptr{Cvoid},
+                                                        alpha::PtrOrCuPtr{Cvoid},
                                                         matA::cusparseSpMatDescr_t,
-                                                        beta::Ptr{Cvoid},
+                                                        beta::PtrOrCuPtr{Cvoid},
                                                         matB::cusparseSpMatDescr_t,
                                                         matC::cusparseSpMatDescr_t,
                                                         computeType::cudaDataType,
                                                         alg::cusparseSpGEAMAlg_t,
                                                         spgeamDescr::cusparseSpGEAMDescr_t,
-                                                        bufferSize::Ptr{Csize_t})::cusparseStatus_t
+                                                        bufferSize::Ref{Csize_t})::cusparseStatus_t
 end
 
 @checked function cusparseSpGEAM_nnz(handle, opA, opB, alpha, matA, beta, matB, matC,
@@ -6264,15 +6264,15 @@ end
     @gcsafe_ccall libcusparse.cusparseSpGEAM_nnz(handle::cusparseHandle_t,
                                                  opA::cusparseOperation_t,
                                                  opB::cusparseOperation_t,
-                                                 alpha::Ptr{Cvoid},
+                                                 alpha::PtrOrCuPtr{Cvoid},
                                                  matA::cusparseSpMatDescr_t,
-                                                 beta::Ptr{Cvoid},
+                                                 beta::PtrOrCuPtr{Cvoid},
                                                  matB::cusparseSpMatDescr_t,
                                                  matC::cusparseSpMatDescr_t,
                                                  computeType::cudaDataType,
                                                  alg::cusparseSpGEAMAlg_t,
                                                  spgeamDescr::cusparseSpGEAMDescr_t,
-                                                 externalBuffer::Ptr{Cvoid})::cusparseStatus_t
+                                                 externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
 @checked function cusparseSpGEAM(handle, opA, opB, alpha, matA, beta, matB, matC,
@@ -6280,14 +6280,14 @@ end
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseSpGEAM(handle::cusparseHandle_t,
                                              opA::cusparseOperation_t,
-                                             opB::cusparseOperation_t, alpha::Ptr{Cvoid},
-                                             matA::cusparseSpMatDescr_t, beta::Ptr{Cvoid},
+                                             opB::cusparseOperation_t, alpha::PtrOrCuPtr{Cvoid},
+                                             matA::cusparseSpMatDescr_t, beta::PtrOrCuPtr{Cvoid},
                                              matB::cusparseSpMatDescr_t,
                                              matC::cusparseSpMatDescr_t,
                                              computeType::cudaDataType,
                                              alg::cusparseSpGEAMAlg_t,
                                              spgeamDescr::cusparseSpGEAMDescr_t,
-                                             externalBuffer::Ptr{Cvoid})::cusparseStatus_t
+                                             externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
 end
 
 @cenum cusparseSDDMMAlg_t::UInt32 begin
