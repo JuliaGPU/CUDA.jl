@@ -133,6 +133,7 @@ const ptxas_ptx_db = Dict(
     v"9.0" => between(v"13.0", highest),
     v"9.1" => between(v"13.1", highest),
     v"9.2" => between(v"13.2", highest),
+    v"9.3" => between(v"13.3", highest),
 )
 
 function ptxas_ptx_support(ver::VersionNumber)
@@ -296,7 +297,8 @@ const llvm_ptx_db = Dict(
     v"8.7" => between(v"20", highest),
     v"8.8" => between(v"21", highest),
     v"9.0" => between(v"22", highest),
-    v"9.1" => between(v"24", highest),
+    v"9.1" => between(v"23", highest),
+    v"9.2" => between(v"23", highest),
 )
 
 function llvm_ptx_support(ver::VersionNumber)
