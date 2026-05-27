@@ -72,6 +72,7 @@ Register how a shuffle operation `op` should be applied to a value `x` of type `
 not natively supported by the shuffle intrinsics.
 """
 shfl_recurse(op, x) = throw(ArgumentError("Unsupported value type for shuffle operation"))
+@public shfl_recurse
 
 for fname in (:shfl_up_sync, :shfl_down_sync, :shfl_xor_sync, :shfl_sync)
     @eval begin
