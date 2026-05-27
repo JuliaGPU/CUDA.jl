@@ -46,7 +46,7 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-function math_mode!(handle, mode)
+function math_mode!(handle, mode, precision=CUDACore.math_precision())
     flags = 0
 
     # https://github.com/facebookresearch/faiss/issues/1385
@@ -58,8 +58,16 @@ function math_mode!(handle, mode)
     elseif mode == CUDACore.DEFAULT_MATH
         CUBLAS_DEFAULT_MATH
     elseif mode == CUDACore.FAST_MATH
-        # we'll additionally select a compute-mode with reduced precision whenever possible
-        CUBLAS_TF32_TENSOR_OP_MATH
+        # downcast to a reduced-precision compute mode whenever possible; the
+        # emulation modes additionally engage matching emulated kernels for
+        # plain (non-gemmEx) GEMMs. See also `gemmExComputeType`.
+        if precision === :BFloat16x9 && version() >= v"12.9"
+            CUBLAS_FP32_EMULATED_BF16X9_MATH
+        elseif precision === :FixedPoint && version() >= v"13.1"
+            CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH
+        else
+            CUBLAS_TF32_TENSOR_OP_MATH
+        end
     end
 
     cublasSetMathMode(handle, cublasMath_t(flags))
@@ -96,7 +104,7 @@ function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode}
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode, math_precision::Symbol}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUBLAS)
 
 function handle()
@@ -112,9 +120,9 @@ function handle()
 
         cublasSetStream_v2(new_handle, cuda.stream)
         cublasSetPointerMode_v2(new_handle, CUBLAS_POINTER_MODE_DEVICE)
-        math_mode!(new_handle, cuda.math_mode)
+        math_mode!(new_handle, cuda.math_mode, cuda.math_precision)
 
-        (; handle=wrapped, cuda.stream, cuda.math_mode)
+        (; handle=wrapped, cuda.stream, cuda.math_mode, cuda.math_precision)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -123,18 +131,18 @@ function handle()
     # update stream
     @noinline function update_stream(cuda, state)
         cublasSetStream_v2(state.handle, cuda.stream)
-        (; state.handle, stream=cuda.stream, state.math_mode)
+        (; state.handle, stream=cuda.stream, state.math_mode, state.math_precision)
     end
     if state.stream != cuda.stream
         states[cuda.context] = state = update_stream(cuda, state)
     end
 
-    # update math mode
+    # update math mode (the precision feeds into the emulation math modes)
     @noinline function update_math_mode(cuda, state)
-        math_mode!(state.handle, cuda.math_mode)
-        (; state.handle, state.stream, math_mode=cuda.math_mode)
+        math_mode!(state.handle, cuda.math_mode, cuda.math_precision)
+        (; state.handle, state.stream, math_mode=cuda.math_mode, math_precision=cuda.math_precision)
     end
-    if state.math_mode != cuda.math_mode
+    if state.math_mode != cuda.math_mode || state.math_precision != cuda.math_precision
         states[cuda.context] = state = update_math_mode(cuda, state)
     end
 

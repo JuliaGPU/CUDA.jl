@@ -504,6 +504,27 @@ k = 13
                     @test C ≈ Array(dC) rtol=rtol
                 end
             end
+            # emulation math modes: BF16x9 reproduces full FP32 accuracy (cuBLAS 12.9+),
+            # fixed-point emulates FP64 on tensor cores (cuBLAS 13.0+).
+            if cuBLAS.version() >= v"12.9"
+                for (AT, CT) in ((Float32, Float32), (ComplexF32, ComplexF32))
+                    CUDACore.math_mode!(CUDACore.FAST_MATH; precision=:BFloat16x9)
+                    A = rand(AT, m, k); B = rand(AT, k, n)
+                    dC = similar(CuArray(B), CT)
+                    mul!(dC, CuArray(A), CuArray(B))
+                    @test A*B ≈ Array(dC) rtol=Base.rtoldefault(AT, AT, 0)
+                end
+            end
+            if cuBLAS.version() >= v"13.1"
+                for (AT, CT) in ((Float64, Float64), (ComplexF64, ComplexF64))
+                    CUDACore.math_mode!(CUDACore.FAST_MATH; precision=:FixedPoint)
+                    A = rand(AT, m, k); B = rand(AT, k, n)
+                    dC = similar(CuArray(B), CT)
+                    mul!(dC, CuArray(A), CuArray(B))
+                    @test A*B ≈ Array(dC) rtol=Base.rtoldefault(AT, AT, 0)
+                end
+            end
+
             CUDACore.math_mode!(CUDACore.FAST_MATH; precision = :Bad)
             @test_throws ArgumentError("Unknown reduced precision type Bad") cuBLAS.gemmExComputeType(Float32, Float32, Float32, m, k, n)
         finally
