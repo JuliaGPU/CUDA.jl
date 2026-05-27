@@ -67,9 +67,6 @@ needs_context = false
 [api.custatevecBatchMeasure.argtypes]
 2 = "CuPtr{Cvoid}"
 
-[api.custatevecMeasureBatched.argtypes]
-2 = "CuPtr{Cvoid}"
-
 [api.custatevecBatchMeasureWithOffset.argtypes]
 2 = "CuPtr{Cvoid}"
 
