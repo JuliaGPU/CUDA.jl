@@ -30,8 +30,8 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
     end
     # cuFFT half-precision transforms require all transform dim sizes to be
     # powers of 2 (NVIDIA cuFFT docs, "Half-precision transforms"). Catch this
-    # up-front so the user sees a Julia error rather than a bare
-    # CUFFT_INCOMPLETE_PARAMETER_LIST from inside the wrapper.
+    # up-front so the user sees a Julia error rather than a bare cuFFT error
+    # from inside the wrapper.
     if input_type <: Union{Float16, Complex{Float16}} ||
        output_type <: Union{Float16, Complex{Float16}}
         for d in region

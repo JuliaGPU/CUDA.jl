@@ -47,6 +47,8 @@ end
 
 const nvmlMemoryErrorType_t = nvmlMemoryErrorType_enum
 
+const nvmlCPERCursorHandle_t = Culonglong
+
 mutable struct nvmlDevice_st end
 
 const nvmlDevice_t = Ptr{nvmlDevice_st}
@@ -148,6 +150,16 @@ struct nvmlProcessDetail_v1_t
     computeInstanceId::Cuint
     usedGpuCcProtectedMemory::Culonglong
 end
+
+@cenum nvmlProcessMode_enum::UInt32 begin
+    NVML_PROCESS_MODE_COMPUTE = 0
+    NVML_PROCESS_MODE_GRAPHICS = 1
+    NVML_PROCESS_MODE_MPS = 2
+    NVML_PROCESS_MODE_ALL = 3
+    NVML_PROCESS_MODE_MAX = 4
+end
+
+const nvmlProcessMode_t = nvmlProcessMode_enum
 
 struct nvmlProcessDetailList_v1_t
     version::Cuint
@@ -650,6 +662,10 @@ end
 
 const nvmlPdi_t = nvmlPdi_v1_t
 
+struct nvmlBBXTimeData_v1_t
+    timeRun::Cuint
+end
+
 @cenum nvmlEnableState_enum::UInt32 begin
     NVML_FEATURE_DISABLED = 0
     NVML_FEATURE_ENABLED = 1
@@ -1018,6 +1034,15 @@ struct nvmlEccSramUniqueUncorrectedErrorCounts_v1_t
 end
 
 const nvmlEccSramUniqueUncorrectedErrorCounts_t = nvmlEccSramUniqueUncorrectedErrorCounts_v1_t
+
+struct nvmlRemappedRowsInfo_v2_t
+    corrActiveRemaps::Cuint
+    corrInactiveRemaps::Cuint
+    uncActiveRemaps::Cuint
+    uncInactiveRemaps::Cuint
+    bPending::Cuint
+    bFailureOccurred::Cuint
+end
 
 struct nvmlRusdSettings_v1_t
     version::Cuint
@@ -1586,6 +1611,7 @@ const nvmlGridLicensableFeatures_t = nvmlGridLicensableFeatures_st
     NVML_GPU_RECOVERY_ACTION_NODE_REBOOT = 2
     NVML_GPU_RECOVERY_ACTION_DRAIN_P2P = 3
     NVML_GPU_RECOVERY_ACTION_DRAIN_AND_RESET = 4
+    NVML_GPU_RECOVERY_ACTION_RECOVER_IMEX_DOMAIN = 5
 end
 
 const nvmlDeviceGpuRecoveryAction_t = nvmlDeviceGpuRecoveryAction_s
@@ -1939,6 +1965,19 @@ end
 
 const nvmlAccountingStats_t = nvmlAccountingStats_st
 
+struct nvmlAccountingStats_v2_t
+    pid::Cuint
+    isRunning::Cuint
+    gpuUtilization::Cuint
+    memoryUtilization::Cuint
+    maxMemoryUsage::Culonglong
+    sampleCount::Cuint
+    sumGpuUtil::Culonglong
+    sumFbUtil::Culonglong
+    time::Culonglong
+    startTime::Culonglong
+end
+
 @cenum nvmlEncoderQueryType_enum::UInt32 begin
     NVML_ENCODER_QUERY_H264 = 0
     NVML_ENCODER_QUERY_HEVC = 1
@@ -2126,6 +2165,22 @@ function nvmlErrorString(result)
     @gcsafe_ccall libnvml.nvmlErrorString(result::nvmlReturn_t)::Cstring
 end
 
+@cenum nvmlCPERType_t::UInt32 begin
+    NVML_CPER_ACCESS_TYPE_GPU = 1
+end
+
+struct nvmlCPERCursor_v1_t
+    cperTypeMask::Cuint
+    uuid::NTuple{80,Cchar}
+    handle::nvmlCPERCursorHandle_t
+end
+
+struct nvmlGetCPER_v1_t
+    cursor::nvmlCPERCursor_v1_t
+    buffer::Ptr{Cuchar}
+    bufferSize::Cuint
+end
+
 @checked function nvmlSystemGetDriverVersion(version, length)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlSystemGetDriverVersion(version::Cstring,
@@ -2177,6 +2232,11 @@ const nvmlSystemDriverBranchInfo_t = nvmlSystemDriverBranchInfo_v1_t
     initialize_context()
     @gcsafe_ccall libnvml.nvmlSystemGetDriverBranch(branchInfo::Ptr{nvmlSystemDriverBranchInfo_t},
                                                     length::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlSystemGetCPER_v1(cper)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlSystemGetCPER_v1(cper::Ptr{nvmlGetCPER_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlUnitGetCount(unitCount)
@@ -2434,6 +2494,12 @@ end
     @gcsafe_ccall libnvml.nvmlDeviceGetLastBBXFlushTime(device::nvmlDevice_t,
                                                         timestamp::Ptr{Culonglong},
                                                         durationUs::Ptr{Culong})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetBBXTimeData_v1(device, timeData)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetBBXTimeData_v1(device::nvmlDevice_t,
+                                                      timeData::Ptr{nvmlBBXTimeData_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDisplayMode(device, display)
@@ -3256,6 +3322,12 @@ end
                                                             bufferSize::Ptr{Cuint})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetAccountingStats_v2(device, stats)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetAccountingStats_v2(device::nvmlDevice_t,
+                                                          stats::Ptr{nvmlAccountingStats_v2_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetRetiredPages(device, cause, pageCount, addresses)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetRetiredPages(device::nvmlDevice_t,
@@ -3517,6 +3589,7 @@ end
     NVML_NVLINK_VERSION_3_1 = 5
     NVML_NVLINK_VERSION_4_0 = 6
     NVML_NVLINK_VERSION_5_0 = 7
+    NVML_NVLINK_VERSION_6_0 = 8
 end
 
 const nvmlNvlinkVersion_t = nvmlNvlinkVersion_enum
@@ -5054,6 +5127,42 @@ end
     NVML_GPM_METRIC_GR7_CTXSW_REQUESTS = 207
     NVML_GPM_METRIC_GR7_CTXSW_CYCLES_PER_REQ = 208
     NVML_GPM_METRIC_GR7_CTXSW_ACTIVE_PCT = 209
+    NVML_GPM_METRIC_NVLINK_L18_RX_PER_SEC = 212
+    NVML_GPM_METRIC_NVLINK_L18_TX_PER_SEC = 213
+    NVML_GPM_METRIC_NVLINK_L19_RX_PER_SEC = 214
+    NVML_GPM_METRIC_NVLINK_L19_TX_PER_SEC = 215
+    NVML_GPM_METRIC_NVLINK_L20_RX_PER_SEC = 216
+    NVML_GPM_METRIC_NVLINK_L20_TX_PER_SEC = 217
+    NVML_GPM_METRIC_NVLINK_L21_RX_PER_SEC = 218
+    NVML_GPM_METRIC_NVLINK_L21_TX_PER_SEC = 219
+    NVML_GPM_METRIC_NVLINK_L22_RX_PER_SEC = 220
+    NVML_GPM_METRIC_NVLINK_L22_TX_PER_SEC = 221
+    NVML_GPM_METRIC_NVLINK_L23_RX_PER_SEC = 222
+    NVML_GPM_METRIC_NVLINK_L23_TX_PER_SEC = 223
+    NVML_GPM_METRIC_NVLINK_L24_RX_PER_SEC = 224
+    NVML_GPM_METRIC_NVLINK_L24_TX_PER_SEC = 225
+    NVML_GPM_METRIC_NVLINK_L25_RX_PER_SEC = 226
+    NVML_GPM_METRIC_NVLINK_L25_TX_PER_SEC = 227
+    NVML_GPM_METRIC_NVLINK_L26_RX_PER_SEC = 228
+    NVML_GPM_METRIC_NVLINK_L26_TX_PER_SEC = 229
+    NVML_GPM_METRIC_NVLINK_L27_RX_PER_SEC = 230
+    NVML_GPM_METRIC_NVLINK_L27_TX_PER_SEC = 231
+    NVML_GPM_METRIC_NVLINK_L28_RX_PER_SEC = 232
+    NVML_GPM_METRIC_NVLINK_L28_TX_PER_SEC = 233
+    NVML_GPM_METRIC_NVLINK_L29_RX_PER_SEC = 234
+    NVML_GPM_METRIC_NVLINK_L29_TX_PER_SEC = 235
+    NVML_GPM_METRIC_NVLINK_L30_RX_PER_SEC = 236
+    NVML_GPM_METRIC_NVLINK_L30_TX_PER_SEC = 237
+    NVML_GPM_METRIC_NVLINK_L31_RX_PER_SEC = 238
+    NVML_GPM_METRIC_NVLINK_L31_TX_PER_SEC = 239
+    NVML_GPM_METRIC_NVLINK_L32_RX_PER_SEC = 240
+    NVML_GPM_METRIC_NVLINK_L32_TX_PER_SEC = 241
+    NVML_GPM_METRIC_NVLINK_L33_RX_PER_SEC = 242
+    NVML_GPM_METRIC_NVLINK_L33_TX_PER_SEC = 243
+    NVML_GPM_METRIC_NVLINK_L34_RX_PER_SEC = 244
+    NVML_GPM_METRIC_NVLINK_L34_TX_PER_SEC = 245
+    NVML_GPM_METRIC_NVLINK_L35_RX_PER_SEC = 246
+    NVML_GPM_METRIC_NVLINK_L35_TX_PER_SEC = 247
     NVML_GPM_METRIC_SM_CYCLES_ELAPSED = 248
     NVML_GPM_METRIC_SM_CYCLES_ACTIVE = 249
     NVML_GPM_METRIC_MMA_CYCLES_ACTIVE = 250
@@ -5103,6 +5212,42 @@ end
     NVML_GPM_METRIC_NVLINK_L16_TX = 294
     NVML_GPM_METRIC_NVLINK_L17_RX = 295
     NVML_GPM_METRIC_NVLINK_L17_TX = 296
+    NVML_GPM_METRIC_NVLINK_L18_RX = 297
+    NVML_GPM_METRIC_NVLINK_L18_TX = 298
+    NVML_GPM_METRIC_NVLINK_L19_RX = 299
+    NVML_GPM_METRIC_NVLINK_L19_TX = 300
+    NVML_GPM_METRIC_NVLINK_L20_RX = 301
+    NVML_GPM_METRIC_NVLINK_L20_TX = 302
+    NVML_GPM_METRIC_NVLINK_L21_RX = 303
+    NVML_GPM_METRIC_NVLINK_L21_TX = 304
+    NVML_GPM_METRIC_NVLINK_L22_RX = 305
+    NVML_GPM_METRIC_NVLINK_L22_TX = 306
+    NVML_GPM_METRIC_NVLINK_L23_RX = 307
+    NVML_GPM_METRIC_NVLINK_L23_TX = 308
+    NVML_GPM_METRIC_NVLINK_L24_RX = 309
+    NVML_GPM_METRIC_NVLINK_L24_TX = 310
+    NVML_GPM_METRIC_NVLINK_L25_RX = 311
+    NVML_GPM_METRIC_NVLINK_L25_TX = 312
+    NVML_GPM_METRIC_NVLINK_L26_RX = 313
+    NVML_GPM_METRIC_NVLINK_L26_TX = 314
+    NVML_GPM_METRIC_NVLINK_L27_RX = 315
+    NVML_GPM_METRIC_NVLINK_L27_TX = 316
+    NVML_GPM_METRIC_NVLINK_L28_RX = 317
+    NVML_GPM_METRIC_NVLINK_L28_TX = 318
+    NVML_GPM_METRIC_NVLINK_L29_RX = 319
+    NVML_GPM_METRIC_NVLINK_L29_TX = 320
+    NVML_GPM_METRIC_NVLINK_L30_RX = 321
+    NVML_GPM_METRIC_NVLINK_L30_TX = 322
+    NVML_GPM_METRIC_NVLINK_L31_RX = 323
+    NVML_GPM_METRIC_NVLINK_L31_TX = 324
+    NVML_GPM_METRIC_NVLINK_L32_RX = 325
+    NVML_GPM_METRIC_NVLINK_L32_TX = 326
+    NVML_GPM_METRIC_NVLINK_L33_RX = 327
+    NVML_GPM_METRIC_NVLINK_L33_TX = 328
+    NVML_GPM_METRIC_NVLINK_L34_RX = 329
+    NVML_GPM_METRIC_NVLINK_L34_TX = 330
+    NVML_GPM_METRIC_NVLINK_L35_RX = 331
+    NVML_GPM_METRIC_NVLINK_L35_TX = 332
     NVML_GPM_METRIC_MAX = 333
 end
 
@@ -5375,6 +5520,12 @@ end
                                                                            errorCounts::Ptr{nvmlEccSramUniqueUncorrectedErrorCounts_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetRemappedRows_v2(device, info)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetRemappedRows_v2(device::nvmlDevice_t,
+                                                       info::Ptr{nvmlRemappedRowsInfo_v2_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceSetRusdSettings_v1(device, settings)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceSetRusdSettings_v1(device::nvmlDevice_t,
@@ -5632,7 +5783,7 @@ const nvmlDeviceAddressingMode_v1 = @NVML_STRUCT_VERSION(DeviceAddressingMode, 1
 
 const nvmlRepairStatus_v1 = @NVML_STRUCT_VERSION(RepairStatus, 1)
 
-const NVML_NVLINK_MAX_LINKS = 18
+const NVML_NVLINK_MAX_LINKS = 36
 
 const NVML_TOPOLOGY_CPU = NVML_TOPOLOGY_NODE
 
@@ -5739,6 +5890,8 @@ const NVML_DEVICE_ARCH_HOPPER = 9
 
 const NVML_DEVICE_ARCH_BLACKWELL = 10
 
+const NVML_DEVICE_ARCH_RUBIN = 13
+
 const NVML_DEVICE_ARCH_UNKNOWN = 0xffffffff
 
 const NVML_BUS_TYPE_UNKNOWN = 0
@@ -5802,6 +5955,10 @@ const NVML_POWER_SCOPE_GPU = Cuint(0)
 const NVML_POWER_SCOPE_MODULE = Cuint(1)
 
 const NVML_POWER_SCOPE_MEMORY = Cuint(2)
+
+const NVML_POWER_SCOPE_GPU_BASE = Cuint(3)
+
+const NVML_POWER_SCOPE_COUNT = Cuint(4)
 
 const nvmlPowerValue_v2 = @NVML_STRUCT_VERSION(PowerValue, 2)
 
@@ -6506,7 +6663,27 @@ const NVML_FI_DEV_NVLINK_PLR_XMIT_BLOCKS = 294
 
 const NVML_FI_DEV_NVLINK_PLR_XMIT_RETRY_BLOCKS = 295
 
-const NVML_FI_MAX = 296
+const NVML_FI_DEV_NVLINK_GET_DATA_RATE = 296
+
+const NVML_FI_DEV_MMA_STALL_PERCENT = 297
+
+const NVML_FI_DEV_MCLK_SWITCH_TYPE = 298
+
+const NVML_FI_DEV_MCLK_MIN_SWITCH_INTERVAL_MILLISECONDS = 299
+
+const NVML_FI_PWR_SMOOTHING_SOC_POWER_SMOOTHING_ENABLED = 300
+
+const NVML_FI_DEV_REMAPPED_ROWS_COR_INACTIVE = 301
+
+const NVML_FI_DEV_REMAPPED_ROWS_UNC_INACTIVE = 302
+
+const NVML_FI_MAX = 303
+
+const NVML_MCLK_SWITCH_TYPE_NOT_SUPPORTED = 0x00
+
+const NVML_MCLK_SWITCH_TYPE_DEFERRED = 0x01
+
+const NVML_MCLK_SWITCH_TYPE_RUNTIME = 0x02
 
 const NVML_NVLINK_LOW_POWER_THRESHOLD_UNIT_100US = 0x00
 
@@ -6802,6 +6979,8 @@ const NVML_DEVICE_SERIAL_BUFFER_SIZE = 30
 
 const NVML_DEVICE_VBIOS_VERSION_BUFFER_SIZE = 32
 
+const NVML_CPER_CURSOR_HANDLE_INIT = nvmlCPERCursorHandle_t(0)
+
 const nvmlSystemDriverBranchInfo_v1 = @NVML_STRUCT_VERSION(SystemDriverBranchInfo, 1)
 
 const NVML_AFFINITY_SCOPE_NODE = 0
@@ -6888,7 +7067,9 @@ const NVML_GPU_INSTANCE_PROFILE_1_SLICE_ALL_ME = 0x0f
 
 const NVML_GPU_INSTANCE_PROFILE_2_SLICE_ALL_ME = 0x10
 
-const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x11
+const NVML_GPU_INSTANCE_PROFILE_3_SLICE_GFX = 0x11
+
+const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x12
 
 const NVML_GPU_INSTANCE_PROFILE_CAPS_P2P = 0x01
 
@@ -6918,7 +7099,9 @@ const NVML_COMPUTE_INSTANCE_PROFILE_6_SLICE = 0x06
 
 const NVML_COMPUTE_INSTANCE_PROFILE_1_SLICE_REV1 = 0x07
 
-const NVML_COMPUTE_INSTANCE_PROFILE_COUNT = 0x08
+const NVML_COMPUTE_INSTANCE_PROFILE_7_SLICE_NVL = 0x08
+
+const NVML_COMPUTE_INSTANCE_PROFILE_COUNT = 0x09
 
 const NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_SHARED = 0x00
 

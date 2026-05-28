@@ -6222,6 +6222,74 @@ end
                                                           spgemmDescr::cusparseSpGEMMDescr_t)::cusparseStatus_t
 end
 
+@cenum cusparseSpGEAMAlg_t::UInt32 begin
+    CUSPARSE_SPGEAM_ALG_DEFAULT = 0
+    CUSPARSE_SPGEAM_ALG1 = 1
+end
+
+mutable struct cusparseSpGEAMDescr end
+
+const cusparseSpGEAMDescr_t = Ptr{cusparseSpGEAMDescr}
+
+@checked function cusparseSpGEAM_createDescr(descr)
+    initialize_context()
+    @gcsafe_ccall libcusparse.cusparseSpGEAM_createDescr(descr::Ptr{cusparseSpGEAMDescr_t})::cusparseStatus_t
+end
+
+@checked function cusparseSpGEAM_destroyDescr(descr)
+    initialize_context()
+    @gcsafe_ccall libcusparse.cusparseSpGEAM_destroyDescr(descr::cusparseSpGEAMDescr_t)::cusparseStatus_t
+end
+
+@checked function cusparseSpGEAM_bufferSize(handle, opA, opB, alpha, matA, beta, matB, matC,
+                                            computeType, alg, spgeamDescr, bufferSize)
+    initialize_context()
+    @gcsafe_ccall libcusparse.cusparseSpGEAM_bufferSize(handle::cusparseHandle_t,
+                                                        opA::cusparseOperation_t,
+                                                        opB::cusparseOperation_t,
+                                                        alpha::PtrOrCuPtr{Cvoid},
+                                                        matA::cusparseSpMatDescr_t,
+                                                        beta::PtrOrCuPtr{Cvoid},
+                                                        matB::cusparseSpMatDescr_t,
+                                                        matC::cusparseSpMatDescr_t,
+                                                        computeType::cudaDataType,
+                                                        alg::cusparseSpGEAMAlg_t,
+                                                        spgeamDescr::cusparseSpGEAMDescr_t,
+                                                        bufferSize::Ref{Csize_t})::cusparseStatus_t
+end
+
+@checked function cusparseSpGEAM_nnz(handle, opA, opB, alpha, matA, beta, matB, matC,
+                                     computeType, alg, spgeamDescr, externalBuffer)
+    initialize_context()
+    @gcsafe_ccall libcusparse.cusparseSpGEAM_nnz(handle::cusparseHandle_t,
+                                                 opA::cusparseOperation_t,
+                                                 opB::cusparseOperation_t,
+                                                 alpha::PtrOrCuPtr{Cvoid},
+                                                 matA::cusparseSpMatDescr_t,
+                                                 beta::PtrOrCuPtr{Cvoid},
+                                                 matB::cusparseSpMatDescr_t,
+                                                 matC::cusparseSpMatDescr_t,
+                                                 computeType::cudaDataType,
+                                                 alg::cusparseSpGEAMAlg_t,
+                                                 spgeamDescr::cusparseSpGEAMDescr_t,
+                                                 externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
+end
+
+@checked function cusparseSpGEAM(handle, opA, opB, alpha, matA, beta, matB, matC,
+                                 computeType, alg, spgeamDescr, externalBuffer)
+    initialize_context()
+    @gcsafe_ccall libcusparse.cusparseSpGEAM(handle::cusparseHandle_t,
+                                             opA::cusparseOperation_t,
+                                             opB::cusparseOperation_t, alpha::PtrOrCuPtr{Cvoid},
+                                             matA::cusparseSpMatDescr_t, beta::PtrOrCuPtr{Cvoid},
+                                             matB::cusparseSpMatDescr_t,
+                                             matC::cusparseSpMatDescr_t,
+                                             computeType::cudaDataType,
+                                             alg::cusparseSpGEAMAlg_t,
+                                             spgeamDescr::cusparseSpGEAMDescr_t,
+                                             externalBuffer::CuPtr{Cvoid})::cusparseStatus_t
+end
+
 @cenum cusparseSDDMMAlg_t::UInt32 begin
     CUSPARSE_SDDMM_ALG_DEFAULT = 0
 end

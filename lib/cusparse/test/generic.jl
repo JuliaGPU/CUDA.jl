@@ -196,7 +196,8 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
     @testset "$SparseMatrixType -- sv! algo=$algo" for algo in SPSV_ALGOS[SparseMatrixType]
         @testset "sv! $T" for T in [Float64, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                # adjoint of a complex CSC matrix needs native CSC support (cuSPARSE 12.8.1+)
+                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && cuSPARSE.version() < v"12.8.1" && continue
                 @testset "uplo = $uplo" for uplo in ('L', 'U')
                     @testset "diag = $diag" for diag in ('U', 'N')
                         A = rand(T, 10, 10)
@@ -220,7 +221,8 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
     @testset "$SparseMatrixType -- sm! algo=$algo" for algo in SPSM_ALGOS[SparseMatrixType]
         @testset "sm! $T" for T in [Float64, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
-                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
+                # adjoint of a complex CSC matrix needs native CSC support (cuSPARSE 12.8.1+)
+                SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && cuSPARSE.version() < v"12.8.1" && continue
                 @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose)]
                     @testset "uplo = $uplo" for uplo in ('L', 'U')
                         @testset "diag = $diag" for diag in ('U', 'N')
