@@ -3,6 +3,7 @@
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
 @public AbstractBackend, LLVMBackend, DefaultBackend, kernel_convert, kernel_compile
+@public AbstractKernel, HostKernel, DeviceKernel
 
 
 ## backend dispatch
