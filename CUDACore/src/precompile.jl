@@ -21,7 +21,7 @@ if :NVPTX in LLVM.backends()
                                     llvm_support.sm))
             llvm_ptx = maximum(filter(>=(v"6.2"), llvm_support.ptx))
 
-            target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx, debuginfo=true)
+            target = PTXCompilerTarget{Nothing}(; cap=base_version(llvm_sm), ptx=llvm_ptx, debuginfo=true)
             params = CUDACompilerParams(; sm=llvm_sm, ptx=llvm_ptx)
             config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
 

@@ -20,7 +20,7 @@ function precompile_runtime()
         for sm in sms, debuginfo in [false, true]
             # NOTE: this often runs when we don't have a functioning set-up,
             #       so we don't use `compiler_config` which requires NVML
-            target = PTXCompilerTarget(; cap=base_version(sm), ptx, debuginfo)
+            target = PTXCompilerTarget{Nothing}(; cap=base_version(sm), ptx, debuginfo)
             params = CUDACompilerParams(; sm, ptx)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
