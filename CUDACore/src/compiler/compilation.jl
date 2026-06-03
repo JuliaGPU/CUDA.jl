@@ -16,10 +16,7 @@ function Base.hash(params::CUDACompilerParams, h::UInt)
 end
 
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
-const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
-
 const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
-const AnyCUDAConfig = CompilerConfig{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
 
