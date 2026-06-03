@@ -3,17 +3,23 @@
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
     sm::SMVersion
     ptx::VersionNumber
+    raising::Bool
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.sm, h)
     h = hash(params.ptx, h)
+    h = hash(params.raising, h)
 
     return h
 end
 
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
 const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
+
+@static if isdefined(GPUCompiler, Symbol("optimization_options"))
+    GPUCompiler.optimization_options(job::CUDACompilerJob) =  (; instcombine=!job.config.params.raising, ptxfastmath=!job.config.params.raising)
+end
 
 GPUCompiler.runtime_module(@nospecialize(job::CUDACompilerJob)) = CUDACore
 
