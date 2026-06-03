@@ -2,8 +2,6 @@
 
 abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
 
-@public AbstractCUDACompilerParams, AnyCUDAJob, AnyCUDAConfig
-
 Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     sm::SMVersion
     ptx::VersionNumber
