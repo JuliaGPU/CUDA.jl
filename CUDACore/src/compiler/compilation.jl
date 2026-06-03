@@ -7,7 +7,6 @@ Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     ptx::VersionNumber
 end
 
-
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.sm, h)
     h = hash(params.ptx, h)
