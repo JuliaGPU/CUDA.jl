@@ -2,18 +2,13 @@
 
 abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
 
-@public AbstractCUDACompilerParams, sm, ptx, AnyCUDAJob, AnyCUDAConfig
-
-function sm end
-function ptx end
+@public AbstractCUDACompilerParams, AnyCUDAJob, AnyCUDAConfig
 
 Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     sm::SMVersion
     ptx::VersionNumber
 end
 
-sm(params::CUDACompilerParams) = params.sm
-ptx(params::CUDACompilerParams) = params.ptx
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.sm, h)
@@ -162,8 +157,8 @@ function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, for
     # When the GPUCompiler-side target matches, LLVM already emits the right header
     # (including the `a`/`f` suffix, via the CPU name); we only rewrite when they differ,
     # e.g. when we had to clamp the target down for LLVM compatibility.
-    sm_param = sm(job.config.params)
-    ptx_param = ptx(job.config.params)
+    sm_param = job.config.params.sm
+    ptx_param = job.config.params.ptx
     needs_rewrite = job.config.target.ptx != ptx_param ||
                     job.config.target.cap != base_version(sm_param) ||
                     job.config.target.feature_set !== sm_param.feature_set
@@ -314,8 +309,8 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    sm_param = sm(job.config.params)
-    ptx_param = ptx(job.config.params)
+    sm_param = job.config.params.sm
+    ptx_param = job.config.params.ptx
     cap = base_version(sm_param)
     arch = cpu_name(sm_param)
 
