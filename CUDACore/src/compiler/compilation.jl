@@ -3,7 +3,7 @@
 Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
     sm::SMVersion
     ptx::VersionNumber
-    raising::Bool
+    raising::Bool = false
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
