@@ -4,13 +4,16 @@ abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
 
 @public AbstractCUDACompilerParams, sm, ptx, AnyCUDAJob, AnyCUDAConfig
 
-sm(params::AbstractCUDACompilerParams) = params.sm
-ptx(params::AbstractCUDACompilerParams) = params.ptx
+function sm end
+function ptx end
 
 Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     sm::SMVersion
     ptx::VersionNumber
 end
+
+sm(params::CUDACompilerParams) = params.sm
+ptx(params::CUDACompilerParams) = params.ptx
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.sm, h)
