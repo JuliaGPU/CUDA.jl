@@ -52,6 +52,8 @@ else
     const CUDA_Compiler = CUDA_Compiler_jll
 end
 
+import NVPTX_LLVM_Backend_jll
+
 using Libdl
 
 using Printf
