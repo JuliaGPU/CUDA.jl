@@ -339,6 +339,134 @@ using SpecialFunctions
         end
     end
 
+    # dp4a requires sm_61+
+    if capability(device()) >= v"6.1"
+    @testset "dp4a" begin
+        # Pure-Julia reference: unpack four bytes from a packed Int32/UInt32,
+        # dot-product them (with the respective signed/unsigned semantics), and
+        # add the accumulator.
+        function ref_dp4a_ss(a::Int32, b::Int32, c::Int32)
+            ba = reinterpret(NTuple{4,Int8}, a)
+            bb = reinterpret(NTuple{4,Int8}, b)
+            c + Int32(ba[1])*Int32(bb[1]) + Int32(ba[2])*Int32(bb[2]) +
+                Int32(ba[3])*Int32(bb[3]) + Int32(ba[4])*Int32(bb[4])
+        end
+        function ref_dp4a_su(a::Int32, b::UInt32, c::Int32)
+            ba = reinterpret(NTuple{4,Int8},  a)
+            bb = reinterpret(NTuple{4,UInt8}, b)
+            c + Int32(ba[1])*Int32(bb[1]) + Int32(ba[2])*Int32(bb[2]) +
+                Int32(ba[3])*Int32(bb[3]) + Int32(ba[4])*Int32(bb[4])
+        end
+        function ref_dp4a_us(a::UInt32, b::Int32, c::Int32)
+            ba = reinterpret(NTuple{4,UInt8}, a)
+            bb = reinterpret(NTuple{4,Int8},  b)
+            c + Int32(ba[1])*Int32(bb[1]) + Int32(ba[2])*Int32(bb[2]) +
+                Int32(ba[3])*Int32(bb[3]) + Int32(ba[4])*Int32(bb[4])
+        end
+        function ref_dp4a_uu(a::UInt32, b::UInt32, c::UInt32)
+            ba = reinterpret(NTuple{4,UInt8}, a)
+            bb = reinterpret(NTuple{4,UInt8}, b)
+            c + UInt32(ba[1])*UInt32(bb[1]) + UInt32(ba[2])*UInt32(bb[2]) +
+                UInt32(ba[3])*UInt32(bb[3]) + UInt32(ba[4])*UInt32(bb[4])
+        end
+
+        # Kernels: each writes one result per thread (we launch 1 thread, one
+        # case per test to keep the kernel signatures simple).
+        function kernel_ss(out, a, b, c)
+            out[] = CUDA.dp4a(a, b, c)
+            return
+        end
+        function kernel_su(out, a, b, c)
+            out[] = CUDA.dp4a(a, b, c)
+            return
+        end
+        function kernel_us(out, a, b, c)
+            out[] = CUDA.dp4a(a, b, c)
+            return
+        end
+        function kernel_uu(out, a, b, c)
+            out[] = CUDA.dp4a(a, b, c)
+            return
+        end
+
+        # Helper: pack four Int8/UInt8 values (little-endian: b0 in bits 7:0).
+        # Use reinterpret(Int32/UInt32, NTuple{4,Int8/UInt8}) — portable and avoids
+        # integer-width pitfalls in the shift+or approach.
+        pack_s(b0, b1, b2, b3) = reinterpret(Int32,  (b0%Int8,  b1%Int8,  b2%Int8,  b3%Int8))
+        pack_u(b0, b1, b2, b3) = reinterpret(UInt32, (b0%UInt8, b1%UInt8, b2%UInt8, b3%UInt8))
+
+        @testset "ss — signed × signed" begin
+            cases = [
+                # (a_bytes…, b_bytes…, c, label)
+                (Int32(0), Int32(0), Int32(0)),                       # all zeros
+                (pack_s(1,2,3,4), pack_s(5,6,7,8), Int32(10)),       # 1*5+2*6+3*7+4*8+10 = 80
+                (pack_s(127,127,127,127), pack_s(1,1,1,1), Int32(0)), # max positive bytes
+                (pack_s(-128,-128,-128,-128), pack_s(1,1,1,1), Int32(0)), # most-negative bytes
+                (pack_s(-1,-1,-1,-1), pack_s(-1,-1,-1,-1), Int32(0)), # neg*neg
+                (Int32(-1), Int32(-1), Int32(100)),                   # 0xFF packing
+            ]
+            for (a, b, c) in cases
+                expected = ref_dp4a_ss(a, b, c)
+                buf = CuArray{Int32}(undef, 1)
+                @cuda threads=1 kernel_ss(buf, a, b, c)
+                @test Array(buf)[] == expected
+            end
+        end
+
+        @testset "su — signed × unsigned" begin
+            cases = [
+                (Int32(0), UInt32(0), Int32(0)),
+                (pack_s(1,2,3,4), pack_u(5,6,7,8), Int32(10)),        # 1*5+…+10 = 80
+                (pack_s(127,0,-128,1), pack_u(255,128,1,0), Int32(5)),
+                (pack_s(-1,-1,-1,-1), pack_u(255,255,255,255), Int32(0)), # -1 * 255 * 4 = -1020
+            ]
+            for (a, b, c) in cases
+                expected = ref_dp4a_su(a, b, c)
+                buf = CuArray{Int32}(undef, 1)
+                @cuda threads=1 kernel_su(buf, a, b, c)
+                @test Array(buf)[] == expected
+            end
+        end
+
+        @testset "us — unsigned × signed" begin
+            cases = [
+                (UInt32(0), Int32(0), Int32(0)),
+                (pack_u(1,2,3,4), pack_s(5,6,7,8), Int32(10)),
+                (pack_u(255,128,0,1), pack_s(-1,1,-128,127), Int32(0)),
+            ]
+            for (a, b, c) in cases
+                expected = ref_dp4a_us(a, b, c)
+                buf = CuArray{Int32}(undef, 1)
+                @cuda threads=1 kernel_us(buf, a, b, c)
+                @test Array(buf)[] == expected
+            end
+        end
+
+        @testset "uu — unsigned × unsigned" begin
+            cases = [
+                (UInt32(0), UInt32(0), UInt32(0)),
+                (pack_u(1,2,3,4), pack_u(5,6,7,8), UInt32(10)),       # 80
+                (pack_u(255,255,255,255), pack_u(1,1,1,1), UInt32(0)), # 4*255 = 1020
+                (pack_u(255,255,255,255), pack_u(255,255,255,255), UInt32(0)), # 4*255^2 = 260100
+            ]
+            for (a, b, c) in cases
+                expected = ref_dp4a_uu(a, b, c)
+                buf = CuArray{UInt32}(undef, 1)
+                @cuda threads=1 kernel_uu(buf, a, b, c)
+                @test Array(buf)[] == expected
+            end
+        end
+
+        @testset "PTX instruction selection" begin
+            # Verify the backend emits the actual dp4a instruction, not a
+            # software emulation sequence.
+            buf = CuArray{Int32}(undef, 1)
+            ptx = sprint(io->(@device_code_ptx io=io @cuda launch=false kernel_ss(buf, Int32(0), Int32(0), Int32(0))))
+            @test occursin("dp4a", ptx)
+        end
+    end
+    end # capability >= v"6.1"
+
     @testset "@fastmath sincos" begin
         # JuliaGPU/CUDA.jl#1606: FastMath.sincos fell back to regular sin/cos
         @test @filecheck CUDA.code_ptx(NTuple{3,CuDeviceArray{Float32,1,AS.Global}}) do a, b, c
