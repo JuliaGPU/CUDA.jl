@@ -1,6 +1,8 @@
 ## gpucompiler interface implementation
 
-Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
+abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
+
+Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     sm::SMVersion
     ptx::VersionNumber
 end
@@ -13,19 +15,19 @@ function Base.hash(params::CUDACompilerParams, h::UInt)
 end
 
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
-const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
+const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 
-GPUCompiler.runtime_module(@nospecialize(job::CUDACompilerJob)) = CUDACore
+GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
 
 # filter out functions from libdevice and cudadevrt
-GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String) =
+GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
     invoke(GPUCompiler.isintrinsic,
            Tuple{CompilerJob{PTXCompilerTarget}, typeof(fn)},
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
 # link libdevice
-function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module)
+function GPUCompiler.link_libraries!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module)
     lib = parse(LLVM.Module, MemoryBufferFile(CUDA_Compiler.libdevice); lazy=true)
 
     # override libdevice's triple and datalayout to avoid warnings
@@ -44,11 +46,11 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
     return
 end
 
-GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
+GPUCompiler.method_table(@nospecialize(job::AnyCUDAJob)) = method_table
 
-GPUCompiler.kernel_state_type(job::CUDACompilerJob) = KernelState
+GPUCompiler.kernel_state_type(job::AnyCUDAJob) = KernelState
 
-function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
+function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
                                     mod::LLVM.Module, entry::LLVM.Function)
     entry = invoke(GPUCompiler.finish_module!,
                    Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, LLVM.Function},
@@ -125,7 +127,7 @@ function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
         r"\.target sm_\d+\w*" => ".target $(cpu_name(sm))")
 end
 
-function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
+function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, format)
     @assert format == LLVM.API.LLVMAssemblyFile
     asm = invoke(GPUCompiler.mcgen,
                  Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
@@ -149,12 +151,13 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
     # When the GPUCompiler-side target matches, LLVM already emits the right header
     # (including the `a`/`f` suffix, via the CPU name); we only rewrite when they differ,
     # e.g. when we had to clamp the target down for LLVM compatibility.
-    (; ptx, sm) = job.config.params
-    needs_rewrite = job.config.target.ptx != ptx ||
-                    job.config.target.cap != base_version(sm) ||
-                    job.config.target.feature_set !== sm.feature_set
+    sm_param = job.config.params.sm
+    ptx_param = job.config.params.ptx
+    needs_rewrite = job.config.target.ptx != ptx_param ||
+                    job.config.target.cap != base_version(sm_param) ||
+                    job.config.target.feature_set !== sm_param.feature_set
     if needs_rewrite
-        asm = rewrite_ptx_header(asm, ptx, sm)
+        asm = rewrite_ptx_header(asm, ptx_param, sm_param)
     end
 
     return asm
@@ -300,9 +303,10 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    (; ptx, sm) = job.config.params
-    cap = base_version(sm)
-    arch = cpu_name(sm)
+    sm_param = job.config.params.sm
+    ptx_param = job.config.params.ptx
+    cap = base_version(sm_param)
+    arch = cpu_name(sm_param)
 
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
@@ -310,12 +314,12 @@ function compile(@nospecialize(job::CompilerJob))
     end
     param_usage = sum(aligned_sizeof, argtypes)
     param_limit = 4096
-    if cap >= v"7.0" && ptx >= v"8.1"
+    if cap >= v"7.0" && ptx_param >= v"8.1"
         param_limit = 32764
     end
     if param_usage > param_limit
         msg = """Kernel invocation uses too much parameter memory.
-                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by $(arch) / PTX v$(ptx.major).$(ptx.minor)."""
+                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by $(arch) / PTX v$(ptx_param.major).$(ptx_param.minor)."""
 
         try
             details = "\n\nRelevant parameters:"
@@ -336,7 +340,7 @@ function compile(@nospecialize(job::CompilerJob))
             end
             details *= "\n"
 
-            if cap >= v"7.0" && ptx < v"8.1" && param_usage < 32764
+            if cap >= v"7.0" && ptx_param < v"8.1" && param_usage < 32764
                 details *= "\nNote: use a newer CUDA to support more parameters on your device.\n"
             end
 
