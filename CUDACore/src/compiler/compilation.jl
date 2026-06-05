@@ -210,7 +210,7 @@ end
     if ptx !== nothing
         # explicit request: take it exactly, validating against the toolchain
         ptx in llvm_support.ptx ||
-            error("Requested PTX ISA $ptx is not supported by LLVM $(LLVM.version())")
+            error("Requested PTX ISA $ptx is not supported by LLVM $(nvptx_llvm_version)")
         ptx in ptxas_support.ptx ||
             error("Requested PTX ISA $ptx is not supported by ptxas $(compiler_version())")
         llvm_ptx = ptxas_ptx = ptx
@@ -220,7 +220,7 @@ end
         llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
         ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
         isempty(llvm_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(nvptx_llvm_version)")
         isempty(ptxas_ptxs) &&
             error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
         ptxas_ptx = maximum(ptxas_ptxs)
@@ -260,7 +260,7 @@ end
             sm.feature_set === :baseline && base_version(sm) <= base_version(ptxas_sm)
         end
         isempty(baseline_candidates) &&
-            error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(LLVM.version())")
+            error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")
         llvm_sm = argmax(sm_key, baseline_candidates)
     end
 
