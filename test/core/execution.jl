@@ -1222,3 +1222,28 @@ end
 end
 
 ############################################################################################
+
+@testset "launch seed does not perturb host RNG" begin
+
+    dummy_kernel() = return
+
+    Random.seed!(0xdeadbeef)
+    a_before = rand(UInt64)
+    @cuda threads=1 dummy_kernel()
+    a_after  = rand(UInt64)
+
+    Random.seed!(0xdeadbeef)
+    b_before = rand(UInt64)
+    b_after  = rand(UInt64)
+
+    @test a_before == b_before
+    @test a_after  == b_after
+
+    k = @cuda launch=false dummy_kernel()
+    seed1 = CUDACore.make_seed(k)
+    seed2 = CUDACore.make_seed(k)
+    @test seed1 != seed2
+
+end
+
+############################################################################################

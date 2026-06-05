@@ -473,7 +473,12 @@ end
 # cache of kernel instances
 const _kernel_instances = Dict{Any, Any}()
 
-make_seed(::HostKernel) = Random.rand(UInt32)
+# task-local RNG for kernel launch seeds, so that launching a kernel does not
+# perturb the user-visible `rand()` stream
+launch_rng() = get!(Random.Xoshiro, task_local_storage(),
+                    :CUDACore_launch_rng)::Random.Xoshiro
+
+make_seed(::HostKernel) = rand(launch_rng(), UInt32)
 
 
 ## device-side kernels
