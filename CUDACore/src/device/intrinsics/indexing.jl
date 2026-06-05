@@ -210,7 +210,13 @@ end
 Returns a 32-bit mask indicating which threads in a warp are active with the current
 executing thread.
 """ active_mask
-@inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", false, UInt32, Tuple{})
+@static if LLVM.version() >= v"20"
+@inline active_mask() = ccall("llvm.nvvm.activemask", llvmcall, UInt32, ())
+else
+# the intrinsic isn't available yet, so use inline assembly. mark it side-effecting to
+# prevent hoisting or merging across divergent control flow (the intrinsic is convergent).
+@inline active_mask() = @asmcall("activemask.b32 \$0;", "=r", true, UInt32, Tuple{})
+end
 
 end
 
