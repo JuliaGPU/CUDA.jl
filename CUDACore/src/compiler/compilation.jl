@@ -282,7 +282,9 @@ function compile(@nospecialize(job::CompilerJob))
 
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(meta.ir))) do f
-        isdeclaration(f) && !LLVM.isintrinsic(f)
+        isdeclaration(f) && !LLVM.isintrinsic(f) &&
+        # intrinsics unknown to the in-process LLVM are still lowered by the back-end
+        !startswith(LLVM.name(f), "llvm.")
     end
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                      "__nvvm_reflect" #= TODO: should have been optimized away =#]
