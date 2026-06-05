@@ -272,6 +272,45 @@ end
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
+# does the host-side layout of an argument type match the device-side one?
+#
+# the back-end unconditionally aligns 128-bit integers to 16 bytes, whereas Julia only
+# started doing so in 1.12, so aggregates with (U)Int128 fields may lay out differently.
+# returns the device-side (size, alignment) of `T`, `:opaque` for types whose layout is
+# defined by Julia on both sides (e.g. unions), or `:mismatch`.
+function device_layout(@nospecialize(T))
+    if T === Int128 || T === UInt128
+        return (16, 16)
+    elseif !(T isa DataType)
+        return :opaque
+    elseif fieldcount(T) == 0
+        return (sizeof(T), Base.datatype_alignment(T))
+    end
+    offset = 0
+    align = 1
+    for i in 1:fieldcount(T)
+        field = device_layout(fieldtype(T, i))
+        field === :mismatch && return :mismatch
+        if field === :opaque || offset < 0
+            # we cannot track offsets anymore, but keep verifying nested layouts
+            offset = -1
+            continue
+        end
+        field_size, field_align = field
+        offset = cld(offset, field_align) * field_align
+        offset == fieldoffset(T, i) || return :mismatch
+        offset += field_size
+        align = max(align, field_align)
+    end
+    offset < 0 && return :opaque
+    size = cld(offset, align) * align
+    size == sizeof(T) || return :mismatch
+    return (size, align)
+end
+device_compatible_layout(@nospecialize(T)) =
+    # since Julia 1.12, host and device layouts are identical
+    Base.datatype_alignment(Int128) == 16 || device_layout(T) !== :mismatch
+
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
@@ -313,6 +352,12 @@ function compile(@nospecialize(job::CompilerJob))
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
         !isghosttype(dt) && !Core.Compiler.isconstType(dt)
+    end
+    for dt in argtypes
+        if !device_compatible_layout(dt)
+            error("""Kernel argument of type $dt contains Int128 fields whose layout differs between this version of Julia and the device.
+                     Use Julia 1.12 or later, where 128-bit integers are aligned to 16 bytes, matching the device.""")
+        end
     end
     param_usage = sum(aligned_sizeof, argtypes)
     param_limit = 4096
