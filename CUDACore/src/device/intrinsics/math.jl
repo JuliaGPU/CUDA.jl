@@ -207,7 +207,7 @@ end
 end
 @device_override FastMath.exp2_fast(x::Float64) = exp2(x)
 @device_override FastMath.exp2_fast(x::Float32) =
-    @asmcall("ex2.approx.f32 \$0, \$1;", "=r,r", Float32, Tuple{Float32}, x)
+    ccall("llvm.nvvm.ex2.approx.f", llvmcall, Float32, (Float32,), x)
 @device_override function FastMath.exp2_fast(x::Float16)
     if compute_capability() >= sv"7.5"
         ccall("llvm.nvvm.ex2.approx.f16", llvmcall, Float16, (Float16,), x)
