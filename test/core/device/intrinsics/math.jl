@@ -577,9 +577,8 @@ using SpecialFunctions
     end
 
     @testset "div/inv PTX" begin
-        # `Base.{/, inv}` and their fast variants are handled by GPUCompiler's
-        # `PTXFDivFastPass`. `inv(x) = 1/x`; NVPTX pattern-matches
-        # `fdiv 1.0, x` to `rcp.rn`.
+        # `Base.{/, inv}` lower to plain `fdiv`; NVPTX pattern-matches
+        # `fdiv 1.0, x` (i.e. `inv`) to the dedicated `rcp` instructions.
         for (T, s) in ((Float32, "f32"), (Float64, "f64"))
             @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
                 @check "div.rn.$s"
@@ -591,24 +590,28 @@ using SpecialFunctions
             end
         end
 
-        # `@fastmath` on f32: pass picks the non-FTZ `div.approx.f32` since
-        # the job isn't fast; f64 always uses rcp+Newton.
+        # `@fastmath` on f32: the back-end honors `afn`, picking the non-FTZ
+        # variants since the job isn't fast, and the dedicated `rcp` for
+        # reciprocals. f64 is rewritten by GPUCompiler to rcp+Newton, so also
+        # check for the refinement fmas (a raw rcp would be too inaccurate).
         @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}) do x, y
             @check "div.approx.f32"
             @check_not "div.approx.ftz"
             @fastmath x / y
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float32}) do x
-            @check "div.approx.f32"
-            @check_not "div.approx.ftz"
+            @check "rcp.approx.f32"
+            @check_not "rcp.approx.ftz"
             @fastmath inv(x)
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}) do x, y
             @check "rcp.approx.ftz.f64"
+            @check "fma.rn.f64"
             @fastmath x / y
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float64}) do x
             @check "rcp.approx.ftz.f64"
+            @check "fma.rn.f64"
             @fastmath inv(x)
         end
 
@@ -619,11 +622,12 @@ using SpecialFunctions
             x / y
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float32}; fastmath=true) do x
-            @check "div.approx.ftz.f32"
+            @check "rcp.approx.ftz.f32"
             inv(x)
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}; fastmath=true) do x, y
             @check "rcp.approx.ftz.f64"
+            @check "fma.rn.f64"
             x / y
         end
     end
