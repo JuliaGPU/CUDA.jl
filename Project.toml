@@ -1,6 +1,6 @@
 name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "5.11.2"
+version = "5.11.3"
 
 [workspace]
 projects = ["test", "docs", "perf", "examples",
