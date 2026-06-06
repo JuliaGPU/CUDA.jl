@@ -229,12 +229,16 @@ end
 
 ## roots and powers
 
-@device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
+# sqrt inherits from Julia (`llvm.sqrt.fXX`): GPUCompiler.jl's NVVMReflect now matches
+# LLVM's semantics, resolving `__CUDA_PREC_SQRT` to 0, so libdevice's `__nv_sqrt(f)`
+# would unconditionally lower to `sqrt.approx`. Plain `sqrt` should be `sqrt.rn`;
+# fast-math versions are handled by GPUCompiler.jl's PTX fast-math passes.
 
-@device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)
+# NVPTX has native `rsqrt.approx.{f32,f64}`; call the intrinsic directly. The
+# obvious alternative, `@fastmath 1/sqrt(x)`, also lowers to `rsqrt.approx`
+# (via `PTXRSqrtFastPass`), but is too aggressive wrt. fast-math behavior.
+@device_function rsqrt(x::Float64) = ccall("llvm.nvvm.rsqrt.approx.d", llvmcall, Cdouble, (Cdouble,), x)
+@device_function rsqrt(x::Float32) = ccall("llvm.nvvm.rsqrt.approx.f", llvmcall, Cfloat, (Cfloat,), x)
 @device_function rsqrt(x::Float16) = Float16(rsqrt(Float32(x)))
 
 @device_override Base.cbrt(x::Float64) = ccall("extern __nv_cbrt", llvmcall, Cdouble, (Cdouble,), x)
