@@ -496,16 +496,18 @@ using SpecialFunctions
             min(x, y)
         end
 
-        # `@fastmath min/max` = `ifelse(y > x, x, y)`, a plain compare + select.
+        # `@fastmath min/max` are fast `llvm.minnum`/`llvm.minimum` calls
+        # (depending on the Julia version), which the back-end selects to a
+        # single min/max instruction. With fast math NaN inputs are excluded,
+        # so it doesn't matter whether the NaN-propagating variant gets picked
+        # (fast `minimum` on f32 + sm_80; pin the arch for determinism).
         for (T, s) in ((Float32, "f32"), (Float64, "f64"))
-            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
-                @check "setp.lt.$s"
-                @check "selp.$s"
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
+                @check "{{min.(NaN.)?$s}}"
                 @fastmath min(x, y)
             end
-            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
-                @check "setp.lt.$s"
-                @check "selp.$s"
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
+                @check "{{max.(NaN.)?$s}}"
                 @fastmath max(x, y)
             end
         end
