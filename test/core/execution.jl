@@ -740,6 +740,28 @@ end
     @test_throws "Kernel invocation uses too much parameter memory" @cuda kernel(ntuple(_->UInt64(1), 2^13))
 end
 
+@testset "argument layout" begin
+    kernel(x) = nothing
+
+    # plain 128-bit integers occupy their own parameter slot, so are fine
+    # regardless of how the host aligns them
+    @cuda kernel(Int128(1))
+    @test true
+
+    # aggregates with 128-bit fields are only compatible when Julia aligns
+    # those to 16 bytes like the device does (i.e., on 1.12+)
+    @eval struct Int128Wrapper
+        x::Int64
+        y::Int128
+    end
+    if Base.datatype_alignment(Int128) == 16
+        @cuda kernel(Int128Wrapper(1, 2))
+        @test true
+    else
+        @test_throws "layout differs" @cuda kernel(Int128Wrapper(1, 2))
+    end
+end
+
     @testset "symbols" begin
         function pass_symbol(x, name)
             i = name == :var ? 1 : 2

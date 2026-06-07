@@ -277,11 +277,12 @@ end
 # the back-end unconditionally aligns 128-bit integers to 16 bytes, whereas Julia only
 # started doing so in 1.12, so aggregates with (U)Int128 fields may lay out differently.
 # returns the device-side (size, alignment) of `T`, `:opaque` for types whose layout is
-# defined by Julia on both sides (e.g. unions), or `:mismatch`.
+# defined by Julia on both sides (e.g. unions, or non-isbits types passed by reference),
+# or `:mismatch`.
 function device_layout(@nospecialize(T))
     if T === Int128 || T === UInt128
         return (16, 16)
-    elseif !(T isa DataType)
+    elseif !(T isa DataType) || !isbitstype(T)
         return :opaque
     elseif fieldcount(T) == 0
         return (sizeof(T), Base.datatype_alignment(T))
