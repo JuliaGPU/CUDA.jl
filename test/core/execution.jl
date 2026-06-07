@@ -135,9 +135,10 @@ end
     end
     out = CuArray{UInt32}([typemax(UInt32)])
     @cuda threads=1 read_feature_set!(out)
-    # arch features come through `target_feature_set()` only when LLVM natively supported
-    # the variant; otherwise we fell back to baseline LLVM and the global reflects that.
-    arch_in_llvm = sm_a in CUDACore.llvm_sm_support(CUDACore.LLVM.version())
+    # arch features come through `target_feature_set()` only when the back-end LLVM
+    # natively supports the variant; otherwise we fell back to baseline and the
+    # global reflects that.
+    arch_in_llvm = sm_a in CUDACore.llvm_compat().sm
     expected = dev_cap >= v"9.0" && arch_in_llvm ? UInt32(2) : UInt32(0)
     @test Array(out)[1] == expected
 end
