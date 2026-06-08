@@ -308,9 +308,26 @@ function device_layout(@nospecialize(T))
     size == sizeof(T) || return :mismatch
     return (size, align)
 end
+# walk `T` and every type reachable from it through type parameters and fields, returning
+# `true` as soon as `bad(S)` holds for some reached type `S`. we must look through type
+# parameters, not just fields: an aggregate with a mismatching layout is typically reached
+# through a pointer (e.g. the element type of a `CuDeviceArray`, carried as a type parameter
+# and never as a field), so inspecting only the argument's own fields would miss it and the
+# kernel would silently read or write garbage.
+function layout_reaches(bad, @nospecialize(T), seen=Base.IdSet{Any}())
+    (T isa Type && !(T in seen)) || return false
+    push!(seen, T)
+    bad(T) && return true
+    T isa DataType || return false
+    any(p -> layout_reaches(bad, p, seen), T.parameters) && return true
+    isconcretetype(T) || return false
+    any(i -> layout_reaches(bad, fieldtype(T, i), seen), 1:fieldcount(T))
+end
+
 device_compatible_layout(@nospecialize(T)) =
     # since Julia 1.12, host and device layouts are identical
-    Base.datatype_alignment(Int128) == 16 || device_layout(T) !== :mismatch
+    Base.datatype_alignment(Int128) == 16 ||
+    !layout_reaches(S -> device_layout(S) === :mismatch, T)
 
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
@@ -356,8 +373,7 @@ function compile(@nospecialize(job::CompilerJob))
     end
     for dt in argtypes
         if !device_compatible_layout(dt)
-            error("""Kernel argument of type $dt contains Int128 fields whose layout differs between this version of Julia and the device.
-                     Use Julia 1.12 or later, where 128-bit integers are aligned to 16 bytes, matching the device.""")
+            error("Kernel argument of type $dt references 128-bit integer fields. This is only supported on Julia 1.12 or later.")
         end
     end
     param_usage = sum(aligned_sizeof, argtypes)

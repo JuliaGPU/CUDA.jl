@@ -742,24 +742,78 @@ end
 end
 
 @testset "argument layout" begin
-    kernel(x) = nothing
+    # the back-end aligns 128-bit integers to 16 bytes, but Julia only started doing so in
+    # 1.12, so aggregates with (U)Int128 fields lay out differently on older hosts. such
+    # types are rejected there (host==device on 1.12+, so everything is accepted).
+    @eval struct Int128Wrapper; x::Int64; y::Int128; end
+    @eval struct FloatWrapper;  x::Int64; y::Float64; end   # control: no 128-bit integers
+    host_ok = Base.datatype_alignment(Int128) == 16         # true on Julia 1.12+
 
-    # plain 128-bit integers occupy their own parameter slot, so are fine
+    # -- the compatibility walk must look through type parameters (e.g. device-array
+    #    element types), not just fields. this part is host-independent. --
+    reaches_i128(T) = CUDACore.layout_reaches(S -> S === Int128 || S === UInt128, T)
+    @test  reaches_i128(Int128)
+    @test  reaches_i128(Int128Wrapper)                            # via a field
+    @test  reaches_i128(Tuple{Int64,Int128Wrapper})              # via a tuple element
+    @test  reaches_i128(Ptr{Int128Wrapper})                      # via a pointer's pointee
+    @test  reaches_i128(CUDACore.CuDeviceArray{Int128Wrapper,1,1}) # via an element type
+    @test !reaches_i128(Float64)
+    @test !reaches_i128(FloatWrapper)
+    @test !reaches_i128(CUDACore.CuDeviceArray{Float64,1,1})
+
+    @test CUDACore.device_layout(Int128) == (16, 16)
+    @test CUDACore.device_layout(FloatWrapper) == (16, 8)
+    @test CUDACore.device_layout(Int128Wrapper) === (host_ok ? (32, 16) : :mismatch)
+    @test CUDACore.device_compatible_layout(Int128Wrapper) == host_ok
+    @test CUDACore.device_compatible_layout(CUDACore.CuDeviceArray{Int128Wrapper,1,1}) == host_ok
+    @test CUDACore.device_compatible_layout(CUDACore.CuDeviceArray{Float64,1,1})
+
+    # -- end-to-end: rejected on <1.12, compiled and correct on 1.12+ --
+
+    # plain 128-bit integers occupy their own parameter slot / array element, and are fine
     # regardless of how the host aligns them
-    @cuda kernel(Int128(1))
-    @test true
-
-    # aggregates with 128-bit fields are only compatible when Julia aligns
-    # those to 16 bytes like the device does (i.e., on 1.12+)
-    @eval struct Int128Wrapper
-        x::Int64
-        y::Int128
+    setval(out, v) = (@inbounds out[1] = v; return)
+    let out = CuArray{Int128}(undef, 1)
+        @cuda setval(out, Int128(2)^100 + 7)
+        @test Array(out)[1] == Int128(2)^100 + 7
     end
-    if Base.datatype_alignment(Int128) == 16
-        @cuda kernel(Int128Wrapper(1, 2))
-        @test true
+
+    # aggregate with a 128-bit field, passed as a kernel argument: read its field back so
+    # the layout check (not an unrelated type error) is what fails on incompatible hosts
+    gety(out, w) = (@inbounds out[1] = w.y; return)
+    if host_ok
+        out = CuArray{Int128}(undef, 1)
+        @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
+        @test Array(out)[1] == Int128(2)^100 + 7
     else
-        @test_throws "layout differs" @cuda kernel(Int128Wrapper(1, 2))
+        out = CuArray{Int128}(undef, 1)
+        @test_throws "layout differs" @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
+    end
+
+    # aggregate with a 128-bit field, reached as a device-array element (memory traffic;
+    # this is only seen through a pointer, so it used to slip past the argument check)
+    function readfields(out, A)
+        i = threadIdx().x
+        @inbounds begin
+            out[2i-1] = A[i].x
+            out[2i]   = A[i].y % Int64
+        end
+        return
+    end
+    wrappers = [Int128Wrapper(1, 2), Int128Wrapper(3, 4)]
+    if host_ok
+        dA = CuArray(wrappers); out = CuArray{Int64}(undef, 4)
+        @cuda threads=2 readfields(out, dA)
+        @test Array(out) == [1, 2, 3, 4]
+    else
+        dA = CuArray(wrappers); out = CuArray{Int64}(undef, 4)
+        @test_throws "layout differs" @cuda threads=2 readfields(out, dA)
+    end
+
+    # control: an aggregate without 128-bit integers is always accepted
+    let out = CuArray{Float64}(undef, 1)
+        @cuda gety(out, FloatWrapper(1, 3.5))
+        @test Array(out)[1] == 3.5
     end
 end
 
