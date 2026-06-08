@@ -787,7 +787,7 @@ end
         @test Array(out)[1] == Int128(2)^100 + 7
     else
         out = CuArray{Int128}(undef, 1)
-        @test_throws "layout differs" @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
+        @test_throws "references 128-bit integer fields" @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
     end
 
     # aggregate with a 128-bit field, reached as a device-array element (memory traffic;
@@ -807,7 +807,7 @@ end
         @test Array(out) == [1, 2, 3, 4]
     else
         dA = CuArray(wrappers); out = CuArray{Int64}(undef, 4)
-        @test_throws "layout differs" @cuda threads=2 readfields(out, dA)
+        @test_throws "references 128-bit integer fields" @cuda threads=2 readfields(out, dA)
     end
 
     # control: an aggregate without 128-bit integers is always accepted
