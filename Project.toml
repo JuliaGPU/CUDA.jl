@@ -1,6 +1,6 @@
 name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "5.11.2"
+version = "5.11.3"
 
 [workspace]
 projects = ["test", "docs", "perf", "examples",
@@ -66,10 +66,10 @@ Crayons = "4"
 EnzymeCore = "0.8.2"
 ExprTools = "0.1"
 GPUArrays = "11.4.1"
-GPUCompiler = "1.4"
+GPUCompiler = "1.13.1 - 1.17"
 GPUToolbox = "0.3, 1"
 KernelAbstractions = "0.9.38"
-LLVM = "9.3.1"
+LLVM = "9.6"
 LLVMLoopInfo = "1"
 LazyArtifacts = "1"
 Libdl = "1"

@@ -1,6 +1,8 @@
 ## gpucompiler interface implementation
 
-Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
+abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
+
+Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     cap::VersionNumber
     ptx::VersionNumber
 end
@@ -13,32 +15,27 @@ function Base.hash(params::CUDACompilerParams, h::UInt)
 end
 
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
-const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
+const AnyCUDAJob = CompilerJob{PTXCompilerTarget,<:AbstractCUDACompilerParams}
 
-GPUCompiler.runtime_module(@nospecialize(job::CUDACompilerJob)) = CUDA
+GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDA
 
 # filter out functions from libdevice and cudadevrt
-GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String) =
+GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
     invoke(GPUCompiler.isintrinsic,
            Tuple{CompilerJob{PTXCompilerTarget}, typeof(fn)},
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
 # link libdevice
-function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module,
-                                     undefined_fns::Vector{String})
-    # only link if there's undefined __nv_ functions
-    if !any(fn->startswith(fn, "__nv_"), undefined_fns)
-        return
-    end
-
-    lib = parse(LLVM.Module, read(CUDA_Compiler.libdevice))
+function GPUCompiler.link_libraries!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module)
+    lib = parse(LLVM.Module, MemoryBufferFile(CUDA_Compiler.libdevice); lazy=true)
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 
-    GPUCompiler.link_library!(mod, lib) # note: destroys lib
+    # the linker will only materialize libdevice symbols referenced by `mod`
+    link!(mod, lib; only_needed=true)  # destroys lib
 
     @dispose pm=ModulePassManager() begin
         push!(metadata(mod)["nvvm-reflect-ftz"],
@@ -49,11 +46,11 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
     return
 end
 
-GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
+GPUCompiler.method_table(@nospecialize(job::AnyCUDAJob)) = method_table
 
-GPUCompiler.kernel_state_type(job::CUDACompilerJob) = KernelState
+GPUCompiler.kernel_state_type(job::AnyCUDAJob) = KernelState
 
-function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
+function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
                                     mod::LLVM.Module, entry::LLVM.Function)
     entry = invoke(GPUCompiler.finish_module!,
                    Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, LLVM.Function},
@@ -122,7 +119,7 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
     return entry
 end
 
-function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
+function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, format)
     @assert format == LLVM.API.LLVMAssemblyFile
     asm = invoke(GPUCompiler.mcgen,
                  Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
