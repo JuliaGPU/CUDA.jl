@@ -166,15 +166,24 @@ end
         @inbounds y[] = 0
         return
     end
+
+    # dynamically-indexed aggregate arguments should load directly from parameter space
+    # instead of being copied to local memory first
+    @test @filecheck CUDA.code_ptx(Tuple{CuDeviceArray{Float32,1,AS.Global},
+                                         NTuple{32,Float32}, Int}) do out, t, i
+        @check_not ".local"
+        @inbounds out[1] = t[i]
+        return
+    end
 end
 
 @testset "header rewrite (.target/.version bump)" begin
-    # When LLVM's NVPTX backend can't reach the device cap (e.g. Julia 1.12 +
-    # LLVM 18 on a Blackwell device), `_compiler_config` produces a split
-    # config and `mcgen` rewrites `.target`/`.version` in the emitted asm.
+    # When the LLVM back-end can't reach the device cap (e.g., a device newer
+    # than what NVPTX_LLVM_Backend_jll supports), `_compiler_config` produces a
+    # split config and `mcgen` rewrites `.target`/`.version` in the emitted asm.
     # `.attribute(.unified)` is target-gated on sm_90+ across CUDA 12.0+ —
     # picked here as a stable cross-toolkit feature gate that exercises the
-    # rewrite without requiring Blackwell hardware in CI.
+    # rewrite without requiring such hardware in CI.
     asm_pre = """
     .version 8.0
     .target sm_75

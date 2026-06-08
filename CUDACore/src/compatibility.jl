@@ -16,8 +16,8 @@ const highest = v"999"
 #     exact CC; code compiled for sm_103a runs only on CC 10.3 devices.
 #
 # Which feature sets exist for a given CC, and which PTX ISA / LLVM versions ptxas / NVPTX
-# require for them, is encoded directly in the keys of `ptx_sm_db` and `llvm_sm_db`
-# below: an unsupported combination simply has no entry.
+# require for them, is encoded directly in the keys of `ptx_sm_db` below (and the equivalent
+# database in GPUCompiler): an unsupported combination simply has no entry.
 
 
 ## version range
@@ -229,6 +229,7 @@ const llvm_sm_db = Dict{SMVersion, VersionRange}(
     sm"80"   => between(v"11", highest),
     sm"86"   => between(v"13", highest),
     sm"87"   => between(v"16", highest),
+    sm"88"   => between(v"21", highest),
     sm"89"   => between(v"16", highest),
     sm"90"   => between(v"16", highest),
     sm"90a"  => between(v"18", highest),
@@ -241,6 +242,9 @@ const llvm_sm_db = Dict{SMVersion, VersionRange}(
     sm"103"  => between(v"21", highest),
     sm"103a" => between(v"21", highest),
     sm"103f" => between(v"21", highest),
+    sm"110"  => between(v"22", highest),
+    sm"110a" => between(v"22", highest),
+    sm"110f" => between(v"22", highest),
     sm"120"  => between(v"20", highest),
     sm"120a" => between(v"20", highest),
     sm"120f" => between(v"21", highest),
@@ -314,9 +318,15 @@ end
 
 ## high-level functions that return target and isa support
 
-function llvm_compat(version=LLVM.version())
-    LLVM.InitializeNVPTXTarget()
+# the LLVM version of the external NVPTX back-end used for machine-code generation,
+# as opposed to `LLVM.version()`, which identifies the in-process LLVM that only
+# handles the middle end (the JLL is versioned after the LLVM release it provides).
+const nvptx_llvm_version = pkgversion(NVPTX_LLVM_Backend_jll)
 
+# by default, return the capabilities of the external back-end, which is typically much
+# newer than the in-process LLVM (which only drives the middle end, and is not
+# configured for any particular device).
+function llvm_compat(version=nvptx_llvm_version)
     # `.sm` is `Set{SMVersion}` (with variants); `.ptx` is `Set{VersionNumber}`.
     # `ptxas_compat()` returns `.cap` as `Set{VersionNumber}` because ptxas-level
     # support is per-CC -- the names track the value type.
@@ -328,3 +338,4 @@ function ptxas_compat(version=compiler_version())
     return (cap=ptxas_cap_support(version),
             ptx=ptxas_ptx_support(version))
 end
+
