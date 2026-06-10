@@ -6199,9 +6199,9 @@ end
     initialize_context()
     @ccall libcublas.cublasHgemm(handle::cublasHandle_t, transa::cublasOperation_t,
                                  transb::cublasOperation_t, m::Cint, n::Cint, k::Cint,
-                                 alpha::Ptr{Float16}, A::Ptr{Float16}, lda::Cint,
-                                 B::Ptr{Float16}, ldb::Cint, beta::Ptr{Float16},
-                                 C::Ptr{Float16}, ldc::Cint)::cublasStatus_t
+                                 alpha::CuRef{Float16}, A::CuPtr{Float16}, lda::Cint,
+                                 B::CuPtr{Float16}, ldb::Cint, beta::CuRef{Float16},
+                                 C::CuPtr{Float16}, ldc::Cint)::cublasStatus_t
 end
 
 @checked function cublasHgemm_64(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb,
@@ -6210,9 +6210,9 @@ end
     initialize_context()
     @ccall libcublas.cublasHgemm_64(handle::cublasHandle_t, transa::cublasOperation_t,
                                     transb::cublasOperation_t, m::Int64, n::Int64, k::Int64,
-                                    alpha::Ptr{Float16}, A::Ptr{Float16}, lda::Int64,
-                                    B::Ptr{Float16}, ldb::Int64, beta::Ptr{Float16},
-                                    C::Ptr{Float16}, ldc::Int64)::cublasStatus_t
+                                    alpha::CuRef{Float16}, A::CuPtr{Float16}, lda::Int64,
+                                    B::CuPtr{Float16}, ldb::Int64, beta::CuRef{Float16},
+                                    C::CuPtr{Float16}, ldc::Int64)::cublasStatus_t
 end
 
 @checked function cublasHgemmBatched(handle, transa, transb, m, n, k, alpha, Aarray, lda,
