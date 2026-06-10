@@ -215,8 +215,16 @@ function xt_handle()
         async_devs = filter(memory_pools_supported, devices())
         for dev in async_devs
             other_devs = filter(!isequal(dev), async_devs)
+            # only grant access to peer-capable devices: cuMemPoolSetAccess on a
+            # fresh pool can succeed even when the devices are not peer capable,
+            # deferring the failure to a later allocation.
+            accessible_devs = filter(other -> CUDACore.can_access_peer(other, dev), other_devs)
+            for other in setdiff(other_devs, accessible_devs)
+                @warn "cublasXt: $other cannot access memory on $dev; operations on device arrays may fail" maxlog=1
+            end
+            isempty(accessible_devs) && continue
             pool = CUDACore.pool_create(dev)
-            access!(pool, other_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
+            access!(pool, accessible_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
         end
 
         devs = convert.(Cint, devices())
