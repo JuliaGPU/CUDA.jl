@@ -458,11 +458,13 @@ using SpecialFunctions
         end
 
         @testset "PTX instruction selection" begin
-            # Verify the backend emits the actual dp4a instruction, not a
-            # software emulation sequence.
-            buf = CuArray{Int32}(undef, 1)
-            ptx = sprint(io->(@device_code_ptx io=io @cuda launch=false kernel_ss(buf, Int32(0), Int32(0), Int32(0))))
-            @test occursin("dp4a", ptx)
+            # The backend must emit the dp4a instruction, not a software
+            # emulation sequence.
+            @test @filecheck CUDA.code_ptx(Tuple{CuDeviceArray{Int32,1,AS.Global},Int32,Int32,Int32}) do out, a, b, c
+                @check "dp4a"
+                @inbounds out[] = CUDA.dp4a(a, b, c)
+                return
+            end
         end
     end
     end # capability >= v"6.1"
