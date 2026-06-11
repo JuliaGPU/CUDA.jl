@@ -1,6 +1,6 @@
 name = "CUDACore"
 uuid = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
-version = "6.1.0"
+version = "6.2.0"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -45,7 +45,7 @@ SpecialFunctionsExt = "SpecialFunctions"
 Adapt = "4.4"
 BFloat16s = "0.5, 0.6"
 CEnum = "0.2, 0.3, 0.4, 0.5"
-CUDA = "6"
+CUDA = "=6.2.0"
 CUDA_Compiler_jll = "0.3, 0.4"
 CUDA_Driver_jll = "13"
 CUDA_Runtime_Discovery = "2"
