@@ -516,6 +516,18 @@ using SpecialFunctions
         end
     end
 
+    @testset "min/max should order signed zeros" begin
+        for T in [Float32, Float64]
+            AT = CuArray{T}
+            z, mz = T(0.0), T(-0.0)
+            @test isequal(Array(min.(AT([z]), AT([mz]))), [mz])
+            @test isequal(Array(min.(AT([mz]), AT([z]))), [mz])
+            @test isequal(Array(max.(AT([z]), AT([mz]))), [z])
+            @test isequal(Array(max.(AT([mz]), AT([z]))), [z])
+            @test isequal(Array(minmax.(AT([z]), AT([mz]))), [(mz, z)])
+        end
+    end
+
     # PTX lowering pins for the standard math ops. Most of these used to
     # require `@device_override`s pointing at libdevice; now they're handled
     # by Julia + the NVPTX backend + GPUCompiler's `apply_fastmath!`,
@@ -609,10 +621,10 @@ using SpecialFunctions
     end
 
     @testset "min/max PTX" begin
-        # Plain `min`/`max` propagate NaN (Julia semantics). f32 with sm_80+
-        # + LLVM 14+ gets `min.NaN.f32`/`max.NaN.f32` directly; f64 has to
-        # emulate since PTX has no `.NaN` variant for f64. Pin `arch=sm"80"`
-        # so the test is deterministic regardless of the CI runner's device.
+        # Plain `min`/`max` follow IEEE 754-2019 minimum/maximum (Julia
+        # semantics: NaN-propagating, -0.0 < +0.0). The back-end uses the
+        # native `min.NaN`/`max.NaN` instructions for f32 on sm_80+, and
+        # expands to plain min/max plus NaN/signed-zero fix-ups elsewhere.
         @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
             @check "min.NaN.f32"
             min(x, y)
@@ -621,21 +633,29 @@ using SpecialFunctions
             @check "max.NaN.f32"
             max(x, y)
         end
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"60") do x, y
+            @check "min.f32"
+            @check_not "__nv_"
+            min(x, y)
+        end
         @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}) do x, y
+            @check "min.f64"
             @check_not "__nv_"
             min(x, y)
         end
 
-        # `@fastmath min/max` = `ifelse(y > x, x, y)`, a plain compare + select.
+        # `@fastmath min/max` are fast `llvm.minnum`/`llvm.minimum` calls
+        # (depending on the Julia version), which the back-end selects to a
+        # single min/max instruction. With fast math NaN inputs are excluded,
+        # so it doesn't matter whether the NaN-propagating variant gets picked
+        # (fast `minimum` on f32 + sm_80; pin the arch for determinism).
         for (T, s) in ((Float32, "f32"), (Float64, "f64"))
-            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
-                @check "setp.lt.$s"
-                @check "selp.$s"
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
+                @check "{{min.(NaN.)?$s}}"
                 @fastmath min(x, y)
             end
-            @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
-                @check "setp.lt.$s"
-                @check "selp.$s"
+            @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
+                @check "{{max.(NaN.)?$s}}"
                 @fastmath max(x, y)
             end
         end
@@ -707,9 +727,8 @@ using SpecialFunctions
     end
 
     @testset "div/inv PTX" begin
-        # `Base.{/, inv}` and their fast variants are handled by GPUCompiler's
-        # `PTXFDivFastPass`. `inv(x) = 1/x`; NVPTX pattern-matches
-        # `fdiv 1.0, x` to `rcp.rn`.
+        # `Base.{/, inv}` lower to plain `fdiv`; NVPTX pattern-matches
+        # `fdiv 1.0, x` (i.e. `inv`) to the dedicated `rcp` instructions.
         for (T, s) in ((Float32, "f32"), (Float64, "f64"))
             @test @filecheck CUDA.code_ptx(Tuple{T, T}) do x, y
                 @check "div.rn.$s"
@@ -721,24 +740,28 @@ using SpecialFunctions
             end
         end
 
-        # `@fastmath` on f32: pass picks the non-FTZ `div.approx.f32` since
-        # the job isn't fast; f64 always uses rcp+Newton.
+        # `@fastmath` on f32: the back-end honors `afn`, picking the non-FTZ
+        # variants since the job isn't fast, and the dedicated `rcp` for
+        # reciprocals. f64 is rewritten by GPUCompiler to rcp+Newton, so also
+        # check for the refinement fmas (a raw rcp would be too inaccurate).
         @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}) do x, y
             @check "div.approx.f32"
             @check_not "div.approx.ftz"
             @fastmath x / y
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float32}) do x
-            @check "div.approx.f32"
-            @check_not "div.approx.ftz"
+            @check "rcp.approx.f32"
+            @check_not "rcp.approx.ftz"
             @fastmath inv(x)
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}) do x, y
             @check "rcp.approx.ftz.f64"
+            @check "fma.rn.f64"
             @fastmath x / y
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float64}) do x
             @check "rcp.approx.ftz.f64"
+            @check "fma.rn.f64"
             @fastmath inv(x)
         end
 
@@ -749,11 +772,12 @@ using SpecialFunctions
             x / y
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float32}; fastmath=true) do x
-            @check "div.approx.ftz.f32"
+            @check "rcp.approx.ftz.f32"
             inv(x)
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float64, Float64}; fastmath=true) do x, y
             @check "rcp.approx.ftz.f64"
+            @check "fma.rn.f64"
             x / y
         end
     end

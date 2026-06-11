@@ -207,7 +207,7 @@ end
 end
 @device_override FastMath.exp2_fast(x::Float64) = exp2(x)
 @device_override FastMath.exp2_fast(x::Float32) =
-    @asmcall("ex2.approx.f32 \$0, \$1;", "=r,r", Float32, Tuple{Float32}, x)
+    ccall("llvm.nvvm.ex2.approx.f", llvmcall, Float32, (Float32,), x)
 @device_override function FastMath.exp2_fast(x::Float16)
     if compute_capability() >= sv"7.5"
         ccall("llvm.nvvm.ex2.approx.f16", llvmcall, Float16, (Float16,), x)
@@ -430,92 +430,39 @@ end
 #@device_override Base.min(x::Int64, y::Int64) = ccall("extern __nv_llmin", llvmcall, Int64, (Int64, Int64), x, y)
 #@device_override Base.min(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umin", llvmcall, Int32, (Int32, Int32), x, y))
 #@device_override Base.min(x::UInt64, y::UInt64) = convert(UInt64, ccall("extern __nv_ullmin", llvmcall, Int64, (Int64, Int64), x, y))
-# JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
+# JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN and signed zeros don't match Julia's
 #@device_override Base.min(x::Float64, y::Float64) = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.min(x::Float32, y::Float32) = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override @inline function Base.min(x::Float32, y::Float32)
-    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
-        # LLVM 14+ can do the right thing, but only on sm_80+
-        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
-        ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y)
-    else
-        # we follow PTX semantics, returning canonical NaN if either input is NaN
-        anynan = isnan(x) | isnan(y)
-        minval = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        ifelse(anynan, NaN32, minval)
-    end
-end
-@device_override @inline function Base.min(x::Float64, y::Float64)
-    # PTX doesn't support min.NaN.f64, so we have to do it ourselves
-    anynan = isnan(x) | isnan(y)
-    minval = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    ifelse(anynan, NaN, minval)
-end
+# Julia's floating-point min/max match IEEE 754-2019 minimum/maximum, i.e.,
+# `llvm.minimum`/`llvm.maximum`, which the external back-end legalizes for every
+# subtarget: native min.NaN/max.NaN instructions on sm_80+, an expansion with
+# NaN/signed-zero fix-ups elsewhere. Don't be tempted to use `llvm.minnum`
+# (libdevice's `__nv_fmin`) with a NaN fix-up instead: its loose signed-zero
+# semantics leak into constant folding, e.g., folding `min(0.0, -0.0)` to
+# `0.0` where the host returns `-0.0`.
+# Julia 1.12+ lowers `Base.min` to `llvm.minimum` by itself; keep the overrides
+# for uniform codegen on older versions.
+@device_override Base.min(x::Float32, y::Float32) =
+    ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+@device_override Base.min(x::Float64, y::Float64) =
+    ccall("llvm.minimum.f64", llvmcall, Float64, (Float64, Float64), x, y)
 
 #@device_override Base.max(x::Int32, y::Int32) = ccall("extern __nv_max", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.max(x::Int64, y::Int64) = ccall("extern __nv_llmax", llvmcall, Int64, (Int64, Int64), x, y)
 #@device_override Base.max(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umax", llvmcall, Int32, (Int32, Int32), x, y))
 #@device_override Base.max(x::UInt64, y::UInt64) = convert(UInt64, ccall("extern __nv_ullmax", llvmcall, Int64, (Int64, Int64), x, y))
-# JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
+# JuliaGPU/CUDA.jl#2111: fmax semantics wrt. NaN and signed zeros don't match Julia's
 #@device_override Base.max(x::Float64, y::Float64) = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.max(x::Float32, y::Float32) = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override @inline function Base.max(x::Float32, y::Float32)
-    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
-        # LLVM 14+ can do the right thing, but only on sm_80+
-        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
-        ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
-    else
-        # we follow PTX semantics, returning canonical NaN if either input is NaN
-        anynan = isnan(x) | isnan(y)
-        maxval = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        ifelse(anynan, NaN32, maxval)
-    end
-end
-@device_override @inline function Base.max(x::Float64, y::Float64)
-    # PTX doesn't support max.NaN.f64, so we have to do it ourselves
-    anynan = isnan(x) | isnan(y)
-    maxval = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    ifelse(anynan, NaN, maxval)
-end
+@device_override Base.max(x::Float32, y::Float32) =
+    ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+@device_override Base.max(x::Float64, y::Float64) =
+    ccall("llvm.maximum.f64", llvmcall, Float64, (Float64, Float64), x, y)
 
-@device_override @inline function Base.minmax(x::Float32, y::Float32)
-    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
-        # LLVM 14+ can do the right thing, but only on sm_80+
-        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
-        ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y),
-        ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
-    else
-        # we follow PTX semantics, returning canonical NaN if either input is NaN
-        anynan = isnan(x) | isnan(y)
-        minval = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        maxval = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        ifelse(anynan, NaN32, minval), ifelse(anynan, NaN32, maxval)
-    end
-end
-@device_override @inline function Base.minmax(x::Float64, y::Float64)
-    # PTX doesn't support (min|max).NaN.f64, so we have to do it ourselves
-    anynan = isnan(x) | isnan(y)
-    minval = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    maxval = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    ifelse(anynan, NaN, minval), ifelse(anynan, NaN, maxval)
-end
-
-@static if Base.thismajor(LLVM.version()) <= v"20"
-    # LLVM 20 and below generate non-existing instructions for Julia's default methods of
-    # fast min/max on fp64: https://github.com/JuliaGPU/CUDA.jl/issues/2886
-    for T in (Float16, Float32, Float64)
-        @eval begin
-            @device_override @inline Base.FastMath.max_fast(x::$T, y::$T) = ifelse(y > x, y, x)
-            @device_override @inline Base.FastMath.min_fast(x::$T, y::$T) = ifelse(y > x, x, y)
-            @device_override @inline Base.FastMath.minmax_fast(x::$T, y::$T) = ifelse(y > x, (x, y), (y, x))
-        end
-    end
-
-    # For Float16, this even happens with a non-fastmath @llvm.minimum/maximum.f16
-    @device_override @inline Base.max(x::Float16, y::Float16) = ifelse(y > x, y, x)
-    @device_override @inline Base.min(x::Float16, y::Float16) = ifelse(y > x, x, y)
-
-end
+# Base's AbstractFloat minmax simply calls min/max, but Julia 1.10/1.11 had
+# open-coded definitions for Float32/Float64; override for uniform codegen.
+@device_override Base.minmax(x::Float32, y::Float32) = min(x, y), max(x, y)
+@device_override Base.minmax(x::Float64, y::Float64) = min(x, y), max(x, y)
 
 @device_function saturate(x::Float32) = ccall("extern __nv_saturatef", llvmcall, Cfloat, (Cfloat,), x)
 

@@ -94,8 +94,10 @@ end
     @test Array(a) == Array(b)
 
     asm = String(take!(copy(buf)))
-    @test occursin("ld.global.nc.v4", asm)
-    @test occursin("st.global.v4", asm)
+    # 16-byte vector accesses: v4.b32 on most targets, but newer architectures
+    # may prefer fewer, wider components (e.g. v2.b64 on sm_120)
+    @test occursin(r"ld\.global\.nc\.v(4|2\.b64)", asm)
+    @test occursin(r"st\.global\.v(4|2\.b64)", asm)
 
     function kernel_const(a, b, i)
         @inbounds b[i] = Base.Experimental.Const(a)[i]
@@ -110,8 +112,10 @@ end
     @test Array(a) == Array(b)
 
     asm = String(take!(copy(buf)))
-    @test occursin("ld.global.nc.v4", asm)
-    @test occursin("st.global.v4", asm)
+    # 16-byte vector accesses: v4.b32 on most targets, but newer architectures
+    # may prefer fewer, wider components (e.g. v2.b64 on sm_120)
+    @test occursin(r"ld\.global\.nc\.v(4|2\.b64)", asm)
+    @test occursin(r"st\.global\.v(4|2\.b64)", asm)
 
     function copy_const(A, _B)
         B = Base.Experimental.Const(_B)

@@ -210,7 +210,7 @@ end
     if ptx !== nothing
         # explicit request: take it exactly, validating against the toolchain
         ptx in llvm_support.ptx ||
-            error("Requested PTX ISA $ptx is not supported by LLVM $(LLVM.version())")
+            error("Requested PTX ISA $ptx is not supported by LLVM $(nvptx_llvm_version)")
         ptx in ptxas_support.ptx ||
             error("Requested PTX ISA $ptx is not supported by ptxas $(compiler_version())")
         llvm_ptx = ptxas_ptx = ptx
@@ -220,7 +220,7 @@ end
         llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
         ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
         isempty(llvm_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(nvptx_llvm_version)")
         isempty(ptxas_ptxs) &&
             error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
         ptxas_ptx = maximum(ptxas_ptxs)
@@ -260,7 +260,7 @@ end
             sm.feature_set === :baseline && base_version(sm) <= base_version(ptxas_sm)
         end
         isempty(baseline_candidates) &&
-            error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(LLVM.version())")
+            error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")
         llvm_sm = argmax(sm_key, baseline_candidates)
     end
 
@@ -272,6 +272,63 @@ end
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
+# does the host-side layout of an argument type match the device-side one?
+#
+# the back-end unconditionally aligns 128-bit integers to 16 bytes, whereas Julia only
+# started doing so in 1.12, so aggregates with (U)Int128 fields may lay out differently.
+# returns the device-side (size, alignment) of `T`, `:opaque` for types whose layout is
+# defined by Julia on both sides (e.g. unions, or non-isbits types passed by reference),
+# or `:mismatch`.
+function device_layout(@nospecialize(T))
+    if T === Int128 || T === UInt128
+        return (16, 16)
+    elseif !(T isa DataType) || !isbitstype(T)
+        return :opaque
+    elseif fieldcount(T) == 0
+        return (sizeof(T), Base.datatype_alignment(T))
+    end
+    offset = 0
+    align = 1
+    for i in 1:fieldcount(T)
+        field = device_layout(fieldtype(T, i))
+        field === :mismatch && return :mismatch
+        if field === :opaque || offset < 0
+            # we cannot track offsets anymore, but keep verifying nested layouts
+            offset = -1
+            continue
+        end
+        field_size, field_align = field
+        offset = cld(offset, field_align) * field_align
+        offset == fieldoffset(T, i) || return :mismatch
+        offset += field_size
+        align = max(align, field_align)
+    end
+    offset < 0 && return :opaque
+    size = cld(offset, align) * align
+    size == sizeof(T) || return :mismatch
+    return (size, align)
+end
+# walk `T` and every type reachable from it through type parameters and fields, returning
+# `true` as soon as `bad(S)` holds for some reached type `S`. we must look through type
+# parameters, not just fields: an aggregate with a mismatching layout is typically reached
+# through a pointer (e.g. the element type of a `CuDeviceArray`, carried as a type parameter
+# and never as a field), so inspecting only the argument's own fields would miss it and the
+# kernel would silently read or write garbage.
+function layout_reaches(bad, @nospecialize(T), seen=Base.IdSet{Any}())
+    (T isa Type && !(T in seen)) || return false
+    push!(seen, T)
+    bad(T) && return true
+    T isa DataType || return false
+    any(p -> layout_reaches(bad, p, seen), T.parameters) && return true
+    isconcretetype(T) || return false
+    any(i -> layout_reaches(bad, fieldtype(T, i), seen), 1:fieldcount(T))
+end
+
+device_compatible_layout(@nospecialize(T)) =
+    # since Julia 1.12, host and device layouts are identical
+    Base.datatype_alignment(Int128) == 16 ||
+    !layout_reaches(S -> device_layout(S) === :mismatch, T)
+
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
@@ -282,7 +339,9 @@ function compile(@nospecialize(job::CompilerJob))
 
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(meta.ir))) do f
-        isdeclaration(f) && !LLVM.isintrinsic(f)
+        isdeclaration(f) && !LLVM.isintrinsic(f) &&
+        # intrinsics unknown to the in-process LLVM are still lowered by the back-end
+        !startswith(LLVM.name(f), "llvm.")
     end
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                      "__nvvm_reflect" #= TODO: should have been optimized away =#]
@@ -311,6 +370,11 @@ function compile(@nospecialize(job::CompilerJob))
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
         !isghosttype(dt) && !Core.Compiler.isconstType(dt)
+    end
+    for dt in argtypes
+        if !device_compatible_layout(dt)
+            error("Kernel argument of type $dt references 128-bit integer fields. This is only supported on Julia 1.12 or later.")
+        end
     end
     param_usage = sum(aligned_sizeof, argtypes)
     param_limit = 4096

@@ -135,9 +135,10 @@ end
     end
     out = CuArray{UInt32}([typemax(UInt32)])
     @cuda threads=1 read_feature_set!(out)
-    # arch features come through `target_feature_set()` only when LLVM natively supported
-    # the variant; otherwise we fell back to baseline LLVM and the global reflects that.
-    arch_in_llvm = sm_a in CUDACore.llvm_sm_support(CUDACore.LLVM.version())
+    # arch features come through `target_feature_set()` only when the back-end LLVM
+    # natively supports the variant; otherwise we fell back to baseline and the
+    # global reflects that.
+    arch_in_llvm = sm_a in CUDACore.llvm_compat().sm
     expected = dev_cap >= v"9.0" && arch_in_llvm ? UInt32(2) : UInt32(0)
     @test Array(out)[1] == expected
 end
@@ -740,6 +741,82 @@ end
     @test_throws "Kernel invocation uses too much parameter memory" @cuda kernel(ntuple(_->UInt64(1), 2^13))
 end
 
+@testset "argument layout" begin
+    # the back-end aligns 128-bit integers to 16 bytes, but Julia only started doing so in
+    # 1.12, so aggregates with (U)Int128 fields lay out differently on older hosts. such
+    # types are rejected there (host==device on 1.12+, so everything is accepted).
+    @eval struct Int128Wrapper; x::Int64; y::Int128; end
+    @eval struct FloatWrapper;  x::Int64; y::Float64; end   # control: no 128-bit integers
+    host_ok = Base.datatype_alignment(Int128) == 16         # true on Julia 1.12+
+
+    # -- the compatibility walk must look through type parameters (e.g. device-array
+    #    element types), not just fields. this part is host-independent. --
+    reaches_i128(T) = CUDACore.layout_reaches(S -> S === Int128 || S === UInt128, T)
+    @test  reaches_i128(Int128)
+    @test  reaches_i128(Int128Wrapper)                            # via a field
+    @test  reaches_i128(Tuple{Int64,Int128Wrapper})              # via a tuple element
+    @test  reaches_i128(Ptr{Int128Wrapper})                      # via a pointer's pointee
+    @test  reaches_i128(CUDACore.CuDeviceArray{Int128Wrapper,1,1}) # via an element type
+    @test !reaches_i128(Float64)
+    @test !reaches_i128(FloatWrapper)
+    @test !reaches_i128(CUDACore.CuDeviceArray{Float64,1,1})
+
+    @test CUDACore.device_layout(Int128) == (16, 16)
+    @test CUDACore.device_layout(FloatWrapper) == (16, 8)
+    @test CUDACore.device_layout(Int128Wrapper) === (host_ok ? (32, 16) : :mismatch)
+    @test CUDACore.device_compatible_layout(Int128Wrapper) == host_ok
+    @test CUDACore.device_compatible_layout(CUDACore.CuDeviceArray{Int128Wrapper,1,1}) == host_ok
+    @test CUDACore.device_compatible_layout(CUDACore.CuDeviceArray{Float64,1,1})
+
+    # -- end-to-end: rejected on <1.12, compiled and correct on 1.12+ --
+
+    # plain 128-bit integers occupy their own parameter slot / array element, and are fine
+    # regardless of how the host aligns them
+    setval(out, v) = (@inbounds out[1] = v; return)
+    let out = CuArray{Int128}(undef, 1)
+        @cuda setval(out, Int128(2)^100 + 7)
+        @test Array(out)[1] == Int128(2)^100 + 7
+    end
+
+    # aggregate with a 128-bit field, passed as a kernel argument: read its field back so
+    # the layout check (not an unrelated type error) is what fails on incompatible hosts
+    gety(out, w) = (@inbounds out[1] = w.y; return)
+    if host_ok
+        out = CuArray{Int128}(undef, 1)
+        @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
+        @test Array(out)[1] == Int128(2)^100 + 7
+    else
+        out = CuArray{Int128}(undef, 1)
+        @test_throws "references 128-bit integer fields" @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
+    end
+
+    # aggregate with a 128-bit field, reached as a device-array element (memory traffic;
+    # this is only seen through a pointer, so it used to slip past the argument check)
+    function readfields(out, A)
+        i = threadIdx().x
+        @inbounds begin
+            out[2i-1] = A[i].x
+            out[2i]   = A[i].y % Int64
+        end
+        return
+    end
+    wrappers = [Int128Wrapper(1, 2), Int128Wrapper(3, 4)]
+    if host_ok
+        dA = CuArray(wrappers); out = CuArray{Int64}(undef, 4)
+        @cuda threads=2 readfields(out, dA)
+        @test Array(out) == [1, 2, 3, 4]
+    else
+        dA = CuArray(wrappers); out = CuArray{Int64}(undef, 4)
+        @test_throws "references 128-bit integer fields" @cuda threads=2 readfields(out, dA)
+    end
+
+    # control: an aggregate without 128-bit integers is always accepted
+    let out = CuArray{Float64}(undef, 1)
+        @cuda gety(out, FloatWrapper(1, 3.5))
+        @test Array(out)[1] == 3.5
+    end
+end
+
     @testset "symbols" begin
         function pass_symbol(x, name)
             i = name == :var ? 1 : 2
@@ -1218,6 +1295,31 @@ end
     s,c = first(collect(b))
     (real(s), imag(s), real(c), imag(c))
 end
+
+end
+
+############################################################################################
+
+@testset "launch seed does not perturb host RNG" begin
+
+    dummy_kernel() = return
+
+    Random.seed!(0xdeadbeef)
+    a_before = rand(UInt64)
+    @cuda threads=1 dummy_kernel()
+    a_after  = rand(UInt64)
+
+    Random.seed!(0xdeadbeef)
+    b_before = rand(UInt64)
+    b_after  = rand(UInt64)
+
+    @test a_before == b_before
+    @test a_after  == b_after
+
+    k = @cuda launch=false dummy_kernel()
+    seed1 = CUDACore.make_seed(k)
+    seed2 = CUDACore.make_seed(k)
+    @test seed1 != seed2
 
 end
 
