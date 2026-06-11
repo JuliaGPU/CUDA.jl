@@ -3,7 +3,7 @@
 # we only use libdevice where needed. if possible, we go through LLVM instead,
 # ideally relying on Julia's existing definitions.
 
-@public fma, rsqrt, saturate, byte_perm, assume
+@public fma, rsqrt, saturate, byte_perm, dp4a, assume
 @public add_rn, add_rz, add_rm, add_rp
 @public sub_rn, sub_rz, sub_rm, sub_rp
 @public mul_rn, mul_rz, mul_rm, mul_rp
@@ -284,6 +284,60 @@ end
     y %= UInt32
     z %= UInt32
     ccall("extern __nv_byte_perm", llvmcall, Int32, (UInt32, UInt32, UInt32), x, y, z)
+end
+
+"""
+    dp4a(a, b, c)
+
+Packed 4-element int8 (or uint8) dot product with 32-bit accumulation, mapped to a single
+PTX `dp4a` instruction on sm_61+.
+
+The semantics depend on the signedness of `a` and `b`:
+
+- `dp4a(a::Int32,  b::Int32,  c::Int32)  -> Int32`  — signed × signed
+- `dp4a(a::Int32,  b::UInt32, c::Int32)  -> Int32`  — signed × unsigned
+- `dp4a(a::UInt32, b::Int32,  c::Int32)  -> Int32`  — unsigned × signed
+- `dp4a(a::UInt32, b::UInt32, c::UInt32) -> UInt32` — unsigned × unsigned
+
+Each 32-bit argument `a` and `b` is interpreted as four packed 8-bit integers. The result
+is `c + a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3]` where the individual byte
+extractions respect the signed/unsigned interpretation of each operand.
+
+!!! note
+    Requires compute capability sm_61 or higher.
+"""
+function dp4a end
+
+@static if LLVM.version() >= v"21"
+    # LLVM 21 added @llvm.nvvm.idp4a.[us].[us]; prefer the intrinsic over inline PTX so
+    # the instruction participates in optimization and instruction selection.
+    @device_function dp4a(a::Int32, b::Int32, c::Int32) =
+        ccall("llvm.nvvm.idp4a.s.s", llvmcall, Int32, (Int32, Int32, Int32), a, b, c)
+
+    @device_function dp4a(a::Int32, b::UInt32, c::Int32) =
+        ccall("llvm.nvvm.idp4a.s.u", llvmcall, Int32, (Int32, UInt32, Int32), a, b, c)
+
+    @device_function dp4a(a::UInt32, b::Int32, c::Int32) =
+        ccall("llvm.nvvm.idp4a.u.s", llvmcall, Int32, (UInt32, Int32, Int32), a, b, c)
+
+    @device_function dp4a(a::UInt32, b::UInt32, c::UInt32) =
+        ccall("llvm.nvvm.idp4a.u.u", llvmcall, UInt32, (UInt32, UInt32, UInt32), a, b, c)
+else
+    @device_function dp4a(a::Int32, b::Int32, c::Int32) =
+        @asmcall("dp4a.s32.s32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 Int32, Tuple{Int32, Int32, Int32}, a, b, c)
+
+    @device_function dp4a(a::Int32, b::UInt32, c::Int32) =
+        @asmcall("dp4a.s32.u32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 Int32, Tuple{Int32, UInt32, Int32}, a, b, c)
+
+    @device_function dp4a(a::UInt32, b::Int32, c::Int32) =
+        @asmcall("dp4a.u32.s32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 Int32, Tuple{UInt32, Int32, Int32}, a, b, c)
+
+    @device_function dp4a(a::UInt32, b::UInt32, c::UInt32) =
+        @asmcall("dp4a.u32.u32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 UInt32, Tuple{UInt32, UInt32, UInt32}, a, b, c)
 end
 
 
