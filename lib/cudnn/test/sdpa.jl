@@ -43,6 +43,16 @@ if capability(device()) >= v"8.0"
     sdpatest(T; d=32, sq=16, skv=48, h=2, b=3)   # non-square sq != skv
     sdpatest(T; scale=0.5)                        # custom scale
     sdpatest(T; d=128, sq=64, skv=64, h=8)       # larger head dim
+
+    # invalid inputs are rejected rather than silently producing wrong results
+    let q = CuArray(T.(randn(Float32, 64, 4, 64, 2)))
+        qview = view(q, :, :, 1:32, :)  # non-contiguous: dense strides would be wrong
+        @test_throws MethodError cudnnSDPAForward(qview, qview, qview)
+        qhost = Array(q)                # host memory must not reach cuDNN as a device pointer
+        @test_throws MethodError cudnnSDPAForward(qhost, qhost, qhost)
+        qf32 = Float32.(q)              # unsupported by the fused engine
+        @test_throws AssertionError cudnnSDPAForward(qf32, qf32, qf32)
+    end
 else
     @warn "Skipping SDPA tests: fused attention requires compute capability >= 8.0"
 end
