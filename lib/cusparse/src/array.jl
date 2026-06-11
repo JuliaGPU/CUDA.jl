@@ -329,6 +329,8 @@ Base.similar(Mat::CuSparseMatrixCSR{<:Any, Ti}, ::Type{T}, N::Int, M::Int) where
     CuSparseMatrixCSR{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
 Base.similar(Mat::CuSparseMatrixCOO{<:Any, Ti}, ::Type{T}, N::Int, M::Int) where {T, Ti} =
     CuSparseMatrixCOO{T, Ti}(CUDACore.zeros(Ti, 0), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixBSR{<:Any, Ti}, ::Type{T}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixBSR{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M), Mat.blockDim, Mat.dir, 0)
 
 Base.similar(Mat::CuSparseMatrixCSC, ::Type{T}, ::Type{Ti}, N::Int, M::Int) where {T, Ti} =
     CuSparseMatrixCSC{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
@@ -336,23 +338,29 @@ Base.similar(Mat::CuSparseMatrixCSR, ::Type{T}, ::Type{Ti}, N::Int, M::Int) wher
     CuSparseMatrixCSR{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
 Base.similar(Mat::CuSparseMatrixCOO, ::Type{T}, ::Type{Ti}, N::Int, M::Int) where {T, Ti} =
     CuSparseMatrixCOO{T, Ti}(CUDACore.zeros(Ti, 0), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M))
+Base.similar(Mat::CuSparseMatrixBSR, ::Type{T}, ::Type{Ti}, N::Int, M::Int) where {T, Ti} =
+    CuSparseMatrixBSR{T, Ti}(CUDACore.zeros(Ti, 1), CUDACore.zeros(Ti, 0), CuVector{T}(undef, 0), (N, M), Mat.blockDim, Mat.dir, 0)
 
 # Forwarders: no T (eltype inherited) → (Tv, n, m); tuple shape → varargs.
 Base.similar(Mat::CuSparseMatrixCSC{Tv}, N::Int, M::Int) where {Tv} = similar(Mat, Tv, N, M)
 Base.similar(Mat::CuSparseMatrixCSR{Tv}, N::Int, M::Int) where {Tv} = similar(Mat, Tv, N, M)
 Base.similar(Mat::CuSparseMatrixCOO{Tv}, N::Int, M::Int) where {Tv} = similar(Mat, Tv, N, M)
+Base.similar(Mat::CuSparseMatrixBSR{Tv}, N::Int, M::Int) where {Tv} = similar(Mat, Tv, N, M)
 
 Base.similar(Mat::CuSparseMatrixCSC, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
+Base.similar(Mat::CuSparseMatrixBSR, T::Type, dims::Tuple{Int, Int}) = similar(Mat, T, dims...)
 
 Base.similar(Mat::CuSparseMatrixCSC, T::Type, Ti::Type, dims::Tuple{Int, Int}) = similar(Mat, T, Ti, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, T::Type, Ti::Type, dims::Tuple{Int, Int}) = similar(Mat, T, Ti, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, T::Type, Ti::Type, dims::Tuple{Int, Int}) = similar(Mat, T, Ti, dims...)
+Base.similar(Mat::CuSparseMatrixBSR, T::Type, Ti::Type, dims::Tuple{Int, Int}) = similar(Mat, T, Ti, dims...)
 
 Base.similar(Mat::CuSparseMatrixCSC, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCSR, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 Base.similar(Mat::CuSparseMatrixCOO, dims::Tuple{Int, Int}) = similar(Mat, dims...)
+Base.similar(Mat::CuSparseMatrixBSR, dims::Tuple{Int, Int}) = similar(Mat, dims...)
 
 # --- 1D with shape: empty CuSparseVector. `Ti` inherited or supplied. ---
 Base.similar(Mat::CuSparseMatrix{<:Any, Ti}, ::Type{T}, dims::Dims{1}) where {Ti, T} =
