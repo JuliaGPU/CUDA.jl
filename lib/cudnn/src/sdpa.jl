@@ -18,9 +18,10 @@ global memory.
 
 # Layout
 
-`q`, `k`, `v` and `out` are 4-D `CuArray`s in **(head_dim, num_heads, seq_len, batch)** order
-(head dimension fastest / innermost, as cuDNN requires). This matches NNlib's internal
-multi-head attention layout, so no permute is needed to interoperate with it. With head dim `d`:
+`q`, `k`, `v` and `out` are 4-D dense `CuArray`s (views and other wrappers are not accepted)
+in **(head_dim, num_heads, seq_len, batch)** order (head dimension fastest / innermost, as
+cuDNN requires). This matches NNlib's internal multi-head attention layout, so no permute is
+needed to interoperate with it. With head dim `d`:
 * `q`  :  `(d, h, sq, b)`
 * `k`  :  `(d, h, skv, b)`
 * `v`  :  `(d, h, skv, b)`
@@ -96,27 +97,43 @@ function _build_sdpa_plan(T::DataType, d, sq, skv, h, b)
         uids = Int64[SDPA_UID_Q, SDPA_UID_K, SDPA_UID_V, SDPA_UID_O, SDPA_UID_SCALE]
         return SDPAPlan(plan, Int(plan_workspace_size(plan)), uids, keep)
     end
-    error("cuDNN: no supported fused-attention engine for T=$T d=$d sq=$sq skv=$skv h=$h b=$b")
+    error("cuDNN: no supported fused-attention engine for T=$T d=$d sq=$sq skv=$skv h=$h b=$b " *
+          (isempty(cfgs) ? "(the heuristic returned no engine configurations for this graph)" :
+                           "($(length(cfgs)) candidate engine configurations all failed to finalize as unsupported)"))
 end
 
 function _sdpa_plan(T, d, sq, skv, h, b)
-    key = (T, d, sq, skv, h, b)
-    lock(SDPA_PLAN_CACHE_LOCK) do
-        get!(() -> _build_sdpa_plan(T, d, sq, skv, h, b), SDPA_PLAN_CACHE, key)
+    # execution plans are finalized against the current device's handle, so key on the context
+    key = (context(), T, d, sq, skv, h, b)
+    # look up under the lock, but run the expensive plan build outside it so concurrent calls
+    # don't serialize behind it (cf. the descriptor caches in descriptors.jl); a duplicate
+    # build on a race is benign — get! keeps the first inserted plan and drops the loser.
+    plan = lock(SDPA_PLAN_CACHE_LOCK) do
+        get(SDPA_PLAN_CACHE, key, nothing)
     end
+    if plan === nothing
+        plan = _build_sdpa_plan(T, d, sq, skv, h, b)
+        plan = lock(SDPA_PLAN_CACHE_LOCK) do
+            get!(SDPA_PLAN_CACHE, key, plan)
+        end
+    end
+    return plan
 end
 
 
-function cudnnSDPAForward(q, k, v; o...)
-    out = similar(q, size(q))
+function cudnnSDPAForward(q::DenseCuArray{T,4}, k::DenseCuArray{T,4}, v::DenseCuArray{T,4};
+                          o...) where {T}
+    out = similar(q)
     cudnnSDPAForward!(out, q, k, v; o...)
 end
 
-function cudnnSDPAForward!(out, q, k, v; scale::Real = 1/sqrt(size(q,1)), causal::Bool = false)
-    T = eltype(q)
+# The DenseCuArray constraint is essential: the cached plan bakes in dense column-major
+# strides, so a non-contiguous view (or a host Array) would pass size checks but make cuDNN
+# read the wrong memory.
+function cudnnSDPAForward!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::DenseCuArray{T,4},
+                           v::DenseCuArray{T,4};
+                           scale::Real = 1/sqrt(size(q,1)), causal::Bool = false) where {T}
     @assert T in (Float16, BFloat16) "cudnnSDPAForward supports Float16/BFloat16, got $T (cuDNN's fused attention does not support Float32/Float64)"
-    @assert eltype(k) == eltype(v) == eltype(out) == T "q, k, v, out must share element type"
-    @assert ndims(q) == ndims(k) == ndims(v) == ndims(out) == 4 "q, k, v, out must be 4-D (d, h, s, b)"
     # Causal masking is not yet supported. On cuDNN ≤ 9.20 there is no usable path through the
     # raw backend API: the SDPA node's clean score-modifier subgraph
     # (CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH) requires cuDNN ≥ 9.21 (no CUDNN_jll yet), the
@@ -133,14 +150,14 @@ function cudnnSDPAForward!(out, q, k, v; scale::Real = 1/sqrt(size(q,1)), causal
 
     plan = _sdpa_plan(T, d, sq, skv, h, b)
 
-    workspace = cudnnTempSpace(plan.workspace_size)
-    wsptr = workspace === nothing ? C_NULL : pointer(workspace)
     scalebuf = Float32[scale]
     pointers = Any[pointer(q), pointer(k), pointer(v), pointer(out), pointer(scalebuf)]
-
-    vp = variant_pack(uids=plan.uids, pointers=pointers, workspace=wsptr)
-    GC.@preserve q k v out scalebuf workspace vp begin
-        cudnnBackendExecute(handle(), plan.plan.ptr, vp.ptr)
+    with_workspace(plan.workspace_size) do workspace
+        vp = variant_pack(uids=plan.uids, pointers=pointers,
+                          workspace=(sizeof(workspace) == 0 ? C_NULL : pointer(workspace)))
+        GC.@preserve q k v out scalebuf vp begin
+            cudnnBackendExecute(handle(), plan.plan.ptr, vp.ptr)
+        end
     end
     return out
 end

@@ -142,8 +142,10 @@ function engine_configs(graph::cudnnBackendDescriptor;
     return (heur, cfgs)   # keep `heur` alive: the cfgs reference it
 end
 
-# Build and finalize an execution plan for an engine config. Returns `nothing` if the config
-# is not supported (a normal outcome — callers iterate configs until one finalizes).
+# Build and finalize an execution plan for an engine config. Returns `nothing` if cuDNN
+# reports the config as not supported (a normal outcome — callers iterate configs until one
+# finalizes). Any other error (e.g. BAD_PARAM, which indicates a graph-construction bug
+# rather than an unsupported config) is rethrown.
 function try_execution_plan(enginecfg::cudnnBackendDescriptor)
     plan = cudnnBackendDescriptor(CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR)
     setattr_handle!(plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE)
@@ -152,6 +154,8 @@ function try_execution_plan(enginecfg::cudnnBackendDescriptor)
         bfinalize!(plan)
     catch e
         e isa CUDNNError || rethrow()
+        # the CUDNN_STATUS_NOT_SUPPORTED family occupies the 3000s
+        3000 <= Int(e.code) < 4000 || rethrow()
         return nothing
     end
     return plan
