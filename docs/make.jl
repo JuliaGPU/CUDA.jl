@@ -13,15 +13,19 @@ function main()
     cd(@__DIR__) do
         Literate.markdown(
             "src/tutorials/introduction.jl", "src/tutorials";
-            repo_root_url = "$src/blob/master/docs"
+            repo_root_url = "$src/blob/main/docs"
         )
         Literate.markdown(
             "src/tutorials/custom_structs.jl", "src/tutorials";
-            repo_root_url = "$src/blob/master/docs"
+            repo_root_url = "$src/blob/main/docs"
         )
         Literate.markdown(
             "src/tutorials/performance.jl", "src/tutorials";
-            repo_root_url = "$src/blob/master/docs"
+            repo_root_url = "$src/blob/main/docs"
+        )
+        Literate.markdown(
+            "src/hacking/exposing_new_intrinsics.jl", "src/hacking";
+            repo_root_url = "$src/blob/main/docs"
         )
     end
     println()
@@ -83,6 +87,9 @@ function main()
                 "development/kernel.md",
                 "development/troubleshooting.md",
                 "development/debugging.md",
+            ],
+            "Hacking" => Any[
+                "hacking/exposing_new_intrinsics.md",
             ],
             "API reference" => Any[
                 "api/essentials.md",

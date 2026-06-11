@@ -9,10 +9,8 @@ n = 10
 l = 13
 k = 1
 
-A = rand(n, n)
-A = SparseMatrixCSC(A)
-
 @testset "symrcm" begin
+    A = SparseMatrixCSC(rand(n, n))
     p = symrcm(A)
     p .+= 1
     @test minimum(p) == 1
@@ -21,6 +19,7 @@ A = SparseMatrixCSC(A)
 end
 
 @testset "symmdq" begin
+    A = SparseMatrixCSC(rand(n, n))
     p = symmdq(A)
     p .+= 1
     @test minimum(p) == 1
@@ -29,6 +28,7 @@ end
 end
 
 @testset "symamd" begin
+    A = SparseMatrixCSC(rand(n, n))
     p = symamd(A)
     p .+= 1
     @test minimum(p) == 1
@@ -37,6 +37,7 @@ end
 end
 
 @testset "metisnd" begin
+    A = SparseMatrixCSC(rand(n, n))
     p = metisnd(A)
     p .+= 1
     @test minimum(p) == 1
@@ -44,7 +45,7 @@ end
     @test isperm(p)
 end
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "zfd" begin
         A = rand(elty, n, n)
         for i = 1 : n
@@ -60,138 +61,128 @@ end
     end
 
     @testset "csrlsvlu!" begin
-        A = sparse(rand(elty,n,n))
-        b = rand(elty,n)
-        x = zeros(elty,n)
-        tol = convert(real(elty),1e-6)
-        x = cuSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
+        A = sparse(rand(elty, n, n))
+        b = rand(elty, n)
+        x = zeros(elty, n)
+        tol = convert(real(elty), 1e-6)
+        x = cuSOLVER.csrlsvlu!(A, b, x, tol, one(Cint), 'O')
         @test x ≈ Array(A)\b
-        A = sparse(rand(elty,m,n))
-        @test_throws DimensionMismatch cuSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
-        A = sparse(rand(elty,n,n))
-        b = rand(elty,m)
-        x = zeros(elty,n)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
-        b = rand(elty,n)
-        x = zeros(elty,m)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvlu!(A,b,x,tol,one(Cint),'O')
+        A = sparse(rand(elty, m, n))
+        @test_throws DimensionMismatch cuSOLVER.csrlsvlu!(A, b, x, tol, one(Cint), 'O')
+        A = sparse(rand(elty, n, n))
+        b = rand(elty, m)
+        x = zeros(elty, n)
+        @test_throws DimensionMismatch cuSOLVER.csrlsvlu!(A, b, x, tol, one(Cint), 'O')
+        b = rand(elty, n)
+        x = zeros(elty, m)
+        @test_throws DimensionMismatch cuSOLVER.csrlsvlu!(A, b, x, tol, one(Cint), 'O')
     end
 
     @testset "csrlsvqr!" begin
-        A     = sparse(rand(elty,n,n))
+        A     = sparse(rand(elty, n, n))
         d_A   = CuSparseMatrixCSR(A)
-        b     = rand(elty,n)
+        b     = rand(elty, n)
         d_b   = CuArray(b)
-        x     = zeros(elty,n)
+        x     = zeros(elty, n)
         d_x   = CuArray(x)
-        tol   = convert(real(elty),1e-4)
-        d_x   = cuSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        tol   = convert(real(elty), 1e-4)
+        d_x   = cuSOLVER.csrlsvqr!(d_A, d_b, d_x, tol, one(Cint), 'O')
         h_x   = collect(d_x)
         @test h_x ≈ Array(A)\b
-        A     = sparse(rand(elty,m,n))
+        A     = sparse(rand(elty, m, n))
         d_A   = CuSparseMatrixCSR(A)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
-        A = sparse(rand(elty,n,n))
-        b = rand(elty,m)
-        x = zeros(elty,n)
-        d_A   = CuSparseMatrixCSR(A)
-        d_b   = CuArray(b)
-        d_x   = CuArray(x)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
-        b = rand(elty,n)
-        x = zeros(elty,m)
+        @test_throws DimensionMismatch cuSOLVER.csrlsvqr!(d_A, d_b, d_x, tol, one(Cint), 'O')
+        A = sparse(rand(elty, n, n))
+        b = rand(elty, m)
+        x = zeros(elty, n)
         d_A   = CuSparseMatrixCSR(A)
         d_b   = CuArray(b)
         d_x   = CuArray(x)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        @test_throws DimensionMismatch cuSOLVER.csrlsvqr!(d_A, d_b, d_x, tol, one(Cint), 'O')
+        b = rand(elty, n)
+        x = zeros(elty, m)
+        d_A   = CuSparseMatrixCSR(A)
+        d_b   = CuArray(b)
+        d_x   = CuArray(x)
+        @test_throws DimensionMismatch cuSOLVER.csrlsvqr!(d_A, d_b, d_x, tol, one(Cint), 'O')
         dA    = diagm(0=>rand(elty, n))
         dA[1,1] = zero(elty)
         A     = sparse(dA)
         d_A   = CuSparseMatrixCSR(A)
-        b     = rand(elty,n)
+        b     = rand(elty, n)
         d_b   = CuArray(b)
-        x     = zeros(elty,n)
+        x     = zeros(elty, n)
         d_x   = CuArray(x)
-        @test_throws SingularException cuSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        @test_throws SingularException cuSOLVER.csrlsvqr!(d_A, d_b, d_x, tol, one(Cint), 'O')
     end
 
     @testset "csrlsvchol!" begin
-        A     = rand(elty,n,n)
+        A     = rand(elty, n, n)
         A     = sparse(A*A') #posdef
         d_A   = CuSparseMatrixCSR(A)
-        b     = rand(elty,n)
+        b     = rand(elty, n)
         d_b   = CuArray(b)
-        x     = zeros(elty,n)
+        x     = zeros(elty, n)
         d_x   = CuArray(x)
         tol   = 10^2*eps(real(elty))
-        d_x   = cuSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
+        d_x   = cuSOLVER.csrlsvchol!(d_A, d_b, d_x, tol, zero(Cint), 'O')
         h_x   = collect(d_x)
         @test h_x ≈ Array(A)\b
-        b     = rand(elty,m)
+        b     = rand(elty, m)
         d_b   = CuArray(b)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
-        b     = rand(elty,n)
+        @test_throws DimensionMismatch cuSOLVER.csrlsvchol!(d_A, d_b, d_x, tol, zero(Cint), 'O')
+        b     = rand(elty, n)
         d_b   = CuArray(b)
-        x     = rand(elty,m)
+        x     = rand(elty, m)
         d_x   = CuArray(x)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
-        A     = sparse(rand(elty,m,n))
+        @test_throws DimensionMismatch cuSOLVER.csrlsvchol!(d_A, d_b, d_x, tol, zero(Cint), 'O')
+        A     = sparse(rand(elty, m, n))
         d_A   = CuSparseMatrixCSR(A)
-        @test_throws DimensionMismatch cuSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
+        @test_throws DimensionMismatch cuSOLVER.csrlsvchol!(d_A, d_b, d_x, tol, zero(Cint), 'O')
         dA    = diagm(0=>rand(elty, n))
         dA[1,1] = zero(elty)
         A     = sparse(dA)
         d_A   = CuSparseMatrixCSR(A)
-        b     = rand(elty,n)
+        b     = rand(elty, n)
         d_b   = CuArray(b)
-        x     = zeros(elty,n)
+        x     = zeros(elty, n)
         d_x   = CuArray(x)
-        @test_throws SingularException cuSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,one(Cint),'O')
+        @test_throws SingularException cuSOLVER.csrlsvchol!(d_A, d_b, d_x, tol, one(Cint), 'O')
     end
 
     @testset "csreigvsi" begin
-        A     = sparse(rand(elty,n,n))
+        A     = sparse(rand(elty, n, n))
         A     = A + A'
         d_A   = CuSparseMatrixCSR(A)
         evs   = eigvals(Array(A))
-        x_0   = CuArray(rand(elty,n))
-        μ,x   = cuSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
+        x_0   = CuArray(rand(elty, n))
+        μ, x  = cuSOLVER.csreigvsi(d_A, convert(elty, evs[1]), x_0, convert(real(elty), 1e-6), convert(Cint, 1000), 'O')
         @test μ ≈ evs[1]
-        A     = sparse(rand(elty,m,n))
+        A     = sparse(rand(elty, m, n))
         d_A   = CuSparseMatrixCSR(A)
-        @test_throws DimensionMismatch cuSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
-        A     = sparse(rand(elty,n,n))
+        @test_throws DimensionMismatch cuSOLVER.csreigvsi(d_A, convert(elty, evs[1]), x_0, convert(real(elty), 1e-6), convert(Cint, 1000), 'O')
+        A     = sparse(rand(elty, n, n))
         d_A   = CuSparseMatrixCSR(A)
-        x_0   = CuArray(rand(elty,m))
-        @test_throws DimensionMismatch cuSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
+        x_0   = CuArray(rand(elty, m))
+        @test_throws DimensionMismatch cuSOLVER.csreigvsi(d_A, convert(elty, evs[1]), x_0, convert(real(elty), 1e-6), convert(Cint, 1000), 'O')
     end
-    # broken internally
-    #=@testset "csreigs" begin
-        celty = complex(elty)
-        A   = diagm(0=>convert.(elty, 1:n)) + rand(real(elty),n,n)
-        A   = sparse(A)
-        num = cuSOLVER.csreigs(A,convert(celty,complex(zero(elty),zero(elty))),convert(celty,complex(elty(100),elty(100))),'O')
-        @test num <= n
-        A     = sparse(rand(celty,m,n))
-        d_A   = CuSparseMatrixCSR(A)
-        @test_throws DimensionMismatch cuSOLVER.csreigs(A,convert(celty,complex(-100,-100)),convert(celty,complex(100,100)),'O')
-    end=#
+
     @testset "csrlsqvqr!" begin
-        A = sparse(rand(elty,n,n))
-        b = rand(elty,n)
-        x = zeros(elty,n)
-        tol = convert(real(elty),1e-4)
-        x = cuSOLVER.csrlsqvqr!(A,b,x,tol,'O')
+        A = sparse(rand(elty, n, n))
+        b = rand(elty, n)
+        x = zeros(elty, n)
+        tol = convert(real(elty), 1e-4)
+        x = cuSOLVER.csrlsqvqr!(A, b, x, tol, 'O')
         @test x[1] ≈ Array(A)\b
-        A = sparse(rand(elty,n,m))
-        x = zeros(elty,n)
-        @test_throws DimensionMismatch cuSOLVER.csrlsqvqr!(A,b,x,tol,'O')
-        A = sparse(rand(elty,n,n))
-        b = rand(elty,m)
-        x = zeros(elty,n)
-        @test_throws DimensionMismatch cuSOLVER.csrlsqvqr!(A,b,x,tol,'O')
-        b = rand(elty,n)
-        x = zeros(elty,m)
-        @test_throws DimensionMismatch cuSOLVER.csrlsqvqr!(A,b,x,tol,'O')
+        A = sparse(rand(elty, n, m))
+        x = zeros(elty, n)
+        @test_throws DimensionMismatch cuSOLVER.csrlsqvqr!(A, b, x, tol, 'O')
+        A = sparse(rand(elty, n, n))
+        b = rand(elty, m)
+        x = zeros(elty, n)
+        @test_throws DimensionMismatch cuSOLVER.csrlsqvqr!(A, b, x, tol, 'O')
+        b = rand(elty, n)
+        x = zeros(elty, m)
+        @test_throws DimensionMismatch cuSOLVER.csrlsqvqr!(A, b, x, tol, 'O')
     end
 end

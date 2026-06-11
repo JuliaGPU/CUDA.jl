@@ -100,6 +100,7 @@ steps:
         matrix:
           setup:
             cuda:
+              - "13.3"
               - "13.2"
               - "13.1"
               - "13.0"
@@ -113,7 +114,6 @@ steps:
               - "12.1"
               - "12.0"
         commands: |
-          unset LD_LIBRARY_PATH
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
 
   - group: ":telescope: Downstream"
@@ -186,7 +186,6 @@ steps:
                 - lib
                 - examples
         commands: |
-          unset LD_LIBRARY_PATH
           julia -e '
             using Pkg
 
@@ -272,8 +271,6 @@ steps:
                 - src
                 - lib
                 - examples
-        commands: |
-          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -296,8 +293,6 @@ steps:
                 - src
                 - lib
                 - examples
-        commands: |
-          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -322,8 +317,6 @@ steps:
                 - src
                 - lib
                 - examples
-        commands: |
-          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -340,7 +333,6 @@ steps:
               - "unified"
               - "host"
         commands: |
-          unset LD_LIBRARY_PATH
           echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
       - label: "MultiGPU"
@@ -348,14 +340,12 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--gpu=0,1 --quickfail core libraries/cublas/xt"
+              test_args: "--quickfail core libraries/cublas/xt"
           - JuliaCI/julia-coverage#v1:
               dirs:
                 - src
                 - lib
                 - examples
-        commands: |
-          unset LD_LIBRARY_PATH
         agents:
           queue: "juliagpu"
           cuda: "*"
@@ -376,7 +366,6 @@ steps:
       - JuliaCI/julia#v1:
           version: "1.12"
     commands: |
-      unset LD_LIBRARY_PATH
       julia --project -e '
         println("--- :julia: Instantiating project")
         using Pkg
@@ -401,7 +390,6 @@ steps:
       - JuliaCI/julia#v1:
           version: "1.12"
     commands: |
-      unset LD_LIBRARY_PATH
       julia --project=perf -e '
         using Pkg
 

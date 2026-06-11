@@ -1,12 +1,11 @@
-include("setup.jl")
-@test cuSPARSE.version() isa VersionNumber
+using cuSPARSE
+using ParallelTestRunner
 
-include("array.jl")
-include("construction.jl")
-include("conversion.jl")
-include("preconditioners.jl")
-include("solvers.jl")
-include("operations.jl")
-include("gtsv2.jl")
-include("misc.jl")
-include("kernelabstractions.jl")
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
+end
+
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuSPARSE, ARGS; init_code, testsuite)

@@ -54,6 +54,7 @@ const cusolverDnParams_t = Ptr{cusolverDnParams}
     CUSOLVERDN_GETRF = 0
     CUSOLVERDN_POTRF = 1
     CUSOLVERDN_SYEVBATCHED = 2
+    CUSOLVERDN_GEQRF = 3
 end
 
 const cusolver_int_t = Cint
@@ -101,6 +102,12 @@ end
     CUSOLVER_EIG_RANGE_ALL = 1001
     CUSOLVER_EIG_RANGE_I = 1002
     CUSOLVER_EIG_RANGE_V = 1003
+end
+
+@cenum cusolverEigComp_t::UInt32 begin
+    CUSOLVER_EIG_COMP_N = 10
+    CUSOLVER_EIG_COMP_I = 11
+    CUSOLVER_EIG_COMP_V = 12
 end
 
 @cenum cusolverNorm_t::UInt32 begin
@@ -4630,6 +4637,43 @@ end
                                                info::CuPtr{Cint})::cusolverStatus_t
 end
 
+@checked function cusolverDnXstedc_bufferSize(handle, params, compz, n, dataTypeDE, D, E,
+                                              dataTypeZ, Z, ldz, computeType,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXstedc_bufferSize(handle::cusolverDnHandle_t,
+                                                          params::cusolverDnParams_t,
+                                                          compz::cusolverEigComp_t,
+                                                          n::Int64,
+                                                          dataTypeDE::cudaDataType,
+                                                          D::Ptr{Cvoid}, E::Ptr{Cvoid},
+                                                          dataTypeZ::cudaDataType,
+                                                          Z::Ptr{Cvoid}, ldz::Int64,
+                                                          computeType::cudaDataType,
+                                                          workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                          workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXstedc(handle, params, compz, n, dataTypeDE, D, E, dataTypeZ, Z,
+                                   ldz, computeType, bufferOnDevice,
+                                   workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost, info)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXstedc(handle::cusolverDnHandle_t,
+                                               params::cusolverDnParams_t,
+                                               compz::cusolverEigComp_t, n::Int64,
+                                               dataTypeDE::cudaDataType, D::Ptr{Cvoid},
+                                               E::Ptr{Cvoid}, dataTypeZ::cudaDataType,
+                                               Z::Ptr{Cvoid}, ldz::Int64,
+                                               computeType::cudaDataType,
+                                               bufferOnDevice::Ptr{Cvoid},
+                                               workspaceInBytesOnDevice::Csize_t,
+                                               bufferOnHost::Ptr{Cvoid},
+                                               workspaceInBytesOnHost::Csize_t,
+                                               info::Ptr{Cint})::cusolverStatus_t
+end
+
 @checked function cusolverDnXsyevBatched_bufferSize(handle, params, jobz, uplo, n,
                                                     dataTypeA, A, lda, dataTypeW, W,
                                                     computeType, workspaceInBytesOnDevice,
@@ -4974,10 +5018,50 @@ end
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
 end
 
-# no prototype is found for this function at cusolverDn.h:4897:32, please use with caution
+# no prototype is found for this function at cusolverDn.h:4932:32, please use with caution
 @checked function cusolverDnLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t
+end
+
+@checked function cusolverDnXpolar_bufferSize(handle, params, uplo, M, N, dataTypeA, A, lda,
+                                              dataTypeH, H, ldh, computeType,
+                                              workspaceInBytesOnDevice,
+                                              workspaceInBytesOnHost)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXpolar_bufferSize(handle::cusolverDnHandle_t,
+                                                          params::cusolverDnParams_t,
+                                                          uplo::cublasFillMode_t, M::Int64,
+                                                          N::Int64, dataTypeA::cudaDataType,
+                                                          A::Ptr{Cvoid}, lda::Int64,
+                                                          dataTypeH::cudaDataType,
+                                                          H::Ptr{Cvoid}, ldh::Int64,
+                                                          computeType::cudaDataType,
+                                                          workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                          workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXpolar(handle, params, uplo, M, N, dataTypeA, A, lda, dataTypeH,
+                                   H, ldh, computeType, bufferOnDevice,
+                                   workspaceInBytesOnDevice, bufferOnHost,
+                                   workspaceInBytesOnHost, d_res_nrm, d_A_nrmF, d_rcond,
+                                   d_info)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXpolar(handle::cusolverDnHandle_t,
+                                               params::cusolverDnParams_t,
+                                               uplo::cublasFillMode_t, M::Int64, N::Int64,
+                                               dataTypeA::cudaDataType, A::Ptr{Cvoid},
+                                               lda::Int64, dataTypeH::cudaDataType,
+                                               H::Ptr{Cvoid}, ldh::Int64,
+                                               computeType::cudaDataType,
+                                               bufferOnDevice::Ptr{Cvoid},
+                                               workspaceInBytesOnDevice::Csize_t,
+                                               bufferOnHost::Ptr{Cvoid},
+                                               workspaceInBytesOnHost::Csize_t,
+                                               d_res_nrm::Ptr{Cdouble},
+                                               d_A_nrmF::Ptr{Cdouble},
+                                               d_rcond::Ptr{Cdouble},
+                                               d_info::Ptr{Cint})::cusolverStatus_t
 end
 
 mutable struct cusolverSpContext end

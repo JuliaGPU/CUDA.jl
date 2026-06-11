@@ -2,7 +2,7 @@
 
 export HandleCache
 
-struct HandleCache{K,V}
+struct HandleCache{K,V} <: Reclaimable
     ctor
     dtor
 
@@ -15,15 +15,14 @@ struct HandleCache{K,V}
     max_entries::Int
 
     function HandleCache{K,V}(ctor, dtor; max_entries::Int=32) where {K,V}
-        obj = new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(),
-                       Base.ThreadSynchronizer(), max_entries)
-
-        # register a hook to wipe the current context's cache when under memory pressure
-        push!(reclaim_hooks, ()->empty!(obj))
-
-        return obj
+        return new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(),
+                        Base.ThreadSynchronizer(), max_entries)
     end
 end
+
+# destroying idle handles is the `purge!` step of reclaim; individual caches
+# must be registered in the owning library's __init__ (see reclaim.jl).
+purge!(cache::HandleCache) = empty!(cache)
 
 # remove a handle from the cache, or create a new one
 function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}

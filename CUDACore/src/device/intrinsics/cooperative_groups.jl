@@ -108,7 +108,7 @@ num_threads
 
 ## thread block
 
-export this_thread_block, group_index, thread_index, dim_threads
+export thread_block, this_thread_block, group_index, thread_index, dim_threads
 
 """
     thread_block <: thread_group

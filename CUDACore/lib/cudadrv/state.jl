@@ -222,12 +222,12 @@ function context(dev::CuDevice)
                   Please use a device with at least capability 5.0, or downgrade CUDA.jl (see the README for compatibility details).""",
                maxlog=1, _id=devidx)
     elseif runtime_version() >= v"13" && capability(dev) < v"7.5"
-        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported on CUDA 13+.
-                  Please use a device with at least capability 7.5, or downgrade your NVIDIA driver to below v580.""",
+        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA toolkit 13+.
+                  Please use a device with at least capability 7.5, or use an older CUDA toolkit (see `CUDA.set_runtime_version!`).""",
                maxlog=1, _id=devidx)
     end
     # ... or too new
-    if !in(capability(dev), cuda_compat().cap)
+    if !in(capability(dev), ptxas_compat().cap)
         @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not fully supported by CUDA $(runtime_version()).
                  Some functionality may be broken. Ensure you are using the latest version of CUDA.jl in combination with an up-to-date NVIDIA driver.
                  If that does not help, please file an issue to add support for the latest CUDA toolkit.""",
@@ -459,7 +459,12 @@ function Base.get!(constructor::F, x::PerDevice{T}, dev::CuDevice) where {F <: B
         if y[id] === nothing || (y[id]::Tuple)[1] !== ctx
             Base.@lock x.lock begin
                 if y[id] === nothing || (y[id]::Tuple)[1] !== ctx
-                    y[id] = (context(), constructor())
+                    # store the device's own context (it may be created during `constructor()`),
+                    # so subsequent lookups — which compare against `device_context(id)`, not
+                    # the currently-active context — hit the cache regardless of which context
+                    # was active when the value was constructed.
+                    value = constructor()
+                    y[id] = (context(dev), value)
                 end
             end
         end

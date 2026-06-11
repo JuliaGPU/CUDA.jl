@@ -33,20 +33,22 @@ function description(err::CUFFTError)
         "user specified an invalid transform size"
     elseif err.code == CUFFT_UNALIGNED_DATA
         "cuFFT unaligned data" # No longer used
-    elseif err.code == CUFFT_INCOMPLETE_PARAMETER_LIST
-        "missing parameters in call"
     elseif err.code == CUFFT_INVALID_DEVICE
         "execution of a plan was on different GPU than plan creation"
-    elseif err.code == CUFFT_PARSE_ERROR
-        "internal plan database error"
     elseif err.code == CUFFT_NO_WORKSPACE
         "no workspace has been provided prior to plan execution"
     elseif err.code == CUFFT_NOT_IMPLEMENTED
         "function does not implement functionality for parameters given."
-    elseif err.code == CUFFT_LICENSE_ERROR
-        "cuFFT license error" # Used in previous versions.
     elseif err.code == CUFFT_NOT_SUPPORTED
         "operation is not supported for parameters given."
+    elseif err.code == CUFFT_MISSING_DEPENDENCY
+        "a required runtime dependency was not found"
+    elseif err.code == CUFFT_NVRTC_FAILURE
+        "NVRTC failed to compile a required kernel"
+    elseif err.code == CUFFT_NVJITLINK_FAILURE
+        "nvJitLink failed to link a required kernel"
+    elseif err.code == CUFFT_NVSHMEM_FAILURE
+        "an NVSHMEM operation failed"
     else
         "no description for this error"
     end

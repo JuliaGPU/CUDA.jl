@@ -5,15 +5,15 @@
     @test convert(cuTensorNet.cutensornetComputeType_t, Int32)  == cuTensorNet.CUTENSORNET_COMPUTE_32I
     @test convert(cuTensorNet.cutensornetComputeType_t, UInt32) == cuTensorNet.CUTENSORNET_COMPUTE_32U
     @test_throws ArgumentError("cuTensorNet type equivalent for compute type ComplexF64 does not exist!") convert(cuTensorNet.cutensornetComputeType_t, ComplexF64)
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_8I) == Int8
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_8U) == UInt8
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_16F) == Float16
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_32F) == Float32
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_32U) == UInt32
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_32I) == Int32
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_64F) == Float64
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_8I) == Int8
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_8U) == UInt8
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_16F) == Float16
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_32F) == Float32
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_32U) == UInt32
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_32I) == Int32
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_64F) == Float64
     @test convert(cuTensorNet.cutensornetComputeType_t, CUDACore.BFloat16) == cuTensorNet.CUTENSORNET_COMPUTE_16BF
-    @test convert(Type, cuTensorNet.CUTENSORNET_COMPUTE_16BF) == CUDACore.BFloat16
+    @test Type(cuTensorNet.CUTENSORNET_COMPUTE_16BF) == CUDACore.BFloat16
 
 
     modesA = ['m', 'h', 'k', 'n']

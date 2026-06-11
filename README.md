@@ -13,10 +13,10 @@
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://cuda.juliagpu.org/dev/
 
-[buildkite-img]: https://badge.buildkite.com/27aaeb352a9420297ed2d30cb055ac383a399ea8f121599912.svg?branch=master
+[buildkite-img]: https://badge.buildkite.com/27aaeb352a9420297ed2d30cb055ac383a399ea8f121599912.svg?branch=main
 [buildkite-url]: https://buildkite.com/julialang/cuda-dot-jl
 
-[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/master/graph/badge.svg
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDA.jl
 
 [benchmark-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
@@ -62,10 +62,19 @@ command that initializes the toolkit) will issue a warning.
 For quick testing, you can also use [the `juliagpu/cuda.jl` container
 image](https://github.com/JuliaGPU/CUDA.jl/pkgs/container/cuda.jl/versions) from the GitHub
 Container Registry, which provides Julia, a precompiled version of CUDA.jl, and a matching
-CUDA toolkit:
+CUDA toolkit. Tags are named after the CUDA major version (`cuda12` or `cuda13`); the
+bare tag tracks the latest stable release, while `<version>-cuda<major>` pins to a
+specific release and `dev-cuda<major>` tracks the latest `main` build:
 
 ```sh
-docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:latest  # other tags available too
+# latest stable release, CUDA 13
+docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:cuda13
+
+# a specific release, CUDA 12
+docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:v6.1.0-cuda12
+
+# latest main build, CUDA 13
+docker run -it --rm --gpus=all ghcr.io/juliagpu/cuda.jl:dev-cuda13
 ```
 
 For more usage instructions and other information, please refer to [the
@@ -114,7 +123,7 @@ The latest version of CUDA.jl also has certain requirements that cannot be enfor
 package manager:
 
 - Host platform: only 64-bit Linux and Windows are supported;
-- Device hardware: only NVIDIA GPUs with **compute capability 7.5** (Turing) or higher are
+- Device hardware: only NVIDIA GPUs with **compute capability 5.0** (Maxwell) or higher are
   supported;
 - NVIDIA driver: a driver for **CUDA 12** or newer is required;
 - CUDA toolkit (in case you need to use your own): only **CUDA toolkit 12.0** or newer are
@@ -130,13 +139,32 @@ If you cannot meet these requirements, you may need to install an older version 
 * CUDA.jl v1.3 is the last version to work with CUDA 9-10.0 (removed in v2.0)
 
 
+## Selecting a CUDA Toolkit
+
+CUDA.jl will automatically download and use a CUDA Toolkit that's supported
+by your NVIDIA driver as well as most of the devices in your system. There are
+two cases where you may want to select a different version:
+
+- **You have a GPU that is not supported by the latest CUDA Toolkit**.
+  Although CUDA.jl tries to select a runtime that supports most of your GPUs,
+  specific devices may end up being unsuported by the active toolkit.
+  In that case, call e.g. `CUDA.set_runtime_version!(v"12.9")` to
+  use a specific toolkit which still supports the device in question.
+- **You want to use a CUDA Toolkit that is already installed on your system**.
+  This is not recommended, but if you want to do it anyway, call
+  `CUDA.set_runtime_version!(local_toolkit=true)`.
+
+Both these options will be remembered across sessions via a local preference,
+which can also be set directly (see `LocalPreferences.toml`).
+
+
 ## Supporting and Citing
 
 Much of the software in this ecosystem was developed as part of academic research. If you
 would like to help support it, please star the repository as such metrics may help us secure
 funding in the future. If you use our software as part of your research, teaching, or other
 activities, we would be grateful if you could cite our work. The
-[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/master/CITATION.bib) file in the
+[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/main/CITATION.bib) file in the
 root of this repository lists the relevant papers.
 
 

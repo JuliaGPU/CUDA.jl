@@ -50,17 +50,137 @@ end
     @cuda threads=2 dummy()
 
     # sm_10 isn't supported by LLVM
-    @test_throws "not supported by LLVM" @cuda launch=false cap=v"1.0" dummy()
+    @test_throws "not supported by LLVM" @cuda launch=false arch=sm"10" dummy()
     # sm_20 is, but not by any CUDA version we support
-    @test_throws "Failed to compile PTX code" @cuda launch=false cap=v"2.0" dummy()
+    @test_throws "Failed to compile PTX code" @cuda launch=false arch=sm"20" dummy()
     # there isn't any capability other than the device's that's guaruanteed to work
-    @cuda launch=false cap=capability(device()) dummy()
+    dev_cap = capability(device())
+    dev_sm = SMVersion(dev_cap.major, dev_cap.minor)
+    @cuda launch=false arch=dev_sm dummy()
+    # `arch=` also accepts a plain `VersionNumber` -- treated as baseline. Equivalent
+    # to constructing the SMVersion directly.
+    @cuda launch=false arch=dev_cap dummy()
     # but we should be able to see it in the generated PTX code
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); cap=v"5.0"))
-    @test contains(asm, ".target sm_50")
+    @test @filecheck CUDA.code_ptx((); arch=sm"50") do
+        @check ".target sm_50"
+        dummy()
+    end
+    @test @filecheck CUDA.code_ptx((); arch=v"5.0") do
+        @check ".target sm_50"
+        dummy()
+    end
 
-    asm = sprint(io->CUDA.code_ptx(io, dummy, (); ptx=v"6.3"))
-    @test contains(asm, ".version 6.3")
+    # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
+    # `.version` line should match what was asked for, independently of what LLVM and
+    # ptxas would natively pick.
+    @test @filecheck CUDA.code_ptx((); ptx=v"6.3") do
+        @check ".version 6.3"
+        dummy()
+    end
+
+    # explicit `ptx=` is validated against BOTH LLVM and ptxas (not just LLVM as it
+    # used to be); a clearly out-of-range value must error at config time.
+    @test_throws "not supported" @cuda launch=false ptx=v"99.0" dummy()
+
+    # feature_set is selected by the suffix on the sm"..." string; the suffix should
+    # surface in the .target directive in the PTX output. The cuda-side `.target` is
+    # the variant regardless of LLVM support -- the mcgen rewrite stamps it in even
+    # when LLVM clamped to baseline for codegen.
+    sm_a = SMVersion(dev_cap.major, dev_cap.minor, :arch)
+    sm_f = SMVersion(dev_cap.major, dev_cap.minor, :family)
+
+    if dev_cap >= v"9.0"
+        @test @filecheck CUDA.code_ptx((); arch=sm_a) do
+            @check ".target $(CUDACore.cpu_name(sm_a))"
+            dummy()
+        end
+        # arch-specific cubin should also actually launch on the matching device
+        @cuda arch=sm_a dummy()
+    end
+    if dev_cap >= v"10.0"
+        @test @filecheck CUDA.code_ptx((); arch=sm_f) do
+            @check ".target $(CUDACore.cpu_name(sm_f))"
+            dummy()
+        end
+        @cuda arch=sm_f dummy()
+    end
+
+    # `cap=` is the deprecated alias for `arch=`; check the depwarn fires while
+    # the path still produces the right PTX.
+    @test_deprecated sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"50"))
+
+    # With no explicit `arch=`, we default to architecture-specific code paths on CC >=9.0
+    # since we know the exact device. The cuda-side `.target` is the variant regardless of
+    # LLVM support (the mcgen rewrite stamps it in); only the LLVM-emitted code differs.
+    if dev_cap >= v"9.0"
+        @test @filecheck CUDA.code_ptx(()) do
+            @check ".target $(CUDACore.cpu_name(sm_a))"
+            dummy()
+        end
+    end
+
+    # `target_feature_set()` reads back the feature set the *LLVM-emitted* code was built
+    # for (not the cuda-side .target): when LLVM doesn't natively support the exact variant,
+    # we fall back to baseline LLVM, so the global reflects baseline. The if-chain folds at
+    # codegen time, so the launched kernel writes a single constant.
+    function read_feature_set!(out)
+        @inbounds out[1] = if target_feature_set() === :arch
+            UInt32(2)
+        elseif target_feature_set() === :family
+            UInt32(1)
+        else
+            UInt32(0)
+        end
+        return
+    end
+    out = CuArray{UInt32}([typemax(UInt32)])
+    @cuda threads=1 read_feature_set!(out)
+    # arch features come through `target_feature_set()` only when the back-end LLVM
+    # natively supports the variant; otherwise we fell back to baseline and the
+    # global reflects that.
+    arch_in_llvm = sm_a in CUDACore.llvm_compat().sm
+    expected = dev_cap >= v"9.0" && arch_in_llvm ? UInt32(2) : UInt32(0)
+    @test Array(out)[1] == expected
+end
+
+
+@testset "launch failure: opt-in shmem + thread overrun" begin
+    # A non-SMEM launch failure on a kernel that opted into dynamic SMEM beyond
+    # the non-opt-in ceiling must report the real cause, not a spurious "exceeds
+    # device limit" SMEM message. Only meaningful when the device exposes an
+    # opt-in cap above the non-opt-in ceiling (Volta+).
+    nonoptin = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
+    optin    = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN)
+    if optin > nonoptin
+        k = @cuda launch=false maxthreads=1 dummy()
+        attributes(k.fun)[CUDA.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = optin
+        @test_throws "exceeds kernel limit" k(; threads=2, shmem=optin)
+    end
+end
+
+
+@testset "launch failure: register pressure" begin
+    # Force ptxas to keep N live values across a barrier. The stores into
+    # `out` are the observable side effect that prevents the optimizer from
+    # eliminating the loads as dead code.
+    function reg_kernel(out, inp, ::Val{N}) where N
+        i = threadIdx().x
+        v = ntuple(j -> inp[i + (j-1)*N], Val(N))
+        sync_threads()
+        ntuple(j -> (out[i + (j-1)*N] = v[j]; nothing), Val(N))
+        return
+    end
+    N = 256
+    hw_cap = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+    workspace = CuArray{Float32}(undef, hw_cap + N^2)
+    k       = @cuda launch=false reg_kernel(workspace, workspace, Val(N))
+    nregs   = CUDA.registers(k)
+    reglim  = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK)
+    threads = fld(reglim, nregs) + 1
+    @test_throws "Block register count exceeds device limit" begin
+        @assert threads > CUDA.maxthreads(k)
+        k(workspace, workspace; threads=threads)
+    end
 end
 
 
@@ -77,6 +197,70 @@ end
 
 @testset "shared memory" begin
     @cuda shmem=1 dummy()
+end
+
+
+@testset "backend dispatch" begin
+    # instance form: explicit LLVMBackend
+    @cuda backend=CUDACore.LLVMBackend() dummy()
+    k = @cuda launch=false backend=CUDACore.LLVMBackend() dummy()
+    @test k isa CUDACore.HostKernel
+    k()
+
+    # instance form via the re-exported CUDA name
+    @cuda backend=CUDA.LLVMBackend() dummy()
+
+    # module form: CUDA / CUDACore both define DefaultBackend()
+    @cuda backend=CUDA dummy()
+    @cuda backend=CUDACore dummy()
+
+    # custom backend stub: assert kernel_convert/kernel_compile are called
+    # and that unknown kwargs are forwarded
+    @eval module BackendStub
+        using CUDA
+        const compile_calls = Ref(0)
+        const convert_calls = Ref(0)
+        const last_kwargs = Ref{Any}(nothing)
+
+        struct Backend <: CUDACore.AbstractBackend end
+        DefaultBackend() = Backend()
+
+        struct Kernel{F}
+            f::F
+        end
+        (::Kernel)(args...; kwargs...) = nothing
+
+        CUDACore.kernel_convert(::Backend, x) = (convert_calls[] += 1; x)
+        function CUDACore.kernel_compile(::Backend, f::F, tt::Type{<:Tuple};
+                                         kwargs...) where {F}
+            compile_calls[] += 1
+            last_kwargs[] = (; kwargs...)
+            Kernel{F}(f)
+        end
+    end
+
+    BackendStub.compile_calls[] = 0
+    BackendStub.convert_calls[] = 0
+    BackendStub.last_kwargs[] = nothing
+    @cuda backend=BackendStub.Backend() dummy()
+    @test BackendStub.compile_calls[] == 1
+    # f + 0 args, all routed through kernel_convert
+    @test BackendStub.convert_calls[] == 1
+
+    # module-as-backend resolution for the custom backend
+    @cuda backend=BackendStub dummy()
+    @test BackendStub.compile_calls[] == 2
+
+    # other_kwargs forwarding to kernel_compile
+    @cuda backend=BackendStub.Backend() opt_level=2 dummy()
+    @test haskey(BackendStub.last_kwargs[], :opt_level)
+    @test BackendStub.last_kwargs[][:opt_level] == 2
+
+    # dynamic + backend kwargs are rejected (errors at macro-expansion time,
+    # so wrap in @macroexpand to defer)
+    @test_throws "does not support backend-specific" begin
+        @macroexpand @cuda dynamic=true opt_level=2 dummy()
+    end
 end
 
 
@@ -98,10 +282,10 @@ end
         export external_dummy
         external_dummy() = return
     end
-    import ...KernelModule
+    import .KernelModule
     @cuda KernelModule.external_dummy()
     @eval begin
-        using ...KernelModule
+        using .KernelModule
         @cuda external_dummy()
     end
 
@@ -555,6 +739,82 @@ end
 @testset "parameter space" begin
     kernel(x) = nothing
     @test_throws "Kernel invocation uses too much parameter memory" @cuda kernel(ntuple(_->UInt64(1), 2^13))
+end
+
+@testset "argument layout" begin
+    # the back-end aligns 128-bit integers to 16 bytes, but Julia only started doing so in
+    # 1.12, so aggregates with (U)Int128 fields lay out differently on older hosts. such
+    # types are rejected there (host==device on 1.12+, so everything is accepted).
+    @eval struct Int128Wrapper; x::Int64; y::Int128; end
+    @eval struct FloatWrapper;  x::Int64; y::Float64; end   # control: no 128-bit integers
+    host_ok = Base.datatype_alignment(Int128) == 16         # true on Julia 1.12+
+
+    # -- the compatibility walk must look through type parameters (e.g. device-array
+    #    element types), not just fields. this part is host-independent. --
+    reaches_i128(T) = CUDACore.layout_reaches(S -> S === Int128 || S === UInt128, T)
+    @test  reaches_i128(Int128)
+    @test  reaches_i128(Int128Wrapper)                            # via a field
+    @test  reaches_i128(Tuple{Int64,Int128Wrapper})              # via a tuple element
+    @test  reaches_i128(Ptr{Int128Wrapper})                      # via a pointer's pointee
+    @test  reaches_i128(CUDACore.CuDeviceArray{Int128Wrapper,1,1}) # via an element type
+    @test !reaches_i128(Float64)
+    @test !reaches_i128(FloatWrapper)
+    @test !reaches_i128(CUDACore.CuDeviceArray{Float64,1,1})
+
+    @test CUDACore.device_layout(Int128) == (16, 16)
+    @test CUDACore.device_layout(FloatWrapper) == (16, 8)
+    @test CUDACore.device_layout(Int128Wrapper) === (host_ok ? (32, 16) : :mismatch)
+    @test CUDACore.device_compatible_layout(Int128Wrapper) == host_ok
+    @test CUDACore.device_compatible_layout(CUDACore.CuDeviceArray{Int128Wrapper,1,1}) == host_ok
+    @test CUDACore.device_compatible_layout(CUDACore.CuDeviceArray{Float64,1,1})
+
+    # -- end-to-end: rejected on <1.12, compiled and correct on 1.12+ --
+
+    # plain 128-bit integers occupy their own parameter slot / array element, and are fine
+    # regardless of how the host aligns them
+    setval(out, v) = (@inbounds out[1] = v; return)
+    let out = CuArray{Int128}(undef, 1)
+        @cuda setval(out, Int128(2)^100 + 7)
+        @test Array(out)[1] == Int128(2)^100 + 7
+    end
+
+    # aggregate with a 128-bit field, passed as a kernel argument: read its field back so
+    # the layout check (not an unrelated type error) is what fails on incompatible hosts
+    gety(out, w) = (@inbounds out[1] = w.y; return)
+    if host_ok
+        out = CuArray{Int128}(undef, 1)
+        @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
+        @test Array(out)[1] == Int128(2)^100 + 7
+    else
+        out = CuArray{Int128}(undef, 1)
+        @test_throws "references 128-bit integer fields" @cuda gety(out, Int128Wrapper(42, Int128(2)^100 + 7))
+    end
+
+    # aggregate with a 128-bit field, reached as a device-array element (memory traffic;
+    # this is only seen through a pointer, so it used to slip past the argument check)
+    function readfields(out, A)
+        i = threadIdx().x
+        @inbounds begin
+            out[2i-1] = A[i].x
+            out[2i]   = A[i].y % Int64
+        end
+        return
+    end
+    wrappers = [Int128Wrapper(1, 2), Int128Wrapper(3, 4)]
+    if host_ok
+        dA = CuArray(wrappers); out = CuArray{Int64}(undef, 4)
+        @cuda threads=2 readfields(out, dA)
+        @test Array(out) == [1, 2, 3, 4]
+    else
+        dA = CuArray(wrappers); out = CuArray{Int64}(undef, 4)
+        @test_throws "references 128-bit integer fields" @cuda threads=2 readfields(out, dA)
+    end
+
+    # control: an aggregate without 128-bit integers is always accepted
+    let out = CuArray{Float64}(undef, 1)
+        @cuda gety(out, FloatWrapper(1, 3.5))
+        @test Array(out)[1] == 3.5
+    end
 end
 
     @testset "symbols" begin
@@ -1035,6 +1295,31 @@ end
     s,c = first(collect(b))
     (real(s), imag(s), real(c), imag(c))
 end
+
+end
+
+############################################################################################
+
+@testset "launch seed does not perturb host RNG" begin
+
+    dummy_kernel() = return
+
+    Random.seed!(0xdeadbeef)
+    a_before = rand(UInt64)
+    @cuda threads=1 dummy_kernel()
+    a_after  = rand(UInt64)
+
+    Random.seed!(0xdeadbeef)
+    b_before = rand(UInt64)
+    b_after  = rand(UInt64)
+
+    @test a_before == b_before
+    @test a_after  == b_after
+
+    k = @cuda launch=false dummy_kernel()
+    seed1 = CUDACore.make_seed(k)
+    seed2 = CUDACore.make_seed(k)
+    @test seed1 != seed2
 
 end
 

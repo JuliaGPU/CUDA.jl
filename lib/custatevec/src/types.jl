@@ -12,7 +12,7 @@ function Base.convert(::Type{custatevecComputeType_t}, T::DataType)
     end
 end
 
-function Base.convert(::Type{Type}, T::custatevecComputeType_t)
+function Base.Type(T::custatevecComputeType_t)
     if T == CUSTATEVEC_COMPUTE_32F || T == CUSTATEVEC_COMPUTE_TF32
         return Float32
     elseif T == CUSTATEVEC_COMPUTE_64F

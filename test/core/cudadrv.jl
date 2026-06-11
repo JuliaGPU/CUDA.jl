@@ -775,13 +775,6 @@ end
         add_data!(link, "vadd_parent", read(f, String))
     end
     @test_throws ArgumentError add_data!(link, "vadd_parent", "\0")
-
-    # object code
-    # TODO: test with valid object code
-    # NOTE: apparently, on Windows cuLinkAddData! _does_ accept object data containing \0
-    if !Sys.iswindows()
-        @test_throws Exception add_data!(link, "vadd_parent", UInt8[0])
-    end
 end
 
 @testset "error log" begin
@@ -911,5 +904,7 @@ end
 @test isa(CUDA.driver_version(), VersionNumber)
 
 @test isa(CUDA.runtime_version(), VersionNumber)
+
+@test isa(CUDA.compiler_version(), VersionNumber)
 
 end

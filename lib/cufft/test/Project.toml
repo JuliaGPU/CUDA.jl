@@ -4,5 +4,9 @@ Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 cuFFT = "533571aa-0936-420e-b4be-9c66f5f626ca"
+
+[compat]
+ParallelTestRunner = "2"

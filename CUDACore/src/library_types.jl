@@ -97,7 +97,7 @@ function Base.convert(::Type{cudaDataType}, T::DataType)
     end
 end
 
-function Base.convert(::Type{Type}, T::cudaDataType)
+function Base.Type(T::cudaDataType)
     if T == R_16F
         return Float16
     elseif T == C_16F

@@ -72,25 +72,37 @@ function handle_dtor(ctx, handle)
 end
 const idle_handles = HandleCache{CuContext,cusparseHandle_t}(handle_ctor, handle_dtor)
 
+# mutable wrapper so the raw handle is released via an object-bound finalizer:
+# when TLS state is cleared (e.g. on reclaim) and GC runs, the wrapper is
+# collected and its finalizer returns the handle to the idle cache instead
+# of the handle being pinned for the entire lifetime of the owning task.
+mutable struct Handle
+    const handle::cusparseHandle_t
+    const ctx::CuContext
+end
+Base.unsafe_convert(::Type{cusparseHandle_t}, h::Handle) = h.handle
+
+function handle_finalizer(h::Handle)
+    push!(idle_handles, h.ctx, h.handle)
+end
+
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
+const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUSPARSE)
+
 function handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cusparseHandle_t, stream::CuStream}
-    states = get!(task_local_storage(), :CUSPARSE) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(state_cache)
 
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle)
-        end
+        wrapped = Handle(new_handle, cuda.context)
+        finalizer(handle_finalizer, wrapped)
 
         cusparseSetStream(new_handle, cuda.stream)
 
-        (; handle=new_handle, cuda.stream)
+        (; handle=wrapped, cuda.stream)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -127,6 +139,9 @@ function __init__()
     else
         libcusparse = CUDA_Runtime_jll.libcusparse
     end
+
+    CUDACore.register_reclaimable!(idle_handles)
+    CUDACore.register_reclaimable!(state_cache)
 
     _initialized[] = true
 end

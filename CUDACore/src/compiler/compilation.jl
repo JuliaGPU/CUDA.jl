@@ -1,44 +1,41 @@
 ## gpucompiler interface implementation
 
-Base.@kwdef struct CUDACompilerParams <: AbstractCompilerParams
-    cap::VersionNumber
+abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
+
+Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
+    sm::SMVersion
     ptx::VersionNumber
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
-    h = hash(params.cap, h)
+    h = hash(params.sm, h)
     h = hash(params.ptx, h)
 
     return h
 end
 
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
-const CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
+const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 
-GPUCompiler.runtime_module(@nospecialize(job::CUDACompilerJob)) = CUDACore
+GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
 
 # filter out functions from libdevice and cudadevrt
-GPUCompiler.isintrinsic(@nospecialize(job::CUDACompilerJob), fn::String) =
+GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
     invoke(GPUCompiler.isintrinsic,
            Tuple{CompilerJob{PTXCompilerTarget}, typeof(fn)},
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
 # link libdevice
-function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module,
-                                     undefined_fns::Vector{String})
-    # only link if there's undefined __nv_ functions
-    if !any(fn->startswith(fn, "__nv_"), undefined_fns)
-        return
-    end
-
-    lib = parse(LLVM.Module, read(libdevice))
+function GPUCompiler.link_libraries!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module)
+    lib = parse(LLVM.Module, MemoryBufferFile(CUDA_Compiler.libdevice); lazy=true)
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 
-    GPUCompiler.link_library!(mod, lib) # note: destroys lib
+    # the linker will only materialize libdevice symbols referenced by `mod`
+    link!(mod, lib; only_needed=true)  # destroys lib
 
     @dispose pm=ModulePassManager() begin
         push!(metadata(mod)["nvvm-reflect-ftz"],
@@ -49,11 +46,11 @@ function GPUCompiler.link_libraries!(@nospecialize(job::CUDACompilerJob), mod::L
     return
 end
 
-GPUCompiler.method_table(@nospecialize(job::CUDACompilerJob)) = method_table
+GPUCompiler.method_table(@nospecialize(job::AnyCUDAJob)) = method_table
 
-GPUCompiler.kernel_state_type(job::CUDACompilerJob) = KernelState
+GPUCompiler.kernel_state_type(job::AnyCUDAJob) = KernelState
 
-function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
+function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
                                     mod::LLVM.Module, entry::LLVM.Function)
     entry = invoke(GPUCompiler.finish_module!,
                    Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, LLVM.Function},
@@ -122,7 +119,15 @@ function GPUCompiler.finish_module!(@nospecialize(job::CUDACompilerJob),
     return entry
 end
 
-function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module, format)
+# stamp `.version` with the ISA we want `ptxas` to validate against
+# and `.target` with the arch that `--gpu-name` will use
+function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
+    return replace(asm,
+        r"(\.version .+)"     => ".version $(ptx.major).$(ptx.minor)",
+        r"\.target sm_\d+\w*" => ".target $(cpu_name(sm))")
+end
+
+function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, format)
     @assert format == LLVM.API.LLVMAssemblyFile
     asm = invoke(GPUCompiler.mcgen,
                  Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
@@ -142,15 +147,20 @@ function GPUCompiler.mcgen(@nospecialize(job::CUDACompilerJob), mod::LLVM.Module
         asm = replace(asm, r"(\.target .+), debug" => s"\1")
     end
 
-    # if LLVM couldn't target the requested PTX ISA, bump it in the assembly.
-    if job.config.target.ptx != job.config.params.ptx
-        ptx = job.config.params.ptx
-        asm = replace(asm, r"(\.version .+)" => ".version $(ptx.major).$(ptx.minor)")
+    # The rewrite stamps `.target`/`.version` with the *requested* (cuda-side) values.
+    # When the GPUCompiler-side target matches, LLVM already emits the right header
+    # (including the `a`/`f` suffix, via the CPU name); we only rewrite when they differ,
+    # e.g. when we had to clamp the target down for LLVM compatibility.
+    sm_param = job.config.params.sm
+    ptx_param = job.config.params.ptx
+    needs_rewrite = job.config.target.ptx != ptx_param ||
+                    job.config.target.cap != base_version(sm_param) ||
+                    job.config.target.feature_set !== sm_param.feature_set
+    if needs_rewrite
+        asm = rewrite_ptx_header(asm, ptx_param, sm_param)
     end
 
-    # no need to bump the `.target` directive; we can do that by passing `-arch` to `ptxas`
-
-    asm
+    return asm
 end
 
 
@@ -179,68 +189,145 @@ function compiler_config(dev; kwargs...)
     return config
 end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         cap=nothing, ptx=nothing, kwargs...)
-    # determine the toolchain
-    llvm_support = llvm_compat()
-    cuda_support = cuda_compat()
-
-    # determine the PTX ISA to use. we want at least 6.2, but will use newer if possible.
-    requested_ptx = something(ptx, v"6.2")
-    llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
-    cuda_ptxs = filter(>=(requested_ptx), cuda_support.ptx)
-    if ptx !== nothing
-        # the user requested a specific PTX ISA
-        ## use the highest ISA supported by LLVM
-        isempty(llvm_ptxs) &&
-            error("Requested PTX ISA $ptx is not supported by LLVM $(LLVM.version())")
-        llvm_ptx = maximum(llvm_ptxs)
-        ## use the ISA as-is to invoke CUDA
-        cuda_ptx = ptx
-    else
-        # try to do the best thing (i.e., use the newest PTX ISA)
-        # XXX: is it safe to just use the latest PTX ISA? isn't it possible for, e.g.,
-        #      instructions to get deprecated?
-        isempty(llvm_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(LLVM.version())")
-        llvm_ptx = maximum(llvm_ptxs)
-        isempty(cuda_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by CUDA $(runtime_version())")
-        cuda_ptx = maximum(cuda_ptxs)
-    end
-
-    # determine the compute capabilities to use. this should match the capability of the
-    # current device, but if LLVM doesn't support it, we can target an older capability
-    # and pass a different `-arch` to `ptxas`.
-    ptx_support = ptx_compat(cuda_ptx)
-    requested_cap = @something(cap, min(capability(dev), maximum(ptx_support.cap)))
-    llvm_caps = filter(<=(requested_cap), llvm_support.cap)
+                                         arch=nothing, cap=nothing, ptx=nothing, kwargs...)
+    # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
     if cap !== nothing
-        ## use the highest capability supported by LLVM
-        isempty(llvm_caps) &&
-            error("Requested compute capability $cap is not supported by LLVM $(LLVM.version())")
-        llvm_cap = maximum(llvm_caps)
-        ## use the capability as-is to invoke CUDA
-        cuda_cap = cap
+        arch === nothing ||
+            throw(ArgumentError("pass either `arch=` or the deprecated `cap=`, not both"))
+        Base.depwarn("the `cap=` kwarg is deprecated; use `arch=` (matching nvcc/ptxas `-arch`) instead.",
+                     :cufunction)
+        arch = cap
+    end
+    # `SMVersion` is the universal normalizer: identity for an SMVersion, baseline-promotes
+    # a VersionNumber, parses a string. Anything else falls out as a MethodError naturally.
+    arch === nothing || (arch = SMVersion(arch))
+
+    # inspect the toolchain
+    llvm_support = llvm_compat()
+    ptxas_support = ptxas_compat()
+
+    # determine the PTX ISA to use.
+    if ptx !== nothing
+        # explicit request: take it exactly, validating against the toolchain
+        ptx in llvm_support.ptx ||
+            error("Requested PTX ISA $ptx is not supported by LLVM $(nvptx_llvm_version)")
+        ptx in ptxas_support.ptx ||
+            error("Requested PTX ISA $ptx is not supported by ptxas $(compiler_version())")
+        llvm_ptx = ptxas_ptx = ptx
     else
-        ## use the highest capability supported by LLVM
-        isempty(llvm_caps) &&
-            error("Compute capability $(requested_cap) is not supported by LLVM $(LLVM.version())")
-        llvm_cap = maximum(llvm_caps)
-        ## use the highest capability supported by CUDA
-        cuda_caps = filter(<=(capability(dev)), cuda_support.cap)
-        isempty(cuda_caps) &&
-            error("Compute capability $(requested_cap) is not supported by CUDA $(runtime_version())")
-        cuda_cap = maximum(cuda_caps)
+        # default: pick the newest PTX ISA supported by the toolchain (>=v6.2)
+        requested_ptx = v"6.2"
+        llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
+        ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
+        isempty(llvm_ptxs) &&
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(nvptx_llvm_version)")
+        isempty(ptxas_ptxs) &&
+            error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
+        ptxas_ptx = maximum(ptxas_ptxs)
+        llvm_ptx = min(maximum(llvm_ptxs), ptxas_ptx)
     end
 
-    # NVIDIA bug #3600554: ptxas segfaults with our debug info, fixed in 11.7
-    debuginfo = runtime_version() >= v"11.7"
+    # when selecting compute capabilities, we prefer the most recent one, as
+    # well as prefer to use architecture-accelerated features when available.
+    fs_rank(fs::Symbol) = fs === :arch ? 2 : fs === :family ? 1 : 0
+    sm_key(sm::SMVersion) = (base_version(sm), fs_rank(sm.feature_set))
+
+    # determine the compute capability to use.
+    ## ptxas
+    ptx_sms = ptx_sm_support(ptxas_ptx)
+    if arch !== nothing
+        # explicit request: take it as-is, validating against the PTX ISA
+        arch in ptx_sms ||
+            error("$(cpu_name(arch)) is not supported by PTX ISA $(ptxas_ptx)")
+        ptxas_sm = arch
+    else
+        # pick the most specific capability the selected PTX ISA supports whose cubin
+        # would actually load on the current device. For baseline that's the onion model;
+        # `:arch` requires an exact CC match, `:family` a same-family match.
+        ptxas_candidates = filter(sm -> runs_on(sm, capability(dev)), ptx_sms)
+        isempty(ptxas_candidates) &&
+            error("Compute capability $(capability(dev)) is not supported by ptxas " *
+                  "$(compiler_version()) at PTX ISA $(ptxas_ptx)")
+        ptxas_sm = argmax(sm_key, ptxas_candidates)
+    end
+    ## LLVM
+    if ptxas_sm in llvm_support.sm
+        llvm_sm = ptxas_sm
+    else
+        # Exact `ptxas_sm` unavailable in LLVM. Fall back to baseline LLVM at a
+        # lower base, since arch/family features don't carry across versions.
+        baseline_candidates = filter(llvm_support.sm) do sm
+            sm.feature_set === :baseline && base_version(sm) <= base_version(ptxas_sm)
+        end
+        isempty(baseline_candidates) &&
+            error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")
+        llvm_sm = argmax(sm_key, baseline_candidates)
+    end
 
     # create GPUCompiler objects
-    target = PTXCompilerTarget(; cap=llvm_cap, ptx=llvm_ptx, debuginfo, kwargs...)
-    params = CUDACompilerParams(; cap=cuda_cap, ptx=cuda_ptx)
+    target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,
+                                 feature_set=llvm_sm.feature_set,
+                                 debuginfo=true, kwargs...)
+    params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
+
+# does the host-side layout of an argument type match the device-side one?
+#
+# the back-end unconditionally aligns 128-bit integers to 16 bytes, whereas Julia only
+# started doing so in 1.12, so aggregates with (U)Int128 fields may lay out differently.
+# returns the device-side (size, alignment) of `T`, `:opaque` for types whose layout is
+# defined by Julia on both sides (e.g. unions, or non-isbits types passed by reference),
+# or `:mismatch`.
+function device_layout(@nospecialize(T))
+    if T === Int128 || T === UInt128
+        return (16, 16)
+    elseif !(T isa DataType) || !isbitstype(T)
+        return :opaque
+    elseif fieldcount(T) == 0
+        return (sizeof(T), Base.datatype_alignment(T))
+    end
+    offset = 0
+    align = 1
+    for i in 1:fieldcount(T)
+        field = device_layout(fieldtype(T, i))
+        field === :mismatch && return :mismatch
+        if field === :opaque || offset < 0
+            # we cannot track offsets anymore, but keep verifying nested layouts
+            offset = -1
+            continue
+        end
+        field_size, field_align = field
+        offset = cld(offset, field_align) * field_align
+        offset == fieldoffset(T, i) || return :mismatch
+        offset += field_size
+        align = max(align, field_align)
+    end
+    offset < 0 && return :opaque
+    size = cld(offset, align) * align
+    size == sizeof(T) || return :mismatch
+    return (size, align)
+end
+# walk `T` and every type reachable from it through type parameters and fields, returning
+# `true` as soon as `bad(S)` holds for some reached type `S`. we must look through type
+# parameters, not just fields: an aggregate with a mismatching layout is typically reached
+# through a pointer (e.g. the element type of a `CuDeviceArray`, carried as a type parameter
+# and never as a field), so inspecting only the argument's own fields would miss it and the
+# kernel would silently read or write garbage.
+function layout_reaches(bad, @nospecialize(T), seen=Base.IdSet{Any}())
+    (T isa Type && !(T in seen)) || return false
+    push!(seen, T)
+    bad(T) && return true
+    T isa DataType || return false
+    any(p -> layout_reaches(bad, p, seen), T.parameters) && return true
+    isconcretetype(T) || return false
+    any(i -> layout_reaches(bad, fieldtype(T, i), seen), 1:fieldcount(T))
+end
+
+device_compatible_layout(@nospecialize(T)) =
+    # since Julia 1.12, host and device layouts are identical
+    Base.datatype_alignment(Int128) == 16 ||
+    !layout_reaches(S -> device_layout(S) === :mismatch, T)
 
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
@@ -252,7 +339,9 @@ function compile(@nospecialize(job::CompilerJob))
 
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(meta.ir))) do f
-        isdeclaration(f) && !LLVM.isintrinsic(f)
+        isdeclaration(f) && !LLVM.isintrinsic(f) &&
+        # intrinsics unknown to the in-process LLVM are still lowered by the back-end
+        !startswith(LLVM.name(f), "llvm.")
     end
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                      "__nvvm_reflect" #= TODO: should have been optimized away =#]
@@ -273,22 +362,28 @@ function compile(@nospecialize(job::CompilerJob))
         push!(ptxas_opts, "--compile-only")
     end
 
-    ptx = job.config.params.ptx
-    cap = job.config.params.cap
-    arch = "sm_$(cap.major)$(cap.minor)"
+    sm_param = job.config.params.sm
+    ptx_param = job.config.params.ptx
+    cap = base_version(sm_param)
+    arch = cpu_name(sm_param)
 
     # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
         !isghosttype(dt) && !Core.Compiler.isconstType(dt)
     end
+    for dt in argtypes
+        if !device_compatible_layout(dt)
+            error("Kernel argument of type $dt references 128-bit integer fields. This is only supported on Julia 1.12 or later.")
+        end
+    end
     param_usage = sum(aligned_sizeof, argtypes)
     param_limit = 4096
-    if cap >= v"7.0" && ptx >= v"8.1"
+    if cap >= v"7.0" && ptx_param >= v"8.1"
         param_limit = 32764
     end
     if param_usage > param_limit
         msg = """Kernel invocation uses too much parameter memory.
-                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by sm_$(cap.major)$(cap.minor) / PTX v$(ptx.major).$(ptx.minor)."""
+                 $(Base.format_bytes(param_usage)) exceeds the $(Base.format_bytes(param_limit)) limit imposed by $(arch) / PTX v$(ptx_param.major).$(ptx_param.minor)."""
 
         try
             details = "\n\nRelevant parameters:"
@@ -309,7 +404,7 @@ function compile(@nospecialize(job::CompilerJob))
             end
             details *= "\n"
 
-            if cap >= v"7.0" && ptx < v"8.1" && param_usage < 32764
+            if cap >= v"7.0" && ptx_param < v"8.1" && param_usage < 32764
                 details *= "\nNote: use a newer CUDA to support more parameters on your device.\n"
             end
 
@@ -339,7 +434,7 @@ function compile(@nospecialize(job::CompilerJob))
         "--output-file", ptxas_output,
         ptx_input
     ])
-    proc, log = run_and_collect(`$(ptxas()) $ptxas_opts`)
+    proc, log = run_and_collect(`$(CUDA_Compiler.ptxas()) $ptxas_opts`)
     log = strip(log)
     if !success(proc)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
@@ -370,12 +465,12 @@ function compile(@nospecialize(job::CompilerJob))
         append!(nvlink_opts, [
             "--verbose", "--extra-warnings",
             "--arch", arch,
-            "--library-path", dirname(libcudadevrt),
+            "--library-path", dirname(CUDA_Compiler.libcudadevrt),
             "--library", "cudadevrt",
             "--output-file", nvlink_output,
             ptxas_output
         ])
-        proc, log = run_and_collect(`$(nvlink()) $nvlink_opts`)
+        proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()) $nvlink_opts`)
         log = strip(log)
         if !success(proc)
             reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :

@@ -75,19 +75,29 @@ end
     end
 
     X = rand(T, dims)
+    # This should only throw an error for rfft type transforms:
     @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,4),(3,4),(1,3),(2,3)]
+    for region in [(1,2),(1,3),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(2,4)]
-        X = rand(T, dims)
-        @test_throws ArgumentError batched(X,region)
+    for region in [(2,4),(1,4),(3,4)]
+        if T <: Float16
+            # cuFFT half-precision transforms require all transform dim sizes
+            # to be powers of 2; N4=9 violates that.
+            X = rand(T, dims)
+            @test_throws ArgumentError batched(X,region)
+        else
+            batched(X,region)
+        end
     end
+
+    X = rand(T, dims)
+    @test_throws ArgumentError batched(X,(3,1))
 end
 
 @testset "3D" begin

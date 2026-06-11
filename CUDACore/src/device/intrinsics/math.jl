@@ -1,9 +1,16 @@
 # math functionality
 
-@public fma, rsqrt, saturate, byte_perm, assume
+# we only use libdevice where needed. if possible, we go through LLVM instead,
+# ideally relying on Julia's existing definitions.
+
+@public fma, rsqrt, saturate, byte_perm, dp4a, assume
+@public add_rn, add_rz, add_rm, add_rp
+@public sub_rn, sub_rz, sub_rm, sub_rp
+@public mul_rn, mul_rz, mul_rm, mul_rp
+@public div_rn, div_rz, div_rm, div_rp
+@public fma_rn, fma_rz, fma_rm, fma_rp
 
 using Base: FastMath, @assume_effects
-
 
 ## helpers
 
@@ -84,10 +91,16 @@ end
 
 @device_override Base.tanh(x::Float64) = ccall("extern __nv_tanh", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.tanh(x::Float32) = ccall("extern __nv_tanhf", llvmcall, Cfloat, (Cfloat,), x)
-
-# TODO: enable once PTX > 7.0 is supported
-# @device_override Base.tanh(x::Float16) = @asmcall("tanh.approx.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
-
+# Base.tanh(::Float16) is inherited from Julia (computes in Float32, which routes
+# through __nv_tanhf). Hardware `tanh.approx.f16` is approximate, so it lives in
+# FastMath — matching cuda_fp16.hpp where __htanh_approx is separate from __htanh.
+@device_override function FastMath.tanh_fast(x::Float16)
+    if compute_capability() >= sv"7.5"
+        @asmcall("tanh.approx.f16 \$0, \$1;", "=h,h", Float16, Tuple{Float16}, x)
+    else
+        Float16(FastMath.tanh_fast(Float32(x)))
+    end
+end
 
 ## inverse hyperbolic
 
@@ -103,12 +116,43 @@ end
 
 ## logarithmic
 
+# Float16 strategy for log/exp variants: compute in Float32 using the approximate
+# hardware path, then patch the handful of inputs (~2–5) where rounding the
+# approximate result back to Float16 disagrees with the IEEE-correct value. The
+# fixup table is the one from cuda_fp16.hpp (__hlog/__hexp/etc.); each entry pairs
+# a Float16 input bit pattern with the ±1 ULP correction needed at that point.
+# After the fixups, the Float16 output matches the IEEE-correct value bit-for-bit,
+# so Julia semantics are preserved while still using the fast lg2.approx/ex2.approx
+# hardware instead of libdevice's full-precision __nv_log*/__nv_exp*.
+
 @device_override Base.log(x::Float64) = ccall("extern __nv_log", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log(x::Float32) = ccall("extern __nv_logf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.log(h::Float16)
+    f = @fastmath log(Float32(h))
+    r = Float16(f)
+
+    r = fma(Float16(h == reinterpret(Float16, 0x160D)), reinterpret(Float16, 0x9C00), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x3BFE)), reinterpret(Float16, 0x8010), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x3C0B)), reinterpret(Float16, 0x8080), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x6051)), reinterpret(Float16, 0x1C00), r)
+
+    return r
+end
 @device_override FastMath.log_fast(x::Float32) = ccall("extern __nv_fast_logf", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.log10(x::Float64) = ccall("extern __nv_log10", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log10(x::Float32) = ccall("extern __nv_log10f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.log10(h::Float16)
+    f = @fastmath log10(Float32(h))
+    r = Float16(f)
+
+    r = fma(Float16(h == reinterpret(Float16, 0x338F)), reinterpret(Float16, 0x1000), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x33F8)), reinterpret(Float16, 0x9000), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x57E1)), reinterpret(Float16, 0x9800), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x719D)), reinterpret(Float16, 0x9C00), r)
+
+    return r
+end
 @device_override FastMath.log10_fast(x::Float32) = ccall("extern __nv_fast_log10f", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.log1p(x::Float64) = ccall("extern __nv_log1p", llvmcall, Cdouble, (Cdouble,), x)
@@ -116,6 +160,15 @@ end
 
 @device_override Base.log2(x::Float64) = ccall("extern __nv_log2", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log2(x::Float32) = ccall("extern __nv_log2f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.log2(h::Float16)
+    r = Float16(@fastmath log2(Float32(h)))
+
+    # NB: log2 checks the *output* against the special-case pattern, not the input
+    r = fma(Float16(r == reinterpret(Float16, 0xA2E2)), reinterpret(Float16, 0x8080), r)
+    r = fma(Float16(r == reinterpret(Float16, 0xBF46)), reinterpret(Float16, 0x9400), r)
+
+    return r
+end
 @device_override FastMath.log2_fast(x::Float32) = ccall("extern __nv_fast_log2f", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_function logb(x::Float64) = ccall("extern __nv_logb", llvmcall, Cdouble, (Cdouble,), x)
@@ -129,16 +182,54 @@ end
 
 @device_override Base.exp(x::Float64) = ccall("extern __nv_exp", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp(x::Float32) = ccall("extern __nv_expf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.exp(h::Float16)
+    # exp(x) = exp2(x * log2(e)); the negative-zero addend keeps the fma from
+    # collapsing into a plain multiply (matches cuda_fp16.hpp's hexp).
+    f = fma(Float32(h), log2(Float32(ℯ)), -0f0)
+    r = Float16(@fastmath exp2(f))
+
+    r = fma(Float16(h == reinterpret(Float16, 0x1F79)), reinterpret(Float16, 0x9400), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x25CF)), reinterpret(Float16, 0x9400), r)
+    r = fma(Float16(h == reinterpret(Float16, 0xC13B)), reinterpret(Float16, 0x0400), r)
+    r = fma(Float16(h == reinterpret(Float16, 0xC1EF)), reinterpret(Float16, 0x0200), r)
+
+    return r
+end
 @device_override FastMath.exp_fast(x::Float32) = ccall("extern __nv_fast_expf", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.exp2(x::Float64) = ccall("extern __nv_exp2", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp2(x::Float32) = ccall("extern __nv_exp2f", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.exp2_fast(x::Union{Float32, Float64}) = exp2(x)
-# TODO: enable once PTX > 7.0 is supported
-# @device_override Base.exp2(x::Float16) = @asmcall("ex2.approx.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
+@device_override function Base.exp2(h::Float16)
+    f = @fastmath exp2(Float32(h))
+    # one-ULP nudge: ex2.approx.ftz.f32 underestimates by ~½ ULP on average, so
+    # bump up by 2^-24 of the result before rounding back to Float16
+    return Float16(muladd(f, 2f0^-24, f))
+end
+@device_override FastMath.exp2_fast(x::Float64) = exp2(x)
+@device_override FastMath.exp2_fast(x::Float32) =
+    ccall("llvm.nvvm.ex2.approx.f", llvmcall, Float32, (Float32,), x)
+@device_override function FastMath.exp2_fast(x::Float16)
+    if compute_capability() >= sv"7.5"
+        ccall("llvm.nvvm.ex2.approx.f16", llvmcall, Float16, (Float16,), x)
+    else
+        Float16(FastMath.exp2_fast(Float32(x)))
+    end
+end
 
 @device_override Base.exp10(x::Float64) = ccall("extern __nv_exp10", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.exp10(x::Float32) = ccall("extern __nv_exp10f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override function Base.exp10(h::Float16)
+    f = fma(Float32(h), log2(10f0), -0f0)
+    r = Float16(@fastmath exp2(f))
+
+    r = fma(Float16(h == reinterpret(Float16, 0x34DE)), reinterpret(Float16, 0x9800), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x9766)), reinterpret(Float16, 0x9000), r)
+    r = fma(Float16(h == reinterpret(Float16, 0x9972)), reinterpret(Float16, 0x1000), r)
+    r = fma(Float16(h == reinterpret(Float16, 0xA5C4)), reinterpret(Float16, 0x1000), r)
+    r = fma(Float16(h == reinterpret(Float16, 0xBF0A)), reinterpret(Float16, 0x8100), r)
+
+    return r
+end
 @device_override FastMath.exp10_fast(x::Float32) = ccall("extern __nv_fast_exp10f", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.expm1(x::Float64) = ccall("extern __nv_expm1", llvmcall, Cdouble, (Cdouble,), x)
@@ -195,17 +286,62 @@ end
     ccall("extern __nv_byte_perm", llvmcall, Int32, (UInt32, UInt32, UInt32), x, y, z)
 end
 
+"""
+    dp4a(a, b, c)
+
+Packed 4-element int8 (or uint8) dot product with 32-bit accumulation, mapped to a single
+PTX `dp4a` instruction on sm_61+.
+
+The semantics depend on the signedness of `a` and `b`:
+
+- `dp4a(a::Int32,  b::Int32,  c::Int32)  -> Int32`  — signed × signed
+- `dp4a(a::Int32,  b::UInt32, c::Int32)  -> Int32`  — signed × unsigned
+- `dp4a(a::UInt32, b::Int32,  c::Int32)  -> Int32`  — unsigned × signed
+- `dp4a(a::UInt32, b::UInt32, c::UInt32) -> UInt32` — unsigned × unsigned
+
+Each 32-bit argument `a` and `b` is interpreted as four packed 8-bit integers. The result
+is `c + a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3]` where the individual byte
+extractions respect the signed/unsigned interpretation of each operand.
+
+!!! note
+    Requires compute capability sm_61 or higher.
+"""
+function dp4a end
+
+@static if LLVM.version() >= v"21"
+    # LLVM 21 added @llvm.nvvm.idp4a.[us].[us]; prefer the intrinsic over inline PTX so
+    # the instruction participates in optimization and instruction selection.
+    @device_function dp4a(a::Int32, b::Int32, c::Int32) =
+        ccall("llvm.nvvm.idp4a.s.s", llvmcall, Int32, (Int32, Int32, Int32), a, b, c)
+
+    @device_function dp4a(a::Int32, b::UInt32, c::Int32) =
+        ccall("llvm.nvvm.idp4a.s.u", llvmcall, Int32, (Int32, UInt32, Int32), a, b, c)
+
+    @device_function dp4a(a::UInt32, b::Int32, c::Int32) =
+        ccall("llvm.nvvm.idp4a.u.s", llvmcall, Int32, (UInt32, Int32, Int32), a, b, c)
+
+    @device_function dp4a(a::UInt32, b::UInt32, c::UInt32) =
+        ccall("llvm.nvvm.idp4a.u.u", llvmcall, UInt32, (UInt32, UInt32, UInt32), a, b, c)
+else
+    @device_function dp4a(a::Int32, b::Int32, c::Int32) =
+        @asmcall("dp4a.s32.s32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 Int32, Tuple{Int32, Int32, Int32}, a, b, c)
+
+    @device_function dp4a(a::Int32, b::UInt32, c::Int32) =
+        @asmcall("dp4a.s32.u32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 Int32, Tuple{Int32, UInt32, Int32}, a, b, c)
+
+    @device_function dp4a(a::UInt32, b::Int32, c::Int32) =
+        @asmcall("dp4a.u32.s32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 Int32, Tuple{UInt32, Int32, Int32}, a, b, c)
+
+    @device_function dp4a(a::UInt32, b::UInt32, c::UInt32) =
+        @asmcall("dp4a.u32.u32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
+                 UInt32, Tuple{UInt32, UInt32, UInt32}, a, b, c)
+end
+
 
 ## floating-point handling
-
-@device_override Base.isfinite(x::Float32) = (ccall("extern __nv_finitef", llvmcall, Int32, (Cfloat,), x)) != 0
-@device_override Base.isfinite(x::Float64) = (ccall("extern __nv_isfinited", llvmcall, Int32, (Cdouble,), x)) != 0
-
-@device_override Base.isinf(x::Float64) = (ccall("extern __nv_isinfd", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.isinf(x::Float32) = (ccall("extern __nv_isinff", llvmcall, Int32, (Cfloat,), x)) != 0
-
-@device_override Base.isnan(x::Float64) = (ccall("extern __nv_isnand", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.isnan(x::Float32) = (ccall("extern __nv_isnanf", llvmcall, Int32, (Cfloat,), x)) != 0
 
 @device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
 @device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
@@ -214,29 +350,13 @@ end
 @device_function nextafter(x::Float32, y::Float32) = ccall("extern __nv_nextafterf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
 
-## sign handling
-
-@device_override Base.signbit(x::Float64) = (ccall("extern __nv_signbitd", llvmcall, Int32, (Cdouble,), x)) != 0
-@device_override Base.signbit(x::Float32) = (ccall("extern __nv_signbitf", llvmcall, Int32, (Cfloat,), x)) != 0
-
-@device_override Base.copysign(x::Float64, y::Float64) = ccall("extern __nv_copysign", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-@device_override Base.copysign(x::Float32, y::Float32) = ccall("extern __nv_copysignf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-
-@device_override Base.abs(x::Int32) =   ccall("extern __nv_abs", llvmcall, Int32, (Int32,), x)
-@device_override Base.abs(f::Float64) = ccall("extern __nv_fabs", llvmcall, Cdouble, (Cdouble,), f)
-@device_override Base.abs(f::Float32) = ccall("extern __nv_fabsf", llvmcall, Cfloat, (Cfloat,), f)
-# TODO: enable once PTX > 7.0 is supported
-# @device_override Base.abs(x::Float16) = @asmcall("abs.f16 \$0, \$1", "=h,h", Float16, Tuple{Float16}, x)
-@device_override Base.abs(x::Int64) =   ccall("extern __nv_llabs", llvmcall, Int64, (Int64,), x)
-
 ## roots and powers
 
-@device_override Base.sqrt(x::Float64) = ccall("extern __nv_sqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sqrt(x::Float32) = ccall("extern __nv_sqrtf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.sqrt_fast(x::Union{Float32, Float64}) = sqrt(x)
-
-@device_function rsqrt(x::Float64) = ccall("extern __nv_rsqrt", llvmcall, Cdouble, (Cdouble,), x)
-@device_function rsqrt(x::Float32) = ccall("extern __nv_rsqrtf", llvmcall, Cfloat, (Cfloat,), x)
+# NVPTX has native `rsqrt.approx.{f32,f64}`; call the intrinsic directly. The
+# obvious alternative, `@fastmath 1/sqrt(x)`, also lowers to `rsqrt.approx`
+# (via `PTXRSqrtFastPass`), but is too aggressive wrt. fast-math behavior.
+@device_function rsqrt(x::Float64) = ccall("llvm.nvvm.rsqrt.approx.d", llvmcall, Cdouble, (Cdouble,), x)
+@device_function rsqrt(x::Float32) = ccall("llvm.nvvm.rsqrt.approx.f", llvmcall, Cfloat, (Cfloat,), x)
 @device_function rsqrt(x::Float16) = Float16(rsqrt(Float32(x)))
 
 @device_override Base.cbrt(x::Float64) = ccall("extern __nv_cbrt", llvmcall, Cdouble, (Cdouble,), x)
@@ -306,105 +426,43 @@ end
 #@device_override Base.rint(x::Float64) = ccall("extern __nv_rint", llvmcall, Cdouble, (Cdouble,), x)
 #@device_override Base.rint(x::Float32) = ccall("extern __nv_rintf", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.trunc(x::Float64) = ccall("extern __nv_trunc", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.trunc(x::Float32) = ccall("extern __nv_truncf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.ceil(x::Float64) = ccall("extern __nv_ceil", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.ceil(x::Float32) = ccall("extern __nv_ceilf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.floor(f::Float64) = ccall("extern __nv_floor", llvmcall, Cdouble, (Cdouble,), f)
-@device_override Base.floor(f::Float32) = ccall("extern __nv_floorf", llvmcall, Cfloat, (Cfloat,), f)
-
 #@device_override Base.min(x::Int32, y::Int32) = ccall("extern __nv_min", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.min(x::Int64, y::Int64) = ccall("extern __nv_llmin", llvmcall, Int64, (Int64, Int64), x, y)
 #@device_override Base.min(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umin", llvmcall, Int32, (Int32, Int32), x, y))
 #@device_override Base.min(x::UInt64, y::UInt64) = convert(UInt64, ccall("extern __nv_ullmin", llvmcall, Int64, (Int64, Int64), x, y))
-# JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
+# JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN and signed zeros don't match Julia's
 #@device_override Base.min(x::Float64, y::Float64) = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.min(x::Float32, y::Float32) = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override @inline function Base.min(x::Float32, y::Float32)
-    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
-        # LLVM 14+ can do the right thing, but only on sm_80+
-        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
-        ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y)
-    else
-        # we follow PTX semantics, returning canonical NaN if either input is NaN
-        anynan = isnan(x) | isnan(y)
-        minval = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        ifelse(anynan, NaN32, minval)
-    end
-end
-@device_override @inline function Base.min(x::Float64, y::Float64)
-    # PTX doesn't support min.NaN.f64, so we have to do it ourselves
-    anynan = isnan(x) | isnan(y)
-    minval = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    ifelse(anynan, NaN, minval)
-end
+# Julia's floating-point min/max match IEEE 754-2019 minimum/maximum, i.e.,
+# `llvm.minimum`/`llvm.maximum`, which the external back-end legalizes for every
+# subtarget: native min.NaN/max.NaN instructions on sm_80+, an expansion with
+# NaN/signed-zero fix-ups elsewhere. Don't be tempted to use `llvm.minnum`
+# (libdevice's `__nv_fmin`) with a NaN fix-up instead: its loose signed-zero
+# semantics leak into constant folding, e.g., folding `min(0.0, -0.0)` to
+# `0.0` where the host returns `-0.0`.
+# Julia 1.12+ lowers `Base.min` to `llvm.minimum` by itself; keep the overrides
+# for uniform codegen on older versions.
+@device_override Base.min(x::Float32, y::Float32) =
+    ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+@device_override Base.min(x::Float64, y::Float64) =
+    ccall("llvm.minimum.f64", llvmcall, Float64, (Float64, Float64), x, y)
 
 #@device_override Base.max(x::Int32, y::Int32) = ccall("extern __nv_max", llvmcall, Int32, (Int32, Int32), x, y)
 #@device_override Base.max(x::Int64, y::Int64) = ccall("extern __nv_llmax", llvmcall, Int64, (Int64, Int64), x, y)
 #@device_override Base.max(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umax", llvmcall, Int32, (Int32, Int32), x, y))
 #@device_override Base.max(x::UInt64, y::UInt64) = convert(UInt64, ccall("extern __nv_ullmax", llvmcall, Int64, (Int64, Int64), x, y))
-# JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN don't match Julia's
+# JuliaGPU/CUDA.jl#2111: fmax semantics wrt. NaN and signed zeros don't match Julia's
 #@device_override Base.max(x::Float64, y::Float64) = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 #@device_override Base.max(x::Float32, y::Float32) = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override @inline function Base.max(x::Float32, y::Float32)
-    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
-        # LLVM 14+ can do the right thing, but only on sm_80+
-        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
-        ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
-    else
-        # we follow PTX semantics, returning canonical NaN if either input is NaN
-        anynan = isnan(x) | isnan(y)
-        maxval = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        ifelse(anynan, NaN32, maxval)
-    end
-end
-@device_override @inline function Base.max(x::Float64, y::Float64)
-    # PTX doesn't support max.NaN.f64, so we have to do it ourselves
-    anynan = isnan(x) | isnan(y)
-    maxval = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    ifelse(anynan, NaN, maxval)
-end
+@device_override Base.max(x::Float32, y::Float32) =
+    ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
+@device_override Base.max(x::Float64, y::Float64) =
+    ccall("llvm.maximum.f64", llvmcall, Float64, (Float64, Float64), x, y)
 
-@device_override @inline function Base.minmax(x::Float32, y::Float32)
-    if @static LLVM.version() < v"14" ? false : (compute_capability() >= sv"8.0")
-        # LLVM 14+ can do the right thing, but only on sm_80+
-        # (JuliaGPU/CUDA.jl#2148, llvm/llvm-project#64606)
-        ccall("llvm.minimum.f32", llvmcall, Float32, (Float32, Float32), x, y),
-        ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
-    else
-        # we follow PTX semantics, returning canonical NaN if either input is NaN
-        anynan = isnan(x) | isnan(y)
-        minval = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        maxval = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-        ifelse(anynan, NaN32, minval), ifelse(anynan, NaN32, maxval)
-    end
-end
-@device_override @inline function Base.minmax(x::Float64, y::Float64)
-    # PTX doesn't support (min|max).NaN.f64, so we have to do it ourselves
-    anynan = isnan(x) | isnan(y)
-    minval = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    maxval = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-    ifelse(anynan, NaN, minval), ifelse(anynan, NaN, maxval)
-end
-
-@static if Base.thismajor(LLVM.version()) <= v"20"
-    # LLVM 20 and below generate non-existing instructions for Julia's default methods of
-    # fast min/max on fp64: https://github.com/JuliaGPU/CUDA.jl/issues/2886
-    for T in (Float16, Float32, Float64)
-        @eval begin
-            @device_override @inline Base.FastMath.max_fast(x::$T, y::$T) = ifelse(y > x, y, x)
-            @device_override @inline Base.FastMath.min_fast(x::$T, y::$T) = ifelse(y > x, x, y)
-            @device_override @inline Base.FastMath.minmax_fast(x::$T, y::$T) = ifelse(y > x, (x, y), (y, x))
-        end
-    end
-
-    # For Float16, this even happens with a non-fastmath @llvm.minimum/maximum.f16
-    @device_override @inline Base.max(x::Float16, y::Float16) = ifelse(y > x, y, x)
-    @device_override @inline Base.min(x::Float16, y::Float16) = ifelse(y > x, x, y)
-
-end
+# Base's AbstractFloat minmax simply calls min/max, but Julia 1.10/1.11 had
+# open-coded definitions for Float32/Float64; override for uniform codegen.
+@device_override Base.minmax(x::Float32, y::Float32) = min(x, y), max(x, y)
+@device_override Base.minmax(x::Float64, y::Float64) = min(x, y), max(x, y)
 
 @device_function saturate(x::Float32) = ccall("extern __nv_saturatef", llvmcall, Cfloat, (Cfloat,), x)
 
@@ -419,27 +477,11 @@ end
 @device_override Base.rem(x::Float32, y::Float32, ::RoundingMode{:Nearest}) = ccall("extern __nv_remainderf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override Base.rem(x::Float16, y::Float16, ::RoundingMode{:Nearest}) = Float16(rem(Float32(x), Float32(y), RoundNearest))
 
-@device_override FastMath.div_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_fdividef", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override FastMath.div_fast(x::Float64, y::Float64) = x * FastMath.inv_fast(y)
+# `Base.FastMath.inv_fast(::AbstractFloat)` is unimplemented upstream (only
+# `Complex` has a method) and the catch-all fallback drops `afn`
+@device_override FastMath.inv_fast(x::Union{Float16, Float32, Float64}) =
+    FastMath.div_fast(one(x), x)
 
-@device_override Base.inv(x::Float32) = ccall("extern __nv_frcp_rn", llvmcall, Cfloat, (Cfloat,), x)
-@device_override Base.inv(x::Float64) = ccall("extern __nv_drcp_rn", llvmcall, Cdouble, (Cdouble,), x)
-
-@device_override FastMath.inv_fast(x::Float32) = ccall("llvm.nvvm.rcp.approx.ftz.f", llvmcall, Float32, (Float32,), x)
-@device_override function FastMath.inv_fast(x::Float64)
-    # Get the approximate reciprocal
-    # https://docs.nvidia.com/cuda/parallel-thread-execution/#floating-point-instructions-rcp-approx-ftz-f64
-    # This instruction chops off last 32bits of mantissa and computes inverse
-    # while treating all subnormal numbers as 0.0
-    # If reciprocal would be subnormal, underflows to 0.0
-    # 32 least significant bits of the result are filled with 0s
-    inv_x = ccall("llvm.nvvm.rcp.approx.ftz.d", llvmcall, Float64, (Float64,), x)
-
-    # Approximate the missing 32bits of mantissa with a single cubic iteration
-    e = fma(inv_x, -x, 1.0)
-    e = fma(e, e, e)
-    inv_x = fma(e, inv_x, inv_x)
-end
 
 ## distributions
 
@@ -460,13 +502,54 @@ end
 @device_override Base.hypot(x::Float64, y::Float64) = ccall("extern __nv_hypot", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_override Base.hypot(x::Float32, y::Float32) = ccall("extern __nv_hypotf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
-@device_override Base.fma(x::Float64, y::Float64, z::Float64) = ccall("llvm.fma.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.fma(x::Float32, y::Float32, z::Float32) = ccall("llvm.fma.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.fma(x::Float16, y::Float16, z::Float16) = ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+# `Base.fma(::Float16,...)` branches on `jl_have_fma`
+@device_override Base.fma(x::Float16, y::Float16, z::Float16) =
+    ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
 
-@device_override Base.muladd(x::Float64, y::Float64, z::Float64) = ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
-@device_override Base.muladd(x::Float32, y::Float32, z::Float32) = ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.muladd(x::Float16, y::Float16, z::Float16) = ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+# `Base.muladd(x, y, z) = fma(x, y, z)` is the natural choice on GPU: NVPTX
+# always lowers `llvm.fmuladd.fXX` to `fma.rn`, and routing through
+# `llvm.fmuladd` (rather than Julia's default `fmul contract + fadd contract`)
+# keeps the fusion robust under vectorization (per JuliaGPU/CUDA.jl#3149).
+@device_override Base.muladd(x::Float64, y::Float64, z::Float64) =
+    ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+@device_override Base.muladd(x::Float32, y::Float32, z::Float32) =
+    ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+@device_override Base.muladd(x::Float16, y::Float16, z::Float16) =
+    ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+
+# Directed rounding for binary arithmetic and fma. NVPTX exposes
+# `{add,mul,div,fma}.{rn,rz,rm,rp}.{f32,f64}` directly; there is no `sub`
+# intrinsic, so subtraction reuses add(x, -y) (negation is bit-exact for IEEE
+# floats). Names match the CUDA C intrinsics (`__fadd_rn`, `__dadd_rn`, ...) so
+# users porting from CUDA C can find the corresponding Julia method by dropping
+# the `__f`/`__d` prefix. We don't extend `Base.fma` / `Base.:+` etc. with a
+# `RoundingMode` argument because Base has no precedent for per-call rounding
+# on hardware floats (BigFloat reads a thread-local mode instead).
+for rnd in ("rn", "rz", "rm", "rp")
+    for op in (:add, :mul, :div)
+        fname = Symbol(op, :_, rnd)
+        intrinsic_f = "llvm.nvvm.$(op).$(rnd).f"
+        intrinsic_d = "llvm.nvvm.$(op).$(rnd).d"
+        @eval @device_function $fname(x::Float32, y::Float32) =
+            ccall($intrinsic_f, llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+        @eval @device_function $fname(x::Float64, y::Float64) =
+            ccall($intrinsic_d, llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+    end
+
+    # NVPTX has no sub.<rnd> intrinsic; reuse add with negated y.
+    sub_fname = Symbol(:sub_, rnd)
+    add_fname = Symbol(:add_, rnd)
+    @eval @device_function $sub_fname(x::T, y::T) where {T<:Union{Float32, Float64}} =
+        $add_fname(x, -y)
+
+    fma_fname = Symbol(:fma_, rnd)
+    intrinsic_f = "llvm.nvvm.fma.$(rnd).f"
+    intrinsic_d = "llvm.nvvm.fma.$(rnd).d"
+    @eval @device_function $fma_fname(x::Float32, y::Float32, z::Float32) =
+        ccall($intrinsic_f, llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
+    @eval @device_function $fma_fname(x::Float64, y::Float64, z::Float64) =
+        ccall($intrinsic_d, llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
+end
 
 @device_function sad(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_sad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
 @device_function sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, ccall("extern __nv_usad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z))

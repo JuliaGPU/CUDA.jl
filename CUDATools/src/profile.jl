@@ -21,7 +21,8 @@ may not be relevant. The output will be written to `io`, which defaults to `stdo
 Slow operations will be highlighted in the output: Entries colored in yellow are among the
 slowest 25%, while entries colored in red are among the slowest 5% of all operations.
 
-!!! compat "Julia 1.9" This functionality is only available on Julia 1.9 and later.
+!!! compat "Julia 1.9" 
+    This functionality is only available on Julia 1.9 and later.
 
 ## External profilers (`external=true`, when an external profiler is detected)
 
@@ -380,11 +381,8 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2,
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
+        CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
     ]
-    if CUDACore.runtime_version() >= v"12.0"
-        # additional data on NVTX markers
-        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA)
-    end
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
     # wait for the device to become idle
@@ -451,7 +449,6 @@ function capture(cfg)
     # memory_kind fields are sometimes typed CUpti_ActivityMemoryKind, sometimes UInt
     as_memory_kind(x) = isa(x, CUPTI.CUpti_ActivityMemoryKind) ? x : CUPTI.CUpti_ActivityMemoryKind(x)
 
-    cuda_version = CUDACore.runtime_version()
     CUPTI.process(cfg) do ctx, stream_id, record
         # driver API calls
         if record.kind in [CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
@@ -937,8 +934,13 @@ function Base.show(io::IO, results::ProfileResults)
             println(io, "\nDevice-side activity: GPU was busy for $(format_time(device_time)) ($(format_percentage(device_ratio)) of the trace)")
         end
 
-        # add memory throughput information
-        device = merge(device, (; throughput=device.size ./ device.time))
+        # add memory throughput information. CUPTI's timestamp resolution
+        # can round very short events down to 0 ns, so guard against the
+        # resulting Inf throughput (which would later trip up format_bytes).
+        throughput = map(device.size, device.time) do s, t
+            (s === missing || !isfinite(t) || t == 0) ? missing : s / t
+        end
+        device = merge(device, (; throughput))
 
         if isempty(device.id)
             println(io, "\nNo device-side activity was recorded.")

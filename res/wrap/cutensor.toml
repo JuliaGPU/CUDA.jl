@@ -57,3 +57,10 @@ needs_context = false
 6 = "CuPtr{Cvoid}"
 7 = "CuPtr{Cvoid}"
 8 = "CuPtr{Cvoid}"
+
+[api.cutensorBlockSparseContract.argtypes]
+4 = "Ptr{CuPtr{Cvoid}}"
+5 = "Ptr{CuPtr{Cvoid}}"
+7 = "Ptr{CuPtr{Cvoid}}"
+8 = "Ptr{CuPtr{Cvoid}}"
+9 = "Ptr{CuPtr{Cvoid}}"

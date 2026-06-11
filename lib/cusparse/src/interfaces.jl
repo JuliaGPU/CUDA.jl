@@ -1,7 +1,7 @@
 # interfacing with other packages
 
 using LinearAlgebra
-using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, MulAddMul, AdjOrTrans
+using LinearAlgebra: BlasComplex, BlasFloat, BlasReal, MulAddMul, AdjOrTrans, HermOrSym
 using GPUArrays: _spadjoint, _sptranspose
 
 function GPUArrays._spadjoint(A::CuSparseMatrixCSR)
@@ -34,16 +34,40 @@ function mv_wrapper(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::Den
     mv!(transa, alpha, A, X, beta, Y, 'O')
 end
 
-function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
-                    A::CuSparseMatrix{T}, B::CuMatrix{T}, beta::Number, C::CuMatrix{T}) where {T}
-    n_A, m_A = (transa != 'N') ? reverse(size(A)) : size(A)
-    n_B, m_B = (transb != 'N') ? reverse(size(B)) : size(B)
-    n_C, m_C = size(C)
-    m_A == n_B || throw(DimensionMismatch())
-    n_A == n_C || throw(DimensionMismatch())
-    m_B == m_C || throw(DimensionMismatch())
-    isempty(B) && return CUDACore.zeros(eltype(B), size(A, 1), 0)
-    mm!(transa, transb, alpha, A, B, beta, C, 'O')
+# element types accepted by cuSPARSE's generic SpMV/SpMM API (`mv!`, `mm!`, `bmm!`).
+# half-precision types are not in `BlasFloat` because CPU BLAS doesn't support them;
+# cuSPARSE handles them by accumulating in Float32/ComplexF32 (see `mv!` in generic.jl).
+# Routines based on the classical BLAS bindings (`gemvi!`, `gemm!`, `geam`, ...) stay
+# restricted to plain `BlasFloat`.
+const SpMatMulFloat = Union{Float16, ComplexF16, BlasFloat}
+
+# convert the element type of a CuSparseMatrix/Vector (issue #3128: mixed-eltype matmul)
+sparse_with_eltype(A::CuSparseMatrixCSC, ::Type{T}) where {T} =
+    CuSparseMatrixCSC(A.colPtr, A.rowVal, convert(CuVector{T}, nonzeros(A)), size(A))
+sparse_with_eltype(A::CuSparseMatrixCSR, ::Type{T}) where {T} =
+    CuSparseMatrixCSR(A.rowPtr, A.colVal, convert(CuVector{T}, nonzeros(A)), size(A))
+sparse_with_eltype(A::CuSparseMatrixCOO, ::Type{T}) where {T} =
+    CuSparseMatrixCOO(A.rowInd, A.colInd, convert(CuVector{T}, nonzeros(A)), size(A), nnz(A))
+sparse_with_eltype(A::CuSparseVector, ::Type{T}) where {T} =
+    CuSparseVector(nonzeroinds(A), convert(CuVector{T}, nonzeros(A)), length(A))
+
+# Mixed-eltype `dense × sparse`: Julia's generic `*(::AbstractMatrix, ::AbstractMatrix)`
+# allocates its output as `similar(B, TS)` (on 1.10; via `matprod_dest` on 1.11+); when
+# B is sparse, that returns a `CuSparseMatrix`, which then forces a scalar fallback.
+# Allocate a dense result and dispatch to `mul!` instead (our relaxed `generic_matmatmul!`
+# handles the mixed-eltype case). The loop-generated single-T `*` methods below remain
+# more specific and continue to win when `eltype(A) == eltype(B)`.
+#
+# No override needed for `sparse × dense`: `similar(B_dense, TS)` already returns dense,
+# so Julia's default `*` allocates the right container and dispatches via `mul!`.
+const DenseCuMatOrAdj = Union{DenseCuMatrix, AdjOrTrans{<:Any, <:DenseCuMatrix},
+                              HermOrSym{<:Any, <:DenseCuMatrix}}
+const CuSparseMatOrAdj = Union{CuSparseMatrix, AdjOrTrans{<:Any, <:CuSparseMatrix},
+                               HermOrSym{<:Any, <:CuSparseMatrix}}
+function Base.:(*)(@nospecialize(A::DenseCuMatOrAdj), @nospecialize(B::CuSparseMatOrAdj))
+    T = promote_type(eltype(A), eltype(B))
+    C = CuMatrix{T}(undef, size(A, 1), size(B, 2))
+    return mul!(C, A, B, true, false)
 end
 
 LinearAlgebra.dot(x::CuSparseVector{T}, y::DenseCuVector{T}) where {T <: BlasReal} = vv!('N', x, y, 'O')
@@ -62,33 +86,38 @@ op_wrappers = ((identity, T -> 'N', identity),
                (T -> :(HermOrSym{T, <:$T}), T -> 'N', A -> :(parent($A))))
 
 # legacy methods with final MulAddMul argument
-LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{S}, B::DenseCuVector{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}, S <: Union{Float16, ComplexF16, BlasFloat}} =
+LinearAlgebra.generic_matvecmul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::DenseCuVector{Tb}, _add::MulAddMul) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat} =
     LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{S}, B::CuSparseVector{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}, S <: Union{Float16, ComplexF16, BlasFloat}} =
+LinearAlgebra.generic_matvecmul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::CuSparseVector{Tb}, _add::MulAddMul) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat} =
     LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::CuSparseMatrix{T}, B::DenseCuMatrix{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}} =
+LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::CuSparseMatrix{Ta}, B::DenseCuMatrix{Tb}, _add::MulAddMul) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat} =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
 
-function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{S}, B::DenseCuVector{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}, S <: Union{Float16, ComplexF16, BlasFloat}}
+# mv! tolerates A.eltype ≠ X.eltype, but requires X.eltype == Y.eltype, so only B may need promotion.
+function LinearAlgebra.generic_matvecmul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::DenseCuVector{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+    B′ = Tb === Tc ? B : convert(CuVector{Tc}, B)
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    mv_wrapper(tA, alpha, A, B, beta, C)
+    mv_wrapper(tA, alpha, A, B′, beta, C)
 end
 
-function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::CuSparseMatrix{S}, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}, S <: Union{Float16, ComplexF16, BlasFloat}}
+function LinearAlgebra.generic_matvecmul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::CuSparseVector{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    mv_wrapper(tA, alpha, A, CuVector{T}(B), beta, C)
+    mv_wrapper(tA, alpha, A, CuVector{Tc}(B), beta, C)
 end
 
-function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::CuSparseMatrix{T}, B::DenseCuMatrix{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+# mm! requires all three operands to share an eltype, so promote A and B to match C.
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::CuSparseMatrix{Ta}, B::DenseCuMatrix{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+    A′ = Ta === Tc ? A : sparse_with_eltype(A, Tc)
+    B′ = Tb === Tc ? B : convert(CuMatrix{Tc}, B)
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm_wrapper(tA, tB, alpha, A, B, beta, C)
+    mm!(tA, tB, alpha, A′, B′, beta, C, 'O')
 end
 
 for (wrapa, transa, unwrapa) in op_wrappers
     TypeA = wrapa(:(CuSparseMatrix{T}))
 
-    @eval function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+    @eval function LinearAlgebra.:(*)(A::$TypeA, x::CuSparseVector{T}) where {T <: SpMatMulFloat}
         m, n = size(A)
         length(x) == n || throw(DimensionMismatch())
         y = CuVector{T}(undef, m)
@@ -97,35 +126,45 @@ for (wrapa, transa, unwrapa) in op_wrappers
 end
 
 # legacy methods with final MulAddMul argument
-LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::DenseCuMatrix{T}, B::CuSparseVector{T}, _add::MulAddMul) where {T <: BlasFloat} =
+LinearAlgebra.generic_matvecmul!(C::CuVector{Tc}, tA::AbstractChar, A::DenseCuMatrix{Ta}, B::CuSparseVector{Tb}, _add::MulAddMul) where {Tc <: BlasFloat, Ta <: BlasFloat, Tb <: BlasFloat} =
     LinearAlgebra.generic_matvecmul!(C, tA, A, B, _add.alpha, _add.beta)
 
-LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSC{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}} =
+LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSC{Tb}, _add::MulAddMul) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat} =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSR{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}} =
+LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSR{Tb}, _add::MulAddMul) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat} =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCOO{T}, _add::MulAddMul) where {T <: Union{Float16, ComplexF16, BlasFloat}} =
+LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCOO{Tb}, _add::MulAddMul) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat} =
     LinearAlgebra.generic_matmatmul!(C, tA, tB, A, B, _add.alpha, _add.beta)
 
-function LinearAlgebra.generic_matvecmul!(C::CuVector{T}, tA::AbstractChar, A::DenseCuMatrix{T}, B::CuSparseVector{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
+# gemvi! requires matching eltypes, so promote A and B to match C.
+function LinearAlgebra.generic_matvecmul!(C::CuVector{Tc}, tA::AbstractChar, A::DenseCuMatrix{Ta}, B::CuSparseVector{Tb}, alpha::Number, beta::Number) where {Tc <: BlasFloat, Ta <: BlasFloat, Tb <: BlasFloat}
+    A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
+    B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
-    gemvi!(tA, alpha, A, B, beta, C, 'O')
+    gemvi!(tA, alpha, A′, B′, beta, C, 'O')
 end
 
-function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSC{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+# mm! requires matching eltypes, so promote A and B to match C.
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSC{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+    A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
+    B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm!(tA, tB, alpha, A, B, beta, C, 'O')
+    mm!(tA, tB, alpha, A′, B′, beta, C, 'O')
 end
-function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCSR{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSR{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+    A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
+    B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm!(tA, tB, alpha, A, B, beta, C, 'O')
+    mm!(tA, tB, alpha, A′, B′, beta, C, 'O')
 end
-function LinearAlgebra.generic_matmatmul!(C::CuMatrix{T}, tA, tB, A::DenseCuMatrix{T}, B::CuSparseMatrixCOO{T}, alpha::Number, beta::Number) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+function LinearAlgebra.generic_matmatmul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCOO{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+    A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
+    B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
     tA = tA in ('S', 's', 'H', 'h') ? 'N' : tA
     tB = tB in ('S', 's', 'H', 'h') ? 'N' : tB
-    mm!(tA, tB, alpha, A, B, beta, C, 'O')
+    mm!(tA, tB, alpha, A′, B′, beta, C, 'O')
 end
 
 for (wrapa, transa, unwrapa) in op_wrappers
@@ -142,7 +181,7 @@ for (wrapa, transa, unwrapa) in op_wrappers
         for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
             TypeB = wrapb(SparseMatrixType)
 
-            @eval function Base.:(*)(A::$TypeA, B::$TypeB) where {T <: Union{Float16, ComplexF16, BlasFloat}}
+            @eval function Base.:(*)(A::$TypeA, B::$TypeB) where {T <: SpMatMulFloat}
                 m, n = size(A)
                 k, p = size(B)
                 n == k || throw(DimensionMismatch())
@@ -217,6 +256,15 @@ for op in (:(+), :(-))
         Base.$op(A::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}},
                  B::Union{CuSparseMatrixCOO{T}, Transpose{T,<:CuSparseMatrixCOO}, Adjoint{T,<:CuSparseMatrixCOO}}) where {T <: BlasFloat} =
             CuSparseMatrixCOO($(op)(CuSparseMatrixCSR(A), CuSparseMatrixCSR(B)))
+    end
+
+    # Symmetric/Hermitian wrappers: materialize, then defer. (issue #3043)
+    for (wrap, _) in adjtrans_wrappers,
+        SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO)
+
+        W = wrap(:($SparseMatrixType{T}))
+        @eval Base.$op(A::HermOrSym{T,<:$SparseMatrixType}, B::$W) where {T <: BlasFloat} = $op(sparse(A), B)
+        @eval Base.$op(A::$W, B::HermOrSym{T,<:$SparseMatrixType}) where {T <: BlasFloat} = $op(A, sparse(B))
     end
 end
 

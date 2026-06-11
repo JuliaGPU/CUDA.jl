@@ -10,17 +10,17 @@ using AbstractFFTs
 using LinearAlgebra
 using Adapt: adapt
 
-# compare CPU vs GPU results
-function testf(f, xs...; kwargs...)
+# compare CPU vs GPU results. @nospecialize: see note in cublas/test/setup.jl.
+function testf(@nospecialize(f), @nospecialize(xs...); kwargs...)
     cpu_in = map(x -> x isa Base.RefValue ? x[] : deepcopy(x), xs)
     gpu_in = map(x -> x isa Base.RefValue ? x[] : adapt(CuArray, x), xs)
     cpu_out = f(cpu_in...)
     gpu_out = f(gpu_in...)
     _compare(cpu_out, gpu_out; kwargs...)
 end
-_compare(a::AbstractArray, b::AbstractArray; kwargs...) = ≈(collect(a), collect(b); kwargs...)
+_compare(@nospecialize(a::AbstractArray), @nospecialize(b::AbstractArray); kwargs...) = ≈(collect(a), collect(b); kwargs...)
 _compare(a::Number, b::Number; kwargs...) = ≈(a, b isa AbstractArray ? collect(b)[] : b; kwargs...)
-_compare(a, b; kwargs...) = a == b
+_compare(@nospecialize(a), @nospecialize(b); kwargs...) = a == b
 
 # FFTW does not support Float16, so we roll our own
 
@@ -109,7 +109,10 @@ end
 N1 = 8
 N2 = 32
 N3 = 64
-N4 = 8
+# N4 is deliberately odd so that R2C external-batch strides are not
+# multiples of sizeof(Complex{Float32}), exercising the alignment path.
+N4 = 9
+N5 = 2
 
 rtol(::Type{Float16}) = 1e-2
 rtol(::Type{Float32}) = 1e-5

@@ -16,7 +16,7 @@ n = 35
 k = 13
 
 @testset "level 3" begin
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset for elty in [Float16, Float32, Float64, ComplexF32, ComplexF64]
 
         @testset "mul! C = $f(A) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
@@ -42,12 +42,14 @@ k = 13
             @test Array(dC) ≈ C
         end
 
-        @testset "hermitian" begin
-            C, A, B = rand(elty, 5, 5), Hermitian(rand(elty, 5, 5)), rand(elty, 5, 5)
-            dC, dA, dB = CuArray(C), Hermitian(CuArray(A)), CuArray(B)
-            mul!(dC, dA, dB)
-            mul!(C, A, B)
-            @test Array(dC) ≈ C
+        if !(elty <: Float16)
+            @testset "hermitian" begin
+                C, A, B = rand(elty, 5, 5), Hermitian(rand(elty, 5, 5)), rand(elty, 5, 5)
+                dC, dA, dB = CuArray(C), Hermitian(CuArray(A)), CuArray(B)
+                mul!(dC, dA, dB)
+                mul!(C, A, B)
+                @test Array(dC) ≈ C
+            end
         end
 
         @testset "gemm!" begin
@@ -130,42 +132,44 @@ k = 13
             @test C1 ≈ h_C1
             @test C1 ≈ h_C2
         end
-        @testset "symm!" begin
-            alpha = rand(elty)
-            beta = rand(elty)
-            sA = rand(elty,m,m)
-            sA = sA + transpose(sA)
-            dsA = CuArray(sA)
-            B = rand(elty,m,n)
-            C = rand(elty,m,n)
-            Bbad = rand(elty,m+1,n+1)
-            d_B = CuArray(B)
-            d_C = CuArray(C)
-            d_Bbad = CuArray(Bbad)
-            cuBLAS.symm!('L','U',alpha,dsA,d_B,beta,d_C)
-            C = (alpha*sA)*B + beta*C
-            # compare
-            h_C = Array(d_C)
-            @test C ≈ h_C
-            @test_throws DimensionMismatch cuBLAS.symm!('L','U',alpha,dsA,d_Bbad,beta,d_C)
-        end
 
-        @testset "symm" begin
-            sA = rand(elty,m,m)
-            sA = sA + transpose(sA)
-            dsA = CuArray(sA)
-            B = rand(elty,m,n)
-            C = rand(elty,m,n)
-            Bbad = rand(elty,m+1,n+1)
-            d_B = CuArray(B)
-            d_C = CuArray(C)
-            d_Bbad = CuArray(Bbad)
-            d_C = cuBLAS.symm('L','U',dsA,d_B)
-            C = sA*B
-            # compare
-            h_C = Array(d_C)
-            @test C ≈ h_C
-            @test_throws DimensionMismatch cuBLAS.symm('L','U',dsA,d_Bbad)
+        if !(elty <: Float16)
+            @testset "symm!" begin
+                alpha = rand(elty)
+                beta = rand(elty)
+                sA = rand(elty,m,m)
+                sA = sA + transpose(sA)
+                dsA = CuArray(sA)
+                B = rand(elty,m,n)
+                C = rand(elty,m,n)
+                Bbad = rand(elty,m+1,n+1)
+                d_B = CuArray(B)
+                d_C = CuArray(C)
+                d_Bbad = CuArray(Bbad)
+                cuBLAS.symm!('L','U',alpha,dsA,d_B,beta,d_C)
+                C = (alpha*sA)*B + beta*C
+                # compare
+                h_C = Array(d_C)
+                @test C ≈ h_C
+                @test_throws DimensionMismatch cuBLAS.symm!('L','U',alpha,dsA,d_Bbad,beta,d_C)
+            end
+            @testset "symm" begin
+                sA = rand(elty,m,m)
+                sA = sA + transpose(sA)
+                dsA = CuArray(sA)
+                B = rand(elty,m,n)
+                C = rand(elty,m,n)
+                Bbad = rand(elty,m+1,n+1)
+                d_B = CuArray(B)
+                d_C = CuArray(C)
+                d_Bbad = CuArray(Bbad)
+                d_C = cuBLAS.symm('L','U',dsA,d_B)
+                C = sA*B
+                # compare
+                h_C = Array(d_C)
+                @test C ≈ h_C
+                @test_throws DimensionMismatch cuBLAS.symm('L','U',dsA,d_Bbad)
+            end
         end
 
         if elty <: Complex
@@ -504,6 +508,27 @@ k = 13
                     @test C ≈ Array(dC) rtol=rtol
                 end
             end
+            # emulation math modes: BF16x9 reproduces full FP32 accuracy (cuBLAS 12.9+),
+            # fixed-point emulates FP64 on tensor cores (cuBLAS 13.0+).
+            if cuBLAS.version() >= v"12.9"
+                for (AT, CT) in ((Float32, Float32), (ComplexF32, ComplexF32))
+                    CUDACore.math_mode!(CUDACore.FAST_MATH; precision=:BFloat16x9)
+                    A = rand(AT, m, k); B = rand(AT, k, n)
+                    dC = similar(CuArray(B), CT)
+                    mul!(dC, CuArray(A), CuArray(B))
+                    @test A*B ≈ Array(dC) rtol=Base.rtoldefault(AT, AT, 0)
+                end
+            end
+            if cuBLAS.version() >= v"13.1"
+                for (AT, CT) in ((Float64, Float64), (ComplexF64, ComplexF64))
+                    CUDACore.math_mode!(CUDACore.FAST_MATH; precision=:FixedPoint)
+                    A = rand(AT, m, k); B = rand(AT, k, n)
+                    dC = similar(CuArray(B), CT)
+                    mul!(dC, CuArray(A), CuArray(B))
+                    @test A*B ≈ Array(dC) rtol=Base.rtoldefault(AT, AT, 0)
+                end
+            end
+
             CUDACore.math_mode!(CUDACore.FAST_MATH; precision = :Bad)
             @test_throws ArgumentError("Unknown reduced precision type Bad") cuBLAS.gemmExComputeType(Float32, Float32, Float32, m, k, n)
         finally

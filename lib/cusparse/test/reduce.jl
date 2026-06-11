@@ -1,10 +1,9 @@
 using cuSPARSE, SparseArrays
 
-m,n = 5,6
-p = 0.5
-
 for elty in [Int32, Int64, Float32, Float64]
     @testset "$typ($elty)" for typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
+        m, n = 5, 6
+        p = 0.5
         x = sprand(elty, m, n, p)
         dx = typ(x)
 
@@ -12,7 +11,7 @@ for elty in [Int32, Int64, Float32, Float64]
         y = sum(x)
         dy = sum(dx)
         @test y ≈ dy
-        
+
         y = mapreduce(exp, +, x)
         dy = mapreduce(exp, +, dx)
         @test y ≈ dy
@@ -21,7 +20,7 @@ for elty in [Int32, Int64, Float32, Float64]
         y = sum(x, dims=1)
         dy = sum(dx, dims=1)
         @test y ≈ Array(dy)
-        
+
         y = mapreduce(exp, +, x, dims=1)
         dy = mapreduce(exp, +, dx, dims=1)
         @test y ≈ Array(dy)
@@ -30,7 +29,7 @@ for elty in [Int32, Int64, Float32, Float64]
         y = sum(x, dims=2)
         dy = sum(dx, dims=2)
         @test y ≈ Array(dy)
-        
+
         y = mapreduce(exp, +, x, dims=2)
         dy = mapreduce(exp, +, dx, dims=2)
         @test y ≈ Array(dy)
@@ -39,14 +38,14 @@ for elty in [Int32, Int64, Float32, Float64]
             y  = mapreduce(abs, +, x; init=zero(elty))
             @test y ≈ dy
         end
-        
+
         # test with a matrix with fully empty rows
-        x = zeros(elty, m, n)
-        x[2, :] .= -one(elty)
-        x[2, end] = -elty(16)
-        dx = typ(sparse(x))
-        y  = mapreduce(abs, max, x)
-        dy = mapreduce(abs, max, dx)
+        x2 = zeros(elty, m, n)
+        x2[2, :] .= -one(elty)
+        x2[2, end] = -elty(16)
+        dx2 = typ(sparse(x2))
+        y   = mapreduce(abs, max, x2)
+        dy  = mapreduce(abs, max, dx2)
         @test y ≈ dy
     end
 end

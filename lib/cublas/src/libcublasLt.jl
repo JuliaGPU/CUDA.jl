@@ -1318,6 +1318,25 @@ end
                                                              returnAlgoCount::Ptr{Cint})::cublasStatus_t
 end
 
+@checked function cublasLtMatmulAlgoGetHeuristicForStream(lightHandle, operationDesc, Adesc,
+                                                          Bdesc, Cdesc, Ddesc, preference,
+                                                          requestedAlgoCount,
+                                                          heuristicResultsArray,
+                                                          returnAlgoCount, stream)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtMatmulAlgoGetHeuristicForStream(lightHandle::cublasLtHandle_t,
+                                                                      operationDesc::cublasLtMatmulDesc_t,
+                                                                      Adesc::cublasLtMatrixLayout_t,
+                                                                      Bdesc::cublasLtMatrixLayout_t,
+                                                                      Cdesc::cublasLtMatrixLayout_t,
+                                                                      Ddesc::cublasLtMatrixLayout_t,
+                                                                      preference::cublasLtMatmulPreference_t,
+                                                                      requestedAlgoCount::Cint,
+                                                                      heuristicResultsArray::Ptr{cublasLtMatmulHeuristicResult_t},
+                                                                      returnAlgoCount::Ptr{Cint},
+                                                                      stream::cudaStream_t)::cublasStatus_t
+end
+
 @checked function cublasLtMatmulAlgoGetIds(lightHandle, computeType, scaleType, Atype,
                                            Btype, Ctype, Dtype, requestedAlgoCount,
                                            algoIdsArray, returnAlgoCount)
@@ -1358,6 +1377,20 @@ end
                                                       Ddesc::cublasLtMatrixLayout_t,
                                                       algo::Ptr{cublasLtMatmulAlgo_t},
                                                       result::Ptr{cublasLtMatmulHeuristicResult_t})::cublasStatus_t
+end
+
+@checked function cublasLtMatmulAlgoCheckForStream(lightHandle, operationDesc, Adesc, Bdesc,
+                                                   Cdesc, Ddesc, algo, result, stream)
+    initialize_context()
+    @gcsafe_ccall libcublasLt.cublasLtMatmulAlgoCheckForStream(lightHandle::cublasLtHandle_t,
+                                                               operationDesc::cublasLtMatmulDesc_t,
+                                                               Adesc::cublasLtMatrixLayout_t,
+                                                               Bdesc::cublasLtMatrixLayout_t,
+                                                               Cdesc::cublasLtMatrixLayout_t,
+                                                               Ddesc::cublasLtMatrixLayout_t,
+                                                               algo::Ptr{cublasLtMatmulAlgo_t},
+                                                               result::Ptr{cublasLtMatmulHeuristicResult_t},
+                                                               stream::cudaStream_t)::cublasStatus_t
 end
 
 @cenum cublasLtMatmulAlgoCapAttributes_t::UInt32 begin
@@ -1452,7 +1485,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2795:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2869:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t
