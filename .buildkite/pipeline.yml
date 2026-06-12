@@ -15,8 +15,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
           julia --project=. -e '
@@ -48,8 +47,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: |
@@ -88,8 +86,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only cuda\]/ ||
@@ -165,8 +162,7 @@ steps:
       #    NNLIB_TEST_CUDA: "true"
       #    NNLIB_TEST_CPU: "false"
       #  agents:
-      #    queue: "juliagpu"
-      #    cuda: "*"
+      #    queue: "cuda"
       #  if: |
       #    build.message =~ /\[only tests\]/ ||
       #    build.message =~ /\[only downstream\]/ ||
@@ -214,8 +210,7 @@ steps:
             println("+++ :julia: Running tests")
             Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only downstream\]/ ||
@@ -250,8 +245,7 @@ steps:
             @assert !CUDA.functional()
             @assert isdefined(CUDACore, :libcudart)'
         agents:
-          queue: "juliagpu"
-          intel: "*"
+          queue: "intel"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only special\]/ ||
@@ -272,8 +266,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only special\]/ ||
@@ -294,8 +287,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         env:
           JULIA_CUDA_MEMORY_POOL: 'none'
         if: |
@@ -318,8 +310,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only special\]/ ||
@@ -347,8 +338,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
           multigpu: "*"
         if: |
           build.message =~ /\[only tests\]/ ||
@@ -377,8 +367,7 @@ steps:
         println("+++ :julia: Building documentation")
         include("docs/make.jl")'
     agents:
-      queue: "juliagpu"
-      cuda: "*"
+      queue: "cuda"
     if: |
       build.message =~ /\[only docs\]/ ||
       build.message !~ /\[only/ && !build.pull_request.draft &&
@@ -401,9 +390,9 @@ steps:
     artifact_paths:
       - "benchmarkresults.json"
     agents:
-      queue: "benchmark"
+      queue: "cuda"
+      benchmark: "*"
       gpu: "rtx2070"
-      cuda: "*"
     if: |
       build.message =~ /\[only benchmarks\]/ ||
       build.message !~ /\[only/ && !build.pull_request.draft &&
