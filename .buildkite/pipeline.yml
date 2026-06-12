@@ -245,7 +245,7 @@ steps:
             @assert !CUDA.functional()
             @assert isdefined(CUDACore, :libcudart)'
         agents:
-          queue: "intel"
+          queue: "oneapi"
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only special\]/ ||
