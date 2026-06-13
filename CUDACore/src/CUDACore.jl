@@ -1,6 +1,7 @@
 module CUDACore
 
-include("utils/public.jl")
+using Republic: @public
+export @public
 
 using GPUCompiler
 using GPUCompiler: InvalidIRError, KernelError
