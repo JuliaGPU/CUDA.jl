@@ -330,11 +330,17 @@ function llvm_compat(version=nvptx_llvm_version)
     # `.sm` is `Set{SMVersion}` (with variants); `.ptx` is `Set{VersionNumber}`.
     # `ptxas_compat()` returns `.cap` as `Set{VersionNumber}` because ptxas-level
     # support is per-CC -- the names track the value type.
+    # the back-end LLVM version is a build version; normalize to major.minor like
+    # `ptxas_compat` does, since the databases are keyed at that granularity.
+    version = VersionNumber(version.major, version.minor)
     return (sm=llvm_sm_support(version),
             ptx=llvm_ptx_support(version))
 end
 
 function ptxas_compat(version=compiler_version())
+    # Normalize the query to that granularity so a nonzero build patch isn't compared past a
+    # major.minor upper bound (`v"12.9.86" <= v"12.9"` is false).
+    version = VersionNumber(version.major, version.minor)
     return (cap=ptxas_cap_support(version),
             ptx=ptxas_ptx_support(version))
 end
