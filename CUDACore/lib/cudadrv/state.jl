@@ -226,9 +226,9 @@ function context(dev::CuDevice)
                   Please use a device with at least capability 7.5, or use an older CUDA toolkit (see `CUDA.set_runtime_version!`).""",
                maxlog=1, _id=devidx)
     end
-    # ... or too new
+    # or not among the capabilities ptxas can target.
     if !in(capability(dev), ptxas_compat().cap)
-        @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not fully supported by CUDA $(runtime_version()).
+        @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not fully supported by CUDA $(compiler_version().major).$(compiler_version().minor).
                  Some functionality may be broken. Ensure you are using the latest version of CUDA.jl in combination with an up-to-date NVIDIA driver.
                  If that does not help, please file an issue to add support for the latest CUDA toolkit.""",
               maxlog=1, _id=devidx)
