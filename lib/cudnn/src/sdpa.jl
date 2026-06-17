@@ -89,11 +89,11 @@ function _build_sdpa_plan(T::DataType, d, sq, skv, h, b)
     push!(keep, op, graph)
     heur, cfgs = engine_configs(graph)
     push!(keep, heur)
+    append!(keep, cfgs)  # keep all engine configs alive until the plan is evicted from the cache
 
     for cfg in cfgs
         plan = try_execution_plan(cfg)
         plan === nothing && continue
-        push!(keep, cfg)
         uids = Int64[SDPA_UID_Q, SDPA_UID_K, SDPA_UID_V, SDPA_UID_O, SDPA_UID_SCALE]
         return SDPAPlan(plan, Int(plan_workspace_size(plan)), uids, keep)
     end

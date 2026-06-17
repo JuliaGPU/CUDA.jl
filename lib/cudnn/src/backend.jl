@@ -88,16 +88,33 @@ getattr_int64(d, name) = getattr(d, name, CUDNN_TYPE_INT64, Int64, 1)[]
 
 # Read an array of nested descriptors. cuDNN requires the caller to pre-create the output
 # descriptors; GetAttribute then populates their contents.
+#
+# We deliberately avoid creating Julia wrapper objects (with GC finalizers) for the unused
+# maxcount-n slots: if a finalizer fires cudnnBackendDestroyDescriptor while another thread
+# is inside a cudnnBackendExecute that holds cuDNN's JIT lock, we get a deadlock on bf16
+# and other runtime-compiled engines. Instead we use raw handles, destroy the unused ones
+# synchronously right here, and only register finalizers for the n handles we return.
 function getattr_descriptors(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
                              desctype::cudnnBackendDescriptorType_t, maxcount::Integer)
-    descs = [cudnnBackendDescriptor(desctype) for _ in 1:maxcount]
-    handles = cudnnBackendDescriptor_t[x.ptr for x in descs]
-    n = Ref{Int64}(0)
-    GC.@preserve handles begin
-        cudnnBackendGetAttribute(d.ptr, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, Int64(maxcount),
-                                 n, convert(Ptr{Cvoid}, pointer(handles)))
+    raw = Vector{cudnnBackendDescriptor_t}(undef, maxcount)
+    for i in 1:maxcount
+        r = Ref{cudnnBackendDescriptor_t}()
+        cudnnBackendCreateDescriptor(desctype, r)
+        raw[i] = r[]
     end
-    return descs[1:n[]]
+    n = Ref{Int64}(0)
+    GC.@preserve raw begin
+        cudnnBackendGetAttribute(d.ptr, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, Int64(maxcount),
+                                 n, convert(Ptr{Cvoid}, pointer(raw)))
+    end
+    for i in n[]+1:maxcount
+        cudnnBackendDestroyDescriptor(raw[i])
+    end
+    return map(1:n[]) do i
+        desc = cudnnBackendDescriptor(raw[i])
+        finalizer(x -> cudnnBackendDestroyDescriptor(x.ptr), desc)
+        desc
+    end
 end
 
 
@@ -156,6 +173,11 @@ function try_execution_plan(enginecfg::cudnnBackendDescriptor)
         e isa CUDNNError || rethrow()
         # the CUDNN_STATUS_NOT_SUPPORTED family occupies the 3000s
         3000 <= Int(e.code) < 4000 || rethrow()
+        # Destroy the descriptor immediately rather than leaving a GC finalizer pending.
+        # A finalizer calling cudnnBackendDestroyDescriptor can deadlock against a concurrent
+        # cudnnBackendExecute that holds cuDNN's JIT compilation lock (e.g. bf16 SDPA).
+        ptr = plan.ptr; plan.ptr = C_NULL
+        cudnnBackendDestroyDescriptor(ptr)
         return nothing
     end
     return plan

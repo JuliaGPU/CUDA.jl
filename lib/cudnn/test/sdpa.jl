@@ -17,9 +17,11 @@ function sdpa_ref(q, k, v; scale)
 end
 
 function sdpatest(T; d=64, sq=32, skv=32, h=4, b=2, scale=1/sqrt(d), rtol=2e-2)
-    q = CuArray(T.(randn(Float32, d, h, sq, b) ./ 4))
-    k = CuArray(T.(randn(Float32, d, h, skv, b) ./ 4))
-    v = CuArray(T.(randn(Float32, d, h, skv, b) ./ 4))
+    # Use CUDA.randn to generate test data directly on the GPU, avoiding the CPU-side
+    # BFloat16.(randn(...)) conversion which triggers a slow first-time LLVM compilation.
+    q = CUDA.randn(T, d, h, sq, b) ./ 4
+    k = CUDA.randn(T, d, h, skv, b) ./ 4
+    v = CUDA.randn(T, d, h, skv, b) ./ 4
 
     ref = sdpa_ref(q, k, v; scale)
     y = cudnnSDPAForward(q, k, v; scale)
@@ -33,19 +35,17 @@ function sdpatest(T; d=64, sq=32, skv=32, h=4, b=2, scale=1/sqrt(d), rtol=2e-2)
     @test Array(out) == Array(y)
 end
 
-# NOTE: only Float16 is exercised here. On Blackwell (sm_120) + cuDNN 9.20, BFloat16 fused SDPA
-# hangs in cuDNN's execute (a cuDNN/driver issue, not in this wrapper); the BFloat16 code path
-# is identical and works on other architectures.
 if capability(device()) >= v"8.0"
-    T = Float16
-    sdpatest(T)                                  # default square case
-    sdpatest(T; sq=128, skv=128)                 # longer sequences
-    sdpatest(T; d=32, sq=16, skv=48, h=2, b=3)   # non-square sq != skv
-    sdpatest(T; scale=0.5)                        # custom scale
-    sdpatest(T; d=128, sq=64, skv=64, h=8)       # larger head dim
+    for T in (Float16, BFloat16)
+        sdpatest(T)                                  # default square case
+        sdpatest(T; sq=128, skv=128)                 # longer sequences
+        sdpatest(T; d=32, sq=16, skv=48, h=2, b=3)   # non-square sq != skv
+        sdpatest(T; scale=0.5)                        # custom scale
+        sdpatest(T; d=128, sq=64, skv=64, h=8)       # larger head dim
+    end
 
     # invalid inputs are rejected rather than silently producing wrong results
-    let q = CuArray(T.(randn(Float32, 64, 4, 64, 2)))
+    let q = CuArray(Float16.(randn(Float32, 64, 4, 64, 2)))
         qview = view(q, :, :, 1:32, :)  # non-contiguous: dense strides would be wrong
         @test_throws MethodError cudnnSDPAForward(qview, qview, qview)
         qhost = Array(q)                # host memory must not reach cuDNN as a device pointer
