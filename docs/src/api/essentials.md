@@ -20,7 +20,6 @@ context
 context!
 device
 device!
-device_reset!
 stream
 stream!
 ```

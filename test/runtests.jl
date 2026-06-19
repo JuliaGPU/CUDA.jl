@@ -120,9 +120,7 @@ end
 const gpu_memory_per_worker = 1 * 2^30
 first_gpu = first(devices())
 gpu_free = device!(first_gpu) do
-    mem = CUDA.free_memory()
-    device_reset!()
-    mem
+    CUDA.free_memory()
 end
 gpu_jobs = max(1, Int(gpu_free) ÷ gpu_memory_per_worker)
 
