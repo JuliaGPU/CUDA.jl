@@ -778,8 +778,8 @@ end
 @inline function _pool_free(mem::DeviceMemory, stream::CuStream)
     if mem.async
       # stream-ordered allocations are not tied to a context. we always need to free them,
-      # and if the owning context (or stream) was destroyed, use a new (or default) one.
-      if isvalid(mem.ctx) && isvalid(stream)
+      # and if the owning stream was destroyed, use a default one.
+      if isvalid(stream)
         context!(mem.ctx) do
           free(mem; stream)
         end
@@ -787,8 +787,8 @@ end
         free(mem; stream=default_stream())
       end
     else
-      # regular allocations are tied to a context, so ignore if the context was destroyed
-      context!(mem.ctx; skip_destroyed=true) do
+      # regular allocations are tied to a context, so free them in their owning context.
+      context!(mem.ctx) do
         free(mem)
       end
     end

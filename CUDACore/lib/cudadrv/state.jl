@@ -151,19 +151,12 @@ function context!(ctx::CuContext)
     return old_ctx
 end
 
-@inline function context!(f::F, ctx::CuContext; skip_destroyed::Bool=false) where {F<:Function}
-    # @inline so that the kwarg method is inlined too and we can const-prop skip_destroyed
-    if isvalid(ctx)
-        old_ctx = context!(ctx)::Union{CuContext,Nothing}
-        try
-            f()
-        finally
-            if old_ctx !== nothing && old_ctx != ctx && isvalid(old_ctx)
-                context!(old_ctx)
-            end
-        end
-    elseif !skip_destroyed
-        error("This CUDA context has been destroyed.")
+@inline function context!(f::F, ctx::CuContext) where {F<:Function}
+    old_ctx = context!(ctx)::Union{CuContext,Nothing}
+    try
+        f()
+    finally
+        old_ctx !== nothing && old_ctx != ctx && context!(old_ctx)
     end
 end
 

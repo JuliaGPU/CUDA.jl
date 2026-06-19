@@ -28,16 +28,14 @@ end
 # check the exception flags on every API call, similarly to how CUDA handles errors
 function check_exceptions()
     for (ctx,mem) in exception_infos
-        if isvalid(ctx)
-            exception_info = convert(ExceptionInfo, mem)
-            if exception_info.status != 0
-                # restore the structure
-                unsafe_store!(exception_info, ExceptionInfo_st())
+        exception_info = convert(ExceptionInfo, mem)
+        if exception_info.status != 0
+            # restore the structure
+            unsafe_store!(exception_info, ExceptionInfo_st())
 
-                # throw host-side
-                dev = device(ctx)
-                throw(KernelException(dev))
-            end
+            # throw host-side
+            dev = device(ctx)
+            throw(KernelException(dev))
         end
     end
     return

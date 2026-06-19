@@ -66,7 +66,7 @@ function handle_ctor(ctx)
     end
 end
 function handle_dtor(ctx, handle)
-    context!(ctx; skip_destroyed=true) do
+    context!(ctx) do
         cusparseDestroy(handle)
     end
 end

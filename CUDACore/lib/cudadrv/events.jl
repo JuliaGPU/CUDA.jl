@@ -27,7 +27,7 @@ mutable struct CuEvent
 end
 
 function unsafe_destroy!(e::CuEvent)
-    context!(e.ctx; skip_destroyed=true) do
+    context!(e.ctx) do
         cuEventDestroy_v2(e)
     end
 end

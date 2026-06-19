@@ -26,7 +26,7 @@ mutable struct LibraryRNG <: Random.AbstractRNG
 end
 
 function unsafe_destroy!(rng::LibraryRNG)
-    context!(rng.ctx; skip_destroyed=true) do
+    context!(rng.ctx) do
         curandDestroyGenerator(rng)
     end
 end

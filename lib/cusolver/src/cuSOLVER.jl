@@ -64,7 +64,7 @@ function dense_handle_ctor(ctx)
     end
 end
 function dense_handle_dtor(ctx, handle)
-    context!(ctx; skip_destroyed=true) do
+    context!(ctx) do
         cusolverDnDestroy(handle)
     end
 end
@@ -140,7 +140,7 @@ function sparse_handle_ctor(ctx)
     end
 end
 function sparse_handle_dtor(ctx, handle)
-    context!(ctx; skip_destroyed=true) do
+    context!(ctx) do
         cusolverSpDestroy(handle)
     end
 end
@@ -221,7 +221,7 @@ Base.unsafe_convert(::Type{cusolverMgHandle_t}, handle::MgHandle) =
     handle.handle
 
 function mg_handle_finalizer(mh::MgHandle)
-    context!(mh.ctx; skip_destroyed=true) do
+    context!(mh.ctx) do
         cusolverMgDestroy(mh.handle)
     end
 end

@@ -131,7 +131,7 @@ function handle_ctor((ctx, args...))
     end
 end
 function handle_dtor((ctx, args...), handle)
-    context!(ctx; skip_destroyed=true) do
+    context!(ctx) do
         cufftDestroy(handle)
     end
 end

@@ -756,7 +756,7 @@ function __unpin(ptr::Ptr, ctx::CuContext)
 
         if pin_count == 0
             mem = @inbounds __pinned_memory[key]
-            context!(ctx; skip_destroyed=true) do
+            context!(ctx) do
                 unregister(mem)
             end
             delete!(__pinned_memory, key)

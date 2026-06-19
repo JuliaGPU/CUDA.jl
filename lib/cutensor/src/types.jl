@@ -140,7 +140,7 @@ Base.hash(plan::CuTensorPlan, h::UInt) = hash(plan.handle, h)
 
 # destroying the plan
 function unsafe_destroy!(plan::CuTensorPlan)
-    context!(plan.ctx; skip_destroyed=true) do
+    context!(plan.ctx) do
         cutensorDestroyPlan(plan)
     end
 end
