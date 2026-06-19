@@ -119,10 +119,19 @@ end
 # (Set `CUDA_VISIBLE_DEVICES` to choose which device is used.)
 const gpu_memory_per_worker = 1 * 2^30
 first_gpu = first(devices())
-gpu_free = device!(first_gpu) do
-    CUDA.free_memory()
+# Query free memory without creating a CUDA context on this coordinator process.
+# NVML reads it straight from the driver (no context), whereas `CUDA.free_memory()`
+# would spin up this device's primary context (~0.5 GiB) that we'd then hold for the
+# entire run. Fall back to the CUDA query only when NVML is unavailable (e.g. WSL).
+gpu_free = if has_nvml()
+    mig = uuid(first_gpu) != parent_uuid(first_gpu)
+    Int(NVML.memory_info(NVML.Device(uuid(first_gpu); mig)).free)
+else
+    device!(first_gpu) do
+        Int(CUDA.free_memory())
+    end
 end
-gpu_jobs = max(1, Int(gpu_free) ÷ gpu_memory_per_worker)
+gpu_jobs = max(1, gpu_free ÷ gpu_memory_per_worker)
 
 @info "Parallelism budget" device = "$(CUDA.name(first_gpu)) ($(deviceid(first_gpu)))" gpu_free = Base.format_bytes(gpu_free) gpu_jobs cpu_threads = Sys.CPU_THREADS cpu_free = Base.format_bytes(Sys.free_memory())
 
