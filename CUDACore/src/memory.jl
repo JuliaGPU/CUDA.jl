@@ -53,11 +53,11 @@ function account!(stats::MemoryStats, bytes::Integer)
   end
 end
 
-const _memory_stats = PerDevice{MemoryStats}()
 function memory_stats(dev::CuDevice=device())
-  get!(_memory_stats, dev) do
-      MemoryStats()
-  end
+  devidx = deviceid(dev) + 1
+  @memoize devidx::Int maxlen=ndevices() begin
+    MemoryStats()
+  end::MemoryStats
 end
 
 # stats for memory that isn't part of any device pool (unified, host). these
@@ -255,8 +255,6 @@ end
 
 ## stream-ordered memory pool
 
-# TODO: extract this into a @device_memoize macro, or teach @memoize about CuDevice?
-#       this is a common pattern that could be applied to many more functions.
 function stream_ordered(dev::CuDevice)
   devidx = deviceid(dev) + 1
   @memoize devidx::Int maxlen=ndevices() begin
@@ -265,45 +263,45 @@ function stream_ordered(dev::CuDevice)
   end::Bool
 end
 
-const _memory_pools = PerDevice{CuMemoryPool}()
 function pool_create(dev::CuDevice)
-  get!(_memory_pools, dev) do
-      limits = memory_limits()
+  devidx = deviceid(dev) + 1
+  @memoize devidx::Int maxlen=ndevices() begin
+    limits = memory_limits()
 
-      # create a custom memory pool and assign it to the device
-      # so that other libraries and applications will use it.
-      pool = if limits.hard > 0 && CUDACore.driver_version() >= v"12.2"
-        CuMemoryPool(dev; maxSize=limits.hard)
-      else
-        CuMemoryPool(dev)
-      end
-      memory_pool!(dev, pool)
+    # create a custom memory pool and assign it to the device
+    # so that other libraries and applications will use it.
+    pool = if limits.hard > 0 && CUDACore.driver_version() >= v"12.2"
+      CuMemoryPool(dev; maxSize=limits.hard)
+    else
+      CuMemoryPool(dev)
+    end
+    memory_pool!(dev, pool)
 
-      # allow the pool to use up all memory of this device
-      attribute!(pool, MEMPOOL_ATTR_RELEASE_THRESHOLD,
-                 limits.soft == 0 ? typemax(UInt64) : limits.soft)
+    # allow the pool to use up all memory of this device
+    attribute!(pool, MEMPOOL_ATTR_RELEASE_THRESHOLD,
+               limits.soft == 0 ? typemax(UInt64) : limits.soft)
 
-      # launch a task to periodically trim the pool
-      if isinteractive() && !isassigned(__pool_cleanup)
-        __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
-      end
+    # launch a task to periodically trim the pool
+    if isinteractive() && !isassigned(__pool_cleanup)
+      __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
+    end
 
-      pool
-  end
+    pool
+  end::CuMemoryPool
 end
 
 # per-device flag indicating the status of the memory pool.
-const _pool_status = PerDevice{Base.RefValue{Bool}}()
+function pool_mark_ref(dev::CuDevice)
+  devidx = deviceid(dev) + 1
+  @memoize devidx::Int maxlen=ndevices() begin
+    Ref{Union{Nothing,Bool}}(nothing)
+  end::Base.RefValue{Union{Nothing,Bool}}
+end
 function pool_mark(dev::CuDevice)
-  status = get(_pool_status, dev, nothing)
-  status === nothing && return nothing
-  return status[]
+  pool_mark_ref(dev)[]
 end
 function pool_mark!(dev::CuDevice, val)
-  box = get!(_pool_status, dev) do
-    Ref{Bool}()
-  end
-  box[] = val
+  pool_mark_ref(dev)[] = val
   return
 end
 
@@ -780,8 +778,8 @@ end
 @inline function _pool_free(mem::DeviceMemory, stream::CuStream)
     if mem.async
       # stream-ordered allocations are not tied to a context. we always need to free them,
-      # and if the owning context (or stream) was destroyed, use a new (or default) one.
-      if isvalid(mem.ctx) && isvalid(stream)
+      # and if the owning stream was destroyed, use a default one.
+      if isvalid(stream)
         context!(mem.ctx) do
           free(mem; stream)
         end
@@ -789,8 +787,8 @@ end
         free(mem; stream=default_stream())
       end
     else
-      # regular allocations are tied to a context, so ignore if the context was destroyed
-      context!(mem.ctx; skip_destroyed=true) do
+      # regular allocations are tied to a context, so free them in their owning context.
+      context!(mem.ctx) do
         free(mem)
       end
     end

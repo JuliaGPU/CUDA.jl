@@ -45,7 +45,7 @@ mutable struct CuLink
 end
 
 function unsafe_destroy!(link::CuLink)
-    context!(link.ctx; skip_destroyed=true) do
+    context!(link.ctx) do
         cuLinkDestroy(link)
     end
 end

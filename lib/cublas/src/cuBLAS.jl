@@ -84,7 +84,7 @@ function handle_ctor(ctx)
     end
 end
 function handle_dtor(ctx, handle)
-    context!(ctx; skip_destroyed=true) do
+    context!(ctx) do
         cublasDestroy_v2(handle)
     end
 end
@@ -156,9 +156,6 @@ function xt_handle_ctor(ctxs)
     cublasXtCreate()
 end
 function xt_handle_dtor(ctxs, handle)
-    for ctx in ctxs
-        CUDACore.isvalid(ctx) || return
-    end
     cublasXtDestroy(handle)
 end
 const idle_xt_handles =

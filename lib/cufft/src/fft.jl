@@ -57,7 +57,7 @@ end
 
 function CUDACore.unsafe_free!(plan::CuFFTPlan)
     if plan.handle != C_NULL
-        context!(plan.ctx; skip_destroyed=true) do
+        context!(plan.ctx) do
             cufftReleasePlan(plan.handle)
         end
         plan.handle = C_NULL

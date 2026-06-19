@@ -59,7 +59,7 @@ mutable struct CuMemoryPool
 end
 
 function unsafe_destroy!(pool::CuMemoryPool)
-    context!(pool.ctx; skip_destroyed=true) do
+    context!(pool.ctx) do
         cuMemPoolDestroy(pool)
     end
 end

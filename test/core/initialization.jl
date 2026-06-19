@@ -46,37 +46,8 @@ context!(ctx)
 @test context!(()->true, ctx)
 @inferred context!(()->42, ctx)
 
-# setting flags is only possible on a new context
+# setting flags is only possible before the primary context is active
 @test_throws ErrorException device!(0, CUDA.CTX_SCHED_YIELD)
-device_reset!()
-device!(0, CUDA.CTX_SCHED_YIELD)
-
-# reset on a different task
-let ctx = context()
-    @test CUDACore.isvalid(ctx)
-    @test ctx == fetch(@async context())
-
-    @sync @async device_reset!()
-
-    @test CUDACore.isvalid(context())
-    @test ctx != context()
-end
-
-# ensure that resetting the device really does get rid of the context
-if has_nvml()
-    pid = getpid()
-    try
-        cuda_dev = device()
-        mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
-        nvml_dev = NVML.Device(uuid(cuda_dev); mig)
-        @test haskey(NVML.compute_processes(nvml_dev), pid)
-        device_reset!()
-        @test !haskey(NVML.compute_processes(nvml_dev), pid)
-    catch err
-        isa(err, NVML.NVMLError) || rethrow()
-        err.code in [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION] || rethrow()
-    end
-end
 
 # test the device selection functionality
 if length(devices()) > 1
@@ -101,14 +72,6 @@ if length(devices()) > 1
     end
     fetch(task)
 
-    @test device() == CuDevice(0)
-
-    # reset on a task
-    task = @async begin
-        device!(1)
-        device_reset!()
-    end
-    fetch(task)
     @test device() == CuDevice(0)
 
     # math_mode

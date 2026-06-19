@@ -318,7 +318,7 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
       register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
     end
     DataRef(Managed(mem)) do args...
-      context!(ctx; skip_destroyed=true) do
+      context!(ctx) do
         unregister(mem)
       end
     end

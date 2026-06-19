@@ -84,7 +84,7 @@ Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
 function unsafe_destroy!(s::CuStream)
     @assert s.ctx !== nothing "Cannot destroy unassociated stream"
-    context!(s.ctx; skip_destroyed=true) do
+    context!(s.ctx) do
         cuStreamDestroy_v2(s)
     end
     Base.@atomic s.valid = false
