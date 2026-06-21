@@ -41,6 +41,8 @@ end
     R_4F_E2M1  = 33 # real as a nv_fp4_e2m1
 end
 
+const R_8F_UE4M3 = R_8F_E4M3 # real as an unsigned nv_fp8_e4m3
+
 function Base.convert(::Type{cudaDataType}, T::DataType)
     if T === Float16
         return R_16F
