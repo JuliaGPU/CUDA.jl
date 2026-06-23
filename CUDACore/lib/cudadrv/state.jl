@@ -176,7 +176,7 @@ end
 function context(dev::CuDevice)
     devidx = deviceid(dev)+1
 
-    @memoize devidx::Int maxlen=ndevices() begin
+    @memoize index=devidx begin
         # check if the device isn't too old
         if capability(dev) < v"5.0"
             @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA.jl.

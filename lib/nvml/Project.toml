@@ -12,6 +12,6 @@ Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 [compat]
 CEnum = "0.2, 0.3, 0.4, 0.5"
 CUDACore = "=6.2.0"
-GPUToolbox = "2"
+GPUToolbox = "3"
 Libdl = "1"
 julia = "1.10"
