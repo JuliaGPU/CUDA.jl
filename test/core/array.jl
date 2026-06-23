@@ -629,6 +629,18 @@ end
   @test b.x != a.x
 end
 
+struct Issue3181 end
+@testset "issue 3181: copy with zero-size element type" begin
+  # copying a non-empty array of a zero-size element type should not touch the
+  # (NULL) backing pointer, as there are no bytes to copy
+  a = CuArray(fill(Issue3181(), 10))
+  @test sizeof(a) == 0
+  @test length(copy(a)) == 10
+  @test length(deepcopy(a)) == 10
+  @test Array(a) == fill(Issue3181(), 10)
+  @test length(copyto!(similar(a), a)) == 10
+end
+
 @testset "isbits unions" begin
   # test that the selector bytes are preserved when up and downloading
   let a = [1, nothing, 3]
