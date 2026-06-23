@@ -421,7 +421,9 @@ for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", :CuPtr, :Ptr),
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::CuStream=stream(),
                                        async::Bool=false) where T
-        $(getproperty(CUDACore, Symbol(fn)))(dst, src, N*aligned_sizeof(T), stream)
+        nbytes = N*aligned_sizeof(T)
+        nbytes == 0 && return dst
+        $(getproperty(CUDACore, Symbol(fn)))(dst, src, nbytes, stream)
         async || synchronize(stream)
         return dst
     end
@@ -430,14 +432,16 @@ end
 function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
                              stream::CuStream=stream(),
                              async::Bool=false) where T
+    nbytes = N*aligned_sizeof(T)
+    nbytes == 0 && return dst
     dst_dev = device(dst)
     src_dev = device(src)
     if dst_dev == src_dev
-        cuMemcpyDtoDAsync_v2(dst, src, N*aligned_sizeof(T), stream)
+        cuMemcpyDtoDAsync_v2(dst, src, nbytes, stream)
     else
         cuMemcpyPeerAsync(dst, context(dst_dev),
                           src, context(src_dev),
-                          N*aligned_sizeof(T), stream)
+                          nbytes, stream)
     end
     async || synchronize(stream)
     return dst
@@ -446,7 +450,9 @@ end
 function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
                              stream::CuStream=stream(),
                              async::Bool=false) where T
-    cuMemcpyHtoAAsync_v2(dst, doffs, src, N*aligned_sizeof(T), stream)
+    nbytes = N*aligned_sizeof(T)
+    nbytes == 0 && return dst
+    cuMemcpyHtoAAsync_v2(dst, doffs, src, nbytes, stream)
     async || synchronize(stream)
     return dst
 end
@@ -454,7 +460,9 @@ end
 function Base.unsafe_copyto!(dst::Ptr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer;
                              stream::CuStream=stream(),
                              async::Bool=false) where T
-    cuMemcpyAtoHAsync_v2(dst, src, soffs, N*aligned_sizeof(T), stream)
+    nbytes = N*aligned_sizeof(T)
+    nbytes == 0 && return dst
+    cuMemcpyAtoHAsync_v2(dst, src, soffs, nbytes, stream)
     async || synchronize(stream)
     return dst
 end
