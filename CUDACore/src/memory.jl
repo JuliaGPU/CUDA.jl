@@ -54,8 +54,7 @@ function account!(stats::MemoryStats, bytes::Integer)
 end
 
 function memory_stats(dev::CuDevice=device())
-  devidx = deviceid(dev) + 1
-  @memoize devidx::Int maxlen=ndevices() begin
+  @memoize index=deviceid(dev)+1 begin
     MemoryStats()
   end::MemoryStats
 end
@@ -256,16 +255,14 @@ end
 ## stream-ordered memory pool
 
 function stream_ordered(dev::CuDevice)
-  devidx = deviceid(dev) + 1
-  @memoize devidx::Int maxlen=ndevices() begin
+  @memoize index=deviceid(dev)+1 begin
     CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
     get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
   end::Bool
 end
 
 function pool_create(dev::CuDevice)
-  devidx = deviceid(dev) + 1
-  @memoize devidx::Int maxlen=ndevices() begin
+  @memoize index=deviceid(dev)+1 begin
     limits = memory_limits()
 
     # create a custom memory pool and assign it to the device
@@ -292,8 +289,7 @@ end
 
 # per-device flag indicating the status of the memory pool.
 function pool_mark_ref(dev::CuDevice)
-  devidx = deviceid(dev) + 1
-  @memoize devidx::Int maxlen=ndevices() begin
+  @memoize index=deviceid(dev)+1 begin
     Ref{Union{Nothing,Bool}}(nothing)
   end::Base.RefValue{Union{Nothing,Bool}}
 end
