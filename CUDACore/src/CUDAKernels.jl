@@ -19,6 +19,8 @@ struct CUDABackend <: KA.GPU
     always_inline::Bool
 end
 
+KA.versioninfo(io::IO, ::CUDABackend) = CUDA.versioninfo(io)
+
 CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
 @inline KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
