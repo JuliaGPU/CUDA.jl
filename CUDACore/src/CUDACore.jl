@@ -18,7 +18,7 @@ using LLVM.Interop
 using Core: LLVMPtr
 
 import KernelAbstractions
-import KernelAbstractions.KernelIntrinsics as KI
+import KernelAbstractions.KernelInterface as KI
 
 using Adapt: Adapt, adapt, WrappedArray
 
