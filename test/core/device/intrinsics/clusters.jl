@@ -1,4 +1,17 @@
 @testset "thread block clusters" begin
+
+# the barriers must survive to device IR on every Julia; on LLVM <= 16 they
+# used to demote to a silent trap stub (runs on any hardware)
+@testset "barrier codegen" begin
+    @test @filecheck CUDA.code_llvm(Tuple{}) do
+        @check "llvm.nvvm.barrier.cluster.arrive"
+        @check "llvm.nvvm.barrier.cluster.wait"
+        @check_not "gpu_report_exception"
+        cluster_arrive()
+        cluster_wait()
+    end
+end
+
 if capability(device()) >= v"9.0" && VERSION >= v"1.11-"
 
 ###########################################################################################

@@ -72,11 +72,26 @@ export barrier_sync
 
 export cluster_arrive, cluster_arrive_relaxed, cluster_wait
 
-@device_functions begin
-cluster_arrive() = ccall("llvm.nvvm.barrier.cluster.arrive", llvmcall, Cvoid, ())
-cluster_arrive_relaxed() = ccall("llvm.nvvm.barrier.cluster.arrive.relaxed", llvmcall, Cvoid, ())
-cluster_wait() = ccall("llvm.nvvm.barrier.cluster.wait", llvmcall, Cvoid, ())
-end # @device_functions
+# These intrinsics only exist in LLVM 17+, so `ccall(intr, llvmcall, ...)` cannot be
+# used here: on older LLVM (Julia <= 1.11) the unknown name demotes to a runtime trap.
+# A textual declaration passes through to the NVPTX back end on every version, but
+# must spell out the attributes the loaded LLVM can't infer: `convergent`, plus
+# `nomerge` to stop pre-17 SimplifyCFG from merging the calls across branches.
+for (fn, barrier) in ["cluster_arrive"         => "arrive",
+                      "cluster_arrive_relaxed" => "arrive.relaxed",
+                      "cluster_wait"           => "wait"]
+    intr = "llvm.nvvm.barrier.cluster.$barrier"
+    mod = """
+        declare void @$intr() #0
+        define void @entry() #1 {
+            call void @$intr()
+            ret void
+        }
+        attributes #0 = { convergent nomerge nounwind }
+        attributes #1 = { alwaysinline }"""
+    @eval @device_function @inline $(Symbol(fn))() =
+        Base.llvmcall(($mod, "entry"), Cvoid, Tuple{})
+end
 
 ## memory barriers (membar)
 
