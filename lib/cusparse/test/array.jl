@@ -317,11 +317,17 @@ using Adapt
     @test istril(d_x)
 
     A = sprand(n, n, 0.2)
+    i, j, v = findnz(A)
     d_A = CuSparseMatrixCSC(A)
     @test Array(getcolptr(d_A)) == getcolptr(A)
-    i, j, v = findnz(A)
-    d_i, d_j, d_v = findnz(d_A)
-    @test Array(d_i) == i && Array(d_j) == j && Array(d_v) == v
+    @testset "findnz $SparseMatrixType" for SparseMatrixType in
+            (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        d_A = SparseMatrixType(A)
+        d_i, d_j, d_v = findnz(d_A)
+        @test Array(d_i) == i
+        @test Array(d_j) == j
+        @test Array(d_v) == v
+    end
     i = unique(sort(rand(1:n, 10)))
     vals = rand(length(i))
     d_i = CuArray(i)
