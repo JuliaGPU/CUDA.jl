@@ -45,7 +45,7 @@ mutable struct CuTextureArray{T,N}
 end
 
 function unsafe_destroy!(t::CuTextureArray)
-    context!(t.ctx; skip_destroyed=true) do
+    context!(t.ctx) do
         free(t.mem)
     end
 end
@@ -300,7 +300,7 @@ Base.unsafe_convert(::Type{Ptr{CUDA_RESOURCE_DESC}}, ref::Base.RefValue{T}) wher
     convert(Ptr{CUDA_RESOURCE_DESC}, Base.unsafe_convert(Ptr{T}, ref))
 
 function unsafe_destroy!(t::CuTexture)
-    context!(t.ctx; skip_destroyed=true) do
+    context!(t.ctx) do
         cuTexObjectDestroy(t)
     end
 end

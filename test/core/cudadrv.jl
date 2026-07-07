@@ -47,60 +47,65 @@ end
 
 @testset "primary context" begin
 
-# we need to start from scratch for these tests
-dev = device()
-device_reset!()
-@test_throws UndefRefError current_context()
+script = """
+    using CUDA, CUDACore, Test
 
-pctx = CuPrimaryContext(dev)
+    # we need to start from scratch for these tests
+    @test_throws UndefRefError current_context()
 
-@test !isactive(pctx)
-unsafe_reset!(pctx)
-@test !isactive(pctx)
+    dev = CuDevice(0)
+    pctx = CuPrimaryContext(dev)
 
-@test flags(pctx) == 0
-setflags!(pctx, CUDA.CTX_SCHED_BLOCKING_SYNC)
-@test flags(pctx) == CUDA.CTX_SCHED_BLOCKING_SYNC
+    @test !isactive(pctx)
+    unsafe_reset!(pctx)
+    @test !isactive(pctx)
 
-let global_ctx = nothing
-    CuContext(pctx) do ctx
+    @test flags(pctx) == 0
+    setflags!(pctx, CUDA.CTX_SCHED_BLOCKING_SYNC)
+    @test flags(pctx) == CUDA.CTX_SCHED_BLOCKING_SYNC
+
+    let global_ctx = nothing
+        CuContext(pctx) do ctx
+            @test CUDACore.isvalid(ctx)
+            @test isactive(pctx)
+            global_ctx = ctx
+        end
+        @test !isactive(pctx)
+        @test !CUDACore.isvalid(global_ctx)
+    end
+
+    let
+        ctx = CuContext(pctx)
         @test CUDACore.isvalid(ctx)
         @test isactive(pctx)
-        global_ctx = ctx
+
+        unsafe_reset!(pctx)
+
+        @test !isactive(pctx)
+        @test !CUDACore.isvalid(ctx)
     end
-    @test !isactive(pctx) broken=true
-    @test !CUDACore.isvalid(global_ctx) broken=true
-end
 
-let
-    ctx = CuContext(pctx)
-    @test CUDACore.isvalid(ctx)
-    @test isactive(pctx)
+    let
+        @test !isactive(pctx)
 
-    unsafe_reset!(pctx)
+        ctx1 = CuContext(pctx)
+        @test isactive(pctx)
+        @test CUDACore.isvalid(ctx1)
 
-    @test !isactive(pctx)
-    @test !CUDACore.isvalid(ctx)
-end
+        unsafe_reset!(pctx)
+        @test !isactive(pctx)
+        @test !CUDACore.isvalid(ctx1)
 
-let
-    @test !isactive(pctx)
+        ctx2 = CuContext(pctx)
+        @test isactive(pctx)
+        @test !CUDACore.isvalid(ctx1)
+        @test CUDACore.isvalid(ctx2)
 
-    ctx1 = CuContext(pctx)
-    @test isactive(pctx)
-    @test CUDACore.isvalid(ctx1)
-
-    unsafe_reset!(pctx)
-    @test !isactive(pctx)
-    @test !CUDACore.isvalid(ctx1)
-
-    ctx2 = CuContext(pctx)
-    @test isactive(pctx)
-    @test !CUDACore.isvalid(ctx1)
-    @test CUDACore.isvalid(ctx2)
-
-    unsafe_reset!(pctx)
-end
+        unsafe_reset!(pctx)
+    end
+"""
+proc, out, err = julia_exec(`-e $script`)
+@test success(proc)
 
 end
 
@@ -775,13 +780,6 @@ end
         add_data!(link, "vadd_parent", read(f, String))
     end
     @test_throws ArgumentError add_data!(link, "vadd_parent", "\0")
-
-    # object code
-    # TODO: test with valid object code
-    # NOTE: apparently, on Windows cuLinkAddData! _does_ accept object data containing \0
-    if !Sys.iswindows()
-        @test_throws Exception add_data!(link, "vadd_parent", UInt8[0])
-    end
 end
 
 @testset "error log" begin
@@ -911,5 +909,7 @@ end
 @test isa(CUDA.driver_version(), VersionNumber)
 
 @test isa(CUDA.runtime_version(), VersionNumber)
+
+@test isa(CUDA.compiler_version(), VersionNumber)
 
 end

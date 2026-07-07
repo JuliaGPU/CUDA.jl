@@ -50,5 +50,9 @@ results["latency"] = latency_results
 results["integration"] = integration_results
 
 # write out the results
+# we report the minimum rather than the median: at the sub-microsecond scale of many
+# of these benchmarks, OS scheduler jitter dominates the median and produces 5-15%
+# trial-to-trial variance, while the minimum reflects the un-preempted code path
+# and is stable to <1% across trials. real regressions still show up in the minimum.
 result_file = length(ARGS) >= 1 ? ARGS[1] : "benchmarkresults.json"
-BenchmarkTools.save(result_file, median(results))
+BenchmarkTools.save(result_file, minimum(results))

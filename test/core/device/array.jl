@@ -68,33 +68,29 @@ end
 
 @testset "bounds checking" begin
     @testset "#313" begin
-        function kernel(dest)
+        kernel = dest -> (dest[1] = 1; nothing)
+        tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
+                            Tuple{UnitRange{Int64},UnitRange{Int64}},false}}
+        @test @filecheck CUDA.code_llvm(tt) do dest
+            @check_not "jl_invoke"
             dest[1] = 1
             nothing
         end
-        tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
-                            Tuple{UnitRange{Int64},UnitRange{Int64}},false}}
-
-        ir = sprint(io->CUDA.code_llvm(io, kernel, tt))
-        @test !occursin("jl_invoke", ir)
+        # also smoke-test that PTX codegen succeeds for this signature.
         CUDA.code_ptx(devnull, kernel, tt)
     end
 
     # test that we don't do needless bounds checking when the kernel already does it
     # (enabled by the fact that we store `len` next to `dims`)
-    let
-        function kernel(A)
+    for N in 1:3
+        @test @filecheck CUDA.code_llvm(Tuple{CuDeviceArray{Int,N,AS.Global}}) do A
+            @check_not "boundserror"
             idx = threadIdx().x
             if idx <= length(A)
                 # we did our own bounds checking, so no check should be left!
                 A[idx] = 1
             end
             return
-        end
-
-        for N in 1:3
-            ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{CuDeviceArray{Int,N,AS.Global}}))
-            @test !occursin("boundserror", ir)
         end
     end
 end
@@ -144,6 +140,24 @@ end
 
     @cuda threads=(10, 10) kernel(array_dev)
     @test array == Array(array_dev)
+end
+
+@testset "reshape of view" begin
+    function kernel(out, data, n)
+        i = threadIdx().x
+        if i <= n * n
+            mat = reshape(@view(data[1:n*n]), (n, n))
+            out[i] = mat[i]
+        end
+        return
+    end
+
+    n = 4
+    data = CuArray(Float32.(1:n*n))
+    out = CUDA.zeros(Float32, n * n)
+
+    @cuda threads=n*n kernel(out, data, n)
+    @test Array(out) == Float32.(1:n*n)
 end
 
 @testset "non-Int index to unsafe_load" begin

@@ -103,6 +103,8 @@ mutable struct CuDenseMatrixDescriptor
         obj
     end
 
+    CuDenseMatrixDescriptor(At::Transpose{<:Any, <:DenseCuMatrix}) = CuDenseMatrixDescriptor(parent(At), transposed=true)
+
     function CuDenseMatrixDescriptor(A::DenseCuArray{T, 3}; transposed::Bool=false) where T
         desc_ref = Ref{cusparseDnMatDescr_t}()
         if transposed
@@ -269,6 +271,20 @@ mutable struct CuSpGEMMDescriptor
 end
 
 Base.unsafe_convert(::Type{cusparseSpGEMMDescr_t}, desc::CuSpGEMMDescriptor) = desc.handle
+
+mutable struct CuSpGEAMDescriptor
+    handle::cusparseSpGEAMDescr_t
+
+    function CuSpGEAMDescriptor()
+        descr_ref = Ref{cusparseSpGEAMDescr_t}()
+        cusparseSpGEAM_createDescr(descr_ref)
+        obj = new(descr_ref[])
+        finalizer(cusparseSpGEAM_destroyDescr, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusparseSpGEAMDescr_t}, desc::CuSpGEAMDescriptor) = desc.handle
 
 mutable struct CuSparseSpSVDescriptor
     handle::cusparseSpSVDescr_t

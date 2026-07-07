@@ -1,12 +1,11 @@
-include("setup.jl")
+using cuSOLVER
+using ParallelTestRunner
 
-@testset verbose=true "cuSOLVER" begin
-
-include("base.jl")
-include("dense.jl")
-include("dense_generic.jl")
-include("sparse.jl")
-include("sparse_factorizations.jl")
-include("multigpu.jl")
-
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
 end
+
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuSOLVER, ARGS; init_code, testsuite)

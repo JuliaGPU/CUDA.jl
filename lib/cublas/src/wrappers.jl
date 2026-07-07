@@ -50,9 +50,10 @@ function juliaStorageType(T::Type{<:Real}, ct::cublasComputeType_t)
         return T == BFloat16 ? BFloat16 : Float16
     elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
            ct == CUBLAS_COMPUTE_32F_FAST_16F || ct == CUBLAS_COMPUTE_32F_FAST_16BF ||
-           ct == CUBLAS_COMPUTE_32F_FAST_TF32
+           ct == CUBLAS_COMPUTE_32F_FAST_TF32 || ct == CUBLAS_COMPUTE_32F_EMULATED_16BFX9
         return Float32
-    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC
+    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC ||
+           ct == CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT
         return Float64
     elseif ct == CUBLAS_COMPUTE_32I || ct == CUBLAS_COMPUTE_32I_PEDANTIC
         return Int32
@@ -66,9 +67,10 @@ function juliaStorageType(T::Type{<:Complex}, ct::cublasComputeType_t)
         return T == Complex{BFloat16} == Complex{BFloat16} : Complex{Float16}
     elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
            ct == CUBLAS_COMPUTE_32F_FAST_16F || ct == CUBLAS_COMPUTE_32F_FAST_16BF ||
-           ct == CUBLAS_COMPUTE_32F_FAST_TF32
+           ct == CUBLAS_COMPUTE_32F_FAST_TF32 || ct == CUBLAS_COMPUTE_32F_EMULATED_16BFX9
         return Complex{Float32}
-    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC
+    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC ||
+           ct == CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT
         return Complex{Float64}
     else
         throw(ArgumentError("Julia type equivalent for compute type $ct does not exist!"))
@@ -1199,11 +1201,23 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
                 return CUBLAS_COMPUTE_32F_FAST_16F
             elseif reduced_precision === :BFloat16
                 return CUBLAS_COMPUTE_32F_FAST_16BF
+            elseif reduced_precision === :BFloat16x9
+                # BF16x9 emulates full FP32 accuracy via tensor cores (cuBLAS 12.9+)
+                version() >= v"12.9" ||
+                    throw(ArgumentError("BFloat16x9 emulation requires cuBLAS 12.9 or higher"))
+                return CUBLAS_COMPUTE_32F_EMULATED_16BFX9
             elseif reduced_precision === :TensorFloat32
                 return CUBLAS_COMPUTE_32F_FAST_TF32
-            else
+            elseif reduced_precision !== :FixedPoint  # FixedPoint only applies to Float64
                 throw(ArgumentError("Unknown reduced precision type $reduced_precision"))
             end
+        elseif (sig === (Float64, Float64) ||
+                sig === (Complex{Float64}, Complex{Float64})) &&
+               reduced_precision === :FixedPoint
+            # fixed-point (Ozaki) emulation of FP64 on tensor cores (cuBLAS 13.1+)
+            version() >= v"13.1" ||
+                throw(ArgumentError("FixedPoint emulation requires cuBLAS 13.1 or higher"))
+            return CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT
         end
     end
 

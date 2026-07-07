@@ -31,15 +31,29 @@ end
 end
 
 @testset "reclaim" begin
-    CUDA.reclaim(1024)
+    # every level should run without erroring, on any allocator
+    for level in instances(CUDACore.ReclaimLevel)
+        CUDA.reclaim(level)
+    end
     CUDA.reclaim()
 
+    # `retry_reclaim` returns the block's result, retrying while `retry_if` holds
     @test CUDACore.retry_reclaim(isequal(42)) do
             42
         end == 42
     @test CUDACore.retry_reclaim(isequal(42)) do
             41
         end == 41
+
+    # `retry_reclaim` escalates: count how many calls it takes to stop retrying
+    let n = Ref(0)
+        ret = CUDACore.retry_reclaim(ret -> ret < 2) do
+            n[] += 1
+            n[]
+        end
+        @test ret == 2
+        @test n[] == 2
+    end
 end
 
 @testset "pool_status" begin

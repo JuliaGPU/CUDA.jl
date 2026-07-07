@@ -31,10 +31,10 @@
     @on_device active_mask()
 
     @testset "range metadata" begin
-        foobar() = threadIdx().x
-        ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}; raw=true))
-
-        @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
+        @test @filecheck CUDA.code_llvm(Tuple{}; raw=true) do
+            @check "{{call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range}}"
+            threadIdx().x
+        end
     end
 end
 

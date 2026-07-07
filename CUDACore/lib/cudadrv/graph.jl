@@ -71,7 +71,7 @@ See also: [`instantiate`](@ref).
 capture
 
 function unsafe_destroy!(graph::CuGraph)
-    context!(graph.ctx; skip_destroyed=true) do
+    context!(graph.ctx) do
         cuGraphDestroy(graph)
     end
 end
@@ -109,7 +109,7 @@ See also: [`launch`](@ref), [`update`](@ref).
 instantiate
 
 function unsafe_destroy!(exec::CuGraphExec)
-    context!(exec.ctx; skip_destroyed=true) do
+    context!(exec.ctx) do
         cuGraphExecDestroy(exec)
     end
 end

@@ -87,7 +87,7 @@ mutable struct CuModule
 end
 
 function unsafe_unload!(mod::CuModule)
-    context!(mod.ctx; skip_destroyed=true) do
+    context!(mod.ctx) do
         cuModuleUnload(mod)
     end
 end

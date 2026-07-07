@@ -26,6 +26,7 @@ description(::CuError)
 ```@docs
 driver_version()
 runtime_version()
+compiler_version()
 set_runtime_version!
 reset_runtime_version!
 ```

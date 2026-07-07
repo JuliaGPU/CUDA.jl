@@ -156,8 +156,15 @@ end
 end
 
 function nonblocking_synchronize(val)
-    # get the channel of a synchronization worker
-    i = mod1(Threads.atomic_add!(sync_channel_cursor, UInt32(1)), MAX_SYNC_THREADS)
+    # pick a worker channel: sticky per task, so repeated synchronizations from the
+    # same task always hit the same worker thread. round-robin per-call would cycle through
+    # cold workers every time, paying the wake-up cost on each iteration; sticky keeps
+    # one worker hot and shaves significant tail latency. concurrent syncs from
+    # different tasks still spread across workers via the cursor.
+    tls = task_local_storage()
+    i = get!(tls, :CUDA_sync_channel) do
+        mod1(Threads.atomic_add!(sync_channel_cursor, UInt32(1)), MAX_SYNC_THREADS)
+    end::Int
     if !isassigned(sync_channels, i)
         # TODO: write lock, double check, etc
         create_synchronization_worker(i)

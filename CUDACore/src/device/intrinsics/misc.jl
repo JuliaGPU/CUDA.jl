@@ -1,4 +1,5 @@
 export clock, nanosleep
+@public exit
 
 """
     exit()

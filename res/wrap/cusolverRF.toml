@@ -1,6 +1,6 @@
 [general]
 library_name = "libcusolver"
-output_file_path = "../../lib/cusolver/libcusolverRF.jl"
+output_file_path = "../../lib/cusolver/src/libcusolverRF.jl"
 
 
 [codegen]

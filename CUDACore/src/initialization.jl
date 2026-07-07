@@ -142,42 +142,20 @@ function __init__()
         _initialization_error[] = "CUDA runtime not found"
         return
     end
-    runtime = try
-        runtime_version()
-    catch err
-        if err isa CuError && err.code == ERROR_NO_DEVICE
-            _initialization_error[] = "No CUDA-capable device found"
-            return
-        end
-        rethrow()
-    end
-
-    # ensure the loaded runtime is supported
-    if runtime < v"12"
-        @error "This version of CUDA.jl only supports CUDA 12 or higher (your toolkit provides CUDA $runtime)"
-    end
-
-    # ensure the loaded runtime matches what we precompiled for.
-    if toolkit_version == nothing
-        @error """CUDA.jl was precompiled without knowing the CUDA toolkit version. This is unsupported.
-                  You should either precompile CUDA.jl in an environment where the CUDA toolkit is available,
-                  or call `CUDA.set_runtime_version!` to specify which CUDA version to use."""
-    elseif Base.thisminor(runtime) != Base.thisminor(toolkit_version)
-        # this can only happen with a local toolkit, but let's always check to be sure
-        if local_toolkit
-            @error """You are using a local CUDA $(Base.thisminor(runtime)) toolkit, but CUDA.jl was precompiled for CUDA $(Base.thisminor(toolkit_version)). This is unsupported.
-                      Call `CUDA.set_runtime_version!` to update the CUDA version to match your local installation."""
-        else
-            @error """You are using CUDA $(Base.thisminor(runtime)), but CUDA.jl was precompiled for CUDA $(Base.thisminor(toolkit_version)).
-                      This is unexpected; please file an issue."""
-        end
-    end
-
     # finally, initialize CUDA
     try
         cuInit(0)
     catch err
         _initialization_error[] = "CUDA initialization failed: " * sprint(showerror, err)
+        return
+    end
+
+    # ensure the loaded runtime is supported. done after cuInit so that runtime_version()
+    # (on Linux, a ccall into libcudart) doesn't have to deal with ERROR_NO_DEVICE.
+    runtime = runtime_version()
+    if runtime < v"12"
+        @error "This version of CUDA.jl only supports CUDA 12 or higher (your toolkit provides CUDA $runtime)"
+        _initialization_error[] = "CUDA runtime too old"
         return
     end
 
@@ -250,7 +228,6 @@ export has_cuda, has_cuda_gpu
 
 Check whether the local system provides an installation of the CUDA driver and runtime.
 Use this function if your code loads packages that require CUDA.jl.
-```
 """
 has_cuda(show_reason::Bool=false) = functional(show_reason)
 

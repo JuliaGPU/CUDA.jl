@@ -52,6 +52,12 @@
             @test collect(d_x) == collect(x)
             @test similar(d_x) isa CuSparseMatrixBSR{elty}
             @test similar(d_x, Float32) isa CuSparseMatrixBSR{Float32}
+            @test similar(d_x, (3, 4)) isa CuSparseMatrixBSR{elty}
+            @test size(similar(d_x, (3, 4))) == (3, 4)
+            @test similar(d_x, Float32, n, m) isa CuSparseMatrixBSR{Float32}
+            @test similar(d_x, Float32, (n, m)) isa CuSparseMatrixBSR{Float32}
+            @test similar(d_x, Float32, Int64, n, m) isa CuSparseMatrixBSR{Float32, Int64}
+            @test similar(d_x, n, m).blockDim == d_x.blockDim
         end
 
         @testset "COO" begin

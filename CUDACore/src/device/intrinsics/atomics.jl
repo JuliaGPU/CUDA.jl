@@ -85,7 +85,7 @@ for T in (Int32, Int64, UInt32, UInt64)
     end
 end
 
-for T in (:Float32, :Float64)
+for T in (:Float16, :Float32, :Float64)
     ops = [:add]
 
     for op in ops
@@ -104,6 +104,19 @@ for T in (:Float32, :Float64)
     @eval @inline atomic_sub!(ptr::Union{LLVMPtr{$T,AS.Generic},
                                          LLVMPtr{$T,AS.Global},
                                          LLVMPtr{$T,AS.Shared}}, val::$T) =
+        atomic_add!(ptr, -val)
+end
+
+# BFloat16 requires Julia 1.11 for bfloat codegen support; on older versions (and older
+# devices, where the back-end expands the operation) the compare-and-swap fallback is used.
+@static if VERSION >= v"1.11"
+    @eval @inline atomic_add!(ptr::Union{LLVMPtr{BFloat16,AS.Generic},
+                                         LLVMPtr{BFloat16,AS.Global},
+                                         LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16) =
+        llvm_atomic_op($(Val(binops[:fadd])), ptr, val)
+    @eval @inline atomic_sub!(ptr::Union{LLVMPtr{BFloat16,AS.Generic},
+                                         LLVMPtr{BFloat16,AS.Global},
+                                         LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16) =
         atomic_add!(ptr, -val)
 end
 
@@ -175,25 +188,6 @@ for A in (AS.Generic, AS.Global, AS.Shared)
         @eval @device_function @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T) =
             @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
     end
-end
-
-
-## PTX
-
-# half-precision atomics using PTX instruction
-
-for A in (AS.Generic, AS.Global, AS.Shared), T in (:Float16,)
-    if A == AS.Global
-        scope = ".global"
-    elseif A == AS.Shared
-        scope = ".shared"
-    else
-        scope = ""
-    end
-
-    intr = "atom$scope.add.noftz.f16 \$0, [\$1], \$2;"
-    @eval @device_function @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
-        @asmcall($intr, "=h,l,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T}, ptr, val)
 end
 
 
@@ -462,6 +456,27 @@ end
         atomic_add!(ptr, val)
     else
         atomic_op!(ptr, op, val)
+    end
+end
+
+@inline function atomic_arrayset(A::AbstractArray{Float16}, I::Integer, op::typeof(+),
+                                 val::Float16)
+    ptr = pointer(A, I)
+    if compute_capability() >= sv"7.0"
+        atomic_add!(ptr, val)
+    else
+        atomic_op!(ptr, op, val)
+    end
+end
+@static if VERSION >= v"1.11"
+    @inline function atomic_arrayset(A::AbstractArray{BFloat16}, I::Integer, op::typeof(+),
+                                     val::BFloat16)
+        ptr = pointer(A, I)
+        if compute_capability() >= sv"9.0"
+            atomic_add!(ptr, val)
+        else
+            atomic_op!(ptr, op, val)
+        end
     end
 end
 

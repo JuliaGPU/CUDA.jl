@@ -125,7 +125,7 @@ mutable struct CuTensorPlan
         cutensorPlanGetAttribute(handle(), plan_ref[], CUTENSOR_PLAN_REQUIRED_WORKSPACE, actualWorkspaceSize, sizeof(actualWorkspaceSize))
         workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
 
-        obj = new(context(), plan_ref[], workspace, convert(Type, required_scalar_type[]))
+        obj = new(context(), plan_ref[], workspace, Type(required_scalar_type[]))
         finalizer(CUDACore.unsafe_free!, obj)
         return obj
     end
@@ -140,7 +140,7 @@ Base.hash(plan::CuTensorPlan, h::UInt) = hash(plan.handle, h)
 
 # destroying the plan
 function unsafe_destroy!(plan::CuTensorPlan)
-    context!(plan.ctx; skip_destroyed=true) do
+    context!(plan.ctx) do
         cutensorDestroyPlan(plan)
     end
 end

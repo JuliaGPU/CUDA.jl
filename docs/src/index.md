@@ -9,7 +9,7 @@ slack](https://julialang.slack.com/), or the [GPU domain of the Julia
 Discourse](https://discourse.julialang.org/c/domain/gpu).
 
 For information on recent or upcoming changes, consult the
-[`NEWS.md`](https://github.com/JuliaGPU/CUDA.jl/blob/master/NEWS.md) document in the CUDA.jl
+[`NEWS.md`](https://github.com/JuliaGPU/CUDA.jl/blob/main/NEWS.md) document in the CUDA.jl
 repository.
 
 
@@ -69,5 +69,5 @@ Much of the software in this ecosystem was developed as part of academic researc
 would like to help support it, please star the repository as such metrics may help us secure
 funding in the future. If you use our software as part of your research, teaching, or other
 activities, we would be grateful if you could cite our work. The
-[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/master/CITATION.bib) file in the
+[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/main/CITATION.bib) file in the
 root of this repository lists the relevant papers.

@@ -1271,6 +1271,39 @@ end
                                                                      tensorId::Ptr{Int64})::cutensornetStatus_t
 end
 
+@checked function cutensornetStateApplyTensorOperatorWithGradient(handle,
+                                                                  tensorNetworkState,
+                                                                  numStateModes, stateModes,
+                                                                  tensorData,
+                                                                  tensorModeStrides,
+                                                                  immutable, adjoint,
+                                                                  unitary, gradientData,
+                                                                  gradientModeStrides,
+                                                                  tensorId)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateApplyTensorOperatorWithGradient(handle::cutensornetHandle_t,
+                                                                                 tensorNetworkState::cutensornetState_t,
+                                                                                 numStateModes::Int32,
+                                                                                 stateModes::Ptr{Int32},
+                                                                                 tensorData::Ptr{Cvoid},
+                                                                                 tensorModeStrides::Ptr{Int64},
+                                                                                 immutable::Int32,
+                                                                                 adjoint::Int32,
+                                                                                 unitary::Int32,
+                                                                                 gradientData::Ptr{Cvoid},
+                                                                                 gradientModeStrides::Ptr{Int64},
+                                                                                 tensorId::Ptr{Int64})::cutensornetStatus_t
+end
+
+@checked function cutensornetStateUpdateTensorOperatorGradient(handle, tensorNetworkState,
+                                                               tensorId, gradientData)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateUpdateTensorOperatorGradient(handle::cutensornetHandle_t,
+                                                                              tensorNetworkState::cutensornetState_t,
+                                                                              tensorId::Int64,
+                                                                              gradientData::Ptr{Cvoid})::cutensornetStatus_t
+end
+
 @checked function cutensornetStateApplyDiagonalTensorOperator(handle, tensorNetworkState,
                                                               numStateModes, stateModes,
                                                               tensorData, tensorModeStrides,
@@ -1628,6 +1661,26 @@ end
                                                                cudaStream::cudaStream_t)::cutensornetStatus_t
 end
 
+@checked function cutensornetExpectationComputeWithGradientsBackward(handle,
+                                                                     tensorNetworkExpectation,
+                                                                     accumulateGradients,
+                                                                     expectationValueAdjoint,
+                                                                     stateNormAdjoint,
+                                                                     workDesc,
+                                                                     expectationValue,
+                                                                     stateNorm, cudaStream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetExpectationComputeWithGradientsBackward(handle::cutensornetHandle_t,
+                                                                                    tensorNetworkExpectation::cutensornetStateExpectation_t,
+                                                                                    accumulateGradients::Int32,
+                                                                                    expectationValueAdjoint::Ptr{Cvoid},
+                                                                                    stateNormAdjoint::Ptr{Cvoid},
+                                                                                    workDesc::cutensornetWorkspaceDescriptor_t,
+                                                                                    expectationValue::Ptr{Cvoid},
+                                                                                    stateNorm::Ptr{Cvoid},
+                                                                                    cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
 @checked function cutensornetDestroyExpectation(tensorNetworkExpectation)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetDestroyExpectation(tensorNetworkExpectation::cutensornetStateExpectation_t)::cutensornetStatus_t
@@ -1832,6 +1885,16 @@ end
                                                                             recommendedStrides::Ptr{Int64})::cutensornetStatus_t
 end
 
+@checked function cutensornetStateProjectionMPSUpdateCoefficients(handle,
+                                                                  tensorNetworkProjection,
+                                                                  numCoeffs, coeffs)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSUpdateCoefficients(handle::cutensornetHandle_t,
+                                                                                 tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                                 numCoeffs::Int32,
+                                                                                 coeffs::Ptr{cuDoubleComplex})::cutensornetStatus_t
+end
+
 @checked function cutensornetStateProjectionMPSExtractTensor(handle,
                                                              tensorNetworkProjection,
                                                              envSpec, strides,
@@ -1860,6 +1923,22 @@ end
                                                                            envTensorData::Ptr{Cvoid},
                                                                            workDesc::cutensornetWorkspaceDescriptor_t,
                                                                            cudaStream::cudaStream_t)::cutensornetStatus_t
+end
+
+@checked function cutensornetStateProjectionMPSUpdateDualTensors(handle,
+                                                                 tensorNetworkProjection,
+                                                                 maxExtents, validExtents,
+                                                                 strides, dualTensorsData,
+                                                                 orthoSpec, cudaStream)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetStateProjectionMPSUpdateDualTensors(handle::cutensornetHandle_t,
+                                                                                tensorNetworkProjection::cutensornetStateProjectionMPS_t,
+                                                                                maxExtents::Ptr{Ptr{Int64}},
+                                                                                validExtents::Ptr{Ptr{Int64}},
+                                                                                strides::Ptr{Ptr{Int64}},
+                                                                                dualTensorsData::Ptr{Ptr{Cvoid}},
+                                                                                orthoSpec::Ptr{cutensornetMPSEnvBounds_t},
+                                                                                cudaStream::cudaStream_t)::cutensornetStatus_t
 end
 
 @checked function cutensornetDestroyStateProjectionMPS(tensorNetworkProjection)

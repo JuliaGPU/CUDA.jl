@@ -193,6 +193,8 @@ Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray, x,
 
 ## const indexing
 
+@public Const
+
 """
     Const(A::CuDeviceArray)
 

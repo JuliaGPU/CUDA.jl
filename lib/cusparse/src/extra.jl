@@ -7,12 +7,59 @@ Performs `C = alpha * A + beta * B`. `A` and `B` are sparse matrices defined in 
 """
 geam(alpha::Number, A::CuSparseMatrixCSR, beta::Number, B::CuSparseMatrixCSR, index::SparseChar)
 
+function geam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::CuSparseMatrixCSR{T}, index::SparseChar) where {T <: BlasFloat}
+    # the generic SpGEAM API was added in cuSPARSE 12.8.1 (CUDA 13.3); use the
+    # legacy csrgeam2 path on older versions.
+    version() >= v"12.8.1" ? geam_spgeam(alpha, A, beta, B, index) :
+                             geam_csrgeam2(alpha, A, beta, B, index)
+end
+
+function geam_spgeam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::CuSparseMatrixCSR{T}, index::SparseChar) where {T <: BlasFloat}
+    m, n = size(A)
+    (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
+
+    alpha_ref = Ref{T}(convert(T, alpha))
+    beta_ref  = Ref{T}(convert(T, beta))
+    descA = CuSparseMatrixDescriptor(A, index)
+    descB = CuSparseMatrixDescriptor(B, index)
+
+    rowPtrC = CuVector{Cint}(undef, m + 1)
+    descC = CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtrC, T, Cint, m, n, index)
+    spgeam_desc = CuSpGEAMDescriptor()
+
+    local C
+    GC.@preserve rowPtrC begin
+        function bufferSize()
+            out = Ref{Csize_t}()
+            cusparseSpGEAM_bufferSize(handle(), 'N', 'N', alpha_ref, descA, beta_ref, descB,
+                                      descC, T, CUSPARSE_SPGEAM_ALG_DEFAULT, spgeam_desc, out)
+            return out[]
+        end
+        with_workspace(bufferSize) do buffer
+            # determine the sparsity pattern (fills rowPtrC) and the number of nonzeros
+            cusparseSpGEAM_nnz(handle(), 'N', 'N', alpha_ref, descA, beta_ref, descB,
+                               descC, T, CUSPARSE_SPGEAM_ALG_DEFAULT, spgeam_desc, buffer)
+            nnzC = Ref{Int64}()
+            cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
+
+            colValC = CuVector{Cint}(undef, nnzC[])
+            nzValC  = CuVector{T}(undef, nnzC[])
+            C = CuSparseMatrixCSR{T, Cint}(rowPtrC, colValC, nzValC, (m, n))
+            cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
+
+            cusparseSpGEAM(handle(), 'N', 'N', alpha_ref, descA, beta_ref, descB,
+                           descC, T, CUSPARSE_SPGEAM_ALG_DEFAULT, spgeam_desc, buffer)
+        end
+    end
+    return C
+end
+
 for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2, :Float32),
                            (:cusparseDcsrgeam2_bufferSizeExt, :cusparseDcsrgeam2, :Float64),
                            (:cusparseCcsrgeam2_bufferSizeExt, :cusparseCcsrgeam2, :ComplexF32),
                            (:cusparseZcsrgeam2_bufferSizeExt, :cusparseZcsrgeam2, :ComplexF64))
     @eval begin
-        function geam(alpha::Number, A::CuSparseMatrixCSR{$elty}, beta::Number, B::CuSparseMatrixCSR{$elty}, index::SparseChar)
+        function geam_csrgeam2(alpha::Number, A::CuSparseMatrixCSR{$elty}, beta::Number, B::CuSparseMatrixCSR{$elty}, index::SparseChar)
             m, n = size(A)
             (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
             descrA = CuMatrixDescriptor('G', 'L', 'N', index)

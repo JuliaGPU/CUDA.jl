@@ -1,6 +1,6 @@
 [general]
 library_name = "libcusparse"
-output_file_path = "../../lib/cusparse/libcusparse.jl"
+output_file_path = "../../lib/cusparse/src/libcusparse.jl"
 prologue_file_path = "./libcusparse_prologue.jl"
 epilogue_file_path = "./libcusparse_epilogue.jl"
 
@@ -919,6 +919,21 @@ needs_context = false
 [api.cusparseSpGEMM_copy.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 7 = "PtrOrCuPtr{Cvoid}"
+
+[api.cusparseSpGEAM_bufferSize.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+12 = "Ref{Csize_t}"
+
+[api.cusparseSpGEAM_nnz.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cusparseSpGEAM.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+6 = "PtrOrCuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
 
 [api.cusparseConstrainedGeMM.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"

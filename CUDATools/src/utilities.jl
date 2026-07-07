@@ -9,7 +9,8 @@ function versioninfo(io::IO=stdout)
 
     println(io, "CUDA toolchain: ")
 
-    print(io, "- runtime $(runtime_version().major).$(runtime_version().minor), ")
+    rv = runtime_version()
+    print(io, "- runtime $(rv.major).$(rv.minor).$(rv.patch), ")
     if CUDACore.local_toolkit
         println(io, "local installation")
     else
@@ -21,7 +22,13 @@ function versioninfo(io::IO=stdout)
         print(io, "- unknown driver")
     end
     println(io, " for $(driver_version().major).$(driver_version().minor)")
-    println(io, "- compiler $(compiler_version().major).$(compiler_version().minor)")
+    cv = compiler_version()
+    print(io, "- compiler $(cv.major).$(cv.minor).$(cv.patch), ")
+    if CUDACore.local_compiler
+        println(io, "local installation")
+    else
+        println(io, "artifact installation")
+    end
     println(io)
 
     println(io, "CUDA libraries: ")
@@ -52,7 +59,8 @@ function versioninfo(io::IO=stdout)
     println(io, "Julia packages: ")
     println(io, "- CUDACore: $(Base.pkgversion(CUDACore))")
     for name in [:GPUArrays, :GPUCompiler, :KernelAbstractions, :CUDA_Driver_jll,
-                 :CUDA_Compiler_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery]
+                 :CUDA_Compiler_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery,
+                 :NVPTX_LLVM_Backend_jll]
         isdefined(CUDACore, name) || continue
         mod = getfield(CUDACore, name)
         println(io, "- $(name): $(Base.pkgversion(mod))")
@@ -135,5 +143,27 @@ function versioninfo(io::IO=stdout)
             query_cuda()
         end
         println(io, "  $(i-1): $str (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
+
+        # report the default compilation target we'd select for this device
+        config = try
+            CUDACore.compiler_config(dev)
+        catch
+            nothing
+        end
+        if config !== nothing
+            ptxas_sm  = config.params.sm
+            ptxas_ptx = config.params.ptx
+            llvm_sm   = CUDACore.SMVersion(config.target.cap.major,
+                                           config.target.cap.minor,
+                                           config.target.feature_set)
+            llvm_ptx  = config.target.ptx
+            ptxas_str = "$(CUDACore.cpu_name(ptxas_sm)) / PTX $(ptxas_ptx.major).$(ptxas_ptx.minor)"
+            if llvm_sm == ptxas_sm && llvm_ptx == ptxas_ptx
+                println(io, "     compiles to $ptxas_str")
+            else
+                llvm_str = "$(CUDACore.cpu_name(llvm_sm)) / PTX $(llvm_ptx.major).$(llvm_ptx.minor)"
+                println(io, "     compiles to $ptxas_str (LLVM: $llvm_str)")
+            end
+        end
     end
 end

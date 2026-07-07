@@ -1,0 +1,22 @@
+name: Clean up Docker container
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly cleanup of untagged container versions.
+    - cron: '0 3 * * 0'
+
+jobs:
+  cleanup:
+    name: Delete untagged container versions
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          owner: ${{ github.repository_owner }}
+          package-name: cuda.jl
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: 'true'

@@ -26,8 +26,8 @@ end
                              (Int32, CUDACore.R_32I), (Complex{Int32}, CUDACore.C_32I), (UInt32, CUDACore.R_32U), (Complex{UInt32}, CUDACore.C_32U),
                              (Int64, CUDACore.R_64I), (Complex{Int64}, CUDACore.C_64I), (UInt64, CUDACore.R_64U), (Complex{UInt64}, CUDACore.C_64U))
         @test convert(CUDACore.cudaDataType, j_type) == c_type
-        @test convert(Type, c_type) == j_type
+        @test Type(c_type) == j_type
     end
     @test_throws ArgumentError convert(CUDACore.cudaDataType, BigFloat)
-    @test_throws ArgumentError convert(Type, CUDACore.R_4I) # adjust once we support 4-bit Ints
+    @test_throws ArgumentError Type(CUDACore.R_4I) # adjust once we support 4-bit Ints
 end

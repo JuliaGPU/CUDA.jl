@@ -27,7 +27,7 @@ mutable struct CuEvent
 end
 
 function unsafe_destroy!(e::CuEvent)
-    context!(e.ctx; skip_destroyed=true) do
+    context!(e.ctx) do
         cuEventDestroy_v2(e)
     end
 end
@@ -85,7 +85,13 @@ Computes the elapsed time between two events (in seconds).
 """
 function elapsed(start::CuEvent, stop::CuEvent)
     time_ref = Ref{Cfloat}()
-    cuEventElapsedTime(time_ref, start, stop)
+    # cuEventElapsedTime_v2 (CUDA 12.8+) has improved accuracy and validation;
+    # fall back to the deprecated v1 entry point on older drivers.
+    if driver_version() >= v"12.8"
+        cuEventElapsedTime_v2(time_ref, start, stop)
+    else
+        cuEventElapsedTime(time_ref, start, stop)
+    end
     return time_ref[]/1000
 end
 

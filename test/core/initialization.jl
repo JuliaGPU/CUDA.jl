@@ -1,21 +1,36 @@
 @test has_cuda(true)
 @test has_cuda_gpu(true)
 
-# the API shouldn't have been initialized
-@test_throws UndefRefError current_context()
-@test_throws UndefRefError current_device()
+# The "CUDA hasn't been initialized yet" assertions only hold in a Julia
+# process that truly has a fresh runtime state, which isn't the case for us:
+# ParallelTestRunner's `init_worker_code` runs `setup.jl`, which already
+# touches `CUDA.functional`, `precompile_runtime`, the memory pool, etc.
+# Run the fresh-state checks in a subprocess.
+@testset "initialization semantics (subprocess)" begin
+    script = """
+        using CUDA, Test
+        # the API shouldn't have been initialized
+        @test_throws UndefRefError current_context()
+        @test_throws UndefRefError current_device()
+
+        ctx = context()
+        dev = device()
+
+        # querying Julia's side of things shouldn't cause initialization
+        @test_throws UndefRefError current_context()
+        @test_throws UndefRefError current_device()
+
+        # now cause initialization
+        a = CuArray([42])
+        @test current_context() == ctx
+        @test current_device() == dev
+    """
+    proc, _, _ = julia_exec(`-e $script`)
+    @test success(proc)
+end
 
 ctx = context()
 dev = device()
-
-# querying Julia's side of things shouldn't cause initialization
-@test_throws UndefRefError current_context()
-@test_throws UndefRefError current_device()
-
-# now cause initialization
-a = CuArray([42])
-@test current_context() == ctx
-@test current_device() == dev
 
 # ... on a different task
 task = @async begin
@@ -31,37 +46,8 @@ context!(ctx)
 @test context!(()->true, ctx)
 @inferred context!(()->42, ctx)
 
-# setting flags is only possible on a new context
+# setting flags is only possible before the primary context is active
 @test_throws ErrorException device!(0, CUDA.CTX_SCHED_YIELD)
-device_reset!()
-device!(0, CUDA.CTX_SCHED_YIELD)
-
-# reset on a different task
-let ctx = context()
-    @test CUDACore.isvalid(ctx)
-    @test ctx == fetch(@async context())
-
-    @sync @async device_reset!()
-
-    @test CUDACore.isvalid(context())
-    @test ctx != context()
-end
-
-# ensure that resetting the device really does get rid of the context
-if has_nvml()
-    pid = getpid()
-    try
-        cuda_dev = device()
-        mig = uuid(cuda_dev) != parent_uuid(cuda_dev)
-        nvml_dev = NVML.Device(uuid(cuda_dev); mig)
-        @test haskey(NVML.compute_processes(nvml_dev), pid)
-        device_reset!()
-        @test !haskey(NVML.compute_processes(nvml_dev), pid)
-    catch err
-        isa(err, NVML.NVMLError) || rethrow()
-        err.code in [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION] || rethrow()
-    end
-end
 
 # test the device selection functionality
 if length(devices()) > 1
@@ -86,14 +72,6 @@ if length(devices()) > 1
     end
     fetch(task)
 
-    @test device() == CuDevice(0)
-
-    # reset on a task
-    task = @async begin
-        device!(1)
-        device_reset!()
-    end
-    fetch(task)
     @test device() == CuDevice(0)
 
     # math_mode

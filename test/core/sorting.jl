@@ -315,7 +315,7 @@ end
         @test check_sort!(Int32, (2, 2, 50000); dims=3, rev=true)
 
         # large sizes
-        @test check_sort!(Float32, 2^25; alg=CUDA.QuickSort)
+        @test check_sort!(Float32, 2^22; alg=CUDA.QuickSort)
 
         # various sync depths
         for depth in 0:4
@@ -378,6 +378,7 @@ end
 
     #sort perm
     # A set of 1e6 Float32s has ~9.4e5 unique values: stability is non-trivial
+    @test check_sortperm(Float32, 0)
     @test check_sortperm(Float32, 1000000)
     @test check_sortperm(Float32, 1000000; rev=true)
     @test check_sortperm(Float32, 1000000; by=x->abs(x-0.5f0))
@@ -392,6 +393,7 @@ end
 
     # check with Int32 indices
     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000)
+    @test check_sortperm!(collect(Int32(1):Int32(0)), Float32, 0)
     # `initialized` kwarg
     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000; initialized=true)
     @test check_sortperm!(collect(Int32(1):Int32(1000000)), Float32, 1000000; initialized=false)

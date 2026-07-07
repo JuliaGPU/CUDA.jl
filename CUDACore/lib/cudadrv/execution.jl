@@ -152,18 +152,22 @@ end
              error("Thread block cluster dimensions exceed device limit ($(clusterdim.x) * $(clusterdim.y) * $(clusterdim.z) > 1). (The device does not support thread block clusters.)")
          end
     end
-    ## shared memory limit
-    shmem_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK)
-    if shmem > shmem_lim
-        error("Amount of dynamic shared memory exceeds device limit ($(Base.format_bytes(shmem)) > $(Base.format_bytes(shmem_lim))).")
-    end
 
     # check kernel limits
     fattr = attributes(f)
+    nthreads = threaddim.x * threaddim.y * threaddim.z
+    ## register pressure (names the resource on the register-binding subset of
+    ## thread-limit failures; falls through to the thread-limit check otherwise)
+    nregs = fattr[FUNC_ATTRIBUTE_NUM_REGS]
+    reg_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK)
+    if nregs * nthreads > reg_lim
+        error("Block register count exceeds device limit ($nregs regs/thread * $nthreads threads/block = $(nregs * nthreads) > $reg_lim regs/block). " *
+              "Reduce per-thread register use (e.g. via the `maxregs` compiler kwarg) or launch with fewer threads per block.")
+    end
     ## thread limit
     threadlim = fattr[FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
-    if threaddim.x * threaddim.y * threaddim.z > threadlim
-        error("Number of threads per block exceeds kernel limit ($(threaddim.x * threaddim.y * threaddim.z) > $threadlim).")
+    if nthreads > threadlim
+        error("Number of threads per block exceeds kernel limit ($nthreads > $threadlim).")
     end
     ## shared memory limit
     shmem_lim = fattr[FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES]

@@ -1,4 +1,11 @@
-include("setup.jl")
-@test cuRAND.version() isa VersionNumber
+using cuRAND
+using ParallelTestRunner
 
-include("high_level.jl")
+const init_code = quote
+    include(joinpath(@__DIR__, "setup.jl"))
+end
+
+testsuite = find_tests(@__DIR__)
+delete!(testsuite, "setup")
+
+runtests(cuRAND, ARGS; init_code, testsuite)

@@ -1,7 +1,18 @@
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/" # Location of package manifests
+    directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+  - package-ecosystem: "julia"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "CUDACore"
+      - dependency-name: "CUDATools"
+      - dependency-name: "cuBLAS"
+      - dependency-name: "cuFFT"
+      - dependency-name: "cuRAND"
+      - dependency-name: "cuSOLVER"
+      - dependency-name: "cuSPARSE"

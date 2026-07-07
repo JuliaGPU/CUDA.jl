@@ -17,11 +17,31 @@ If needed, you can use a lower-level API that lets you inspect the compiler kern
 ```@docs
 cudaconvert
 cufunction
+AbstractKernel
 HostKernel
 version
 maxthreads
 registers
 memory
+```
+
+The PTX compilation target is identified by an `SMVersion`, constructed via the
+`sm"..."` string macro:
+
+```@docs
+SMVersion
+@sm_str
+```
+
+To plug in alternative compiler back-ends (e.g. cuTile.jl), `@cuda` dispatches
+through a small protocol:
+
+```@docs
+AbstractBackend
+LLVMBackend
+DefaultBackend
+kernel_convert
+kernel_compile
 ```
 
 

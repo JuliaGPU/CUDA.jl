@@ -1,6 +1,6 @@
 [general]
 library_name = "libcufft"
-output_file_path = "../../lib/cufft/libcufft.jl"
+output_file_path = "../../lib/cufft/src/libcufft.jl"
 prologue_file_path = "./libcufft_prologue.jl"
 
 output_ignorelist = [

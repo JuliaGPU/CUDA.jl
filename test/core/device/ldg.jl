@@ -1,15 +1,14 @@
 @testset "ldg" begin
-    # NOTE: This is necessary because it seems that code_llvm has a bug which causes it to ignore
-    #       the method table. Wrapping it in a function gets us what we want currently but the PR
-    #       here: https://github.com/JuliaLang/julia/pull/60718 will likely fix this according to
-    #       @vchuravy. It is currently not backported.
-    ir = sprint(io->CUDA.code_llvm(io, (args...)->CUDACore.pointerref_ldg(args...), Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true))
-    if Base.libllvm_version >= v"20"
-        # `@llvm.nvvm.ldg` was removed in LLVM 20; the auto-upgrade
-        # replaces it with a load bearing `!invariant.load` metadata
-        @test occursin("!invariant.load", ir)
-    else
-        @test occursin("@llvm.nvvm.ldg", ir)
+    # NOTE: the wrapping function is necessary because code_llvm has a bug
+    # that causes it to ignore the method table; JuliaLang/julia#60718 will
+    # likely fix this according to @vchuravy.
+    # LLVM 20 removed `@llvm.nvvm.ldg.*`; we now emit a plain load with
+    # `!invariant.load` metadata, which NVPTX lowers to `ld.global.nc`.
+    new_llvm = Base.libllvm_version >= v"20"
+    @test @filecheck CUDA.code_llvm(Tuple{Core.LLVMPtr{Int,AS.Global},Int,Val{1}}; raw=true) do args...
+        @check cond=new_llvm  "!invariant.load"
+        @check cond=!new_llvm "@llvm.nvvm.ldg"
+        CUDACore.pointerref_ldg(args...)
     end
 end
 
@@ -95,8 +94,10 @@ end
     @test Array(a) == Array(b)
 
     asm = String(take!(copy(buf)))
-    @test occursin("ld.global.nc.v4", asm)
-    @test occursin("st.global.v4", asm)
+    # 16-byte vector accesses: v4.b32 on most targets, but newer architectures
+    # may prefer fewer, wider components (e.g. v2.b64 on sm_120)
+    @test occursin(r"ld\.global\.nc\.v(4|2\.b64)", asm)
+    @test occursin(r"st\.global\.v(4|2\.b64)", asm)
 
     function kernel_const(a, b, i)
         @inbounds b[i] = Base.Experimental.Const(a)[i]
@@ -111,8 +112,10 @@ end
     @test Array(a) == Array(b)
 
     asm = String(take!(copy(buf)))
-    @test occursin("ld.global.nc.v4", asm)
-    @test occursin("st.global.v4", asm)
+    # 16-byte vector accesses: v4.b32 on most targets, but newer architectures
+    # may prefer fewer, wider components (e.g. v2.b64 on sm_120)
+    @test occursin(r"ld\.global\.nc\.v(4|2\.b64)", asm)
+    @test occursin(r"st\.global\.v(4|2\.b64)", asm)
 
     function copy_const(A, _B)
         B = Base.Experimental.Const(_B)

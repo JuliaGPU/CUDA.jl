@@ -107,6 +107,16 @@ function batchMeasure!(sv::CuStateVec, bitordering::Vector{<:Integer}, randnum::
     return sv, bitstring
 end
 
+function measureBatched!(sv::CuStateVec, n_svs::Int, bitordering::Vector{<:Integer}, randnums::Vector{<:Real}, collapse::custatevecCollapseOp_t=CUSTATEVEC_COLLAPSE_NONE)
+    length(randnums) == n_svs || throw(ArgumentError("randnums must have length $n_svs."))
+    all(0.0 .<= randnums .< 1.0) || throw(ArgumentError("all randnums must be in the interval [0, 1)."))
+    bitstrings   = zeros(custatevecIndex_t, n_svs)
+    sv_stride    = div(length(sv.data), n_svs)
+    n_index_bits = Int(log2(sv_stride))
+    custatevecMeasureBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, bitstrings, convert(Vector{Int32}, bitordering), length(bitordering), convert(Vector{Cdouble}, randnums), collapse)
+    return sv, bitstrings
+end
+
 function batchMeasureWithOffset!(sv::CuStateVec, bitordering::Vector{<:Integer}, randnum::Float64, offset::Float64, abs2sum::Float64, collapse::custatevecCollapseOp_t=CUSTATEVEC_COLLAPSE_NONE)
     0.0 <= randnum < 1.0 || throw(ArgumentError("randnum $randnum must be in the interval [0, 1)."))
     bitstring = zeros(Int32, length(bitordering))
@@ -128,6 +138,25 @@ function expectation(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, basis_bits
         synchronize()
     end
     return expVal, residualNorm
+end
+
+function expectationBatched(sv::CuStateVec, n_svs::Int, matrices::Union{Vector, CuVector}, n_matrices::Int, basis_bits::Vector{<:Integer})
+    sv_stride    = div(length(sv.data), n_svs)
+    n_index_bits = Int(log2(sv_stride))
+    CT = compute_type(eltype(sv), eltype(matrices))
+    function bufferSize()
+        out = Ref{Csize_t}()
+        custatevecComputeExpectationBatchedGetWorkspaceSize(handle(), eltype(sv), n_index_bits, n_svs, sv_stride, matrices, eltype(matrices), CUSTATEVEC_MATRIX_LAYOUT_COL, n_matrices, length(basis_bits), CT, out)
+        out[]
+    end
+    expVals = zeros(ComplexF64, n_matrices * n_svs)
+    with_workspace(handle().cache, bufferSize) do buffer
+        custatevecComputeExpectationBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, expVals, matrices, eltype(matrices), CUSTATEVEC_MATRIX_LAYOUT_COL, n_matrices, convert(Vector{Int32}, basis_bits), length(basis_bits), CT, buffer, sizeof(buffer))
+        synchronize()
+    end
+    # the C API documents the output as (nMatrices × nSVs) with leading
+    # dimension nMatrices, i.e. matrix index is fastest-varying.
+    return reshape(expVals, n_matrices, n_svs)
 end
 
 function expectationsOnPauliBasis(sv::CuStateVec, pauliOps::Vector{Vector{Pauli}}, basisInds::Vector{Vector{Int}})

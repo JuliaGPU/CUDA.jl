@@ -23,7 +23,7 @@ function kernel_100fma(a, b, c, out)
     return
 end
 
-function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
+function peakflops(n::Integer=1024, dev::CuDevice=CuDevice(0))
     device!(dev) do
         dims = (n, n)
         a = round.(rand(Float32, dims) * 100)

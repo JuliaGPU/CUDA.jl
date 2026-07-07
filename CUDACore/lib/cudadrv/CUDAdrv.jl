@@ -28,3 +28,6 @@ include("state.jl")
 
 # support for concurrent programming
 include("synchronization.jl")
+
+# compatibility shims for removed high-level functionality
+include("deprecated.jl")

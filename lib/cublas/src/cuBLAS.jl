@@ -46,7 +46,7 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-function math_mode!(handle, mode)
+function math_mode!(handle, mode, precision=CUDACore.math_precision())
     flags = 0
 
     # https://github.com/facebookresearch/faiss/issues/1385
@@ -58,8 +58,16 @@ function math_mode!(handle, mode)
     elseif mode == CUDACore.DEFAULT_MATH
         CUBLAS_DEFAULT_MATH
     elseif mode == CUDACore.FAST_MATH
-        # we'll additionally select a compute-mode with reduced precision whenever possible
-        CUBLAS_TF32_TENSOR_OP_MATH
+        # downcast to a reduced-precision compute mode whenever possible; the
+        # emulation modes additionally engage matching emulated kernels for
+        # plain (non-gemmEx) GEMMs. See also `gemmExComputeType`.
+        if precision === :BFloat16x9 && version() >= v"12.9"
+            CUBLAS_FP32_EMULATED_BF16X9_MATH
+        elseif precision === :FixedPoint && version() >= v"13.1"
+            CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH
+        else
+            CUBLAS_TF32_TENSOR_OP_MATH
+        end
     end
 
     cublasSetMathMode(handle, cublasMath_t(flags))
@@ -76,33 +84,45 @@ function handle_ctor(ctx)
     end
 end
 function handle_dtor(ctx, handle)
-    context!(ctx; skip_destroyed=true) do
+    context!(ctx) do
         cublasDestroy_v2(handle)
     end
 end
 const idle_handles = HandleCache{CuContext,cublasHandle_t}(handle_ctor, handle_dtor)
 
+# mutable wrapper so the raw handle is released via an object-bound finalizer:
+# when TLS state is cleared (e.g. on reclaim) and GC runs, the wrapper is
+# collected and its finalizer returns the handle to the idle cache instead
+# of the handle being pinned for the entire lifetime of the owning task.
+mutable struct Handle
+    const handle::cublasHandle_t
+    const ctx::CuContext
+end
+Base.unsafe_convert(::Type{cublasHandle_t}, handle::Handle) = handle.handle
+
+function handle_finalizer(h::Handle)
+    push!(idle_handles, h.ctx, h.handle)
+end
+
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode, math_precision::Symbol}
+const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUBLAS)
+
 function handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{handle::cublasHandle_t, stream::CuStream, math_mode::CUDACore.MathMode}
-    states = get!(task_local_storage(), :CUBLAS) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(state_cache)
 
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_handles, cuda.context, new_handle)
-        end
+        wrapped = Handle(new_handle, cuda.context)
+        finalizer(handle_finalizer, wrapped)
 
         cublasSetStream_v2(new_handle, cuda.stream)
         cublasSetPointerMode_v2(new_handle, CUBLAS_POINTER_MODE_DEVICE)
-        math_mode!(new_handle, cuda.math_mode)
+        math_mode!(new_handle, cuda.math_mode, cuda.math_precision)
 
-        (; handle=new_handle, cuda.stream, cuda.math_mode)
+        (; handle=wrapped, cuda.stream, cuda.math_mode, cuda.math_precision)
     end
     state = get!(states, cuda.context) do
         new_state(cuda)
@@ -111,18 +131,18 @@ function handle()
     # update stream
     @noinline function update_stream(cuda, state)
         cublasSetStream_v2(state.handle, cuda.stream)
-        (; state.handle, stream=cuda.stream, state.math_mode)
+        (; state.handle, stream=cuda.stream, state.math_mode, state.math_precision)
     end
     if state.stream != cuda.stream
         states[cuda.context] = state = update_stream(cuda, state)
     end
 
-    # update math mode
+    # update math mode (the precision feeds into the emulation math modes)
     @noinline function update_math_mode(cuda, state)
-        math_mode!(state.handle, cuda.math_mode)
-        (; state.handle, state.stream, math_mode=cuda.math_mode)
+        math_mode!(state.handle, cuda.math_mode, cuda.math_precision)
+        (; state.handle, state.stream, math_mode=cuda.math_mode, math_precision=cuda.math_precision)
     end
-    if state.math_mode != cuda.math_mode
+    if state.math_mode != cuda.math_mode || state.math_precision != cuda.math_precision
         states[cuda.context] = state = update_math_mode(cuda, state)
     end
 
@@ -136,13 +156,21 @@ function xt_handle_ctor(ctxs)
     cublasXtCreate()
 end
 function xt_handle_dtor(ctxs, handle)
-    for ctx in ctxs
-        CUDACore.isvalid(ctx) || return
-    end
     cublasXtDestroy(handle)
 end
 const idle_xt_handles =
     HandleCache{Vector{CuContext},cublasXtHandle_t}(xt_handle_ctor, xt_handle_dtor)
+
+# mutable wrapper for the xt handle, see `Handle` for rationale.
+mutable struct XtHandle
+    const handle::cublasXtHandle_t
+    const ctxs::Vector{CuContext}
+end
+Base.unsafe_convert(::Type{cublasXtHandle_t}, h::XtHandle) = h.handle
+
+function xt_handle_finalizer(h::XtHandle)
+    push!(idle_xt_handles, h.ctxs, h.handle)
+end
 
 function devices!(devs::Vector{CuDevice})
     task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
@@ -156,14 +184,13 @@ end::Vector{CuDevice}
 
 ndevices() = length(devices())
 
+const XtLibraryState = @NamedTuple{handle::XtHandle}
+const xt_state_cache = CUDACore.TaskLocalCache{UInt, XtLibraryState}(:CUBLASxt)
+
 function xt_handle()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per set of devices
-    LibraryState = @NamedTuple{handle::cublasXtHandle_t}
-    states = get!(task_local_storage(), :CUBLASxt) do
-        Dict{UInt,LibraryState}()
-    end::Dict{UInt,LibraryState}
+    states = CUDACore.task_dict(xt_state_cache)
 
     # for performance, don't use a tuple of contexts to index the TLS
     key = zero(UInt)
@@ -177,23 +204,30 @@ function xt_handle()
         ctxs = [context(dev) for dev in devices()]
 
         new_handle = pop!(idle_xt_handles, ctxs)
-        finalizer(current_task()) do task
-            push!(idle_xt_handles, ctxs, new_handle)
-        end
+        wrapped = XtHandle(new_handle, ctxs)
+        finalizer(xt_handle_finalizer, wrapped)
 
         # if we're using the stream-ordered allocator,
         # make sure allocations are visible on all devices
         async_devs = filter(memory_pools_supported, devices())
         for dev in async_devs
             other_devs = filter(!isequal(dev), async_devs)
+            # only grant access to peer-capable devices: cuMemPoolSetAccess on a
+            # fresh pool can succeed even when the devices are not peer capable,
+            # deferring the failure to a later allocation.
+            accessible_devs = filter(other -> CUDACore.can_access_peer(other, dev), other_devs)
+            for other in setdiff(other_devs, accessible_devs)
+                @warn "cublasXt: $other cannot access memory on $dev; operations on device arrays may fail" maxlog=1
+            end
+            isempty(accessible_devs) && continue
             pool = CUDACore.pool_create(dev)
-            access!(pool, other_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
+            access!(pool, accessible_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
         end
 
         devs = convert.(Cint, devices())
         cublasXtDeviceSelect(new_handle, length(devs), devs)
 
-        (; handle=new_handle)
+        (; handle=wrapped)
     end
     state = get!(states, key) do
         new_state(cuda)
@@ -277,6 +311,13 @@ function __init__()
         cublasSetLoggerCallback(callback)
         atexit(flush_log_messages)
     end
+
+    # wire up reclaim (precompile-captured constructors can't push into
+    # CUDACore's registry themselves)
+    CUDACore.register_reclaimable!(idle_handles)
+    CUDACore.register_reclaimable!(idle_xt_handles)
+    CUDACore.register_reclaimable!(state_cache)
+    CUDACore.register_reclaimable!(xt_state_cache)
 
     _initialized[] = true
 end

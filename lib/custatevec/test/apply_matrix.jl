@@ -122,6 +122,32 @@ end
         @test exp[] ≈ 0.0 atol=1e-6
     end
 end
+@testset "expectationBatched" begin
+    n_q = 2
+    @testset for elty in [ComplexF32, ComplexF64]
+        X = convert(Matrix{elty}, [0 1; 1 0])
+        Z = convert(Matrix{elty}, [1 0; 0 -1])
+        @testset for n_svs in (1, 2)
+            # populate each sub-state-vector with |01⟩ (qubit 0 = 1, qubit 1 = 0)
+            single_sv = elty[0, 1, 0, 0]
+            h_sv = repeat(single_sv, n_svs)
+            sv = CuStateVec(h_sv)
+
+            # ⟨01|Z|01⟩ = -1 (qubit 0); ⟨01|X|01⟩ = 0
+            matrices = elty[vec(Z); vec(X)]
+            exp_vals = expectationBatched(sv, n_svs, matrices, 2, Int32[0])
+            @test size(exp_vals) == (2, n_svs)
+            for sv_ix in 1:n_svs
+                @test real(exp_vals[1, sv_ix]) ≈ -1.0 atol=1e-6
+                @test real(exp_vals[2, sv_ix]) ≈  0.0 atol=1e-6
+            end
+
+            # also accept a CuVector for the matrices argument
+            exp_vals_d = expectationBatched(CuStateVec(h_sv), n_svs, CuVector(matrices), 2, Int32[0])
+            @test Array(exp_vals_d) ≈ exp_vals
+        end
+    end
+end
 @testset "applyMatrix! and sample" begin
     # build a simple state and compute samples
     n_q = 10

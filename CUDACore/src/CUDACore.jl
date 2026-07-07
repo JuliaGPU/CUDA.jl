@@ -31,15 +31,8 @@ using LLVMLoopInfo
 
 using CUDA_Driver_jll
 
-using CUDA_Compiler_jll
-
 import CUDA_Runtime_jll
 const local_toolkit = CUDA_Runtime_jll.host_platform["cuda_local"] == "true"
-const toolkit_version = if CUDA_Runtime_jll.host_platform["cuda"] == "none"
-    nothing
-else
-    parse(VersionNumber, CUDA_Runtime_jll.host_platform["cuda"])
-end
 if local_toolkit
     using CUDA_Runtime_Discovery
     const CUDA_Runtime = CUDA_Runtime_Discovery
@@ -49,6 +42,17 @@ else
 end
 
 import Preferences
+const local_compiler = Preferences.@load_preference("local_compiler", "false") == "true"
+
+if local_compiler
+    using CUDA_Runtime_Discovery
+    const CUDA_Compiler = CUDA_Runtime_Discovery
+else
+    import CUDA_Compiler_jll
+    const CUDA_Compiler = CUDA_Compiler_jll
+end
+
+import NVPTX_LLVM_Backend_jll
 
 using Libdl
 
@@ -71,12 +75,14 @@ include("pointer.jl")
 
 # core utilities
 include("utils/call.jl")
+include("utils/reclaim.jl")
 include("utils/cache.jl")
 include("utils/struct_size.jl")
 include("../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
 include("initialization.jl")
+include("compiler/sm.jl")
 include("compatibility.jl")
 include("debug.jl")
 
@@ -112,7 +118,6 @@ include("accumulate.jl")
 include("reverse.jl")
 include("iterator.jl")
 include("sorting.jl")
-include("random.jl")
 
 # shared library types
 include("complex.jl")

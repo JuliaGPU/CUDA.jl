@@ -146,6 +146,7 @@ const CUdevice = CUdevice_v1
     CUDA_ERROR_INVALID_RESOURCE_CONFIGURATION = 915
     CUDA_ERROR_KEY_ROTATION = 916
     CUDA_ERROR_STREAM_DETACHED = 917
+    CUDA_ERROR_GRAPH_RECAPTURE_FAILURE = 918
     CUDA_ERROR_UNKNOWN = 999
 end
 
@@ -1243,6 +1244,7 @@ end
     CU_GRAPH_NODE_TYPE_MEM_FREE = 11
     CU_GRAPH_NODE_TYPE_BATCH_MEM_OP = 12
     CU_GRAPH_NODE_TYPE_CONDITIONAL = 13
+    CU_GRAPH_NODE_TYPE_RESERVED_16 = 16
 end
 
 const CUgraphNodeType = CUgraphNodeType_enum
@@ -1268,6 +1270,7 @@ function Base.getproperty(x::Ptr{CUgraphNodeParams_st}, f::Symbol)
     f === :free && return Ptr{CUDA_MEM_FREE_NODE_PARAMS}(x + 16)
     f === :memOp && return Ptr{CUDA_BATCH_MEM_OP_NODE_PARAMS_v2}(x + 16)
     f === :conditional && return Ptr{CUDA_CONDITIONAL_NODE_PARAMS}(x + 16)
+    f === :asBytes && return Ptr{NTuple{232,Cchar}}(x + 16)
     f === :reserved2 && return Ptr{Clonglong}(x + 248)
     return getfield(x, f)
 end
@@ -1286,7 +1289,7 @@ end
 function Base.propertynames(x::CUgraphNodeParams_st, private::Bool=false)
     return (:type, :reserved0, :reserved1, :kernel, :memcpy, :memset, :host, :graph,
             :eventWait, :eventRecord, :extSemSignal, :extSemWait, :alloc, :free, :memOp,
-            :conditional, :reserved2, if private
+            :conditional, :asBytes, :reserved2, if private
                 fieldnames(typeof(x))
             else
                 ()
@@ -1931,7 +1934,13 @@ const CUfilter_mode = CUfilter_mode_enum
     CU_DEVICE_ATTRIBUTE_HOST_ALLOC_DMA_BUF_SUPPORTED = 146
     CU_DEVICE_ATTRIBUTE_ONLY_PARTIAL_HOST_NATIVE_ATOMIC_SUPPORTED = 147
     CU_DEVICE_ATTRIBUTE_ATOMIC_REDUCTION_SUPPORTED = 148
-    CU_DEVICE_ATTRIBUTE_MAX = 149
+    CU_DEVICE_ATTRIBUTE_D3D12_CIG_STREAMS_SUPPORTED = 151
+    CU_DEVICE_ATTRIBUTE_DMA_BUF_MMAP_SUPPORTED = 152
+    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_SUPPORTED = 153
+    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_MULTICAST_SUPPORTED = 154
+    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_COUNTED_OPS_SUPPORTED = 155
+    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_ACCESS_ON_OWNER_DEVICE_SUPPORTED = 156
+    CU_DEVICE_ATTRIBUTE_MAX = 157
 end
 
 const CUdevice_attribute = CUdevice_attribute_enum
@@ -1996,7 +2005,8 @@ const CUpointer_attribute = CUpointer_attribute_enum
     CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_DEPTH = 13
     CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED = 14
     CU_FUNC_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE = 15
-    CU_FUNC_ATTRIBUTE_MAX = 16
+    CU_FUNC_ATTRIBUTE_DEVICE_NODE_UPDATE_SUPPORTED = 16
+    CU_FUNC_ATTRIBUTE_MAX = 17
 end
 
 const CUfunction_attribute = CUfunction_attribute_enum
@@ -3940,8 +3950,7 @@ const CUcheckpointGpuPair = CUcheckpointGpuPair_st
 struct CUcheckpointRestoreArgs_st
     gpuPairs::Ptr{CUcheckpointGpuPair}
     gpuPairsCount::Cuint
-    reserved::NTuple{44,Cchar}
-    reserved1::cuuint64_t
+    reserved::NTuple{52,Cchar}
 end
 
 const CUcheckpointRestoreArgs = CUcheckpointRestoreArgs_st
@@ -4905,6 +4914,154 @@ end
                                                     option::CUmulticastGranularity_flags)::CUresult
 end
 
+const CUlogicalEndpointId = cuuint32_t
+
+@cenum CUlogicalEndpointIpcHandleType_enum::UInt32 begin
+    CU_LOGICAL_ENDPOINT_IPC_HANDLE_TYPE_NONE = 0
+    CU_LOGICAL_ENDPOINT_IPC_HANDLE_TYPE_FABRIC = 1
+end
+
+const CUlogicalEndpointIpcHandleType = CUlogicalEndpointIpcHandleType_enum
+
+struct CUlogicalEndpointFabricHandle_st
+    data::NTuple{64,Cuchar}
+end
+
+const CUlogicalEndpointFabricHandle = CUlogicalEndpointFabricHandle_st
+
+@cenum CUlogicalEndpointType_enum::UInt32 begin
+    CU_LOGICAL_ENDPOINT_TYPE_INVALID = 0
+    CU_LOGICAL_ENDPOINT_TYPE_UNICAST = 1
+    CU_LOGICAL_ENDPOINT_TYPE_MULTICAST = 2
+end
+
+const CUlogicalEndpointType = CUlogicalEndpointType_enum
+
+@cenum CUlogicalEndpointFlag_enum::UInt32 begin
+    CU_LOGICAL_ENDPOINT_FLAG_NONE = 0
+    CU_LOGICAL_ENDPOINT_FLAG_COUNTED_OPS = 1
+end
+
+const CUlogicalEndpointFlag = CUlogicalEndpointFlag_enum
+
+struct CUlogicalEndpointProp_struct
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUlogicalEndpointProp_struct}, f::Symbol)
+    f === :type && return Ptr{CUlogicalEndpointType}(x + 0)
+    f === :unicast && return Ptr{Cvoid}(x + 4)
+    f === :multicast && return Ptr{Cvoid}(x + 4)
+    f === :size && return Ptr{Culonglong}(x + 8)
+    f === :ipcHandleTypes && return Ptr{Cuint}(x + 16)
+    f === :flags && return Ptr{Cuint}(x + 20)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUlogicalEndpointProp_struct, f::Symbol)
+    r = Ref{CUlogicalEndpointProp_struct}(x)
+    ptr = Base.unsafe_convert(Ptr{CUlogicalEndpointProp_struct}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUlogicalEndpointProp_struct}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUlogicalEndpointProp_struct, private::Bool=false)
+    return (:type, :unicast, :multicast, :size, :ipcHandleTypes, :flags,
+            if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+const CUlogicalEndpointProp = CUlogicalEndpointProp_struct
+
+@checked function cuLogicalEndpointIdReserve(baseLeId, count)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointIdReserve(baseLeId::Ptr{CUlogicalEndpointId},
+                                                     count::cuuint32_t)::CUresult
+end
+
+@checked function cuLogicalEndpointIdRelease(baseLeId, count)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointIdRelease(baseLeId::CUlogicalEndpointId,
+                                                     count::cuuint32_t)::CUresult
+end
+
+@checked function cuLogicalEndpointCreate(leId, prop)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointCreate(leId::CUlogicalEndpointId,
+                                                  prop::Ptr{CUlogicalEndpointProp})::CUresult
+end
+
+@checked function cuLogicalEndpointAddDevice(leId, dev)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointAddDevice(leId::CUlogicalEndpointId,
+                                                     dev::CUdevice)::CUresult
+end
+
+@checked function cuLogicalEndpointDestroy(leId)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointDestroy(leId::CUlogicalEndpointId)::CUresult
+end
+
+@checked function cuLogicalEndpointBindAddr(leId, dev, offset, ptr, size, flags)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointBindAddr(leId::CUlogicalEndpointId,
+                                                    dev::CUdevice, offset::cuuint64_t,
+                                                    ptr::Ptr{Cvoid}, size::cuuint64_t,
+                                                    flags::Culonglong)::CUresult
+end
+
+@checked function cuLogicalEndpointBindMem(leId, dev, offset, memHandle, memOffset, size,
+                                           flags)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointBindMem(leId::CUlogicalEndpointId, dev::CUdevice,
+                                                   offset::cuuint64_t,
+                                                   memHandle::CUmemGenericAllocationHandle,
+                                                   memOffset::cuuint64_t, size::cuuint64_t,
+                                                   flags::Culonglong)::CUresult
+end
+
+@checked function cuLogicalEndpointUnbind(leId, dev, offset, size)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointUnbind(leId::CUlogicalEndpointId, dev::CUdevice,
+                                                  offset::cuuint64_t,
+                                                  size::cuuint64_t)::CUresult
+end
+
+@checked function cuLogicalEndpointExport(handle, leId, handleType)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointExport(handle::Ptr{Cvoid},
+                                                  leId::CUlogicalEndpointId,
+                                                  handleType::CUlogicalEndpointIpcHandleType)::CUresult
+end
+
+@checked function cuLogicalEndpointImport(leId, handle, handleType)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointImport(leId::CUlogicalEndpointId,
+                                                  handle::Ptr{Cvoid},
+                                                  handleType::CUlogicalEndpointIpcHandleType)::CUresult
+end
+
+@checked function cuLogicalEndpointGetLimits(bindAlignment, maxSize, prop)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointGetLimits(bindAlignment::Ptr{cuuint64_t},
+                                                     maxSize::Ptr{cuuint64_t},
+                                                     prop::Ptr{CUlogicalEndpointProp})::CUresult
+end
+
+@checked function cuLogicalEndpointQuery(leId, count, queryStatus)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLogicalEndpointQuery(leId::CUlogicalEndpointId,
+                                                 count::cuuint32_t,
+                                                 queryStatus::Ptr{Cint})::CUresult
+end
+
 @checked function cuPointerGetAttribute(data, attribute, ptr)
     initialize_context()
     @gcsafe_ccall libcuda.cuPointerGetAttribute(data::Ptr{Cvoid},
@@ -5046,6 +5203,27 @@ end
     initialize_context()
     @gcsafe_ccall libcuda.cuStreamAddCallback(hStream::CUstream, callback::CUstreamCallback,
                                               userData::Ptr{Cvoid}, flags::Cuint)::CUresult
+end
+
+@cenum CUgraphRecaptureStatus_enum::UInt32 begin
+    CU_GRAPH_RECAPTURE_ELIGIBLE_FOR_UPDATE = 0
+    CU_GRAPH_RECAPTURE_INELIGIBLE_FOR_UPDATE = 1
+    CU_GRAPH_RECAPTURE_ERROR = 2
+end
+
+const CUgraphRecaptureStatus = CUgraphRecaptureStatus_enum
+
+# typedef CUresult ( CUDA_CB * CUgraphRecaptureCallback ) ( void * data , CUgraphNode node , const CUgraphNodeParams * originalParams , const CUgraphNodeParams * recaptureParams , CUgraphRecaptureStatus status )
+const CUgraphRecaptureCallback = Ptr{Cvoid}
+
+@checked function cuStreamBeginRecaptureToGraph(hStream, mode, hGraph, callbackFunc,
+                                                userData)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuStreamBeginRecaptureToGraph(hStream::CUstream,
+                                                        mode::CUstreamCaptureMode,
+                                                        hGraph::CUgraph,
+                                                        callbackFunc::CUgraphRecaptureCallback,
+                                                        userData::Ptr{Cvoid})::CUresult
 end
 
 @checked function cuStreamBeginCaptureToGraph(hStream, hGraph, dependencies, dependencyData,
@@ -5279,13 +5457,6 @@ end
                                                     kernelParams::Ptr{Ptr{Cvoid}})::CUresult
 end
 
-@checked function cuLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags)
-    initialize_context()
-    @gcsafe_ccall libcuda.cuLaunchCooperativeKernelMultiDevice(launchParamsList::Ptr{CUDA_LAUNCH_PARAMS},
-                                                               numDevices::Cuint,
-                                                               flags::Cuint)::CUresult
-end
-
 @checked function cuLaunchHostFunc(hStream, fn, userData)
     initialize_context()
     @gcsafe_ccall libcuda.cuLaunchHostFunc(hStream::CUstream, fn::CUhostFn,
@@ -5348,6 +5519,13 @@ end
     initialize_context()
     @gcsafe_ccall libcuda.cuLaunchGridAsync(f::CUfunction, grid_width::Cint,
                                             grid_height::Cint, hStream::CUstream)::CUresult
+end
+
+@checked function cuLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuLaunchCooperativeKernelMultiDevice(launchParamsList::Ptr{CUDA_LAUNCH_PARAMS},
+                                                               numDevices::Cuint,
+                                                               flags::Cuint)::CUresult
 end
 
 @checked function cuParamSetTexRef(hfunc, texunit, hTexRef)
@@ -6312,7 +6490,7 @@ end
 
 const CUcoredumpSettings = CUcoredumpSettings_enum
 
-@cenum CUCoredumpGenerationFlags::UInt32 begin
+@cenum CUCoredumpGenerationFlags::Int32 begin
     CU_COREDUMP_DEFAULT_FLAGS = 0
     CU_COREDUMP_SKIP_NONRELOCATED_ELF_IMAGES = 1
     CU_COREDUMP_SKIP_GLOBAL_MEMORY = 2
@@ -6321,6 +6499,9 @@ const CUcoredumpSettings = CUcoredumpSettings_enum
     CU_COREDUMP_SKIP_ABORT = 16
     CU_COREDUMP_SKIP_CONSTBANK_MEMORY = 32
     CU_COREDUMP_GZIP_COMPRESS = 64
+    CU_COREDUMP_FAULTED_CONTEXTS_ONLY = 128
+    CU_COREDUMP_NO_ERRBAR_AT_EXIT = 1073741824
+    CU_COREDUMP_LOG_ONLY = -2147483648
     CU_COREDUMP_LIGHTWEIGHT_FLAGS = 47
 end
 
@@ -6394,6 +6575,7 @@ mutable struct CUdevResourceDesc_st end
 const CUdevResourceDesc = Ptr{CUdevResourceDesc_st}
 
 @cenum CUgreenCtxCreate_flags::UInt32 begin
+    CU_GREEN_CTX_NONE = 0
     CU_GREEN_CTX_DEFAULT_STREAM = 1
 end
 

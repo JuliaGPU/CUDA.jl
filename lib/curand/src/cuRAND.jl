@@ -19,7 +19,7 @@ end
 @public functional
 @public rand, randn, seed!
 @public rand_logn, rand_logn!, rand_poisson, rand_poisson!
-@public NativeRNG, native_rng
+@public LibraryRNG, NativeRNG, library_rng, native_rng, gpuarrays_rng
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -45,42 +45,49 @@ include("cuda_integration.jl")
 
 function handle_ctor(ctx)
     context!(ctx) do
-        RNG()
+        LibraryRNG()
     end
 end
 function handle_dtor(ctx, handle)
-    context!(ctx; skip_destroyed=true) do
+    context!(ctx) do
         # no need to do anything, as the RNG is collected by its finalizer
         # TODO: early free?
     end
 end
-const idle_curand_rngs = HandleCache{CuContext,RNG}(handle_ctor, handle_dtor)
+const idle_library_rngs = HandleCache{CuContext,LibraryRNG}(handle_ctor, handle_dtor)
 
-function default_rng()
+# wrapper owning a LibraryRNG borrowed from `idle_library_rngs`. Held in
+# task-local storage so that, on reclaim or task GC, the wrapper becomes
+# unreachable and its finalizer returns the RNG to the idle cache. From
+# there, `purge!` on the cache would free the underlying generator.
+mutable struct BorrowedLibraryRNG
+    const rng::LibraryRNG
+    const ctx::CuContext
+end
+
+function library_rng_finalizer(b::BorrowedLibraryRNG)
+    push!(idle_library_rngs, b.ctx, b.rng)
+end
+
+const library_state_cache = CUDACore.TaskLocalCache{CuContext, BorrowedLibraryRNG}(:CURAND)
+
+function library_rng()
     cuda = CUDACore.active_state()
 
-    # every task maintains library state per device
-    LibraryState = @NamedTuple{rng::RNG}
-    states = get!(task_local_storage(), :CURAND) do
-        Dict{CuContext,LibraryState}()
-    end::Dict{CuContext,LibraryState}
+    states = CUDACore.task_dict(library_state_cache)
 
-    # get library state
     @noinline function new_state(cuda)
-        new_rng = pop!(idle_curand_rngs, cuda.context)
-        finalizer(current_task()) do task
-            push!(idle_curand_rngs, cuda.context, new_rng)
-        end
-
+        new_rng = pop!(idle_library_rngs, cuda.context)
+        wrapped = BorrowedLibraryRNG(new_rng, cuda.context)
+        finalizer(library_rng_finalizer, wrapped)
         Random.seed!(new_rng)
-
-        (; rng=new_rng)
+        wrapped
     end
-    state = get!(states, cuda.context) do
+    borrowed = get!(states, cuda.context) do
         new_state(cuda)
     end
 
-    return state.rng
+    return borrowed.rng
 end
 
 
@@ -102,6 +109,11 @@ function __init__()
     else
         libcurand = CUDA_Runtime_jll.libcurand
     end
+
+    CUDACore.register_reclaimable!(idle_library_rngs)
+    CUDACore.register_reclaimable!(library_state_cache)
+    CUDACore.register_reclaimable!(native_state_cache)
+    CUDACore.register_reclaimable!(gpuarrays_state_cache)
 
     _initialized[] = true
 end

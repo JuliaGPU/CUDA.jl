@@ -24,7 +24,7 @@ function Base.convert(::Type{cutensornetComputeType_t}, T::DataType)
     end
 end
 
-function Base.convert(::Type{Type}, T::cutensornetComputeType_t)
+function Base.Type(T::cutensornetComputeType_t)
     if T == CUTENSORNET_COMPUTE_16F
         return Float16
     elseif T == CUTENSORNET_COMPUTE_32F
