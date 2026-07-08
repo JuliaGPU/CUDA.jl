@@ -112,11 +112,6 @@ GPUArrays.dense_array_type(::Type{<:CuSparseVector}) = CuArray
 GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSC}) = CuArray
 GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSR}) = CuArray
 
-GPUArrays.csc_type(::Type{<:CuSparseMatrixCSR}) = CuSparseMatrixCSC
-GPUArrays.csr_type(::Type{<:CuSparseMatrixCSC}) = CuSparseMatrixCSR
-GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSR, Transpose{<:Any,<:CuSparseMatrixCSR}, Adjoint{<:Any,<:CuSparseMatrixCSR}}} = CuSparseMatrixCOO
-GPUArrays.coo_type(::Type{T}) where {T<:Union{CuSparseMatrixCSC, Transpose{<:Any,<:CuSparseMatrixCSC}, Adjoint{<:Any,<:CuSparseMatrixCSC}}} = CuSparseMatrixCOO
-
 """
     CuSparseMatrixBSR
 
@@ -210,6 +205,19 @@ const CuSparseMatrix{Tv, Ti} = Union{
 }
 
 const CuSparseVecOrMat = Union{CuSparseVector,CuSparseMatrix}
+const CuSparseMatrixAdjOrTrans = Union{
+    Transpose{<:Any,<:Union{CuSparseMatrixCSC,CuSparseMatrixCSR,CuSparseMatrixCOO}},
+    Adjoint{<:Any,<:Union{CuSparseMatrixCSC,CuSparseMatrixCSR,CuSparseMatrixCOO}}
+}
+const CuSparseMatrixConvertible = Union{CuSparseMatrix,CuSparseMatrixAdjOrTrans}
+
+GPUArrays.csc_type(::Type{<:CuSparseMatrixConvertible}) = CuSparseMatrixCSC
+GPUArrays.csr_type(::Type{<:CuSparseMatrixConvertible}) = CuSparseMatrixCSR
+GPUArrays.coo_type(::Type{<:CuSparseMatrixConvertible}) = CuSparseMatrixCOO
+
+GPUArrays.csc_type(A::CuSparseMatrixConvertible) = GPUArrays.csc_type(typeof(A))
+GPUArrays.csr_type(A::CuSparseMatrixConvertible) = GPUArrays.csr_type(typeof(A))
+GPUArrays.coo_type(A::CuSparseMatrixConvertible) = GPUArrays.coo_type(typeof(A))
 
 # NOTE: we use Cint as default Ti on CUDA instead of Int to provide
 # maximum compatiblity to old CUSPARSE APIs
