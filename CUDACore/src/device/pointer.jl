@@ -71,10 +71,10 @@ else
         typ = Symbol(class, width)
 
         intr = "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
-        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Integer,
-                                              ::Val{align}) where align
+        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::I,
+                                              ::Val{align}) where {I <: Integer, align}
             offset = i-one(i) # in elements
-            ptr = base_ptr + offset*sizeof($T)
+            ptr = base_ptr + offset*I(sizeof($T))
             @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr, Val(align))
         end
     end
@@ -90,10 +90,10 @@ else
         typ = Symbol(class, width)
 
         intr = "llvm.nvvm.ldg.global.$class.v$N$typ.p1v$N$typ"
-        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer,
-                                              ::Val{align}) where align
+        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::I,
+                                              ::Val{align}) where {I <: Integer, align}
             offset = i-one(i) # in elements
-            ptr = base_ptr + offset*$N*sizeof($T)
+            ptr = base_ptr + offset*I($N*sizeof($T))
             @typed_ccall($intr, llvmcall, $NTuple{$N, Base.VecElement{$T}}, (LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, Int32), ptr, Val(align))
         end
         @eval unsafe_cached_load(p::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer=1, align::Val=Val(1)) =
