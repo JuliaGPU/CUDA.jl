@@ -33,7 +33,15 @@ end
     C_64I  = 25 # complex as a pair of signed 64-bit int numbers
     R_64U  = 26 # real as a unsigned 64-bit int
     C_64U  = 27 # complex as a pair of unsigned 64-bit int numbers
+    R_8F_E4M3  = 28 # real as a nv_fp8_e4m3
+    R_8F_E5M2  = 29 # real as a nv_fp8_e5m2
+    R_8F_UE8M0 = 30 # real as an exponent-only unsigned nv_fp8_e8m0
+    R_6F_E2M3  = 31 # real as a nv_fp6_e2m3
+    R_6F_E3M2  = 32 # real as a nv_fp6_e3m2
+    R_4F_E2M1  = 33 # real as a nv_fp4_e2m1
 end
+
+const R_8F_UE4M3 = R_8F_E4M3 # real as an unsigned nv_fp8_e4m3
 
 function Base.convert(::Type{cudaDataType}, T::DataType)
     if T === Float16
