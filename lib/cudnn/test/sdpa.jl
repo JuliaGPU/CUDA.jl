@@ -1,4 +1,6 @@
+using BFloat16s: BFloat16
 using cuDNN: cudnnSDPAForward, cudnnSDPAForward!
+using cuRAND
 
 # Reference dense attention in Float32 for the (d, h, s, b) layout (matches NNlib's layout).
 function sdpa_ref(q, k, v; scale)
@@ -7,21 +9,19 @@ function sdpa_ref(q, k, v; scale)
     o = zeros(Float32, d, h, sq, b)
     for bb in 1:b, hh in 1:h
         Q, K, V = qh[:, hh, :, bb], kh[:, hh, :, bb], vh[:, hh, :, bb]
-        S = scale .* (Q' * K)                       # sq × skv
+        S = scale .* (Q' * K)                       # sq x skv
         m = maximum(S; dims=2)
         e = exp.(S .- m)
-        A = e ./ sum(e; dims=2)                     # sq × skv
-        o[:, hh, :, bb] = V * A'                    # d × sq
+        A = e ./ sum(e; dims=2)                     # sq x skv
+        o[:, hh, :, bb] = V * A'                    # d x sq
     end
     return o
 end
 
 function sdpatest(T; d=64, sq=32, skv=32, h=4, b=2, scale=1/sqrt(d), rtol=2e-2)
-    # Use CUDA.randn to generate test data directly on the GPU, avoiding the CPU-side
-    # BFloat16.(randn(...)) conversion which triggers a slow first-time LLVM compilation.
-    q = CUDA.randn(T, d, h, sq, b) ./ 4
-    k = CUDA.randn(T, d, h, skv, b) ./ 4
-    v = CUDA.randn(T, d, h, skv, b) ./ 4
+    q = cuRAND.randn(T, d, h, sq, b) ./ 4
+    k = cuRAND.randn(T, d, h, skv, b) ./ 4
+    v = cuRAND.randn(T, d, h, skv, b) ./ 4
 
     ref = sdpa_ref(q, k, v; scale)
     y = cudnnSDPAForward(q, k, v; scale)
@@ -52,6 +52,7 @@ if capability(device()) >= v"8.0"
         @test_throws MethodError cudnnSDPAForward(qhost, qhost, qhost)
         qf32 = Float32.(q)              # unsupported by the fused engine
         @test_throws AssertionError cudnnSDPAForward(qf32, qf32, qf32)
+        @test_throws ArgumentError cudnnSDPAForward(q, q, q; is_causal=true)
     end
 else
     @warn "Skipping SDPA tests: fused attention requires compute capability >= 8.0"

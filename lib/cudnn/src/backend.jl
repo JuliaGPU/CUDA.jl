@@ -8,7 +8,6 @@
 # graph (tensors, operation graph, engine heuristics, execution plan, variant pack). It is
 # currently used by sdpa.jl.
 
-
 # A finalized-or-not backend descriptor. Owns the handle and destroys it on GC.
 mutable struct cudnnBackendDescriptor
     ptr::cudnnBackendDescriptor_t
@@ -18,13 +17,21 @@ function cudnnBackendDescriptor(descriptorType::cudnnBackendDescriptorType_t)
     ref = Ref{cudnnBackendDescriptor_t}(C_NULL)
     cudnnBackendCreateDescriptor(descriptorType, ref)
     d = cudnnBackendDescriptor(ref[])
-    finalizer(x -> cudnnBackendDestroyDescriptor(x.ptr), d)
+    finalizer(unsafe_destroy!, d)
     return d
 end
 
 Base.unsafe_convert(::Type{cudnnBackendDescriptor_t}, d::cudnnBackendDescriptor) = d.ptr
 
-bfinalize!(d::cudnnBackendDescriptor) = (cudnnBackendFinalize(d.ptr); d)
+function unsafe_destroy!(d::cudnnBackendDescriptor)
+    ptr = d.ptr
+    ptr == C_NULL && return
+    d.ptr = C_NULL
+    cudnnBackendDestroyDescriptor(ptr)
+    return
+end
+
+finalize!(d::cudnnBackendDescriptor) = (cudnnBackendFinalize(d.ptr); d)
 
 
 # --- setattr! ---------------------------------------------------------------------------
@@ -86,33 +93,47 @@ end
 
 getattr_int64(d, name) = getattr(d, name, CUDNN_TYPE_INT64, Int64, 1)[]
 
+function getattr_count(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
+                       atype::cudnnBackendAttributeType_t)
+    n = Ref{Int64}(0)
+    cudnnBackendGetAttribute(d.ptr, name, atype, Int64(0), n, C_NULL)
+    return n[]
+end
+
 # Read an array of nested descriptors. cuDNN requires the caller to pre-create the output
 # descriptors; GetAttribute then populates their contents.
 #
-# We deliberately avoid creating Julia wrapper objects (with GC finalizers) for the unused
-# maxcount-n slots: if a finalizer fires cudnnBackendDestroyDescriptor while another thread
-# is inside a cudnnBackendExecute that holds cuDNN's JIT lock, we get a deadlock on bf16
-# and other runtime-compiled engines. Instead we use raw handles, destroy the unused ones
-# synchronously right here, and only register finalizers for the n handles we return.
+# Keep raw handles until we know how many cuDNN returned, then destroy the unused descriptors
+# synchronously. Julia finalizers are a last-resort cleanup path for descriptors that escape.
 function getattr_descriptors(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
                              desctype::cudnnBackendDescriptorType_t, maxcount::Integer)
-    raw = Vector{cudnnBackendDescriptor_t}(undef, maxcount)
-    for i in 1:maxcount
-        r = Ref{cudnnBackendDescriptor_t}()
-        cudnnBackendCreateDescriptor(desctype, r)
-        raw[i] = r[]
-    end
+    maxcount == 0 && return cudnnBackendDescriptor[]
+    raw = fill(cudnnBackendDescriptor_t(C_NULL), maxcount)
     n = Ref{Int64}(0)
-    GC.@preserve raw begin
-        cudnnBackendGetAttribute(d.ptr, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, Int64(maxcount),
-                                 n, convert(Ptr{Cvoid}, pointer(raw)))
+    try
+        for i in 1:maxcount
+            r = Ref{cudnnBackendDescriptor_t}(C_NULL)
+            cudnnBackendCreateDescriptor(desctype, r)
+            raw[i] = r[]
+        end
+        GC.@preserve raw begin
+            cudnnBackendGetAttribute(d.ptr, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, Int64(maxcount),
+                                     n, convert(Ptr{Cvoid}, pointer(raw)))
+        end
+    catch
+        for ptr in raw
+            ptr == C_NULL || cudnnBackendDestroyDescriptor(ptr)
+        end
+        rethrow()
     end
-    for i in n[]+1:maxcount
+    nreturned = min(n[], Int64(maxcount))
+    for i in nreturned+1:maxcount
         cudnnBackendDestroyDescriptor(raw[i])
     end
-    return map(1:n[]) do i
+    nreturned == 0 && return cudnnBackendDescriptor[]
+    return map(1:nreturned) do i
         desc = cudnnBackendDescriptor(raw[i])
-        finalizer(x -> cudnnBackendDestroyDescriptor(x.ptr), desc)
+        finalizer(unsafe_destroy!, desc)
         desc
     end
 end
@@ -129,55 +150,84 @@ Create and finalize a `CUDNN_BACKEND_TENSOR_DESCRIPTOR`. `dims`/`strides` are in
 function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
                         is_virtual::Bool=false, by_value::Bool=false, alignment::Integer=16)
     d = cudnnBackendDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR)
-    setattr!(d, CUDNN_ATTR_TENSOR_UNIQUE_ID, Int64(uid))
-    setattr!(d, CUDNN_ATTR_TENSOR_DATA_TYPE, dtype)
-    setattr!(d, CUDNN_ATTR_TENSOR_DIMENSIONS, dims)
-    setattr!(d, CUDNN_ATTR_TENSOR_STRIDES, strides)
-    setattr!(d, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT, Int64(alignment))
-    is_virtual && setattr!(d, CUDNN_ATTR_TENSOR_IS_VIRTUAL, true)
-    by_value && setattr!(d, CUDNN_ATTR_TENSOR_IS_BY_VALUE, true)
-    return bfinalize!(d)
+    try
+        setattr!(d, CUDNN_ATTR_TENSOR_UNIQUE_ID, Int64(uid))
+        setattr!(d, CUDNN_ATTR_TENSOR_DATA_TYPE, dtype)
+        setattr!(d, CUDNN_ATTR_TENSOR_DIMENSIONS, dims)
+        setattr!(d, CUDNN_ATTR_TENSOR_STRIDES, strides)
+        setattr!(d, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT, Int64(alignment))
+        is_virtual && setattr!(d, CUDNN_ATTR_TENSOR_IS_VIRTUAL, true)
+        by_value && setattr!(d, CUDNN_ATTR_TENSOR_IS_BY_VALUE, true)
+        return finalize!(d)
+    catch
+        unsafe_destroy!(d)
+        rethrow()
+    end
+end
+
+function backend_deviceprop()
+    d = cudnnBackendDescriptor(CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR)
+    try
+        setattr_handle!(d, CUDNN_ATTR_DEVICEPROP_HANDLE)
+        return finalize!(d)
+    catch
+        unsafe_destroy!(d)
+        rethrow()
+    end
 end
 
 function operation_graph(ops::AbstractVector{cudnnBackendDescriptor})
     g = cudnnBackendDescriptor(CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR)
-    setattr_handle!(g, CUDNN_ATTR_OPERATIONGRAPH_HANDLE)
-    setattr!(g, CUDNN_ATTR_OPERATIONGRAPH_OPS, ops)
-    bfinalize!(g)
-    return g
+    try
+        setattr_handle!(g, CUDNN_ATTR_OPERATIONGRAPH_HANDLE)
+        setattr!(g, CUDNN_ATTR_OPERATIONGRAPH_OPS, ops)
+        finalize!(g)
+        return g
+    catch
+        unsafe_destroy!(g)
+        rethrow()
+    end
 end
 
 # Return the engine-config descriptors the heuristic suggests, in preference order.
 function engine_configs(graph::cudnnBackendDescriptor;
+                        deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing,
                         mode::cudnnBackendHeurMode_t=CUDNN_HEUR_MODE_A, maxcount::Integer=16)
     heur = cudnnBackendDescriptor(CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR)
-    setattr!(heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH, graph)
-    setattr!(heur, CUDNN_ATTR_ENGINEHEUR_MODE, mode)
-    bfinalize!(heur)
-    cfgs = getattr_descriptors(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
-                               CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, maxcount)
-    return (heur, cfgs)   # keep `heur` alive: the cfgs reference it
+    try
+        setattr!(heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH, graph)
+        setattr!(heur, CUDNN_ATTR_ENGINEHEUR_MODE, mode)
+        deviceprop !== nothing && setattr!(heur, CUDNN_ATTR_ENGINEHEUR_DEVICEPROP, deviceprop)
+        finalize!(heur)
+        count = min(Int64(maxcount), getattr_count(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
+                                                   CUDNN_TYPE_BACKEND_DESCRIPTOR))
+        cfgs = getattr_descriptors(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
+                                   CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, count)
+        return (heur, cfgs)   # keep `heur` alive: the cfgs reference it
+    catch
+        unsafe_destroy!(heur)
+        rethrow()
+    end
 end
 
 # Build and finalize an execution plan for an engine config. Returns `nothing` if cuDNN
-# reports the config as not supported (a normal outcome — callers iterate configs until one
+# reports the config as not supported (a normal outcome: callers iterate configs until one
 # finalizes). Any other error (e.g. BAD_PARAM, which indicates a graph-construction bug
 # rather than an unsupported config) is rethrown.
-function try_execution_plan(enginecfg::cudnnBackendDescriptor)
+function try_execution_plan(enginecfg::cudnnBackendDescriptor;
+                            deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing)
     plan = cudnnBackendDescriptor(CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR)
     setattr_handle!(plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE)
     setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG, enginecfg)
+    deviceprop !== nothing && setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP, deviceprop)
     try
-        bfinalize!(plan)
+        finalize!(plan)
     catch e
+        # Destroy failed descriptors immediately rather than leaving a GC finalizer pending.
+        unsafe_destroy!(plan)
         e isa CUDNNError || rethrow()
         # the CUDNN_STATUS_NOT_SUPPORTED family occupies the 3000s
         3000 <= Int(e.code) < 4000 || rethrow()
-        # Destroy the descriptor immediately rather than leaving a GC finalizer pending.
-        # A finalizer calling cudnnBackendDestroyDescriptor can deadlock against a concurrent
-        # cudnnBackendExecute that holds cuDNN's JIT compilation lock (e.g. bf16 SDPA).
-        ptr = plan.ptr; plan.ptr = C_NULL
-        cudnnBackendDestroyDescriptor(ptr)
         return nothing
     end
     return plan
@@ -190,12 +240,17 @@ plan_workspace_size(plan) = getattr_int64(plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSP
 function variant_pack(; uids::AbstractVector{<:Integer}, pointers::AbstractVector,
                       workspace)
     vp = cudnnBackendDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR)
-    ptrbuf = [reinterpret(Ptr{Cvoid}, p) for p in pointers]
-    setattr!(vp, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, Int64.(collect(uids)))
-    _setattr!(vp, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR,
-              length(ptrbuf), ptrbuf)
-    _setattr!(vp, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1,
-              Ptr{Cvoid}[reinterpret(Ptr{Cvoid}, workspace)])
-    bfinalize!(vp)
-    return vp
+    try
+        ptrbuf = [reinterpret(Ptr{Cvoid}, p) for p in pointers]
+        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, Int64.(collect(uids)))
+        _setattr!(vp, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR,
+                  length(ptrbuf), ptrbuf)
+        _setattr!(vp, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1,
+                  Ptr{Cvoid}[reinterpret(Ptr{Cvoid}, workspace)])
+        finalize!(vp)
+        return vp
+    catch
+        unsafe_destroy!(vp)
+        rethrow()
+    end
 end

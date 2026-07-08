@@ -10,10 +10,10 @@ attention and supersedes the legacy [`cudnnMultiHeadAttnForward`](@ref) API.
 Computes, per batch and head,
 
 ```math
-\mathrm{out} = \mathrm{softmax}\!\left(\mathrm{scale}\cdot Q K^\top\right) V
+\mathrm{out} = \mathrm{softmax}\!\left(\mathrm{scale}\cdot Q K'\right) V
 ```
 
-as a single fused (flash-attention) kernel: the `sq × skv` score matrix is never written to
+as a single fused (flash-attention) kernel: the `sq x skv` score matrix is never written to
 global memory.
 
 # Layout
@@ -29,7 +29,7 @@ needed to interoperate with it. With head dim `d`:
 
 # Keyword arguments
 
-* `scale::Real = 1/√d`: scalar multiplied into the `QKᵀ` scores before softmax.
+* `scale::Real = 1/sqrt(d)`: scalar multiplied into the `QK'` scores before softmax.
 
 # Notes
 
@@ -46,6 +46,20 @@ struct SDPAPlan
     workspace_size::Int
     uids::Vector{Int64}
     keepalive::Vector{Any}   # descriptors that must outlive the plan
+end
+
+function _unsafe_destroy_backend_descriptors!(descriptors)
+    for desc in Iterators.reverse(descriptors)
+        desc isa cudnnBackendDescriptor && unsafe_destroy!(desc)
+    end
+    empty!(descriptors)
+    return
+end
+
+function unsafe_destroy!(plan::SDPAPlan)
+    unsafe_destroy!(plan.plan)
+    _unsafe_destroy_backend_descriptors!(plan.keepalive)
+    return
 end
 
 # fixed tensor UIDs in the graph
@@ -70,36 +84,48 @@ function _build_sdpa_plan(T::DataType, d, sq, skv, h, b)
     keep = Any[]
     tensor(; kw...) = (t = backend_tensor(; kw...); push!(keep, t); t)
 
-    Q = tensor(uid=SDPA_UID_Q, dims=_attn_dims(d,sq,h,b),  strides=_attn_strides(d,sq,h,b),  dtype=dt)
-    K = tensor(uid=SDPA_UID_K, dims=_attn_dims(d,skv,h,b), strides=_attn_strides(d,skv,h,b), dtype=dt)
-    V = tensor(uid=SDPA_UID_V, dims=_attn_dims(d,skv,h,b), strides=_attn_strides(d,skv,h,b), dtype=dt)
-    O = tensor(uid=SDPA_UID_O, dims=_attn_dims(d,sq,h,b),  strides=_attn_strides(d,sq,h,b),  dtype=dt)
-    scale = tensor(uid=SDPA_UID_SCALE, dims=Int64[1,1,1,1], strides=Int64[1,1,1,1],
-                   dtype=F, by_value=true)
+    try
+        Q = tensor(uid=SDPA_UID_Q, dims=_attn_dims(d,sq,h,b),  strides=_attn_strides(d,sq,h,b),  dtype=dt)
+        K = tensor(uid=SDPA_UID_K, dims=_attn_dims(d,skv,h,b), strides=_attn_strides(d,skv,h,b), dtype=dt)
+        V = tensor(uid=SDPA_UID_V, dims=_attn_dims(d,skv,h,b), strides=_attn_strides(d,skv,h,b), dtype=dt)
+        O = tensor(uid=SDPA_UID_O, dims=_attn_dims(d,sq,h,b),  strides=_attn_strides(d,sq,h,b),  dtype=dt)
+        scale = tensor(uid=SDPA_UID_SCALE, dims=Int64[1,1,1,1], strides=Int64[1,1,1,1],
+                       dtype=F, by_value=true)
 
-    op = cudnnBackendDescriptor(CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR)
-    setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC, Q)
-    setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC, K)
-    setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC, V)
-    setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC, O)
-    setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC, scale)
-    bfinalize!(op)
+        op = cudnnBackendDescriptor(CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR)
+        setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC, Q)
+        setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC, K)
+        setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC, V)
+        setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC, O)
+        setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC, scale)
+        finalize!(op)
 
-    graph = operation_graph(cudnnBackendDescriptor[op])
-    push!(keep, op, graph)
-    heur, cfgs = engine_configs(graph)
-    push!(keep, heur)
-    append!(keep, cfgs)  # keep all engine configs alive until the plan is evicted from the cache
+        graph = operation_graph(cudnnBackendDescriptor[op])
+        push!(keep, op, graph)
+        deviceprop = backend_deviceprop()
+        push!(keep, deviceprop)
+        heur, cfgs = engine_configs(graph; deviceprop)
+        push!(keep, heur)
+        append!(keep, cfgs)  # keep all engine configs alive until the plan is evicted from the cache
 
-    for cfg in cfgs
-        plan = try_execution_plan(cfg)
-        plan === nothing && continue
-        uids = Int64[SDPA_UID_Q, SDPA_UID_K, SDPA_UID_V, SDPA_UID_O, SDPA_UID_SCALE]
-        return SDPAPlan(plan, Int(plan_workspace_size(plan)), uids, keep)
+        for cfg in cfgs
+            plan = try_execution_plan(cfg; deviceprop)
+            plan === nothing && continue
+            try
+                uids = Int64[SDPA_UID_Q, SDPA_UID_K, SDPA_UID_V, SDPA_UID_O, SDPA_UID_SCALE]
+                return SDPAPlan(plan, Int(plan_workspace_size(plan)), uids, keep)
+            catch
+                unsafe_destroy!(plan)
+                rethrow()
+            end
+        end
+        error("cuDNN: no supported fused-attention engine for T=$T d=$d sq=$sq skv=$skv h=$h b=$b " *
+              (isempty(cfgs) ? "(the heuristic returned no engine configurations for this graph)" :
+                               "($(length(cfgs)) candidate engine configurations all failed to finalize as unsupported)"))
+    catch
+        _unsafe_destroy_backend_descriptors!(keep)
+        rethrow()
     end
-    error("cuDNN: no supported fused-attention engine for T=$T d=$d sq=$sq skv=$skv h=$h b=$b " *
-          (isempty(cfgs) ? "(the heuristic returned no engine configurations for this graph)" :
-                           "($(length(cfgs)) candidate engine configurations all failed to finalize as unsupported)"))
 end
 
 function _sdpa_plan(T, d, sq, skv, h, b)
@@ -107,15 +133,16 @@ function _sdpa_plan(T, d, sq, skv, h, b)
     key = (context(), T, d, sq, skv, h, b)
     # look up under the lock, but run the expensive plan build outside it so concurrent calls
     # don't serialize behind it (cf. the descriptor caches in descriptors.jl); a duplicate
-    # build on a race is benign — get! keeps the first inserted plan and drops the loser.
+    # build on a race is benign: get! keeps the first inserted plan and we destroy the loser.
     plan = lock(SDPA_PLAN_CACHE_LOCK) do
         get(SDPA_PLAN_CACHE, key, nothing)
     end
     if plan === nothing
-        plan = _build_sdpa_plan(T, d, sq, skv, h, b)
+        built_plan = _build_sdpa_plan(T, d, sq, skv, h, b)
         plan = lock(SDPA_PLAN_CACHE_LOCK) do
-            get!(SDPA_PLAN_CACHE, key, plan)
+            get!(SDPA_PLAN_CACHE, key, built_plan)
         end
+        plan === built_plan || unsafe_destroy!(built_plan)
     end
     return plan
 end
@@ -132,15 +159,16 @@ end
 # read the wrong memory.
 function cudnnSDPAForward!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::DenseCuArray{T,4},
                            v::DenseCuArray{T,4};
-                           scale::Real = 1/sqrt(size(q,1)), causal::Bool = false) where {T}
+                           scale::Real = 1/sqrt(size(q,1)),
+                           is_causal::Bool = false) where {T}
     @assert T in (Float16, BFloat16) "cudnnSDPAForward supports Float16/BFloat16, got $T (cuDNN's fused attention does not support Float32/Float64)"
-    # Causal masking is not yet supported. On cuDNN ≤ 9.20 there is no usable path through the
+    # Causal masking is not yet supported. On cuDNN <= 9.20 there is no usable path through the
     # raw backend API: the SDPA node's clean score-modifier subgraph
-    # (CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH) requires cuDNN ≥ 9.21 (no CUDNN_jll yet), the
+    # (CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH) requires cuDNN >= 9.21 (no CUDNN_jll yet), the
     # block-mask attribute is block-sparse rather than element-wise, and the primitive
-    # matmul→softmax→matmul graph yields no fused engine from raw backend calls. Revisit and
-    # implement via the score-modifier subgraph once CUDNN_jll ≥ 9.21 ships.
-    causal && throw(ArgumentError("causal masking is not yet supported by cudnnSDPAForward"))
+    # matmul->softmax->matmul graph yields no fused engine from raw backend calls. Revisit and
+    # implement via the score-modifier subgraph once CUDNN_jll >= 9.21 ships.
+    is_causal && throw(ArgumentError("causal masking is not yet supported by cudnnSDPAForward"))
     d, h, sq, b = size(q)
     dk, hk, skv, bk = size(k)
     @assert (dk, hk, bk) == (d, h, b) "k must be (d, h, skv, b) matching q's d, h, b"
@@ -155,8 +183,12 @@ function cudnnSDPAForward!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::Dens
     with_workspace(plan.workspace_size) do workspace
         vp = variant_pack(uids=plan.uids, pointers=pointers,
                           workspace=(sizeof(workspace) == 0 ? C_NULL : pointer(workspace)))
-        GC.@preserve q k v out scalebuf vp begin
-            cudnnBackendExecute(handle(), plan.plan.ptr, vp.ptr)
+        try
+            GC.@preserve q k v out scalebuf vp begin
+                cudnnBackendExecute(handle(), plan.plan.ptr, vp.ptr)
+            end
+        finally
+            unsafe_destroy!(vp)
         end
     end
     return out
@@ -164,28 +196,28 @@ end
 
 
 @doc raw"""
-    cudnnSDPABackward(dout, q, k, v, out; scale, causal)
+    cudnnSDPABackward(dout, q, k, v, out; scale, is_causal)
 
 Backward pass for [`cudnnSDPAForward`](@ref), returning the gradients `(dq, dk, dv)` with
 respect to `q`, `k`, `v` given the output gradient `dout` and the forward output `out`.
 
-**Not yet implemented — placeholder.** cuDNN's fused-attention backward is not reachable on
-cuDNN ≤ 9.20 through the backend graph API:
+**Not yet implemented.** cuDNN's fused-attention backward is not reachable on
+cuDNN <= 9.20 through the backend graph API:
 
 * The dedicated `CUDNN_BACKEND_OPERATION_SDPA_BWD_DESCRIPTOR` (type 43) does not finalize into a
-  valid operation graph in this version (`CUDNN_STATUS_BAD_PARAM` with Q/K/V/O/Stats/scale/dO →
+  valid operation graph in this version (`CUDNN_STATUS_BAD_PARAM` with Q/K/V/O/Stats/scale/dO ->
   dQ/dK/dV all set); it is effectively undocumented/incomplete before cuDNN 9.21.
-* The documented path — a score-modifier subgraph on the SDPA node
+* The documented path is a score-modifier subgraph on the SDPA node
   (`CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH`), with the forward additionally emitting its FP32
-  log-sum-exp `stats` (`CUDNN_ATTR_OPERATION_SDPA_FWD_STATSDESC`, already verified to work) —
-  requires cuDNN ≥ 9.21, for which no `CUDNN_jll` artifact exists yet.
+  log-sum-exp `stats` (`CUDNN_ATTR_OPERATION_SDPA_FWD_STATSDESC`, already verified to work).
+  It requires cuDNN >= 9.21, for which no `CUDNN_jll` artifact exists yet.
 
-This is the same cuDNN-version limitation that blocks `causal=true` in
-[`cudnnSDPAForward`](@ref). Once `CUDNN_jll ≥ 9.21` is available, implement this by having the
+This is the same cuDNN-version limitation that blocks `is_causal=true` in
+[`cudnnSDPAForward`](@ref). Once `CUDNN_jll >= 9.21` is available, implement this by having the
 forward output the `stats` tensor and building the backward via the SDPA score-modifier
 subgraph mechanism.
 """
 function cudnnSDPABackward(dout, q, k, v, out; o...)
     error("cudnnSDPABackward is not yet implemented: cuDNN's fused-attention backward requires " *
-          "cuDNN ≥ 9.21 (no CUDNN_jll available yet). See the cudnnSDPABackward docstring.")
+          "cuDNN >= 9.21 (no CUDNN_jll available yet). See the cudnnSDPABackward docstring.")
 end
