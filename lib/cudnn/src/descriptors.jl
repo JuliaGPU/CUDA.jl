@@ -227,3 +227,45 @@ cudnnConvolutionDescriptor(pad::Vector{Cint},
                                    direction::cudnnFoldingDirection_t)
 """
 @cudnnDescriptor(TensorTransform)
+
+
+function cudnnGetConvolutionDescriptor(d::cudnnConvolutionDescriptor)
+    # we don't know the dimension of the convolution, so we start by
+    # allocating the maximum size it can be.
+    nbDimsRequested = CUDNN_DIM_MAX - 2
+    # later, here we get the actual dimensionality of the convolution
+    arrlen = Ref{Cint}(nbDimsRequested)
+    padding = Array{Cint}(undef, nbDimsRequested)
+    stride = Array{Cint}(undef, nbDimsRequested)
+    dilation = Array{Cint}(undef, nbDimsRequested)
+    mode = Ref{cuDNN.cudnnConvolutionMode_t}(CUDNN_CONVOLUTION)
+    dataType = Ref{cuDNN.cudnnDataType_t}(cuDNN.CUDNN_DATA_FLOAT)
+
+    cudnnGetConvolutionNdDescriptor(d, nbDimsRequested, arrlen, padding, stride, dilation,
+                                    mode, dataType)
+    T = juliaDataType(dataType[])
+    SZ = arrlen[]
+    P = (padding[1:SZ]..., )
+    S = (stride[1:SZ]..., )
+    D = (dilation[1:SZ]..., )
+    return T, mode[], SZ, P, S, D
+end
+
+# Helper for cudnnConvolutionDescriptor
+function cudnnSetConvolutionDescriptor(
+    ptr::cudnnConvolutionDescriptor_t,
+    padding::Vector{Cint},
+    stride::Vector{Cint},
+    dilation::Vector{Cint},
+    mode::cudnnConvolutionMode_t,
+    dataType::cudnnDataType_t,
+    mathType::cudnnMathType_t,
+    reorderType::cudnnReorderType_t,
+    groupCount::Cint,
+)
+    cudnnSetConvolutionNdDescriptor(ptr, Cint(length(padding)), padding, stride, dilation, mode, dataType)
+    mathType != CUDNN_DEFAULT_MATH       && cudnnSetConvolutionMathType(ptr, mathType)
+    reorderType != CUDNN_DEFAULT_REORDER && cudnnSetConvolutionReorderType(ptr, reorderType)
+    groupCount != 1                      && cudnnSetConvolutionGroupCount(ptr, groupCount)
+end
+

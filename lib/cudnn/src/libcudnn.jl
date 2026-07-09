@@ -468,6 +468,8 @@ end
     CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT = 802
     CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED = 803
     CUDNN_ATTR_OPERATIONGRAPH_IS_SAME_TOPOLOGY = 804
+    CUDNN_ATTR_OPERATIONGRAPH_IS_OVERRIDE_SHAPE_ENABLED = 805
+    CUDNN_ATTR_OPERATIONGRAPH_MODE = 806
     CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT = 900
     CUDNN_ATTR_TENSOR_DATA_TYPE = 901
     CUDNN_ATTR_TENSOR_DIMENSIONS = 902
@@ -478,7 +480,9 @@ end
     CUDNN_ATTR_TENSOR_IS_VIRTUAL = 907
     CUDNN_ATTR_TENSOR_IS_BY_VALUE = 908
     CUDNN_ATTR_TENSOR_REORDERING_MODE = 909
+    CUDNN_ATTR_TENSOR_CONSTANT_VALUE = 910
     CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC = 913
+    CUDNN_ATTR_TENSOR_RAGGED_OFFSET_MULTIPLIER = 914
     CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS = 1000
     CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS = 1001
     CUDNN_ATTR_VARIANT_PACK_INTERMEDIATES = 1002
@@ -517,6 +521,7 @@ end
     CUDNN_ATTR_OPERATION_REDUCTION_XDESC = 1610
     CUDNN_ATTR_OPERATION_REDUCTION_YDESC = 1611
     CUDNN_ATTR_OPERATION_REDUCTION_DESC = 1612
+    CUDNN_ATTR_OPERATION_REDUCTION_GROUP_OFFSET_DESC = 1613
     CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MATH_PREC = 1620
     CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_MEAN_DESC = 1621
     CUDNN_ATTR_OPERATION_BN_BWD_WEIGHTS_INVSTD_DESC = 1622
@@ -592,6 +597,25 @@ end
     CUDNN_ATTR_OPERATION_NORM_BWD_PEER_STAT_DESCS = 2110
     CUDNN_ATTR_OPERATION_RESHAPE_XDESC = 2200
     CUDNN_ATTR_OPERATION_RESHAPE_YDESC = 2201
+    CUDNN_ATTR_OPERATION_RESHAPE_MODE = 2202
+    CUDNN_ATTR_OPERATION_TRANSPOSE_XDESC = 3200
+    CUDNN_ATTR_OPERATION_TRANSPOSE_YDESC = 3201
+    CUDNN_ATTR_OPERATION_TRANSPOSE_PERMUTATION = 3202
+    CUDNN_ATTR_OPERATION_SLICE_XDESC = 3300
+    CUDNN_ATTR_OPERATION_SLICE_YDESC = 3301
+    CUDNN_ATTR_OPERATION_SLICE_START_INDICES = 3302
+    CUDNN_ATTR_OPERATION_SLICE_LIMIT_INDICES = 3303
+    CUDNN_ATTR_OPERATION_SLICE_STRIDES = 3304
+    CUDNN_ATTR_OPERATION_ROPE_FWD_XDESC = 3400
+    CUDNN_ATTR_OPERATION_ROPE_FWD_YDESC = 3401
+    CUDNN_ATTR_OPERATION_ROPE_FWD_FREQSDESC = 3402
+    CUDNN_ATTR_OPERATION_ROPE_FWD_OUTPUT_SCALE = 3403
+    CUDNN_ATTR_OPERATION_ROPE_FWD_ROPE_DIM = 3404
+    CUDNN_ATTR_OPERATION_ROPE_BWD_DYDESC = 3410
+    CUDNN_ATTR_OPERATION_ROPE_BWD_DXDESC = 3411
+    CUDNN_ATTR_OPERATION_ROPE_BWD_FREQSDESC = 3412
+    CUDNN_ATTR_OPERATION_ROPE_BWD_OUTPUT_SCALE = 3413
+    CUDNN_ATTR_OPERATION_ROPE_BWD_ROPE_DIM = 3414
     CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_XDESC = 2250
     CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_YDESC = 2251
     CUDNN_ATTR_OPERATION_EXPAND_BAND_MATRIX_LOWER_BANDWIDTH = 2252
@@ -645,6 +669,17 @@ end
     CUDNN_ATTR_OPERATION_SDPA_FWD_PAGE_TABLE_VDESC = 2808
     CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC = 2809
     CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC = 2810
+    CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH = 2811
+    CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_INPUT_UID = 2812
+    CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_OUTPUT_UID = 2813
+    CUDNN_ATTR_OPERATION_SDPA_FWD_SOFTMAX_DESC = 2814
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_SEED_DESC = 2815
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_OFFSET_DESC = 2816
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_RNG_DUMP_DESC = 2817
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DROPOUT_PROBABILITY = 2818
+    CUDNN_ATTR_OPERATION_SDPA_FWD_UNFUSE_FMA = 2819
+    CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_QDESC = 2820
+    CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_KVDESC = 2821
     CUDNN_ATTR_OPERATION_SDPA_BWD_QDESC = 2851
     CUDNN_ATTR_OPERATION_SDPA_BWD_KDESC = 2852
     CUDNN_ATTR_OPERATION_SDPA_BWD_VDESC = 2853
@@ -657,6 +692,13 @@ end
     CUDNN_ATTR_OPERATION_SDPA_BWD_DKDESC = 2860
     CUDNN_ATTR_OPERATION_SDPA_BWD_DVDESC = 2861
     CUDNN_ATTR_OPERATION_SDPA_BWD_DODDESC = 2862
+    CUDNN_ATTR_OPERATION_SDPA_BWD_SINK_DESC = 2863
+    CUDNN_ATTR_OPERATION_SDPA_BWD_DSINK_DESC = 2864
+    CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_Q = 2865
+    CUDNN_ATTR_OPERATION_SDPA_BWD_MAX_TOTAL_SEQ_LEN_KV = 2866
+    CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH = 2867
+    CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_INPUT_UID = 2868
+    CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_OUTPUT_UID = 2869
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MODE = 2900
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MATH_PREC = 2901
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_DESC = 2902
@@ -666,6 +708,11 @@ end
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_INDEX_DESC = 2906
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_KS_DESC = 2907
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOP_K = 2908
+    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_MATH_PREC = 2951
+    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_TOKEN_DESC = 2952
+    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DWEIGHT_DESC = 2953
+    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_FIRST_TOKEN_OFFSET_DESC = 2954
+    CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DOUTPUT_DESC = 2955
     CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_XDESC = 3000
     CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_KVDESC = 3001
     CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_QDESC = 3002
@@ -674,6 +721,8 @@ end
     CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_BDESC = 3005
     CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_YDESC = 3006
     CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_COMPARISON_MODE = 3007
+    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_KVDESC = 3008
+    CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_QDESC = 3009
     CUDNN_ATTR_OPERATION_SOFTMAX_XDESC = 3100
     CUDNN_ATTR_OPERATION_SOFTMAX_YDESC = 3101
     CUDNN_ATTR_OPERATION_SOFTMAX_STATS_DESC = 3102
@@ -714,6 +763,8 @@ end
     CUDNN_TYPE_NORM_FWD_PHASE = 28
     CUDNN_TYPE_RNG_DISTRIBUTION = 29
     CUDNN_TYPE_MOE_GROUPED_MATMUL_MODE = 30
+    CUDNN_TYPE_RESHAPE_MODE = 31
+    CUDNN_TYPE_OPERATIONGRAPH_MODE = 32
 end
 
 @cenum cudnnBackendDescriptorType_t::UInt32 begin
@@ -763,6 +814,11 @@ end
     CUDNN_BACKEND_OPERATION_SDPA_BWD_DESCRIPTOR = 43
     CUDNN_BACKEND_OPERATION_DIAGONAL_BAND_MASK_DESCRIPTOR = 44
     CUDNN_BACKEND_OPERATION_SOFTMAX_DESCRIPTOR = 45
+    CUDNN_BACKEND_OPERATION_TRANSPOSE_DESCRIPTOR = 46
+    CUDNN_BACKEND_OPERATION_SLICE_DESCRIPTOR = 47
+    CUDNN_BACKEND_OPERATION_MOE_GROUPED_MATMUL_BWD_DESCRIPTOR = 48
+    CUDNN_BACKEND_OPERATION_ROPE_FWD_DESCRIPTOR = 49
+    CUDNN_BACKEND_OPERATION_ROPE_BWD_DESCRIPTOR = 50
 end
 
 @cenum cudnnBackendNumericalNote_t::UInt32 begin
@@ -833,7 +889,9 @@ end
     CUDNN_KNOB_TYPE_TILE_N = 41
     CUDNN_KNOB_TYPE_WARP_SPEC_CFG = 42
     CUDNN_KNOB_TYPE_SWAP_AB = 43
-    CUDNN_KNOB_TYPE_COUNTS = 44
+    CUDNN_KNOB_TYPE_INPUT_TMA_ENABLE = 44
+    CUDNN_KNOB_TYPE_OUTPUT_TMA_ENABLE = 45
+    CUDNN_KNOB_TYPE_COUNTS = 46
 end
 
 @cenum cudnnBackendLayoutType_t::UInt32 begin
@@ -879,6 +937,31 @@ end
     CUDNN_NORM_FWD_TRAINING = 1
 end
 
+@cenum cudnnBackendReshapeMode_t::UInt32 begin
+    CUDNN_RESHAPE_VIEW_ONLY = 0
+    CUDNN_RESHAPE_LOGICAL = 1
+end
+
+@cenum cudnnBackendOperationGraphMode_t::Int32 begin
+    CUDNN_OPERATIONGRAPH_MODE_AUTO = -1
+    CUDNN_OPERATIONGRAPH_MODE_CONV_FORWARD = 0
+    CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_DATA = 1
+    CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_FILTER = 2
+    CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_INFER = 17
+    CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_TRAIN = 18
+    CUDNN_OPERATIONGRAPH_MODE_NORM_BWD = 19
+    CUDNN_OPERATIONGRAPH_MODE_GENERIC_CONV_FUSION = 20
+    CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_FWD = 22
+    CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_BWD = 23
+    CUDNN_OPERATIONGRAPH_MODE_BLAS_MATMUL = 25
+    CUDNN_OPERATIONGRAPH_MODE_GENERIC_MATMUL_FUSION = 26
+    CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION = 27
+    CUDNN_OPERATIONGRAPH_MODE_SDPA_FWD = 28
+    CUDNN_OPERATIONGRAPH_MODE_SDPA_BWD = 29
+    CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_FWD = 30
+    CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_BWD = 31
+end
+
 @checked function cudnnBackendCreateDescriptor(descriptorType, descriptor)
     initialize_context()
     @gcsafe_ccall libcudnn.cudnnBackendCreateDescriptor(descriptorType::cudnnBackendDescriptorType_t,
@@ -920,6 +1003,15 @@ end
                                                     requestedElementCount::Int64,
                                                     elementCount::Ptr{Int64},
                                                     arrayOfElements::Ptr{Cvoid})::cudnnStatus_t
+end
+
+@checked function cudnnGetExecutionPlanWorkspaceSize(handle, executionPlan, variantPack,
+                                                     workspaceSizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGetExecutionPlanWorkspaceSize(handle::cudnnHandle_t,
+                                                              executionPlan::cudnnBackendDescriptor_t,
+                                                              variantPack::cudnnBackendDescriptor_t,
+                                                              workspaceSizeInBytes::Ptr{Csize_t})::cudnnStatus_t
 end
 
 @checked function cudnnBackendExecute(handle, executionPlan, variantPack)
@@ -3680,6 +3772,116 @@ end
     @gcsafe_ccall libcudnn.cudnnFusedOpsExecute(handle::cudnnHandle_t,
                                                 plan::cudnnFusedOpsPlan_t,
                                                 varPack::cudnnFusedOpsVariantParamPack_t)::cudnnStatus_t
+end
+
+@cenum cudnnCausalConv1dActivation_t::UInt32 begin
+    CUDNN_CAUSAL_CONV1D_ACTIVATION_IDENTITY = 0
+    CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU = 1
+end
+
+@checked function cudnnSubquadraticOpsVersionCheck()
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnSubquadraticOpsVersionCheck()::cudnnStatus_t
+end
+
+@checked function cudnnCausalConv1dForward(stream, x, weight, bias, y, batch, dim, seqLen,
+                                           kernelSize, dataType, activation)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnCausalConv1dForward(stream::cudaStream_t, x::CuPtr{Cvoid},
+                                                    weight::CuPtr{Cvoid},
+                                                    bias::CuPtr{Cvoid}, y::CuPtr{Cvoid},
+                                                    batch::Cint, dim::Cint, seqLen::Cint,
+                                                    kernelSize::Cint,
+                                                    dataType::cudnnDataType_t,
+                                                    activation::cudnnCausalConv1dActivation_t)::cudnnStatus_t
+end
+
+@checked function cudnnCausalConv1dBackward(stream, x, weight, bias, dy, dx, dweight, dbias,
+                                            batch, dim, seqLen, kernelSize, dataType,
+                                            dwDataType, activation)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnCausalConv1dBackward(stream::cudaStream_t, x::CuPtr{Cvoid},
+                                                     weight::CuPtr{Cvoid},
+                                                     bias::CuPtr{Cvoid}, dy::CuPtr{Cvoid},
+                                                     dx::CuPtr{Cvoid},
+                                                     dweight::CuPtr{Cvoid},
+                                                     dbias::CuPtr{Cvoid}, batch::Cint,
+                                                     dim::Cint, seqLen::Cint,
+                                                     kernelSize::Cint,
+                                                     dataType::cudnnDataType_t,
+                                                     dwDataType::cudnnDataType_t,
+                                                     activation::cudnnCausalConv1dActivation_t)::cudnnStatus_t
+end
+
+@checked function cudnnCausalConv1dNwhForward(stream, x, weight, bias, y, batch, dim,
+                                              seqLen, kernelSize, dataType, activation)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnCausalConv1dNwhForward(stream::cudaStream_t,
+                                                       x::CuPtr{Cvoid},
+                                                       weight::CuPtr{Cvoid},
+                                                       bias::CuPtr{Cvoid}, y::CuPtr{Cvoid},
+                                                       batch::Cint, dim::Cint, seqLen::Cint,
+                                                       kernelSize::Cint,
+                                                       dataType::cudnnDataType_t,
+                                                       activation::cudnnCausalConv1dActivation_t)::cudnnStatus_t
+end
+
+@checked function cudnnCausalConv1dNwhBackward(stream, x, weight, bias, dy, dx, dweight,
+                                               dbias, batch, dim, seqLen, kernelSize,
+                                               dataType, dwDataType, activation)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnCausalConv1dNwhBackward(stream::cudaStream_t,
+                                                        x::CuPtr{Cvoid},
+                                                        weight::CuPtr{Cvoid},
+                                                        bias::CuPtr{Cvoid},
+                                                        dy::CuPtr{Cvoid}, dx::CuPtr{Cvoid},
+                                                        dweight::CuPtr{Cvoid},
+                                                        dbias::CuPtr{Cvoid}, batch::Cint,
+                                                        dim::Cint, seqLen::Cint,
+                                                        kernelSize::Cint,
+                                                        dataType::cudnnDataType_t,
+                                                        dwDataType::cudnnDataType_t,
+                                                        activation::cudnnCausalConv1dActivation_t)::cudnnStatus_t
+end
+
+@checked function cudnnB2BCausalConv1dForward(stream, x, weightsProj, weightsMixer,
+                                              skipBias, y, yGated, batch, dim, seqLen,
+                                              kernelSizeProj, kernelSizeMixer, dataType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnB2BCausalConv1dForward(stream::cudaStream_t,
+                                                       x::CuPtr{Cvoid},
+                                                       weightsProj::CuPtr{Cvoid},
+                                                       weightsMixer::CuPtr{Cvoid},
+                                                       skipBias::CuPtr{Cvoid},
+                                                       y::CuPtr{Cvoid},
+                                                       yGated::CuPtr{Cvoid}, batch::Cint,
+                                                       dim::Cint, seqLen::Cint,
+                                                       kernelSizeProj::Cint,
+                                                       kernelSizeMixer::Cint,
+                                                       dataType::cudnnDataType_t)::cudnnStatus_t
+end
+
+@checked function cudnnB2BCausalConv1dBackward(stream, x, weightsProj, weightsMixer,
+                                               skipBias, y, dy, dx, dweightsProj,
+                                               dweightsMixer, dskipBias, batch, dim, seqLen,
+                                               kernelSizeProj, kernelSizeMixer, dataType,
+                                               dwDataType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnB2BCausalConv1dBackward(stream::cudaStream_t,
+                                                        x::CuPtr{Cvoid},
+                                                        weightsProj::CuPtr{Cvoid},
+                                                        weightsMixer::CuPtr{Cvoid},
+                                                        skipBias::CuPtr{Cvoid},
+                                                        y::CuPtr{Cvoid}, dy::CuPtr{Cvoid},
+                                                        dx::CuPtr{Cvoid},
+                                                        dweightsProj::CuPtr{Cvoid},
+                                                        dweightsMixer::CuPtr{Cvoid},
+                                                        dskipBias::CuPtr{Cvoid},
+                                                        batch::Cint, dim::Cint,
+                                                        seqLen::Cint, kernelSizeProj::Cint,
+                                                        kernelSizeMixer::Cint,
+                                                        dataType::cudnnDataType_t,
+                                                        dwDataType::cudnnDataType_t)::cudnnStatus_t
 end
 
 const CUDNN_MAX_SM_MAJOR_NUMBER = 12

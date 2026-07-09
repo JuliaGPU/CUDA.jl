@@ -58,21 +58,6 @@ function cudnnPoolingForwardWithDefaults(
 end
 
 
-# Convert the integer, tuple or array to pooling dims compatible with array size
-function pooldims(d, s::Dims{N}) where N
-    if d isa Integer || length(d) == N-2
-        Cint[reverse(min.(d,s[1:N-2]))...]
-    else
-        throw(DimensionMismatch("Cannot pool $(Base.dims2string(s)) array with $d pooldims."))
-    end
-end
-
-pooldims(d, s::Dims{3}) = pooldims(d, (1,s...))
-pooldims(d, s::Dims{2}) = pooldims(d, (1,1,s...))
-pooldims(d, s::Dims{1}) = pooldims(d, (1,1,1,s...))
-pooldims(d, s::Dims{0}) = pooldims(d, (1,1,1,1))
-
-
 function cudnnPoolingForwardOutput(x, xDesc, poolingDesc, format)
     d = Array{Cint}(undef, max(4, ndims(x))) # d = [N,C,Yn,...,Y1] no matter what format
     cudnnGetPoolingNdForwardOutputDim(poolingDesc, xDesc, length(d), d)

@@ -1,7 +1,22 @@
 # cuDNN.jl
 
 Julia wrapper for [NVIDIA cuDNN](https://developer.nvidia.com/cudnn), providing
-GPU-accelerated deep neural network primitives (convolutions, activations, normalization,
-RNNs, etc.).
+GPU-accelerated neural-network primitives for `CuArray` values.
 
-This package is part of the [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) ecosystem.
+cuDNN.jl is part of the [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) repository. The
+wrapper is organized around cuDNN's backend and graph APIs:
+
+- `libcudnn.jl` contains generated bindings for the raw C API.
+- `backend.jl` wraps `cudnnBackendDescriptor_t` with typed descriptor helpers.
+- `graph/` provides a Julia frontend with `Graph`, `Tensor`, operation factories,
+  heuristics, plan caching, and execution.
+- `ops/` exposes the Julia-facing operations used by downstream packages, such as
+  `attention!`, `convolution!`, pooling, and batch normalization.
+
+Older fixed-function wrappers remain available for compatibility, but are kept in
+`src/legacy` with matching tests in `test/legacy`. New code should prefer the graph-backed
+ops layer when cuDNN supports the operation. Softmax, dropout, and RNN wrappers remain on
+their fixed-function APIs for now.
+
+See the CUDA.jl manual's [cuDNN wrapper design](https://cuda.juliagpu.org/stable/lib/cudnn/)
+section for the detailed layering, migration notes, and debugging hints.

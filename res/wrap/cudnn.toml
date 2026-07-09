@@ -646,3 +646,53 @@ needs_context = false
 27 = "CuPtr{Cvoid}"
 29 = "CuPtr{Cvoid}"
 31 = "CuPtr{Cvoid}"
+
+[api.cudnnCausalConv1dForward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+
+[api.cudnnCausalConv1dBackward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+
+[api.cudnnCausalConv1dNwhForward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+
+[api.cudnnCausalConv1dNwhBackward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+
+[api.cudnnB2BCausalConv1dForward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cudnnB2BCausalConv1dBackward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+11 = "CuPtr{Cvoid}"
