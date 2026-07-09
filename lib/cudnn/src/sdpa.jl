@@ -33,10 +33,15 @@ needed to interoperate with it. With head dim `d`:
 
 # Notes
 
-Forward inference only, in `Float16`/`BFloat16`, with equal head counts for `q`/`k`/`v` (no
-GQA/MQA), no masking, no dropout, and no training/backward. The fused engine requires an
-Ampere (sm_80) or newer GPU. `Float32`/`Float64` are **not** supported by cuDNN's fused
-attention engine.
+Forward inference only, in `Float16`/`BFloat16`, with equal head counts and head dimensions
+for `q`/`k`/`v` (no GQA/MQA or distinct value head dimension yet), no masking, no dropout,
+and no training/backward. The fused engine requires an Ampere (sm_80) or newer GPU.
+`Float32`/`Float64` are **not** supported by cuDNN's fused attention engine.
+
+Execution plans are cached per `(eltype, head_dim, sq, skv, num_heads, batch)` on the
+calling task's cuDNN handle. The first call for a shape/handle pair pays the one-time plan
+build cost; cached plans are freed when the handle is destroyed or evicted under memory
+pressure.
 """
 cudnnSDPAForward, cudnnSDPAForward!
 
@@ -44,23 +49,9 @@ cudnnSDPAForward, cudnnSDPAForward!
 struct SDPAPlan
     plan::cudnnBackendDescriptor
     workspace_size::Int
-    uids::Vector{Int64}
-    keepalive::Vector{Any}   # descriptors that must outlive the plan
 end
 
-function _unsafe_destroy_backend_descriptors!(descriptors)
-    for desc in Iterators.reverse(descriptors)
-        desc isa cudnnBackendDescriptor && unsafe_destroy!(desc)
-    end
-    empty!(descriptors)
-    return
-end
-
-function unsafe_destroy!(plan::SDPAPlan)
-    unsafe_destroy!(plan.plan)
-    _unsafe_destroy_backend_descriptors!(plan.keepalive)
-    return
-end
+unsafe_destroy!(plan::SDPAPlan) = unsafe_destroy!(plan.plan)
 
 # fixed tensor UIDs in the graph
 const SDPA_UID_Q = 1
@@ -68,31 +59,33 @@ const SDPA_UID_K = 2
 const SDPA_UID_V = 3
 const SDPA_UID_O = 4
 const SDPA_UID_SCALE = 5
-
-const SDPA_PLAN_CACHE = Dict{Any,SDPAPlan}()
-const SDPA_PLAN_CACHE_LOCK = ReentrantLock()
+const SDPA_UIDS = Int64[SDPA_UID_Q, SDPA_UID_K, SDPA_UID_V, SDPA_UID_O, SDPA_UID_SCALE]
 
 # A Julia (head_dim, nheads, seq_len, batch) column-major array (NNlib's internal attention
 # layout, a BSHD physical layout) maps to the cuDNN logical tensor [b, h, s, d] with head_dim
 # innermost (stride 1). The dedicated SDPA op takes batch and heads as native leading dims.
-_attn_dims(d, s, h, b) = Int64[b, h, s, d]
-_attn_strides(d, s, h, b) = Int64[d*h*s, d, d*h, 1]
+attn_dims(d, s, h, b) = Int64[b, h, s, d]
+attn_strides(d, s, h, b) = Int64[d*h*s, d, d*h, 1]
 
-function _build_sdpa_plan(T::DataType, d, sq, skv, h, b)
+function build_sdpa_plan(T::DataType, d, sq, skv, h, b)
     dt = cudnnDataType(T)
     F = CUDNN_DATA_FLOAT
-    keep = Any[]
-    tensor(; kw...) = (t = backend_tensor(; kw...); push!(keep, t); t)
+    intermediates = cudnnBackendDescriptor[]
+    track!(desc) = (push!(intermediates, desc); desc)
 
     try
-        Q = tensor(uid=SDPA_UID_Q, dims=_attn_dims(d,sq,h,b),  strides=_attn_strides(d,sq,h,b),  dtype=dt)
-        K = tensor(uid=SDPA_UID_K, dims=_attn_dims(d,skv,h,b), strides=_attn_strides(d,skv,h,b), dtype=dt)
-        V = tensor(uid=SDPA_UID_V, dims=_attn_dims(d,skv,h,b), strides=_attn_strides(d,skv,h,b), dtype=dt)
-        O = tensor(uid=SDPA_UID_O, dims=_attn_dims(d,sq,h,b),  strides=_attn_strides(d,sq,h,b),  dtype=dt)
-        scale = tensor(uid=SDPA_UID_SCALE, dims=Int64[1,1,1,1], strides=Int64[1,1,1,1],
-                       dtype=F, by_value=true)
+        Q = track!(backend_tensor(uid=SDPA_UID_Q, dims=attn_dims(d,sq,h,b),
+                                  strides=attn_strides(d,sq,h,b), dtype=dt))
+        K = track!(backend_tensor(uid=SDPA_UID_K, dims=attn_dims(d,skv,h,b),
+                                  strides=attn_strides(d,skv,h,b), dtype=dt))
+        V = track!(backend_tensor(uid=SDPA_UID_V, dims=attn_dims(d,skv,h,b),
+                                  strides=attn_strides(d,skv,h,b), dtype=dt))
+        O = track!(backend_tensor(uid=SDPA_UID_O, dims=attn_dims(d,sq,h,b),
+                                  strides=attn_strides(d,sq,h,b), dtype=dt))
+        scale = track!(backend_tensor(uid=SDPA_UID_SCALE, dims=Int64[1,1,1,1],
+                                      strides=Int64[1,1,1,1], dtype=F, by_value=true))
 
-        op = cudnnBackendDescriptor(CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR)
+        op = track!(cudnnBackendDescriptor(CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR))
         setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC, Q)
         setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC, K)
         setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC, V)
@@ -100,19 +93,16 @@ function _build_sdpa_plan(T::DataType, d, sq, skv, h, b)
         setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC, scale)
         cudnnBackendFinalize(op)
 
-        graph = operation_graph(cudnnBackendDescriptor[op])
-        push!(keep, op, graph)
-        deviceprop = backend_deviceprop()
-        push!(keep, deviceprop)
+        graph = track!(operation_graph(cudnnBackendDescriptor[op]))
+        deviceprop = track!(backend_deviceprop())
         cfgs = engine_configs(graph; deviceprop)
-        append!(keep, cfgs)  # keep all engine configs alive until the plan is evicted from the cache
+        append!(intermediates, cfgs)
 
         for cfg in cfgs
             plan = try_execution_plan(cfg; deviceprop)
             plan === nothing && continue
             try
-                uids = Int64[SDPA_UID_Q, SDPA_UID_K, SDPA_UID_V, SDPA_UID_O, SDPA_UID_SCALE]
-                return SDPAPlan(plan, Int(plan_workspace_size(plan)), uids, keep)
+                return SDPAPlan(plan, Int(plan_workspace_size(plan)))
             catch
                 unsafe_destroy!(plan)
                 rethrow()
@@ -121,29 +111,22 @@ function _build_sdpa_plan(T::DataType, d, sq, skv, h, b)
         error("cuDNN: no supported fused-attention engine for T=$T d=$d sq=$sq skv=$skv h=$h b=$b " *
               (isempty(cfgs) ? "(the heuristic returned no engine configurations for this graph)" :
                                "($(length(cfgs)) candidate engine configurations all failed to finalize as unsupported)"))
-    catch
-        _unsafe_destroy_backend_descriptors!(keep)
-        rethrow()
+    finally
+        for desc in Iterators.reverse(intermediates)
+            unsafe_destroy!(desc)
+        end
     end
 end
 
-function _sdpa_plan(T, d, sq, skv, h, b)
-    # execution plans are finalized against the current device's handle, so key on the context
-    key = (context(), T, d, sq, skv, h, b)
-    # look up under the lock, but run the expensive plan build outside it so concurrent calls
-    # don't serialize behind it (cf. the descriptor caches in descriptors.jl); a duplicate
-    # build on a race is benign: get! keeps the first inserted plan and we destroy the loser.
-    plan = lock(SDPA_PLAN_CACHE_LOCK) do
-        get(SDPA_PLAN_CACHE, key, nothing)
-    end
-    if plan === nothing
-        built_plan = _build_sdpa_plan(T, d, sq, skv, h, b)
-        plan = lock(SDPA_PLAN_CACHE_LOCK) do
-            get!(SDPA_PLAN_CACHE, key, built_plan)
-        end
-        plan === built_plan || unsafe_destroy!(built_plan)
-    end
-    return plan
+function sdpa_plan(T, d, sq, skv, h, b)
+    # Plans are finalized against the current cuDNN handle and are not guaranteed safe for
+    # concurrent execution. Cache them with the pooled handle, matching PyTorch's thread-local
+    # SDPA graph-cache invariant while still allowing reuse when the handle returns to the pool.
+    plans = handle().plans
+    key = (:sdpa_fwd, T, d, sq, skv, h, b)
+    return get!(plans, key) do
+        build_sdpa_plan(T, d, sq, skv, h, b)
+    end::SDPAPlan
 end
 
 
@@ -160,7 +143,9 @@ function cudnnSDPAForward!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::Dens
                            v::DenseCuArray{T,4};
                            scale::Real = 1/sqrt(size(q,1)),
                            is_causal::Bool = false) where {T}
-    @assert T in (Float16, BFloat16) "cudnnSDPAForward supports Float16/BFloat16, got $T (cuDNN's fused attention does not support Float32/Float64)"
+    T in (Float16, BFloat16) ||
+        throw(ArgumentError("cudnnSDPAForward only supports Float16/BFloat16, got $T " *
+                            "(cuDNN's fused attention engine does not support Float32/Float64)"))
     # Causal masking is not yet supported. On cuDNN <= 9.20 there is no usable path through the
     # raw backend API: the SDPA node's clean score-modifier subgraph
     # (CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH) requires cuDNN >= 9.21 (no CUDNN_jll yet), the
@@ -170,17 +155,23 @@ function cudnnSDPAForward!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::Dens
     is_causal && throw(ArgumentError("causal masking is not yet supported by cudnnSDPAForward"))
     d, h, sq, b = size(q)
     dk, hk, skv, bk = size(k)
-    @assert (dk, hk, bk) == (d, h, b) "k must be (d, h, skv, b) matching q's d, h, b"
-    @assert size(v) == (d, h, skv, b) "v must be (d, h, skv, b)"
-    @assert size(out) == (d, h, sq, b) "out must be (d, h, sq, b)"
-    @assert d % 8 == 0 "head_dim must be a multiple of 8, got $d"
+    (dk, hk, bk) == (d, h, b) ||
+        throw(DimensionMismatch("k must have size (d, h, skv, b) matching q's d, h, b; " *
+                                "got $(size(k)), expected ($d, $h, skv, $b)"))
+    size(v) == (d, h, skv, b) ||
+        throw(DimensionMismatch("v must have size (d, h, skv, b) matching q and k; " *
+                                "got $(size(v)), expected $((d, h, skv, b))"))
+    size(out) == (d, h, sq, b) ||
+        throw(DimensionMismatch("out must have size (d, h, sq, b) matching q; " *
+                                "got $(size(out)), expected $((d, h, sq, b))"))
+    d % 8 == 0 || throw(ArgumentError("head_dim must be a multiple of 8, got $d"))
 
-    plan = _sdpa_plan(T, d, sq, skv, h, b)
+    plan = sdpa_plan(T, d, sq, skv, h, b)
 
     scalebuf = Float32[scale]
     pointers = Any[pointer(q), pointer(k), pointer(v), pointer(out), pointer(scalebuf)]
     with_workspace(plan.workspace_size) do workspace
-        vp = variant_pack(uids=plan.uids, pointers=pointers,
+        vp = variant_pack(uids=SDPA_UIDS, pointers=pointers,
                           workspace=(sizeof(workspace) == 0 ? C_NULL : pointer(workspace)))
         try
             GC.@preserve q k v out scalebuf vp begin

@@ -66,17 +66,33 @@ end
 
 ## handles
 
+# a cuDNN handle pooled together with the execution plans finalized against it: cuDNN
+# execution plans are bound to the handle they were built with, and are not guaranteed safe
+# for concurrent execution, so they travel with the handle as one unit.
+# NOTE: deliberately an immutable struct, not a Tuple: HandleCache tracks active entries in
+# a Set, so the pooled value needs identity-based hashing that stays stable while `plans` is
+# mutated, and the value reconstructed in handle_finalizer must be egal.
+struct PooledHandle
+    handle::cudnnHandle_t
+    plans::Dict{Any,Any}
+end
+
 function handle_ctor(ctx)
     context!(ctx) do
-        cudnnCreate()
+        PooledHandle(cudnnCreate(), Dict{Any,Any}())
     end
 end
-function handle_dtor(ctx, handle)
+function handle_dtor(ctx, pooled::PooledHandle)
     context!(ctx) do
-        cudnnDestroy(handle)
+        # destroy cached execution plans before the handle they were built against
+        for plan in values(pooled.plans)
+            unsafe_destroy!(plan)
+        end
+        empty!(pooled.plans)
+        cudnnDestroy(pooled.handle)
     end
 end
-const idle_handles = HandleCache{CuContext,cudnnHandle_t}(handle_ctor, handle_dtor)
+const idle_handles = HandleCache{CuContext,PooledHandle}(handle_ctor, handle_dtor)
 
 # mutable wrapper so the raw handle is released via an object-bound
 # finalizer: when TLS state is cleared on reclaim (or the owning task is
@@ -85,11 +101,12 @@ const idle_handles = HandleCache{CuContext,cudnnHandle_t}(handle_ctor, handle_dt
 mutable struct Handle
     const handle::cudnnHandle_t
     const ctx::CuContext
+    const plans::Dict{Any,Any}   # execution plans built against this handle (see sdpa.jl)
 end
 Base.unsafe_convert(::Type{cudnnHandle_t}, h::Handle) = h.handle
 
 function handle_finalizer(h::Handle)
-    push!(idle_handles, h.ctx, h.handle)
+    push!(idle_handles, h.ctx, PooledHandle(h.handle, h.plans))
 end
 
 const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
@@ -102,11 +119,11 @@ function handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context)
-        wrapped = Handle(new_handle, cuda.context)
+        pooled = pop!(idle_handles, cuda.context)
+        wrapped = Handle(pooled.handle, cuda.context, pooled.plans)
         finalizer(handle_finalizer, wrapped)
 
-        cudnnSetStream(new_handle, cuda.stream)
+        cudnnSetStream(pooled.handle, cuda.stream)
 
         (; handle=wrapped, cuda.stream)
     end

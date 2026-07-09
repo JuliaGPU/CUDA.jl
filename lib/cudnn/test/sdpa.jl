@@ -1,4 +1,5 @@
 using BFloat16s: BFloat16
+import cuDNN
 using cuDNN: cudnnSDPAForward, cudnnSDPAForward!
 using cuRAND
 
@@ -51,8 +52,38 @@ if capability(device()) >= v"8.0"
         qhost = Array(q)                # host memory must not reach cuDNN as a device pointer
         @test_throws MethodError cudnnSDPAForward(qhost, qhost, qhost)
         qf32 = Float32.(q)              # unsupported by the fused engine
-        @test_throws AssertionError cudnnSDPAForward(qf32, qf32, qf32)
+        @test_throws ArgumentError cudnnSDPAForward(qf32, qf32, qf32)
         @test_throws ArgumentError cudnnSDPAForward(q, q, q; is_causal=true)
+
+        k_bad = CuArray(Float16.(randn(Float32, 32, 4, 64, 2)))
+        @test_throws DimensionMismatch cudnnSDPAForward(q, k_bad, q)
+        v_bad = CuArray(Float16.(randn(Float32, 64, 4, 63, 2)))
+        @test_throws DimensionMismatch cudnnSDPAForward(q, q, v_bad)
+        out_bad = CuArray{Float16}(undef, 64, 4, 63, 2)
+        @test_throws DimensionMismatch cudnnSDPAForward!(out_bad, q, q, q)
+        q60 = CuArray(Float16.(randn(Float32, 60, 4, 32, 2)))
+        @test_throws ArgumentError cudnnSDPAForward(q60, q60, q60)
+    end
+
+    let d=64, h=4, sq=32, skv=32, b=2, scale=1f0/8, dev=device()
+        q = cuRAND.randn(Float16, d, h, sq, b) ./ 4
+        k = cuRAND.randn(Float16, d, h, skv, b) ./ 4
+        v = cuRAND.randn(Float16, d, h, skv, b) ./ 4
+        ref = sdpa_ref(q, k, v; scale)
+        tasks = [Threads.@spawn begin
+                     device!(dev)
+                     cudnnSDPAForward(q, k, v; scale)
+                 end for _ in 1:8]
+        for t in tasks
+            @test Array(fetch(t)) ≈ ref rtol=2e-2
+        end
+    end
+
+    let q = cuRAND.randn(Float16, 64, 4, 32, 2) ./ 4
+        cudnnSDPAForward(q, q, q)
+        n = length(cuDNN.handle().plans)
+        cudnnSDPAForward(q, q, q)
+        @test length(cuDNN.handle().plans) == n
     end
 else
     @warn "Skipping SDPA tests: fused attention requires compute capability >= 8.0"
