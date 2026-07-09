@@ -37,9 +37,11 @@ function cudnnDropoutForwardWithDefaults(
 )
     if cudnnDropoutSeed[] >= 0
         dropout, states, seed = cudnnGetDropoutDescriptor(dropoutDesc)
-        hstate = cudnnDropoutState[handle()]
+        h = handle()
+        hstate = cudnnDropoutState[h.handle]
         @assert states == pointer(hstate)
-        cudnnSetDropoutDescriptor(dropoutDesc, handle(), dropout, hstate, sizeof(hstate), cudnnDropoutSeed[])
+        cudnnSetDropoutDescriptor(dropoutDesc, h, dropout, hstate, sizeof(hstate),
+                                  cudnnDropoutSeed[])
     end
     cudnnDropoutForwardAD(x; xDesc, y, yDesc, dropoutDesc, reserveSpace)
 end
@@ -77,11 +79,12 @@ const cudnnDropoutSeed = Ref{Int}(-1)
 # care of during the forward call.
 
 function cudnnSetDropoutDescriptorFromFloat(ptr::cudnnDropoutDescriptor_t, dropout::Real)
-    hstate = get!(cudnnDropoutState, handle()) do
+    h = handle()
+    hstate = get!(cudnnDropoutState, h.handle) do
         cudnnTempSpace(cudnnDropoutGetStatesSize())
     end
     seed = floor(Culonglong,time())
-    cudnnSetDropoutDescriptor(ptr, handle(), Cfloat(dropout), hstate, sizeof(hstate), seed)
+    cudnnSetDropoutDescriptor(ptr, h, Cfloat(dropout), hstate, sizeof(hstate), seed)
 end
 
 
