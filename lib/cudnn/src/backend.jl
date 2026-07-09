@@ -31,8 +31,6 @@ function unsafe_destroy!(d::cudnnBackendDescriptor)
     return
 end
 
-finalize!(d::cudnnBackendDescriptor) = (cudnnBackendFinalize(d.ptr); d)
-
 
 # --- setattr! ---------------------------------------------------------------------------
 #
@@ -40,8 +38,8 @@ finalize!(d::cudnnBackendDescriptor) = (cudnnBackendFinalize(d.ptr); d)
 # type, element count, and host buffer. The buffer is GC-preserved across the ccall.
 
 # core: `buf` is a host array/Ref backing `count` contiguous elements of the attribute type.
-function _setattr!(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
-                   atype::cudnnBackendAttributeType_t, count::Integer, buf)
+function setattr!(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
+                  atype::cudnnBackendAttributeType_t, count::Integer, buf)
     GC.@preserve buf begin
         cudnnBackendSetAttribute(d.ptr, name, atype, Int64(count),
                                  convert(Ptr{Cvoid}, pointer(buf)))
@@ -50,30 +48,32 @@ function _setattr!(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
 end
 
 # integer dims/strides/ids/sizes
-setattr!(d, name, v::Integer) = _setattr!(d, name, CUDNN_TYPE_INT64, 1, Int64[v])
+setattr!(d, name, v::Integer) = setattr!(d, name, CUDNN_TYPE_INT64, 1, Int64[v])
 setattr!(d, name, v::AbstractVector{<:Integer}) =
-    _setattr!(d, name, CUDNN_TYPE_INT64, length(v), Int64.(collect(v)))
+    setattr!(d, name, CUDNN_TYPE_INT64, length(v), convert(Vector{Int64}, v))
 
 # booleans (cuDNN CUDNN_TYPE_BOOLEAN is a 1-byte bool, matching Julia Bool)
-setattr!(d, name, v::Bool) = _setattr!(d, name, CUDNN_TYPE_BOOLEAN, 1, Bool[v])
+setattr!(d, name, v::Bool) = setattr!(d, name, CUDNN_TYPE_BOOLEAN, 1, Bool[v])
 
 # doubles (e.g. dropout probability)
-setattr!(d, name, v::Float64) = _setattr!(d, name, CUDNN_TYPE_DOUBLE, 1, Float64[v])
+setattr!(d, name, v::Float64) = setattr!(d, name, CUDNN_TYPE_DOUBLE, 1, Float64[v])
 
 # enums: data type, heuristic mode
-setattr!(d, name, v::cudnnDataType_t) = _setattr!(d, name, CUDNN_TYPE_DATA_TYPE, 1, [v])
-setattr!(d, name, v::cudnnBackendHeurMode_t) = _setattr!(d, name, CUDNN_TYPE_HEUR_MODE, 1, [v])
+setattr!(d, name, v::cudnnDataType_t) = setattr!(d, name, CUDNN_TYPE_DATA_TYPE, 1, [v])
+setattr!(d, name, v::cudnnBackendHeurMode_t) =
+    setattr!(d, name, CUDNN_TYPE_HEUR_MODE, 1, [v])
 
 # the cuDNN handle (accepts the raw handle or the `Handle` wrapper from handle())
 setattr_handle!(d, name) =
-    _setattr!(d, name, CUDNN_TYPE_HANDLE, 1, cudnnHandle_t[Base.unsafe_convert(cudnnHandle_t, handle())])
+    setattr!(d, name, CUDNN_TYPE_HANDLE, 1,
+             cudnnHandle_t[Base.unsafe_convert(cudnnHandle_t, handle())])
 
 # nested descriptor(s)
 setattr!(d, name, v::cudnnBackendDescriptor) =
-    _setattr!(d, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, cudnnBackendDescriptor_t[v.ptr])
+    setattr!(d, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, cudnnBackendDescriptor_t[v.ptr])
 setattr!(d, name, v::AbstractVector{cudnnBackendDescriptor}) =
-    _setattr!(d, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, length(v),
-              cudnnBackendDescriptor_t[x.ptr for x in v])
+    setattr!(d, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, length(v),
+             cudnnBackendDescriptor_t[x.ptr for x in v])
 
 
 # --- getattr ----------------------------------------------------------------------------
@@ -158,7 +158,8 @@ function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
         setattr!(d, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT, Int64(alignment))
         is_virtual && setattr!(d, CUDNN_ATTR_TENSOR_IS_VIRTUAL, true)
         by_value && setattr!(d, CUDNN_ATTR_TENSOR_IS_BY_VALUE, true)
-        return finalize!(d)
+        cudnnBackendFinalize(d)
+        return d
     catch
         unsafe_destroy!(d)
         rethrow()
@@ -169,7 +170,8 @@ function backend_deviceprop()
     d = cudnnBackendDescriptor(CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR)
     try
         setattr_handle!(d, CUDNN_ATTR_DEVICEPROP_HANDLE)
-        return finalize!(d)
+        cudnnBackendFinalize(d)
+        return d
     catch
         unsafe_destroy!(d)
         rethrow()
@@ -181,7 +183,7 @@ function operation_graph(ops::AbstractVector{cudnnBackendDescriptor})
     try
         setattr_handle!(g, CUDNN_ATTR_OPERATIONGRAPH_HANDLE)
         setattr!(g, CUDNN_ATTR_OPERATIONGRAPH_OPS, ops)
-        finalize!(g)
+        cudnnBackendFinalize(g)
         return g
     catch
         unsafe_destroy!(g)
@@ -189,7 +191,7 @@ function operation_graph(ops::AbstractVector{cudnnBackendDescriptor})
     end
 end
 
-# Return the engine-config descriptors the heuristic suggests, in preference order.
+# Return caller-owned engine-config descriptors the heuristic suggests, in preference order.
 function engine_configs(graph::cudnnBackendDescriptor;
                         deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing,
                         mode::cudnnBackendHeurMode_t=CUDNN_HEUR_MODE_A, maxcount::Integer=16)
@@ -198,15 +200,13 @@ function engine_configs(graph::cudnnBackendDescriptor;
         setattr!(heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH, graph)
         setattr!(heur, CUDNN_ATTR_ENGINEHEUR_MODE, mode)
         deviceprop !== nothing && setattr!(heur, CUDNN_ATTR_ENGINEHEUR_DEVICEPROP, deviceprop)
-        finalize!(heur)
+        cudnnBackendFinalize(heur)
         count = min(Int64(maxcount), getattr_count(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
                                                    CUDNN_TYPE_BACKEND_DESCRIPTOR))
-        cfgs = getattr_descriptors(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
+        return getattr_descriptors(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
                                    CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, count)
-        return (heur, cfgs)   # keep `heur` alive: the cfgs reference it
-    catch
+    finally
         unsafe_destroy!(heur)
-        rethrow()
     end
 end
 
@@ -217,11 +217,11 @@ end
 function try_execution_plan(enginecfg::cudnnBackendDescriptor;
                             deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing)
     plan = cudnnBackendDescriptor(CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR)
-    setattr_handle!(plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE)
-    setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG, enginecfg)
-    deviceprop !== nothing && setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP, deviceprop)
     try
-        finalize!(plan)
+        setattr_handle!(plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE)
+        setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG, enginecfg)
+        deviceprop !== nothing && setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP, deviceprop)
+        cudnnBackendFinalize(plan)
     catch e
         # Destroy failed descriptors immediately rather than leaving a GC finalizer pending.
         unsafe_destroy!(plan)
@@ -242,12 +242,12 @@ function variant_pack(; uids::AbstractVector{<:Integer}, pointers::AbstractVecto
     vp = cudnnBackendDescriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR)
     try
         ptrbuf = [reinterpret(Ptr{Cvoid}, p) for p in pointers]
-        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, Int64.(collect(uids)))
-        _setattr!(vp, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR,
-                  length(ptrbuf), ptrbuf)
-        _setattr!(vp, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1,
-                  Ptr{Cvoid}[reinterpret(Ptr{Cvoid}, workspace)])
-        finalize!(vp)
+        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, uids)
+        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR,
+                 length(ptrbuf), ptrbuf)
+        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1,
+                 Ptr{Cvoid}[reinterpret(Ptr{Cvoid}, workspace)])
+        cudnnBackendFinalize(vp)
         return vp
     catch
         unsafe_destroy!(vp)

@@ -98,14 +98,13 @@ function _build_sdpa_plan(T::DataType, d, sq, skv, h, b)
         setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC, V)
         setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC, O)
         setattr!(op, CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC, scale)
-        finalize!(op)
+        cudnnBackendFinalize(op)
 
         graph = operation_graph(cudnnBackendDescriptor[op])
         push!(keep, op, graph)
         deviceprop = backend_deviceprop()
         push!(keep, deviceprop)
-        heur, cfgs = engine_configs(graph; deviceprop)
-        push!(keep, heur)
+        cfgs = engine_configs(graph; deviceprop)
         append!(keep, cfgs)  # keep all engine configs alive until the plan is evicted from the cache
 
         for cfg in cfgs
