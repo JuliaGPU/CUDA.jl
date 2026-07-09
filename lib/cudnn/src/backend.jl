@@ -4,19 +4,22 @@
 # every object is a `cudnnBackendDescriptor_t` configured through
 # `cudnnBackendSetAttribute(desc, name, type, count, ptr)`, finalized with
 # `cudnnBackendFinalize`, and read back with `cudnnBackendGetAttribute`. This file provides a
-# typed wrapper plus small constructor helpers for the pieces needed to build and run a fused
-# graph (tensors, operation graph, engine heuristics, execution plan, variant pack). It is
-# used by the graph frontend in graph/.
+# typed wrapper (`setattr!`/`getattr` on the raw attribute enums, plus indexing with short
+# field symbols) and small constructor helpers for the pieces needed to build and run a
+# fused graph (tensors, operation graph, engine heuristics, execution plan, variant pack).
+# It is used by the graph frontend in graph/.
 
 # A finalized-or-not backend descriptor. Owns the handle and destroys it on GC.
+# Remembers its descriptor type so attributes can be addressed by short symbols.
 mutable struct cudnnBackendDescriptor
     ptr::cudnnBackendDescriptor_t
+    type::cudnnBackendDescriptorType_t
 end
 
 function cudnnBackendDescriptor(descriptorType::cudnnBackendDescriptorType_t)
     ref = Ref{cudnnBackendDescriptor_t}(C_NULL)
     cudnnBackendCreateDescriptor(descriptorType, ref)
-    d = cudnnBackendDescriptor(ref[])
+    d = cudnnBackendDescriptor(ref[], descriptorType)
     finalizer(unsafe_destroy!, d)
     return d
 end
@@ -105,9 +108,9 @@ setattr!(d, name, v::T) where {T<:CEnum.Cenum} =
 setattr!(d, name, v::AbstractVector{T}) where {T<:CEnum.Cenum} =
     setattr!(d, name, backend_attribute_type(T), length(v), convert(Vector{T}, v))
 
-# the cuDNN handle (accepts the raw handle or the `Handle` wrapper from handle())
-setattr_handle!(d, name) =
-    setattr!(d, name, CUDNN_TYPE_HANDLE, 1,
+# set the task-local cuDNN handle on the descriptor's handle attribute
+setattr_handle!(d) =
+    setattr!(d, attribute(d, :handle), CUDNN_TYPE_HANDLE, 1,
              cudnnHandle_t[Base.unsafe_convert(cudnnHandle_t, handle())])
 
 # nested descriptor(s)
@@ -137,9 +140,10 @@ getattr(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t, ::Type{T},
         maxcount::Integer=1) where {T} =
     getattr(d, name, backend_attribute_type(T), T, maxcount)
 
-getattr_float32(d, name) = getattr(d, name, CUDNN_TYPE_FLOAT, Float32, 1)[]
-getattr_float64(d, name) = getattr(d, name, CUDNN_TYPE_DOUBLE, Float64, 1)[]
-getattr_int64(d, name) = getattr(d, name, CUDNN_TYPE_INT64, Int64, 1)[]
+backend_attribute_type(::Type{Int64}) = CUDNN_TYPE_INT64
+backend_attribute_type(::Type{Float32}) = CUDNN_TYPE_FLOAT
+backend_attribute_type(::Type{Float64}) = CUDNN_TYPE_DOUBLE
+backend_attribute_type(::Type{Bool}) = CUDNN_TYPE_BOOLEAN
 
 function getattr_count(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
                        atype::cudnnBackendAttributeType_t)
@@ -180,11 +184,78 @@ function getattr_descriptors(d::cudnnBackendDescriptor, name::cudnnBackendAttrib
     end
     nreturned == 0 && return cudnnBackendDescriptor[]
     return map(1:nreturned) do i
-        desc = cudnnBackendDescriptor(raw[i])
+        desc = cudnnBackendDescriptor(raw[i], desctype)
         finalizer(unsafe_destroy!, desc)
         desc
     end
 end
+
+
+# --- symbolic attribute access -----------------------------------------------------------
+#
+# cuDNN names attributes after the descriptor type that owns them:
+# CUDNN_BACKEND_X_DESCRIPTOR takes CUDNN_ATTR_X_FIELD attributes, with a few abbreviated
+# spellings (BACKWARD/BWD, FORWARD/FWD, ...). Deriving that relation from the generated
+# enums lets descriptors be indexed with short field symbols:
+#
+#     d[:qdesc] = tensor_desc      # CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC on an SDPA node
+#     d[:workspace_size, Int64]    # CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE
+
+function attribute_prefixes(stem::String)
+    variants = [stem, replace(stem, "BACKWARD" => "BWD", "FORWARD" => "FWD")]
+    stem == "OPERATION_BN_FINALIZE_STATISTICS" && push!(variants, "OPERATION_BN_FINALIZE")
+    stem == "OPERATION_GEN_STATS" && push!(variants, "OPERATION_GENSTATS")
+    stem == "OPERATION_CONTRACT_BAND_MATRIX" && push!(variants, "OPERATION_CONTRACT_BAND")
+    return unique(variants)
+end
+
+const descriptor_types, attribute_names = let
+    types = Dict{Symbol,cudnnBackendDescriptorType_t}()
+    stems = Dict{cudnnBackendDescriptorType_t,Vector{String}}()
+    for d in instances(cudnnBackendDescriptorType_t)
+        name = string(d)
+        endswith(name, "_DESCRIPTOR") || continue
+        stem = String(chopsuffix(chopprefix(name, "CUDNN_BACKEND_"), "_DESCRIPTOR"))
+        types[Symbol(lowercase(stem))] = d
+        stems[d] = attribute_prefixes(stem)
+    end
+    attributes = Dict{Tuple{cudnnBackendDescriptorType_t,Symbol},cudnnBackendAttributeName_t}()
+    for a in instances(cudnnBackendAttributeName_t)
+        body = chopprefix(string(a), "CUDNN_ATTR_")
+        best, bestlen = nothing, 0
+        for (d, prefixes) in stems, p in prefixes
+            if startswith(body, p * "_") && length(p) > bestlen
+                best, bestlen = (d, p), length(p)
+            end
+        end
+        best === nothing && continue
+        d, p = best
+        attributes[(d, Symbol(lowercase(chopprefix(body, p * "_"))))] = a
+    end
+    types, attributes
+end
+
+function attribute(d::cudnnBackendDescriptor, name::Symbol)
+    attr = get(attribute_names, (d.type, name), nothing)
+    attr === nothing &&
+        throw(ArgumentError("$(d.type) has no attribute $name; valid attributes are " *
+                            join(sort([string(f) for (t, f) in keys(attribute_names)
+                                       if t == d.type]), ", ")))
+    return attr
+end
+
+Base.setindex!(d::cudnnBackendDescriptor, v, name::Symbol) = setattr!(d, attribute(d, name), v)
+
+function Base.getindex(d::cudnnBackendDescriptor, name::Symbol, ::Type{Vector{T}}) where {T}
+    attr = attribute(d, name)
+    atype = backend_attribute_type(T)
+    return getattr(d, attr, atype, T, getattr_count(d, attr, atype))
+end
+Base.getindex(d::cudnnBackendDescriptor, name::Symbol, ::Type{T}) where {T} =
+    only(getattr(d, attribute(d, name), backend_attribute_type(T), T, 1))
+
+cudnnBackendDescriptor(type::Symbol) = cudnnBackendDescriptor(descriptor_types[type])
+make_descriptor(f, type::Symbol) = make_descriptor(f, descriptor_types[type])
 
 
 # --- operation-node constructor helpers -------------------------------------------------
@@ -197,30 +268,29 @@ Create and finalize a `CUDNN_BACKEND_TENSOR_DESCRIPTOR`. `dims`/`strides` are in
 """
 function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
                         is_virtual::Bool=false, by_value::Bool=false, alignment::Integer=16)
-    make_descriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_TENSOR_UNIQUE_ID, Int64(uid))
-        setattr!(d, CUDNN_ATTR_TENSOR_DATA_TYPE, dtype)
-        setattr!(d, CUDNN_ATTR_TENSOR_DIMENSIONS, dims)
-        setattr!(d, CUDNN_ATTR_TENSOR_STRIDES, strides)
-        setattr!(d, CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT, Int64(alignment))
-        is_virtual && setattr!(d, CUDNN_ATTR_TENSOR_IS_VIRTUAL, true)
-        by_value && setattr!(d, CUDNN_ATTR_TENSOR_IS_BY_VALUE, true)
+    make_descriptor(:tensor) do d
+        d[:unique_id] = Int64(uid)
+        d[:data_type] = dtype
+        d[:dimensions] = dims
+        d[:strides] = strides
+        d[:byte_alignment] = Int64(alignment)
+        is_virtual && (d[:is_virtual] = true)
+        by_value && (d[:is_by_value] = true)
     end
 end
 
 function backend_deviceprop()
-    make_descriptor(CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR) do d
-        setattr_handle!(d, CUDNN_ATTR_DEVICEPROP_HANDLE)
+    make_descriptor(:deviceprop) do d
+        setattr_handle!(d)
     end
 end
 
 function operation_graph(ops::AbstractVector{cudnnBackendDescriptor};
                          mode::cudnnBackendOperationGraphMode_t=CUDNN_OPERATIONGRAPH_MODE_AUTO)
-    make_descriptor(CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR) do g
-        setattr_handle!(g, CUDNN_ATTR_OPERATIONGRAPH_HANDLE)
-        setattr!(g, CUDNN_ATTR_OPERATIONGRAPH_OPS, ops)
-        mode == CUDNN_OPERATIONGRAPH_MODE_AUTO ||
-            setattr!(g, CUDNN_ATTR_OPERATIONGRAPH_MODE, mode)
+    make_descriptor(:operationgraph) do g
+        setattr_handle!(g)
+        g[:ops] = ops
+        mode == CUDNN_OPERATIONGRAPH_MODE_AUTO || (g[:mode] = mode)
     end
 end
 
@@ -230,38 +300,37 @@ function pointwise_descriptor(; mode::cudnnPointwiseMode_t, compute_type::cudnnD
                               relu_lower_clip_slope::Real=0, elu_alpha::Real=1,
                               softplus_beta::Real=1, swish_beta::Real=1,
                               axis::Union{Nothing,Integer}=nothing)
-    make_descriptor(CUDNN_BACKEND_POINTWISE_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_POINTWISE_MODE, mode)
-        setattr!(d, CUDNN_ATTR_POINTWISE_MATH_PREC, compute_type)
+    make_descriptor(:pointwise) do d
+        d[:mode] = mode
+        d[:math_prec] = compute_type
         if mode in (CUDNN_POINTWISE_RELU_FWD, CUDNN_POINTWISE_RELU_BWD)
-            setattr!(d, CUDNN_ATTR_POINTWISE_NAN_PROPAGATION, nan_propagation)
-            setattr!(d, CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP, Float64(relu_lower_clip))
-            setattr!(d, CUDNN_ATTR_POINTWISE_RELU_UPPER_CLIP, Float64(relu_upper_clip))
-            setattr!(d, CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP_SLOPE,
-                     Float64(relu_lower_clip_slope))
+            d[:nan_propagation] = nan_propagation
+            d[:relu_lower_clip] = Float64(relu_lower_clip)
+            d[:relu_upper_clip] = Float64(relu_upper_clip)
+            d[:relu_lower_clip_slope] = Float64(relu_lower_clip_slope)
         elseif mode in (CUDNN_POINTWISE_ELU_FWD, CUDNN_POINTWISE_ELU_BWD)
-            setattr!(d, CUDNN_ATTR_POINTWISE_ELU_ALPHA, Float64(elu_alpha))
+            d[:elu_alpha] = Float64(elu_alpha)
         elseif mode == CUDNN_POINTWISE_SOFTPLUS_FWD
-            setattr!(d, CUDNN_ATTR_POINTWISE_SOFTPLUS_BETA, Float64(softplus_beta))
+            d[:softplus_beta] = Float64(softplus_beta)
         elseif mode in (CUDNN_POINTWISE_SWISH_FWD, CUDNN_POINTWISE_SWISH_BWD)
-            setattr!(d, CUDNN_ATTR_POINTWISE_SWISH_BETA, Float64(swish_beta))
+            d[:swish_beta] = Float64(swish_beta)
         end
-        axis === nothing || setattr!(d, CUDNN_ATTR_POINTWISE_AXIS, Int64(axis))
+        axis === nothing || (d[:axis] = Int64(axis))
     end
 end
 
 function matmul_descriptor(; compute_type::cudnnDataType_t)
-    make_descriptor(CUDNN_BACKEND_MATMUL_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_MATMUL_COMP_TYPE, compute_type)
+    make_descriptor(:matmul) do d
+        d[:comp_type] = compute_type
     end
 end
 
 function reduction_descriptor(; mode::cudnnReduceTensorOp_t, compute_type::cudnnDataType_t,
                               deterministic::Bool=false)
-    make_descriptor(CUDNN_BACKEND_REDUCTION_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_REDUCTION_COMP_TYPE, compute_type)
-        setattr!(d, CUDNN_ATTR_REDUCTION_OPERATOR, mode)
-        setattr!(d, CUDNN_ATTR_REDUCTION_IS_DETERMINISTIC, deterministic)
+    make_descriptor(:reduction) do d
+        d[:comp_type] = compute_type
+        d[:operator] = mode
+        d[:is_deterministic] = deterministic
     end
 end
 
@@ -272,14 +341,14 @@ function backend_convolution_descriptor(; compute_type::cudnnDataType_t,
     length(post_padding) == spatial_dims && length(dilation) == spatial_dims &&
         length(stride) == spatial_dims ||
         throw(DimensionMismatch("convolution attributes must have matching rank"))
-    make_descriptor(CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_CONVOLUTION_COMP_TYPE, compute_type)
-        setattr!(d, CUDNN_ATTR_CONVOLUTION_CONV_MODE, mode)
-        setattr!(d, CUDNN_ATTR_CONVOLUTION_SPATIAL_DIMS, spatial_dims)
-        setattr!(d, CUDNN_ATTR_CONVOLUTION_PRE_PADDINGS, pre_padding)
-        setattr!(d, CUDNN_ATTR_CONVOLUTION_POST_PADDINGS, post_padding)
-        setattr!(d, CUDNN_ATTR_CONVOLUTION_DILATIONS, dilation)
-        setattr!(d, CUDNN_ATTR_CONVOLUTION_FILTER_STRIDES, stride)
+    make_descriptor(:convolution) do d
+        d[:comp_type] = compute_type
+        d[:conv_mode] = mode
+        d[:spatial_dims] = spatial_dims
+        d[:pre_paddings] = pre_padding
+        d[:post_paddings] = post_padding
+        d[:dilations] = dilation
+        d[:filter_strides] = stride
     end
 end
 
@@ -296,16 +365,16 @@ function backend_resample_descriptor(; mode::cudnnResampleMode_t,
     length(pre_padding) == spatial_dims && length(post_padding) == spatial_dims &&
         length(stride) == spatial_dims ||
         throw(DimensionMismatch("resample attributes must have matching rank"))
-    make_descriptor(CUDNN_BACKEND_RESAMPLE_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_RESAMPLE_MODE, mode)
-        setattr!(d, CUDNN_ATTR_RESAMPLE_COMP_TYPE, compute_type)
-        setattr!(d, CUDNN_ATTR_RESAMPLE_NAN_PROPAGATION, nan_propagation)
-        setattr!(d, CUDNN_ATTR_RESAMPLE_PADDING_MODE, padding_mode)
-        setattr!(d, CUDNN_ATTR_RESAMPLE_SPATIAL_DIMS, spatial_dims)
-        setattr!(d, CUDNN_ATTR_RESAMPLE_WINDOW_DIMS, fractions(window))
-        setattr!(d, CUDNN_ATTR_RESAMPLE_PRE_PADDINGS, fractions(pre_padding))
-        setattr!(d, CUDNN_ATTR_RESAMPLE_POST_PADDINGS, fractions(post_padding))
-        setattr!(d, CUDNN_ATTR_RESAMPLE_STRIDES, fractions(stride))
+    make_descriptor(:resample) do d
+        d[:mode] = mode
+        d[:comp_type] = compute_type
+        d[:nan_propagation] = nan_propagation
+        d[:padding_mode] = padding_mode
+        d[:spatial_dims] = spatial_dims
+        d[:window_dims] = fractions(window)
+        d[:pre_paddings] = fractions(pre_padding)
+        d[:post_paddings] = fractions(post_padding)
+        d[:strides] = fractions(stride)
     end
 end
 
@@ -314,33 +383,33 @@ function pointwise_operation(pwdesc::cudnnBackendDescriptor, x::cudnnBackendDesc
                              b::Union{Nothing,cudnnBackendDescriptor}=nothing,
                              t::Union{Nothing,cudnnBackendDescriptor}=nothing,
                              alpha1::Real=1, alpha2::Real=0)
-    make_descriptor(CUDNN_BACKEND_OPERATION_POINTWISE_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_POINTWISE_PW_DESCRIPTOR, pwdesc)
-        setattr!(op, CUDNN_ATTR_OPERATION_POINTWISE_XDESC, x)
-        setattr!(op, CUDNN_ATTR_OPERATION_POINTWISE_YDESC, y)
-        setattr!(op, CUDNN_ATTR_OPERATION_POINTWISE_ALPHA1, Float32(alpha1))
-        setattr!(op, CUDNN_ATTR_OPERATION_POINTWISE_ALPHA2, Float32(alpha2))
-        b === nothing || setattr!(op, CUDNN_ATTR_OPERATION_POINTWISE_BDESC, b)
-        t === nothing || setattr!(op, CUDNN_ATTR_OPERATION_POINTWISE_TDESC, t)
+    make_descriptor(:operation_pointwise) do op
+        op[:pw_descriptor] = pwdesc
+        op[:xdesc] = x
+        op[:ydesc] = y
+        op[:alpha1] = Float32(alpha1)
+        op[:alpha2] = Float32(alpha2)
+        b === nothing || (op[:bdesc] = b)
+        t === nothing || (op[:tdesc] = t)
     end
 end
 
 function matmul_operation(matdesc::cudnnBackendDescriptor, a::cudnnBackendDescriptor,
                           b::cudnnBackendDescriptor, c::cudnnBackendDescriptor)
-    make_descriptor(CUDNN_BACKEND_OPERATION_MATMUL_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_MATMUL_ADESC, a)
-        setattr!(op, CUDNN_ATTR_OPERATION_MATMUL_BDESC, b)
-        setattr!(op, CUDNN_ATTR_OPERATION_MATMUL_CDESC, c)
-        setattr!(op, CUDNN_ATTR_OPERATION_MATMUL_DESC, matdesc)
+    make_descriptor(:operation_matmul) do op
+        op[:adesc] = a
+        op[:bdesc] = b
+        op[:cdesc] = c
+        op[:desc] = matdesc
     end
 end
 
 function reduction_operation(reddesc::cudnnBackendDescriptor, x::cudnnBackendDescriptor,
                              y::cudnnBackendDescriptor)
-    make_descriptor(CUDNN_BACKEND_OPERATION_REDUCTION_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_REDUCTION_DESC, reddesc)
-        setattr!(op, CUDNN_ATTR_OPERATION_REDUCTION_XDESC, x)
-        setattr!(op, CUDNN_ATTR_OPERATION_REDUCTION_YDESC, y)
+    make_descriptor(:operation_reduction) do op
+        op[:desc] = reddesc
+        op[:xdesc] = x
+        op[:ydesc] = y
     end
 end
 
@@ -350,15 +419,13 @@ function convolution_forward_operation(convdesc::cudnnBackendDescriptor,
                                        y::cudnnBackendDescriptor;
                                        alpha::Real=1, beta::Real=0,
                                        alphabeta_type::cudnnBackendAttributeType_t=CUDNN_TYPE_FLOAT)
-    make_descriptor(CUDNN_BACKEND_OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_CONV_DESC, convdesc)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_X, x)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_W, w)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_Y, y)
-        setattr_alphabeta!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_ALPHA, alpha,
-                           alphabeta_type)
-        setattr_alphabeta!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_BETA, beta,
-                           alphabeta_type)
+    make_descriptor(:operation_convolution_forward) do op
+        op[:conv_desc] = convdesc
+        op[:x] = x
+        op[:w] = w
+        op[:y] = y
+        setattr_alphabeta!(op, :alpha, alpha, alphabeta_type)
+        setattr_alphabeta!(op, :beta, beta, alphabeta_type)
     end
 end
 
@@ -368,15 +435,13 @@ function convolution_data_backward_operation(convdesc::cudnnBackendDescriptor,
                                              dx::cudnnBackendDescriptor;
                                              alpha::Real=1, beta::Real=0,
                                              alphabeta_type::cudnnBackendAttributeType_t=CUDNN_TYPE_FLOAT)
-    make_descriptor(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_CONV_DESC, convdesc)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_W, w)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DY, dy)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DX, dx)
-        setattr_alphabeta!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_ALPHA, alpha,
-                           alphabeta_type)
-        setattr_alphabeta!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_BETA, beta,
-                           alphabeta_type)
+    make_descriptor(:operation_convolution_backward_data) do op
+        op[:conv_desc] = convdesc
+        op[:w] = w
+        op[:dy] = dy
+        op[:dx] = dx
+        setattr_alphabeta!(op, :alpha, alpha, alphabeta_type)
+        setattr_alphabeta!(op, :beta, beta, alphabeta_type)
     end
 end
 
@@ -386,23 +451,23 @@ function convolution_filter_backward_operation(convdesc::cudnnBackendDescriptor,
                                                dw::cudnnBackendDescriptor;
                                                alpha::Real=1, beta::Real=0,
                                                alphabeta_type::cudnnBackendAttributeType_t=CUDNN_TYPE_FLOAT)
-    make_descriptor(CUDNN_BACKEND_OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_CONV_DESC, convdesc)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_X, x)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DY, dy)
-        setattr!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DW, dw)
-        setattr_alphabeta!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_ALPHA, alpha,
-                           alphabeta_type)
-        setattr_alphabeta!(op, CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_BETA, beta,
-                           alphabeta_type)
+    make_descriptor(:operation_convolution_backward_filter) do op
+        op[:conv_desc] = convdesc
+        op[:x] = x
+        op[:dy] = dy
+        op[:dw] = dw
+        setattr_alphabeta!(op, :alpha, alpha, alphabeta_type)
+        setattr_alphabeta!(op, :beta, beta, alphabeta_type)
     end
 end
 
-function setattr_alphabeta!(d::cudnnBackendDescriptor, name, value, atype)
+# alpha/beta take their type from the convolution compute type, so the usual
+# value-based dispatch does not apply
+function setattr_alphabeta!(d::cudnnBackendDescriptor, name::Symbol, value, atype)
     if atype == CUDNN_TYPE_DOUBLE
-        setattr!(d, name, CUDNN_TYPE_DOUBLE, 1, Float64[value])
+        setattr!(d, attribute(d, name), CUDNN_TYPE_DOUBLE, 1, Float64[value])
     else
-        setattr!(d, name, CUDNN_TYPE_FLOAT, 1, Float32[value])
+        setattr!(d, attribute(d, name), CUDNN_TYPE_FLOAT, 1, Float32[value])
     end
 end
 
@@ -411,14 +476,13 @@ function resample_forward_operation(resampledesc::cudnnBackendDescriptor,
                                     y::cudnnBackendDescriptor;
                                     index::Union{Nothing,cudnnBackendDescriptor}=nothing,
                                     alpha::Real=1, beta::Real=0)
-    make_descriptor(CUDNN_BACKEND_OPERATION_RESAMPLE_FWD_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_XDESC, x)
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_YDESC, y)
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_ALPHA, Float64(alpha))
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_BETA, Float64(beta))
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_DESC, resampledesc)
-        index === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_FWD_IDXDESC, index)
+    make_descriptor(:operation_resample_fwd) do op
+        op[:xdesc] = x
+        op[:ydesc] = y
+        op[:alpha] = Float64(alpha)
+        op[:beta] = Float64(beta)
+        op[:desc] = resampledesc
+        index === nothing || (op[:idxdesc] = index)
     end
 end
 
@@ -429,16 +493,15 @@ function resample_backward_operation(resampledesc::cudnnBackendDescriptor,
                                      y::Union{Nothing,cudnnBackendDescriptor}=nothing,
                                      index::Union{Nothing,cudnnBackendDescriptor}=nothing,
                                      alpha::Real=1, beta::Real=0)
-    make_descriptor(CUDNN_BACKEND_OPERATION_RESAMPLE_BWD_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DXDESC, dx)
-        x === nothing || setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_XDESC, x)
-        y === nothing || setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_YDESC, y)
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DYDESC, dy)
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_ALPHA, Float64(alpha))
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_BETA, Float64(beta))
-        setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_DESC, resampledesc)
-        index === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_RESAMPLE_BWD_IDXDESC, index)
+    make_descriptor(:operation_resample_bwd) do op
+        op[:dxdesc] = dx
+        x === nothing || (op[:xdesc] = x)
+        y === nothing || (op[:ydesc] = y)
+        op[:dydesc] = dy
+        op[:alpha] = Float64(alpha)
+        op[:beta] = Float64(beta)
+        op[:desc] = resampledesc
+        index === nothing || (op[:idxdesc] = index)
     end
 end
 
@@ -456,33 +519,21 @@ function norm_forward_operation(; mode::cudnnBackendNormMode_t,
                                 output_running_mean::Union{Nothing,cudnnBackendDescriptor}=nothing,
                                 output_running_var::Union{Nothing,cudnnBackendDescriptor}=nothing,
                                 y::cudnnBackendDescriptor)
-    make_descriptor(CUDNN_BACKEND_OPERATION_NORM_FORWARD_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_MODE, mode)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_PHASE, phase)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_XDESC, x)
-        mean === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_MEAN_DESC, mean)
-        inv_variance === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_INV_VARIANCE_DESC, inv_variance)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_SCALE_DESC, scale)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_BIAS_DESC, bias)
-        epsilon === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_EPSILON_DESC, epsilon)
-        momentum === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_EXP_AVG_FACTOR_DESC, momentum)
-        input_running_mean === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_MEAN_DESC,
-                     input_running_mean)
-        input_running_var === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_INPUT_RUNNING_VAR_DESC,
-                     input_running_var)
-        output_running_mean === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_MEAN_DESC,
-                     output_running_mean)
-        output_running_var === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_OUTPUT_RUNNING_VAR_DESC,
-                     output_running_var)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_FWD_YDESC, y)
+    make_descriptor(:operation_norm_forward) do op
+        op[:mode] = mode
+        op[:phase] = phase
+        op[:xdesc] = x
+        mean === nothing || (op[:mean_desc] = mean)
+        inv_variance === nothing || (op[:inv_variance_desc] = inv_variance)
+        op[:scale_desc] = scale
+        op[:bias_desc] = bias
+        epsilon === nothing || (op[:epsilon_desc] = epsilon)
+        momentum === nothing || (op[:exp_avg_factor_desc] = momentum)
+        input_running_mean === nothing || (op[:input_running_mean_desc] = input_running_mean)
+        input_running_var === nothing || (op[:input_running_var_desc] = input_running_var)
+        output_running_mean === nothing || (op[:output_running_mean_desc] = output_running_mean)
+        output_running_var === nothing || (op[:output_running_var_desc] = output_running_var)
+        op[:ydesc] = y
     end
 end
 
@@ -495,16 +546,16 @@ function norm_backward_operation(; mode::cudnnBackendNormMode_t,
                                  dscale::cudnnBackendDescriptor,
                                  dbias::cudnnBackendDescriptor,
                                  dx::cudnnBackendDescriptor)
-    make_descriptor(CUDNN_BACKEND_OPERATION_NORM_BACKWARD_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_MODE, mode)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_XDESC, x)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_MEAN_DESC, mean)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_INV_VARIANCE_DESC, inv_variance)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_DYDESC, dy)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_SCALE_DESC, scale)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_DSCALE_DESC, dscale)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_DBIAS_DESC, dbias)
-        setattr!(op, CUDNN_ATTR_OPERATION_NORM_BWD_DXDESC, dx)
+    make_descriptor(:operation_norm_backward) do op
+        op[:mode] = mode
+        op[:xdesc] = x
+        op[:mean_desc] = mean
+        op[:inv_variance_desc] = inv_variance
+        op[:dydesc] = dy
+        op[:scale_desc] = scale
+        op[:dscale_desc] = dscale
+        op[:dbias_desc] = dbias
+        op[:dxdesc] = dx
     end
 end
 
@@ -517,28 +568,17 @@ function diagonal_band_mask_operation(x::cudnnBackendDescriptor, b::cudnnBackend
                                       left_bound::Union{Nothing,cudnnBackendDescriptor}=nothing,
                                       shift_right_bound::Union{Nothing,cudnnBackendDescriptor}=nothing,
                                       comparison_mode::cudnnPointwiseMode_t)
-    make_descriptor(CUDNN_BACKEND_OPERATION_DIAGONAL_BAND_MASK_DESCRIPTOR) do op
-        setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_XDESC, x)
-        setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_BDESC, b)
-        setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_YDESC, y)
-        setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_COMPARISON_MODE,
-                 comparison_mode)
-        seq_len_q === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_QDESC, seq_len_q)
-        seq_len_kv === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SEQ_LEN_KVDESC, seq_len_kv)
-        cu_seq_len_q === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_QDESC,
-                     cu_seq_len_q)
-        cu_seq_len_kv === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_CU_SEQ_LEN_KVDESC,
-                     cu_seq_len_kv)
-        left_bound === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_LEFT_BOUND_DESC,
-                     left_bound)
-        shift_right_bound === nothing ||
-            setattr!(op, CUDNN_ATTR_OPERATION_DIAGONAL_BAND_MASK_SHIFT_RIGHT_BOUND_DESC,
-                     shift_right_bound)
+    make_descriptor(:operation_diagonal_band_mask) do op
+        op[:xdesc] = x
+        op[:bdesc] = b
+        op[:ydesc] = y
+        op[:comparison_mode] = comparison_mode
+        seq_len_q === nothing || (op[:seq_len_qdesc] = seq_len_q)
+        seq_len_kv === nothing || (op[:seq_len_kvdesc] = seq_len_kv)
+        cu_seq_len_q === nothing || (op[:cu_seq_len_qdesc] = cu_seq_len_q)
+        cu_seq_len_kv === nothing || (op[:cu_seq_len_kvdesc] = cu_seq_len_kv)
+        left_bound === nothing || (op[:left_bound_desc] = left_bound)
+        shift_right_bound === nothing || (op[:shift_right_bound_desc] = shift_right_bound)
     end
 end
 
@@ -546,15 +586,15 @@ end
 function engine_configs(graph::cudnnBackendDescriptor;
                         deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing,
                         mode::cudnnBackendHeurMode_t=CUDNN_HEUR_MODE_A, maxcount::Integer=16)
-    heur = make_descriptor(CUDNN_BACKEND_ENGINEHEUR_DESCRIPTOR) do heur
-        setattr!(heur, CUDNN_ATTR_ENGINEHEUR_OPERATION_GRAPH, graph)
-        setattr!(heur, CUDNN_ATTR_ENGINEHEUR_MODE, mode)
-        deviceprop !== nothing && setattr!(heur, CUDNN_ATTR_ENGINEHEUR_DEVICEPROP, deviceprop)
+    heur = make_descriptor(:engineheur) do heur
+        heur[:operation_graph] = graph
+        heur[:mode] = mode
+        deviceprop === nothing || (heur[:deviceprop] = deviceprop)
     end
     try
-        count = min(Int64(maxcount), getattr_count(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
+        count = min(Int64(maxcount), getattr_count(heur, attribute(heur, :results),
                                                    CUDNN_TYPE_BACKEND_DESCRIPTOR))
-        return getattr_descriptors(heur, CUDNN_ATTR_ENGINEHEUR_RESULTS,
+        return getattr_descriptors(heur, attribute(heur, :results),
                                    CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, count)
     finally
         unsafe_destroy!(heur)
@@ -570,10 +610,10 @@ is_unsupported(e::CUDNNError) = 3000 <= Int(e.code) < 4000
 function try_execution_plan(enginecfg::cudnnBackendDescriptor;
                             deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing)
     try
-        return make_descriptor(CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR) do plan
-            setattr_handle!(plan, CUDNN_ATTR_EXECUTION_PLAN_HANDLE)
-            setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_ENGINE_CONFIG, enginecfg)
-            deviceprop !== nothing && setattr!(plan, CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP, deviceprop)
+        return make_descriptor(:execution_plan) do plan
+            setattr_handle!(plan)
+            plan[:engine_config] = enginecfg
+            deviceprop === nothing || (plan[:deviceprop] = deviceprop)
         end
     catch e
         e isa CUDNNError || rethrow()
@@ -582,37 +622,28 @@ function try_execution_plan(enginecfg::cudnnBackendDescriptor;
     end
 end
 
-plan_workspace_size(plan) = getattr_int64(plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE)
+plan_workspace_size(plan) = plan[:workspace_size, Int64]
 
 function engine_descriptor(enginecfg::cudnnBackendDescriptor)
-    descs = getattr_descriptors(enginecfg, CUDNN_ATTR_ENGINECFG_ENGINE,
+    descs = getattr_descriptors(enginecfg, attribute(enginecfg, :engine),
                                 CUDNN_BACKEND_ENGINE_DESCRIPTOR, 1)
     isempty(descs) && error("cuDNN: engine config did not expose an engine descriptor")
     return only(descs)
 end
 
 engine_numerical_notes(engine::cudnnBackendDescriptor) =
-    getattr(engine, CUDNN_ATTR_ENGINE_NUMERICAL_NOTE, CUDNN_TYPE_NUMERICAL_NOTE,
-            cudnnBackendNumericalNote_t,
-            getattr_count(engine, CUDNN_ATTR_ENGINE_NUMERICAL_NOTE,
-                          CUDNN_TYPE_NUMERICAL_NOTE))
+    engine[:numerical_note, Vector{cudnnBackendNumericalNote_t}]
 
 engine_behavior_notes(engine::cudnnBackendDescriptor) =
-    getattr(engine, CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE, CUDNN_TYPE_BEHAVIOR_NOTE,
-            cudnnBackendBehaviorNote_t,
-            getattr_count(engine, CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE,
-                          CUDNN_TYPE_BEHAVIOR_NOTE))
+    engine[:behavior_note, Vector{cudnnBackendBehaviorNote_t}]
 
 # Build and finalize a variant pack. `pointers` are device (or, for by-value tensors, host)
 # pointers matching `uids` one-to-one; `workspace` is a device pointer or C_NULL.
 function variant_pack(; uids::AbstractVector{<:Integer}, pointers::AbstractVector,
                       workspace)
-    make_descriptor(CUDNN_BACKEND_VARIANT_PACK_DESCRIPTOR) do vp
-        ptrbuf = [reinterpret(Ptr{Cvoid}, p) for p in pointers]
-        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_UNIQUE_IDS, uids)
-        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_DATA_POINTERS, CUDNN_TYPE_VOID_PTR,
-                 length(ptrbuf), ptrbuf)
-        setattr!(vp, CUDNN_ATTR_VARIANT_PACK_WORKSPACE, CUDNN_TYPE_VOID_PTR, 1,
-                 Ptr{Cvoid}[reinterpret(Ptr{Cvoid}, workspace)])
+    make_descriptor(:variant_pack) do vp
+        vp[:unique_ids] = uids
+        vp[:data_pointers] = Ptr{Cvoid}[reinterpret(Ptr{Cvoid}, p) for p in pointers]
+        vp[:workspace] = reinterpret(Ptr{Cvoid}, workspace)
     end
 end

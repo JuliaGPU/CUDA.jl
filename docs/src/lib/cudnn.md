@@ -18,8 +18,11 @@ The package has four layers:
 
 - Generated bindings in `libcudnn.jl` mirror the C API and expose the raw cuDNN constants,
   structs, and functions. These bindings are not deprecated by cuDNN.jl.
-- Backend descriptor helpers wrap `cudnnBackendDescriptor_t` and provide typed
-  `setattr!`/`getattr` helpers for the generic cuDNN backend API.
+- Backend descriptor helpers wrap `cudnnBackendDescriptor_t` for the generic cuDNN backend
+  API. Descriptors are indexed with short field symbols derived from the attribute enums —
+  `d[:qdesc] = tensor` on an SDPA node sets `CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC`, and
+  `plan[:workspace_size, Int64]` reads an attribute back — with typed `setattr!`/`getattr`
+  underneath for cases the derived names don't cover.
 - The graph frontend uses `Graph` and `Tensor` objects to describe tensors, scalar values,
   virtual intermediates, and operations before lowering them to backend descriptors.
 - Operation wrappers such as `attention!`, `convolution!`, pooling, and batch normalization

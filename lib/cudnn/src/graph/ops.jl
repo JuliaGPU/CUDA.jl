@@ -958,63 +958,48 @@ function lower(op::NormBwdOp, ctx::LoweringContext)
                             dx=desc(ctx, op.dx))
 end
 
-function lower_sdpa_mask_subgraph!(d, ctx, mask, graph_attr, input_attr, output_attr)
+function lower_sdpa_mask_subgraph!(d, ctx, mask)
     mask_op = track!(ctx, diagonal_band_mask_operation(desc(ctx, mask.input),
                                                        desc(ctx, mask.fill),
                                                        desc(ctx, mask.output);
                                                        comparison_mode=CUDNN_POINTWISE_CMP_GE))
-    subgraph = track!(ctx, operation_graph([mask_op]))
-    setattr!(d, graph_attr, subgraph)
-    setattr!(d, input_attr, mask.input.uid)
-    setattr!(d, output_attr, mask.output.uid)
+    d[:subgraph] = track!(ctx, operation_graph([mask_op]))
+    d[:subgraph_input_uid] = mask.input.uid
+    d[:subgraph_output_uid] = mask.output.uid
     return
 end
 
 function lower(op::SDPAFwdOp, ctx::LoweringContext)
-    make_descriptor(CUDNN_BACKEND_OPERATION_SDPA_FWD_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC, desc(ctx, op.q))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_KDESC, desc(ctx, op.k))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_VDESC, desc(ctx, op.v))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_ODESC, desc(ctx, op.o))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_SCALEDESC, desc(ctx, op.scale))
-        op.stats === nothing ||
-            setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_STATSDESC, desc(ctx, op.stats))
-        op.seq_len_q === nothing ||
-            setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_QDESC, desc(ctx, op.seq_len_q))
-        op.seq_len_kv === nothing ||
-            setattr!(d, CUDNN_ATTR_OPERATION_SDPA_FWD_SEQ_LEN_KVDESC, desc(ctx, op.seq_len_kv))
-        if op.mask_subgraph !== nothing
-            lower_sdpa_mask_subgraph!(d, ctx, op.mask_subgraph,
-                                       CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH,
-                                       CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_INPUT_UID,
-                                       CUDNN_ATTR_OPERATION_SDPA_FWD_SUBGRAPH_OUTPUT_UID)
-        end
+    make_descriptor(:operation_sdpa_fwd) do d
+        d[:qdesc] = desc(ctx, op.q)
+        d[:kdesc] = desc(ctx, op.k)
+        d[:vdesc] = desc(ctx, op.v)
+        d[:odesc] = desc(ctx, op.o)
+        d[:scaledesc] = desc(ctx, op.scale)
+        op.stats === nothing || (d[:statsdesc] = desc(ctx, op.stats))
+        op.seq_len_q === nothing || (d[:seq_len_qdesc] = desc(ctx, op.seq_len_q))
+        op.seq_len_kv === nothing || (d[:seq_len_kvdesc] = desc(ctx, op.seq_len_kv))
+        op.mask_subgraph === nothing ||
+            lower_sdpa_mask_subgraph!(d, ctx, op.mask_subgraph)
     end
 end
 
 function lower(op::SDPABwdOp, ctx::LoweringContext)
-    make_descriptor(CUDNN_BACKEND_OPERATION_SDPA_BWD_DESCRIPTOR) do d
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_QDESC, desc(ctx, op.q))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_KDESC, desc(ctx, op.k))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_VDESC, desc(ctx, op.v))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_ODESC, desc(ctx, op.o))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_DODDESC, desc(ctx, op.dO))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_STATSDESC, desc(ctx, op.stats))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_SCALEDESC, desc(ctx, op.scale))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_DQDESC, desc(ctx, op.dQ))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_DKDESC, desc(ctx, op.dK))
-        setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_DVDESC, desc(ctx, op.dV))
-        op.seq_len_q === nothing ||
-            setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_QDESC, desc(ctx, op.seq_len_q))
-        op.seq_len_kv === nothing ||
-            setattr!(d, CUDNN_ATTR_OPERATION_SDPA_BWD_SEQ_LEN_KVDESC,
-                     desc(ctx, op.seq_len_kv))
-        if op.mask_subgraph !== nothing
-            lower_sdpa_mask_subgraph!(d, ctx, op.mask_subgraph,
-                                       CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH,
-                                       CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_INPUT_UID,
-                                       CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_OUTPUT_UID)
-        end
+    make_descriptor(:operation_sdpa_bwd) do d
+        d[:qdesc] = desc(ctx, op.q)
+        d[:kdesc] = desc(ctx, op.k)
+        d[:vdesc] = desc(ctx, op.v)
+        d[:odesc] = desc(ctx, op.o)
+        d[:doddesc] = desc(ctx, op.dO)
+        d[:statsdesc] = desc(ctx, op.stats)
+        d[:scaledesc] = desc(ctx, op.scale)
+        d[:dqdesc] = desc(ctx, op.dQ)
+        d[:dkdesc] = desc(ctx, op.dK)
+        d[:dvdesc] = desc(ctx, op.dV)
+        op.seq_len_q === nothing || (d[:seq_len_qdesc] = desc(ctx, op.seq_len_q))
+        op.seq_len_kv === nothing || (d[:seq_len_kvdesc] = desc(ctx, op.seq_len_kv))
+        op.mask_subgraph === nothing ||
+            lower_sdpa_mask_subgraph!(d, ctx, op.mask_subgraph)
     end
 end
 

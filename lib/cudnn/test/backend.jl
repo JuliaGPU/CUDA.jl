@@ -16,25 +16,17 @@ using cuDNN:
     pointwise_operation,
     resample_backward_operation,
     resample_forward_operation,
+    cudnnBackendAttributeName_t,
     cudnnBackendDescriptor,
     cudnnBackendDescriptor_t,
     cudnnBackendOperationGraphMode_t,
     cudnnDataType_t,
     cudnnResampleMode_t,
     getattr,
-    getattr_int64,
     make_descriptor,
     unsafe_destroy!,
-    CUDNN_ATTR_OPERATIONGRAPH_MODE,
     CUDNN_ATTR_POINTWISE_MATH_PREC,
-    CUDNN_ATTR_POINTWISE_MODE,
-    CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP,
-    CUDNN_ATTR_RESAMPLE_MODE,
     CUDNN_ATTR_TENSOR_DATA_TYPE,
-    CUDNN_ATTR_TENSOR_DIMENSIONS,
-    CUDNN_ATTR_TENSOR_STRIDES,
-    CUDNN_ATTR_TENSOR_UNIQUE_ID,
-    CUDNN_BACKEND_POINTWISE_DESCRIPTOR,
     CUDNN_BACKEND_TENSOR_DESCRIPTOR,
     CUDNN_BATCH_NORM,
     CUDNN_CROSS_CORRELATION,
@@ -46,39 +38,38 @@ using cuDNN:
     CUDNN_POINTWISE_RELU_FWD,
     CUDNN_REDUCE_TENSOR_ADD,
     CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING,
-    CUDNN_RESAMPLE_MAXPOOL,
-    CUDNN_TYPE_RESAMPLE_MODE,
-    CUDNN_TYPE_OPERATIONGRAPH_MODE,
-    CUDNN_TYPE_DATA_TYPE,
-    CUDNN_TYPE_INT64
+    CUDNN_RESAMPLE_MAXPOOL
 
 d = cudnnBackendDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR)
 @test d.ptr != C_NULL
+@test d.type == CUDNN_BACKEND_TENSOR_DESCRIPTOR
 @test Base.unsafe_convert(cudnnBackendDescriptor_t, d) == d.ptr
 unsafe_destroy!(d)
 @test d.ptr == C_NULL
 @test unsafe_destroy!(d) === nothing
 @test Base.finalize(d) === nothing
 
+# the attribute table derived from the enums covers every attribute
+@test Set(values(cuDNN.attribute_names)) == Set(instances(cudnnBackendAttributeName_t))
+
 t = backend_tensor(uid=42,
                    dims=Int64[1, 2, 3, 4],
                    strides=Int64[24, 12, 4, 1],
                    dtype=CUDNN_DATA_FLOAT,
                    alignment=16)
-@test getattr_int64(t, CUDNN_ATTR_TENSOR_UNIQUE_ID) == 42
-@test only(getattr(t, CUDNN_ATTR_TENSOR_DATA_TYPE, CUDNN_TYPE_DATA_TYPE,
-                   cudnnDataType_t, 1)) == CUDNN_DATA_FLOAT
-@test getattr(t, CUDNN_ATTR_TENSOR_DIMENSIONS, CUDNN_TYPE_INT64, Int64, 4) ==
-      Int64[1, 2, 3, 4]
-@test getattr(t, CUDNN_ATTR_TENSOR_STRIDES, CUDNN_TYPE_INT64, Int64, 4) ==
-      Int64[24, 12, 4, 1]
+@test t[:unique_id, Int64] == 42
+@test t[:data_type, cudnnDataType_t] == CUDNN_DATA_FLOAT
+@test t[:dimensions, Vector{Int64}] == Int64[1, 2, 3, 4]
+@test t[:strides, Vector{Int64}] == Int64[24, 12, 4, 1]
 @test only(getattr(t, CUDNN_ATTR_TENSOR_DATA_TYPE, cudnnDataType_t, 1)) ==
       CUDNN_DATA_FLOAT
+@test_throws ArgumentError t[:bogus, Int64]
+@test_throws ArgumentError t[:bogus] = 1
 
-pw = make_descriptor(CUDNN_BACKEND_POINTWISE_DESCRIPTOR) do d
-    cuDNN.setattr!(d, CUDNN_ATTR_POINTWISE_MODE, CUDNN_POINTWISE_RELU_FWD)
+pw = make_descriptor(:pointwise) do d
+    d[:mode] = CUDNN_POINTWISE_RELU_FWD
     cuDNN.setattr!(d, CUDNN_ATTR_POINTWISE_MATH_PREC, CUDNN_DATA_FLOAT)
-    cuDNN.setattr!(d, CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP, 0.0f0)
+    d[:relu_lower_clip] = 0.0f0
 end
 @test pw.ptr != C_NULL
 
@@ -135,8 +126,7 @@ pool = backend_resample_descriptor(mode=CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING,
                                    pre_padding=Int64[0, 0],
                                    post_padding=Int64[0, 0],
                                    stride=Int64[2, 2])
-@test only(getattr(pool, CUDNN_ATTR_RESAMPLE_MODE, CUDNN_TYPE_RESAMPLE_MODE,
-                   cudnnResampleMode_t, 1)) == CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING
+@test pool[:mode, cudnnResampleMode_t] == CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING
 px = backend_tensor(uid=60, dims=Int64[2, 3, 4, 4], strides=Int64[48, 16, 4, 1],
                     dtype=CUDNN_DATA_FLOAT, alignment=16)
 py = backend_tensor(uid=61, dims=Int64[2, 3, 2, 2], strides=Int64[12, 4, 2, 1],
@@ -173,9 +163,7 @@ eps = backend_tensor(uid=73, dims=Int64[1, 1, 1, 1], strides=Int64[1, 1, 1, 1],
 
 relu = pointwise_operation(pw2, score, masked)
 opgraph = operation_graph([relu]; mode=CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION)
-@test only(getattr(opgraph, CUDNN_ATTR_OPERATIONGRAPH_MODE,
-                   CUDNN_TYPE_OPERATIONGRAPH_MODE,
-                   cudnnBackendOperationGraphMode_t, 1)) ==
+@test opgraph[:mode, cudnnBackendOperationGraphMode_t] ==
       CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION
 
 deviceprop = backend_deviceprop()
