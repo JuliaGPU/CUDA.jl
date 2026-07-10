@@ -5,6 +5,14 @@ using cuDNN: batchnorm_gradient!, batchnorm_gradient_supported,
 
 CUDA.allowscalar(false)
 
+let
+    x = CUDA.zeros(Float32, 4, 4, 2, 0)
+    y = similar(x)
+    param = CUDA.zeros(Float32, 1, 1, 2, 1)
+    @test batchnorm_inference_supported(y, x, param, param, param, param)
+    @test batchnorm_inference!(y, x, param, param, param, param) === y
+end
+
 function bn_reduce_dims(x)
     ntuple(i -> i == ndims(x) - 1 ? Colon() : axes(x, i), ndims(x))
 end

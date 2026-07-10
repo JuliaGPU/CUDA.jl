@@ -224,6 +224,7 @@ function batchnorm_inference!(y::DenseCuArray{T}, x::DenseCuArray{T},
                               deterministic::Bool=false,
                               math_mode=CUDACore.math_mode(),
                               max_workspace::Union{Nothing,Integer}=nothing) where {T}
+    isempty(y) && return y
     alpha == 1 && beta == 0 ||
         throw(ArgumentError("batchnorm_inference! requires alpha=1 and beta=0"))
     epsilon = max(epsilon, CUDNN_BN_MIN_EPSILON)
@@ -292,6 +293,7 @@ function batchnorm_inference_supported(y::DenseCuArray{T}, x::DenseCuArray{T},
                                        deterministic::Bool=false,
                                        math_mode=CUDACore.math_mode(),
                                        max_workspace::Union{Nothing,Integer}=nothing) where {T}
+    isempty(y) && return true
     S = bn_stat_type(T)
     all(a -> eltype(a) == S, (scale, bias, running_mean, running_var)) || return false
     return cached_graph_supported() do
