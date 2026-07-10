@@ -41,19 +41,21 @@ function select_plan(g::Graph, opgraph::BackendDescriptor;
     deviceprop = backend_deviceprop()
     cfgs = BackendDescriptor[]
     try
+        # only query the next heuristic mode when the previous one yields no plan
         for mode in heuristics
-            append!(cfgs, engine_configs(opgraph; deviceprop, mode))
-        end
-        for cfg in cfgs
-            keep_engine_config(cfg, g; deterministic, math_mode) || continue
-            plan = try_execution_plan(cfg; deviceprop)
-            plan === nothing && continue
-            ws = Int(plan_workspace_size(plan))
-            if max_workspace !== nothing && ws > max_workspace
-                unsafe_destroy!(plan)
-                continue
+            new_cfgs = engine_configs(opgraph; deviceprop, mode)
+            append!(cfgs, new_cfgs)
+            for cfg in new_cfgs
+                keep_engine_config(cfg, g; deterministic, math_mode) || continue
+                plan = try_execution_plan(cfg; deviceprop)
+                plan === nothing && continue
+                ws = Int(plan_workspace_size(plan))
+                if max_workspace !== nothing && ws > max_workspace
+                    unsafe_destroy!(plan)
+                    continue
+                end
+                return plan, ws
             end
-            return plan, ws
         end
         throw(UnsupportedGraphError("cuDNN: no supported engine for graph " *
                                     graph_signature(g) * " ($(length(cfgs)) candidate configs)"))
