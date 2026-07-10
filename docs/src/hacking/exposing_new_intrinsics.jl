@@ -34,7 +34,9 @@
 fma_rp(x::Float64, y::Float64, z::Float64) =
     ccall("llvm.nvvm.fma.rp.d", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
 
-# We can verify the generated PTX contains the expected instruction:
+# We can verify the generated PTX contains the expected instruction. (The `io`
+# keyword disables syntax highlighting so the listing renders cleanly in these
+# docs; at the REPL you can drop it to get colorized output.)
 
 using CUDA
 
@@ -43,7 +45,7 @@ function fma_kernel(out, x, y, z)
     return
 end
 
-@device_code_ptx @cuda launch=false fma_kernel(CuArray{Float64}(undef, 1), 1.0, 1.0, 1.0)
+@device_code_ptx io=IOContext(stdout, :color => false) @cuda launch=false fma_kernel(CuArray{Float64}(undef, 1), 1.0, 1.0, 1.0)
 
 # Look for `fma.rp.f64` in the listing above.
 
