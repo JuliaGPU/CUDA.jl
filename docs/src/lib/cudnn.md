@@ -137,15 +137,14 @@ require the graph-backed ops layer.
 
 Legacy wrappers should remain available until the next breaking release, but new APIs should
 not grow around them. New functionality should target the backend and graph layers when
-cuDNN exposes the needed operation there, or use a small compatibility wrapper that can be
-removed with the rest of the legacy surface.
+cuDNN exposes the needed operation there. Unsupported graphs should be reported to the
+caller so an ecosystem implementation can take over when one exists.
 
 Softmax, dropout, and RNN wrappers are fixed-function survivors rather than legacy code:
 cuDNN has no graph replacement for dropout and RNN, and NNlib's softmax hook still uses
 the fixed-function entry points. Descriptor plumbing shared with the surviving layers
-(array-based tensor and filter descriptor constructors, convolution algorithm selection)
-also lives outside `legacy`. The generated C bindings remain available regardless of the
-legacy-wrapper deprecation schedule.
+(array-based tensor and filter descriptor constructors) also lives outside `legacy`. The
+generated C bindings remain available regardless of the legacy-wrapper deprecation schedule.
 
 ## Debugging
 
