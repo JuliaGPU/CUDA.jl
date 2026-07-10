@@ -35,6 +35,18 @@ cudnnPoolingForward!(y, x; o...) = cudnnPoolingForwardWithDefaults(x; y, o...)
 cudnnPoolingForward(x, d::cudnnPoolingDescriptor; o...)     = cudnnPoolingForwardWithDefaults(x; poolingDesc=d, o...)
 cudnnPoolingForward!(y, x, d::cudnnPoolingDescriptor; o...) = cudnnPoolingForwardWithDefaults(x; y, poolingDesc=d, o...)
 
+function pooldims(d, s::Dims{N}) where {N}
+    if d isa Integer || length(d) == N-2
+        return Cint[reverse(min.(d, s[1:N-2]))...]
+    end
+    throw(DimensionMismatch("Cannot pool $(Base.dims2string(s)) array with $d pooldims."))
+end
+
+pooldims(d, s::Dims{3}) = pooldims(d, (1, s...))
+pooldims(d, s::Dims{2}) = pooldims(d, (1, 1, s...))
+pooldims(d, s::Dims{1}) = pooldims(d, (1, 1, 1, s...))
+pooldims(d, s::Dims{0}) = pooldims(d, (1, 1, 1, 1))
+
 
 # Private method
 function cudnnPoolingForwardWithDefaults(

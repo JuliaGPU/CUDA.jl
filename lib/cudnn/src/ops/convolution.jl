@@ -20,26 +20,6 @@ conv_compute_type(::Type{Float16}) = Float32
 conv_compute_type(::Type{BFloat16}) = Float32
 conv_compute_type(::Type{T}) where {T} = T
 
-function symmetric_padding(padding, spatial_rank)
-    padding isa Integer && return padding
-    p = collect(Int, padding)
-    length(p) == spatial_rank && return p
-    if length(p) == 2spatial_rank
-        all(p[1:2:end] .== p[2:2:end]) ||
-            throw(ArgumentError("legacy convolution path requires symmetric padding"))
-        return p[1:2:end]
-    end
-    throw(DimensionMismatch("padding must have length $spatial_rank or $(2spatial_rank)"))
-end
-
-function convolution_descriptor(x, padding, stride, dilation, mode, groups, compute_type)
-    cudnnConvolutionDescriptor(convdims(padding, size(x), 0),
-                               convdims(stride, size(x), 1),
-                               convdims(dilation, size(x), 1),
-                               graph_conv_mode(mode), cudnnDataType(compute_type),
-                               math_mode(), CUDNN_DEFAULT_REORDER, Cint(groups))
-end
-
 function convolution_padding(padding, spatial_rank)
     padding isa Integer && return fill(Int(padding), spatial_rank),
                                   fill(Int(padding), spatial_rank)
@@ -49,18 +29,6 @@ function convolution_padding(padding, spatial_rank)
         return p[1:2:end], p[2:2:end]
     end
     throw(DimensionMismatch("padding must have length $spatial_rank or $(2spatial_rank)"))
-end
-
-# Convert the integer, tuple or array to padding/stride/dilation dims compatible with array size
-function convdims(d, s::Dims{N}, default) where N
-    @assert d isa Integer || length(d) == N-2  "Cannot use $d padding/stride/dilation with $(Base.dims2string(s)) array."
-    if N >= 4
-        (d isa Integer ? fill(Cint(d), N-2) : Cint[reverse(d)...])
-    elseif N == 3
-        Cint[d[1], default]    # 3D tensors are padded to 4D
-    else
-        Cint[default, default] # lower dim tensors have no spatial dims
-    end
 end
 
 # symmetric-padding geometry equivalent to convolving x with asymmetric (pre, post)
@@ -246,168 +214,6 @@ function build_convolution_wgrad_graph(dw, x, dy, pre_padding, post_padding, str
     build!(g; deterministic, math_mode, max_workspace)
 end
 
-## Utilities to find a fast algorithm
-
-const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
-const cudnnConvolutionFwdAlgoPerfCacheLock = ReentrantLock()
-
-"""
-    cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, allocateTmpBuf=true)
-
-`allocateTmpBuf` controls whether a temporary buffer is allocated for the output y.
-It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
-"""
-function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, allocateTmpBuf=true)
-    xDesc_native = cudnnGetTensorDescriptor(xDesc)
-    wDesc_native = cudnnGetFilterDescriptor(wDesc)
-    convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
-    biasDesc_native = (isnothing(biasDesc) ? nothing
-                                           : cudnnGetTensorDescriptor(biasDesc))
-
-    key = (xDesc_native, wDesc_native, convDesc_native, biasDesc, activation)
-    val = lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
-        get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
-    end
-    if val === nothing
-        requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
-        returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
-        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-        yTmp = allocateTmpBuf ? similar(y) : y  # if beta is zero we can avoid the allocation
-        with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,yTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
-        end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults, returnedAlgoCount[1])
-        lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
-            cudnnConvolutionFwdAlgoPerfCache[key] = val
-        end
-    end
-    return val
-end
-
-const cudnnConvolutionBwdDataAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdDataAlgoPerf_t}()
-const cudnnConvolutionBwdDataAlgoPerfCacheLock = ReentrantLock()
-
-"""
-    cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx, allocateTmpBuf=true)
-
-`allocateTmpBuf` controls whether a temporary buffer is allocated for the input gradient dx.
-It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
-"""
-function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx, allocateTmpBuf=true)
-    wDesc_native = cudnnGetFilterDescriptor(wDesc)
-    dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
-    convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
-
-    key = (wDesc_native, dyDesc_native, convDesc_native)
-    val = lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
-        get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
-    end
-    if val === nothing
-        requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
-        returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
-        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(dx)
-        dxTmp = allocateTmpBuf ? similar(dx) : dx
-        with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dxTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
-        end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, dyDesc, perfResults, returnedAlgoCount[1])
-        lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
-            cudnnConvolutionBwdDataAlgoPerfCache[key] = val
-        end
-    end
-    val
-end
-
-const cudnnConvolutionBwdFilterAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdFilterAlgoPerf_t}()
-const cudnnConvolutionBwdFilterAlgoPerfCacheLock = ReentrantLock()
-
-"""
-    cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw, allocateTmpBuf=true)
-
-`allocateTmpBuf` controls whether a temporary buffer is allocated for the weight gradient dw.
-It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
-"""
-function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw, allocateTmpBuf=true)
-    xDesc_native = cudnnGetTensorDescriptor(xDesc)
-    dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
-    convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
-
-    key = (xDesc_native, dyDesc_native, convDesc_native)
-    val = lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
-        get(cudnnConvolutionBwdFilterAlgoPerfCache, key, nothing)
-    end
-    if val === nothing
-        requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
-        returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
-        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-        dwTmp = allocateTmpBuf ? similar(dw) : dw
-        with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dwTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
-        end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults, returnedAlgoCount[1])
-        lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
-            cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
-        end
-    end
-    val
-end
-
-
-# Return algorithm with best memory that is within 10% of best time
-function cudnnConvolutionAlgoPerfChoose(convDesc, tensorDesc, perfResults, n)
-    mathType = Ref{cudnnMathType_t}(CUDNN_DEFAULT_MATH)
-    cudnnGetConvolutionMathType(convDesc, mathType)
-    skipMathTypeCheck = let  # See https://github.com/JuliaGPU/CUDA.jl/pull/1943#issuecomment-1605267932
-        dtype, _ = cudnnGetTensorDescriptor(tensorDesc)
-        dtype == Float32
-    end
-
-    ibest, mbest, tbest = 0, Inf, Inf
-    for (i, ps) in enumerate(perfResults)
-        i > n && break
-        # These metrics are written in a sorted fashion where the first element has the lowest compute time.
-        if ((skipMathTypeCheck || ps.mathType == mathType[])
-            && ps.status == CUDNN_STATUS_SUCCESS && ps.memory < mbest && ps.time < tbest * 1.1)
-            ibest, mbest, tbest = i, ps.memory, ps.time
-        end
-    end
-    if ibest == 0
-        @warn "No valid algorithm found, probably bad params for convolution." maxlog=1
-        ibest = findfirst(p->p.algo==0, perfResults)
-        ibest === nothing && error("Cannot find backup algorithm for convolution, giving up.")
-    end
-    return perfResults[ibest]
-end
-
-
-# Allocate the maximum reasonable amount of memory for algorithm discovery
-function cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-    # Because algorithm discovery runs infrequently yet allocates more than conv functions,
-    # This is a good place to synchronize and trim the memory pool to reduce fragmentation.
-    CUDACore.reclaim()
-    gpufree = CUDACore.free_memory() + coalesce(CUDACore.cached_memory(), 0)
-    min(gpufree ÷ 10, sizeof(x) * 100)
-end
-
-
-function legacy_convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T},
-                              padding, stride, dilation, group, mode, alpha, beta,
-                              compute_type) where {T}
-    desc = convolution_descriptor(x, padding, stride, dilation, mode, group, compute_type)
-    alpha, beta = scalingParameter(T, alpha), scalingParameter(T, beta)
-    xdesc, ydesc, wdesc = cudnnTensorDescriptor(x), cudnnTensorDescriptor(y), cudnnFilterDescriptor(w)
-    perf = cudnnConvolutionFwdAlgoPerf(xdesc, x, wdesc, w, desc, ydesc, y, nothing,
-                                       CUDNN_ACTIVATION_IDENTITY, beta[] != 0)
-    with_workspace(perf.memory) do workspace
-        cudnnConvolutionForward(handle(), alpha, xdesc, x, wdesc, w, desc, perf.algo,
-                                workspace, sizeof(workspace), beta, ydesc, y)
-    end
-    return y
-end
-
 function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T};
                       padding=0, stride=1, dilation=1, groups::Integer=1,
                       group::Integer=groups, mode=:cross_correlation,
@@ -439,14 +245,12 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
             return y
         catch e
             graph_unsupported(e) || rethrow()
+            pre == post && rethrow()
         end
-        if pre != post
-            # no engine for asymmetric padding: pad the input manually and retry
-            padded_x, pad = padded_convolution_input(x, pre, post)
-            return convolution!(y, padded_x, w; padding=pad, stride=str, dilation=dil,
-                                group, mode, alpha, beta, compute_type=ctype,
-                                deterministic, math_mode, max_workspace)
-        end
+        padded_x, pad = padded_convolution_input(x, pre, post)
+        return convolution!(y, padded_x, w; padding=pad, stride=str, dilation=dil,
+                            group, mode, alpha, beta, compute_type=ctype,
+                            deterministic, math_mode, max_workspace)
     else
         zarg = zactive ? check_conv_broadcast("z", z, y) : nothing
         biasarg = bias === nothing ? nothing : check_conv_broadcast("bias", bias, y)
@@ -476,9 +280,6 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
                                                math_mode, max_workspace)
         end
     end
-    # only the plain path falls through: bias/z/activation cases returned above
-    pad = symmetric_padding(padding, spatial_rank)
-    legacy_convolution!(y, x, w, pad, str, dil, group, mode, alpha, beta, ctype)
 end
 
 function convolution_data_gradient!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
@@ -511,27 +312,15 @@ function convolution_data_gradient!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
         return dx
     catch e
         graph_unsupported(e) || rethrow()
+        pre == post && rethrow()
     end
-    if pre != post
-        # no engine for asymmetric padding: compute into a padded dx and crop
-        pad, padded_size, ranges = padded_convolution_geometry(dx, pre, post)
-        dx_padded = similar(dx, padded_size)
-        convolution_data_gradient!(dx_padded, dy, w; padding=pad, stride=str,
-                                   dilation=dil, group, mode, alpha, compute_type=ctype,
-                                   deterministic, math_mode, max_workspace)
-        interior = view(dx_padded, ranges...)
-        beta == 0 ? copyto!(dx, interior) : (dx .= interior .+ beta .* dx)
-        return dx
-    end
-    pad = symmetric_padding(padding, spatial_rank)
-    desc = convolution_descriptor(dx, pad, stride, dilation, mode, group, ctype)
-    alpha, beta = scalingParameter(T, alpha), scalingParameter(T, beta)
-    xdesc, ydesc, wdesc = cudnnTensorDescriptor(dx), cudnnTensorDescriptor(dy), cudnnFilterDescriptor(w)
-    perf = cudnnConvolutionBwdDataAlgoPerf(wdesc, w, ydesc, dy, desc, xdesc, dx, beta[] != 0)
-    with_workspace(perf.memory) do workspace
-        cudnnConvolutionBackwardData(handle(), alpha, wdesc, w, ydesc, dy, desc, perf.algo,
-                                     workspace, sizeof(workspace), beta, xdesc, dx)
-    end
+    pad, padded_size, ranges = padded_convolution_geometry(dx, pre, post)
+    dx_padded = similar(dx, padded_size)
+    convolution_data_gradient!(dx_padded, dy, w; padding=pad, stride=str,
+                               dilation=dil, group, mode, alpha, compute_type=ctype,
+                               deterministic, math_mode, max_workspace)
+    interior = view(dx_padded, ranges...)
+    beta == 0 ? copyto!(dx, interior) : (dx .= interior .+ beta .* dx)
     return dx
 end
 
@@ -573,25 +362,13 @@ function convolution_filter_gradient!(dw::DenseCuArray{T}, x::DenseCuArray{T},
         return dw
     catch e
         graph_unsupported(e) || rethrow()
+        pre == post && rethrow()
     end
-    if pre != post
-        # no engine for asymmetric padding: pad the input manually and retry
-        padded_x, pad = padded_convolution_input(x, pre, post)
-        return convolution_filter_gradient!(dw, padded_x, dy; padding=pad, stride=str,
-                                            dilation=dil, group, mode, alpha, beta,
-                                            compute_type=ctype, deterministic,
-                                            math_mode, max_workspace)
-    end
-    pad = symmetric_padding(padding, spatial_rank)
-    desc = convolution_descriptor(x, pad, stride, dilation, mode, group, ctype)
-    alpha, beta = scalingParameter(T, alpha), scalingParameter(T, beta)
-    xdesc, ydesc, wdesc = cudnnTensorDescriptor(x), cudnnTensorDescriptor(dy), cudnnFilterDescriptor(dw)
-    perf = cudnnConvolutionBwdFilterAlgoPerf(xdesc, x, ydesc, dy, desc, wdesc, dw, beta[] != 0)
-    with_workspace(perf.memory) do workspace
-        cudnnConvolutionBackwardFilter(handle(), alpha, xdesc, x, ydesc, dy, desc, perf.algo,
-                                       workspace, sizeof(workspace), beta, wdesc, dw)
-    end
-    return dw
+    padded_x, pad = padded_convolution_input(x, pre, post)
+    convolution_filter_gradient!(dw, padded_x, dy; padding=pad, stride=str,
+                                 dilation=dil, group, mode, alpha, beta,
+                                 compute_type=ctype, deterministic, math_mode,
+                                 max_workspace)
 end
 
 @doc raw"""

@@ -72,45 +72,6 @@ function pool_bwd_execute!(dx, dy, y, x, op, mode, padding_mode, window, pre_pad
     return dx
 end
 
-# Convert the integer, tuple or array to pooling dims compatible with array size
-function pooldims(d, s::Dims{N}) where N
-    if d isa Integer || length(d) == N-2
-        Cint[reverse(min.(d,s[1:N-2]))...]
-    else
-        throw(DimensionMismatch("Cannot pool $(Base.dims2string(s)) array with $d pooldims."))
-    end
-end
-
-pooldims(d, s::Dims{3}) = pooldims(d, (1,s...))
-pooldims(d, s::Dims{2}) = pooldims(d, (1,1,s...))
-pooldims(d, s::Dims{1}) = pooldims(d, (1,1,1,s...))
-pooldims(d, s::Dims{0}) = pooldims(d, (1,1,1,1))
-
-
-function legacy_pooling_forward!(y::DenseCuArray{T}, x::DenseCuArray{T};
-                                  mode, window, padding, stride, alpha, beta) where {T}
-    desc = cudnnPoolingDescriptor(mode, CUDNN_NOT_PROPAGATE_NAN,
-                                  Cint(max(2, ndims(x)-2)), pooldims(window, size(x)),
-                                  pooldims(padding, size(x)), pooldims(stride, size(x)))
-    xdesc, ydesc = cudnnTensorDescriptor(x), cudnnTensorDescriptor(y)
-    alpha, beta = scalingParameter(T, alpha), scalingParameter(T, beta)
-    cudnnPoolingForward(handle(), desc, alpha, xdesc, x, beta, ydesc, y)
-    return y
-end
-
-function legacy_pooling_backward!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
-                                   y::DenseCuArray{T}, x::DenseCuArray{T};
-                                   mode, window, padding, stride, alpha, beta) where {T}
-    desc = cudnnPoolingDescriptor(mode, CUDNN_NOT_PROPAGATE_NAN,
-                                  Cint(max(2, ndims(x)-2)), pooldims(window, size(x)),
-                                  pooldims(padding, size(x)), pooldims(stride, size(x)))
-    xdesc, ydesc = cudnnTensorDescriptor(x), cudnnTensorDescriptor(y)
-    alpha, beta = scalingParameter(T, alpha), scalingParameter(T, beta)
-    cudnnPoolingBackward(handle(), desc, alpha, ydesc, y, ydesc, dy, xdesc, x, beta,
-                         xdesc, dx)
-    return dx
-end
-
 function maxpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, padding=0,
                   alpha::Real=1, beta::Real=0, deterministic::Bool=false,
                   math_mode=CUDACore.math_mode(),
@@ -120,16 +81,8 @@ function maxpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, paddi
     pre, post = convolution_padding(padding, spatial_rank)
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
-    try
-        return pool_execute!(y, x, :maxpool, :maxpool, :neg_inf, win, pre, post, str,
-                              alpha, beta, deterministic, math_mode, max_workspace)
-    catch e
-        graph_unsupported(e) || rethrow()
-        pre == post || rethrow()
-    end
-    pad = symmetric_padding(padding, spatial_rank)
-    legacy_pooling_forward!(y, x; mode=CUDNN_POOLING_MAX, window=win, padding=pad,
-                             stride=str, alpha, beta)
+    pool_execute!(y, x, :maxpool, :maxpool, :neg_inf, win, pre, post, str,
+                  alpha, beta, deterministic, math_mode, max_workspace)
 end
 
 function meanpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, padding=0,
@@ -142,17 +95,8 @@ function meanpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, padd
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
     graph_mode = count_include_pad ? :avgpool_include_padding : :avgpool_exclude_padding
-    try
-        return pool_execute!(y, x, :meanpool, graph_mode, :zero, win, pre, post, str,
-                              alpha, beta, deterministic, math_mode, max_workspace)
-    catch e
-        graph_unsupported(e) || rethrow()
-        pre == post || rethrow()
-    end
-    mode = count_include_pad ? CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING :
-                               CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING
-    pad = symmetric_padding(padding, spatial_rank)
-    legacy_pooling_forward!(y, x; mode, window=win, padding=pad, stride=str, alpha, beta)
+    pool_execute!(y, x, :meanpool, graph_mode, :zero, win, pre, post, str,
+                  alpha, beta, deterministic, math_mode, max_workspace)
 end
 
 function ∇maxpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T},
@@ -165,17 +109,9 @@ function ∇maxpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T
     pre, post = convolution_padding(padding, spatial_rank)
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
-    try
-        return pool_bwd_execute!(dx, dy, y, x, :maxpool_bwd, :maxpool, :neg_inf, win,
-                                  pre, post, str, alpha, beta, deterministic, math_mode,
-                                  max_workspace)
-    catch e
-        graph_unsupported(e) || rethrow()
-        pre == post || rethrow()
-    end
-    pad = symmetric_padding(padding, spatial_rank)
-    legacy_pooling_backward!(dx, dy, y, x; mode=CUDNN_POOLING_MAX, window=win,
-                              padding=pad, stride=str, alpha, beta)
+    pool_bwd_execute!(dx, dy, y, x, :maxpool_bwd, :maxpool, :neg_inf, win,
+                      pre, post, str, alpha, beta, deterministic, math_mode,
+                      max_workspace)
 end
 
 function ∇meanpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T},
@@ -189,19 +125,9 @@ function ∇meanpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
     graph_mode = count_include_pad ? :avgpool_include_padding : :avgpool_exclude_padding
-    try
-        return pool_bwd_execute!(dx, dy, y, x, :meanpool_bwd, graph_mode, :zero, win,
-                                  pre, post, str, alpha, beta, deterministic, math_mode,
-                                  max_workspace)
-    catch e
-        graph_unsupported(e) || rethrow()
-        pre == post || rethrow()
-    end
-    mode = count_include_pad ? CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING :
-                               CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING
-    pad = symmetric_padding(padding, spatial_rank)
-    legacy_pooling_backward!(dx, dy, y, x; mode, window=win, padding=pad, stride=str,
-                              alpha, beta)
+    pool_bwd_execute!(dx, dy, y, x, :meanpool_bwd, graph_mode, :zero, win,
+                      pre, post, str, alpha, beta, deterministic, math_mode,
+                      max_workspace)
 end
 
 @doc raw"""

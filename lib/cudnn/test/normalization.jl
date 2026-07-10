@@ -1,5 +1,6 @@
 using CUDA
-using cuDNN: batchnorm_gradient!, batchnorm_inference!, batchnorm_training!
+using cuDNN: batchnorm_gradient!, batchnorm_inference!, batchnorm_training!,
+             graph_unsupported
 
 CUDA.allowscalar(false)
 
@@ -40,25 +41,36 @@ let W=4, H=3, C=2, N=3
 
     x, scale, bias = CuArray(x_h), CuArray(scale_h), CuArray(bias_h)
     y = similar(x)
-    mean, invvar = batchnorm_training!(y, x, scale, bias; epsilon)
-
-    @test Array(y) ≈ y_ref rtol=1f-5 atol=1f-5
-    @test Array(mean) ≈ mean_ref rtol=1f-5 atol=1f-5
-    @test Array(invvar) ≈ invvar_ref rtol=1f-5 atol=1f-5
-
-    dy_h = reshape(Float32.(cos.(1:length(x_h))), size(x_h))
-    dx_ref, dscale_ref, dbias_ref = bn_backward_ref(dy_h, x_h, scale_h, mean_ref,
-                                                    invvar_ref)
-    dx, dscale, dbias = similar(x), similar(scale), similar(bias)
-    batchnorm_gradient!(dx, dscale, dbias, CuArray(dy_h), x, scale, mean, invvar;
-                        epsilon)
-    @test Array(dx) ≈ dx_ref rtol=1f-4 atol=1f-4
-    @test Array(dscale) ≈ dscale_ref rtol=1f-4 atol=1f-4
-    @test Array(dbias) ≈ dbias_ref rtol=1f-4 atol=1f-4
-
     running_mean = CuArray(mean_ref)
     running_var = CuArray(@. 1 / invvar_ref^2 - epsilon)
-    yi = similar(x)
-    batchnorm_inference!(yi, x, scale, bias, running_mean, running_var; epsilon)
-    @test Array(yi) ≈ y_ref rtol=1f-5 atol=1f-5
+    @test_throws ArgumentError batchnorm_training!(y, x, scale, bias; alpha=2)
+    @test_throws ArgumentError batchnorm_inference!(y, x, scale, bias, running_mean,
+                                                     running_var; beta=1)
+    @test_throws ArgumentError batchnorm_gradient!(similar(x), similar(scale),
+                                                    similar(bias), x, x, scale,
+                                                    running_mean, running_var; dalpha=2)
+    try
+        mean, invvar = batchnorm_training!(y, x, scale, bias; epsilon)
+
+        @test Array(y) ≈ y_ref rtol=1f-5 atol=1f-5
+        @test Array(mean) ≈ mean_ref rtol=1f-5 atol=1f-5
+        @test Array(invvar) ≈ invvar_ref rtol=1f-5 atol=1f-5
+
+        dy_h = reshape(Float32.(cos.(1:length(x_h))), size(x_h))
+        dx_ref, dscale_ref, dbias_ref = bn_backward_ref(dy_h, x_h, scale_h, mean_ref,
+                                                        invvar_ref)
+        dx, dscale, dbias = similar(x), similar(scale), similar(bias)
+        batchnorm_gradient!(dx, dscale, dbias, CuArray(dy_h), x, scale, mean, invvar;
+                            epsilon)
+        @test Array(dx) ≈ dx_ref rtol=1f-4 atol=1f-4
+        @test Array(dscale) ≈ dscale_ref rtol=1f-4 atol=1f-4
+        @test Array(dbias) ≈ dbias_ref rtol=1f-4 atol=1f-4
+
+        yi = similar(x)
+        batchnorm_inference!(yi, x, scale, bias, running_mean, running_var; epsilon)
+        @test Array(yi) ≈ y_ref rtol=1f-5 atol=1f-5
+    catch e
+        graph_unsupported(e) || rethrow()
+        @test_skip "batchnorm graph engine is unsupported on this device"
+    end
 end

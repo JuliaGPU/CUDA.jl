@@ -134,3 +134,143 @@ function cudnnConvolutionForwardOutput(x, xDesc, wDesc, convDesc, format)
     ydims = (format === CUDNN_TENSOR_NCHW ? reverse(d) : (d[2],d[end:-1:3]...,d[1]))
     similar(x, ydims...)
 end
+
+function convdims(d, s::Dims{N}, default) where {N}
+    @assert d isa Integer || length(d) == N-2 "Cannot use $d padding/stride/dilation with $(Base.dims2string(s)) array."
+    if N >= 4
+        d isa Integer ? fill(Cint(d), N-2) : Cint[reverse(d)...]
+    elseif N == 3
+        Cint[d[1], default]
+    else
+        Cint[default, default]
+    end
+end
+
+const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
+const cudnnConvolutionFwdAlgoPerfCacheLock = ReentrantLock()
+
+function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc,
+                                     activation, allocateTmpBuf=true)
+    xDesc_native = cudnnGetTensorDescriptor(xDesc)
+    wDesc_native = cudnnGetFilterDescriptor(wDesc)
+    convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
+    biasDesc_native = isnothing(biasDesc) ? nothing : cudnnGetTensorDescriptor(biasDesc)
+    key = (xDesc_native, wDesc_native, convDesc_native, biasDesc, activation)
+    val = lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
+        get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
+    end
+    if val === nothing
+        requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
+        returnedAlgoCount = Cint[0]
+        perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef, requestedAlgoCount)
+        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+        yTmp = allocateTmpBuf ? similar(y) : y
+        with_workspace(workspaceSize) do workspace
+            cudnnFindConvolutionForwardAlgorithmEx(handle(), xDesc, x, wDesc, w, convDesc,
+                yDesc, yTmp, requestedAlgoCount, returnedAlgoCount, perfResults, workspace,
+                sizeof(workspace))
+        end
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults,
+                                             returnedAlgoCount[1])
+        lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
+            cudnnConvolutionFwdAlgoPerfCache[key] = val
+        end
+    end
+    return val
+end
+
+const cudnnConvolutionBwdDataAlgoPerfCache =
+    Dict{Tuple,cudnnConvolutionBwdDataAlgoPerf_t}()
+const cudnnConvolutionBwdDataAlgoPerfCacheLock = ReentrantLock()
+
+function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx,
+                                         allocateTmpBuf=true)
+    wDesc_native = cudnnGetFilterDescriptor(wDesc)
+    dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
+    convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
+    key = (wDesc_native, dyDesc_native, convDesc_native)
+    val = lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
+        get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
+    end
+    if val === nothing
+        requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
+        returnedAlgoCount = Cint[0]
+        perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef, requestedAlgoCount)
+        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(dx)
+        dxTmp = allocateTmpBuf ? similar(dx) : dx
+        with_workspace(workspaceSize) do workspace
+            cudnnFindConvolutionBackwardDataAlgorithmEx(handle(), wDesc, w, dyDesc, dy,
+                convDesc, dxDesc, dxTmp, requestedAlgoCount, returnedAlgoCount, perfResults,
+                workspace, sizeof(workspace))
+        end
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, dyDesc, perfResults,
+                                             returnedAlgoCount[1])
+        lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
+            cudnnConvolutionBwdDataAlgoPerfCache[key] = val
+        end
+    end
+    return val
+end
+
+const cudnnConvolutionBwdFilterAlgoPerfCache =
+    Dict{Tuple,cudnnConvolutionBwdFilterAlgoPerf_t}()
+const cudnnConvolutionBwdFilterAlgoPerfCacheLock = ReentrantLock()
+
+function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw,
+                                           allocateTmpBuf=true)
+    xDesc_native = cudnnGetTensorDescriptor(xDesc)
+    dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
+    convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
+    key = (xDesc_native, dyDesc_native, convDesc_native)
+    val = lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
+        get(cudnnConvolutionBwdFilterAlgoPerfCache, key, nothing)
+    end
+    if val === nothing
+        requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
+        returnedAlgoCount = Cint[0]
+        perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef, requestedAlgoCount)
+        workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+        dwTmp = allocateTmpBuf ? similar(dw) : dw
+        with_workspace(workspaceSize) do workspace
+            cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(), xDesc, x, dyDesc, dy,
+                convDesc, dwDesc, dwTmp, requestedAlgoCount, returnedAlgoCount, perfResults,
+                workspace, sizeof(workspace))
+        end
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults,
+                                             returnedAlgoCount[1])
+        lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
+            cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
+        end
+    end
+    return val
+end
+
+function cudnnConvolutionAlgoPerfChoose(convDesc, tensorDesc, perfResults, n)
+    mathType = Ref{cudnnMathType_t}(CUDNN_DEFAULT_MATH)
+    cudnnGetConvolutionMathType(convDesc, mathType)
+    skipMathTypeCheck = let
+        dtype, _ = cudnnGetTensorDescriptor(tensorDesc)
+        dtype == Float32
+    end
+
+    ibest, mbest, tbest = 0, Inf, Inf
+    for (i, ps) in enumerate(perfResults)
+        i > n && break
+        if ((skipMathTypeCheck || ps.mathType == mathType[]) &&
+            ps.status == CUDNN_STATUS_SUCCESS && ps.memory < mbest && ps.time < tbest * 1.1)
+            ibest, mbest, tbest = i, ps.memory, ps.time
+        end
+    end
+    if ibest == 0
+        @warn "No valid algorithm found, probably bad params for convolution." maxlog=1
+        ibest = findfirst(p -> p.algo == 0, perfResults)
+        ibest === nothing && error("Cannot find backup algorithm for convolution, giving up.")
+    end
+    return perfResults[ibest]
+end
+
+function cudnnFindConvolutionAlgorithmWorkspaceSize(x)
+    CUDACore.reclaim()
+    gpufree = CUDACore.free_memory() + coalesce(CUDACore.cached_memory(), 0)
+    return min(gpufree ÷ 10, sizeof(x) * 100)
+end
