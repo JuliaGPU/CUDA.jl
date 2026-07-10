@@ -22,7 +22,7 @@ end
 
 # destroying idle handles is the `purge!` step of reclaim; individual caches
 # must be registered in the owning library's __init__ (see reclaim.jl).
-purge!(cache::HandleCache) = empty!(cache)
+purge!(cache::HandleCache) = Base.invokelatest(empty!, cache)
 
 # remove a handle from the cache, or create a new one
 function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
@@ -117,7 +117,6 @@ function Base.empty!(cache::HandleCache{K,V}) where {K,V}
     end
 
     for (key,handle) in handles
-        # See the equivalent eviction path in `push!` above.
-        Base.invokelatest(cache.dtor, key, handle)
+        cache.dtor(key, handle)
     end
 end
