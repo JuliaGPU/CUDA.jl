@@ -31,6 +31,16 @@ function convolution_padding(padding, spatial_rank)
     throw(DimensionMismatch("padding must have length $spatial_rank or $(2spatial_rank)"))
 end
 
+function check_convolution_groups(input_channels, filter_input_channels, output_channels,
+                                  groups)
+    groups > 0 || throw(ArgumentError("groups must be positive"))
+    input_channels == filter_input_channels * groups ||
+        throw(DimensionMismatch("input channels must equal filter channels times groups"))
+    output_channels % groups == 0 ||
+        throw(DimensionMismatch("output channels must be divisible by groups"))
+    return
+end
+
 # symmetric-padding geometry equivalent to convolving x with asymmetric (pre, post)
 # padding: the excess padding is materialized as zeros, with x at `ranges` in the
 # padded array
@@ -149,10 +159,10 @@ function apply_conv_activation!(y, mode::cudnnPointwiseMode_t)
 end
 
 function generic_fused_convolution!(y, x, w, z, bias, activation; padding, stride,
-                                     dilation, group, mode, alpha, beta, compute_type,
+                                     dilation, groups, mode, alpha, beta, compute_type,
                                      deterministic, math_mode, max_workspace)
     zsrc = z !== nothing && z === y ? copy(y) : z
-    convolution!(y, x, w; padding, stride, dilation, group, mode, alpha, beta=0,
+    convolution!(y, x, w; padding, stride, dilation, groups, mode, alpha, beta=0,
                  compute_type, deterministic, math_mode, max_workspace)
     zsrc === nothing || (@. y = y + beta * zsrc)
     bias === nothing || (@. y = y + bias)
@@ -216,8 +226,7 @@ end
 
 function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T};
                       padding=0, stride=1, dilation=1, groups::Integer=1,
-                      group::Integer=groups, mode=:cross_correlation,
-                      alpha::Real=1, beta::Real=0, bias=nothing,
+                      mode=:cross_correlation, alpha::Real=1, beta::Real=0, bias=nothing,
                       activation=nothing, z=nothing, compute_type=nothing,
                       deterministic::Bool=false, math_mode=CUDACore.math_mode(),
                       max_workspace::Union{Nothing,Integer}=nothing) where {T}
@@ -230,8 +239,8 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
     cmode = graph_conv_mode(mode)
     pact = conv_pointwise_activation(activation)
     zactive = z !== nothing && beta != 0
-    size(x, ndims(x)-1) == size(w, ndims(w)-1) * group ||
-        throw(DimensionMismatch("input channels must equal filter channels times group"))
+    check_convolution_groups(size(x, ndims(x)-1), size(w, ndims(w)-1),
+                             size(w, ndims(w)), groups)
     if bias === nothing && !zactive && pact === nothing
         key = convolution_key(y, x, w, pre, post, str, dil, cmode, ctype, alpha, beta,
                                deterministic, math_mode, max_workspace)
@@ -249,7 +258,7 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
         end
         padded_x, pad = padded_convolution_input(x, pre, post)
         return convolution!(y, padded_x, w; padding=pad, stride=str, dilation=dil,
-                            group, mode, alpha, beta, compute_type=ctype,
+                            groups, mode, alpha, beta, compute_type=ctype,
                             deterministic, math_mode, max_workspace)
     else
         zarg = zactive ? check_conv_broadcast("z", z, y) : nothing
@@ -275,7 +284,7 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
         catch e
             graph_unsupported(e) || rethrow()
             return generic_fused_convolution!(y, x, w, zarg, biasarg, pact; padding,
-                                               stride, dilation, group, mode, alpha, beta,
+                                               stride, dilation, groups, mode, alpha, beta,
                                                compute_type=ctype, deterministic,
                                                math_mode, max_workspace)
         end
@@ -285,8 +294,7 @@ end
 function convolution_data_gradient!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
                                     w::DenseCuArray{T};
                                     padding=0, stride=1, dilation=1,
-                                    groups::Integer=1, group::Integer=groups,
-                                    mode=:cross_correlation, alpha::Real=1,
+                                    groups::Integer=1, mode=:cross_correlation, alpha::Real=1,
                                     beta::Real=0, compute_type=nothing,
                                     deterministic::Bool=false,
                                     math_mode=CUDACore.math_mode(),
@@ -298,8 +306,8 @@ function convolution_data_gradient!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
     dil = spatial_vector(dilation, spatial_rank)
     ctype = something(compute_type, conv_compute_type(T))
     cmode = graph_conv_mode(mode)
-    size(dx, ndims(dx)-1) == size(w, ndims(w)-1) * group ||
-        throw(DimensionMismatch("input channels must equal filter channels times group"))
+    check_convolution_groups(size(dx, ndims(dx)-1), size(w, ndims(w)-1),
+                             size(w, ndims(w)), groups)
     key = convolution_dgrad_key(dx, dy, w, pre, post, str, dil, cmode, ctype,
                                  alpha, beta, deterministic, math_mode, max_workspace)
     try
@@ -317,7 +325,7 @@ function convolution_data_gradient!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
     pad, padded_size, ranges = padded_convolution_geometry(dx, pre, post)
     dx_padded = similar(dx, padded_size)
     convolution_data_gradient!(dx_padded, dy, w; padding=pad, stride=str,
-                               dilation=dil, group, mode, alpha, compute_type=ctype,
+                               dilation=dil, groups, mode, alpha, compute_type=ctype,
                                deterministic, math_mode, max_workspace)
     interior = view(dx_padded, ranges...)
     beta == 0 ? copyto!(dx, interior) : (dx .= interior .+ beta .* dx)
@@ -327,8 +335,7 @@ end
 function convolution_filter_gradient!(dw::DenseCuArray{T}, x::DenseCuArray{T},
                                       dy::DenseCuArray{T};
                                       padding=0, stride=1, dilation=1,
-                                      groups::Integer=1, group::Integer=groups,
-                                      mode=:cross_correlation, alpha::Real=1,
+                                      groups::Integer=1, mode=:cross_correlation, alpha::Real=1,
                                       beta::Real=0, compute_type=nothing,
                                       deterministic::Bool=false,
                                       math_mode=CUDACore.math_mode(),
@@ -340,13 +347,13 @@ function convolution_filter_gradient!(dw::DenseCuArray{T}, x::DenseCuArray{T},
     dil = spatial_vector(dilation, spatial_rank)
     ctype = something(compute_type, conv_compute_type(T))
     cmode = graph_conv_mode(mode)
-    size(x, ndims(x)-1) == size(dw, ndims(dw)-1) * group ||
-        throw(DimensionMismatch("input channels must equal filter channels times group"))
+    check_convolution_groups(size(x, ndims(x)-1), size(dw, ndims(dw)-1),
+                             size(dw, ndims(dw)), groups)
     if spatial_rank == 1 && pre != post
         # cuDNN 9.24 ignores 1D bwd-filter post-padding.
         padded_x, pad = padded_convolution_input(x, pre, post)
         return convolution_filter_gradient!(dw, padded_x, dy; padding=pad, stride=str,
-                                            dilation=dil, groups=group, mode=cmode,
+                                            dilation=dil, groups, mode=cmode,
                                             alpha, beta, compute_type=ctype,
                                             deterministic, math_mode, max_workspace)
     end
@@ -366,7 +373,7 @@ function convolution_filter_gradient!(dw::DenseCuArray{T}, x::DenseCuArray{T},
     end
     padded_x, pad = padded_convolution_input(x, pre, post)
     convolution_filter_gradient!(dw, padded_x, dy; padding=pad, stride=str,
-                                 dilation=dil, group, mode, alpha, beta,
+                                 dilation=dil, groups, mode, alpha, beta,
                                  compute_type=ctype, deterministic, math_mode,
                                  max_workspace)
 end
