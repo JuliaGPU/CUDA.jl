@@ -7,6 +7,11 @@ function check_bn_running_stats(running_mean, running_var)
     return
 end
 
+function check_bn_eltype(name, a::DenseCuArray, T)
+    eltype(a) == T || throw(ArgumentError("$name must have $T eltype"))
+    return a
+end
+
 bn_compute_type(::Type{Float64}) = Float64
 bn_compute_type(::Type) = Float32
 
@@ -109,7 +114,7 @@ function build_batchnorm_gradient_graph(dx, dscale, dbias, dy, x, scale, mean, i
 end
 
 function batchnorm_training!(y::DenseCuArray{T}, x::DenseCuArray{T},
-                             scale::DenseCuArray{T}, bias::DenseCuArray{T};
+                             scale::DenseCuArray, bias::DenseCuArray;
                              running_mean=nothing, running_var=nothing,
                              momentum::Real=0.1, epsilon::Real=1e-5,
                              alpha::Real=1, beta::Real=0,
@@ -120,9 +125,14 @@ function batchnorm_training!(y::DenseCuArray{T}, x::DenseCuArray{T},
         throw(ArgumentError("batchnorm_training! requires alpha=1 and beta=0"))
     epsilon = max(epsilon, CUDNN_BN_MIN_EPSILON)
     check_bn_running_stats(running_mean, running_var)
+    S = bn_stat_type(T)
+    check_bn_eltype("scale", scale, S)
+    check_bn_eltype("bias", bias, S)
+    running_mean === nothing || check_bn_eltype("running_mean", running_mean, S)
+    running_var === nothing || check_bn_eltype("running_var", running_var, S)
     ps = bn_param_size(x)
-    saved_mean = similar(scale, bn_stat_type(T), size(scale))
-    saved_invvar = similar(scale, bn_stat_type(T), size(scale))
+    saved_mean = similar(scale, S, size(scale))
+    saved_invvar = similar(scale, S, size(scale))
     scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
     saved_mean_p, saved_invvar_p = reshape(saved_mean, ps), reshape(saved_invvar, ps)
     rm_p = running_mean === nothing ? nothing : bn_param_array(running_mean, x)
@@ -156,8 +166,8 @@ function batchnorm_training!(y::DenseCuArray{T}, x::DenseCuArray{T},
 end
 
 function batchnorm_inference!(y::DenseCuArray{T}, x::DenseCuArray{T},
-                              scale::DenseCuArray{T}, bias::DenseCuArray{T},
-                              running_mean::DenseCuArray{T}, running_var::DenseCuArray{T};
+                              scale::DenseCuArray, bias::DenseCuArray,
+                              running_mean::DenseCuArray, running_var::DenseCuArray;
                               epsilon::Real=1e-5, alpha::Real=1, beta::Real=0,
                               deterministic::Bool=false,
                               math_mode=CUDACore.math_mode(),
@@ -165,6 +175,11 @@ function batchnorm_inference!(y::DenseCuArray{T}, x::DenseCuArray{T},
     alpha == 1 && beta == 0 ||
         throw(ArgumentError("batchnorm_inference! requires alpha=1 and beta=0"))
     epsilon = max(epsilon, CUDNN_BN_MIN_EPSILON)
+    S = bn_stat_type(T)
+    check_bn_eltype("scale", scale, S)
+    check_bn_eltype("bias", bias, S)
+    check_bn_eltype("running_mean", running_mean, S)
+    check_bn_eltype("running_var", running_var, S)
     ps = bn_param_size(x)
     scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
     mean_p, var_p = bn_param_array(running_mean, x), bn_param_array(running_var, x)
@@ -174,7 +189,7 @@ function batchnorm_inference!(y::DenseCuArray{T}, x::DenseCuArray{T},
         build_batchnorm_inference_graph(y, x, scale_p, bias_p, mean_p, var_p;
                                          deterministic, math_mode, max_workspace)
     end
-    invvar = similar(var_p, bn_stat_type(T), ps)
+    invvar = similar(var_p, S, ps)
     @. invvar = 1 / sqrt(var_p + epsilon)
     execute!(g, tensor(g, "X")=>x, tensor(g, "Scale")=>scale_p,
              tensor(g, "Bias")=>bias_p, tensor(g, "Mean")=>mean_p,
@@ -182,9 +197,9 @@ function batchnorm_inference!(y::DenseCuArray{T}, x::DenseCuArray{T},
     return y
 end
 
-function batchnorm_gradient!(dx::DenseCuArray{T}, dscale::DenseCuArray{T},
-                             dbias::DenseCuArray{T}, dy::DenseCuArray{T},
-                             x::DenseCuArray{T}, scale::DenseCuArray{T},
+function batchnorm_gradient!(dx::DenseCuArray{T}, dscale::DenseCuArray,
+                             dbias::DenseCuArray, dy::DenseCuArray{T},
+                             x::DenseCuArray{T}, scale::DenseCuArray,
                              saved_mean::DenseCuArray, saved_invvar::DenseCuArray;
                              epsilon::Real=1e-5, alpha::Real=1, beta::Real=0,
                              dalpha::Real=1, dbeta::Real=0,
@@ -193,6 +208,12 @@ function batchnorm_gradient!(dx::DenseCuArray{T}, dscale::DenseCuArray{T},
                              max_workspace::Union{Nothing,Integer}=nothing) where {T}
     alpha == 1 && beta == 0 && dalpha == 1 && dbeta == 0 ||
         throw(ArgumentError("batchnorm_gradient! requires alpha=1, beta=0, dalpha=1, and dbeta=0"))
+    S = bn_stat_type(T)
+    check_bn_eltype("scale", scale, S)
+    check_bn_eltype("dscale", dscale, S)
+    check_bn_eltype("dbias", dbias, S)
+    check_bn_eltype("saved_mean", saved_mean, S)
+    check_bn_eltype("saved_invvar", saved_invvar, S)
     scale_p = bn_param_array(scale, x)
     dscale_p, dbias_p = bn_param_array(dscale, x), bn_param_array(dbias, x)
     mean_p, invvar_p = bn_param_array(saved_mean, x), bn_param_array(saved_invvar, x)
@@ -220,6 +241,9 @@ end
 Spatial batch normalization, normalizing over all dimensions of `x` except the channel
 dimension (the second-to-last). Parameters may be vectors of length `C` or shaped
 `(1, ..., C, 1)`.
+
+`Float16` and `BFloat16` inputs use `Float32` parameters and statistics. `Float32` and
+`Float64` inputs use parameters and statistics of the same type.
 
 Training returns the saved batch statistics that the gradient consumes, with
 `saved_invvar = 1 / sqrt(var + epsilon)`, and updates `running_mean`/`running_var` in

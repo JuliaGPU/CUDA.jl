@@ -135,6 +135,17 @@ ndx, ndscale, ndbias = norm_bwd!(g, ny, nx, nscale, nmean, ninv)
 badscale = tensor!(g; dims=(1, 1, 4, 1), dtype=Float32, name="BadScale")
 @test_throws DimensionMismatch norm_fwd!(g, nx, badscale, nbias; epsilon=neps)
 
+ghalf = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+hx = tensor!(ghalf; dims=(7, 6, 3, 2), dtype=Float16, name="X")
+hscale = tensor!(ghalf; dims=(1, 1, 3, 1), dtype=Float32, name="Scale")
+hbias = tensor!(ghalf; dims=(1, 1, 3, 1), dtype=Float32, name="Bias")
+hy, hmean, hinv, _, _ = norm_fwd!(ghalf, hx, hscale, hbias)
+@test hy.dtype == cuDNN.CUDNN_DATA_HALF
+@test hmean.dtype == cuDNN.CUDNN_DATA_FLOAT
+@test hinv.dtype == cuDNN.CUDNN_DATA_FLOAT
+hscale16 = tensor!(ghalf; dims=(1, 1, 3, 1), dtype=Float16, name="Scale16")
+@test_throws ArgumentError norm_fwd!(ghalf, hx, hscale16, hbias)
+
 validate!(g)
 assign_uids!(g)
 @test all(!=(0), getfield.(g.tensors, :uid))

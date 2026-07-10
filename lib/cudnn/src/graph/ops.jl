@@ -349,9 +349,13 @@ end
 
 norm_scalar_type(g::Graph) = g.compute_dtype == CUDNN_DATA_DOUBLE ? Float64 : Float32
 
-function norm_stat_dtype(g::Graph)
-    g.io_dtype == CUDNN_DATA_DOUBLE && return CUDNN_DATA_DOUBLE
-    return CUDNN_DATA_FLOAT
+norm_stat_dtype(dtype) = dtype == CUDNN_DATA_DOUBLE ? CUDNN_DATA_DOUBLE : CUDNN_DATA_FLOAT
+
+function check_norm_dtype(name, t::Tensor, dtype)
+    t.dtype === nothing && (t.dtype = dtype)
+    t.dtype == dtype ||
+        throw(ArgumentError("$name must have $(juliaDataType(dtype)) dtype"))
+    return t
 end
 
 function pointwise!(g::Graph, mode, x::Tensor, inputs::Tensor...;
@@ -639,28 +643,36 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
     pdims = norm_channel_dims(x)
     check_norm_param("norm scale", scale, pdims)
     check_norm_param("norm bias", bias, pdims)
+    xdtype = something(x.dtype, g.io_dtype)
+    check_norm_dtype("norm input", x, xdtype)
+    stat_dtype = norm_stat_dtype(xdtype)
+    check_norm_dtype("norm scale", scale, stat_dtype)
+    check_norm_dtype("norm bias", bias, stat_dtype)
     nphase = norm_phase(phase)
     nmode = norm_mode(mode)
 
     if y === nothing
-        y = tensor!(g; dims=x.dims, dtype=x.dtype, virtual=true, name,
+        y = tensor!(g; dims=x.dims, dtype=xdtype, virtual=true, name,
                     backend_order=x.backend_order)
     else
         y.dims == x.dims || throw(DimensionMismatch("norm output dimensions must match input"))
+        check_norm_dtype("norm output", y, xdtype)
     end
 
     if nphase == CUDNN_NORM_FWD_TRAINING
-        dtype = norm_stat_dtype(g)
         mean === nothing &&
-            (mean = tensor!(g; dims=pdims, dtype, virtual=true, name="Mean",
+            (mean = tensor!(g; dims=pdims, dtype=stat_dtype, virtual=true, name="Mean",
                             backend_order=x.backend_order))
         inv_variance === nothing &&
-            (inv_variance = tensor!(g; dims=pdims, dtype, virtual=true,
+            (inv_variance = tensor!(g; dims=pdims, dtype=stat_dtype, virtual=true,
                                     name="InvVariance", backend_order=x.backend_order))
         check_norm_param("norm mean", mean, pdims)
         check_norm_param("norm inv_variance", inv_variance, pdims)
+        check_norm_dtype("norm mean", mean, stat_dtype)
+        check_norm_dtype("norm inv_variance", inv_variance, stat_dtype)
         epsilon === nothing &&
             (epsilon = scalar!(g, norm_scalar_type(g); rank=length(x.dims), name="Epsilon"))
+        check_norm_dtype("norm epsilon", epsilon, graph_dtype(norm_scalar_type(g)))
         has_running = input_running_mean !== nothing || input_running_var !== nothing ||
                       output_running_mean !== nothing || output_running_var !== nothing
         if has_running
@@ -673,6 +685,11 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
             check_norm_param("input_running_var", input_running_var, pdims)
             check_norm_param("output_running_mean", output_running_mean, pdims)
             check_norm_param("output_running_var", output_running_var, pdims)
+            check_norm_dtype("input_running_mean", input_running_mean, stat_dtype)
+            check_norm_dtype("input_running_var", input_running_var, stat_dtype)
+            check_norm_dtype("output_running_mean", output_running_mean, stat_dtype)
+            check_norm_dtype("output_running_var", output_running_var, stat_dtype)
+            check_norm_dtype("norm momentum", momentum, graph_dtype(norm_scalar_type(g)))
         end
     else
         mean === nothing && throw(ArgumentError("norm inference requires mean"))
@@ -680,6 +697,8 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
             throw(ArgumentError("norm inference requires inv_variance"))
         check_norm_param("norm mean", mean, pdims)
         check_norm_param("norm inv_variance", inv_variance, pdims)
+        check_norm_dtype("norm mean", mean, stat_dtype)
+        check_norm_dtype("norm inv_variance", inv_variance, stat_dtype)
         epsilon = nothing
         momentum = nothing
     end
@@ -697,13 +716,21 @@ function norm_bwd!(g::Graph, dy::Tensor, x::Tensor, scale::Tensor, mean::Tensor,
                    dbias::Union{Nothing,Tensor}=nothing, mode=:batchnorm,
                    name::String="dX")
     dy.dims == x.dims || throw(DimensionMismatch("norm dY dimensions must match input"))
+    xdtype = something(x.dtype, g.io_dtype)
+    check_norm_dtype("norm input", x, xdtype)
+    stat_dtype = norm_stat_dtype(xdtype)
+    check_norm_dtype("norm dY", dy, xdtype)
     pdims = norm_channel_dims(x)
     check_norm_param("norm scale", scale, pdims)
     check_norm_param("norm mean", mean, pdims)
     check_norm_param("norm inv_variance", inv_variance, pdims)
+    check_norm_dtype("norm scale", scale, stat_dtype)
+    check_norm_dtype("norm mean", mean, stat_dtype)
+    check_norm_dtype("norm inv_variance", inv_variance, stat_dtype)
     dx === nothing && (dx = tensor!(g; dims=x.dims, dtype=x.dtype, virtual=true, name,
                                     backend_order=x.backend_order))
     dx.dims == x.dims || throw(DimensionMismatch("norm dX dimensions must match input"))
+    check_norm_dtype("norm dX", dx, xdtype)
     dscale === nothing &&
         (dscale = tensor!(g; dims=pdims, dtype=scale.dtype, virtual=true,
                           name="dScale", backend_order=x.backend_order))
@@ -712,6 +739,8 @@ function norm_bwd!(g::Graph, dy::Tensor, x::Tensor, scale::Tensor, mean::Tensor,
                          name="dBias", backend_order=x.backend_order))
     check_norm_param("norm dscale", dscale, pdims)
     check_norm_param("norm dbias", dbias, pdims)
+    check_norm_dtype("norm dscale", dscale, stat_dtype)
+    check_norm_dtype("norm dbias", dbias, stat_dtype)
     push!(g.ops, NormBwdOp(dy, x, scale, mean, inv_variance, dx, dscale, dbias,
                            norm_mode(mode)))
     return dx, dscale, dbias

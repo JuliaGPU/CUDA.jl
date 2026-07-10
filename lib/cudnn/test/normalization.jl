@@ -34,6 +34,38 @@ end
 
 let W=4, H=3, C=2, N=3
     epsilon = 1f-4
+    x_ref = reshape(Float32.(sin.(1:W*H*C*N)), W, H, C, N)
+    scale_ref = reshape(Float32[1.5, 0.75], 1, 1, C, 1)
+    bias_ref = reshape(Float32[-0.25, 0.5], 1, 1, C, 1)
+    y_ref, mean_ref, invvar_ref = bn_training_ref(x_ref, scale_ref, bias_ref; epsilon)
+
+    x = CuArray(Float16.(x_ref))
+    scale, bias = CuArray(scale_ref), CuArray(bias_ref)
+    y = similar(x)
+    @test_throws ArgumentError batchnorm_training!(y, x, Float16.(scale), Float16.(bias);
+                                                    epsilon)
+    try
+        mean, invvar = batchnorm_training!(y, x, scale, bias; epsilon)
+        @test eltype(mean) == Float32
+        @test eltype(invvar) == Float32
+        @test Float32.(Array(y)) ≈ y_ref rtol=3f-3 atol=3f-3
+        @test Array(mean) ≈ mean_ref rtol=3f-3 atol=3f-3
+        @test Array(invvar) ≈ invvar_ref rtol=3f-3 atol=3f-3
+
+        dy = CuArray(Float16.(reshape(cos.(1:length(x_ref)), size(x_ref))))
+        dx, dscale, dbias = similar(x), similar(scale), similar(bias)
+        batchnorm_gradient!(dx, dscale, dbias, dy, x, scale, mean, invvar; epsilon)
+        @test eltype(dx) == Float16
+        @test eltype(dscale) == Float32
+        @test eltype(dbias) == Float32
+    catch e
+        graph_unsupported(e) || rethrow()
+        @test_skip "Float16 batchnorm graph engine is unsupported on this device"
+    end
+end
+
+let W=4, H=3, C=2, N=3
+    epsilon = 1f-4
     x_h = reshape(Float32.(sin.(1:W*H*C*N)), W, H, C, N)
     scale_h = reshape(Float32[1.5, 0.75], 1, 1, C, 1)
     bias_h = reshape(Float32[-0.25, 0.5], 1, 1, C, 1)
