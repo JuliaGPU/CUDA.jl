@@ -1,13 +1,6 @@
 conv_pointwise_activation(::Nothing) = nothing
 conv_pointwise_activation(mode::cudnnPointwiseMode_t) =
     mode == CUDNN_POINTWISE_IDENTITY ? nothing : mode
-conv_pointwise_activation(mode::cudnnActivationMode_t) =
-    mode == CUDNN_ACTIVATION_IDENTITY ? nothing :
-    mode == CUDNN_ACTIVATION_RELU ? CUDNN_POINTWISE_RELU_FWD :
-    mode == CUDNN_ACTIVATION_TANH ? CUDNN_POINTWISE_TANH_FWD :
-    mode == CUDNN_ACTIVATION_SIGMOID ? CUDNN_POINTWISE_SIGMOID_FWD :
-    mode == CUDNN_ACTIVATION_ELU ? CUDNN_POINTWISE_ELU_FWD :
-    throw(ArgumentError("unknown convolution activation $mode"))
 conv_pointwise_activation(mode::Symbol) =
     mode === :identity ? nothing :
     mode === :relu ? CUDNN_POINTWISE_RELU_FWD :
