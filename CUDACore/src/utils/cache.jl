@@ -48,7 +48,7 @@ function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     # if we still didn't find anything, create a new handle
     if handle === nothing
         maybe_collect()
-        handle = Base.invokelatest(cache.ctor, key)
+        handle = cache.ctor(key)
     end
 
     # add the handle to the active set
@@ -78,6 +78,8 @@ function Base.push!(cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
     end
 
     if !saved
+        # Handle destruction can run from CUDACore's generic reclaim callback,
+        # whose compiled world can predate the owning library's destructor.
         Base.invokelatest(cache.dtor, key, handle)
     end
 end
@@ -115,6 +117,7 @@ function Base.empty!(cache::HandleCache{K,V}) where {K,V}
     end
 
     for (key,handle) in handles
+        # See the equivalent eviction path in `push!` above.
         Base.invokelatest(cache.dtor, key, handle)
     end
 end
