@@ -154,10 +154,9 @@ end
 function generic_fused_convolution!(y, x, w, z, bias, activation; padding, stride,
                                      dilation, groups, mode, alpha, beta, compute_type,
                                      deterministic, math_mode, max_workspace)
-    zsrc = z !== nothing && z === y ? copy(y) : z
     convolution!(y, x, w; padding, stride, dilation, groups, mode, alpha, beta=0,
                  compute_type, deterministic, math_mode, max_workspace)
-    zsrc === nothing || (@. y = y + beta * zsrc)
+    z === nothing || (@. y = y + beta * z)
     bias === nothing || (@. y = y + bias)
     apply_conv_activation!(y, activation)
 end
@@ -255,6 +254,8 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
                             deterministic, math_mode, max_workspace)
     else
         zarg = zactive ? check_conv_broadcast("z", z, y) : nothing
+        # graph inputs must not alias the output
+        zarg === y && (zarg = copy(y))
         biasarg = bias === nothing ? nothing : check_conv_broadcast("bias", bias, y)
         key = fused_convolution_key(y, x, w, zarg, biasarg, pact, pre, post, str, dil,
                                      cmode, ctype, alpha, beta, deterministic, math_mode,
@@ -384,7 +385,7 @@ then channels, then batch, with `w` shaped `(spatial..., C_in ÷ groups, C_out)`
 
 Computes `alpha * conv(x, w) + beta * y`, or, with `z` given, applies `activation`
 (`:relu`, `:tanh`, `:sigmoid`, or `:elu`) to `alpha * conv(x, w) + beta * z + bias`
-as a fused graph.
+as a fused graph. `z` may alias `y`.
 
 `padding` accepts a scalar, one value per spatial dimension, or per-side
 `(pre1, post1, pre2, post2, ...)` pairs; asymmetric padding is supported natively.
