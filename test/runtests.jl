@@ -56,48 +56,39 @@ if !BFloat16s.llvm_arithmetic ||
     delete!(testsuite, "core/device/bfloat16")
 end
 
-# subpackage tests under lib/*/test/ — include when requested via `--all` or
-# by explicitly selecting a `libraries/*` positional.
+# subpackage tests under lib/*/test/
 const subpackages = ["cublas", "cusparse", "cusolver", "cufft", "curand",
                      "cudnn", "cutensor", "cutensornet", "custatevec"]
-function include_subpackages!(testsuite)
-    for pkg in subpackages
-        testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
-        isdir(testdir) || continue
-        sub_tests = find_tests(testdir)
-        delete!(sub_tests, "setup")
-        delete!(sub_tests, "runtests")
-        setuppath = joinpath(testdir, "setup.jl")
-        projectpath = joinpath(testdir, "Project.toml")
-        for (name, include_expr) in sub_tests
-            # include_expr is of the form `:(include($path))`
-            path = include_expr.args[end]
-            testsuite["libraries/$pkg/$name"] = quote
-                old_project = Base.active_project()
-                try
-                    if isfile($projectpath)
-                        Base.set_active_project($projectpath)
-                    end
-                    include($setuppath)
-                    include($path)
-                finally
-                    Base.set_active_project(old_project)
+for pkg in subpackages
+    testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
+    isdir(testdir) || continue
+    sub_tests = find_tests(testdir)
+    delete!(sub_tests, "setup")
+    delete!(sub_tests, "runtests")
+    setuppath = joinpath(testdir, "setup.jl")
+    projectpath = joinpath(testdir, "Project.toml")
+    for (name, include_expr) in sub_tests
+        # include_expr is of the form `:(include($path))`
+        path = include_expr.args[end]
+        testsuite["libraries/$pkg/$name"] = quote
+            old_project = Base.active_project()
+            try
+                if isfile($projectpath)
+                    Base.set_active_project($projectpath)
                 end
+                include($setuppath)
+                include($path)
+            finally
+                Base.set_active_project(old_project)
             end
         end
     end
-    return testsuite
-end
-
-want_all = args.custom["all"] !== nothing
-want_libraries = any(startswith("libraries/"), args.positionals)
-if want_all || want_libraries
-    include_subpackages!(testsuite)
 end
 
 # default filter (no positionals given): package extensions require extra
 # deps not in test/Project.toml, and subpackages are opt-in via `--all`.
 if isempty(args.positionals)
+    want_all = args.custom["all"] !== nothing
     filter!(testsuite) do (name, _)
         if startswith(name, "extensions")
             return false
