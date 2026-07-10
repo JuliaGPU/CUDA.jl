@@ -268,4 +268,3 @@ function cudnnSetConvolutionDescriptor(
     reorderType != CUDNN_DEFAULT_REORDER && cudnnSetConvolutionReorderType(ptr, reorderType)
     groupCount != 1                      && cudnnSetConvolutionGroupCount(ptr, groupCount)
 end
-

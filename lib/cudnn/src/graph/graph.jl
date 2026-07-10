@@ -84,8 +84,11 @@ function output!(t::Tensor)
     return t
 end
 
-# look up a tensor by name, e.g. to bind tensors of a cached graph, or ones created
-# implicitly by an op factory (such as the "MaskValue" fill of a causal SDPA mask)
+"""
+    tensor(graph, name)
+
+Look up a tensor by name, including tensors created by an operation factory.
+"""
 function tensor(g::Graph, name::AbstractString)
     found = nothing
     for t in g.tensors

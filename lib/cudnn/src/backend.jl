@@ -41,12 +41,9 @@ function make_descriptor(f, type::cudnnBackendDescriptorType_t)
 end
 
 
-# --- setattr! ---------------------------------------------------------------------------
-#
-# Set a backend attribute, dispatching on the Julia value type to pick the cuDNN attribute
-# type, element count, and host buffer. The buffer is GC-preserved across the ccall.
+## Attributes
 
-# core: `buf` is a host array/Ref backing `count` contiguous elements of the attribute type.
+# `buf` owns the storage passed to cuDNN and must remain live across the call.
 function setattr!(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
                   atype::cudnnBackendAttributeType_t, count::Integer, buf)
     GC.@preserve buf begin
@@ -56,19 +53,15 @@ function setattr!(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
     return d
 end
 
-# integer dims/strides/ids/sizes
 setattr!(d, name, v::Integer) = setattr!(d, name, CUDNN_TYPE_INT64, 1, Int64[v])
 setattr!(d, name, v::AbstractVector{<:Integer}) =
     setattr!(d, name, CUDNN_TYPE_INT64, length(v), convert(Vector{Int64}, v))
 
-# booleans (cuDNN CUDNN_TYPE_BOOLEAN is a 1-byte bool, matching Julia Bool)
 setattr!(d, name, v::Bool) = setattr!(d, name, CUDNN_TYPE_BOOLEAN, 1, Bool[v])
 
-# doubles (e.g. dropout probability)
 setattr!(d, name, v::Float32) = setattr!(d, name, CUDNN_TYPE_FLOAT, 1, Float32[v])
 setattr!(d, name, v::Float64) = setattr!(d, name, CUDNN_TYPE_DOUBLE, 1, Float64[v])
 
-# bytes and raw pointers
 setattr!(d, name, v::Char) = setattr!(d, name, CUDNN_TYPE_CHAR, 1, UInt8[UInt8(v)])
 setattr!(d, name, v::Ptr) =
     setattr!(d, name, CUDNN_TYPE_VOID_PTR, 1, Ptr{Cvoid}[reinterpret(Ptr{Cvoid}, v)])
@@ -102,12 +95,10 @@ setattr!(d, name, v::T) where {T<:CEnum.Cenum} =
 setattr!(d, name, v::AbstractVector{T}) where {T<:CEnum.Cenum} =
     setattr!(d, name, backend_attribute_type(T), length(v), convert(Vector{T}, v))
 
-# set the task-local cuDNN handle on the descriptor's handle attribute
 setattr_handle!(d) =
     setattr!(d, attribute(d, :handle), CUDNN_TYPE_HANDLE, 1,
              cudnnHandle_t[Base.unsafe_convert(cudnnHandle_t, handle())])
 
-# nested descriptor(s)
 setattr!(d, name, v::cudnnBackendDescriptor) =
     setattr!(d, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, cudnnBackendDescriptor_t[v.ptr])
 setattr!(d, name, v::AbstractVector{cudnnBackendDescriptor}) =
@@ -115,9 +106,7 @@ setattr!(d, name, v::AbstractVector{cudnnBackendDescriptor}) =
              cudnnBackendDescriptor_t[x.ptr for x in v])
 
 
-# --- getattr ----------------------------------------------------------------------------
-
-# Read up to `maxcount` plain (non-descriptor) elements of type `T`.
+## Attribute reads
 function getattr(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
                  atype::cudnnBackendAttributeType_t, ::Type{T}, maxcount::Integer) where {T}
     out = Vector{T}(undef, maxcount)
@@ -185,8 +174,8 @@ function getattr_descriptors(d::cudnnBackendDescriptor, name::cudnnBackendAttrib
 end
 
 
-# --- symbolic attribute access -----------------------------------------------------------
-#
+## Symbolic attributes
+
 # cuDNN names attributes after the descriptor type that owns them:
 # CUDNN_BACKEND_X_DESCRIPTOR takes CUDNN_ATTR_X_FIELD attributes, with a few abbreviated
 # spellings (BACKWARD/BWD, FORWARD/FWD, ...). Deriving that relation from the generated
@@ -252,7 +241,7 @@ BackendDescriptor(type::Symbol) = BackendDescriptor(descriptor_types[type])
 make_descriptor(f, type::Symbol) = make_descriptor(f, descriptor_types[type])
 
 
-# --- operation-node constructor helpers -------------------------------------------------
+## Constructors
 
 """
     backend_tensor(; uid, dims, strides, dtype, is_virtual=false, by_value=false, alignment=16)

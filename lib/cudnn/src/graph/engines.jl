@@ -3,9 +3,12 @@ struct UnsupportedGraphError <: Exception
 end
 Base.showerror(io::IO, e::UnsupportedGraphError) = print(io, e.msg)
 
-# `true` for errors signalling that cuDNN cannot handle a graph, either because no engine
-# finalized or because a plan reported NOT_SUPPORTED at execution time. Callers with an
-# equivalent fallback may catch these; anything else indicates a bug and must propagate.
+"""
+    graph_unsupported(error) -> Bool
+
+Return whether an error means that cuDNN cannot execute a graph. Other errors indicate
+invalid graph construction or execution and should be propagated.
+"""
 graph_unsupported(e) = e isa UnsupportedGraphError ||
                        (e isa CUDNNError && is_unsupported(e))
 
