@@ -206,6 +206,7 @@ end
 function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}, index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
+    (iszero(m) || iszero(n)) && return A
     perm = CuArray{Ti}(undef, nnz(A))
     cusparseCreateIdentityPermutation(handle(), nnz(A), perm)
 
@@ -754,7 +755,7 @@ function CUDACore.CuMatrix{T}(bsr::CuSparseMatrixBSR{T, Ti}; index::SparseChar='
     CuMatrix{T}(CuSparseMatrixCSR{T}(bsr; index, indc))
 end
 
-function CuSparseMatrixBSR(A::CuMatrix, blockDim::Integer=gcd(size(A)...); index::SparseChar='O')
+function CuSparseMatrixBSR(A::CuMatrix, blockDim::Integer=max(gcd(size(A)...), 1); index::SparseChar='O')
     m,n = size(A)
     # csr.colVal should be sorted if we want to use "csr2bsr" routines.
     csr = CuSparseMatrixCSR(A; index, sorted=true)
