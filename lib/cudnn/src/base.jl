@@ -9,3 +9,15 @@ function cudnnGetProperty(property::CUDACore.libraryPropertyType)
   cudnnGetProperty(property, value_ref)
   value_ref[]
 end
+
+version() = VersionNumber(cudnnGetProperty(CUDACore.MAJOR_VERSION),
+                          cudnnGetProperty(CUDACore.MINOR_VERSION),
+                          cudnnGetProperty(CUDACore.PATCH_LEVEL))
+
+function cuda_version()
+  ver = cudnnGetCudartVersion()
+  major, ver = divrem(ver, 1000)
+  minor, patch = divrem(ver, 10)
+
+  VersionNumber(major, minor, patch)
+end

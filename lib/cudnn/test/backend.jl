@@ -10,6 +10,14 @@ using cuDNN:
     CUDNN_BACKEND_TENSOR_DESCRIPTOR,
     CUDNN_DATA_FLOAT
 
+@testset "version" begin
+    @test cuDNN.version() isa VersionNumber
+    @test cuDNN.version().major == cuDNN.cudnnGetProperty(CUDACore.MAJOR_VERSION)
+    @test cuDNN.version().minor == cuDNN.cudnnGetProperty(CUDACore.MINOR_VERSION)
+    @test cuDNN.version().patch == cuDNN.cudnnGetProperty(CUDACore.PATCH_LEVEL)
+    @test cuDNN.cuda_version() isa VersionNumber
+end
+
 # destruction must be idempotent and safe to combine with finalization
 d = BackendDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR)
 unsafe_destroy!(d)
