@@ -751,10 +751,10 @@ function matmul!(g::Graph, a::Tensor, b::Tensor;
                  name::String="C")
     length(a.dims) >= 3 && length(b.dims) >= 3 ||
         throw(ArgumentError("matmul! tensors must have rank >= 3"))
-    a.dims[1] == b.dims[2] ||
+    a.dims[2] == b.dims[1] ||
         throw(DimensionMismatch("matmul! inner dimensions must match"))
     batch = broadcast_dim_vectors(a.dims[3:end], b.dims[3:end])
-    cdims = Int64[b.dims[1]; a.dims[2]; batch...]
+    cdims = Int64[a.dims[1]; b.dims[2]; batch...]
     if c === nothing
         c = tensor!(g; dims=cdims, dtype=nothing, virtual=true, name)
     else
@@ -901,7 +901,7 @@ end
 
 function lower(op::MatmulOp, ctx::LoweringContext)
     matdesc = track!(ctx, matmul_descriptor(compute_type=op.compute_dtype))
-    matmul_operation(matdesc, desc(ctx, op.a), desc(ctx, op.b), desc(ctx, op.c))
+    matmul_operation(matdesc, desc(ctx, op.b), desc(ctx, op.a), desc(ctx, op.c))
 end
 
 function lower(op::ReductionOp, ctx::LoweringContext)

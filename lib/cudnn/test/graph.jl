@@ -72,17 +72,17 @@ dqp, dkp, dvp = sdpa_bwd!(g, q, k, v, o, dO, stats; scale, seq_len_q=seqq,
 @test dvp.dims == v.dims
 @test last(g.ops).seq_len_kv === seqkv
 
-a = tensor!(g; dims=(16, 8, 2), dtype=Float16, name="A")
-b = tensor!(g; dims=(32, 16, 2), dtype=Float16, name="B")
+a = tensor!(g; dims=(8, 16, 2), dtype=Float16, name="A")
+b = tensor!(g; dims=(16, 32, 2), dtype=Float16, name="B")
 c = matmul!(g, a, b)
-@test c.dims == [32, 8, 2]
+@test c.dims == [8, 32, 2]
 
-bias = tensor!(g; dims=(32, 1, 1), dtype=Float16, name="Bias")
+bias = tensor!(g; dims=(1, 32, 1), dtype=Float16, name="Bias")
 y = pointwise!(g, :add, c, bias)
-@test y.dims == [32, 8, 2]
+@test y.dims == [8, 32, 2]
 
 r = reduction!(g, :sum, y; dims=1)
-@test r.dims == [1, 8, 2]
+@test r.dims == [1, 32, 2]
 
 cx = tensor!(g; dims=(8, 7, 3, 2), dtype=Float16, name="ConvX")
 cw = tensor!(g; dims=(3, 2, 3, 5), dtype=Float16, name="ConvW")

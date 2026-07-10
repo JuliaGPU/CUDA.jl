@@ -15,13 +15,13 @@ using cuDNN:
 CUDA.allowscalar(false)
 
 function matmul_ref(a, b)
-    K, M, B = size(a)
-    N = size(b, 1)
-    out = Array{Float32}(undef, N, M, B)
+    M, K, B = size(a)
+    N = size(b, 2)
+    out = Array{Float32}(undef, M, N, B)
     aa = Float32.(Array(a))
     bb = Float32.(Array(b))
     for batch in 1:B
-        out[:, :, batch] = bb[:, :, batch] * aa[:, :, batch]
+        out[:, :, batch] = aa[:, :, batch] * bb[:, :, batch]
     end
     return out
 end
@@ -139,9 +139,9 @@ function avgpool2d_bwd_ref(dy, x_size; window, pre_padding, stride, include_pad:
 end
 
 let K=16, M=16, N=16, B=2
-    a = CuArray(reshape(Float16.(sin.(1:K*M*B)), K, M, B))
-    b = CuArray(reshape(Float16.(cos.(1:N*K*B)), N, K, B))
-    y = CUDA.zeros(Float16, N, M, B)
+    a = CuArray(reshape(Float16.(sin.(1:M*K*B)), M, K, B))
+    b = CuArray(reshape(Float16.(cos.(1:K*N*B)), K, N, B))
+    y = CUDA.zeros(Float16, M, N, B)
 
     g = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
     ta = tensor!(g, a; name="A")
