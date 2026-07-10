@@ -37,6 +37,20 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     # we use COO as an intermediate format, as it's easy to construct from I/J/V.
     coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
 
+    # The sorting kernel cannot launch for an empty input. Return the requested
+    # canonical empty format directly instead.
+    if nnz(coo) == 0
+        if fmt == :coo
+            return coo
+        elseif fmt == :csc
+            return CuSparseMatrixCSC{Tv,Cint}(CUDACore.ones(Cint, n + 1),
+                                              coo.rowInd, nonzeros(coo), (m, n))
+        elseif fmt == :csr
+            return CuSparseMatrixCSR{Tv,Cint}(CUDACore.ones(Cint, m + 1),
+                                              coo.colInd, nonzeros(coo), (m, n))
+        end
+    end
+
     # find groups of values that correspond to the same position in the matrix.
     # if there's no duplicates, `groups` will just be a vector of ones.
     # otherwise, it will contain gaps of zeros that indicates duplicate values.
