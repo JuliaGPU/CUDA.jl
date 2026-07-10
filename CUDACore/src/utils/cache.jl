@@ -48,7 +48,7 @@ function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     # if we still didn't find anything, create a new handle
     if handle === nothing
         maybe_collect()
-        handle = cache.ctor(key)
+        handle = Base.invokelatest(cache.ctor, key)
     end
 
     # add the handle to the active set
@@ -78,7 +78,7 @@ function Base.push!(cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
     end
 
     if !saved
-        cache.dtor(key, handle)
+        Base.invokelatest(cache.dtor, key, handle)
     end
 end
 
@@ -115,6 +115,6 @@ function Base.empty!(cache::HandleCache{K,V}) where {K,V}
     end
 
     for (key,handle) in handles
-        cache.dtor(key, handle)
+        Base.invokelatest(cache.dtor, key, handle)
     end
 end
