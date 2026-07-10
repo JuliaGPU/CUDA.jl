@@ -449,11 +449,32 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
     cuda = active_state()
 
     Base.@lock cufunction_lock begin
-        # compile the function
-        cache = compiler_cache(cuda.context)
+        # look up (or generate) the compilation artifacts for this function
         source = methodinstance(F, tt)
         config = compiler_config(cuda.device; kwargs...)::CUDACompilerConfig
-        fun = GPUCompiler.cached_compilation(cache, source, config, compile, link)
+        job = CompilerJob(source, config)
+        res = compile_or_lookup(job)::CUDACompilerResults
+
+        # resolve the `CuFunction` for the active context. this is a session-local handle,
+        # so it lives in the results struct's linear cache rather than being persisted;
+        # the scan is almost always over a single entry (one `===` comparison).
+        ctx = cuda.context
+        fun = nothing
+        for (cached_ctx, cached_fun) in res.kernels
+            if cached_ctx === ctx
+                fun = cached_fun
+                break
+            end
+        end
+        if fun === nothing
+            fun = link_kernel(job, res.image::Vector{UInt8}, res.entry::String)
+            # don't cache session-local handles while generating output: the results struct
+            # is serialized into the package image along with its CodeInstance, and the
+            # handles would come back dangling.
+            if ccall(:jl_generating_output, Cint, ()) != 1
+                push!(res.kernels, (ctx, fun))
+            end
+        end
 
         # create a callable object that captures the function instance. we don't need to think
         # about world age here, as GPUCompiler already does and will return a different object
