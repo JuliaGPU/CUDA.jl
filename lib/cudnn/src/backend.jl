@@ -8,7 +8,6 @@ mutable struct BackendDescriptor
     ptr::cudnnBackendDescriptor_t
     descriptor_type::cudnnBackendDescriptorType_t
 end
-const cudnnBackendDescriptor = BackendDescriptor
 
 function BackendDescriptor(descriptor_type::cudnnBackendDescriptorType_t)
     ref = Ref{cudnnBackendDescriptor_t}(C_NULL)
@@ -18,9 +17,9 @@ function BackendDescriptor(descriptor_type::cudnnBackendDescriptorType_t)
     return d
 end
 
-Base.unsafe_convert(::Type{cudnnBackendDescriptor_t}, d::cudnnBackendDescriptor) = d.ptr
+Base.unsafe_convert(::Type{cudnnBackendDescriptor_t}, d::BackendDescriptor) = d.ptr
 
-function unsafe_destroy!(d::cudnnBackendDescriptor)
+function unsafe_destroy!(d::BackendDescriptor)
     ptr = d.ptr
     ptr == C_NULL && return
     d.ptr = C_NULL
@@ -29,7 +28,7 @@ function unsafe_destroy!(d::cudnnBackendDescriptor)
 end
 
 function make_descriptor(f, type::cudnnBackendDescriptorType_t)
-    d = cudnnBackendDescriptor(type)
+    d = BackendDescriptor(type)
     try
         f(d)
         cudnnBackendFinalize(d)
@@ -44,7 +43,7 @@ end
 ## Attributes
 
 # `buf` owns the storage passed to cuDNN and must remain live across the call.
-function setattr!(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
+function setattr!(d::BackendDescriptor, name::cudnnBackendAttributeName_t,
                   atype::cudnnBackendAttributeType_t, count::Integer, buf)
     GC.@preserve buf begin
         cudnnBackendSetAttribute(d.ptr, name, atype, Int64(count),
@@ -99,15 +98,15 @@ setattr_handle!(d) =
     setattr!(d, attribute(d, :handle), CUDNN_TYPE_HANDLE, 1,
              cudnnHandle_t[Base.unsafe_convert(cudnnHandle_t, handle())])
 
-setattr!(d, name, v::cudnnBackendDescriptor) =
+setattr!(d, name, v::BackendDescriptor) =
     setattr!(d, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, 1, cudnnBackendDescriptor_t[v.ptr])
-setattr!(d, name, v::AbstractVector{cudnnBackendDescriptor}) =
+setattr!(d, name, v::AbstractVector{BackendDescriptor}) =
     setattr!(d, name, CUDNN_TYPE_BACKEND_DESCRIPTOR, length(v),
              cudnnBackendDescriptor_t[x.ptr for x in v])
 
 
 ## Attribute reads
-function getattr(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
+function getattr(d::BackendDescriptor, name::cudnnBackendAttributeName_t,
                  atype::cudnnBackendAttributeType_t, ::Type{T}, maxcount::Integer) where {T}
     out = Vector{T}(undef, maxcount)
     n = Ref{Int64}(0)
@@ -119,7 +118,7 @@ function getattr(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
     return out
 end
 
-getattr(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t, ::Type{T},
+getattr(d::BackendDescriptor, name::cudnnBackendAttributeName_t, ::Type{T},
         maxcount::Integer=1) where {T} =
     getattr(d, name, backend_attribute_type(T), T, maxcount)
 
@@ -128,7 +127,7 @@ backend_attribute_type(::Type{Float32}) = CUDNN_TYPE_FLOAT
 backend_attribute_type(::Type{Float64}) = CUDNN_TYPE_DOUBLE
 backend_attribute_type(::Type{Bool}) = CUDNN_TYPE_BOOLEAN
 
-function getattr_count(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
+function getattr_count(d::BackendDescriptor, name::cudnnBackendAttributeName_t,
                        atype::cudnnBackendAttributeType_t)
     n = Ref{Int64}(0)
     cudnnBackendGetAttribute(d.ptr, name, atype, Int64(0), n, C_NULL)
@@ -140,9 +139,9 @@ end
 #
 # Keep raw handles until we know how many cuDNN returned, then destroy the unused descriptors
 # synchronously. Julia finalizers are a last-resort cleanup path for descriptors that escape.
-function getattr_descriptors(d::cudnnBackendDescriptor, name::cudnnBackendAttributeName_t,
+function getattr_descriptors(d::BackendDescriptor, name::cudnnBackendAttributeName_t,
                              desctype::cudnnBackendDescriptorType_t, maxcount::Integer)
-    maxcount == 0 && return cudnnBackendDescriptor[]
+    maxcount == 0 && return BackendDescriptor[]
     raw = fill(cudnnBackendDescriptor_t(C_NULL), maxcount)
     n = Ref{Int64}(0)
     try
@@ -165,9 +164,9 @@ function getattr_descriptors(d::cudnnBackendDescriptor, name::cudnnBackendAttrib
     for i in nreturned+1:maxcount
         cudnnBackendDestroyDescriptor(raw[i])
     end
-    nreturned == 0 && return cudnnBackendDescriptor[]
+    nreturned == 0 && return BackendDescriptor[]
     return map(1:nreturned) do i
-        desc = cudnnBackendDescriptor(raw[i], desctype)
+        desc = BackendDescriptor(raw[i], desctype)
         finalizer(unsafe_destroy!, desc)
         desc
     end
@@ -218,7 +217,7 @@ const descriptor_types, attribute_names = let
     types, attributes
 end
 
-function attribute(d::cudnnBackendDescriptor, name::Symbol)
+function attribute(d::BackendDescriptor, name::Symbol)
     attr = get(attribute_names, (d.descriptor_type, name), nothing)
     attr === nothing &&
         throw(ArgumentError("$(d.descriptor_type) has no attribute $name; valid attributes are " *
@@ -227,14 +226,14 @@ function attribute(d::cudnnBackendDescriptor, name::Symbol)
     return attr
 end
 
-Base.setindex!(d::cudnnBackendDescriptor, v, name::Symbol) = setattr!(d, attribute(d, name), v)
+Base.setindex!(d::BackendDescriptor, v, name::Symbol) = setattr!(d, attribute(d, name), v)
 
-function Base.getindex(d::cudnnBackendDescriptor, name::Symbol, ::Type{Vector{T}}) where {T}
+function Base.getindex(d::BackendDescriptor, name::Symbol, ::Type{Vector{T}}) where {T}
     attr = attribute(d, name)
     atype = backend_attribute_type(T)
     return getattr(d, attr, atype, T, getattr_count(d, attr, atype))
 end
-Base.getindex(d::cudnnBackendDescriptor, name::Symbol, ::Type{T}) where {T} =
+Base.getindex(d::BackendDescriptor, name::Symbol, ::Type{T}) where {T} =
     only(getattr(d, attribute(d, name), backend_attribute_type(T), T, 1))
 
 BackendDescriptor(type::Symbol) = BackendDescriptor(descriptor_types[type])
@@ -268,7 +267,7 @@ function backend_deviceprop()
     end
 end
 
-function operation_graph(ops::AbstractVector{cudnnBackendDescriptor};
+function operation_graph(ops::AbstractVector{BackendDescriptor};
                          mode::cudnnBackendOperationGraphMode_t=CUDNN_OPERATIONGRAPH_MODE_AUTO)
     make_descriptor(:operationgraph) do g
         setattr_handle!(g)
@@ -361,10 +360,10 @@ function backend_resample_descriptor(; mode::cudnnResampleMode_t,
     end
 end
 
-function pointwise_operation(pwdesc::cudnnBackendDescriptor, x::cudnnBackendDescriptor,
-                             y::cudnnBackendDescriptor;
-                             b::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                             t::Union{Nothing,cudnnBackendDescriptor}=nothing,
+function pointwise_operation(pwdesc::BackendDescriptor, x::BackendDescriptor,
+                             y::BackendDescriptor;
+                             b::Union{Nothing,BackendDescriptor}=nothing,
+                             t::Union{Nothing,BackendDescriptor}=nothing,
                              alpha1::Real=1, alpha2::Real=0)
     make_descriptor(:operation_pointwise) do op
         op[:pw_descriptor] = pwdesc
@@ -377,8 +376,8 @@ function pointwise_operation(pwdesc::cudnnBackendDescriptor, x::cudnnBackendDesc
     end
 end
 
-function matmul_operation(matdesc::cudnnBackendDescriptor, a::cudnnBackendDescriptor,
-                          b::cudnnBackendDescriptor, c::cudnnBackendDescriptor)
+function matmul_operation(matdesc::BackendDescriptor, a::BackendDescriptor,
+                          b::BackendDescriptor, c::BackendDescriptor)
     make_descriptor(:operation_matmul) do op
         op[:adesc] = a
         op[:bdesc] = b
@@ -387,8 +386,8 @@ function matmul_operation(matdesc::cudnnBackendDescriptor, a::cudnnBackendDescri
     end
 end
 
-function reduction_operation(reddesc::cudnnBackendDescriptor, x::cudnnBackendDescriptor,
-                             y::cudnnBackendDescriptor)
+function reduction_operation(reddesc::BackendDescriptor, x::BackendDescriptor,
+                             y::BackendDescriptor)
     make_descriptor(:operation_reduction) do op
         op[:desc] = reddesc
         op[:xdesc] = x
@@ -396,10 +395,10 @@ function reduction_operation(reddesc::cudnnBackendDescriptor, x::cudnnBackendDes
     end
 end
 
-function convolution_forward_operation(convdesc::cudnnBackendDescriptor,
-                                       x::cudnnBackendDescriptor,
-                                       w::cudnnBackendDescriptor,
-                                       y::cudnnBackendDescriptor;
+function convolution_forward_operation(convdesc::BackendDescriptor,
+                                       x::BackendDescriptor,
+                                       w::BackendDescriptor,
+                                       y::BackendDescriptor;
                                        alpha::Real=1, beta::Real=0,
                                        alphabeta_type::cudnnBackendAttributeType_t=CUDNN_TYPE_FLOAT)
     make_descriptor(:operation_convolution_forward) do op
@@ -412,10 +411,10 @@ function convolution_forward_operation(convdesc::cudnnBackendDescriptor,
     end
 end
 
-function convolution_data_backward_operation(convdesc::cudnnBackendDescriptor,
-                                             w::cudnnBackendDescriptor,
-                                             dy::cudnnBackendDescriptor,
-                                             dx::cudnnBackendDescriptor;
+function convolution_data_backward_operation(convdesc::BackendDescriptor,
+                                             w::BackendDescriptor,
+                                             dy::BackendDescriptor,
+                                             dx::BackendDescriptor;
                                              alpha::Real=1, beta::Real=0,
                                              alphabeta_type::cudnnBackendAttributeType_t=CUDNN_TYPE_FLOAT)
     make_descriptor(:operation_convolution_backward_data) do op
@@ -428,10 +427,10 @@ function convolution_data_backward_operation(convdesc::cudnnBackendDescriptor,
     end
 end
 
-function convolution_filter_backward_operation(convdesc::cudnnBackendDescriptor,
-                                               x::cudnnBackendDescriptor,
-                                               dy::cudnnBackendDescriptor,
-                                               dw::cudnnBackendDescriptor;
+function convolution_filter_backward_operation(convdesc::BackendDescriptor,
+                                               x::BackendDescriptor,
+                                               dy::BackendDescriptor,
+                                               dw::BackendDescriptor;
                                                alpha::Real=1, beta::Real=0,
                                                alphabeta_type::cudnnBackendAttributeType_t=CUDNN_TYPE_FLOAT)
     make_descriptor(:operation_convolution_backward_filter) do op
@@ -446,7 +445,7 @@ end
 
 # alpha/beta take their type from the convolution compute type, so the usual
 # value-based dispatch does not apply
-function setattr_alphabeta!(d::cudnnBackendDescriptor, name::Symbol, value, atype)
+function setattr_alphabeta!(d::BackendDescriptor, name::Symbol, value, atype)
     if atype == CUDNN_TYPE_DOUBLE
         setattr!(d, attribute(d, name), CUDNN_TYPE_DOUBLE, 1, Float64[value])
     else
@@ -454,10 +453,10 @@ function setattr_alphabeta!(d::cudnnBackendDescriptor, name::Symbol, value, atyp
     end
 end
 
-function resample_forward_operation(resampledesc::cudnnBackendDescriptor,
-                                    x::cudnnBackendDescriptor,
-                                    y::cudnnBackendDescriptor;
-                                    index::Union{Nothing,cudnnBackendDescriptor}=nothing,
+function resample_forward_operation(resampledesc::BackendDescriptor,
+                                    x::BackendDescriptor,
+                                    y::BackendDescriptor;
+                                    index::Union{Nothing,BackendDescriptor}=nothing,
                                     alpha::Real=1, beta::Real=0)
     make_descriptor(:operation_resample_fwd) do op
         op[:xdesc] = x
@@ -469,12 +468,12 @@ function resample_forward_operation(resampledesc::cudnnBackendDescriptor,
     end
 end
 
-function resample_backward_operation(resampledesc::cudnnBackendDescriptor,
-                                     dx::cudnnBackendDescriptor,
-                                     dy::cudnnBackendDescriptor;
-                                     x::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                     y::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                     index::Union{Nothing,cudnnBackendDescriptor}=nothing,
+function resample_backward_operation(resampledesc::BackendDescriptor,
+                                     dx::BackendDescriptor,
+                                     dy::BackendDescriptor;
+                                     x::Union{Nothing,BackendDescriptor}=nothing,
+                                     y::Union{Nothing,BackendDescriptor}=nothing,
+                                     index::Union{Nothing,BackendDescriptor}=nothing,
                                      alpha::Real=1, beta::Real=0)
     make_descriptor(:operation_resample_bwd) do op
         op[:dxdesc] = dx
@@ -490,18 +489,18 @@ end
 
 function norm_forward_operation(; mode::cudnnBackendNormMode_t,
                                 phase::cudnnBackendNormFwdPhase_t,
-                                x::cudnnBackendDescriptor,
-                                mean::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                inv_variance::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                scale::cudnnBackendDescriptor,
-                                bias::cudnnBackendDescriptor,
-                                epsilon::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                momentum::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                input_running_mean::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                input_running_var::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                output_running_mean::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                output_running_var::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                y::cudnnBackendDescriptor)
+                                x::BackendDescriptor,
+                                mean::Union{Nothing,BackendDescriptor}=nothing,
+                                inv_variance::Union{Nothing,BackendDescriptor}=nothing,
+                                scale::BackendDescriptor,
+                                bias::BackendDescriptor,
+                                epsilon::Union{Nothing,BackendDescriptor}=nothing,
+                                momentum::Union{Nothing,BackendDescriptor}=nothing,
+                                input_running_mean::Union{Nothing,BackendDescriptor}=nothing,
+                                input_running_var::Union{Nothing,BackendDescriptor}=nothing,
+                                output_running_mean::Union{Nothing,BackendDescriptor}=nothing,
+                                output_running_var::Union{Nothing,BackendDescriptor}=nothing,
+                                y::BackendDescriptor)
     make_descriptor(:operation_norm_forward) do op
         op[:mode] = mode
         op[:phase] = phase
@@ -521,14 +520,14 @@ function norm_forward_operation(; mode::cudnnBackendNormMode_t,
 end
 
 function norm_backward_operation(; mode::cudnnBackendNormMode_t,
-                                 x::cudnnBackendDescriptor,
-                                 mean::cudnnBackendDescriptor,
-                                 inv_variance::cudnnBackendDescriptor,
-                                 dy::cudnnBackendDescriptor,
-                                 scale::cudnnBackendDescriptor,
-                                 dscale::cudnnBackendDescriptor,
-                                 dbias::cudnnBackendDescriptor,
-                                 dx::cudnnBackendDescriptor)
+                                 x::BackendDescriptor,
+                                 mean::BackendDescriptor,
+                                 inv_variance::BackendDescriptor,
+                                 dy::BackendDescriptor,
+                                 scale::BackendDescriptor,
+                                 dscale::BackendDescriptor,
+                                 dbias::BackendDescriptor,
+                                 dx::BackendDescriptor)
     make_descriptor(:operation_norm_backward) do op
         op[:mode] = mode
         op[:xdesc] = x
@@ -542,14 +541,14 @@ function norm_backward_operation(; mode::cudnnBackendNormMode_t,
     end
 end
 
-function diagonal_band_mask_operation(x::cudnnBackendDescriptor, b::cudnnBackendDescriptor,
-                                      y::cudnnBackendDescriptor;
-                                      seq_len_q::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                      seq_len_kv::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                      cu_seq_len_q::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                      cu_seq_len_kv::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                      left_bound::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                                      shift_right_bound::Union{Nothing,cudnnBackendDescriptor}=nothing,
+function diagonal_band_mask_operation(x::BackendDescriptor, b::BackendDescriptor,
+                                      y::BackendDescriptor;
+                                      seq_len_q::Union{Nothing,BackendDescriptor}=nothing,
+                                      seq_len_kv::Union{Nothing,BackendDescriptor}=nothing,
+                                      cu_seq_len_q::Union{Nothing,BackendDescriptor}=nothing,
+                                      cu_seq_len_kv::Union{Nothing,BackendDescriptor}=nothing,
+                                      left_bound::Union{Nothing,BackendDescriptor}=nothing,
+                                      shift_right_bound::Union{Nothing,BackendDescriptor}=nothing,
                                       comparison_mode::cudnnPointwiseMode_t)
     make_descriptor(:operation_diagonal_band_mask) do op
         op[:xdesc] = x
@@ -566,8 +565,8 @@ function diagonal_band_mask_operation(x::cudnnBackendDescriptor, b::cudnnBackend
 end
 
 # Return caller-owned engine-config descriptors the heuristic suggests, in preference order.
-function engine_configs(graph::cudnnBackendDescriptor;
-                        deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing,
+function engine_configs(graph::BackendDescriptor;
+                        deviceprop::Union{Nothing,BackendDescriptor}=nothing,
                         mode::cudnnBackendHeurMode_t=CUDNN_HEUR_MODE_A)
     heur = make_descriptor(:engineheur) do heur
         heur[:operation_graph] = graph
@@ -590,8 +589,8 @@ is_unsupported(e::CUDNNError) = 3000 <= Int(e.code) < 4000
 # reports the config as not supported (a normal outcome: callers iterate configs until one
 # finalizes). Any other error (e.g. BAD_PARAM, which indicates a graph-construction bug
 # rather than an unsupported config) is rethrown.
-function try_execution_plan(enginecfg::cudnnBackendDescriptor;
-                            deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing)
+function try_execution_plan(enginecfg::BackendDescriptor;
+                            deviceprop::Union{Nothing,BackendDescriptor}=nothing)
     try
         return make_descriptor(:execution_plan) do plan
             setattr_handle!(plan)
@@ -607,17 +606,17 @@ end
 
 plan_workspace_size(plan) = plan[:workspace_size, Int64]
 
-function engine_descriptor(enginecfg::cudnnBackendDescriptor)
+function engine_descriptor(enginecfg::BackendDescriptor)
     descs = getattr_descriptors(enginecfg, attribute(enginecfg, :engine),
                                 CUDNN_BACKEND_ENGINE_DESCRIPTOR, 1)
     isempty(descs) && error("cuDNN: engine config did not expose an engine descriptor")
     return only(descs)
 end
 
-engine_numerical_notes(engine::cudnnBackendDescriptor) =
+engine_numerical_notes(engine::BackendDescriptor) =
     engine[:numerical_note, Vector{cudnnBackendNumericalNote_t}]
 
-engine_behavior_notes(engine::cudnnBackendDescriptor) =
+engine_behavior_notes(engine::BackendDescriptor) =
     engine[:behavior_note, Vector{cudnnBackendBehaviorNote_t}]
 
 # Build and finalize a variant pack. `pointers` are device (or, for by-value tensors, host)

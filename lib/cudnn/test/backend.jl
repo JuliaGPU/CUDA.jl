@@ -18,7 +18,6 @@ using cuDNN:
     resample_backward_operation,
     resample_forward_operation,
     cudnnBackendAttributeName_t,
-    cudnnBackendDescriptor,
     cudnnBackendDescriptor_t,
     cudnnBackendOperationGraphMode_t,
     cudnnDataType_t,
@@ -42,7 +41,7 @@ using cuDNN:
     CUDNN_RESAMPLE_AVGPOOL_INCLUDE_PADDING,
     CUDNN_RESAMPLE_MAXPOOL
 
-d = cudnnBackendDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR)
+d = BackendDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR)
 @test d.ptr != C_NULL
 @test d.descriptor_type == CUDNN_BACKEND_TENSOR_DESCRIPTOR
 @test Base.unsafe_convert(cudnnBackendDescriptor_t, d) == d.ptr
@@ -54,7 +53,7 @@ unsafe_destroy!(d)
 @test Base.ispublic(cuDNN, :BackendDescriptor)
 @test Base.ispublic(cuDNN, :backend_tensor)
 @test Base.ispublic(cuDNN, :engine_configs)
-@test !Base.ispublic(cuDNN, :cudnnBackendDescriptor)
+@test !isdefined(cuDNN, :cudnnBackendDescriptor)
 @test !Base.ispublic(cuDNN, :cudnnBackendCreateDescriptor)
 @test BackendDescriptor(:tensor) isa BackendDescriptor
 

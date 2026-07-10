@@ -1,9 +1,9 @@
 struct LoweringContext
-    tensor_descs::IdDict{Tensor,cudnnBackendDescriptor}
-    intermediates::Vector{cudnnBackendDescriptor}
+    tensor_descs::IdDict{Tensor,BackendDescriptor}
+    intermediates::Vector{BackendDescriptor}
 end
 
-function track!(ctx::LoweringContext, d::cudnnBackendDescriptor)
+function track!(ctx::LoweringContext, d::BackendDescriptor)
     push!(ctx.intermediates, d)
     return d
 end
@@ -35,12 +35,12 @@ function operation_graph_mode(g::Graph)
 end
 
 function lower_graph(g::Graph)
-    ctx = LoweringContext(IdDict{Tensor,cudnnBackendDescriptor}(),
-                          cudnnBackendDescriptor[])
+    ctx = LoweringContext(IdDict{Tensor,BackendDescriptor}(),
+                          BackendDescriptor[])
     for t in g.tensors
         lower_tensor!(ctx, t)
     end
-    op_descs = cudnnBackendDescriptor[]
+    op_descs = BackendDescriptor[]
     for op in g.ops
         push!(op_descs, track!(ctx, lower(op, ctx)))
     end

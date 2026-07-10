@@ -19,7 +19,7 @@ mutable struct Graph
     compute_dtype::cudnnDataType_t
     tensors::Vector{Tensor}
     ops::Vector{Operation}
-    plan::Union{Nothing,cudnnBackendDescriptor}
+    plan::Union{Nothing,BackendDescriptor}
     workspace_size::Int
     variant_tensors::Vector{Tensor}
 end

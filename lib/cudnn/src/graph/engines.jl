@@ -14,7 +14,7 @@ graph_unsupported(e) = e isa UnsupportedGraphError ||
 
 @public UnsupportedGraphError, graph_unsupported
 
-function keep_engine_config(cfg::cudnnBackendDescriptor, g::Graph;
+function keep_engine_config(cfg::BackendDescriptor, g::Graph;
                             deterministic::Bool, math_mode)
     engine = engine_descriptor(cfg)
     try
@@ -34,12 +34,12 @@ function keep_engine_config(cfg::cudnnBackendDescriptor, g::Graph;
     end
 end
 
-function select_plan(g::Graph, opgraph::cudnnBackendDescriptor;
+function select_plan(g::Graph, opgraph::BackendDescriptor;
                      heuristics=(CUDNN_HEUR_MODE_A, CUDNN_HEUR_MODE_FALLBACK),
                      deterministic::Bool=false, math_mode=CUDACore.math_mode(),
                      max_workspace::Union{Nothing,Integer}=nothing)
     deviceprop = backend_deviceprop()
-    cfgs = cudnnBackendDescriptor[]
+    cfgs = BackendDescriptor[]
     try
         for mode in heuristics
             append!(cfgs, engine_configs(opgraph; deviceprop, mode))
