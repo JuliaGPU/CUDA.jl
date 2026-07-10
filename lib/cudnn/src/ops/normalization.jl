@@ -113,6 +113,77 @@ function build_batchnorm_gradient_graph(dx, dscale, dbias, dy, x, scale, mean, i
     build!(g; deterministic, math_mode, max_workspace)
 end
 
+function batchnorm_training_plan(y::DenseCuArray{T}, x::DenseCuArray{T}, scale, bias,
+                                 running_mean, running_var, epsilon, momentum;
+                                 deterministic, math_mode, max_workspace) where {T}
+    check_bn_running_stats(running_mean, running_var)
+    S = bn_stat_type(T)
+    check_bn_eltype("scale", scale, S)
+    check_bn_eltype("bias", bias, S)
+    running_mean === nothing || check_bn_eltype("running_mean", running_mean, S)
+    running_var === nothing || check_bn_eltype("running_var", running_var, S)
+    dims = bn_param_size(x)
+    saved_mean = similar(scale, S, size(scale))
+    saved_invvar = similar(scale, S, size(scale))
+    scale = bn_param_array(scale, x)
+    bias = bn_param_array(bias, x)
+    mean = reshape(saved_mean, dims)
+    invvar = reshape(saved_invvar, dims)
+    running_mean = running_mean === nothing ? nothing : bn_param_array(running_mean, x)
+    running_var = running_var === nothing ? nothing : bn_param_array(running_var, x)
+    key = bn_training_key(y, x, scale, bias, mean, invvar, running_mean, running_var,
+                           epsilon, momentum, deterministic, math_mode, max_workspace)
+    graph = cached_graph(key) do
+        build_batchnorm_training_graph(y, x, scale, bias, mean, invvar, running_mean,
+                                       running_var; deterministic, math_mode, max_workspace)
+    end
+    return (; graph, scale, bias, mean, invvar, running_mean, running_var, saved_mean,
+            saved_invvar)
+end
+
+function batchnorm_inference_plan(y::DenseCuArray{T}, x::DenseCuArray{T}, scale, bias,
+                                  running_mean, running_var;
+                                  deterministic, math_mode, max_workspace) where {T}
+    S = bn_stat_type(T)
+    check_bn_eltype("scale", scale, S)
+    check_bn_eltype("bias", bias, S)
+    check_bn_eltype("running_mean", running_mean, S)
+    check_bn_eltype("running_var", running_var, S)
+    scale = bn_param_array(scale, x)
+    bias = bn_param_array(bias, x)
+    running_mean = bn_param_array(running_mean, x)
+    running_var = bn_param_array(running_var, x)
+    key = bn_inference_key(y, x, scale, bias, running_mean, running_var, deterministic,
+                            math_mode, max_workspace)
+    graph = cached_graph(key) do
+        build_batchnorm_inference_graph(y, x, scale, bias, running_mean, running_var;
+                                         deterministic, math_mode, max_workspace)
+    end
+    return (; graph, scale, bias, running_mean, running_var, stat_type=S)
+end
+
+function batchnorm_gradient_plan(dx::DenseCuArray{T}, dscale, dbias, dy::DenseCuArray{T},
+                                 x::DenseCuArray{T}, scale, saved_mean, saved_invvar;
+                                 deterministic, math_mode, max_workspace) where {T}
+    S = bn_stat_type(T)
+    for (name, a) in (("scale", scale), ("dscale", dscale), ("dbias", dbias),
+                      ("saved_mean", saved_mean), ("saved_invvar", saved_invvar))
+        check_bn_eltype(name, a, S)
+    end
+    scale = bn_param_array(scale, x)
+    dscale = bn_param_array(dscale, x)
+    dbias = bn_param_array(dbias, x)
+    mean = bn_param_array(saved_mean, x)
+    invvar = bn_param_array(saved_invvar, x)
+    key = bn_gradient_key(dx, dscale, dbias, dy, x, scale, mean, invvar, deterministic,
+                           math_mode, max_workspace)
+    graph = cached_graph(key) do
+        build_batchnorm_gradient_graph(dx, dscale, dbias, dy, x, scale, mean, invvar;
+                                        deterministic, math_mode, max_workspace)
+    end
+    return (; graph, scale, dscale, dbias, mean, invvar)
+end
+
 function batchnorm_training!(y::DenseCuArray{T}, x::DenseCuArray{T},
                              scale::DenseCuArray, bias::DenseCuArray;
                              running_mean=nothing, running_var=nothing,
@@ -124,45 +195,26 @@ function batchnorm_training!(y::DenseCuArray{T}, x::DenseCuArray{T},
     alpha == 1 && beta == 0 ||
         throw(ArgumentError("batchnorm_training! requires alpha=1 and beta=0"))
     epsilon = max(epsilon, CUDNN_BN_MIN_EPSILON)
-    check_bn_running_stats(running_mean, running_var)
-    S = bn_stat_type(T)
-    check_bn_eltype("scale", scale, S)
-    check_bn_eltype("bias", bias, S)
-    running_mean === nothing || check_bn_eltype("running_mean", running_mean, S)
-    running_var === nothing || check_bn_eltype("running_var", running_var, S)
-    ps = bn_param_size(x)
-    saved_mean = similar(scale, S, size(scale))
-    saved_invvar = similar(scale, S, size(scale))
-    scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
-    saved_mean_p, saved_invvar_p = reshape(saved_mean, ps), reshape(saved_invvar, ps)
-    rm_p = running_mean === nothing ? nothing : bn_param_array(running_mean, x)
-    rv_p = running_var === nothing ? nothing : bn_param_array(running_var, x)
-    key = bn_training_key(y, x, scale_p, bias_p, saved_mean_p, saved_invvar_p, rm_p,
-                           rv_p, epsilon, momentum, deterministic, math_mode,
-                           max_workspace)
-    g = cached_graph(key) do
-        build_batchnorm_training_graph(y, x, scale_p, bias_p, saved_mean_p,
-                                        saved_invvar_p, rm_p, rv_p; deterministic,
-                                        math_mode, max_workspace)
-    end
+    p = batchnorm_training_plan(y, x, scale, bias, running_mean, running_var, epsilon,
+                                momentum; deterministic, math_mode, max_workspace)
     bindings = IdDict{Tensor,Any}(
-        tensor(g, "X") => x,
-        tensor(g, "Scale") => scale_p,
-        tensor(g, "Bias") => bias_p,
-        tensor(g, "Y") => y,
-        tensor(g, "Mean") => saved_mean_p,
-        tensor(g, "InvVariance") => saved_invvar_p,
-        tensor(g, "Epsilon") => bn_compute_type(T)(epsilon),
+        tensor(p.graph, "X") => x,
+        tensor(p.graph, "Scale") => p.scale,
+        tensor(p.graph, "Bias") => p.bias,
+        tensor(p.graph, "Y") => y,
+        tensor(p.graph, "Mean") => p.mean,
+        tensor(p.graph, "InvVariance") => p.invvar,
+        tensor(p.graph, "Epsilon") => bn_compute_type(T)(epsilon),
     )
-    if rm_p !== nothing
-        bindings[tensor(g, "RunningMeanIn")] = rm_p
-        bindings[tensor(g, "RunningVarIn")] = rv_p
-        bindings[tensor(g, "RunningMeanOut")] = rm_p
-        bindings[tensor(g, "RunningVarOut")] = rv_p
-        bindings[tensor(g, "Momentum")] = bn_compute_type(T)(momentum)
+    if p.running_mean !== nothing
+        bindings[tensor(p.graph, "RunningMeanIn")] = p.running_mean
+        bindings[tensor(p.graph, "RunningVarIn")] = p.running_var
+        bindings[tensor(p.graph, "RunningMeanOut")] = p.running_mean
+        bindings[tensor(p.graph, "RunningVarOut")] = p.running_var
+        bindings[tensor(p.graph, "Momentum")] = bn_compute_type(T)(momentum)
     end
-    execute!(g, bindings)
-    return saved_mean, saved_invvar
+    execute!(p.graph, bindings)
+    return p.saved_mean, p.saved_invvar
 end
 
 function batchnorm_inference!(y::DenseCuArray{T}, x::DenseCuArray{T},
@@ -175,25 +227,13 @@ function batchnorm_inference!(y::DenseCuArray{T}, x::DenseCuArray{T},
     alpha == 1 && beta == 0 ||
         throw(ArgumentError("batchnorm_inference! requires alpha=1 and beta=0"))
     epsilon = max(epsilon, CUDNN_BN_MIN_EPSILON)
-    S = bn_stat_type(T)
-    check_bn_eltype("scale", scale, S)
-    check_bn_eltype("bias", bias, S)
-    check_bn_eltype("running_mean", running_mean, S)
-    check_bn_eltype("running_var", running_var, S)
-    ps = bn_param_size(x)
-    scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
-    mean_p, var_p = bn_param_array(running_mean, x), bn_param_array(running_var, x)
-    key = bn_inference_key(y, x, scale_p, bias_p, mean_p, var_p, deterministic,
-                            math_mode, max_workspace)
-    g = cached_graph(key) do
-        build_batchnorm_inference_graph(y, x, scale_p, bias_p, mean_p, var_p;
-                                         deterministic, math_mode, max_workspace)
-    end
-    invvar = similar(var_p, S, ps)
-    @. invvar = 1 / sqrt(var_p + epsilon)
-    execute!(g, tensor(g, "X")=>x, tensor(g, "Scale")=>scale_p,
-             tensor(g, "Bias")=>bias_p, tensor(g, "Mean")=>mean_p,
-             tensor(g, "InvVariance")=>invvar, tensor(g, "Y")=>y)
+    p = batchnorm_inference_plan(y, x, scale, bias, running_mean, running_var;
+                                 deterministic, math_mode, max_workspace)
+    invvar = similar(p.running_var, p.stat_type, size(p.running_var))
+    @. invvar = 1 / sqrt(p.running_var + epsilon)
+    execute!(p.graph, tensor(p.graph, "X")=>x, tensor(p.graph, "Scale")=>p.scale,
+             tensor(p.graph, "Bias")=>p.bias, tensor(p.graph, "Mean")=>p.running_mean,
+             tensor(p.graph, "InvVariance")=>invvar, tensor(p.graph, "Y")=>y)
     return y
 end
 
@@ -208,26 +248,12 @@ function batchnorm_gradient!(dx::DenseCuArray{T}, dscale::DenseCuArray,
                              max_workspace::Union{Nothing,Integer}=nothing) where {T}
     alpha == 1 && beta == 0 && dalpha == 1 && dbeta == 0 ||
         throw(ArgumentError("batchnorm_gradient! requires alpha=1, beta=0, dalpha=1, and dbeta=0"))
-    S = bn_stat_type(T)
-    check_bn_eltype("scale", scale, S)
-    check_bn_eltype("dscale", dscale, S)
-    check_bn_eltype("dbias", dbias, S)
-    check_bn_eltype("saved_mean", saved_mean, S)
-    check_bn_eltype("saved_invvar", saved_invvar, S)
-    scale_p = bn_param_array(scale, x)
-    dscale_p, dbias_p = bn_param_array(dscale, x), bn_param_array(dbias, x)
-    mean_p, invvar_p = bn_param_array(saved_mean, x), bn_param_array(saved_invvar, x)
-    key = bn_gradient_key(dx, dscale_p, dbias_p, dy, x, scale_p, mean_p, invvar_p,
-                           deterministic, math_mode, max_workspace)
-    g = cached_graph(key) do
-        build_batchnorm_gradient_graph(dx, dscale_p, dbias_p, dy, x, scale_p,
-                                        mean_p, invvar_p; deterministic, math_mode,
-                                        max_workspace)
-    end
-    execute!(g, tensor(g, "dY")=>dy, tensor(g, "X")=>x,
-             tensor(g, "Scale")=>scale_p, tensor(g, "Mean")=>mean_p,
-             tensor(g, "InvVariance")=>invvar_p, tensor(g, "dX")=>dx,
-             tensor(g, "dScale")=>dscale_p, tensor(g, "dBias")=>dbias_p)
+    p = batchnorm_gradient_plan(dx, dscale, dbias, dy, x, scale, saved_mean,
+                                saved_invvar; deterministic, math_mode, max_workspace)
+    execute!(p.graph, tensor(p.graph, "dY")=>dy, tensor(p.graph, "X")=>x,
+             tensor(p.graph, "Scale")=>p.scale, tensor(p.graph, "Mean")=>p.mean,
+             tensor(p.graph, "InvVariance")=>p.invvar, tensor(p.graph, "dX")=>dx,
+             tensor(p.graph, "dScale")=>p.dscale, tensor(p.graph, "dBias")=>p.dbias)
     return dx, dscale, dbias
 end
 
@@ -254,20 +280,9 @@ function batchnorm_training_supported(y::DenseCuArray{T}, x::DenseCuArray{T},
     running_mean === nothing || eltype(running_mean) == S || return false
     running_var === nothing || eltype(running_var) == S || return false
     epsilon = max(epsilon, CUDNN_BN_MIN_EPSILON)
-    ps = bn_param_size(x)
-    scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
-    saved_mean = similar(scale, S, ps)
-    saved_invvar = similar(scale, S, ps)
-    rm_p = running_mean === nothing ? nothing : bn_param_array(running_mean, x)
-    rv_p = running_var === nothing ? nothing : bn_param_array(running_var, x)
-    key = bn_training_key(y, x, scale_p, bias_p, saved_mean, saved_invvar, rm_p, rv_p,
-                           epsilon, momentum, deterministic, math_mode, max_workspace)
     return cached_graph_supported() do
-        cached_graph(key) do
-            build_batchnorm_training_graph(y, x, scale_p, bias_p, saved_mean,
-                                            saved_invvar, rm_p, rv_p; deterministic,
-                                            math_mode, max_workspace)
-        end
+        batchnorm_training_plan(y, x, scale, bias, running_mean, running_var, epsilon,
+                                momentum; deterministic, math_mode, max_workspace)
     end
 end
 
@@ -280,15 +295,9 @@ function batchnorm_inference_supported(y::DenseCuArray{T}, x::DenseCuArray{T},
                                        max_workspace::Union{Nothing,Integer}=nothing) where {T}
     S = bn_stat_type(T)
     all(a -> eltype(a) == S, (scale, bias, running_mean, running_var)) || return false
-    scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
-    mean_p, var_p = bn_param_array(running_mean, x), bn_param_array(running_var, x)
-    key = bn_inference_key(y, x, scale_p, bias_p, mean_p, var_p, deterministic,
-                            math_mode, max_workspace)
     return cached_graph_supported() do
-        cached_graph(key) do
-            build_batchnorm_inference_graph(y, x, scale_p, bias_p, mean_p, var_p;
-                                             deterministic, math_mode, max_workspace)
-        end
+        batchnorm_inference_plan(y, x, scale, bias, running_mean, running_var;
+                                 deterministic, math_mode, max_workspace)
     end
 end
 
@@ -303,17 +312,9 @@ function batchnorm_gradient_supported(dx::DenseCuArray{T}, dscale::DenseCuArray,
     S = bn_stat_type(T)
     all(a -> eltype(a) == S, (scale, dscale, dbias, saved_mean, saved_invvar)) ||
         return false
-    scale_p = bn_param_array(scale, x)
-    dscale_p, dbias_p = bn_param_array(dscale, x), bn_param_array(dbias, x)
-    mean_p, invvar_p = bn_param_array(saved_mean, x), bn_param_array(saved_invvar, x)
-    key = bn_gradient_key(dx, dscale_p, dbias_p, dy, x, scale_p, mean_p, invvar_p,
-                           deterministic, math_mode, max_workspace)
     return cached_graph_supported() do
-        cached_graph(key) do
-            build_batchnorm_gradient_graph(dx, dscale_p, dbias_p, dy, x, scale_p,
-                                            mean_p, invvar_p; deterministic, math_mode,
-                                            max_workspace)
-        end
+        batchnorm_gradient_plan(dx, dscale, dbias, dy, x, scale, saved_mean,
+                                saved_invvar; deterministic, math_mode, max_workspace)
     end
 end
 
