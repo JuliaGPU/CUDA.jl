@@ -95,14 +95,16 @@ preallocated outputs and hide backend descriptors for common calls:
   backward on some architectures.
 - `convolution!`, `convolution_data_gradient!`, and `convolution_filter_gradient!` use graph
   convolution operations for plain convolutions and gradients, with native asymmetric
-  padding. Fused bias, residual, and activation cases try graph fusion and fall back to
-  plain convolution plus broadcast work when cuDNN has no supported fused plan; asymmetric
-  padding without engine support falls back to padding the input manually.
+  padding. When a fused bias, residual, and activation graph is unsupported, the wrapper
+  uses a plain graph convolution followed by CUDA broadcasts. If an engine rejects
+  asymmetric padding, the wrapper materializes the padding and retries a symmetric graph.
+  No path calls the fixed-function convolution API.
 - `maxpool!`, `∇maxpool!`, `meanpool!`, and `∇meanpool!` use graph resample operations
-  when cuDNN can build a plan.
+  and report `UnsupportedGraphError` when cuDNN cannot build a plan.
 - `batchnorm_training!`, `batchnorm_inference!`, and `batchnorm_gradient!` use graph norm
-  operations when cuDNN supports the requested layout and fall back to fixed-function batch
-  normalization for unsupported graph plans or non-default scaling.
+  operations. The corresponding support predicates let downstream packages choose an
+  ecosystem fallback before execution. Non-default output scaling is rejected because the
+  norm graph nodes do not provide the fixed-function alpha/beta semantics.
 
 The wrappers should return early for empty arrays before touching cuDNN. Size-one dimensions
 should use contiguous-consistent strides because cuDNN plan selection is sensitive to tensor
