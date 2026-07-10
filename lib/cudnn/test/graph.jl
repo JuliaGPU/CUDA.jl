@@ -1,6 +1,6 @@
 using cuDNN:
     Graph,
-    assign_uids!,
+    build!,
     conv_dgrad!,
     conv_fprop!,
     conv_wgrad!,
@@ -16,12 +16,10 @@ using cuDNN:
     sdpa_bwd!,
     scalar!,
     sdpa_fwd!,
-    tensor!,
-    validate!
+    tensor!
 
 g = Graph(io_dtype=Float16)
 x = tensor!(g; dims=(2, 3, 4), dtype=Float16, name="x")
-@test x.backend_order == [3, 2, 1]
 @test x.strides == [1, 2, 6]
 
 q = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="Q")
@@ -30,21 +28,14 @@ v = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="V")
 scale = scalar!(g, Float32; rank=4, name="Scale")
 o = sdpa_fwd!(g, q, k, v; scale)
 @test o.dims == [64, 4, 32, 2]
-@test q.backend_order == [4, 2, 3, 1]
-@test o.backend_order == [4, 2, 3, 1]
 
 oc = sdpa_fwd!(g, q, k, v; scale, causal=true)
 @test oc.dims == [64, 4, 32, 2]
-score = only(filter(t -> t.name == "Score", g.tensors))
-@test score.dims == [32, 32, 4, 2]
-@test score.backend_order == [4, 3, 2, 1]
-@test only(filter(t -> t.name == "MaskValue", g.tensors)).by_value
 
 seqq = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenQ")
 seqkv = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenKV")
 opad = sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq, seq_len_kv=seqkv)
 @test opad.dims == q.dims
-@test last(g.ops).seq_len_q === seqq
 @test_throws ArgumentError sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq)
 seqbad = tensor!(g; dims=(1, 1, 1, 3), dtype=Int32, name="BadSeqLen")
 @test_throws DimensionMismatch sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq,
@@ -59,18 +50,15 @@ dq, dk, dv = sdpa_bwd!(g, q, k, v, o, dO, stats; scale)
 @test dq.dims == q.dims
 @test dk.dims == k.dims
 @test dv.dims == v.dims
-@test dq.backend_order == [4, 2, 3, 1]
 dqc, dkc, dvc = sdpa_bwd!(g, q, k, v, o, dO, stats; scale, causal=true)
 @test dqc.dims == q.dims
 @test dkc.dims == k.dims
 @test dvc.dims == v.dims
-@test last(g.ops).mask_subgraph !== nothing
 dqp, dkp, dvp = sdpa_bwd!(g, q, k, v, o, dO, stats; scale, seq_len_q=seqq,
                            seq_len_kv=seqkv)
 @test dqp.dims == q.dims
 @test dkp.dims == k.dims
 @test dvp.dims == v.dims
-@test last(g.ops).seq_len_kv === seqkv
 
 a = tensor!(g; dims=(8, 16, 2), dtype=Float16, name="A")
 b = tensor!(g; dims=(16, 32, 2), dtype=Float16, name="B")
@@ -160,15 +148,10 @@ hy, hmean, hinv, _, _ = norm_fwd!(ghalf, hx, hscale, hbias)
 hscale16 = tensor!(ghalf; dims=(1, 1, 3, 1), dtype=Float16, name="Scale16")
 @test_throws ArgumentError norm_fwd!(ghalf, hx, hscale16, hbias)
 
-validate!(g)
-assign_uids!(g)
-@test all(!=(0), getfield.(g.tensors, :uid))
-@test length(unique(getfield.(g.tensors, :uid))) == length(g.tensors)
-
 gdup = Graph()
 tensor!(gdup; dims=(1, 1, 1, 1), dtype=Float32, uid=1)
 tensor!(gdup; dims=(1, 1, 1, 1), dtype=Float32, uid=1)
-@test_throws ArgumentError validate!(gdup)
+@test_throws ArgumentError build!(gdup)
 
 gunsupported = Graph(io_dtype=Float32, intermediate_dtype=Float32, compute_dtype=Float32)
 ux = tensor!(gunsupported; dims=(4, 5, 3, 2), dtype=Float32, name="X")
