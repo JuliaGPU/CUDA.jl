@@ -44,7 +44,7 @@ using cuDNN:
 
 d = cudnnBackendDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR)
 @test d.ptr != C_NULL
-@test d.type == CUDNN_BACKEND_TENSOR_DESCRIPTOR
+@test d.descriptor_type == CUDNN_BACKEND_TENSOR_DESCRIPTOR
 @test Base.unsafe_convert(cudnnBackendDescriptor_t, d) == d.ptr
 unsafe_destroy!(d)
 @test d.ptr == C_NULL

@@ -6,14 +6,14 @@ A managed cuDNN backend descriptor. Attributes use symbolic indexing, for exampl
 """
 mutable struct BackendDescriptor
     ptr::cudnnBackendDescriptor_t
-    type::cudnnBackendDescriptorType_t
+    descriptor_type::cudnnBackendDescriptorType_t
 end
 const cudnnBackendDescriptor = BackendDescriptor
 
-function BackendDescriptor(descriptorType::cudnnBackendDescriptorType_t)
+function BackendDescriptor(descriptor_type::cudnnBackendDescriptorType_t)
     ref = Ref{cudnnBackendDescriptor_t}(C_NULL)
-    cudnnBackendCreateDescriptor(descriptorType, ref)
-    d = BackendDescriptor(ref[], descriptorType)
+    cudnnBackendCreateDescriptor(descriptor_type, ref)
+    d = BackendDescriptor(ref[], descriptor_type)
     finalizer(unsafe_destroy!, d)
     return d
 end
@@ -219,11 +219,11 @@ const descriptor_types, attribute_names = let
 end
 
 function attribute(d::cudnnBackendDescriptor, name::Symbol)
-    attr = get(attribute_names, (d.type, name), nothing)
+    attr = get(attribute_names, (d.descriptor_type, name), nothing)
     attr === nothing &&
-        throw(ArgumentError("$(d.type) has no attribute $name; valid attributes are " *
+        throw(ArgumentError("$(d.descriptor_type) has no attribute $name; valid attributes are " *
                             join(sort([string(f) for (t, f) in keys(attribute_names)
-                                       if t == d.type]), ", ")))
+                                       if t == d.descriptor_type]), ", ")))
     return attr
 end
 
