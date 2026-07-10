@@ -22,7 +22,7 @@ end
 
 # destroying idle handles is the `purge!` step of reclaim; individual caches
 # must be registered in the owning library's __init__ (see reclaim.jl).
-purge!(cache::HandleCache) = empty!(cache)
+purge!(cache::HandleCache) = Base.invokelatest(empty!, cache)
 
 # remove a handle from the cache, or create a new one
 function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
@@ -78,7 +78,9 @@ function Base.push!(cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
     end
 
     if !saved
-        cache.dtor(key, handle)
+        # Handle destruction can run from CUDACore's generic reclaim callback,
+        # whose compiled world can predate the owning library's destructor.
+        Base.invokelatest(cache.dtor, key, handle)
     end
 end
 

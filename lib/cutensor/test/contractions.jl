@@ -194,6 +194,8 @@ eltypes_compact = [
      (Float64, Float64, Float64, Float64),
      (ComplexF64, ComplexF64, ComplexF64, Float64)
 ]
+    # block-sparse contractions are not supported on older GPUs
+    if capability(device()) >= v"8.0"
     @testset "Blocksparse Contraction" begin
         ## There are many unsupported types because this is a new functionality
         ## So I will test with Float32 and ComplexF32 only
@@ -244,6 +246,7 @@ eltypes_compact = [
             ## C[3] = A[1,3,1] * B[1,1]
             @test C[2] ≈ reshape(permutedims(A[3], (2,1,3)), (25, 10 * 30)) * reshape(B[1], (10 * 30))
         end
+    end
     end
 
 end
