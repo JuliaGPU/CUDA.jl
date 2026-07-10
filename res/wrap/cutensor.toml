@@ -63,4 +63,4 @@ needs_context = false
 5 = "Ptr{CuPtr{Cvoid}}"
 7 = "Ptr{CuPtr{Cvoid}}"
 8 = "Ptr{CuPtr{Cvoid}}"
-9 = "Ptr{CuPtr{Cvoid}}"
+9 = "CuPtr{Cvoid}"

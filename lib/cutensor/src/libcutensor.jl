@@ -550,7 +550,7 @@ end
                                                           beta::Ptr{Cvoid},
                                                           C::Ptr{CuPtr{Cvoid}},
                                                           D::Ptr{CuPtr{Cvoid}},
-                                                          workspace::Ptr{CuPtr{Cvoid}},
+                                                          workspace::CuPtr{Cvoid},
                                                           workspaceSize::UInt64,
                                                           stream::cudaStream_t)::cutensorStatus_t
 end
