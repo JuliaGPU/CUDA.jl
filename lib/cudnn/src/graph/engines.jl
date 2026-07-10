@@ -69,18 +69,25 @@ function build!(g::Graph; kwargs...)
     g.plan === nothing || unsafe_destroy!(g)
     validate!(g)
     assign_uids!(g)
-    opgraph, intermediates = lower_graph(g)
     try
-        plan, workspace_size = select_plan(g, opgraph; kwargs...)
-        g.plan = plan
-        g.workspace_size = workspace_size
-        g.variant_tensors = [t for t in g.tensors if !t.virtual]
-        return g
-    finally
-        for d in Iterators.reverse(intermediates)
-            unsafe_destroy!(d)
+        opgraph, intermediates = lower_graph(g)
+        try
+            plan, workspace_size = select_plan(g, opgraph; kwargs...)
+            g.plan = plan
+            g.workspace_size = workspace_size
+            g.variant_tensors = [t for t in g.tensors if !t.virtual]
+        finally
+            for d in Iterators.reverse(intermediates)
+                unsafe_destroy!(d)
+            end
         end
+    catch e
+        # lowering and heuristics can report unsupported graphs directly
+        (e isa CUDNNError && is_unsupported(e)) || rethrow()
+        throw(UnsupportedGraphError("cuDNN: cannot build graph " * graph_signature(g) *
+                                    " ($(name(e)))"))
     end
+    return g
 end
 
 function is_supported(g::Graph; kwargs...)
