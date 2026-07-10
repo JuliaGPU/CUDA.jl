@@ -47,6 +47,7 @@ include("ops/pooling.jl")
 include("ops/normalization.jl")
 
 # legacy fixed-function wrappers kept for downstream compatibility
+include("legacy/descriptors.jl")
 include("legacy/inplace.jl")
 include("legacy/optensor.jl")
 include("legacy/reduce.jl")
