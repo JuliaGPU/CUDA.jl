@@ -143,6 +143,11 @@ ndx, ndscale, ndbias = norm_bwd!(g, ny, nx, nscale, nmean, ninv)
 @test ndbias.dims == nbias.dims
 badscale = tensor!(g; dims=(1, 1, 4, 1), dtype=Float32, name="BadScale")
 @test_throws DimensionMismatch norm_fwd!(g, nx, badscale, nbias; epsilon=neps)
+@test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; phase=:inference,
+                                     mean=nmean, inv_variance=ninv, epsilon=neps)
+@test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; phase=:inference,
+                                     mean=nmean, inv_variance=ninv,
+                                     input_running_mean=nmean)
 
 ghalf = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
 hx = tensor!(ghalf; dims=(7, 6, 3, 2), dtype=Float16, name="X")

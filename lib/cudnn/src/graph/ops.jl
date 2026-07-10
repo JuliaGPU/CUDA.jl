@@ -689,8 +689,12 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
         check_norm_param("norm inv_variance", inv_variance, pdims)
         check_norm_dtype("norm mean", mean, stat_dtype)
         check_norm_dtype("norm inv_variance", inv_variance, stat_dtype)
-        epsilon = nothing
-        momentum = nothing
+        # inference folds epsilon into inv_variance and does not update running stats
+        epsilon === nothing || throw(ArgumentError("norm inference does not take epsilon"))
+        momentum === nothing || throw(ArgumentError("norm inference does not take momentum"))
+        input_running_mean === nothing && input_running_var === nothing &&
+            output_running_mean === nothing && output_running_var === nothing ||
+            throw(ArgumentError("norm inference does not take running statistics"))
     end
 
     push!(g.ops, NormFwdOp(x, mean, inv_variance, scale, bias, epsilon, momentum,
