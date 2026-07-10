@@ -50,11 +50,6 @@ unsafe_destroy!(d)
 @test unsafe_destroy!(d) === nothing
 @test Base.finalize(d) === nothing
 
-@test Base.ispublic(cuDNN, :BackendDescriptor)
-@test Base.ispublic(cuDNN, :backend_tensor)
-@test Base.ispublic(cuDNN, :engine_configs)
-@test !isdefined(cuDNN, :cudnnBackendDescriptor)
-@test !Base.ispublic(cuDNN, :cudnnBackendCreateDescriptor)
 @test BackendDescriptor(:tensor) isa BackendDescriptor
 
 # the attribute table derived from the enums covers every attribute

@@ -630,13 +630,5 @@ function variant_pack(; uids::AbstractVector{<:Integer}, pointers::AbstractVecto
     end
 end
 
-@public BackendDescriptor, make_descriptor, backend_tensor, operation_graph,
-        pointwise_descriptor, matmul_descriptor, reduction_descriptor,
-        backend_convolution_descriptor, backend_resample_descriptor,
-        pointwise_operation, matmul_operation, reduction_operation,
-        convolution_forward_operation, convolution_data_backward_operation,
-        convolution_filter_backward_operation, resample_forward_operation,
-        resample_backward_operation, norm_forward_operation, norm_backward_operation,
-        diagonal_band_mask_operation, engine_configs, try_execution_plan,
-        plan_workspace_size, engine_descriptor, engine_numerical_notes,
-        engine_behavior_notes, variant_pack
+# deliberately not @public: the graph frontend and ops layers are the supported API,
+# and the raw backend C API remains available through the generated bindings
