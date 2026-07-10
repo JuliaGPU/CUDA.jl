@@ -231,12 +231,103 @@ function batchnorm_gradient!(dx::DenseCuArray{T}, dscale::DenseCuArray,
     return dx, dscale, dbias
 end
 
+function cached_graph_supported(f)
+    try
+        f()
+        return true
+    catch e
+        graph_unsupported(e) || rethrow()
+        return false
+    end
+end
+
+function batchnorm_training_supported(y::DenseCuArray{T}, x::DenseCuArray{T},
+                                      scale::DenseCuArray, bias::DenseCuArray;
+                                      running_mean=nothing, running_var=nothing,
+                                      momentum::Real=0.1, epsilon::Real=1e-5,
+                                      deterministic::Bool=false,
+                                      math_mode=CUDACore.math_mode(),
+                                      max_workspace::Union{Nothing,Integer}=nothing) where {T}
+    S = bn_stat_type(T)
+    eltype(scale) == S && eltype(bias) == S || return false
+    check_bn_running_stats(running_mean, running_var)
+    running_mean === nothing || eltype(running_mean) == S || return false
+    running_var === nothing || eltype(running_var) == S || return false
+    epsilon = max(epsilon, CUDNN_BN_MIN_EPSILON)
+    ps = bn_param_size(x)
+    scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
+    saved_mean = similar(scale, S, ps)
+    saved_invvar = similar(scale, S, ps)
+    rm_p = running_mean === nothing ? nothing : bn_param_array(running_mean, x)
+    rv_p = running_var === nothing ? nothing : bn_param_array(running_var, x)
+    key = bn_training_key(y, x, scale_p, bias_p, saved_mean, saved_invvar, rm_p, rv_p,
+                           epsilon, momentum, deterministic, math_mode, max_workspace)
+    return cached_graph_supported() do
+        cached_graph(key) do
+            build_batchnorm_training_graph(y, x, scale_p, bias_p, saved_mean,
+                                            saved_invvar, rm_p, rv_p; deterministic,
+                                            math_mode, max_workspace)
+        end
+    end
+end
+
+function batchnorm_inference_supported(y::DenseCuArray{T}, x::DenseCuArray{T},
+                                       scale::DenseCuArray, bias::DenseCuArray,
+                                       running_mean::DenseCuArray,
+                                       running_var::DenseCuArray;
+                                       deterministic::Bool=false,
+                                       math_mode=CUDACore.math_mode(),
+                                       max_workspace::Union{Nothing,Integer}=nothing) where {T}
+    S = bn_stat_type(T)
+    all(a -> eltype(a) == S, (scale, bias, running_mean, running_var)) || return false
+    scale_p, bias_p = bn_param_array(scale, x), bn_param_array(bias, x)
+    mean_p, var_p = bn_param_array(running_mean, x), bn_param_array(running_var, x)
+    key = bn_inference_key(y, x, scale_p, bias_p, mean_p, var_p, deterministic,
+                            math_mode, max_workspace)
+    return cached_graph_supported() do
+        cached_graph(key) do
+            build_batchnorm_inference_graph(y, x, scale_p, bias_p, mean_p, var_p;
+                                             deterministic, math_mode, max_workspace)
+        end
+    end
+end
+
+function batchnorm_gradient_supported(dx::DenseCuArray{T}, dscale::DenseCuArray,
+                                      dbias::DenseCuArray, dy::DenseCuArray{T},
+                                      x::DenseCuArray{T}, scale::DenseCuArray,
+                                      saved_mean::DenseCuArray,
+                                      saved_invvar::DenseCuArray;
+                                      deterministic::Bool=false,
+                                      math_mode=CUDACore.math_mode(),
+                                      max_workspace::Union{Nothing,Integer}=nothing) where {T}
+    S = bn_stat_type(T)
+    all(a -> eltype(a) == S, (scale, dscale, dbias, saved_mean, saved_invvar)) ||
+        return false
+    scale_p = bn_param_array(scale, x)
+    dscale_p, dbias_p = bn_param_array(dscale, x), bn_param_array(dbias, x)
+    mean_p, invvar_p = bn_param_array(saved_mean, x), bn_param_array(saved_invvar, x)
+    key = bn_gradient_key(dx, dscale_p, dbias_p, dy, x, scale_p, mean_p, invvar_p,
+                           deterministic, math_mode, max_workspace)
+    return cached_graph_supported() do
+        cached_graph(key) do
+            build_batchnorm_gradient_graph(dx, dscale_p, dbias_p, dy, x, scale_p,
+                                            mean_p, invvar_p; deterministic, math_mode,
+                                            max_workspace)
+        end
+    end
+end
+
 @doc raw"""
     batchnorm_training!(y, x, scale, bias; running_mean=nothing, running_var=nothing,
                         momentum=0.1, epsilon=1e-5) -> (saved_mean, saved_invvar)
     batchnorm_inference!(y, x, scale, bias, running_mean, running_var; epsilon=1e-5)
     batchnorm_gradient!(dx, dscale, dbias, dy, x, scale, saved_mean, saved_invvar;
                         epsilon=1e-5)
+    batchnorm_training_supported(y, x, scale, bias; kwargs...) -> Bool
+    batchnorm_inference_supported(y, x, scale, bias, running_mean, running_var;
+                                  kwargs...) -> Bool
+    batchnorm_gradient_supported(dx, dscale, dbias, dy, x, scale, saved_mean,
+                                 saved_invvar; kwargs...) -> Bool
 
 Spatial batch normalization, normalizing over all dimensions of `x` except the channel
 dimension (the second-to-last). Parameters may be vectors of length `C` or shaped
@@ -250,6 +341,10 @@ Training returns the saved batch statistics that the gradient consumes, with
 place when given. Engine selection can be constrained with the `deterministic`,
 `math_mode`, and `max_workspace` keywords.
 """
-batchnorm_training!, batchnorm_inference!, batchnorm_gradient!
+batchnorm_training!, batchnorm_inference!, batchnorm_gradient!,
+batchnorm_training_supported, batchnorm_inference_supported,
+batchnorm_gradient_supported
 
-@public batchnorm_training!, batchnorm_inference!, batchnorm_gradient!
+@public batchnorm_training!, batchnorm_inference!, batchnorm_gradient!,
+        batchnorm_training_supported, batchnorm_inference_supported,
+        batchnorm_gradient_supported

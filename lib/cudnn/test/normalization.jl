@@ -1,6 +1,7 @@
 using CUDA
-using cuDNN: batchnorm_gradient!, batchnorm_inference!, batchnorm_training!,
-             graph_unsupported
+using cuDNN: batchnorm_gradient!, batchnorm_gradient_supported,
+             batchnorm_inference!, batchnorm_inference_supported,
+             batchnorm_training!, batchnorm_training_supported, graph_unsupported
 
 CUDA.allowscalar(false)
 
@@ -81,6 +82,11 @@ let W=4, H=3, C=2, N=3
     @test_throws ArgumentError batchnorm_gradient!(similar(x), similar(scale),
                                                     similar(bias), x, x, scale,
                                                     running_mean, running_var; dalpha=2)
+    @test batchnorm_training_supported(y, x, scale, bias) isa Bool
+    @test batchnorm_inference_supported(y, x, scale, bias, running_mean,
+                                        running_var) isa Bool
+    @test batchnorm_gradient_supported(similar(x), similar(scale), similar(bias), x,
+                                       x, scale, running_mean, running_var) isa Bool
     try
         mean, invvar = batchnorm_training!(y, x, scale, bias; epsilon)
 
