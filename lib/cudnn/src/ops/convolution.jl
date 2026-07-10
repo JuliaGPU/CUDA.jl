@@ -230,10 +230,11 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
     ctype = something(compute_type, conv_compute_type(T))
     cmode = graph_conv_mode(mode)
     pact = conv_pointwise_activation(activation)
-    zactive = z !== nothing && beta != 0
+    # `beta` scales `z`, which defaults to the current contents of `y`
+    zsrc = beta == 0 ? nothing : (z === nothing ? y : z)
     check_convolution_groups(size(x, ndims(x)-1), size(w, ndims(w)-1),
                              size(w, ndims(w)), groups)
-    if bias === nothing && !zactive && pact === nothing
+    if bias === nothing && pact === nothing && (zsrc === nothing || zsrc === y)
         key = convolution_key(y, x, w, pre, post, str, dil, cmode, ctype, alpha, beta,
                                deterministic, math_mode, max_workspace)
         try
@@ -253,7 +254,7 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
                             groups, mode, alpha, beta, compute_type=ctype,
                             deterministic, math_mode, max_workspace)
     else
-        zarg = zactive ? check_conv_broadcast("z", z, y) : nothing
+        zarg = zsrc === nothing ? nothing : check_conv_broadcast("z", zsrc, y)
         # graph inputs must not alias the output
         zarg === y && (zarg = copy(y))
         biasarg = bias === nothing ? nothing : check_conv_broadcast("bias", bias, y)
@@ -383,9 +384,9 @@ Convolve `x` with the filter `w`, or compute the gradients with respect to the
 convolution input or filter. Arrays are in Julia memory order: spatial dimensions first,
 then channels, then batch, with `w` shaped `(spatial..., C_in ÷ groups, C_out)`.
 
-Computes `alpha * conv(x, w) + beta * y`, or, with `z` given, applies `activation`
-(`:relu`, `:tanh`, `:sigmoid`, or `:elu`) to `alpha * conv(x, w) + beta * z + bias`
-as a fused graph. `z` may alias `y`.
+Computes `alpha * conv(x, w) + beta * z .+ bias` and applies `activation` (`:relu`,
+`:tanh`, `:sigmoid`, or `:elu`) as a fused graph. `z` defaults to (and may alias) `y`,
+so plain calls compute `alpha * conv(x, w) + beta * y`.
 
 `padding` accepts a scalar, one value per spatial dimension, or per-side
 `(pre1, post1, pre2, post2, ...)` pairs; asymmetric padding is supported natively.

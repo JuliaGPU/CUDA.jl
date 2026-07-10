@@ -175,6 +175,20 @@ let W=8, H=7, C=3, N=2, K=5
     convolution!(y, x, w; padding=(1, 2, 0, 1), stride, dilation, alpha, beta,
                  z, bias, activation=:relu)
     @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+
+    # without z, beta scales the previous contents of y
+    y0 = CuArray(reshape(Float16.(cos.(1:5*6*K*N)), 5, 6, K, N) ./ 64)
+    y = copy(y0)
+    ref = alpha .* conv2d_ref(x, w; pre_padding, post_padding, stride, dilation) .+
+          beta .* Float32.(Array(y0)) .+ Float32.(Array(bias))
+    convolution!(y, x, w; padding=(1, 2, 0, 1), stride, dilation, alpha, beta, bias)
+    @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+
+    # z may alias y
+    y = copy(y0)
+    convolution!(y, x, w; padding=(1, 2, 0, 1), stride, dilation, alpha, beta,
+                 z=y, bias)
+    @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
 end
 
 let W=4, H=4, C=1, N=1, K=1
