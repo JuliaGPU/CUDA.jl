@@ -1,7 +1,8 @@
 using BFloat16s: BFloat16
 import CUDA
 import cuDNN
-using cuDNN: attention, attention!, attention_backward, attention_backward!
+using cuDNN: attention, attention!, attention_backward, attention_backward!, build!, execute!,
+             Graph, scalar!, sdpa_fwd!, tensor!
 using cuRAND
 
 function seq_lens(seq_len, default, b)
@@ -256,6 +257,23 @@ if capability(device()) >= v"8.0"
         @test !cuDNN.attention_supported(similar(q60), q60, q60, q60)
         qf32 = cuRAND.randn(Float32, 64, 4, 32, 2)
         @test !cuDNN.attention_supported(similar(qf32), qf32, qf32, qf32)
+    end
+
+    let d=64, h=4, s=32, b=2, scale=1f0/8
+        q = cuRAND.randn(Float16, d, h, s, b) ./ 4
+        k = cuRAND.randn(Float16, d, h, s, b) ./ 4
+        v = cuRAND.randn(Float16, d, h, s, b) ./ 4
+        out = similar(q)
+        g = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+        tq = tensor!(g, q; name="Q")
+        tk = tensor!(g, k; name="K")
+        tv = tensor!(g, v; name="V")
+        to = tensor!(g, out; name="O", output=true)
+        ts = scalar!(g, Float32; rank=4, name="Scale")
+        sdpa_fwd!(g, tq, tk, tv; o=to, scale=ts)
+        build!(g)
+        execute!(g, tq=>q, tk=>k, tv=>v, to=>out, ts=>scale)
+        @test Array(out) ≈ sdpa_ref(q, k, v; scale) rtol=2e-2
     end
 else
     @warn "Skipping SDPA tests: fused attention requires compute capability >= 8.0"

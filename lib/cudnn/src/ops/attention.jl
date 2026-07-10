@@ -73,17 +73,17 @@ end
 function build_attention_graph(out, q, k, v, stats, seq_len_q, seq_len_kv, causal;
                                 deterministic, math_mode, max_workspace)
     g = Graph(io_dtype=eltype(q), intermediate_dtype=Float32, compute_dtype=Float32)
-    tq = tensor!(g, q; name="Q", backend_order=SDPA_BACKEND_ORDER)
-    tk = tensor!(g, k; name="K", backend_order=SDPA_BACKEND_ORDER)
-    tv = tensor!(g, v; name="V", backend_order=SDPA_BACKEND_ORDER)
-    to = tensor!(g, out; name="O", output=true, backend_order=SDPA_BACKEND_ORDER)
+    tq = tensor!(g, q; name="Q")
+    tk = tensor!(g, k; name="K")
+    tv = tensor!(g, v; name="V")
+    to = tensor!(g, out; name="O", output=true)
     ts = scalar!(g, Float32; rank=4, name="Scale")
     tstats = stats === nothing ? nothing :
-             tensor!(g, stats; name="Stats", output=true, backend_order=SDPA_BACKEND_ORDER)
+             tensor!(g, stats; name="Stats", output=true)
     tseqq = seq_len_q === nothing ? nothing :
-            tensor!(g, seq_len_q; name="SeqLenQ", backend_order=SDPA_BACKEND_ORDER)
+            tensor!(g, seq_len_q; name="SeqLenQ")
     tseqkv = seq_len_kv === nothing ? nothing :
-             tensor!(g, seq_len_kv; name="SeqLenKV", backend_order=SDPA_BACKEND_ORDER)
+             tensor!(g, seq_len_kv; name="SeqLenKV")
     sdpa_fwd!(g, tq, tk, tv; o=to, scale=ts, stats=tstats, seq_len_q=tseqq,
               seq_len_kv=tseqkv, causal)
     build!(g; deterministic, math_mode, max_workspace)
@@ -93,20 +93,20 @@ function build_attention_backward_graph(dq, dk, dv, dO, q, k, v, o, stats, seq_l
                                          seq_len_kv, causal; deterministic, math_mode,
                                          max_workspace)
     g = Graph(io_dtype=eltype(q), intermediate_dtype=Float32, compute_dtype=Float32)
-    tq = tensor!(g, q; name="Q", backend_order=SDPA_BACKEND_ORDER)
-    tk = tensor!(g, k; name="K", backend_order=SDPA_BACKEND_ORDER)
-    tv = tensor!(g, v; name="V", backend_order=SDPA_BACKEND_ORDER)
-    to = tensor!(g, o; name="O", backend_order=SDPA_BACKEND_ORDER)
-    tdO = tensor!(g, dO; name="dO", backend_order=SDPA_BACKEND_ORDER)
-    tstats = tensor!(g, stats; name="Stats", backend_order=SDPA_BACKEND_ORDER)
-    tdq = tensor!(g, dq; name="dQ", output=true, backend_order=SDPA_BACKEND_ORDER)
-    tdk = tensor!(g, dk; name="dK", output=true, backend_order=SDPA_BACKEND_ORDER)
-    tdv = tensor!(g, dv; name="dV", output=true, backend_order=SDPA_BACKEND_ORDER)
+    tq = tensor!(g, q; name="Q")
+    tk = tensor!(g, k; name="K")
+    tv = tensor!(g, v; name="V")
+    to = tensor!(g, o; name="O")
+    tdO = tensor!(g, dO; name="dO")
+    tstats = tensor!(g, stats; name="Stats")
+    tdq = tensor!(g, dq; name="dQ", output=true)
+    tdk = tensor!(g, dk; name="dK", output=true)
+    tdv = tensor!(g, dv; name="dV", output=true)
     ts = scalar!(g, Float32; rank=4, name="Scale")
     tseqq = seq_len_q === nothing ? nothing :
-            tensor!(g, seq_len_q; name="SeqLenQ", backend_order=SDPA_BACKEND_ORDER)
+            tensor!(g, seq_len_q; name="SeqLenQ")
     tseqkv = seq_len_kv === nothing ? nothing :
-             tensor!(g, seq_len_kv; name="SeqLenKV", backend_order=SDPA_BACKEND_ORDER)
+             tensor!(g, seq_len_kv; name="SeqLenKV")
     sdpa_bwd!(g, tq, tk, tv, to, tdO, tstats; dQ=tdq, dK=tdk, dV=tdv, scale=ts,
               seq_len_q=tseqq, seq_len_kv=tseqkv, causal)
     build!(g; deterministic, math_mode, max_workspace)

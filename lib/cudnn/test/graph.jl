@@ -1,6 +1,5 @@
 using cuDNN:
     Graph,
-    SDPA_BACKEND_ORDER,
     assign_uids!,
     conv_dgrad!,
     conv_fprop!,
@@ -25,16 +24,14 @@ x = tensor!(g; dims=(2, 3, 4), dtype=Float16, name="x")
 @test x.backend_order == [3, 2, 1]
 @test x.strides == [1, 2, 6]
 
-q = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="Q",
-            backend_order=SDPA_BACKEND_ORDER)
-k = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="K",
-            backend_order=SDPA_BACKEND_ORDER)
-v = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="V",
-            backend_order=SDPA_BACKEND_ORDER)
+q = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="Q")
+k = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="K")
+v = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="V")
 scale = scalar!(g, Float32; rank=4, name="Scale")
 o = sdpa_fwd!(g, q, k, v; scale)
 @test o.dims == [64, 4, 32, 2]
-@test o.backend_order == collect(SDPA_BACKEND_ORDER)
+@test q.backend_order == [4, 2, 3, 1]
+@test o.backend_order == [4, 2, 3, 1]
 
 oc = sdpa_fwd!(g, q, k, v; scale, causal=true)
 @test oc.dims == [64, 4, 32, 2]
@@ -43,32 +40,26 @@ score = only(filter(t -> t.name == "Score", g.tensors))
 @test score.backend_order == [4, 3, 2, 1]
 @test only(filter(t -> t.name == "MaskValue", g.tensors)).by_value
 
-seqq = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenQ",
-               backend_order=SDPA_BACKEND_ORDER)
-seqkv = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenKV",
-                backend_order=SDPA_BACKEND_ORDER)
+seqq = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenQ")
+seqkv = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenKV")
 opad = sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq, seq_len_kv=seqkv)
 @test opad.dims == q.dims
 @test last(g.ops).seq_len_q === seqq
 @test_throws ArgumentError sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq)
-seqbad = tensor!(g; dims=(1, 1, 1, 3), dtype=Int32, name="BadSeqLen",
-                 backend_order=SDPA_BACKEND_ORDER)
+seqbad = tensor!(g; dims=(1, 1, 1, 3), dtype=Int32, name="BadSeqLen")
 @test_throws DimensionMismatch sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq,
                                          seq_len_kv=seqbad)
-seqfloat = tensor!(g; dims=(1, 1, 1, 2), dtype=Float32, name="FloatSeqLen",
-                   backend_order=SDPA_BACKEND_ORDER)
+seqfloat = tensor!(g; dims=(1, 1, 1, 2), dtype=Float32, name="FloatSeqLen")
 @test_throws ArgumentError sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqfloat,
                                      seq_len_kv=seqkv)
 
-dO = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="dO",
-             backend_order=SDPA_BACKEND_ORDER)
-stats = tensor!(g; dims=(1, 4, 32, 2), dtype=Float32, name="Stats",
-                backend_order=SDPA_BACKEND_ORDER)
+dO = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="dO")
+stats = tensor!(g; dims=(1, 4, 32, 2), dtype=Float32, name="Stats")
 dq, dk, dv = sdpa_bwd!(g, q, k, v, o, dO, stats; scale)
 @test dq.dims == q.dims
 @test dk.dims == k.dims
 @test dv.dims == v.dims
-@test dq.backend_order == collect(SDPA_BACKEND_ORDER)
+@test dq.backend_order == [4, 2, 3, 1]
 dqc, dkc, dvc = sdpa_bwd!(g, q, k, v, o, dO, stats; scale, causal=true)
 @test dqc.dims == q.dims
 @test dkc.dims == k.dims

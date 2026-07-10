@@ -173,6 +173,16 @@ end
 
 const SDPA_BACKEND_ORDER = (4, 2, 3, 1)
 
+function sdpa_tensor!(t::Tensor)
+    length(t.dims) == 4 || throw(ArgumentError("SDPA tensors must be rank 4"))
+    default_order = [4, 3, 2, 1]
+    order = collect(SDPA_BACKEND_ORDER)
+    t.backend_order == default_order || t.backend_order == order ||
+        throw(ArgumentError("tensor $(t.name) has an incompatible dimension order for SDPA"))
+    t.backend_order = order
+    return t
+end
+
 function check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
     (seq_len_q === nothing) == (seq_len_kv === nothing) ||
         throw(ArgumentError("seq_len_q and seq_len_kv must be passed together"))
@@ -774,12 +784,15 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
 
     o === nothing && (o = tensor!(g; dims=(d, hq, sq, b), dtype=q.dtype, virtual=true,
-                                  name="O", backend_order=SDPA_BACKEND_ORDER))
+                                  name="O"))
     scale === nothing && (scale = scalar!(g, Float32; rank=4, name="Scale"))
     stats === true && (stats = tensor!(g; dims=(1, hq, sq, b), dtype=Float32,
-                                       name="Stats", output=true,
-                                       backend_order=SDPA_BACKEND_ORDER))
+                                       name="Stats", output=true))
     stats === false && (stats = nothing)
+
+    foreach(sdpa_tensor!, (q, k, v, o, scale))
+    stats === nothing || sdpa_tensor!(stats)
+    seq_len_q === nothing || foreach(sdpa_tensor!, (seq_len_q, seq_len_kv))
 
     mask_subgraph = causal ? sdpa_causal_subgraph!(g, skv, sq, hq, b) : nothing
 
@@ -821,15 +834,19 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
 
     dQ === nothing && (dQ = tensor!(g; dims=q.dims, dtype=q.dtype, virtual=true,
-                                    name="dQ", backend_order=SDPA_BACKEND_ORDER))
+                                    name="dQ"))
     dK === nothing && (dK = tensor!(g; dims=k.dims, dtype=k.dtype, virtual=true,
-                                    name="dK", backend_order=SDPA_BACKEND_ORDER))
+                                    name="dK"))
     dV === nothing && (dV = tensor!(g; dims=v.dims, dtype=v.dtype, virtual=true,
-                                    name="dV", backend_order=SDPA_BACKEND_ORDER))
+                                    name="dV"))
     dQ.dims == q.dims || throw(DimensionMismatch("dQ dimensions must match q"))
     dK.dims == k.dims || throw(DimensionMismatch("dK dimensions must match k"))
     dV.dims == v.dims || throw(DimensionMismatch("dV dimensions must match v"))
     scale === nothing && (scale = scalar!(g, Float32; rank=4, name="Scale"))
+
+    foreach(sdpa_tensor!, (q, k, v, o, dO, stats, scale, dQ, dK, dV))
+    seq_len_q === nothing || foreach(sdpa_tensor!, (seq_len_q, seq_len_kv))
+
     mask_subgraph = causal ? sdpa_causal_subgraph!(g, skv, sq, hq, b) : nothing
 
     push!(g.ops, SDPABwdOp(q, k, v, o, dO, stats, scale, dQ, dK, dV,
