@@ -397,6 +397,16 @@ function conv_output_dims(x_spatial, w_spatial, pre, post, stride, dilation)
      for i in eachindex(x_spatial)]
 end
 
+function convolution_group_count(input_channels, filter_input_channels, output_channels)
+    filter_input_channels > 0 || throw(ArgumentError("filter channels must be positive"))
+    input_channels % filter_input_channels == 0 ||
+        throw(DimensionMismatch("input channels must be a multiple of filter channels"))
+    groups = input_channels ÷ filter_input_channels
+    output_channels % groups == 0 ||
+        throw(DimensionMismatch("output channels must be divisible by groups"))
+    return groups
+end
+
 function conv_fprop!(g::Graph, x::Tensor, w::Tensor;
                      y::Union{Nothing,Tensor}=nothing,
                      pre_padding=0, post_padding=nothing,
@@ -416,8 +426,7 @@ function conv_fprop!(g::Graph, x::Tensor, w::Tensor;
 
     cin = x.dims[end-1]
     cfilter = w.dims[end-1]
-    cin % cfilter == 0 ||
-        throw(DimensionMismatch("input channels must be a multiple of filter channels"))
+    convolution_group_count(cin, cfilter, w.dims[end])
     out_spatial = conv_output_dims(x.dims[1:rank], w.dims[1:rank], pre, post, str, dil)
     all(>(0), out_spatial) ||
         throw(DimensionMismatch("convolution output spatial dimensions must be positive"))
@@ -566,8 +575,7 @@ function conv_dgrad!(g::Graph, dy::Tensor, w::Tensor;
     length(xdims) == length(dy.dims) ||
         throw(DimensionMismatch("x dimensions must match dY rank"))
     xdims[end] == dy.dims[end] || throw(DimensionMismatch("x and dY batch sizes must match"))
-    xdims[end-1] % w.dims[end-1] == 0 ||
-        throw(DimensionMismatch("x channels must be a multiple of filter channels"))
+    convolution_group_count(xdims[end-1], w.dims[end-1], w.dims[end])
     dy.dims[end-1] == w.dims[end] ||
         throw(DimensionMismatch("dY channels must match filter output channels"))
     expected = conv_output_dims(xdims[1:rank], w.dims[1:rank], pre, post, str, dil)
@@ -609,8 +617,7 @@ function conv_wgrad!(g::Graph, dy::Tensor, x::Tensor;
     length(wdims) == length(x.dims) ||
         throw(DimensionMismatch("filter dimensions must match input rank"))
     x.dims[end] == dy.dims[end] || throw(DimensionMismatch("input and dY batch sizes must match"))
-    x.dims[end-1] % wdims[end-1] == 0 ||
-        throw(DimensionMismatch("input channels must be a multiple of filter channels"))
+    convolution_group_count(x.dims[end-1], wdims[end-1], wdims[end])
     dy.dims[end-1] == wdims[end] ||
         throw(DimensionMismatch("dY channels must match filter output channels"))
     expected = conv_output_dims(x.dims[1:rank], wdims[1:rank], pre, post, str, dil)

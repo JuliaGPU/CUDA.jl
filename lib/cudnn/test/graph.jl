@@ -95,6 +95,11 @@ cdx = conv_dgrad!(g, cy, cw; x_dims=cx.dims, pre_padding=(1, 0),
 cdw = conv_wgrad!(g, cy, cx; w_dims=cw.dims, pre_padding=(1, 0),
                   post_padding=(2, 1), stride=(2, 1), dilation=(1, 2))
 @test cdw.dims == cw.dims
+gcx = tensor!(g; dims=(8, 7, 4, 2), dtype=Float16, name="GroupedConvX")
+gcw = tensor!(g; dims=(3, 2, 2, 6), dtype=Float16, name="GroupedConvW")
+@test conv_fprop!(g, gcx, gcw).dims == [6, 6, 6, 2]
+badgcw = tensor!(g; dims=(3, 2, 2, 5), dtype=Float16, name="BadGroupedConvW")
+@test_throws DimensionMismatch conv_fprop!(g, gcx, badgcw)
 @test_throws ArgumentError conv_dgrad!(g, cy, cw; pre_padding=(1, 0),
                                        post_padding=(2, 1), stride=(2, 1),
                                        dilation=(1, 2))
