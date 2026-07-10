@@ -475,7 +475,15 @@ k = 13
                 dA = CuArray(A)
                 dB = CuArray(B)
                 dC = similar(dB, CT)
-                mul!(dC, dA, dB)
+                try
+                    mul!(dC, dA, dB)
+                catch err
+                    # not all supported type combinations have kernels
+                    # available on every platform
+                    (isa(err, CUBLASError) &&
+                     err.code == cuBLAS.CUBLAS_STATUS_NOT_SUPPORTED) || rethrow()
+                    continue
+                end
 
                 rtol = Base.rtoldefault(AT, BT, 0)
                 @test C ≈ Array(dC) rtol=rtol
