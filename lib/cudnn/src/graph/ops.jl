@@ -304,23 +304,6 @@ function broadcast_dims(ts::Tensor...)
     return dims
 end
 
-function broadcast_dim_vectors(vs::AbstractVector...)
-    isempty(vs) && return Int64[]
-    n = maximum(length, vs)
-    dims = Int64[]
-    for i in 1:n
-        vals = map(vs) do v
-            j = length(v) - n + i
-            j < 1 ? Int64(1) : Int64(v[j])
-        end
-        d = maximum(vals)
-        all(x -> x == d || x == 1, vals) ||
-            throw(DimensionMismatch("batch dimensions are not broadcastable"))
-        push!(dims, d)
-    end
-    return dims
-end
-
 function spatial_vector(v, rank; default=nothing)
     v === nothing && (v = default)
     v isa Integer && return fill(Int64(v), rank)
@@ -756,12 +739,17 @@ end
 function matmul!(g::Graph, a::Tensor, b::Tensor;
                  c::Union{Nothing,Tensor}=nothing, compute_dtype=g.compute_dtype,
                  name::String="C")
-    length(a.dims) >= 3 && length(b.dims) >= 3 ||
-        throw(ArgumentError("matmul! tensors must have rank >= 3"))
+    length(a.dims) >= 3 || throw(ArgumentError("matmul! tensors must have rank >= 3"))
+    length(a.dims) == length(b.dims) ||
+        throw(DimensionMismatch("matmul! tensors must have the same rank"))
     a.dims[2] == b.dims[1] ||
         throw(DimensionMismatch("matmul! inner dimensions must match"))
-    batch = broadcast_dim_vectors(a.dims[3:end], b.dims[3:end])
-    cdims = Int64[a.dims[1]; b.dims[2]; batch...]
+    batch = map(a.dims[3:end], b.dims[3:end]) do da, db
+        da == db || da == 1 || db == 1 ||
+            throw(DimensionMismatch("matmul! batch dimensions are not broadcastable"))
+        max(da, db)
+    end
+    cdims = Int64[a.dims[1]; b.dims[2]; batch]
     if c === nothing
         c = tensor!(g; dims=cdims, dtype=nothing, virtual=true, name)
     else

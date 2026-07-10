@@ -76,6 +76,10 @@ a = tensor!(g; dims=(8, 16, 2), dtype=Float16, name="A")
 b = tensor!(g; dims=(16, 32, 2), dtype=Float16, name="B")
 c = matmul!(g, a, b)
 @test c.dims == [8, 32, 2]
+b4 = tensor!(g; dims=(16, 32, 2, 2), dtype=Float16, name="B4")
+@test_throws DimensionMismatch matmul!(g, a, b4)
+bbad = tensor!(g; dims=(16, 32, 3), dtype=Float16, name="BBad")
+@test_throws DimensionMismatch matmul!(g, a, bbad)
 
 bias = tensor!(g; dims=(1, 32, 1), dtype=Float16, name="Bias")
 y = pointwise!(g, :add, c, bias)
