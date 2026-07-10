@@ -1,4 +1,5 @@
 using cuDNN:
+    BackendDescriptor,
     backend_deviceprop,
     backend_convolution_descriptor,
     backend_resample_descriptor,
@@ -32,6 +33,7 @@ using cuDNN:
     CUDNN_CROSS_CORRELATION,
     CUDNN_DATA_FLOAT,
     CUDNN_DATA_INT8,
+    CUDNN_HEUR_MODE_A,
     CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION,
     CUDNN_NORM_FWD_TRAINING,
     CUDNN_POINTWISE_CMP_GE,
@@ -48,6 +50,13 @@ unsafe_destroy!(d)
 @test d.ptr == C_NULL
 @test unsafe_destroy!(d) === nothing
 @test Base.finalize(d) === nothing
+
+@test Base.ispublic(cuDNN, :BackendDescriptor)
+@test Base.ispublic(cuDNN, :backend_tensor)
+@test Base.ispublic(cuDNN, :engine_configs)
+@test !Base.ispublic(cuDNN, :cudnnBackendDescriptor)
+@test !Base.ispublic(cuDNN, :cudnnBackendCreateDescriptor)
+@test BackendDescriptor(:tensor) isa BackendDescriptor
 
 # the attribute table derived from the enums covers every attribute
 @test Set(values(cuDNN.attribute_names)) == Set(instances(cudnnBackendAttributeName_t))
@@ -165,6 +174,19 @@ relu = pointwise_operation(pw2, score, masked)
 opgraph = operation_graph([relu]; mode=CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION)
 @test opgraph[:mode, cudnnBackendOperationGraphMode_t] ==
       CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION
+
+heur = make_descriptor(:engineheur) do heur
+    heur[:operation_graph] = opgraph
+    heur[:mode] = CUDNN_HEUR_MODE_A
+end
+nconfigs = cuDNN.getattr_count(heur, cuDNN.attribute(heur, :results),
+                               cuDNN.CUDNN_TYPE_BACKEND_DESCRIPTOR)
+expected = cuDNN.getattr_descriptors(heur, cuDNN.attribute(heur, :results),
+                                     cuDNN.CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, nconfigs)
+configs = cuDNN.engine_configs(opgraph)
+@test length(configs) == length(expected)
+foreach(unsafe_destroy!, [expected; configs])
+unsafe_destroy!(heur)
 
 deviceprop = backend_deviceprop()
 @test deviceprop.ptr != C_NULL

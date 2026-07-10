@@ -1,25 +1,19 @@
-# Thin Julia layer over the cuDNN *backend graph API* (the `cudnnBackend*` functions).
-#
-# Unlike the legacy descriptor API (see descriptors.jl), the backend API is fully generic:
-# every object is a `cudnnBackendDescriptor_t` configured through
-# `cudnnBackendSetAttribute(desc, name, type, count, ptr)`, finalized with
-# `cudnnBackendFinalize`, and read back with `cudnnBackendGetAttribute`. This file provides a
-# typed wrapper (`setattr!`/`getattr` on the raw attribute enums, plus indexing with short
-# field symbols) and small constructor helpers for the pieces needed to build and run a
-# fused graph (tensors, operation graph, engine heuristics, execution plan, variant pack).
-# It is used by the graph frontend in graph/.
+"""
+    BackendDescriptor
 
-# A finalized-or-not backend descriptor. Owns the handle and destroys it on GC.
-# Remembers its descriptor type so attributes can be addressed by short symbols.
-mutable struct cudnnBackendDescriptor
+A managed cuDNN backend descriptor. Attributes use symbolic indexing, for example
+`descriptor[:dimensions, Vector{Int64}]`.
+"""
+mutable struct BackendDescriptor
     ptr::cudnnBackendDescriptor_t
     type::cudnnBackendDescriptorType_t
 end
+const cudnnBackendDescriptor = BackendDescriptor
 
-function cudnnBackendDescriptor(descriptorType::cudnnBackendDescriptorType_t)
+function BackendDescriptor(descriptorType::cudnnBackendDescriptorType_t)
     ref = Ref{cudnnBackendDescriptor_t}(C_NULL)
     cudnnBackendCreateDescriptor(descriptorType, ref)
-    d = cudnnBackendDescriptor(ref[], descriptorType)
+    d = BackendDescriptor(ref[], descriptorType)
     finalizer(unsafe_destroy!, d)
     return d
 end
@@ -254,7 +248,7 @@ end
 Base.getindex(d::cudnnBackendDescriptor, name::Symbol, ::Type{T}) where {T} =
     only(getattr(d, attribute(d, name), backend_attribute_type(T), T, 1))
 
-cudnnBackendDescriptor(type::Symbol) = cudnnBackendDescriptor(descriptor_types[type])
+BackendDescriptor(type::Symbol) = BackendDescriptor(descriptor_types[type])
 make_descriptor(f, type::Symbol) = make_descriptor(f, descriptor_types[type])
 
 
@@ -585,15 +579,15 @@ end
 # Return caller-owned engine-config descriptors the heuristic suggests, in preference order.
 function engine_configs(graph::cudnnBackendDescriptor;
                         deviceprop::Union{Nothing,cudnnBackendDescriptor}=nothing,
-                        mode::cudnnBackendHeurMode_t=CUDNN_HEUR_MODE_A, maxcount::Integer=16)
+                        mode::cudnnBackendHeurMode_t=CUDNN_HEUR_MODE_A)
     heur = make_descriptor(:engineheur) do heur
         heur[:operation_graph] = graph
         heur[:mode] = mode
         deviceprop === nothing || (heur[:deviceprop] = deviceprop)
     end
     try
-        count = min(Int64(maxcount), getattr_count(heur, attribute(heur, :results),
-                                                   CUDNN_TYPE_BACKEND_DESCRIPTOR))
+        count = getattr_count(heur, attribute(heur, :results),
+                              CUDNN_TYPE_BACKEND_DESCRIPTOR)
         return getattr_descriptors(heur, attribute(heur, :results),
                                    CUDNN_BACKEND_ENGINECFG_DESCRIPTOR, count)
     finally
@@ -647,3 +641,14 @@ function variant_pack(; uids::AbstractVector{<:Integer}, pointers::AbstractVecto
         vp[:workspace] = reinterpret(Ptr{Cvoid}, workspace)
     end
 end
+
+@public BackendDescriptor, make_descriptor, backend_tensor, operation_graph,
+        pointwise_descriptor, matmul_descriptor, reduction_descriptor,
+        backend_convolution_descriptor, backend_resample_descriptor,
+        pointwise_operation, matmul_operation, reduction_operation,
+        convolution_forward_operation, convolution_data_backward_operation,
+        convolution_filter_backward_operation, resample_forward_operation,
+        resample_backward_operation, norm_forward_operation, norm_backward_operation,
+        diagonal_band_mask_operation, engine_configs, try_execution_plan,
+        plan_workspace_size, engine_descriptor, engine_numerical_notes,
+        engine_behavior_notes, variant_pack
