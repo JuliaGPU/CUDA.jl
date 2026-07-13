@@ -122,34 +122,53 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
+    if KA.workgroupsize(obj) <: KA.DynamicSize
+        launch_kernel(obj, args, ndrange, workgroupsize, iterspace, ctx, maxthreads, backend)
+    else
+        launch_configured_kernel(obj, args, iterspace, ctx, maxthreads, backend)
+    end
+    return nothing
+end
+
+@inline function launch_kernel(obj, args, ndrange, ::Nothing, iterspace, ctx,
+                               maxthreads, backend)
+    launch = CUDACore.prepared_launch(obj.f, ctx, args...;
+                                      always_inline=backend.always_inline,
+                                      maxthreads=maxthreads)
+    config = CUDACore.launch_configuration(launch.kernel.fun;
+                                           max_threads=prod(ndrange))
+    threads = if backend.prefer_blocks
+        threads = min(prod(ndrange), config.threads)
+        cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
+        cld(prod(ndrange), cu_blocks)
+    else
+        config.threads
+    end
+
+    workgroupsize = threads_to_workgroupsize(threads, ndrange)
+    iterspace = first(KA.partition(obj, ndrange, workgroupsize))
+    blocks = length(KA.blocks(iterspace))
+    blocks == 0 && return nothing
+
+    threads = length(KA.workitems(iterspace))
+    ctx = KA.mkcontext(obj, ndrange, iterspace)
+    CUDACore.launch_replacing(launch, Val(1), ctx; threads, blocks)
+    return nothing
+end
+
+@inline function launch_kernel(obj, args, ndrange, workgroupsize, iterspace, ctx,
+                               maxthreads, backend)
+    launch_configured_kernel(obj, args, iterspace, ctx, maxthreads, backend)
+end
+
+@inline function launch_configured_kernel(obj, args, iterspace, ctx, maxthreads, backend)
     CUDACore.prepare_launch(obj.f, ctx, args...;
                             always_inline=backend.always_inline,
                             maxthreads=maxthreads) do launch
-        final_iterspace = if KA.workgroupsize(obj) <: KA.DynamicSize &&
-                             workgroupsize === nothing
-            config = CUDACore.launch_configuration(launch.kernel.fun;
-                                                   max_threads=prod(ndrange))
-            threads = if backend.prefer_blocks
-                threads = min(prod(ndrange), config.threads)
-                cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
-                cld(prod(ndrange), cu_blocks)
-            else
-                config.threads
-            end
-
-            tuned_workgroupsize = threads_to_workgroupsize(threads, ndrange)
-            tuned_iterspace = first(KA.partition(obj, ndrange, tuned_workgroupsize))
-            tuned_ctx = KA.mkcontext(obj, ndrange, tuned_iterspace)
-            launch = CUDACore.replace_arguments(launch, 1 => tuned_ctx)
-            tuned_iterspace
-        else
-            iterspace
-        end
-
-        blocks = length(KA.blocks(final_iterspace))
+        blocks = length(KA.blocks(iterspace))
         blocks == 0 && return nothing
 
-        threads = length(KA.workitems(final_iterspace))
+        threads = length(KA.workitems(iterspace))
         launch(; threads, blocks)
         return nothing
     end

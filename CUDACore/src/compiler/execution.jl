@@ -117,6 +117,26 @@ must not escape it or be used after changing the active CUDA device, context, ta
     end
 end
 
+@inline function prepared_launch(f, args...;
+                                 backend=LLVMBackend(), compiler_kwargs...)
+    backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
+    prepared_launch(backend, f, args, (; compiler_kwargs...))
+end
+
+@inline function prepared_launch(backend::AbstractBackend, f, args::Tuple,
+                                 compiler_kwargs::NamedTuple)
+    roots = (f=f, arguments=args)
+    GC.@preserve roots begin
+        kernel_f = kernel_convert(backend, f)
+        arguments = map(args) do arg
+            kernel_convert(backend, arg)
+        end
+        tt = Tuple{map(Core.Typeof, arguments)...}
+        kernel = kernel_compile(backend, kernel_f, tt; compiler_kwargs...)
+        PreparedLaunch(backend, kernel, roots, arguments)
+    end
+end
+
 """
     replace_arguments(launch::PreparedLaunch, replacements::Pair...)
 
@@ -139,6 +159,18 @@ indices are one-based. The converted tuple type must still match the compiled si
         throw(ArgumentError("replacement changes the compiled argument types; prepare a new launch"))
     roots = (f=launch.roots.f, arguments=host_arguments)
     PreparedLaunch(launch.backend, launch.kernel, roots, arguments)
+end
+
+@inline function launch_replacing(launch::PreparedLaunch{B,K,R,A},
+                                  ::Val{I}, value; threads, blocks) where {B,K,R,A,I}
+    roots = launch.roots
+    GC.@preserve roots value begin
+        converted = kernel_convert(launch.backend, value)
+        arguments = Base.setindex(launch.arguments, converted, I)
+        typeof(arguments) === A ||
+            throw(ArgumentError("replacement changes the compiled argument types; prepare a new launch"))
+        kernel_launch(launch.backend, launch.kernel, arguments; threads, blocks)
+    end
 end
 
 
