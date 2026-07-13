@@ -149,25 +149,28 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    kernel = @cuda launch=false partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
-    kernel_config = launch_configuration(kernel.fun; shmem=(threads)->2*threads*sizeof(T))
+    prepare_launch(partial_scan, f, output, input, Rdim, Rpre, Rpost, Rother,
+                   neutral, init, Val(true); name="scan") do launch
+        kernel_config = launch_configuration(launch.kernel.fun;
+                                             shmem=threads -> 2*threads*sizeof(T))
 
-    # determine the grid layout to cover the other dimensions
-    if length(Rother) > 1
-        dev = device()
-        max_other_blocks = attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
-        blocks_other = (min(length(Rother), max_other_blocks),
-                        cld(length(Rother), max_other_blocks))
-    else
-        blocks_other = (1, 1)
-    end
+        # determine the grid layout to cover the other dimensions
+        blocks_other = if length(Rother) > 1
+            dev = device()
+            max_other_blocks = attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
+            (min(length(Rother), max_other_blocks),
+             cld(length(Rother), max_other_blocks))
+        else
+            (1, 1)
+        end
 
-    # does that suffice to scan the array in one go?
-    full = nextpow(2, length(Rdim))
-    if full <= kernel_config.threads
-        @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
-              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true)))
-    else
+        # does that suffice to scan the array in one go?
+        full = nextpow(2, length(Rdim))
+        if full <= kernel_config.threads
+            launch(; threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T))
+            return
+        end
+
         # perform partial scans across the scanning dimension
         # NOTE: don't set init here to avoid applying the value multiple times
         partial = prevpow(2, kernel_config.threads)
@@ -231,4 +234,3 @@ function Base.accumulate(op, A::AnyCuArray;
     end
     accumulate!(op, out, A; dims=dims, kw...)
 end
-
