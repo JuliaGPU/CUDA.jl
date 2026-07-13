@@ -1,14 +1,25 @@
 # Execution control
 
+# Kernel parameters need the address of the value slot, including for boxed values like Symbol.
+mutable struct ArgBox{T}
+    const val::T
+end
+
+@inline function Base.unsafe_convert(P::Union{Type{Ptr{T}},Type{Ptr{Cvoid}}},
+                                     box::ArgBox{T})::P where {T}
+    return pointer_from_objref(box)
+end
+
+
 ## device
 
 export cudacall
 
 # pack arguments in a buffer that CUDA expects
 @inline function pack_arguments(f::F, args...) where {F}
-    refs = map(Ref, args)
-    GC.@preserve args refs begin
-        pointers = map(ref -> Ptr{Cvoid}(pointer_from_objref(ref)), refs)
+    boxes = map(ArgBox, args)
+    GC.@preserve args boxes begin
+        pointers = map(box -> Base.unsafe_convert(Ptr{Cvoid}, box), boxes)
         f(Ref(pointers))
     end
 end
