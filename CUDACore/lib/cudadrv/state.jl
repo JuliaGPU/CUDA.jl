@@ -86,7 +86,8 @@ end
 
     # current_context() is too slow to use here (as it also calls cuCtxGetId)
     ctx = Ref{CUcontext}()
-    cuCtxGetCurrent(ctx)
+    res = unchecked_cuCtxGetCurrent(ctx)
+    res == SUCCESS || throw_api_error(res)
     if ctx[] != state.context.handle
         activate(state.context)
     end
