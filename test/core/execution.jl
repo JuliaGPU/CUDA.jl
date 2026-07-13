@@ -270,8 +270,16 @@ end
 end
 
 @testset "clusters" begin
+    cooperative = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
+    if cooperative
+        @cuda cooperative=true dummy()
+    end
+
     if CUDA.capability(device()) >= v"9.0"
         @cuda threads=64 blocks=2 clustersize=2 dummy()
+        if cooperative
+            @cuda cooperative=true threads=64 blocks=2 clustersize=2 dummy()
+        end
     else
         @test_throws CuError @cuda threads=64 blocks=2 clustersize=2 dummy()
     end
@@ -828,6 +836,16 @@ end
         @test Array(x) == [true, false]
         @cuda pass_symbol(x, :not_var)
         @test Array(x) == [true, true]
+
+        function pass_mixed(x, name, value)
+            i = name == :var ? 1 : 2
+            x[i] = value
+            return nothing
+        end
+        y = CUDA.zeros(Int, 2)
+        @cuda pass_mixed(y, :var, 42)
+        @cuda pass_mixed(y, :not_var, 7)
+        @test Array(y) == [42, 7]
     end
 
 end

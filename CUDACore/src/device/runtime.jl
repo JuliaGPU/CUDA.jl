@@ -4,9 +4,6 @@
 
 import Base.Sys: WORD_SIZE
 
-# reset the runtime cache from global scope, so that any change triggers recompilation
-GPUCompiler.reset_runtime()
-
 # load or build the runtime for the most likely compilation jobs
 function precompile_runtime()
     f = ()->return
