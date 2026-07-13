@@ -1,5 +1,24 @@
 dummy() = return
 
+struct CountedHost{T}
+    value::T
+    counter::Base.RefValue{Int}
+end
+
+struct CountedDevice{T}
+    value::T
+end
+
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, arg::CountedHost)
+    arg.counter[] += 1
+    CountedDevice(Adapt.adapt(to, arg.value))
+end
+
+function copy_counted(arg, output)
+    output[] = arg.value[]
+    return
+end
+
 @testset "@cuda" begin
 
 @test_throws UndefVarError @cuda undefined()
@@ -38,6 +57,63 @@ end
     CUDA.memory(k)
     CUDA.registers(k)
     CUDA.maxthreads(k)
+end
+
+
+@testset "prepared launch" begin
+    input = CuArray([11])
+    output = CuArray([0])
+
+    counter = Ref(0)
+    arg = CountedHost(input, counter)
+    @cuda copy_counted(arg, output)
+    @test counter[] == 1
+    @test Array(output) == [11]
+
+    counter[] = 0
+    kernel = CUDA.prepare_launch(copy_counted, arg, output) do launch
+        @test launch.kernel isa CUDACore.HostKernel
+        @test CUDACore.launch_configuration(launch.kernel.fun).threads > 0
+        @test_throws MethodError launch(arg, output)
+        launch()
+        launch()
+        launch.kernel
+    end
+    @test kernel isa CUDACore.HostKernel
+    @test counter[] == 1
+    @test Array(output) == [11]
+
+    counter[] = 0
+    kernel = @cuda launch=false copy_counted(arg, output)
+    @test counter[] == 1
+    kernel(arg, output)
+    @test counter[] == 2
+
+    replacement_counter = Ref(0)
+    CUDA.prepare_launch(copy_counted, arg, output) do launch
+        replacement = CountedHost(CuArray([12]), replacement_counter)
+        launch = CUDA.replace_arguments(launch, 1 => replacement)
+        @test counter[] == 3
+        @test replacement_counter[] == 1
+        GC.gc(true)
+        launch()
+        @test_throws ArgumentError CUDA.replace_arguments(
+            launch, 1 => CountedHost(CuArray(Float32[13]), Ref(0)))
+    end
+    @test replacement_counter[] == 1
+    @test Array(output) == [12]
+
+    ephemeral_counter = Ref(0)
+    CUDA.prepare_launch(copy_counted, CountedHost(CuArray([14]), ephemeral_counter), output) do launch
+        GC.gc(true)
+        launch()
+    end
+    @test ephemeral_counter[] == 1
+    @test Array(output) == [14]
+
+    CUDA.prepare_launch(dummy) do launch
+        launch()
+    end
 end
 
 
@@ -240,7 +316,9 @@ end
         using CUDA
         const compile_calls = Ref(0)
         const convert_calls = Ref(0)
+        const launch_calls = Ref(0)
         const last_kwargs = Ref{Any}(nothing)
+        const last_launch_kwargs = Ref{Any}(nothing)
 
         struct Backend <: CUDACore.AbstractBackend end
         DefaultBackend() = Backend()
@@ -256,6 +334,11 @@ end
             compile_calls[] += 1
             last_kwargs[] = (; kwargs...)
             Kernel{F}(f)
+        end
+        function CUDACore.kernel_launch(::Backend, kernel, args::Tuple; kwargs...)
+            launch_calls[] += 1
+            last_launch_kwargs[] = (; kwargs...)
+            kernel(args...; kwargs...)
         end
     end
 
@@ -275,6 +358,26 @@ end
     @cuda backend=BackendStub.Backend() opt_level=2 dummy()
     @test haskey(BackendStub.last_kwargs[], :opt_level)
     @test BackendStub.last_kwargs[][:opt_level] == 2
+
+    BackendStub.compile_calls[] = 0
+    BackendStub.convert_calls[] = 0
+    BackendStub.launch_calls[] = 0
+    result = CUDA.prepare_launch(dummy, 1, 2;
+                                 backend=BackendStub, opt_level=3) do launch
+        @test launch isa CUDA.PreparedLaunch
+        @test launch.kernel isa BackendStub.Kernel
+        launch(; threads=4)
+        launch = CUDA.replace_arguments(launch, 1 => 3)
+        launch(; threads=8)
+        @test_throws ArgumentError CUDA.replace_arguments(launch, 2 => 4.0)
+        :prepared
+    end
+    @test result === :prepared
+    @test BackendStub.compile_calls[] == 1
+    @test BackendStub.convert_calls[] == 5 # function, two arguments, and two replacements
+    @test BackendStub.launch_calls[] == 2
+    @test BackendStub.last_kwargs[] == (opt_level=3,)
+    @test BackendStub.last_launch_kwargs[] == (threads=8,)
 
     # dynamic + backend kwargs are rejected (errors at macro-expansion time,
     # so wrap in @macroexpand to defer)

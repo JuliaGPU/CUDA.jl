@@ -2,7 +2,8 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
-@public AbstractBackend, LLVMBackend, DefaultBackend, kernel_convert, kernel_compile
+@public AbstractBackend, LLVMBackend, DefaultBackend, kernel_convert, kernel_compile, kernel_launch
+@public PreparedLaunch, prepare_launch, replace_arguments
 @public AbstractKernel, HostKernel, DeviceKernel
 
 
@@ -59,6 +60,86 @@ default implementation for [`LLVMBackend`](@ref) is [`cufunction`](@ref).
 """
 kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
     cufunction(f, tt; kwargs...)
+
+"""
+    kernel_launch(backend, kernel, arguments::Tuple; kwargs...)
+
+Launch `kernel` with arguments already converted for `backend`. Backends with a
+different low-level kernel calling convention should override this method.
+"""
+@inline kernel_launch(::AbstractBackend, kernel, arguments::Tuple; kwargs...) =
+    kernel(arguments...; kwargs..., convert=Val(false))
+
+
+## prepared launches
+
+"""
+    PreparedLaunch
+
+A compiled kernel together with its converted arguments and the host objects that own them.
+Create one with [`prepare_launch`](@ref), and call it without positional arguments to launch.
+"""
+struct PreparedLaunch{B,K,R,A}
+    backend::B
+    kernel::K
+    roots::R
+    arguments::A
+end
+
+@inline function (launch::PreparedLaunch)(; kwargs...)
+    roots = launch.roots
+    GC.@preserve roots begin
+        kernel_launch(launch.backend, launch.kernel, launch.arguments; kwargs...)
+    end
+end
+
+"""
+    prepare_launch(f, args...; backend=LLVMBackend(), compiler_kwargs...) do launch
+        # inspect launch.kernel, then launch(; launch_kwargs...)
+    end
+
+Convert `f` and `args` once, compile the resulting signature, and pass a
+[`PreparedLaunch`](@ref) to the callback. The prepared launch is scoped to the callback and
+must not escape it or be used after changing the active CUDA device, context, task, or stream.
+"""
+@inline function prepare_launch(callback, f, args...;
+                                backend=LLVMBackend(), compiler_kwargs...)
+    backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
+    roots = (f=f, arguments=args)
+    GC.@preserve roots begin
+        kernel_f = kernel_convert(backend, f)
+        arguments = map(args) do arg
+            kernel_convert(backend, arg)
+        end
+        tt = Tuple{map(Core.Typeof, arguments)...}
+        kernel = kernel_compile(backend, kernel_f, tt; compiler_kwargs...)
+        callback(PreparedLaunch(backend, kernel, roots, arguments))
+    end
+end
+
+"""
+    replace_arguments(launch::PreparedLaunch, replacements::Pair...)
+
+Return a prepared launch with selected host arguments replaced and converted. Replacement
+indices are one-based. The converted tuple type must still match the compiled signature.
+"""
+@inline function replace_arguments(launch::PreparedLaunch{B,K,R,A},
+                                   replacements::Pair...) where {B,K,R,A}
+    host_arguments = launch.roots.arguments
+    arguments = launch.arguments
+    for (index, value) in replacements
+        index isa Integer || throw(ArgumentError("replacement indices must be integers"))
+        host_arguments = Base.setindex(host_arguments, value, index)
+        GC.@preserve host_arguments begin
+            converted = kernel_convert(launch.backend, value)
+            arguments = Base.setindex(arguments, converted, index)
+        end
+    end
+    typeof(arguments) === A ||
+        throw(ArgumentError("replacement changes the compiled argument types; prepare a new launch"))
+    roots = (f=launch.roots.f, arguments=host_arguments)
+    PreparedLaunch(launch.backend, launch.kernel, roots, arguments)
+end
 
 
 ## high-level @cuda interface
