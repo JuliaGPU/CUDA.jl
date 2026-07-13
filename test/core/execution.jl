@@ -270,8 +270,16 @@ end
 end
 
 @testset "clusters" begin
+    cooperative = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
+    if cooperative
+        @cuda cooperative=true dummy()
+    end
+
     if CUDA.capability(device()) >= v"9.0"
         @cuda threads=64 blocks=2 clustersize=2 dummy()
+        if cooperative
+            @cuda cooperative=true threads=64 blocks=2 clustersize=2 dummy()
+        end
     else
         @test_throws CuError @cuda threads=64 blocks=2 clustersize=2 dummy()
     end

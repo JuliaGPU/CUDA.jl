@@ -36,37 +36,40 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
 
-    attrs = CUDACore.CUlaunchAttribute[]
-    if cooperative
-        resize!(attrs, length(attrs)+1)
-        attr = pointer(attrs, length(attrs))
-        attr.id = CUDACore.CU_LAUNCH_ATTRIBUTE_COOPERATIVE
-        attr.value.cooperative = 1;
-    end
-    if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
-        resize!(attrs, length(attrs)+1)
-        attr = pointer(attrs, length(attrs))
-        attr.id = CUDACore.CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
-        attr.value.clusterDim.x = clusterdim.x
-        attr.value.clusterDim.y = clusterdim.y
-        attr.value.clusterDim.z = clusterdim.z
-    end
+    attributes = Ref{NTuple{2,CUlaunchAttribute}}()
+    GC.@preserve attributes stream begin
+        attributes_ptr = Base.unsafe_convert(Ptr{CUlaunchAttribute}, attributes)
+        num_attributes = 0
+        if cooperative
+            attribute = attributes_ptr + num_attributes * sizeof(CUlaunchAttribute)
+            attribute.id = CU_LAUNCH_ATTRIBUTE_COOPERATIVE
+            attribute.value.cooperative = 1
+            num_attributes += 1
+        end
+        if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
+            attribute = attributes_ptr + num_attributes * sizeof(CUlaunchAttribute)
+            attribute.id = CU_LAUNCH_ATTRIBUTE_CLUSTER_DIMENSION
+            attribute.value.clusterDim.x = clusterdim.x
+            attribute.value.clusterDim.y = clusterdim.y
+            attribute.value.clusterDim.z = clusterdim.z
+            num_attributes += 1
+        end
 
-    GC.@preserve attrs stream begin
-        config = Ref(CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
-                                    threaddim.x, threaddim.y, threaddim.z,
-                                    shmem, stream.handle, pointer(attrs), length(attrs)))
+        config_attrs = num_attributes == 0 ? Ptr{CUlaunchAttribute}(C_NULL) : attributes_ptr
+        config = CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
+                                threaddim.x, threaddim.y, threaddim.z,
+                                shmem, stream.handle, config_attrs, num_attributes)
         try
             pack_arguments(args...) do kernelParams
                 cuLaunchKernelEx(config, f, kernelParams, C_NULL)
             end
         catch err
-            diagnose_launch_failure(f, config, err; blockdim, threaddim, clusterdim, shmem)
+            diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
         end
     end
 end
 
-@noinline function diagnose_launch_failure(f::CuFunction, config::Ref{CUlaunchConfig}, err; blockdim, threaddim, clusterdim, shmem)
+@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, clusterdim, shmem)
     if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
                                             ERROR_LAUNCH_OUT_OF_RESOURCES])
         rethrow()
