@@ -15,6 +15,9 @@ The main entry-point to the compiler is the `@cuda` macro:
 If needed, you can use a lower-level API that lets you inspect the compiler kernel:
 
 ```@docs
+prepare_launch
+PreparedLaunch
+replace_arguments
 cudaconvert
 cufunction
 AbstractKernel
@@ -42,6 +45,7 @@ LLVMBackend
 DefaultBackend
 kernel_convert
 kernel_compile
+kernel_launch
 ```
 
 

@@ -158,9 +158,13 @@ a CUDA function upon first use, and to a certain extent arguments will be conver
 managed automatically using `cudaconvert`. Finally, a call to `cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
+A direct launch converts each argument once. Use [`prepare_launch`](@ref) when compilation
+and launch need to be separated by occupancy queries or other configuration work.
+
 Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
-  kernel object should be launched by calling it and passing arguments again.
+  kernel object should be launched by calling it and passing arguments again. That later
+  call converts the supplied host arguments independently.
 - `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
 - `backend`: which compiler backend to use, defaults to [`LLVMBackend`](@ref). Either an
   [`AbstractBackend`](@ref) instance or a module that defines `DefaultBackend()` (e.g.

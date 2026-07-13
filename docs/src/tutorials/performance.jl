@@ -172,21 +172,25 @@ end
 # The benchmark[^1]:
 
 function bench_gpu4!(y, x)
-    kernel = @cuda launch=false gpu_add4!(y, x)
-    config = launch_configuration(kernel.fun)
-    threads = min(length(y), config.threads)
-    blocks = cld(length(y), threads)
-
-    CUDA.@sync kernel(y, x; threads, blocks)
+    CUDA.@sync begin
+        CUDA.prepare_launch(gpu_add4!, y, x) do launch
+            config = launch_configuration(launch.kernel.fun)
+            threads = min(length(y), config.threads)
+            blocks = cld(length(y), threads)
+            launch(; threads, blocks)
+        end
+    end
 end
 
 function bench_gpu5!(y, x)
-    kernel = @cuda launch=false gpu_add5!(y, x)
-    config = launch_configuration(kernel.fun)
-    threads = min(length(y), config.threads)
-    blocks = cld(length(y), threads)
-
-    CUDA.@sync kernel(y, x; threads, blocks)
+    CUDA.@sync begin
+        CUDA.prepare_launch(gpu_add5!, y, x) do launch
+            config = launch_configuration(launch.kernel.fun)
+            threads = min(length(y), config.threads)
+            blocks = cld(length(y), threads)
+            launch(; threads, blocks)
+        end
+    end
 end
 
 
