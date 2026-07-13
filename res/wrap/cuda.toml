@@ -102,6 +102,9 @@ needs_context = false
 [api.cuCtxGetApiVersion]
 needs_context = false
 
+[api.cuLaunchKernelEx.argtypes]
+1 = "Ref{CUlaunchConfig}"
+
 [api.cuDeviceGetLuid]
 needs_context = false
 

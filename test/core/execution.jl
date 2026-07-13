@@ -828,6 +828,16 @@ end
         @test Array(x) == [true, false]
         @cuda pass_symbol(x, :not_var)
         @test Array(x) == [true, true]
+
+        function pass_mixed(x, name, value)
+            i = name == :var ? 1 : 2
+            x[i] = value
+            return nothing
+        end
+        y = CUDA.zeros(Int, 2)
+        @cuda pass_mixed(y, :var, 42)
+        @cuda pass_mixed(y, :not_var, 7)
+        @test Array(y) == [42, 7]
     end
 
 end

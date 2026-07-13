@@ -5440,7 +5440,7 @@ end
 
 @checked function cuLaunchKernelEx(config, f, kernelParams, extra)
     initialize_context()
-    @gcsafe_ccall libcuda.cuLaunchKernelEx(config::Ptr{CUlaunchConfig}, f::CUfunction,
+    @gcsafe_ccall libcuda.cuLaunchKernelEx(config::Ref{CUlaunchConfig}, f::CUfunction,
                                            kernelParams::Ptr{Ptr{Cvoid}},
                                            extra::Ptr{Ptr{Cvoid}})::CUresult
 end

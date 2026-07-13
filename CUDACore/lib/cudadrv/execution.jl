@@ -1,46 +1,16 @@
 # Execution control
 
-# In contrast to `Base.RefValue` we just need a container for both pass-by-ref (Symbol),
-# and pass-by-value (immutable structs).
-mutable struct ArgBox{T}
-    const val::T
-end
-
-function Base.unsafe_convert(P::Union{Type{Ptr{T}}, Type{Ptr{Cvoid}}}, b::ArgBox{T})::P where {T}
-    # TODO: What to do if T is not a leaftype (compare case 3 for RefValue)
-    return pointer_from_objref(b)
-end
-
-
 ## device
 
 export cudacall
 
 # pack arguments in a buffer that CUDA expects
-@inline @generated function pack_arguments(f::Function, args...)
-    ex = quote end
-
-    # If f has N parameters, then kernelParams needs to be an array of N pointers.
-    # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory
-    # from which the actual kernel parameter will be copied.
-
-    # put arguments in Ref boxes so that we can get a pointers to them
-    arg_refs = Vector{Symbol}(undef, length(args))
-    for i in 1:length(args)
-        arg_refs[i] = gensym()
-        push!(ex.args, :($(arg_refs[i]) = $ArgBox(args[$i])))
+@inline function pack_arguments(f::F, args...) where {F}
+    refs = map(Ref, args)
+    GC.@preserve args refs begin
+        pointers = map(ref -> Ptr{Cvoid}(pointer_from_objref(ref)), refs)
+        f(Ref(pointers))
     end
-
-    # generate an array with pointers
-    arg_ptrs = [:(Base.unsafe_convert(Ptr{Cvoid}, $(arg_refs[i]))) for i in 1:length(args)]
-
-    append!(ex.args, (quote
-        GC.@preserve $(arg_refs...) begin
-            kernelParams = [$(arg_ptrs...)]
-            f(kernelParams)
-        end
-    end).args)
-    return ex
 end
 
 """
