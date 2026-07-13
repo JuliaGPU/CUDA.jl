@@ -152,13 +152,17 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
 
     shuffle = true
 
-    result = CuArray{T}(undef, 1)
-    kernel = @cuda launch=false kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle))
-    config = launch_configuration(kernel.fun)
-    threads = compute_threads(config.threads, n, shuffle, device())
-    blocks = min(config.blocks, cld(n, threads))
-    result = CuArray{T}(undef, blocks)
-    kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
+    placeholder = CuArray{T}(undef, 1)
+    result = CUDACore.prepare_launch(kernel, y, A.colPtr, A.rowVal, A.nzVal, x,
+                                     placeholder, n, Val(shuffle)) do launch
+        config = launch_configuration(launch.kernel.fun)
+        threads = compute_threads(config.threads, n, shuffle, device())
+        blocks = min(config.blocks, cld(n, threads))
+        result = CuArray{T}(undef, blocks)
+        launch = CUDACore.replace_arguments(launch, 6 => result)
+        launch(; threads, blocks)
+        result
+    end
 
     return sum(result)
 end
@@ -207,14 +211,17 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
 
     shuffle = true
 
-    result = CuArray{T}(undef, 1)
-    kernel = @cuda launch=false kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle))
-    config = launch_configuration(kernel.fun)
-    threads = compute_threads(config.threads, n, shuffle, device())
-    blocks = min(config.blocks, cld(n, threads))
-    result = CuArray{T}(undef, blocks)
-    kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
+    placeholder = CuArray{T}(undef, 1)
+    result = CUDACore.prepare_launch(kernel, y, A.rowPtr, A.colVal, A.nzVal, x,
+                                     placeholder, n, Val(shuffle)) do launch
+        config = launch_configuration(launch.kernel.fun)
+        threads = compute_threads(config.threads, n, shuffle, device())
+        blocks = min(config.blocks, cld(n, threads))
+        result = CuArray{T}(undef, blocks)
+        launch = CUDACore.replace_arguments(launch, 6 => result)
+        launch(; threads, blocks)
+        result
+    end
 
     return sum(result)
 end
-
