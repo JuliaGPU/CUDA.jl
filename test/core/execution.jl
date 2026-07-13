@@ -349,6 +349,7 @@ end
     @test BackendStub.compile_calls[] == 1
     # f + 0 args, all routed through kernel_convert
     @test BackendStub.convert_calls[] == 1
+    @test BackendStub.launch_calls[] == 1
 
     # module-as-backend resolution for the custom backend
     @cuda backend=BackendStub dummy()
@@ -358,6 +359,10 @@ end
     @cuda backend=BackendStub.Backend() opt_level=2 dummy()
     @test haskey(BackendStub.last_kwargs[], :opt_level)
     @test BackendStub.last_kwargs[][:opt_level] == 2
+
+    @cuda backend=BackendStub.Backend() opt_level=3 threads=16 dummy()
+    @test BackendStub.last_kwargs[] == (opt_level=3,)
+    @test BackendStub.last_launch_kwargs[] == (threads=16,)
 
     BackendStub.compile_calls[] = 0
     BackendStub.convert_calls[] = 0

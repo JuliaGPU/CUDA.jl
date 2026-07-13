@@ -222,7 +222,7 @@ macro cuda(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym f_var kernel_f kernel_args kernel_tt kernel backend backend_raw
+    @gensym f_var kernel_args kernel_tt kernel backend backend_raw prepared
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -245,9 +245,6 @@ macro cuda(ex...)
              end)
     else
         # regular, host-side kernel launch
-        #
-        # convert the function, its arguments, call the compiler and launch the kernel
-        # while keeping the original arguments alive
         push!(code.args,
             quote
                 # Accept either an `AbstractBackend` instance or a module
@@ -257,16 +254,12 @@ macro cuda(ex...)
                     $backend_raw isa $AbstractBackend ? $backend_raw : $backend_raw.DefaultBackend()
                 end
                 $f_var = $f
-                GC.@preserve $(vars...) $f_var begin
-                    $kernel_f = $kernel_convert($backend, $f_var)
-                    $kernel_args = map(x -> $kernel_convert($backend, x), ($(var_exprs...),))
-                    $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    $kernel = $kernel_compile($backend, $kernel_f, $kernel_tt;
-                                              $(compiler_kwargs...), $(other_kwargs...))
+                $prepare_launch($f_var, $(var_exprs...); backend=$backend,
+                                $(compiler_kwargs...), $(other_kwargs...)) do $prepared
                     if $launch
-                        $kernel($kernel_args...; $(call_kwargs...), convert=Val(false))
+                        $prepared(; $(call_kwargs...))
                     end
-                    $kernel
+                    $prepared.kernel
                 end
              end)
     end
