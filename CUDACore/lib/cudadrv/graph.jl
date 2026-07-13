@@ -157,8 +157,11 @@ function capture_status(stream::CuStream=stream())
             id=(status_ref[] == STREAM_CAPTURE_STATUS_ACTIVE ? id_ref[] : nothing))
 end
 
-is_capturing(stream::CuStream=stream()) =
-    capture_status(stream).status != STREAM_CAPTURE_STATUS_NONE
+@inline function is_capturing(stream::CuStream=stream())
+    status = Ref{CUstreamCaptureStatus}()
+    cuStreamIsCapturing(stream, status)
+    return status[] != STREAM_CAPTURE_STATUS_NONE
+end
 
 
 ## convenience macro

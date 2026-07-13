@@ -4078,7 +4078,7 @@ end
 end
 
 @checked function cuCtxGetCurrent(pctx)
-    @gcsafe_ccall libcuda.cuCtxGetCurrent(pctx::Ptr{CUcontext})::CUresult
+    @gcsafe_ccall libcuda.cuCtxGetCurrent(pctx::Ref{CUcontext})::CUresult
 end
 
 @checked function cuCtxGetDevice(device)
@@ -5250,7 +5250,7 @@ end
 @checked function cuStreamIsCapturing(hStream, captureStatus)
     initialize_context()
     @gcsafe_ccall libcuda.cuStreamIsCapturing(hStream::CUstream,
-                                              captureStatus::Ptr{CUstreamCaptureStatus})::CUresult
+                                              captureStatus::Ref{CUstreamCaptureStatus})::CUresult
 end
 
 @checked function cuStreamAttachMemAsync(hStream, dptr, length, flags)

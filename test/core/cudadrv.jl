@@ -381,11 +381,13 @@ let A = CUDA.zeros(Int, 1)
     # ensure compilation
     A .+= 1
     @test Array(A) == [1]
+    @test !is_capturing()
 
     graph = capture() do
         @test is_capturing()
         A .+= 1
     end
+    @test !is_capturing()
     @test Array(A) == [1]
 
     exec = instantiate(graph)
