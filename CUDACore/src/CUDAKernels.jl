@@ -122,37 +122,37 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    kernel = @cuda launch=false always_inline=backend.always_inline maxthreads=maxthreads obj.f(ctx, args...)
+    CUDACore.prepare_launch(obj.f, ctx, args...;
+                            always_inline=backend.always_inline,
+                            maxthreads=maxthreads) do launch
+        final_iterspace = if KA.workgroupsize(obj) <: KA.DynamicSize &&
+                             workgroupsize === nothing
+            config = CUDACore.launch_configuration(launch.kernel.fun;
+                                                   max_threads=prod(ndrange))
+            threads = if backend.prefer_blocks
+                threads = min(prod(ndrange), config.threads)
+                cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
+                cld(prod(ndrange), cu_blocks)
+            else
+                config.threads
+            end
 
-    # figure out the optimal workgroupsize automatically
-    if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
-        config = CUDACore.launch_configuration(kernel.fun; max_threads=prod(ndrange))
-        if backend.prefer_blocks
-            # Prefer blocks over threads
-            threads = min(prod(ndrange), config.threads)
-            # XXX: Some kernels performs much better with all blocks active
-            cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
-            threads = cld(prod(ndrange), cu_blocks)
+            tuned_workgroupsize = threads_to_workgroupsize(threads, ndrange)
+            tuned_iterspace = first(KA.partition(obj, ndrange, tuned_workgroupsize))
+            tuned_ctx = KA.mkcontext(obj, ndrange, tuned_iterspace)
+            launch = CUDACore.replace_arguments(launch, 1 => tuned_ctx)
+            tuned_iterspace
         else
-            threads = config.threads
+            iterspace
         end
 
-        workgroupsize = threads_to_workgroupsize(threads, ndrange)
-        iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
-        ctx = KA.mkcontext(obj, ndrange, iterspace)
-    end
+        blocks = length(KA.blocks(final_iterspace))
+        blocks == 0 && return nothing
 
-    blocks = length(KA.blocks(iterspace))
-    threads = length(KA.workitems(iterspace))
-
-    if blocks == 0
+        threads = length(KA.workitems(final_iterspace))
+        launch(; threads, blocks)
         return nothing
     end
-
-    # Launch kernel
-    kernel(ctx, args...; threads, blocks)
-
-    return nothing
 end
 
 ## indexing
