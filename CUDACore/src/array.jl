@@ -301,40 +301,32 @@ end
 # unmanaged pointer to CuArray
 supports_hmm(dev) = driver_version() >= v"12.2" &&
                     attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
-@generated function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
+function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
                           ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
+  sz = prod(dims) * aligned_sizeof(T)
 
-  sz_expr = :(sz = prod(dims) * aligned_sizeof(T))
-  data_expr = if M == UnifiedMemory
-    quote
-      # HMM extends unified memory to include system memory
-      supports_hmm(device(ctx)) ||
-        throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
-      mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
-      data = DataRef(Returns(nothing), Managed(mem))
-    end
+  data = if M == UnifiedMemory
+    # HMM extends unified memory to include system memory
+    supports_hmm(device(ctx)) ||
+      throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
+    unified_mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
+    DataRef(Returns(nothing), Managed(unified_mem))
   elseif M == HostMemory
-    quote
-      # register as device-accessible host memory
-      mem = context!(ctx) do
-        register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
-      end
-      data = DataRef(Managed(mem)) do args...
-        context!(ctx) do
-          unregister(mem)
-        end
+    # register as device-accessible host memory
+    host_mem = context!(ctx) do
+      register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
+    end
+    DataRef(Managed(host_mem)) do args...
+      context!(ctx) do
+        unregister(host_mem)
       end
     end
   else
     throw(ArgumentError("Cannot wrap system memory as $M"))
   end
 
-  quote
-    $sz_expr
-    $data_expr
-    CuArray{T,N}(data, dims)
-  end
+  CuArray{T,N}(data, dims)
 end
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N}
