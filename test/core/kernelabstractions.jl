@@ -10,6 +10,8 @@ struct KAConversionDevice{T}
     value::T
 end
 
+Base.broadcastable(arg::KAConversionHost) = Ref(arg)
+Base.:+(x::Float32, arg::KAConversionDevice{Float32}) = x + arg.value
 
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, arg::KAConversionHost)
     arg.counter[] += 1
@@ -52,4 +54,13 @@ end
 
     @test counter[] == 1
     @test Array(output) == collect(1:257)
+
+    counter[] = 0
+    broadcast_input = CUDA.fill(1f0, 257)
+    broadcast_output = similar(broadcast_input)
+    broadcast_output .= broadcast_input .+ KAConversionHost(2f0, counter)
+    synchronize()
+
+    @test counter[] == 1
+    @test Array(broadcast_output) == fill(3f0, 257)
 end
