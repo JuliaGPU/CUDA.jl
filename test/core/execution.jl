@@ -42,6 +42,18 @@ end
 
 
 @testset "compilation params" begin
+    llvm22 = CUDACore.llvm_compat(v"22")
+    @test CUDACore.default_ptx_versions(llvm22, CUDACore.ptxas_compat(v"12.9")) ==
+          (v"8.8", v"8.8")
+    @test CUDACore.default_ptx_versions(llvm22, CUDACore.ptxas_compat(v"13.3")) ==
+          (v"9.0", v"9.3")
+
+    # Don't assume the compatibility sets are contiguous.
+    llvm_support = (ptx=Set([v"8.7", v"9.0"]),)
+    ptxas_support = (ptx=Set([v"8.7", v"8.8"]),)
+    @test CUDACore.default_ptx_versions(llvm_support, ptxas_support) ==
+          (v"8.7", v"8.8")
+
     @cuda dummy()
 
     @test_throws "Number of threads per block exceeds kernel limit" begin
