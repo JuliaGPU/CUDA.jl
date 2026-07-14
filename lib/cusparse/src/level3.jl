@@ -6,7 +6,7 @@ export sm2!, sm2
 """
     sm2!(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuMatrix, index::SparseChar)
 
-Performs `X = alpha * op(A) \\ op(X)`, where `op` can be nothing (`transa = N`), tranpose
+Performs `X = alpha * op(A) \\ op(X)`, where `op` can be nothing (`transa = N`), transpose
 (`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense matrix, and `uplo`
 tells `sm2!` which triangle of the block sparse matrix `A` to reference.
 If the triangle has unit diagonal, set `diag` to 'U'.

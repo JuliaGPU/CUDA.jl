@@ -40,7 +40,7 @@ end
 """
     sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
 
-Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), tranpose
+Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), transpose
 (`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense vector, and `uplo`
 tells `sv2!` which triangle of the block sparse matrix `A` to reference.
 If the triangle has unit diagonal, set `diag` to 'U'.

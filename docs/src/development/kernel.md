@@ -6,7 +6,7 @@ level of abstraction as CUDA C/C++, albeit with some Julia-specific improvements
 
 As a result, writing kernels in Julia is very similar to writing kernels in CUDA C/C++. It
 should be possible to learn CUDA programming from existing CUDA C/C++ resources, and apply
-that knowledge to programming in Julia using CUDA.jl. Nontheless, this section will give a
+that knowledge to programming in Julia using CUDA.jl. Nonetheless, this section will give a
 brief overview of the most important concepts and their syntax.
 
 
@@ -437,7 +437,7 @@ Hello World!
 
 Within a kernel, only a very limited subset of the CUDA API is available:
 - synchronization: `device_synchronize`
-- streams: `CuDeviceStream` constructor, `unsafe_destroy!` destuctor;
+- streams: `CuDeviceStream` constructor, `unsafe_destroy!` destructor;
   these streams can be passed to `@cuda` using the `stream` keyword argument
 
 
@@ -688,7 +688,7 @@ overall shape of the MMA. This is accomplished by a separate "WMMA configuration
 Similar to the CUDA C++ WMMA API, [`WMMA.Fragment`](@ref)s have an `x` member that can be
 used to access individual elements. Note that, in contrast to the values returned by the
 LLVM intrinsics, the `x` member is flattened. For example, while the `Float16` variants of
-the `load_a` instrinsics return `NTuple{8, NTuple{2, VecElement{Float16}}}`, the `x` member
+the `load_a` intrinsics return `NTuple{8, NTuple{2, VecElement{Float16}}}`, the `x` member
 has type `NTuple{16, Float16}`.
 
 Typically, you will only need to access the `x` member to perform elementwise operations.
@@ -704,4 +704,4 @@ frag = 2.0f0 .* frag
   The custom load/store operations for WMMA don't allow the programmer to control *how* data is loaded,
   so register bank conflicts can only be reduced, but not entirely eliminated. In general, using the PTX
   instructions [`mma.sync`](https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-mma)
-   and friends are preferred, as they give the programmer finer control over the memory access pattern.  
+   and friends are preferred, as they give the programmer finer control over the memory access pattern.
