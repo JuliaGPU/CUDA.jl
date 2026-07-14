@@ -21,6 +21,7 @@ const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 const minreq = (; ptx=v"8.0", sm=sm"50")
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
+GPUCompiler.supports_host_reference_patching(@nospecialize(job::AnyCUDAJob)) = true
 
 # filter out functions from libdevice and cudadevrt
 GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
@@ -196,11 +197,13 @@ mutable struct CUDACompilerResults
     # session-portable artifacts (safe to persist across sessions)
     image::Union{Nothing,Vector{UInt8}}
     entry::Union{Nothing,String}
+    host_references::GPUCompiler.HostReferences
 
     # session-local kernel handles, linear-scanned by context; usually holds a single entry
-    kernels::Vector{Tuple{CuContext,CuFunction}}
+    kernels::Vector{Tuple{CuContext,CuFunction,Vector{Any}}}
 
-    CUDACompilerResults() = new(nothing, nothing, Tuple{CuContext,CuFunction}[])
+    CUDACompilerResults() = new(nothing, nothing, GPUCompiler.HostReferences(),
+                                Tuple{CuContext,CuFunction,Vector{Any}}[])
 end
 
 # cache of compiler configurations, per device (but additionally configurable via kwargs)
@@ -539,14 +542,20 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry))
+    return (image, entry=LLVM.name(meta.entry), host_references=meta.host_references)
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context
-function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entry::String)
+function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entry::String,
+                     refs::GPUCompiler.HostReferences)
     # load as an executable kernel object on the current context
     mod = CuModule(image)
-    CuFunction(mod, entry)
+    roots = Any[]
+    for (name, ref) in refs.slots
+        CuGlobal{UInt}(mod, name)[] = GPUCompiler.resolve_host_reference(ref)
+        ref isa GPUCompiler.JuliaObjectRef && push!(roots, ref.value)
+    end
+    return CuFunction(mod, entry), roots
 end
 
 # look up the cached compilation artifacts for `job`, running the compiler on a miss.
@@ -563,6 +572,7 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::CUDACompilerResults
         res = @something res GPUCompiler.cached_results(CUDACompilerResults, job)
         res.image = compiled.image
         res.entry = compiled.entry
+        res.host_references = compiled.host_references
     end
     return res
 end

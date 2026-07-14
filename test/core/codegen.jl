@@ -255,6 +255,20 @@ end
 
 ############################################################################################
 
+@testset "host reference patching" begin
+    @eval begin
+        const host_reference_type_tag = CUDACore.GPUCompiler.Runtime.type_tag
+        host_reference_kernel(out) = (out[1] = host_reference_type_tag(Val(:float32)); return)
+    end
+
+    out = CUDA.zeros(UInt, 1)
+    @cuda threads=1 host_reference_kernel(out)
+    expected = UInt(unsafe_load(cglobal(:jl_float32_type, Ptr{UInt})))
+    @test Array(out)[] == expected
+end
+
+############################################################################################
+
 @testset "SASS" begin
 
 @testset "basic reflection" begin
