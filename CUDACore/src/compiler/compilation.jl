@@ -21,7 +21,10 @@ const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 const minreq = (; ptx=v"8.0", sm=sm"50")
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
-GPUCompiler.supports_host_reference_patching(@nospecialize(job::AnyCUDAJob)) = true
+function GPUCompiler.lower_host_references!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module,
+                                            refs::GPUCompiler.HostReferences)
+    GPUCompiler.emit_host_reference_slots!(mod, refs)
+end
 
 # filter out functions from libdevice and cudadevrt
 GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
@@ -552,8 +555,9 @@ function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entr
     mod = CuModule(image)
     roots = Any[]
     for (name, ref) in refs.slots
-        CuGlobal{UInt}(mod, name)[] = GPUCompiler.resolve_host_reference(ref)
-        ref isa GPUCompiler.JuliaObjectRef && push!(roots, ref.value)
+        slot = CuGlobal{UInt}(mod, name)
+        slot[] = GPUCompiler.resolve_host_reference(ref)
+        ref isa GPUCompiler.JuliaValueRef && push!(roots, ref.value)
     end
     return CuFunction(mod, entry), roots
 end

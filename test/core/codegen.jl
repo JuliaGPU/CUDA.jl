@@ -256,15 +256,26 @@ end
 ############################################################################################
 
 @testset "host reference patching" begin
-    @eval begin
+    runtime_refs = @eval module $(gensym())
+        using ..CUDACore
         const host_reference_type_tag = CUDACore.GPUCompiler.Runtime.type_tag
         host_reference_kernel(out) = (out[1] = host_reference_type_tag(Val(:float32)); return)
     end
 
     out = CUDA.zeros(UInt, 1)
-    @cuda threads=1 host_reference_kernel(out)
+    @cuda threads=1 runtime_refs.host_reference_kernel(out)
     expected = UInt(unsafe_load(cglobal(:jl_float32_type, Ptr{UInt})))
     @test Array(out)[] == expected
+
+    value_refs = @eval module $(gensym())
+        const host_reference_symbol = Symbol("value#global")
+        host_reference_symbol_kernel(out, name) =
+            (out[1] = UInt(name === host_reference_symbol); return)
+    end
+
+    out = CUDA.zeros(UInt, 1)
+    @cuda threads=1 value_refs.host_reference_symbol_kernel(out, Symbol("value#global"))
+    @test Array(out)[] == 1
 end
 
 ############################################################################################

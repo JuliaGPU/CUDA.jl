@@ -45,7 +45,8 @@ end
 # kernel launch infrastructure
 let CUDACompilerJob = CompilerJob{PTXCompilerTarget, CUDACompilerParams}
     precompile(Tuple{typeof(cufunction), typeof(identity), Type{Tuple{Nothing}}})
-    precompile(Tuple{typeof(link_kernel), CUDACompilerJob, Vector{UInt8}, String})
+    precompile(Tuple{typeof(link_kernel), CUDACompilerJob, Vector{UInt8}, String,
+                     GPUCompiler.HostReferences})
 
     # GPUCompiler 2.0 caching pipeline (specialized for CUDACore's results struct)
     precompile(Tuple{typeof(compile_or_lookup), CUDACompilerJob})
