@@ -194,6 +194,26 @@ function compiler_config(dev; kwargs...)
     end
     return config
 end
+
+function default_ptx_versions(llvm_support, ptxas_support)
+    requested_ptx = v"6.2"
+    llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
+    ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
+    isempty(llvm_ptxs) &&
+        error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(nvptx_llvm_version)")
+    isempty(ptxas_ptxs) &&
+        error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
+
+    # LLVM must emit an ISA both tools support. Keep ptxas's newest ISA separately for
+    # CUDA-side target selection and PTX header rewriting.
+    common_ptxs = intersect(llvm_ptxs, ptxas_ptxs)
+    isempty(common_ptxs) &&
+        error("CUDA.jl requires a PTX ISA supported by both LLVM $(nvptx_llvm_version) " *
+              "and ptxas $(compiler_version())")
+
+    return maximum(common_ptxs), maximum(ptxas_ptxs)
+end
+
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
                                          arch=nothing, cap=nothing, ptx=nothing, kwargs...)
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
@@ -222,15 +242,7 @@ end
         llvm_ptx = ptxas_ptx = ptx
     else
         # default: pick the newest PTX ISA supported by the toolchain (>=v6.2)
-        requested_ptx = v"6.2"
-        llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
-        ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
-        isempty(llvm_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(nvptx_llvm_version)")
-        isempty(ptxas_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
-        ptxas_ptx = maximum(ptxas_ptxs)
-        llvm_ptx = min(maximum(llvm_ptxs), ptxas_ptx)
+        llvm_ptx, ptxas_ptx = default_ptx_versions(llvm_support, ptxas_support)
     end
 
     # when selecting compute capabilities, we prefer the most recent one, as
