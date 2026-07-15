@@ -29,6 +29,13 @@ jobs:
         if: ${{ steps.download.outputs.download-state == 'success' }}
         run: echo "path=$(find artifacts -type f -name benchmarkresults.json 2>/dev/null)" >> $GITHUB_OUTPUT
 
+      - name: Add Pull Request to Benchmark Event
+        if: ${{ steps.locate.outputs.path != '' && github.event.client_payload.pull_request != 'false' }}
+        run: |
+          jq '.pull_request = {number: (.client_payload.pull_request | tonumber)}' \
+            "$GITHUB_EVENT_PATH" > "$RUNNER_TEMP/benchmark-event.json"
+          mv "$RUNNER_TEMP/benchmark-event.json" "$GITHUB_EVENT_PATH"
+
       - name: Upload Benchmark Results
         if: ${{ steps.locate.outputs.path != '' }}
         uses: benchmark-action/github-action-benchmark@v1
