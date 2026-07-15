@@ -55,7 +55,7 @@ visible to those threads in the warp. The default value for `mask` selects all t
 the warp.
 
 !!! note
-    Requires CUDA >= 9.0 and sm_6.2
+    Requires PTX ISA 6.0 and sm_30.
 """
 @inline sync_warp(mask=FULL_MASK) =
     ccall("llvm.nvvm.bar.warp.sync", llvmcall, Cvoid, (UInt32,), mask)
@@ -89,8 +89,10 @@ for (fn, barrier) in ["cluster_arrive"         => "arrive",
         }
         attributes #0 = { convergent nomerge nounwind }
         attributes #1 = { alwaysinline }"""
-    @eval @device_function @inline $(Symbol(fn))() =
+    @eval @device_function @inline function $(Symbol(fn))()
+        require_sm_90()
         Base.llvmcall(($mod, "entry"), Cvoid, Tuple{})
+    end
 end
 
 ## memory barriers (membar)

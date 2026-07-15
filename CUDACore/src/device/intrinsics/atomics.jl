@@ -164,8 +164,11 @@ for A in (AS.Generic, AS.Global, AS.Shared), T in (:Int16, :UInt16)
     end
 
     intr = "atom$scope.cas.b16 \$0, [\$1], \$2, \$3;"
-    @eval @device_function @inline atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T) =
-        @asmcall($intr, "=h,l,h,h", true, $T, Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
+    @eval @device_function @inline function atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T)
+        require_sm_70()
+        @asmcall($intr, "=h,l,h,h", true, $T,
+                 Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
+    end
 end
 
 
@@ -448,36 +451,12 @@ for (op,impl,typ) in [(:(+), :(atomic_add!), [:UInt32,:Int32,:UInt64,:Int64,:Flo
         $impl(pointer(A, I), val)
 end
 
-# native atomics that are not supported on all devices
-@inline function atomic_arrayset(A::AbstractArray{T}, I::Integer, op::typeof(+),
-                                 val::T) where {T <: Union{Float64}}
-    ptr = pointer(A, I)
-    if compute_capability() >= sv"6.0"
-        atomic_add!(ptr, val)
-    else
-        atomic_op!(ptr, op, val)
-    end
-end
-
-@inline function atomic_arrayset(A::AbstractArray{Float16}, I::Integer, op::typeof(+),
-                                 val::Float16)
-    ptr = pointer(A, I)
-    if compute_capability() >= sv"7.0"
-        atomic_add!(ptr, val)
-    else
-        atomic_op!(ptr, op, val)
-    end
-end
+# native atomics that the back-end expands on older devices
+@inline atomic_arrayset(A::AbstractArray{T}, I::Integer, ::typeof(+), val::T) where
+        {T <: Union{Float16,Float64}} = atomic_add!(pointer(A, I), val)
 @static if VERSION >= v"1.11"
-    @inline function atomic_arrayset(A::AbstractArray{BFloat16}, I::Integer, op::typeof(+),
-                                     val::BFloat16)
-        ptr = pointer(A, I)
-        if compute_capability() >= sv"9.0"
-            atomic_add!(ptr, val)
-        else
-            atomic_op!(ptr, op, val)
-        end
-    end
+    @inline atomic_arrayset(A::AbstractArray{BFloat16}, I::Integer, ::typeof(+),
+                            val::BFloat16) = atomic_add!(pointer(A, I), val)
 end
 
 # fallback using compare-and-swap

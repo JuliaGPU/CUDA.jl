@@ -31,9 +31,10 @@ end
 Puts a thread for a given amount `t`(in nanoseconds).
 
 !!! note
-    Requires CUDA >= 10.0 and sm_6.2
+    Requires compute capability 7.0.
 """
 @inline function nanosleep(t::Unsigned)
+    require_sm_70()
     @asmcall("nanosleep.u32 \$0;", "r", true,
              Cvoid, Tuple{UInt32}, convert(UInt32, t))
 end

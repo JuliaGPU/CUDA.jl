@@ -84,6 +84,7 @@ end
 end
 
 @inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
+    require_sm_90()
     # This requires LLVM >=20 (i.e. Julia >= 1.13)
     ptr7 = @asmcall(
         "mapa.shared::cluster.u64 \$0, \$1, \$2;",

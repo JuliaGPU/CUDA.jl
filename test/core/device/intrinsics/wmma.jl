@@ -47,7 +47,7 @@ end
             end
 
             # Skip integer WMMA on older devices
-            if capability(device()) < v"7.5" && (startswith(elem_type, "s") ||
+            if capability(device()) < v"7.2" && (startswith(elem_type, "s") ||
                                                  startswith(elem_type, "u"))
                 continue
             end
@@ -118,7 +118,7 @@ end
             end
 
             # Skip integer WMMA on older devices
-            if capability(device()) < v"7.5" && (startswith(elem_type, "s") ||
+            if capability(device()) < v"7.2" && (startswith(elem_type, "s") ||
                                                  startswith(elem_type, "u"))
                 continue
             end
@@ -182,7 +182,7 @@ end
             c_elem_type in ops[3]
 
             # Skip integer WMMA on older devices
-            if capability(device()) < v"7.5" && (startswith(ab_elem_type, "s") ||
+            if capability(device()) < v"7.2" && (startswith(ab_elem_type, "s") ||
                                                  startswith(ab_elem_type, "u"))
                 continue
             end
