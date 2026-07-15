@@ -93,6 +93,9 @@ needs_context = false
 [api.cuCtxGetCurrent]
 needs_context = false
 
+[api.cuCtxGetCurrent.argtypes]
+1 = "Ref{CUcontext}"
+
 [api.cuCtxGetDevice]
 needs_context = false
 
@@ -101,6 +104,12 @@ needs_context = false
 
 [api.cuCtxGetApiVersion]
 needs_context = false
+
+[api.cuLaunchKernelEx.argtypes]
+1 = "Ref{CUlaunchConfig}"
+
+[api.cuStreamIsCapturing.argtypes]
+2 = "Ref{CUstreamCaptureStatus}"
 
 [api.cuDeviceGetLuid]
 needs_context = false

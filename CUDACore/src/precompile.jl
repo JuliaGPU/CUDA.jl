@@ -3,8 +3,8 @@
 # systems where the backend isn't available.
 if :NVPTX in LLVM.backends()
     @compile_workload begin
-        # compile a dummy kernel to PTX to precompile the GPUCompiler pipeline.
-        # this doesn't need a GPU — it only uses LLVM.
+        # compile a dummy kernel to precompile the GPUCompiler pipeline.
+        # this uses the compiler toolchain, but doesn't need a GPU.
         let
             function _precompile_vadd(a)
                 i = threadIdx().x
@@ -13,16 +13,17 @@ if :NVPTX in LLVM.backends()
             end
 
             llvm_support = llvm_compat()
+            ptxas_support = ptxas_compat()
             # `.sm` is `Set{SMVersion}` (with variants); pick the highest baseline
             # entry <= v"7.5" for a portable precompile artifact.
             llvm_sm = argmax(base_version,
                              filter(sm -> sm.feature_set === :baseline &&
                                           base_version(sm) <= v"7.5",
                                     llvm_support.sm))
-            llvm_ptx = maximum(filter(>=(v"6.2"), llvm_support.ptx))
+            llvm_ptx, ptxas_ptx = default_ptx_versions(llvm_support, ptxas_support)
 
             target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx, debuginfo=true)
-            params = CUDACompilerParams(; sm=llvm_sm, ptx=llvm_ptx)
+            params = CUDACompilerParams(; sm=llvm_sm, ptx=ptxas_ptx)
             config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
 
             tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}
@@ -33,22 +34,23 @@ if :NVPTX in LLVM.backends()
             # MIs into native compilation, causing LLVM errors
             # (e.g. "Cannot select: intrinsic %llvm.nvvm.membar.sys").
             @static if VERSION >= v"1.12-"
-                JuliaContext() do ctx
-                    GPUCompiler.compile(:asm, job)
-                end
+                # Go through the launch-side cache path so both that path and package-image
+                # serialization of the generated image are precompiled.
+                compile_or_lookup(job)
             end
         end
     end
 end
 
 # kernel launch infrastructure
-precompile(Tuple{typeof(cufunction), typeof(identity), Type{Tuple{Nothing}}})
-precompile(Tuple{typeof(link), CompilerJob, NamedTuple{(:image, :entry), Tuple{Vector{UInt8}, String}}})
+let CUDACompilerJob = CompilerJob{PTXCompilerTarget, CUDACompilerParams}
+    precompile(Tuple{typeof(cufunction), typeof(identity), Type{Tuple{Nothing}}})
+    precompile(Tuple{typeof(link_kernel), CUDACompilerJob, Vector{UInt8}, String})
 
-# GPUCompiler compilation pipeline (specialized for CUDACore's compile/link)
-precompile(Tuple{typeof(GPUCompiler.actual_compilation),
-    Dict{Any, CuFunction}, Core.MethodInstance, UInt64,
-    CUDACompilerConfig, typeof(compile), typeof(link)})
+    # GPUCompiler 2.0 caching pipeline (specialized for CUDACore's results struct)
+    precompile(Tuple{typeof(compile_or_lookup), CUDACompilerJob})
+    precompile(Tuple{typeof(GPUCompiler.cached_results), Type{CUDACompilerResults}, CUDACompilerJob})
+end
 
 # scalar reference (used by cuBLAS for alpha/beta parameters)
 precompile(Tuple{Type{CuRefValue{Float32}}, Float32})

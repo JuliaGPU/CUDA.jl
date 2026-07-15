@@ -166,15 +166,21 @@ end
 
 ## compiler implementation (cache, configure, compile, and link)
 
-# cache of compilation caches, per context
-const _compiler_caches = Dict{CuContext, Dict{Any, CuFunction}}();
-function compiler_cache(ctx::CuContext)
-    cache = get(_compiler_caches, ctx, nothing)
-    if cache === nothing
-        cache = Dict{Any, CuFunction}()
-        _compiler_caches[ctx] = cache
-    end
-    return cache
+# GPUCompiler 2.0 caching: back-ends attach a mutable results struct to each cached
+# `CodeInstance` (on Julia 1.11+ this is Julia's integrated code cache, which also persists
+# artifacts through package precompilation; on 1.10 it's a session-local store). We keep
+# session-portable artifacts (the cubin `image` and entry-point `entry`) separate from the
+# session-local `CuFunction` handles, which are context-specific and must not be serialized
+# into a package image.
+mutable struct CUDACompilerResults
+    # session-portable artifacts (safe to persist across sessions)
+    image::Union{Nothing,Vector{UInt8}}
+    entry::Union{Nothing,String}
+
+    # session-local kernel handles, linear-scanned by context; usually holds a single entry
+    kernels::Vector{Tuple{CuContext,CuFunction}}
+
+    CUDACompilerResults() = new(nothing, nothing, Tuple{CuContext,CuFunction}[])
 end
 
 # cache of compiler configurations, per device (but additionally configurable via kwargs)
@@ -188,6 +194,26 @@ function compiler_config(dev; kwargs...)
     end
     return config
 end
+
+function default_ptx_versions(llvm_support, ptxas_support)
+    requested_ptx = v"6.2"
+    llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
+    ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
+    isempty(llvm_ptxs) &&
+        error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(nvptx_llvm_version)")
+    isempty(ptxas_ptxs) &&
+        error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
+
+    # LLVM must emit an ISA both tools support. Keep ptxas's newest ISA separately for
+    # CUDA-side target selection and PTX header rewriting.
+    common_ptxs = intersect(llvm_ptxs, ptxas_ptxs)
+    isempty(common_ptxs) &&
+        error("CUDA.jl requires a PTX ISA supported by both LLVM $(nvptx_llvm_version) " *
+              "and ptxas $(compiler_version())")
+
+    return maximum(common_ptxs), maximum(ptxas_ptxs)
+end
+
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
                                          arch=nothing, cap=nothing, ptx=nothing, kwargs...)
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
@@ -216,15 +242,7 @@ end
         llvm_ptx = ptxas_ptx = ptx
     else
         # default: pick the newest PTX ISA supported by the toolchain (>=v6.2)
-        requested_ptx = v"6.2"
-        llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
-        ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
-        isempty(llvm_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by LLVM $(nvptx_llvm_version)")
-        isempty(ptxas_ptxs) &&
-            error("CUDA.jl requires PTX $requested_ptx, which is not supported by ptxas $(compiler_version())")
-        ptxas_ptx = maximum(ptxas_ptxs)
-        llvm_ptx = min(maximum(llvm_ptxs), ptxas_ptx)
+        llvm_ptx, ptxas_ptx = default_ptx_versions(llvm_support, ptxas_support)
     end
 
     # when selecting compute capabilities, we prefer the most recent one, as
@@ -497,12 +515,29 @@ function compile(@nospecialize(job::CompilerJob))
     return (image, entry=LLVM.name(meta.entry))
 end
 
-# link into an executable kernel
-function link(@nospecialize(job::CompilerJob), compiled)
-    # load as an executable kernel object
-    ctx = context()
-    mod = CuModule(compiled.image)
-    CuFunction(mod, compiled.entry)
+# link a compiled image into a session-local `CuFunction` on the active context
+function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entry::String)
+    # load as an executable kernel object on the current context
+    mod = CuModule(image)
+    CuFunction(mod, entry)
+end
+
+# look up the cached compilation artifacts for `job`, running the compiler on a miss.
+#
+# Storage is managed by `GPUCompiler.cached_results`: Julia's integrated code cache on 1.11+
+# (which also persists artifacts through precompilation), or a session-local store on 1.10.
+# `image === nothing` identifies a freshly-created `CUDACompilerResults` that hasn't been
+# compiled yet; the `compile_hook` check additionally forces the compile path so that
+# reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
+function compile_or_lookup(@nospecialize(job::CompilerJob))::CUDACompilerResults
+    res = GPUCompiler.cached_results(CUDACompilerResults, job)
+    if res === nothing || res.image === nothing || GPUCompiler.compile_hook[] !== nothing
+        compiled = compile(job)
+        res = @something res GPUCompiler.cached_results(CUDACompilerResults, job)
+        res.image = compiled.image
+        res.entry = compiled.entry
+    end
+    return res
 end
 
 

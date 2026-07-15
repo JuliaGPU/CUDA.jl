@@ -1,31 +1,27 @@
 name: Benchmarks
 permissions:
-  statuses: read        # find Buildkite URL from PR status
   contents: write       # update benchmark contents in gh-pages branch
   pull-requests: write  # comment on PR with benchmark results
   deployments: write    # deploy GitHub pages website
 
 on:
-  pull_request_target:
-    branches:
-      - main
-  push:
-    branches:
-      - main
+  repository_dispatch:
+    types: [benchmarks_complete]
 
 jobs:
   benchmark:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.client_payload.commit }}
 
       - name: Download Buildkite Artifacts
         id: download
         uses: EnricoMi/download-buildkite-artifact-action@v1
         with:
           buildkite_token: ${{ secrets.BUILDKITE_TOKEN }}
-          ignore_build_states: blocked,canceled,skipped,not_run
-          ignore_job_states: timed_out,failed
+          buildkite_build_url: https://buildkite.com/julialang/cuda-dot-jl/builds/${{ github.event.client_payload.build_number }}
           output_path: artifacts
 
       - name: Locate Benchmarks Artifact
@@ -42,8 +38,9 @@ jobs:
           output-file-path: ${{ steps.locate.outputs.path }}
           benchmark-data-dir-path: "bench"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-always: ${{ github.event_name == 'pull_request_target' }}
+          ref: ${{ github.event.client_payload.commit }}
+          comment-always: ${{ github.event.client_payload.pull_request != 'false' }}
           summary-always: true
           alert-threshold: "125%"
           fail-on-alert: false
-          auto-push: ${{ github.event_name != 'pull_request_target' }}
+          auto-push: ${{ github.event.client_payload.branch == 'main' }}

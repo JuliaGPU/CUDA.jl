@@ -42,6 +42,18 @@ end
 
 
 @testset "compilation params" begin
+    llvm22 = CUDACore.llvm_compat(v"22")
+    @test CUDACore.default_ptx_versions(llvm22, CUDACore.ptxas_compat(v"12.9")) ==
+          (v"8.8", v"8.8")
+    @test CUDACore.default_ptx_versions(llvm22, CUDACore.ptxas_compat(v"13.3")) ==
+          (v"9.0", v"9.3")
+
+    # Don't assume the compatibility sets are contiguous.
+    llvm_support = (ptx=Set([v"8.7", v"9.0"]),)
+    ptxas_support = (ptx=Set([v"8.7", v"8.8"]),)
+    @test CUDACore.default_ptx_versions(llvm_support, ptxas_support) ==
+          (v"8.7", v"8.8")
+
     @cuda dummy()
 
     @test_throws "Number of threads per block exceeds kernel limit" begin
@@ -270,8 +282,16 @@ end
 end
 
 @testset "clusters" begin
+    cooperative = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
+    if cooperative
+        @cuda cooperative=true dummy()
+    end
+
     if CUDA.capability(device()) >= v"9.0"
         @cuda threads=64 blocks=2 clustersize=2 dummy()
+        if cooperative
+            @cuda cooperative=true threads=64 blocks=2 clustersize=2 dummy()
+        end
     else
         @test_throws CuError @cuda threads=64 blocks=2 clustersize=2 dummy()
     end
@@ -828,6 +848,16 @@ end
         @test Array(x) == [true, false]
         @cuda pass_symbol(x, :not_var)
         @test Array(x) == [true, true]
+
+        function pass_mixed(x, name, value)
+            i = name == :var ? 1 : 2
+            x[i] = value
+            return nothing
+        end
+        y = CUDA.zeros(Int, 2)
+        @cuda pass_mixed(y, :var, 42)
+        @cuda pass_mixed(y, :not_var, 7)
+        @test Array(y) == [42, 7]
     end
 
 end

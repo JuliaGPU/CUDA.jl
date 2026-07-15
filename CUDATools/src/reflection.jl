@@ -76,7 +76,7 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     end
 
     compiled = CUDACore.compile(job)
-    CUPTI.@enable! cfg CUDACore.link(job, compiled)
+    CUPTI.@enable! cfg CUDACore.link_kernel(job, compiled.image, compiled.entry)
 
     return
 end
