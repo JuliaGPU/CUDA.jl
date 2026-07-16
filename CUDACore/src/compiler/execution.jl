@@ -62,43 +62,45 @@ default implementation for [`LLVMBackend`](@ref) is [`cufunction`](@ref).
 kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
     cufunction(f, tt; kwargs...)
 
+
 ## kernel calls
 
 """
     KernelCall
 
-An immutable, self-rooting description of a kernel call. It contains a backend-specific
-converted function and arguments, together with the host objects that own them. Cache compiled
-kernels rather than calls, because a call pins its host arguments and is tied to the device,
-context, and task that were current when it was created.
+An description of a kernel call. It contains a backend-specific converted
+function and arguments, together with the source objects that own them. Cache
+compiled kernels rather than calls, because a call pins its host arguments and
+is tied to the device, context, and task that were current when it was created.
 """
-struct KernelCall{B,F,A,R}
+struct KernelCall{B,F,A,S}
     backend::B
     f::F
     arguments::A
-    roots::R
+    source::S
 
-    KernelCall{B,F,A,R}(backend::B, f::F, arguments::A, roots::R) where {B,F,A,R} =
-        new(backend, f, arguments, roots)
+    KernelCall{B,F,A,S}(backend::B, f::F, arguments::A, source::S) where {B,F,A,S} =
+        new(backend, f, arguments, source)
 end
 
-@inline _kernel_call(backend::B, f::F, arguments::A, roots::R) where {B,F,A,R} =
-    KernelCall{B,F,A,R}(backend, f, arguments, roots)
+@inline kernel_call(backend::B, f::F, arguments::A, source::S) where {B,F,A,S} =
+    KernelCall{B,F,A,S}(backend, f, arguments, source)
 
 """
     KernelCall(f, args...; backend=LLVMBackend())
 
-Convert `f` and `args` once and retain the host objects that own the converted values. Use
-[`kernel_compile`](@ref) to compile the call and [`kernel_launch`](@ref) to launch the
-resulting kernel without converting the arguments again.
+Convert `f` and `args` once and retain the host objects that own the converted
+values. Use [`kernel_compile`](@ref) to compile the call and
+[`kernel_launch`](@ref) to launch the resulting kernel without converting the
+arguments again.
 """
 @inline function KernelCall(f, args...; backend=LLVMBackend())
     backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
-    roots = (f=f, arguments=args)
-    GC.@preserve roots begin
+    source = (f=f, arguments=args)
+    GC.@preserve source begin
         kernel_f = kernel_convert(backend, f)
         arguments = map(arg -> kernel_convert(backend, arg), args)
-        _kernel_call(backend, kernel_f, arguments, roots)
+        kernel_call(backend, kernel_f, arguments, source)
     end
 end
 
@@ -114,13 +116,6 @@ with different compiler options.
 end
 
 """
-    call[i]
-
-Return host argument `i` from a [`KernelCall`](@ref).
-"""
-@inline Base.getindex(call::KernelCall, i::Integer) = call.roots.arguments[i]
-
-"""
     rebind(call::KernelCall, i => value)
 
 Return a call with host argument `i` rebound and converted for the same backend. The
@@ -130,13 +125,13 @@ to the compiled kernel signature.
 @inline rebind(call::KernelCall, binding::Pair{<:Integer}) =
     rebind_argument(call, binding.second, Val(binding.first))
 
-@generated function rebind_argument(call::KernelCall{B,F,A,R}, value,
-                                    ::Val{I}) where {B,F,A,R,I}
+@generated function rebind_argument(call::KernelCall{B,F,A,S}, value,
+                                    ::Val{I}) where {B,F,A,S,I}
     if !(1 <= I <= fieldcount(A))
         return :(throw(BoundsError(call, $I)))
     end
 
-    host_arguments = Expr(:tuple, [i == I ? :value : :(@inbounds call.roots.arguments[$i])
+    host_arguments = Expr(:tuple, [i == I ? :value : :(@inbounds call.source.arguments[$i])
                                    for i in 1:fieldcount(A)]...)
     arguments = Expr(:tuple, [i == I ? :converted : :(@inbounds call.arguments[$i])
                               for i in 1:fieldcount(A)]...)
@@ -145,9 +140,9 @@ to the compiled kernel signature.
             converted = kernel_convert(call.backend, value)
         end
         host_arguments = $host_arguments
-        roots = (f=call.roots.f, arguments=host_arguments)
+        source = (f=call.source.f, arguments=host_arguments)
         arguments = $arguments
-        _kernel_call(call.backend, call.f, arguments, roots)
+        kernel_call(call.backend, call.f, arguments, source)
     end
 end
 
@@ -416,11 +411,11 @@ the duration of the backend launch. Converted values are coerced to the kernel's
 signature at the calling boundary.
 """
 @generated function kernel_launch(kernel::AbstractKernel,
-                                  call::KernelCall{B,F,A,R}; kwargs...) where {B,F,A,R}
+                                  call::KernelCall{B,F,A,S}; kwargs...) where {B,F,A,S}
     root_vars = [gensym(:root) for _ in 1:fieldcount(A)+1]
-    assignments = Any[:($(root_vars[1]) = call.roots.f)]
+    assignments = Any[:($(root_vars[1]) = call.source.f)]
     append!(assignments,
-            [:($(root_vars[i+1]) = @inbounds call.roots.arguments[$i])
+            [:($(root_vars[i+1]) = @inbounds call.source.arguments[$i])
              for i in 1:fieldcount(A)])
     launch = :(kernel_launch(call.backend, kernel, call.arguments; kwargs...))
     preserve = Expr(:gc_preserve, launch, root_vars...)

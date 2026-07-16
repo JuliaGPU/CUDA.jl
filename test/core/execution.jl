@@ -73,7 +73,7 @@ end
     counter[] = 0
     call = CUDA.KernelCall(copy_counted, arg, output)
     @test call isa CUDA.KernelCall
-    @test call[1] === arg
+    @test call.source.arguments[1] === arg
     kernel = CUDA.kernel_compile(call)
     @test kernel isa CUDACore.HostKernel
     @test CUDACore.launch_configuration(kernel.fun).threads > 0
@@ -90,8 +90,8 @@ end
     replacement_counter = Ref(0)
     replacement = CountedHost(CuArray([12]), replacement_counter)
     replacement_call = CUDA.rebind(call, 1 => replacement)
-    @test call[1] === arg
-    @test replacement_call[1] === replacement
+    @test call.source.arguments[1] === arg
+    @test replacement_call.source.arguments[1] === replacement
     @test replacement_counter[] == 1
     GC.gc(true)
     CUDA.kernel_launch(kernel, replacement_call)
@@ -117,7 +117,7 @@ end
     int_call = CUDA.KernelCall(identity, Int32(1))
     @test @inferred(rebind_int(int_call, Int32(2))) isa CUDA.KernelCall
     runtime_index = Ref(1)[]
-    @test CUDA.rebind(int_call, runtime_index => Int64(3))[1] == 3
+    @test CUDA.rebind(int_call, runtime_index => Int64(3)).source.arguments[1] == 3
 
     function write_scalar(value, output)
         output[] = value
@@ -407,14 +407,14 @@ end
     BackendStub.launch_calls[] = 0
     call = CUDA.KernelCall(dummy, 1, 2; backend=BackendStub)
     @test call isa CUDA.KernelCall
-    @test call[1] == 1
+    @test call.source.arguments[1] == 1
     kernel = CUDA.kernel_compile(call; opt_level=3)
     @test kernel isa BackendStub.Kernel
     CUDA.kernel_launch(kernel, call; threads=4)
     call = CUDA.rebind(call, 1 => 3)
     CUDA.kernel_launch(kernel, call; threads=8)
     drifted = CUDA.rebind(call, 2 => 4.0)
-    @test drifted[2] == 4.0
+    @test drifted.source.arguments[2] == 4.0
     @test BackendStub.compile_calls[] == 1
     @test BackendStub.convert_calls[] == 5 # function, two arguments, and two rebindings
     @test BackendStub.launch_calls[] == 2

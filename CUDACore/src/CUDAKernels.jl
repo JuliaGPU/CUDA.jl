@@ -123,20 +123,19 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
     end
 
     call = CUDACore.KernelCall(obj.f, ctx, args...)
-    kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline,
-                             maxthreads)
+    kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline, maxthreads)
 
     # figure out the optimal workgroupsize automatically
     if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
         config = CUDACore.launch_configuration(kernel.fun; max_threads=prod(ndrange))
-        threads = if backend.prefer_blocks
+        if backend.prefer_blocks
             # Prefer blocks over threads
             threads = min(prod(ndrange), config.threads)
             # XXX: Some kernels performs much better with all blocks active
             cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
-            cld(prod(ndrange), cu_blocks)
+            threads = cld(prod(ndrange), cu_blocks)
         else
-            config.threads
+            threads = config.threads
         end
 
         workgroupsize = threads_to_workgroupsize(threads, ndrange)
@@ -154,6 +153,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
 
     # Launch kernel
     CUDACore.kernel_launch(kernel, call; threads, blocks)
+
     return nothing
 end
 
