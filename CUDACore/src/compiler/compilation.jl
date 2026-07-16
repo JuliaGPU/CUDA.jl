@@ -17,6 +17,9 @@ end
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
 const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 
+# CUDA 12.0 is the oldest supported toolkit, and Maxwell is the oldest supported GPU.
+const minreq = (; ptx=v"8.0", sm=sm"50")
+
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
 
 # filter out functions from libdevice and cudadevrt
@@ -55,6 +58,23 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
     entry = invoke(GPUCompiler.finish_module!,
                    Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, LLVM.Function},
                    job, mod, entry)
+
+    # Make the compilation target available to device code. GPUCompiler used to provide
+    # these globals, but target-specific properties are owned by the back-end now.
+    feature_set = job.config.target.feature_set === :arch    ? ArchFeatures :
+                  job.config.target.feature_set === :family  ? FamilyFeatures :
+                                                               BaselineFeatures
+    for (name, value) in ["sm_major"    => job.config.target.cap.major,
+                          "sm_minor"    => job.config.target.cap.minor,
+                          "sm_features" => UInt32(feature_set),
+                          "ptx_major"   => job.config.target.ptx.major,
+                          "ptx_minor"   => job.config.target.ptx.minor]
+        if haskey(globals(mod), name)
+            gv = globals(mod)[name]
+            initializer!(gv, ConstantInt(LLVM.Int32Type(), value))
+            linkage!(gv, LLVM.API.LLVMPrivateLinkage)
+        end
+    end
 
     # if this kernel uses our RNG, we should prime the shared state.
     # XXX: these transformations should really happen at the Julia IR level...
@@ -196,7 +216,7 @@ function compiler_config(dev; kwargs...)
 end
 
 function default_ptx_versions(llvm_support, ptxas_support)
-    requested_ptx = v"6.2"
+    requested_ptx = minreq.ptx
     llvm_ptxs = filter(>=(requested_ptx), llvm_support.ptx)
     ptxas_ptxs = filter(>=(requested_ptx), ptxas_support.ptx)
     isempty(llvm_ptxs) &&
@@ -235,13 +255,15 @@ end
     # determine the PTX ISA to use.
     if ptx !== nothing
         # explicit request: take it exactly, validating against the toolchain
+        ptx >= minreq.ptx ||
+            error("CUDA.jl requires PTX ISA $(minreq.ptx) or higher")
         ptx in llvm_support.ptx ||
             error("Requested PTX ISA $ptx is not supported by LLVM $(nvptx_llvm_version)")
         ptx in ptxas_support.ptx ||
             error("Requested PTX ISA $ptx is not supported by ptxas $(compiler_version())")
         llvm_ptx = ptxas_ptx = ptx
     else
-        # default: pick the newest PTX ISA supported by the toolchain (>=v6.2)
+        # default: pick the newest supported PTX ISA at or above our minimum
         llvm_ptx, ptxas_ptx = default_ptx_versions(llvm_support, ptxas_support)
     end
 
@@ -255,6 +277,8 @@ end
     ptx_sms = ptx_sm_support(ptxas_ptx)
     if arch !== nothing
         # explicit request: take it as-is, validating against the PTX ISA
+        base_version(arch) >= base_version(minreq.sm) ||
+            error("CUDA.jl requires compute capability $(cpu_name(minreq.sm)) or higher")
         arch in ptx_sms ||
             error("$(cpu_name(arch)) is not supported by PTX ISA $(ptxas_ptx)")
         ptxas_sm = arch
@@ -262,7 +286,9 @@ end
         # pick the most specific capability the selected PTX ISA supports whose cubin
         # would actually load on the current device. For baseline that's the onion model;
         # `:arch` requires an exact CC match, `:family` a same-family match.
-        ptxas_candidates = filter(sm -> runs_on(sm, capability(dev)), ptx_sms)
+        ptxas_candidates = filter(ptx_sms) do sm
+            base_version(sm) >= base_version(minreq.sm) && runs_on(sm, capability(dev))
+        end
         isempty(ptxas_candidates) &&
             error("Compute capability $(capability(dev)) is not supported by ptxas " *
                   "$(compiler_version()) at PTX ISA $(ptxas_ptx)")
@@ -275,7 +301,8 @@ end
         # Exact `ptxas_sm` unavailable in LLVM. Fall back to baseline LLVM at a
         # lower base, since arch/family features don't carry across versions.
         baseline_candidates = filter(llvm_support.sm) do sm
-            sm.feature_set === :baseline && base_version(sm) <= base_version(ptxas_sm)
+            sm.feature_set === :baseline &&
+                base_version(minreq.sm) <= base_version(sm) <= base_version(ptxas_sm)
         end
         isempty(baseline_candidates) &&
             error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")

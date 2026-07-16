@@ -311,33 +311,49 @@ function dp4a end
 @static if LLVM.version() >= v"21"
     # LLVM 21 added @llvm.nvvm.idp4a.[us].[us]; prefer the intrinsic over inline PTX so
     # the instruction participates in optimization and instruction selection.
-    @device_function dp4a(a::Int32, b::Int32, c::Int32) =
+    @device_function function dp4a(a::Int32, b::Int32, c::Int32)
+        require_sm_61()
         ccall("llvm.nvvm.idp4a.s.s", llvmcall, Int32, (Int32, Int32, Int32), a, b, c)
+    end
 
-    @device_function dp4a(a::Int32, b::UInt32, c::Int32) =
+    @device_function function dp4a(a::Int32, b::UInt32, c::Int32)
+        require_sm_61()
         ccall("llvm.nvvm.idp4a.s.u", llvmcall, Int32, (Int32, UInt32, Int32), a, b, c)
+    end
 
-    @device_function dp4a(a::UInt32, b::Int32, c::Int32) =
+    @device_function function dp4a(a::UInt32, b::Int32, c::Int32)
+        require_sm_61()
         ccall("llvm.nvvm.idp4a.u.s", llvmcall, Int32, (UInt32, Int32, Int32), a, b, c)
+    end
 
-    @device_function dp4a(a::UInt32, b::UInt32, c::UInt32) =
+    @device_function function dp4a(a::UInt32, b::UInt32, c::UInt32)
+        require_sm_61()
         ccall("llvm.nvvm.idp4a.u.u", llvmcall, UInt32, (UInt32, UInt32, UInt32), a, b, c)
+    end
 else
-    @device_function dp4a(a::Int32, b::Int32, c::Int32) =
+    @device_function function dp4a(a::Int32, b::Int32, c::Int32)
+        require_sm_61()
         @asmcall("dp4a.s32.s32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
                  Int32, Tuple{Int32, Int32, Int32}, a, b, c)
+    end
 
-    @device_function dp4a(a::Int32, b::UInt32, c::Int32) =
+    @device_function function dp4a(a::Int32, b::UInt32, c::Int32)
+        require_sm_61()
         @asmcall("dp4a.s32.u32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
                  Int32, Tuple{Int32, UInt32, Int32}, a, b, c)
+    end
 
-    @device_function dp4a(a::UInt32, b::Int32, c::Int32) =
+    @device_function function dp4a(a::UInt32, b::Int32, c::Int32)
+        require_sm_61()
         @asmcall("dp4a.u32.s32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
                  Int32, Tuple{UInt32, Int32, Int32}, a, b, c)
+    end
 
-    @device_function dp4a(a::UInt32, b::UInt32, c::UInt32) =
+    @device_function function dp4a(a::UInt32, b::UInt32, c::UInt32)
+        require_sm_61()
         @asmcall("dp4a.u32.u32 \$0, \$1, \$2, \$3;", "=r,r,r,r", false,
                  UInt32, Tuple{UInt32, UInt32, UInt32}, a, b, c)
+    end
 end
 
 

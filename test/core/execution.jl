@@ -61,10 +61,9 @@ end
     end
     @cuda threads=2 dummy()
 
-    # sm_10 isn't supported by LLVM
-    @test_throws "not supported by LLVM" @cuda launch=false arch=sm"10" dummy()
-    # sm_20 is, but not by any CUDA version we support
-    @test_throws "Failed to compile PTX code" @cuda launch=false arch=sm"20" dummy()
+    # Older targets may be known to LLVM/PTX, but not to any CUDA version we support.
+    @test_throws "requires compute capability sm_50" @cuda launch=false arch=sm"10" dummy()
+    @test_throws "requires compute capability sm_50" @cuda launch=false arch=sm"20" dummy()
     # there isn't any capability other than the device's that's guaruanteed to work
     dev_cap = capability(device())
     dev_sm = SMVersion(dev_cap.major, dev_cap.minor)
@@ -85,10 +84,11 @@ end
     # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
     # `.version` line should match what was asked for, independently of what LLVM and
     # ptxas would natively pick.
-    @test @filecheck CUDA.code_ptx((); ptx=v"6.3") do
-        @check ".version 6.3"
+    @test @filecheck CUDA.code_ptx((); ptx=v"8.0") do
+        @check ".version 8.0"
         dummy()
     end
+    @test_throws "requires PTX ISA 8.0" @cuda launch=false ptx=v"7.8" dummy()
 
     # explicit `ptx=` is validated against BOTH LLVM and ptxas (not just LLVM as it
     # used to be); a clearly out-of-range value must error at config time.
@@ -143,16 +143,24 @@ end
         else
             UInt32(0)
         end
+        cc = compute_capability()
+        ptx = ptx_isa_version()
+        @inbounds out[2] = cc.major
+        @inbounds out[3] = cc.minor
+        @inbounds out[4] = ptx.major
+        @inbounds out[5] = ptx.minor
         return
     end
-    out = CuArray{UInt32}([typemax(UInt32)])
+    out = CUDA.fill(typemax(UInt32), 5)
     @cuda threads=1 read_feature_set!(out)
     # arch features come through `target_feature_set()` only when the back-end LLVM
     # natively supports the variant; otherwise we fell back to baseline and the
     # global reflects that.
     arch_in_llvm = sm_a in CUDACore.llvm_compat().sm
     expected = dev_cap >= v"9.0" && arch_in_llvm ? UInt32(2) : UInt32(0)
-    @test Array(out)[1] == expected
+    target = CUDACore.compiler_config(device()).target
+    @test Array(out) == UInt32[expected, target.cap.major, target.cap.minor,
+                               target.ptx.major, target.ptx.minor]
 end
 
 

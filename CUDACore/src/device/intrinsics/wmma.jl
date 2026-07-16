@@ -2,7 +2,7 @@ export WMMA
 module WMMA
 
 import ..LLVM
-using ..CUDACore: AS, @device_function
+using ..CUDACore: AS, @device_function, require_sm_70, require_sm_72, require_sm_80
 using Core: LLVMPtr
 using BFloat16s: BFloat16
 
@@ -212,12 +212,23 @@ for ops in all_ldst_ops,
     ccall_name = "$llvm_intr"
 
     ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
+    req = elem_type == "bf16" ? :(require_sm_80()) :
+          elem_type in ("u8", "s8", "s32") ? :(require_sm_72()) : :(require_sm_70())
 
     if sz == 1
-        @eval @device_function $func_name(src_addr, stride) = tuple(ccall($ccall_name, llvmcall, $frag_ty, ($ptr_ty, Int32), src_addr, stride))
+        @eval @device_function function $func_name(src_addr, stride)
+            $req
+            tuple(ccall($ccall_name, llvmcall, $frag_ty,
+                        ($ptr_ty, Int32), src_addr, stride))
+        end
     else
         struct_ty = Symbol("LLVMStruct$sz")
-        @eval @device_function $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
+        @eval @device_function function $func_name(src_addr, stride)
+            $req
+            convert(NTuple{$sz, $frag_ty},
+                    ccall($ccall_name, llvmcall, $struct_ty{$frag_ty},
+                          ($ptr_ty, Int32), src_addr, stride))
+        end
     end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_load) $func_name
@@ -283,8 +294,13 @@ export llvm_wmma_store
     frag_vars = ntuple(i -> :(data[$i]), sz)
 
     ptr_ty = :(LLVMPtr{$arr_ty, $addr_space_int})
+    req = elem_type == "s32" ? :(require_sm_72()) : :(require_sm_70())
 
-    @eval @device_function $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
+    @eval @device_function function $func_name(dst_addr, data, stride)
+        $req
+        ccall($ccall_name, llvmcall, Nothing,
+              ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
+    end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_store) $func_name
 end
@@ -359,12 +375,25 @@ for ops in all_wmma_ops,
     a_vars = ntuple(i -> :(a[$i]), a_sz)
     b_vars = ntuple(i -> :(b[$i]), b_sz)
     c_vars = ntuple(i -> :(c[$i]), c_sz)
+    req = a_elem_type == "bf16" ? :(require_sm_80()) :
+          a_elem_type in ("u8", "s8") ? :(require_sm_72()) : :(require_sm_70())
 
     if d_sz == 1
-        @eval @device_function $func_name(a, b, c) = tuple(ccall($ccall_name, llvmcall, $d_frag_ty, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+        @eval @device_function function $func_name(a, b, c)
+            $req
+            tuple(ccall($ccall_name, llvmcall, $d_frag_ty,
+                        ($(a_types...), $(b_types...), $(c_types...)),
+                        $(a_vars...), $(b_vars...), $(c_vars...)))
+        end
     else
         struct_ty = Symbol("LLVMStruct$d_sz")
-        @eval @device_function $func_name(a, b, c) = convert(NTuple{$d_sz, $d_frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
+        @eval @device_function function $func_name(a, b, c)
+            $req
+            convert(NTuple{$d_sz, $d_frag_ty},
+                    ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty},
+                          ($(a_types...), $(b_types...), $(c_types...)),
+                          $(a_vars...), $(b_vars...), $(c_vars...)))
+        end
     end
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_mma) $func_name
