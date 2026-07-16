@@ -173,23 +173,23 @@ end
 
 function bench_gpu4!(y, x)
     CUDA.@sync begin
-        invocation = CUDA.prepare(gpu_add4!, y, x)
-        kernel = CUDA.compile(invocation)
+        call = CUDA.KernelCall(gpu_add4!, y, x)
+        kernel = CUDA.kernel_compile(call)
         config = launch_configuration(kernel.fun)
         threads = min(length(y), config.threads)
         blocks = cld(length(y), threads)
-        CUDA.launch(kernel, invocation; threads, blocks)
+        CUDA.kernel_launch(kernel, call; threads, blocks)
     end
 end
 
 function bench_gpu5!(y, x)
     CUDA.@sync begin
-        invocation = CUDA.prepare(gpu_add5!, y, x)
-        kernel = CUDA.compile(invocation)
+        call = CUDA.KernelCall(gpu_add5!, y, x)
+        kernel = CUDA.kernel_compile(call)
         config = launch_configuration(kernel.fun)
         threads = min(length(y), config.threads)
         blocks = cld(length(y), threads)
-        CUDA.launch(kernel, invocation; threads, blocks)
+        CUDA.kernel_launch(kernel, call; threads, blocks)
     end
 end
 
