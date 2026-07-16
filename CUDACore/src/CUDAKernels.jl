@@ -122,54 +122,37 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    if KA.workgroupsize(obj) <: KA.DynamicSize
-        launch_kernel(obj, args, ndrange, workgroupsize, iterspace, ctx, maxthreads, backend)
-    else
-        launch_configured_kernel(obj, args, iterspace, ctx, maxthreads, backend)
-    end
-    return nothing
-end
-
-@inline function launch_kernel(obj, args, ndrange, ::Nothing, iterspace, ctx,
-                               maxthreads, backend)
     invocation = CUDACore.prepare(obj.f, ctx, args...)
     kernel = CUDACore.compile(invocation; always_inline=backend.always_inline,
                              maxthreads)
-    config = CUDACore.launch_configuration(kernel.fun;
-                                           max_threads=prod(ndrange))
-    threads = if backend.prefer_blocks
-        threads = min(prod(ndrange), config.threads)
-        cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
-        cld(prod(ndrange), cu_blocks)
-    else
-        config.threads
+
+    # figure out the optimal workgroupsize automatically
+    if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
+        config = CUDACore.launch_configuration(kernel.fun; max_threads=prod(ndrange))
+        threads = if backend.prefer_blocks
+            # Prefer blocks over threads
+            threads = min(prod(ndrange), config.threads)
+            # XXX: Some kernels performs much better with all blocks active
+            cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
+            cld(prod(ndrange), cu_blocks)
+        else
+            config.threads
+        end
+
+        workgroupsize = threads_to_workgroupsize(threads, ndrange)
+        iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
+        ctx = KA.mkcontext(obj, ndrange, iterspace)
+        invocation = Base.setindex(invocation, ctx, 1)
     end
 
-    workgroupsize = threads_to_workgroupsize(threads, ndrange)
-    iterspace = first(KA.partition(obj, ndrange, workgroupsize))
     blocks = length(KA.blocks(iterspace))
-    blocks == 0 && return nothing
-
     threads = length(KA.workitems(iterspace))
-    ctx = KA.mkcontext(obj, ndrange, iterspace)
-    invocation = Base.setindex(invocation, ctx, 1)
-    CUDACore.launch(kernel, invocation; threads, blocks)
-    return nothing
-end
 
-@inline function launch_kernel(obj, args, ndrange, workgroupsize, iterspace, ctx,
-                               maxthreads, backend)
-    launch_configured_kernel(obj, args, iterspace, ctx, maxthreads, backend)
-end
+    if blocks == 0
+        return nothing
+    end
 
-@inline function launch_configured_kernel(obj, args, iterspace, ctx, maxthreads, backend)
-    blocks = length(KA.blocks(iterspace))
-    blocks == 0 && return nothing
-
-    invocation = CUDACore.prepare(obj.f, ctx, args...)
-    kernel = CUDACore.compile(invocation; always_inline=backend.always_inline,
-                             maxthreads)
-    threads = length(KA.workitems(iterspace))
+    # Launch kernel
     CUDACore.launch(kernel, invocation; threads, blocks)
     return nothing
 end

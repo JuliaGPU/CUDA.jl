@@ -102,11 +102,11 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
             end
         end
 
+        # how many threads can we launch?
         compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
         invocation = CUDACore.prepare(kernel, x, y, res, Val(shuffle))
         compiled = CUDACore.compile(invocation)
-        config = launch_configuration(compiled.fun;
-                                      shmem=compute_shmem∘compute_threads)
+        config = launch_configuration(compiled.fun; shmem=compute_shmem∘compute_threads)
         threads = compute_threads(config.threads)
         blocks = min(config.blocks, cld(n, config.blocks))
         shmem = compute_shmem(threads)
@@ -189,11 +189,11 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
             end
         end
 
+        # how many threads can we launch?
         compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
         invocation = CUDACore.prepare(kernel, x, A, y, res, Val(shuffle))
         compiled = CUDACore.compile(invocation)
-        config = launch_configuration(compiled.fun;
-                                      shmem=compute_shmem∘compute_threads)
+        config = launch_configuration(compiled.fun; shmem=compute_shmem∘compute_threads)
         threads = compute_threads(config.threads)
         blocks = min(config.blocks, cld(mA, config.blocks))
         shmem = compute_shmem(threads)
