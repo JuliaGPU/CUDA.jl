@@ -44,14 +44,14 @@ julia> k()
 ```
 
 Calling a `HostKernel` with positional arguments converts those host values for each call.
-For an occupancy query followed by an immediate launch, keep the converted arguments in a
-scoped prepared launch:
+For an occupancy query followed by an immediate launch, prepare the invocation explicitly so
+the arguments are only converted once:
 
 ```julia
-CUDA.prepare_launch(my_kernel) do launch
-    config = launch_configuration(launch.kernel.fun)
-    launch(; threads=config.threads)
-end
+invocation = CUDA.prepare(my_kernel)
+kernel = CUDA.compile(invocation)
+config = launch_configuration(kernel.fun)
+CUDA.launch(kernel, invocation; threads=config.threads)
 ```
 
 

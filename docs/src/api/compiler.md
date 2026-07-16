@@ -15,9 +15,9 @@ The main entry-point to the compiler is the `@cuda` macro:
 If needed, you can use a lower-level API that lets you inspect the compiler kernel:
 
 ```@docs
-prepare_launch
-PreparedLaunch
-replace_arguments
+prepare
+KernelInvocation
+compile
 cudaconvert
 cufunction
 AbstractKernel
@@ -27,6 +27,9 @@ maxthreads
 registers
 memory
 ```
+
+Launch a compiled invocation with `launch(kernel, invocation; launch_kwargs...)`. Arguments
+can be replaced immutably with `Base.setindex(invocation, value, index)` before launching.
 
 The PTX compilation target is identified by an `SMVersion`, constructed via the
 `sm"..."` string macro:
@@ -43,9 +46,7 @@ through a small protocol:
 AbstractBackend
 LLVMBackend
 DefaultBackend
-kernel_convert
-kernel_compile
-kernel_launch
+backend
 ```
 
 
