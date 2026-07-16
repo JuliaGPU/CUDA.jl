@@ -122,7 +122,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    call = CUDACore.KernelCall(obj.f, ctx, args...)
+    call = CUDACore.kernel_call(obj.f, (ctx, args...))
     kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline, maxthreads)
 
     # figure out the optimal workgroupsize automatically
@@ -141,7 +141,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         workgroupsize = threads_to_workgroupsize(threads, ndrange)
         iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
         ctx = KA.mkcontext(obj, ndrange, iterspace)
-        call = CUDACore.rebind(call, 1 => ctx)
+        call = CUDACore.rebind(call, 1, ctx)
     end
 
     blocks = length(KA.blocks(iterspace))

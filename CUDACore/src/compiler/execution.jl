@@ -86,6 +86,18 @@ end
 @inline kernel_call(backend::B, f::F, arguments::A, source::S) where {B,F,A,S} =
     KernelCall{B,F,A,S}(backend, f, arguments, source)
 
+@inline @generated function kernel_call(backend::B, f::F, args::A) where {B,F,A<:Tuple}
+    converted = [:(kernel_convert(backend, args[$i])) for i in 1:fieldcount(A)]
+    quote
+        source = (f=f, arguments=args)
+        GC.@preserve source begin
+            kernel_f = kernel_convert(backend, f)
+            arguments = ($(converted...),)
+            kernel_call(backend, kernel_f, arguments, source)
+        end
+    end
+end
+
 """
     KernelCall(f, args...; backend=LLVMBackend())
 
@@ -95,13 +107,12 @@ values. Use [`kernel_compile`](@ref) to compile the call and
 arguments again.
 """
 @inline function KernelCall(f, args...; backend=LLVMBackend())
+    kernel_call(f, args, backend)
+end
+
+@inline function kernel_call(f, args::Tuple, backend=LLVMBackend())
     backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
-    source = (f=f, arguments=args)
-    GC.@preserve source begin
-        kernel_f = kernel_convert(backend, f)
-        arguments = map(arg -> kernel_convert(backend, arg), args)
-        kernel_call(backend, kernel_f, arguments, source)
-    end
+    kernel_call(backend, f, args)
 end
 
 """
@@ -116,17 +127,16 @@ with different compiler options.
 end
 
 """
-    rebind(call::KernelCall, i => value)
+    rebind(call::KernelCall, i, value)
 
 Return a call with host argument `i` rebound and converted for the same backend. The
 new converted argument may have a different type; [`kernel_launch`](@ref) coerces arguments
 to the compiled kernel signature.
 """
-@inline rebind(call::KernelCall, binding::Pair{<:Integer}) =
-    rebind_argument(call, binding.second, Val(binding.first))
+@inline rebind(call::KernelCall, i::Integer, value) = rebind_argument(call, value, Val(i))
 
-@generated function rebind_argument(call::KernelCall{B,F,A,S}, value,
-                                    ::Val{I}) where {B,F,A,S,I}
+@inline @generated function rebind_argument(call::KernelCall{B,F,A,S}, value,
+                                            ::Val{I}) where {B,F,A,S,I}
     if !(1 <= I <= fieldcount(A))
         return :(throw(BoundsError(call, $I)))
     end
@@ -410,8 +420,8 @@ Launch a compiled kernel with converted arguments. The call retains the host roo
 the duration of the backend launch. Converted values are coerced to the kernel's compiled
 signature at the calling boundary.
 """
-@generated function kernel_launch(kernel::AbstractKernel,
-                                  call::KernelCall{B,F,A,S}; kwargs...) where {B,F,A,S}
+@inline @generated function kernel_launch(kernel::AbstractKernel,
+                                          call::KernelCall{B,F,A,S}; kwargs...) where {B,F,A,S}
     root_vars = [gensym(:root) for _ in 1:fieldcount(A)+1]
     assignments = Any[:($(root_vars[1]) = call.source.f)]
     append!(assignments,
