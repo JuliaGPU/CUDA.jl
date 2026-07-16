@@ -70,12 +70,12 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
         return
     end
     # COV_EXCL_STOP
-    CUDACore.prepare_launch(find_groups, groups, coo.rowInd, coo.colInd) do launch
-        config = launch_configuration(launch.kernel.fun)
-        threads = min(length(groups), config.threads)
-        blocks = cld(length(groups), threads)
-        launch(; threads, blocks)
-    end
+    invocation = CUDACore.prepare(find_groups, groups, coo.rowInd, coo.colInd)
+    kernel = CUDACore.compile(invocation)
+    config = launch_configuration(kernel.fun)
+    threads = min(length(groups), config.threads)
+    blocks = cld(length(groups), threads)
+    CUDACore.launch(kernel, invocation; threads, blocks)
 
     # if we got any group of more than one element, we need to combine them.
     # this may actually not be required, as some CUSPARSE functions can handle
@@ -126,13 +126,13 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
             return
         end
         # COV_EXCL_STOP
-        CUDACore.prepare_launch(combine_groups, groups, indices, coo.rowInd, coo.colInd,
-                                coo.nzVal, I, J, V, combine) do launch
-            config = launch_configuration(launch.kernel.fun)
-            threads = min(length(groups), config.threads)
-            blocks = cld(length(groups), threads)
-            launch(; threads, blocks)
-        end
+        invocation = CUDACore.prepare(combine_groups, groups, indices, coo.rowInd, coo.colInd,
+                                      coo.nzVal, I, J, V, combine)
+        kernel = CUDACore.compile(invocation)
+        config = launch_configuration(kernel.fun)
+        threads = min(length(groups), config.threads)
+        blocks = cld(length(groups), threads)
+        CUDACore.launch(kernel, invocation; threads, blocks)
         synchronize()
         coo = CuSparseMatrixCOO{Tv}(I, J, V, (m, n))
     end

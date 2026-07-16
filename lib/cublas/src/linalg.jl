@@ -103,14 +103,14 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
         end
 
         compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
-        CUDACore.prepare_launch(kernel, x, y, res, Val(shuffle)) do launch
-            config = launch_configuration(launch.kernel.fun;
-                                          shmem=compute_shmem∘compute_threads)
-            threads = compute_threads(config.threads)
-            blocks = min(config.blocks, cld(n, config.blocks))
-            shmem = compute_shmem(threads)
-            launch(; threads, blocks, shmem)
-        end
+        invocation = CUDACore.prepare(kernel, x, y, res, Val(shuffle))
+        compiled = CUDACore.compile(invocation)
+        config = launch_configuration(compiled.fun;
+                                      shmem=compute_shmem∘compute_threads)
+        threads = compute_threads(config.threads)
+        blocks = min(config.blocks, cld(n, config.blocks))
+        shmem = compute_shmem(threads)
+        CUDACore.launch(compiled, invocation; threads, blocks, shmem)
 
         CUDACore.@allowscalar res[]
     end
@@ -190,14 +190,14 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
         end
 
         compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
-        CUDACore.prepare_launch(kernel, x, A, y, res, Val(shuffle)) do launch
-            config = launch_configuration(launch.kernel.fun;
-                                          shmem=compute_shmem∘compute_threads)
-            threads = compute_threads(config.threads)
-            blocks = min(config.blocks, cld(mA, config.blocks))
-            shmem = compute_shmem(threads)
-            launch(; threads, blocks, shmem)
-        end
+        invocation = CUDACore.prepare(kernel, x, A, y, res, Val(shuffle))
+        compiled = CUDACore.compile(invocation)
+        config = launch_configuration(compiled.fun;
+                                      shmem=compute_shmem∘compute_threads)
+        threads = compute_threads(config.threads)
+        blocks = min(config.blocks, cld(mA, config.blocks))
+        shmem = compute_shmem(threads)
+        CUDACore.launch(compiled, invocation; threads, blocks, shmem)
 
         CUDACore.@allowscalar res[]
     end
