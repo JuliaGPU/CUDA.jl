@@ -26,7 +26,7 @@ function description(err)
     elseif err.code == CURAND_STATUS_OUT_OF_RANGE
         "argument out of range"
     elseif err.code == CURAND_STATUS_LENGTH_NOT_MULTIPLE
-        "length requested is not a multple of dimension"
+        "length requested is not a multiple of dimension"
     elseif err.code == CURAND_STATUS_DOUBLE_PRECISION_REQUIRED
         "GPU does not have double precision required by MRG32k3a"
     elseif err.code == CURAND_STATUS_LAUNCH_FAILURE

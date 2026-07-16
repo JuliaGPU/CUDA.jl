@@ -147,7 +147,7 @@ two cases where you may want to select a different version:
 
 - **You have a GPU that is not supported by the latest CUDA Toolkit**.
   Although CUDA.jl tries to select a runtime that supports most of your GPUs,
-  specific devices may end up being unsuported by the active toolkit.
+  specific devices may end up being unsupported by the active toolkit.
   In that case, call e.g. `CUDA.set_runtime_version!(v"12.9")` to
   use a specific toolkit which still supports the device in question.
 - **You want to use a CUDA Toolkit that is already installed on your system**.
