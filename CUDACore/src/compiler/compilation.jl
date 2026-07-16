@@ -23,7 +23,7 @@ const minreq = (; ptx=v"8.0", sm=sm"50")
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
 function GPUCompiler.lower_host_references!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module,
                                             refs::GPUCompiler.HostReferences)
-    GPUCompiler.emit_host_reference_slots!(mod, refs)
+    GPUCompiler.emit_host_reference_definitions!(mod, refs)
 end
 
 # filter out functions from libdevice and cudadevrt
