@@ -16,8 +16,6 @@ If needed, you can use a lower-level API that lets you inspect the compiled kern
 
 ```@docs
 KernelInvocation
-kernel_convert
-kernel_compile
 kernel_launch
 rebind
 cudaconvert
@@ -48,7 +46,8 @@ through a small protocol:
 AbstractBackend
 LLVMBackend
 DefaultBackend
-backend
+kernel_convert
+kernel_compile
 ```
 
 

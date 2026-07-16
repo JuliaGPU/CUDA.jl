@@ -5,7 +5,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public AbstractBackend, LLVMBackend, DefaultBackend
 @public kernel_convert, kernel_compile, kernel_launch
 @public KernelInvocation, rebind
-@public AbstractKernel, HostKernel, DeviceKernel, backend
+@public AbstractKernel, HostKernel, DeviceKernel
 
 
 ## backend dispatch
@@ -16,8 +16,8 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 Abstract supertype for `@cuda` backend dispatch. The default backend is
 [`LLVMBackend`](@ref), which compiles SIMT/PTX kernels via
 [`cufunction`](@ref). Other backends (e.g. Tile IR via cuTile.jl) register
-a subtype and define methods for [`kernel_convert`](@ref), [`kernel_compile`](@ref),
-and [`kernel_launch`](@ref); `@cuda backend=...` then routes through them.
+a subtype and define methods for [`kernel_convert`](@ref) and
+[`kernel_compile`](@ref); `@cuda backend=...` then routes through them.
 
 `@cuda backend=...` accepts either an `AbstractBackend` instance or a
 module that defines `DefaultBackend()` returning one (e.g.
@@ -409,22 +409,6 @@ function Base.show(io::IO, ::MIME"text/plain", k::AbstractKernel{F,TT}) where {F
 end
 
 """
-    backend(kernel::AbstractKernel)
-
-Return the backend that compiled `kernel`. Backend kernel types define this trait so an
-invocation can be constructed for an existing kernel.
-"""
-function backend end
-
-"""
-    KernelInvocation(kernel::AbstractKernel, args...)
-
-Construct a new invocation for an existing kernel's function and backend.
-"""
-@inline KernelInvocation(kernel::AbstractKernel, args...) =
-    KernelInvocation(kernel.f, args...; backend=backend(kernel))
-
-"""
     kernel_launch(kernel::AbstractKernel, invocation::KernelInvocation; launch_kwargs...)
 
 Launch a compiled kernel with converted arguments. The invocation retains the host roots for
@@ -489,10 +473,8 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
-backend(::HostKernel) = LLVMBackend()
-
 @inline function (kernel::HostKernel)(args...; kwargs...)
-    invocation = KernelInvocation(kernel, args...)
+    invocation = KernelInvocation(kernel.f, args...; backend=LLVMBackend())
     kernel_launch(kernel, invocation; kwargs...)
 end
 

@@ -81,10 +81,6 @@ end
     CUDA.kernel_launch(kernel, invocation)
     @test counter[] == 1
     @test Array(output) == [11]
-    rebound = CUDA.KernelInvocation(kernel, arg, output)
-    @test rebound.backend isa CUDA.LLVMBackend
-    @test counter[] == 2
-
     counter[] = 0
     kernel = @cuda launch=false copy_counted(arg, output)
     @test counter[] == 1
@@ -372,7 +368,6 @@ end
             f::F
         end
 
-        CUDACore.backend(::Kernel) = Backend()
         CUDACore.kernel_convert(::Backend, x) = (convert_calls[] += 1; x)
         function CUDACore.kernel_compile(::Backend, f::F, tt::Type{<:Tuple};
                                          kwargs...) where {F}
