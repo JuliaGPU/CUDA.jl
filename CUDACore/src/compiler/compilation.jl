@@ -193,7 +193,8 @@ end
 # GPUCompiler 2.0 caching: back-ends attach a mutable results struct to each cached
 # `CodeInstance` (on Julia 1.11+ this is Julia's integrated code cache, which also persists
 # artifacts through package precompilation; on 1.10 it's a session-local store). We keep
-# session-portable artifacts (the cubin `image` and entry-point `entry`) separate from the
+# conditionally session-portable artifacts (the cubin `image`, entry point, and relocations)
+# separate from the
 # session-local `CuFunction` handles, which are context-specific and must not be serialized
 # into a package image.
 mutable struct CUDACompilerResults
@@ -553,13 +554,21 @@ function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entr
                      refs::GPUCompiler.HostReferences)
     # load as an executable kernel object on the current context
     mod = CuModule(image)
-    roots = Any[]
-    for (name, ref) in refs.slots
+    relocations = GPUCompiler.resolved_relocations(refs)
+    for (name, value) in relocations.slots
         slot = CuGlobal{UInt}(mod, name)
-        slot[] = GPUCompiler.resolve_host_reference(ref)
-        ref isa GPUCompiler.JuliaValueRef && push!(roots, ref.value)
+        slot[] = value
     end
-    return CuFunction(mod, entry), roots
+    for ((name, offset), value) in relocations.patches
+        ptr_ref = Ref{CuPtr{Cvoid}}()
+        size_ref = Ref{Csize_t}()
+        cuModuleGetGlobal_v2(ptr_ref, size_ref, mod, name)
+        offset >= 0 && offset + sizeof(UInt) <= size_ref[] ||
+            error("Host reference patch '$name+$offset' is outside its $(size_ref[])-byte global")
+        value_ref = Ref(value)
+        cuMemcpyHtoD_v2(ptr_ref[] + offset, value_ref, sizeof(UInt))
+    end
+    return CuFunction(mod, entry), relocations.roots
 end
 
 # look up the cached compilation artifacts for `job`, running the compiler on a miss.
@@ -573,7 +582,13 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::CUDACompilerResults
     res = GPUCompiler.cached_results(CUDACompilerResults, job)
     if res === nothing || res.image === nothing || GPUCompiler.compile_hook[] !== nothing
         compiled = compile(job)
-        res = @something res GPUCompiler.cached_results(CUDACompilerResults, job)
+        if GPUCompiler.supports_relocatable_ir()
+            res = @something res GPUCompiler.cached_results(CUDACompilerResults, job)
+        else
+            # The CodeInstance may be serialized, but generated code from a Julia runtime
+            # without a reliable GV table is session-bound.
+            res = CUDACompilerResults()
+        end
         res.image = compiled.image
         res.entry = compiled.entry
         res.host_references = compiled.host_references

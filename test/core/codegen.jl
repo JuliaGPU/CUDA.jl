@@ -276,6 +276,21 @@ end
     out = CUDA.zeros(UInt, 1)
     @cuda threads=1 value_refs.host_reference_symbol_kernel(out, Symbol("value#global"))
     @test Array(out)[] == 1
+
+    interior_refs = @eval module $(gensym())
+        @noinline produce(cond::Bool, value::Int32) = cond ? value : 1.5
+        function interior_reference_kernel(out, cond::Bool, value::Int32)
+            x = produce(cond, value)
+            out[1] = UInt(x isa Float64)
+            return
+        end
+    end
+
+    out = CUDA.zeros(UInt, 1)
+    kernel = @cuda launch=false interior_refs.interior_reference_kernel(out, false, Int32(1))
+    kernel(out, false, Int32(1); threads=1)
+    @test Array(out)[] == 1
+    @test any(root -> root === Float64, kernel.roots)
 end
 
 ############################################################################################
