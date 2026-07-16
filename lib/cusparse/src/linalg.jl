@@ -153,15 +153,15 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
     shuffle = true
 
     result = CuArray{T}(undef, 1)
-    invocation = CUDACore.prepare(kernel, y, A.colPtr, A.rowVal, A.nzVal, x,
+    invocation = CUDACore.KernelInvocation(kernel, y, A.colPtr, A.rowVal, A.nzVal, x,
                                   result, n, Val(shuffle))
-    compiled = CUDACore.compile(invocation)
+    compiled = CUDACore.kernel_compile(invocation)
     config = launch_configuration(compiled.fun)
     threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
     invocation = CUDACore.rebind(invocation, 6 => result)
-    CUDACore.launch(compiled, invocation; threads, blocks)
+    CUDACore.kernel_launch(compiled, invocation; threads, blocks)
 
     return sum(result)
 end
@@ -212,15 +212,15 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
     shuffle = true
 
     result = CuArray{T}(undef, 1)
-    invocation = CUDACore.prepare(kernel, y, A.rowPtr, A.colVal, A.nzVal, x,
+    invocation = CUDACore.KernelInvocation(kernel, y, A.rowPtr, A.colVal, A.nzVal, x,
                                   result, n, Val(shuffle))
-    compiled = CUDACore.compile(invocation)
+    compiled = CUDACore.kernel_compile(invocation)
     config = launch_configuration(compiled.fun)
     threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
     invocation = CUDACore.rebind(invocation, 6 => result)
-    CUDACore.launch(compiled, invocation; threads, blocks)
+    CUDACore.kernel_launch(compiled, invocation; threads, blocks)
 
     return sum(result)
 end

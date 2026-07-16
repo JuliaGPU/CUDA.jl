@@ -122,8 +122,8 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    invocation = CUDACore.prepare(obj.f, ctx, args...)
-    kernel = CUDACore.compile(invocation; always_inline=backend.always_inline,
+    invocation = CUDACore.KernelInvocation(obj.f, ctx, args...)
+    kernel = CUDACore.kernel_compile(invocation; always_inline=backend.always_inline,
                              maxthreads)
 
     # figure out the optimal workgroupsize automatically
@@ -153,7 +153,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
     end
 
     # Launch kernel
-    CUDACore.launch(kernel, invocation; threads, blocks)
+    CUDACore.kernel_launch(kernel, invocation; threads, blocks)
     return nothing
 end
 

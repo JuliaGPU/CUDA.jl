@@ -149,8 +149,8 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    invocation = prepare(partial_scan, f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
-    kernel = compile(invocation; name="scan")
+    invocation = KernelInvocation(partial_scan, f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
+    kernel = kernel_compile(invocation; name="scan")
     kernel_config = launch_configuration(kernel.fun; shmem=(threads)->2*threads*sizeof(T))
 
     # determine the grid layout to cover the other dimensions
@@ -166,7 +166,7 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     # does that suffice to scan the array in one go?
     full = nextpow(2, length(Rdim))
     if full <= kernel_config.threads
-        launch(kernel, invocation;
+        kernel_launch(kernel, invocation;
                threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T))
     else
         # perform partial scans across the scanning dimension

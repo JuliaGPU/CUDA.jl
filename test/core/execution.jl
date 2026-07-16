@@ -71,17 +71,17 @@ end
     @test Array(output) == [11]
 
     counter[] = 0
-    invocation = CUDA.prepare(copy_counted, arg, output)
+    invocation = CUDA.KernelInvocation(copy_counted, arg, output)
     @test invocation isa CUDA.KernelInvocation
     @test invocation[1] === arg
-    kernel = CUDA.compile(invocation)
+    kernel = CUDA.kernel_compile(invocation)
     @test kernel isa CUDACore.HostKernel
     @test CUDACore.launch_configuration(kernel.fun).threads > 0
-    CUDA.launch(kernel, invocation)
-    CUDA.launch(kernel, invocation)
+    CUDA.kernel_launch(kernel, invocation)
+    CUDA.kernel_launch(kernel, invocation)
     @test counter[] == 1
     @test Array(output) == [11]
-    rebound = CUDA.prepare(kernel, arg, output)
+    rebound = CUDA.KernelInvocation(kernel, arg, output)
     @test rebound.backend isa CUDA.LLVMBackend
     @test counter[] == 2
 
@@ -98,27 +98,27 @@ end
     @test replacement_invocation[1] === replacement
     @test replacement_counter[] == 1
     GC.gc(true)
-    CUDA.launch(kernel, replacement_invocation)
+    CUDA.kernel_launch(kernel, replacement_invocation)
     @test replacement_counter[] == 1
     @test Array(output) == [12]
 
     ephemeral_counter = Ref(0)
     function escaping_invocation()
-        CUDA.prepare(copy_counted,
+        CUDA.KernelInvocation(copy_counted,
                      CountedHost(CuArray([14]), ephemeral_counter), output)
     end
     escaped = escaping_invocation()
     GC.gc(true)
-    escaped_kernel = CUDA.compile(escaped)
-    CUDA.launch(escaped_kernel, escaped)
+    escaped_kernel = CUDA.kernel_compile(escaped)
+    CUDA.kernel_launch(escaped_kernel, escaped)
     @test ephemeral_counter[] == 1
     @test Array(output) == [14]
 
-    empty_invocation = CUDA.prepare(dummy)
-    CUDA.launch(CUDA.compile(empty_invocation), empty_invocation)
+    empty_invocation = CUDA.KernelInvocation(dummy)
+    CUDA.kernel_launch(CUDA.kernel_compile(empty_invocation), empty_invocation)
 
     rebind_int(inv, value) = CUDA.rebind(inv, 1 => value)
-    int_invocation = CUDA.prepare(identity, Int32(1))
+    int_invocation = CUDA.KernelInvocation(identity, Int32(1))
     @test @inferred(rebind_int(int_invocation, Int32(2))) isa CUDA.KernelInvocation
     rebind_int(int_invocation, Int32(2))
     @test @allocated(rebind_int(int_invocation, Int32(2))) == 0
@@ -130,12 +130,12 @@ end
         return
     end
     scalar_output = CuArray(Int32[0])
-    scalar_invocation = CUDA.prepare(write_scalar, Int32(1), scalar_output)
-    scalar_kernel = CUDA.compile(scalar_invocation)
+    scalar_invocation = CUDA.KernelInvocation(write_scalar, Int32(1), scalar_output)
+    scalar_kernel = CUDA.kernel_compile(scalar_invocation)
     widened_invocation = CUDA.rebind(scalar_invocation, 1 => Int64(2))
-    CUDA.launch(scalar_kernel, widened_invocation)
+    CUDA.kernel_launch(scalar_kernel, widened_invocation)
     @test Array(scalar_output) == Int32[2]
-    @test_throws InexactError CUDA.launch(
+    @test_throws InexactError CUDA.kernel_launch(
         scalar_kernel, CUDA.rebind(scalar_invocation, 1 => typemax(Int64)))
 
     scalar_kernel(Int64(3), scalar_output)
@@ -146,9 +146,9 @@ end
         output[] = input[]
         return
     end
-    array_invocation = CUDA.prepare(copy_first, input, output)
-    array_kernel = CUDA.compile(array_invocation)
-    @test_throws MethodError CUDA.launch(
+    array_invocation = CUDA.KernelInvocation(copy_first, input, output)
+    array_kernel = CUDA.kernel_compile(array_invocation)
+    @test_throws MethodError CUDA.kernel_launch(
         array_kernel, CUDA.rebind(array_invocation, 1 => float_input))
 end
 
@@ -355,7 +355,7 @@ end
     @cuda backend=CUDA dummy()
     @cuda backend=CUDACore dummy()
 
-    # custom backend stub: assert prepare/compile/launch are called
+    # custom backend stub: assert conversion, compilation, and launch hooks are called
     # and that unknown kwargs are forwarded
     @eval module BackendStub
         using CUDA
@@ -373,14 +373,14 @@ end
         end
 
         CUDACore.backend(::Kernel) = Backend()
-        CUDACore.prepare(::Backend, x) = (convert_calls[] += 1; x)
-        function CUDACore.compile(::Backend, f::F, tt::Type{<:Tuple};
-                                  kwargs...) where {F}
+        CUDACore.kernel_convert(::Backend, x) = (convert_calls[] += 1; x)
+        function CUDACore.kernel_compile(::Backend, f::F, tt::Type{<:Tuple};
+                                         kwargs...) where {F}
             compile_calls[] += 1
             last_kwargs[] = (; kwargs...)
             Kernel{F,tt}(f)
         end
-        function (kernel::Kernel)(args...; kwargs...)
+        function CUDACore.kernel_launch(::Backend, kernel::Kernel, args::Tuple; kwargs...)
             launch_calls[] += 1
             last_launch_kwargs[] = (; kwargs...)
             nothing
@@ -392,7 +392,7 @@ end
     BackendStub.last_kwargs[] = nothing
     @cuda backend=BackendStub.Backend() dummy()
     @test BackendStub.compile_calls[] == 1
-    # f + 0 args, all routed through prepare
+    # f + 0 args, all routed through kernel_convert
     @test BackendStub.convert_calls[] == 1
     @test BackendStub.launch_calls[] == 1
 
@@ -412,14 +412,14 @@ end
     BackendStub.compile_calls[] = 0
     BackendStub.convert_calls[] = 0
     BackendStub.launch_calls[] = 0
-    invocation = CUDA.prepare(dummy, 1, 2; backend=BackendStub)
+    invocation = CUDA.KernelInvocation(dummy, 1, 2; backend=BackendStub)
     @test invocation isa CUDA.KernelInvocation
     @test invocation[1] == 1
-    kernel = CUDA.compile(invocation; opt_level=3)
+    kernel = CUDA.kernel_compile(invocation; opt_level=3)
     @test kernel isa BackendStub.Kernel
-    CUDA.launch(kernel, invocation; threads=4)
+    CUDA.kernel_launch(kernel, invocation; threads=4)
     invocation = CUDA.rebind(invocation, 1 => 3)
-    CUDA.launch(kernel, invocation; threads=8)
+    CUDA.kernel_launch(kernel, invocation; threads=8)
     drifted = CUDA.rebind(invocation, 2 => 4.0)
     @test drifted[2] == 4.0
     @test BackendStub.compile_calls[] == 1

@@ -342,24 +342,24 @@ CUDA.@profile trace=true bench_gpu3!(y_d, x_d)
 # keeps the converted arguments available while we inspect and launch the kernel:
 
 fill!(y_d, 2)
-invocation = CUDA.prepare(gpu_add3!, y_d, x_d)
-kernel = CUDA.compile(invocation)
+invocation = CUDA.KernelInvocation(gpu_add3!, y_d, x_d)
+kernel = CUDA.kernel_compile(invocation)
 config = launch_configuration(kernel.fun)
 threads = min(N, config.threads)
 blocks = cld(N, threads)
-CUDA.launch(kernel, invocation; threads, blocks)
+CUDA.kernel_launch(kernel, invocation; threads, blocks)
 @test all(Array(y_d) .== 3.0f0)
 
 # Now let's benchmark this:
 
 function bench_gpu4!(y, x)
     CUDA.@sync begin
-        invocation = CUDA.prepare(gpu_add3!, y, x)
-        kernel = CUDA.compile(invocation)
+        invocation = CUDA.KernelInvocation(gpu_add3!, y, x)
+        kernel = CUDA.kernel_compile(invocation)
         config = launch_configuration(kernel.fun)
         threads = min(length(y), config.threads)
         blocks = cld(length(y), threads)
-        CUDA.launch(kernel, invocation; threads, blocks)
+        CUDA.kernel_launch(kernel, invocation; threads, blocks)
     end
 end
 

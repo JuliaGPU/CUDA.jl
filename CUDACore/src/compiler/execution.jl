@@ -3,7 +3,8 @@
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
 @public AbstractBackend, LLVMBackend, DefaultBackend
-@public KernelInvocation, prepare, compile, rebind
+@public kernel_convert, kernel_compile, kernel_launch
+@public KernelInvocation, rebind
 @public AbstractKernel, HostKernel, DeviceKernel, backend
 
 
@@ -15,8 +16,8 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 Abstract supertype for `@cuda` backend dispatch. The default backend is
 [`LLVMBackend`](@ref), which compiles SIMT/PTX kernels via
 [`cufunction`](@ref). Other backends (e.g. Tile IR via cuTile.jl) register
-a subtype and define backend methods for [`prepare`](@ref), [`compile`](@ref),
-and [`launch`](@ref); `@cuda backend=...` then routes through them.
+a subtype and define methods for [`kernel_convert`](@ref), [`kernel_compile`](@ref),
+and [`kernel_launch`](@ref); `@cuda backend=...` then routes through them.
 
 `@cuda backend=...` accepts either an `AbstractBackend` instance or a
 module that defines `DefaultBackend()` returning one (e.g.
@@ -43,22 +44,22 @@ packages (e.g. `@cuda backend=cuTile ...` resolves to `cuTile.DefaultBackend()`)
 DefaultBackend() = LLVMBackend()
 
 """
-    prepare(backend, x)
+    kernel_convert(backend, x)
 
 Convert a host-side launch argument to its kernel-side form. The default
 implementation for [`LLVMBackend`](@ref) forwards to [`cudaconvert`](@ref);
 other backends override to produce backend-specific argument types.
 """
-prepare(::LLVMBackend, x) = cudaconvert(x)
+kernel_convert(::LLVMBackend, x) = cudaconvert(x)
 
 """
-    compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
+    kernel_compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
 
 Compile a function for the given backend. Returns an [`AbstractKernel`](@ref)
 callable as `kernel(args...; launch_kwargs...)` to launch on the GPU. The
 default implementation for [`LLVMBackend`](@ref) is [`cufunction`](@ref).
 """
-compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
+kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
     cufunction(f, tt; kwargs...)
 
 ## kernel invocations
@@ -66,44 +67,50 @@ compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
 """
     KernelInvocation
 
-An immutable, self-rooting kernel invocation created by [`prepare`](@ref). It contains a
+An immutable, self-rooting kernel invocation. It contains a
 backend-specific converted function and arguments, together with the host objects that own
 them. Cache compiled kernels rather than invocations, because an invocation pins its host
-arguments and is tied to the device, context, and task that were current when it was prepared.
+arguments and is tied to the device, context, and task that were current when it was created.
 """
 struct KernelInvocation{B,F,A,R}
     backend::B
     f::F
     arguments::A
     roots::R
+
+    KernelInvocation{B,F,A,R}(backend::B, f::F, arguments::A, roots::R) where {B,F,A,R} =
+        new(backend, f, arguments, roots)
 end
 
+@inline _kernel_invocation(backend::B, f::F, arguments::A, roots::R) where {B,F,A,R} =
+    KernelInvocation{B,F,A,R}(backend, f, arguments, roots)
+
 """
-    prepare(f, args...; backend=LLVMBackend()) -> KernelInvocation
+    KernelInvocation(f, args...; backend=LLVMBackend())
 
 Convert `f` and `args` once and retain the host objects that own the converted values. Use
-[`compile`](@ref) to compile the invocation and [`launch`](@ref) to launch the resulting
-kernel without converting the arguments again.
+[`kernel_compile`](@ref) to compile the invocation and [`kernel_launch`](@ref) to launch the
+resulting kernel without converting the arguments again.
 """
-@inline function prepare(f, args...; backend=LLVMBackend())
+@inline function KernelInvocation(f, args...; backend=LLVMBackend())
     backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
     roots = (f=f, arguments=args)
     GC.@preserve roots begin
-        kernel_f = prepare(backend, f)
-        arguments = map(arg -> prepare(backend, arg), args)
-        KernelInvocation(backend, kernel_f, arguments, roots)
+        kernel_f = kernel_convert(backend, f)
+        arguments = map(arg -> kernel_convert(backend, arg), args)
+        _kernel_invocation(backend, kernel_f, arguments, roots)
     end
 end
 
 """
-    compile(invocation::KernelInvocation; compiler_kwargs...) -> AbstractKernel
+    kernel_compile(invocation::KernelInvocation; compiler_kwargs...) -> AbstractKernel
 
-Compile a prepared invocation for its backend. An invocation may be compiled more than once
+Compile an invocation for its backend. An invocation may be compiled more than once
 with different compiler options.
 """
-@inline function compile(invocation::KernelInvocation; kwargs...)
+@inline function kernel_compile(invocation::KernelInvocation; kwargs...)
     tt = Tuple{map(Core.Typeof, invocation.arguments)...}
-    compile(invocation.backend, invocation.f, tt; kwargs...)
+    kernel_compile(invocation.backend, invocation.f, tt; kwargs...)
 end
 
 """
@@ -117,8 +124,8 @@ Return host argument `i` from a [`KernelInvocation`](@ref).
     rebind(invocation::KernelInvocation, i => value)
 
 Return an invocation with host argument `i` rebound and converted for the same backend. The
-new converted argument may have a different type; [`launch`](@ref) coerces arguments to the
-compiled kernel signature.
+new converted argument may have a different type; [`kernel_launch`](@ref) coerces arguments
+to the compiled kernel signature.
 """
 @inline rebind(invocation::KernelInvocation, binding::Pair{<:Integer}) =
     rebind_argument(invocation, binding.second, Val(binding.first))
@@ -135,12 +142,12 @@ compiled kernel signature.
                               for i in 1:fieldcount(A)]...)
     quote
         GC.@preserve value begin
-            converted = prepare(invocation.backend, value)
+            converted = kernel_convert(invocation.backend, value)
         end
         host_arguments = $host_arguments
         roots = (f=invocation.roots.f, arguments=host_arguments)
         arguments = $arguments
-        KernelInvocation(invocation.backend, invocation.f, arguments, roots)
+        _kernel_invocation(invocation.backend, invocation.f, arguments, roots)
     end
 end
 
@@ -161,9 +168,9 @@ a CUDA function upon first use, and to a certain extent arguments will be conver
 managed automatically using `cudaconvert`. Finally, a call to `cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
-A direct launch converts each argument once. Use [`prepare`](@ref), [`compile`](@ref), and
-[`launch`](@ref) directly when compilation and launch need to be separated by occupancy
-queries or other configuration work.
+A direct launch converts each argument once. Use [`KernelInvocation`](@ref),
+[`kernel_compile`](@ref), and [`kernel_launch`](@ref) directly when compilation and launch
+need to be separated by occupancy queries or other configuration work.
 
 Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
@@ -173,7 +180,7 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `backend`: which compiler backend to use, defaults to [`LLVMBackend`](@ref). Either an
   [`AbstractBackend`](@ref) instance or a module that defines `DefaultBackend()` (e.g.
   `backend=CUDA` resolves to `CUDA.DefaultBackend()`). Backend-specific compiler kwargs
-  not recognized by `@cuda` itself are forwarded to [`compile`](@ref).
+  not recognized by `@cuda` itself are forwarded to [`kernel_compile`](@ref).
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
 - arguments that influence kernel launch: see [`CUDACore.HostKernel`](@ref) and
@@ -201,7 +208,7 @@ macro cuda(ex...)
     vars, var_exprs = assign_args!(code, args)
 
     # group keyword argument. Backend-specific compiler kwargs land in
-    # `other_kwargs` and are forwarded to `compile`; the backend
+    # `other_kwargs` and are forwarded to `kernel_compile`; the backend
     # validates them.
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs, MACRO_KWARGS, COMPILER_KWARGS, LAUNCH_KWARGS)
@@ -262,10 +269,10 @@ macro cuda(ex...)
                     $backend_raw isa $AbstractBackend ? $backend_raw : $backend_raw.DefaultBackend()
                 end
                 $f_var = $f
-                $invocation = $prepare($f_var, $(var_exprs...); backend=$backend)
-                $kernel = $compile($invocation; $(compiler_kwargs...), $(other_kwargs...))
+                $invocation = $KernelInvocation($f_var, $(var_exprs...); backend=$backend)
+                $kernel = $kernel_compile($invocation; $(compiler_kwargs...), $(other_kwargs...))
                 if $should_launch
-                    $launch($kernel, $invocation; $(call_kwargs...))
+                    $kernel_launch($kernel, $invocation; $(call_kwargs...))
                 end
                 $kernel
              end)
@@ -366,7 +373,8 @@ abstract type AbstractKernel{F,TT} end
 
 Low-level interface to call a compiled kernel. A `HostKernel` converts the supplied host
 arguments before launching; a `DeviceKernel` accepts GPU-compatible arguments directly. To
-reuse values already converted by [`prepare`](@ref), call [`launch`](@ref) instead.
+reuse values already converted by [`KernelInvocation`](@ref), call
+[`kernel_launch`](@ref) instead.
 
 A `HostKernel` is callable on the host, and a `DeviceKernel` is callable on the
 device (created by `@cuda` with `dynamic=true`).
@@ -404,38 +412,38 @@ end
     backend(kernel::AbstractKernel)
 
 Return the backend that compiled `kernel`. Backend kernel types define this trait so an
-existing kernel can be rebound with [`prepare(kernel, args...)`](@ref).
+invocation can be constructed for an existing kernel.
 """
 function backend end
 
 """
-    prepare(kernel::AbstractKernel, args...) -> KernelInvocation
+    KernelInvocation(kernel::AbstractKernel, args...)
 
-Prepare a new invocation for an existing kernel's function and backend.
+Construct a new invocation for an existing kernel's function and backend.
 """
-@inline prepare(kernel::AbstractKernel, args...) =
-    prepare(kernel.f, args...; backend=backend(kernel))
+@inline KernelInvocation(kernel::AbstractKernel, args...) =
+    KernelInvocation(kernel.f, args...; backend=backend(kernel))
 
 """
-    launch(kernel::AbstractKernel, invocation::KernelInvocation; launch_kwargs...)
+    kernel_launch(kernel::AbstractKernel, invocation::KernelInvocation; launch_kwargs...)
 
-Launch a compiled kernel with prepared arguments. The invocation retains the host roots for
+Launch a compiled kernel with converted arguments. The invocation retains the host roots for
 the duration of the backend launch. Converted values are coerced to the kernel's compiled
 signature at the calling boundary.
 """
-@generated function launch(kernel::AbstractKernel,
-                           invocation::KernelInvocation{B,F,A,R}; kwargs...) where {B,F,A,R}
+@generated function kernel_launch(kernel::AbstractKernel,
+                                  invocation::KernelInvocation{B,F,A,R}; kwargs...) where {B,F,A,R}
     root_vars = [gensym(:root) for _ in 1:fieldcount(A)+1]
     assignments = Any[:($(root_vars[1]) = invocation.roots.f)]
     append!(assignments,
             [:($(root_vars[i+1]) = @inbounds invocation.roots.arguments[$i])
              for i in 1:fieldcount(A)])
-    call = :(launch(invocation.backend, kernel, invocation.arguments; kwargs...))
+    call = :(kernel_launch(invocation.backend, kernel, invocation.arguments; kwargs...))
     preserve = Expr(:gc_preserve, call, root_vars...)
     Expr(:block, assignments..., preserve)
 end
 
-@inline launch(::AbstractBackend, kernel, arguments::Tuple; kwargs...) =
+@inline kernel_launch(::AbstractBackend, kernel, arguments::Tuple; kwargs...) =
     kernel(arguments...; kwargs...)
 
 @inline @generated function launch_converted(kernel::AbstractKernel{F,TT},
@@ -484,11 +492,11 @@ end
 backend(::HostKernel) = LLVMBackend()
 
 @inline function (kernel::HostKernel)(args...; kwargs...)
-    invocation = prepare(kernel, args...)
-    launch(kernel, invocation; kwargs...)
+    invocation = KernelInvocation(kernel, args...)
+    kernel_launch(kernel, invocation; kwargs...)
 end
 
-@inline launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
+@inline kernel_launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
     launch_converted(kernel, arguments; kwargs...)
 
 """
