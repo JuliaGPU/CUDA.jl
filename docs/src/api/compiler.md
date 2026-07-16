@@ -15,7 +15,7 @@ The main entry-point to the compiler is the `@cuda` macro:
 If needed, you can use a lower-level API that lets you inspect the compiled kernel:
 
 ```@docs
-KernelInvocation
+KernelCall
 kernel_launch
 rebind
 cudaconvert
@@ -28,8 +28,8 @@ registers
 memory
 ```
 
-Launch a compiled invocation with `kernel_launch(kernel, invocation; launch_kwargs...)`. Arguments
-can be rebound immutably with `rebind(invocation, index => value)` before launching.
+Launch a compiled call with `kernel_launch(kernel, call; launch_kwargs...)`. Arguments
+can be rebound immutably with `rebind(call, index => value)` before launching.
 
 The PTX compilation target is identified by an `SMVersion`, constructed via the
 `sm"..."` string macro:

@@ -60,7 +60,7 @@ end
 end
 
 
-@testset "kernel invocation" begin
+@testset "kernel call" begin
     input = CuArray([11])
     output = CuArray([0])
 
@@ -71,14 +71,14 @@ end
     @test Array(output) == [11]
 
     counter[] = 0
-    invocation = CUDA.KernelInvocation(copy_counted, arg, output)
-    @test invocation isa CUDA.KernelInvocation
-    @test invocation[1] === arg
-    kernel = CUDA.kernel_compile(invocation)
+    call = CUDA.KernelCall(copy_counted, arg, output)
+    @test call isa CUDA.KernelCall
+    @test call[1] === arg
+    kernel = CUDA.kernel_compile(call)
     @test kernel isa CUDACore.HostKernel
     @test CUDACore.launch_configuration(kernel.fun).threads > 0
-    CUDA.kernel_launch(kernel, invocation)
-    CUDA.kernel_launch(kernel, invocation)
+    CUDA.kernel_launch(kernel, call)
+    CUDA.kernel_launch(kernel, call)
     @test counter[] == 1
     @test Array(output) == [11]
     counter[] = 0
@@ -89,50 +89,50 @@ end
 
     replacement_counter = Ref(0)
     replacement = CountedHost(CuArray([12]), replacement_counter)
-    replacement_invocation = CUDA.rebind(invocation, 1 => replacement)
-    @test invocation[1] === arg
-    @test replacement_invocation[1] === replacement
+    replacement_call = CUDA.rebind(call, 1 => replacement)
+    @test call[1] === arg
+    @test replacement_call[1] === replacement
     @test replacement_counter[] == 1
     GC.gc(true)
-    CUDA.kernel_launch(kernel, replacement_invocation)
+    CUDA.kernel_launch(kernel, replacement_call)
     @test replacement_counter[] == 1
     @test Array(output) == [12]
 
     ephemeral_counter = Ref(0)
-    function escaping_invocation()
-        CUDA.KernelInvocation(copy_counted,
-                     CountedHost(CuArray([14]), ephemeral_counter), output)
+    function escaping_call()
+        CUDA.KernelCall(copy_counted,
+                        CountedHost(CuArray([14]), ephemeral_counter), output)
     end
-    escaped = escaping_invocation()
+    escaped = escaping_call()
     GC.gc(true)
     escaped_kernel = CUDA.kernel_compile(escaped)
     CUDA.kernel_launch(escaped_kernel, escaped)
     @test ephemeral_counter[] == 1
     @test Array(output) == [14]
 
-    empty_invocation = CUDA.KernelInvocation(dummy)
-    CUDA.kernel_launch(CUDA.kernel_compile(empty_invocation), empty_invocation)
+    empty_call = CUDA.KernelCall(dummy)
+    CUDA.kernel_launch(CUDA.kernel_compile(empty_call), empty_call)
 
     rebind_int(inv, value) = CUDA.rebind(inv, 1 => value)
-    int_invocation = CUDA.KernelInvocation(identity, Int32(1))
-    @test @inferred(rebind_int(int_invocation, Int32(2))) isa CUDA.KernelInvocation
-    rebind_int(int_invocation, Int32(2))
-    @test @allocated(rebind_int(int_invocation, Int32(2))) == 0
+    int_call = CUDA.KernelCall(identity, Int32(1))
+    @test @inferred(rebind_int(int_call, Int32(2))) isa CUDA.KernelCall
+    rebind_int(int_call, Int32(2))
+    @test @allocated(rebind_int(int_call, Int32(2))) == 0
     runtime_index = Ref(1)[]
-    @test CUDA.rebind(int_invocation, runtime_index => Int64(3))[1] == 3
+    @test CUDA.rebind(int_call, runtime_index => Int64(3))[1] == 3
 
     function write_scalar(value, output)
         output[] = value
         return
     end
     scalar_output = CuArray(Int32[0])
-    scalar_invocation = CUDA.KernelInvocation(write_scalar, Int32(1), scalar_output)
-    scalar_kernel = CUDA.kernel_compile(scalar_invocation)
-    widened_invocation = CUDA.rebind(scalar_invocation, 1 => Int64(2))
-    CUDA.kernel_launch(scalar_kernel, widened_invocation)
+    scalar_call = CUDA.KernelCall(write_scalar, Int32(1), scalar_output)
+    scalar_kernel = CUDA.kernel_compile(scalar_call)
+    widened_call = CUDA.rebind(scalar_call, 1 => Int64(2))
+    CUDA.kernel_launch(scalar_kernel, widened_call)
     @test Array(scalar_output) == Int32[2]
     @test_throws InexactError CUDA.kernel_launch(
-        scalar_kernel, CUDA.rebind(scalar_invocation, 1 => typemax(Int64)))
+        scalar_kernel, CUDA.rebind(scalar_call, 1 => typemax(Int64)))
 
     scalar_kernel(Int64(3), scalar_output)
     @test Array(scalar_output) == Int32[3]
@@ -142,10 +142,10 @@ end
         output[] = input[]
         return
     end
-    array_invocation = CUDA.KernelInvocation(copy_first, input, output)
-    array_kernel = CUDA.kernel_compile(array_invocation)
+    array_call = CUDA.KernelCall(copy_first, input, output)
+    array_kernel = CUDA.kernel_compile(array_call)
     @test_throws MethodError CUDA.kernel_launch(
-        array_kernel, CUDA.rebind(array_invocation, 1 => float_input))
+        array_kernel, CUDA.rebind(array_call, 1 => float_input))
 end
 
 
@@ -407,15 +407,15 @@ end
     BackendStub.compile_calls[] = 0
     BackendStub.convert_calls[] = 0
     BackendStub.launch_calls[] = 0
-    invocation = CUDA.KernelInvocation(dummy, 1, 2; backend=BackendStub)
-    @test invocation isa CUDA.KernelInvocation
-    @test invocation[1] == 1
-    kernel = CUDA.kernel_compile(invocation; opt_level=3)
+    call = CUDA.KernelCall(dummy, 1, 2; backend=BackendStub)
+    @test call isa CUDA.KernelCall
+    @test call[1] == 1
+    kernel = CUDA.kernel_compile(call; opt_level=3)
     @test kernel isa BackendStub.Kernel
-    CUDA.kernel_launch(kernel, invocation; threads=4)
-    invocation = CUDA.rebind(invocation, 1 => 3)
-    CUDA.kernel_launch(kernel, invocation; threads=8)
-    drifted = CUDA.rebind(invocation, 2 => 4.0)
+    CUDA.kernel_launch(kernel, call; threads=4)
+    call = CUDA.rebind(call, 1 => 3)
+    CUDA.kernel_launch(kernel, call; threads=8)
+    drifted = CUDA.rebind(call, 2 => 4.0)
     @test drifted[2] == 4.0
     @test BackendStub.compile_calls[] == 1
     @test BackendStub.convert_calls[] == 5 # function, two arguments, and two rebindings

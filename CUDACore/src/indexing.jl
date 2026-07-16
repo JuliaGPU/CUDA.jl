@@ -45,12 +45,12 @@ function Base.findall(bools::AnyCuArray{Bool})
         end
         ## COV_EXCL_STOP
 
-        invocation = KernelInvocation(kernel, ys, bools, indices)
-        compiled = kernel_compile(invocation; name="findall")
+        call = KernelCall(kernel, ys, bools, indices)
+        compiled = kernel_compile(call; name="findall")
         config = launch_configuration(compiled.fun)
         threads = min(length(indices), config.threads)
         blocks = cld(length(indices), threads)
-        kernel_launch(compiled, invocation; threads, blocks)
+        kernel_launch(compiled, call; threads, blocks)
     end
 
     unsafe_free!(indices)

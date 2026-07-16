@@ -484,13 +484,13 @@ function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=
              max_depth, nothing, lt, by, Val(dims)), partial_k)
 
     get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
-    invocation = CUDACore.KernelInvocation(qsort_kernel, my_sort_args...)
-    kernel = CUDACore.kernel_compile(invocation)
+    call = CUDACore.KernelCall(qsort_kernel, my_sort_args...)
+    kernel = CUDACore.kernel_compile(call)
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = prevpow(2, config.threads)
     threads = threads >> block_size_shift   # for testing purposes
 
-    CUDACore.kernel_launch(kernel, invocation;
+    CUDACore.kernel_launch(kernel, call;
                     blocks=prod(otherdims), threads, shmem=get_shmem(threads))
 
     return c
@@ -917,15 +917,15 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
     I = c_len <= typemax(Int32) ? Int32 : Int
 
     args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev), Val(dims))
-    invocation1 = CUDACore.KernelInvocation(comparator_small_kernel, args1...)
-    kernel1 = CUDACore.kernel_compile(invocation1)
+    call1 = CUDACore.KernelCall(comparator_small_kernel, args1...)
+    kernel1 = CUDACore.kernel_compile(call1)
     config1 = launch_configuration(kernel1.fun, shmem = threads -> bitonic_shmem(c, threads))
     # blocksize for kernel1 MUST be a power of 2
     threads1 = prevpow(2, config1.threads)
 
     args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev), Val(dims))
-    invocation2 = CUDACore.KernelInvocation(comparator_kernel, args2...)
-    kernel2 = CUDACore.kernel_compile(invocation2)
+    call2 = CUDACore.KernelCall(comparator_kernel, args2...)
+    kernel2 = CUDACore.kernel_compile(call2)
     config2 = launch_configuration(kernel2.fun, shmem = threads -> bitonic_shmem(c, threads))
     threads2 =  config2.threads
 
@@ -954,7 +954,7 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
                 # grid dimensions
                 N_blocks = max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block), other_block_dims...
                 block_size = pseudo_block_length, threads1 ÷ pseudo_block_length
-                current = rebind(invocation1, 3 => I(k))
+                current = rebind(call1, 3 => I(k))
                 current = rebind(current, 4 => I(j))
                 current = rebind(current, 5 => I(j_final))
                 CUDACore.kernel_launch(kernel1, current;
@@ -963,7 +963,7 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
                 break
             else
                 N_blocks = cld(c_len, threads2), other_block_dims...
-                current = rebind(invocation2, 3 => I(k))
+                current = rebind(call2, 3 => I(k))
                 current = rebind(current, 4 => I(j))
                 CUDACore.kernel_launch(kernel2, current; blocks=N_blocks, threads=threads2)
             end
