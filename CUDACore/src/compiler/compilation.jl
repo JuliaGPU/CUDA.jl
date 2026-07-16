@@ -21,9 +21,9 @@ const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 const minreq = (; ptx=v"8.0", sm=sm"50")
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
-function GPUCompiler.lower_host_references!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module,
-                                            refs::GPUCompiler.HostReferences)
-    GPUCompiler.emit_host_reference_definitions!(mod, refs)
+function GPUCompiler.lower_relocations!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module,
+                                        relocs::GPUCompiler.Relocations)
+    GPUCompiler.emit_patchable_relocations!(mod, relocs)
 end
 
 # filter out functions from libdevice and cudadevrt
@@ -201,12 +201,12 @@ mutable struct CUDACompilerResults
     # session-portable artifacts (safe to persist across sessions)
     image::Union{Nothing,Vector{UInt8}}
     entry::Union{Nothing,String}
-    host_references::GPUCompiler.HostReferences
+    relocations::GPUCompiler.Relocations
 
     # session-local kernel handles, linear-scanned by context; usually holds a single entry
     kernels::Vector{Tuple{CuContext,CuFunction,Vector{Any}}}
 
-    CUDACompilerResults() = new(nothing, nothing, GPUCompiler.HostReferences(),
+    CUDACompilerResults() = new(nothing, nothing, GPUCompiler.Relocations(),
                                 Tuple{CuContext,CuFunction,Vector{Any}}[])
 end
 
@@ -546,25 +546,25 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry), host_references=meta.host_references)
+    return (image, entry=LLVM.name(meta.entry), relocations=meta.relocations)
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context
 function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entry::String,
-                     refs::GPUCompiler.HostReferences)
+                     relocs::GPUCompiler.Relocations)
     # load as an executable kernel object on the current context
     mod = CuModule(image)
-    relocations = GPUCompiler.resolved_relocations(refs)
+    relocations = GPUCompiler.resolved_relocations(relocs)
     for (name, value) in relocations.slots
         slot = CuGlobal{UInt}(mod, name)
         slot[] = value
     end
-    for ((name, offset), value) in relocations.patches
+    for ((name, offset), value) in relocations.interior
         ptr_ref = Ref{CuPtr{Cvoid}}()
         size_ref = Ref{Csize_t}()
         cuModuleGetGlobal_v2(ptr_ref, size_ref, mod, name)
         offset >= 0 && offset + sizeof(UInt) <= size_ref[] ||
-            error("Host reference patch '$name+$offset' is outside its $(size_ref[])-byte global")
+            error("Interior relocation '$name+$offset' is outside its $(size_ref[])-byte global")
         value_ref = Ref(value)
         cuMemcpyHtoD_v2(ptr_ref[] + offset, value_ref, sizeof(UInt))
     end
@@ -591,7 +591,7 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::CUDACompilerResults
         end
         res.image = compiled.image
         res.entry = compiled.entry
-        res.host_references = compiled.host_references
+        res.relocations = compiled.relocations
     end
     return res
 end

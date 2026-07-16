@@ -255,31 +255,31 @@ end
 
 ############################################################################################
 
-@testset "host reference patching" begin
-    runtime_refs = @eval module $(gensym())
+@testset "relocation patching" begin
+    runtime_relocs = @eval module $(gensym())
         using ..CUDACore
-        const host_reference_type_tag = CUDACore.GPUCompiler.Runtime.type_tag
-        host_reference_kernel(out) = (out[1] = host_reference_type_tag(Val(:float32)); return)
+        const relocated_type_tag = CUDACore.GPUCompiler.Runtime.type_tag
+        relocation_kernel(out) = (out[1] = relocated_type_tag(Val(:float32)); return)
     end
 
     out = CUDA.zeros(UInt, 1)
-    @cuda threads=1 runtime_refs.host_reference_kernel(out)
+    @cuda threads=1 runtime_relocs.relocation_kernel(out)
     expected = UInt(unsafe_load(cglobal(:jl_float32_type, Ptr{UInt})))
     @test Array(out)[] == expected
 
-    value_refs = @eval module $(gensym())
-        const host_reference_symbol = Symbol("value#global")
-        host_reference_symbol_kernel(out, name) =
-            (out[1] = UInt(name === host_reference_symbol); return)
+    value_relocs = @eval module $(gensym())
+        const relocated_symbol = Symbol("value#global")
+        relocated_symbol_kernel(out, name) =
+            (out[1] = UInt(name === relocated_symbol); return)
     end
 
     out = CUDA.zeros(UInt, 1)
-    @cuda threads=1 value_refs.host_reference_symbol_kernel(out, Symbol("value#global"))
+    @cuda threads=1 value_relocs.relocated_symbol_kernel(out, Symbol("value#global"))
     @test Array(out)[] == 1
 
-    interior_refs = @eval module $(gensym())
+    interior_relocs = @eval module $(gensym())
         @noinline produce(cond::Bool, value::Int32) = cond ? value : 1.5
-        function interior_reference_kernel(out, cond::Bool, value::Int32)
+        function interior_relocation_kernel(out, cond::Bool, value::Int32)
             x = produce(cond, value)
             out[1] = UInt(x isa Float64)
             return
@@ -287,7 +287,7 @@ end
     end
 
     out = CUDA.zeros(UInt, 1)
-    kernel = @cuda launch=false interior_refs.interior_reference_kernel(out, false, Int32(1))
+    kernel = @cuda launch=false interior_relocs.interior_relocation_kernel(out, false, Int32(1))
     kernel(out, false, Int32(1); threads=1)
     @test Array(out)[] == 1
     @test any(root -> root === Float64, kernel.roots)
