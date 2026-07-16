@@ -2,9 +2,9 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
-@public AbstractBackend, LLVMBackend, DefaultBackend, kernel_convert, kernel_compile, kernel_launch
-@public PreparedLaunch, prepare_launch, replace_arguments
-@public AbstractKernel, HostKernel, DeviceKernel
+@public AbstractBackend, LLVMBackend, DefaultBackend
+@public KernelInvocation, prepare, compile
+@public AbstractKernel, HostKernel, DeviceKernel, backend
 
 
 ## backend dispatch
@@ -15,8 +15,8 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 Abstract supertype for `@cuda` backend dispatch. The default backend is
 [`LLVMBackend`](@ref), which compiles SIMT/PTX kernels via
 [`cufunction`](@ref). Other backends (e.g. Tile IR via cuTile.jl) register
-a subtype and define methods for [`kernel_convert`](@ref) and
-[`kernel_compile`](@ref); `@cuda backend=...` then routes through them.
+a subtype and define backend methods for [`prepare`](@ref), [`compile`](@ref),
+and [`launch`](@ref); `@cuda backend=...` then routes through them.
 
 `@cuda backend=...` accepts either an `AbstractBackend` instance or a
 module that defines `DefaultBackend()` returning one (e.g.
@@ -43,133 +43,104 @@ packages (e.g. `@cuda backend=cuTile ...` resolves to `cuTile.DefaultBackend()`)
 DefaultBackend() = LLVMBackend()
 
 """
-    kernel_convert(backend, x)
+    prepare(backend, x)
 
 Convert a host-side launch argument to its kernel-side form. The default
 implementation for [`LLVMBackend`](@ref) forwards to [`cudaconvert`](@ref);
 other backends override to produce backend-specific argument types.
 """
-kernel_convert(::LLVMBackend, x) = cudaconvert(x)
+prepare(::LLVMBackend, x) = cudaconvert(x)
 
 """
-    kernel_compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
+    compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
 
 Compile a function for the given backend. Returns an [`AbstractKernel`](@ref)
 callable as `kernel(args...; launch_kwargs...)` to launch on the GPU. The
 default implementation for [`LLVMBackend`](@ref) is [`cufunction`](@ref).
 """
-kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
+compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
     cufunction(f, tt; kwargs...)
 
-"""
-    kernel_launch(backend, kernel, arguments::Tuple; kwargs...)
-
-Launch `kernel` with arguments already converted for `backend`. Backends with a
-different low-level kernel calling convention should override this method.
-"""
-@inline kernel_launch(::AbstractBackend, kernel, arguments::Tuple; kwargs...) =
-    kernel(arguments...; kwargs..., convert=Val(false))
-
-
-## prepared launches
+## kernel invocations
 
 """
-    PreparedLaunch
+    KernelInvocation
 
-A compiled kernel together with its converted arguments and the host objects that own them.
-Create one with [`prepare_launch`](@ref), and call it without positional arguments to launch.
+An immutable, self-rooting kernel invocation created by [`prepare`](@ref). It contains a
+backend-specific converted function and arguments, together with the host objects that own
+them. Cache compiled kernels rather than invocations, because an invocation pins its host
+arguments and is tied to the device, context, and task that were current when it was prepared.
 """
-struct PreparedLaunch{B,K,R,A}
+struct KernelInvocation{B,F,A,R}
     backend::B
-    kernel::K
-    roots::R
+    f::F
     arguments::A
-end
-
-@inline function (launch::PreparedLaunch)(; kwargs...)
-    roots = launch.roots
-    GC.@preserve roots begin
-        kernel_launch(launch.backend, launch.kernel, launch.arguments; kwargs...)
-    end
+    roots::R
 end
 
 """
-    prepare_launch(f, args...; backend=LLVMBackend(), compiler_kwargs...) do launch
-        # inspect launch.kernel, then launch(; launch_kwargs...)
-    end
+    prepare(f, args...; backend=LLVMBackend()) -> KernelInvocation
 
-Convert `f` and `args` once, compile the resulting signature, and pass a
-[`PreparedLaunch`](@ref) to the callback. The prepared launch is scoped to the callback and
-must not escape it or be used after changing the active CUDA device, context, task, or stream.
+Convert `f` and `args` once and retain the host objects that own the converted values. Use
+[`compile`](@ref) to compile the invocation and [`launch`](@ref) to launch the resulting
+kernel without converting the arguments again.
 """
-@inline function prepare_launch(callback, f, args...;
-                                backend=LLVMBackend(), compiler_kwargs...)
+@inline function prepare(f, args...; backend=LLVMBackend())
     backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
     roots = (f=f, arguments=args)
     GC.@preserve roots begin
-        kernel_f = kernel_convert(backend, f)
-        arguments = map(args) do arg
-            kernel_convert(backend, arg)
-        end
-        tt = Tuple{map(Core.Typeof, arguments)...}
-        kernel = kernel_compile(backend, kernel_f, tt; compiler_kwargs...)
-        callback(PreparedLaunch(backend, kernel, roots, arguments))
-    end
-end
-
-@inline function prepared_launch(f, args...;
-                                 backend=LLVMBackend(), compiler_kwargs...)
-    backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
-    prepared_launch(backend, f, args, (; compiler_kwargs...))
-end
-
-@inline function prepared_launch(backend::AbstractBackend, f, args::Tuple,
-                                 compiler_kwargs::NamedTuple)
-    roots = (f=f, arguments=args)
-    GC.@preserve roots begin
-        kernel_f = kernel_convert(backend, f)
-        arguments = map(args) do arg
-            kernel_convert(backend, arg)
-        end
-        tt = Tuple{map(Core.Typeof, arguments)...}
-        kernel = kernel_compile(backend, kernel_f, tt; compiler_kwargs...)
-        PreparedLaunch(backend, kernel, roots, arguments)
+        kernel_f = prepare(backend, f)
+        arguments = map(arg -> prepare(backend, arg), args)
+        KernelInvocation(backend, kernel_f, arguments, roots)
     end
 end
 
 """
-    replace_arguments(launch::PreparedLaunch, replacements::Pair...)
+    compile(invocation::KernelInvocation; compiler_kwargs...) -> AbstractKernel
 
-Return a prepared launch with selected host arguments replaced and converted. Replacement
-indices are one-based. The converted tuple type must still match the compiled signature.
+Compile a prepared invocation for its backend. An invocation may be compiled more than once
+with different compiler options.
 """
-@inline function replace_arguments(launch::PreparedLaunch{B,K,R,A},
-                                   replacements::Pair...) where {B,K,R,A}
-    host_arguments = launch.roots.arguments
-    arguments = launch.arguments
-    for (index, value) in replacements
-        index isa Integer || throw(ArgumentError("replacement indices must be integers"))
-        host_arguments = Base.setindex(host_arguments, value, index)
-        GC.@preserve host_arguments begin
-            converted = kernel_convert(launch.backend, value)
-            arguments = Base.setindex(arguments, converted, index)
-        end
-    end
-    typeof(arguments) === A ||
-        throw(ArgumentError("replacement changes the compiled argument types; prepare a new launch"))
-    roots = (f=launch.roots.f, arguments=host_arguments)
-    PreparedLaunch(launch.backend, launch.kernel, roots, arguments)
+@inline function compile(invocation::KernelInvocation; kwargs...)
+    tt = Tuple{map(Core.Typeof, invocation.arguments)...}
+    compile(invocation.backend, invocation.f, tt; kwargs...)
 end
 
-@inline function launch_replacing(launch::PreparedLaunch{B,K,R,A},
-                                  ::Val{I}, value; threads, blocks) where {B,K,R,A,I}
-    roots = launch.roots
-    GC.@preserve roots value begin
-        converted = kernel_convert(launch.backend, value)
-        arguments = Base.setindex(launch.arguments, converted, I)
-        typeof(arguments) === A ||
-            throw(ArgumentError("replacement changes the compiled argument types; prepare a new launch"))
-        kernel_launch(launch.backend, launch.kernel, arguments; threads, blocks)
+"""
+    invocation[i]
+
+Return host argument `i` from a [`KernelInvocation`](@ref).
+"""
+@inline Base.getindex(invocation::KernelInvocation, i::Integer) = invocation.roots.arguments[i]
+
+"""
+    Base.setindex(invocation::KernelInvocation, value, i)
+
+Return an invocation with host argument `i` replaced and converted for the same backend. The
+new converted argument may have a different type; [`launch`](@ref) coerces arguments to the
+compiled kernel signature.
+"""
+@inline Base.setindex(invocation::KernelInvocation, value, i::Integer) =
+    setindex_invocation(invocation, value, Val(i))
+
+@generated function setindex_invocation(invocation::KernelInvocation{B,F,A,R}, value,
+                                        ::Val{I}) where {B,F,A,R,I}
+    if !(1 <= I <= fieldcount(A))
+        return :(throw(BoundsError(invocation, $I)))
+    end
+
+    host_arguments = Expr(:tuple, [i == I ? :value : :(@inbounds invocation.roots.arguments[$i])
+                                   for i in 1:fieldcount(A)]...)
+    arguments = Expr(:tuple, [i == I ? :converted : :(@inbounds invocation.arguments[$i])
+                              for i in 1:fieldcount(A)]...)
+    quote
+        GC.@preserve value begin
+            converted = prepare(invocation.backend, value)
+        end
+        host_arguments = $host_arguments
+        roots = (f=invocation.roots.f, arguments=host_arguments)
+        arguments = $arguments
+        KernelInvocation(invocation.backend, invocation.f, arguments, roots)
     end
 end
 
@@ -190,8 +161,9 @@ a CUDA function upon first use, and to a certain extent arguments will be conver
 managed automatically using `cudaconvert`. Finally, a call to `cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
-A direct launch converts each argument once. Use [`prepare_launch`](@ref) when compilation
-and launch need to be separated by occupancy queries or other configuration work.
+A direct launch converts each argument once. Use [`prepare`](@ref), [`compile`](@ref), and
+[`launch`](@ref) directly when compilation and launch need to be separated by occupancy
+queries or other configuration work.
 
 Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
@@ -201,7 +173,7 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `backend`: which compiler backend to use, defaults to [`LLVMBackend`](@ref). Either an
   [`AbstractBackend`](@ref) instance or a module that defines `DefaultBackend()` (e.g.
   `backend=CUDA` resolves to `CUDA.DefaultBackend()`). Backend-specific compiler kwargs
-  not recognized by `@cuda` itself are forwarded to [`kernel_compile`](@ref).
+  not recognized by `@cuda` itself are forwarded to [`compile`](@ref).
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
 - arguments that influence kernel launch: see [`CUDACore.HostKernel`](@ref) and
@@ -229,14 +201,14 @@ macro cuda(ex...)
     vars, var_exprs = assign_args!(code, args)
 
     # group keyword argument. Backend-specific compiler kwargs land in
-    # `other_kwargs` and are forwarded to `kernel_compile`; the backend
+    # `other_kwargs` and are forwarded to `compile`; the backend
     # validates them.
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs, MACRO_KWARGS, COMPILER_KWARGS, LAUNCH_KWARGS)
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
-    launch = true
+    should_launch = true
     backend_expr = :($LLVMBackend())
     for kwarg in macro_kwargs
         key::Symbol, val = kwarg.args
@@ -245,20 +217,20 @@ macro cuda(ex...)
             dynamic = val::Bool
         elseif key === :launch
             isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
-            launch = val::Bool
+            should_launch = val::Bool
         elseif key === :backend
             backend_expr = val
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
     end
-    if !launch && !isempty(call_kwargs)
+    if !should_launch && !isempty(call_kwargs)
         error("@cuda with launch=false does not support launch-time keyword arguments; use them when calling the kernel")
     end
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym f_var kernel_args kernel_tt kernel backend backend_raw prepared
+    @gensym f_var kernel_args kernel_tt kernel backend backend_raw invocation
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -274,7 +246,7 @@ macro cuda(ex...)
                 $kernel_args = ($(var_exprs...),)
                 $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                 $kernel = $dynamic_cufunction($f, $kernel_tt)
-                if $launch
+                if $should_launch
                     $kernel($kernel_args...; $(call_kwargs...))
                 end
                 $kernel
@@ -290,13 +262,12 @@ macro cuda(ex...)
                     $backend_raw isa $AbstractBackend ? $backend_raw : $backend_raw.DefaultBackend()
                 end
                 $f_var = $f
-                $prepare_launch($f_var, $(var_exprs...); backend=$backend,
-                                $(compiler_kwargs...), $(other_kwargs...)) do $prepared
-                    if $launch
-                        $prepared(; $(call_kwargs...))
-                    end
-                    $prepared.kernel
+                $invocation = $prepare($f_var, $(var_exprs...); backend=$backend)
+                $kernel = $compile($invocation; $(compiler_kwargs...), $(other_kwargs...))
+                if $should_launch
+                    $launch($kernel, $invocation; $(call_kwargs...))
                 end
+                $kernel
              end)
     end
 
@@ -393,8 +364,9 @@ abstract type AbstractKernel{F,TT} end
     (::HostKernel)(args...; kwargs...)
     (::DeviceKernel)(args...; kwargs...)
 
-Low-level interface to call a compiled kernel, passing GPU-compatible arguments
-in `args`. For a higher-level interface, use [`@cuda`](@ref).
+Low-level interface to call a compiled kernel. A `HostKernel` converts the supplied host
+arguments before launching; a `DeviceKernel` accepts GPU-compatible arguments directly. To
+reuse values already converted by [`prepare`](@ref), call [`launch`](@ref) instead.
 
 A `HostKernel` is callable on the host, and a `DeviceKernel` is callable on the
 device (created by `@cuda` with `dynamic=true`).
@@ -428,19 +400,52 @@ function Base.show(io::IO, ::MIME"text/plain", k::AbstractKernel{F,TT}) where {F
     print(io, "$(parentmodule(T)).$(nameof(T)) for $(k.f)($(join(TT.parameters, ", ")))")
 end
 
-@inline @generated function (kernel::AbstractKernel{F,TT})(args::Vararg{Any,N};
-                                                           convert=Val(kernel isa HostKernel),
-                                                           call_kwargs...) where {F,TT,N}
+"""
+    backend(kernel::AbstractKernel)
+
+Return the backend that compiled `kernel`. Backend kernel types define this trait so an
+existing kernel can be rebound with [`prepare(kernel, args...)`](@ref).
+"""
+function backend end
+
+"""
+    prepare(kernel::AbstractKernel, args...) -> KernelInvocation
+
+Prepare a new invocation for an existing kernel's function and backend.
+"""
+@inline prepare(kernel::AbstractKernel, args...) =
+    prepare(kernel.f, args...; backend=backend(kernel))
+
+"""
+    launch(kernel::AbstractKernel, invocation::KernelInvocation; launch_kwargs...)
+
+Launch a compiled kernel with prepared arguments. The invocation retains the host roots for
+the duration of the backend launch. Converted values are coerced to the kernel's compiled
+signature at the calling boundary.
+"""
+@generated function launch(kernel::AbstractKernel,
+                           invocation::KernelInvocation{B,F,A,R}; kwargs...) where {B,F,A,R}
+    root_vars = [gensym(:root) for _ in 1:fieldcount(A)+1]
+    assignments = Any[:($(root_vars[1]) = invocation.roots.f)]
+    append!(assignments,
+            [:($(root_vars[i+1]) = @inbounds invocation.roots.arguments[$i])
+             for i in 1:fieldcount(A)])
+    call = :(launch(invocation.backend, kernel, invocation.arguments; kwargs...))
+    preserve = Expr(:gc_preserve, call, root_vars...)
+    Expr(:block, assignments..., preserve)
+end
+
+@inline launch(::AbstractBackend, kernel, arguments::Tuple; kwargs...) =
+    kernel(arguments...; kwargs...)
+
+@inline @generated function launch_converted(kernel::AbstractKernel{F,TT},
+                                              args::A; call_kwargs...) where {F,TT,A<:Tuple}
     sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
 
     # determine argument expressions
     argexprs = [:(kernel.f)]
-    for i in 1:length(args)
-        if convert.parameters[1]
-            push!(argexprs, :(cudaconvert(args[$i])))
-        else
-            push!(argexprs, :(args[$i]))
-        end
+    for i in 1:length(A.parameters)
+        push!(argexprs, :(args[$i]))
     end
 
     # filter out arguments that shouldn't be passed
@@ -475,6 +480,16 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
 end
 
 @doc (@doc AbstractKernel) HostKernel
+
+backend(::HostKernel) = LLVMBackend()
+
+@inline function (kernel::HostKernel)(args...; kwargs...)
+    invocation = prepare(kernel, args...)
+    launch(kernel, invocation; kwargs...)
+end
+
+@inline launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
+    launch_converted(kernel, arguments; kwargs...)
 
 """
     version(k::HostKernel)
@@ -621,6 +636,9 @@ struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
 end
 
 @doc (@doc AbstractKernel) DeviceKernel
+
+@inline (kernel::DeviceKernel)(args...; kwargs...) =
+    launch_converted(kernel, args; kwargs...)
 
 
 ## device-side API

@@ -60,7 +60,7 @@ end
 end
 
 
-@testset "prepared launch" begin
+@testset "kernel invocation" begin
     input = CuArray([11])
     output = CuArray([0])
 
@@ -71,17 +71,19 @@ end
     @test Array(output) == [11]
 
     counter[] = 0
-    kernel = CUDA.prepare_launch(copy_counted, arg, output) do launch
-        @test launch.kernel isa CUDACore.HostKernel
-        @test CUDACore.launch_configuration(launch.kernel.fun).threads > 0
-        @test_throws MethodError launch(arg, output)
-        launch()
-        launch()
-        launch.kernel
-    end
+    invocation = CUDA.prepare(copy_counted, arg, output)
+    @test invocation isa CUDA.KernelInvocation
+    @test invocation[1] === arg
+    kernel = CUDA.compile(invocation)
     @test kernel isa CUDACore.HostKernel
+    @test CUDACore.launch_configuration(kernel.fun).threads > 0
+    CUDA.launch(kernel, invocation)
+    CUDA.launch(kernel, invocation)
     @test counter[] == 1
     @test Array(output) == [11]
+    rebound = CUDA.prepare(kernel, arg, output)
+    @test rebound.backend isa CUDA.LLVMBackend
+    @test counter[] == 2
 
     counter[] = 0
     kernel = @cuda launch=false copy_counted(arg, output)
@@ -90,30 +92,64 @@ end
     @test counter[] == 2
 
     replacement_counter = Ref(0)
-    CUDA.prepare_launch(copy_counted, arg, output) do launch
-        replacement = CountedHost(CuArray([12]), replacement_counter)
-        launch = CUDA.replace_arguments(launch, 1 => replacement)
-        @test counter[] == 3
-        @test replacement_counter[] == 1
-        GC.gc(true)
-        launch()
-        @test_throws ArgumentError CUDA.replace_arguments(
-            launch, 1 => CountedHost(CuArray(Float32[13]), Ref(0)))
-    end
+    replacement = CountedHost(CuArray([12]), replacement_counter)
+    replacement_invocation = Base.setindex(invocation, replacement, 1)
+    @test invocation[1] === arg
+    @test replacement_invocation[1] === replacement
+    @test replacement_counter[] == 1
+    GC.gc(true)
+    CUDA.launch(kernel, replacement_invocation)
     @test replacement_counter[] == 1
     @test Array(output) == [12]
 
     ephemeral_counter = Ref(0)
-    CUDA.prepare_launch(copy_counted, CountedHost(CuArray([14]), ephemeral_counter), output) do launch
-        GC.gc(true)
-        launch()
+    function escaping_invocation()
+        CUDA.prepare(copy_counted,
+                     CountedHost(CuArray([14]), ephemeral_counter), output)
     end
+    escaped = escaping_invocation()
+    GC.gc(true)
+    escaped_kernel = CUDA.compile(escaped)
+    CUDA.launch(escaped_kernel, escaped)
     @test ephemeral_counter[] == 1
     @test Array(output) == [14]
 
-    CUDA.prepare_launch(dummy) do launch
-        launch()
+    empty_invocation = CUDA.prepare(dummy)
+    CUDA.launch(CUDA.compile(empty_invocation), empty_invocation)
+
+    replace_int(inv, value) = Base.setindex(inv, value, 1)
+    int_invocation = CUDA.prepare(identity, Int32(1))
+    @test @inferred(replace_int(int_invocation, Int32(2))) isa CUDA.KernelInvocation
+    replace_int(int_invocation, Int32(2))
+    @test @allocated(replace_int(int_invocation, Int32(2))) == 0
+    runtime_index = Ref(1)[]
+    @test Base.setindex(int_invocation, Int64(3), runtime_index)[1] == 3
+
+    function write_scalar(value, output)
+        output[] = value
+        return
     end
+    scalar_output = CuArray(Int32[0])
+    scalar_invocation = CUDA.prepare(write_scalar, Int32(1), scalar_output)
+    scalar_kernel = CUDA.compile(scalar_invocation)
+    widened_invocation = Base.setindex(scalar_invocation, Int64(2), 1)
+    CUDA.launch(scalar_kernel, widened_invocation)
+    @test Array(scalar_output) == Int32[2]
+    @test_throws InexactError CUDA.launch(
+        scalar_kernel, Base.setindex(scalar_invocation, typemax(Int64), 1))
+
+    scalar_kernel(Int64(3), scalar_output)
+    @test Array(scalar_output) == Int32[3]
+
+    float_input = CuArray(Float32[1])
+    function copy_first(input, output)
+        output[] = input[]
+        return
+    end
+    array_invocation = CUDA.prepare(copy_first, input, output)
+    array_kernel = CUDA.compile(array_invocation)
+    @test_throws MethodError CUDA.launch(
+        array_kernel, Base.setindex(array_invocation, float_input, 1))
 end
 
 
@@ -288,6 +324,15 @@ end
     kernel(a) = return
     bar(a) = @cuda kernel(a)
     @inferred bar(CuArray([1]))
+
+    function reassigned_launch_kwarg()
+        threads = 1
+        @cuda threads=threads dummy()
+        threads = 2
+        return threads
+    end
+    lowered = only(code_lowered(reassigned_launch_kwarg, Tuple{}))
+    @test !occursin("Core.Box", sprint(show, lowered))
 end
 
 
@@ -310,7 +355,7 @@ end
     @cuda backend=CUDA dummy()
     @cuda backend=CUDACore dummy()
 
-    # custom backend stub: assert kernel_convert/kernel_compile are called
+    # custom backend stub: assert prepare/compile/launch are called
     # and that unknown kwargs are forwarded
     @eval module BackendStub
         using CUDA
@@ -323,22 +368,22 @@ end
         struct Backend <: CUDACore.AbstractBackend end
         DefaultBackend() = Backend()
 
-        struct Kernel{F}
+        struct Kernel{F,TT} <: CUDACore.AbstractKernel{F,TT}
             f::F
         end
-        (::Kernel)(args...; kwargs...) = nothing
 
-        CUDACore.kernel_convert(::Backend, x) = (convert_calls[] += 1; x)
-        function CUDACore.kernel_compile(::Backend, f::F, tt::Type{<:Tuple};
-                                         kwargs...) where {F}
+        CUDACore.backend(::Kernel) = Backend()
+        CUDACore.prepare(::Backend, x) = (convert_calls[] += 1; x)
+        function CUDACore.compile(::Backend, f::F, tt::Type{<:Tuple};
+                                  kwargs...) where {F}
             compile_calls[] += 1
             last_kwargs[] = (; kwargs...)
-            Kernel{F}(f)
+            Kernel{F,tt}(f)
         end
-        function CUDACore.kernel_launch(::Backend, kernel, args::Tuple; kwargs...)
+        function (kernel::Kernel)(args...; kwargs...)
             launch_calls[] += 1
             last_launch_kwargs[] = (; kwargs...)
-            kernel(args...; kwargs...)
+            nothing
         end
     end
 
@@ -347,7 +392,7 @@ end
     BackendStub.last_kwargs[] = nothing
     @cuda backend=BackendStub.Backend() dummy()
     @test BackendStub.compile_calls[] == 1
-    # f + 0 args, all routed through kernel_convert
+    # f + 0 args, all routed through prepare
     @test BackendStub.convert_calls[] == 1
     @test BackendStub.launch_calls[] == 1
 
@@ -355,7 +400,7 @@ end
     @cuda backend=BackendStub dummy()
     @test BackendStub.compile_calls[] == 2
 
-    # other_kwargs forwarding to kernel_compile
+    # other_kwargs forwarding to compile
     @cuda backend=BackendStub.Backend() opt_level=2 dummy()
     @test haskey(BackendStub.last_kwargs[], :opt_level)
     @test BackendStub.last_kwargs[][:opt_level] == 2
@@ -367,17 +412,16 @@ end
     BackendStub.compile_calls[] = 0
     BackendStub.convert_calls[] = 0
     BackendStub.launch_calls[] = 0
-    result = CUDA.prepare_launch(dummy, 1, 2;
-                                 backend=BackendStub, opt_level=3) do launch
-        @test launch isa CUDA.PreparedLaunch
-        @test launch.kernel isa BackendStub.Kernel
-        launch(; threads=4)
-        launch = CUDA.replace_arguments(launch, 1 => 3)
-        launch(; threads=8)
-        @test_throws ArgumentError CUDA.replace_arguments(launch, 2 => 4.0)
-        :prepared
-    end
-    @test result === :prepared
+    invocation = CUDA.prepare(dummy, 1, 2; backend=BackendStub)
+    @test invocation isa CUDA.KernelInvocation
+    @test invocation[1] == 1
+    kernel = CUDA.compile(invocation; opt_level=3)
+    @test kernel isa BackendStub.Kernel
+    CUDA.launch(kernel, invocation; threads=4)
+    invocation = Base.setindex(invocation, 3, 1)
+    CUDA.launch(kernel, invocation; threads=8)
+    drifted = Base.setindex(invocation, 4.0, 2)
+    @test drifted[2] == 4.0
     @test BackendStub.compile_calls[] == 1
     @test BackendStub.convert_calls[] == 5 # function, two arguments, and two replacements
     @test BackendStub.launch_calls[] == 2
