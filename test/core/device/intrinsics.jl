@@ -41,6 +41,7 @@ end
 
 ############################################################################################
 
+
 @testset "assertion" begin
     function kernel(i)
         @cuassert i > 0
@@ -49,6 +50,59 @@ end
     end
 
     @cuda kernel(1)
+end
+
+@testset "target requirements" begin
+    out = CUDA.zeros(UInt32, 1)
+
+    function dp4a_kernel(out)
+        @inbounds out[] = CUDA.dp4a(Int32(1), Int32(2), Int32(3))
+        return
+    end
+    @test_throws "requires compute capability 6.1" @cuda launch=false arch=sm"60" dp4a_kernel(out)
+
+    nanosleep_kernel() = nanosleep(UInt32(1))
+    @test_throws "requires compute capability 7.0" @cuda launch=false arch=sm"61" nanosleep_kernel()
+
+    out16 = CUDA.zeros(UInt16, 1)
+    function atomic_cas_kernel(out)
+        CUDA.atomic_cas!(pointer(out), UInt16(0), UInt16(1))
+        return
+    end
+    @test_throws "requires compute capability 7.0" @cuda launch=false arch=sm"61" atomic_cas_kernel(out16)
+
+    outf16 = CUDA.zeros(Float16, 16 * 16)
+    function wmma_kernel(out)
+        CUDA.WMMA.llvm_wmma_load_a_col_m16n16k16_global_stride_f16(
+            pointer(out), Int32(16))
+        return
+    end
+    @test_throws "requires compute capability 7.0" @cuda launch=false arch=sm"61" wmma_kernel(outf16)
+
+    outi8 = CUDA.zeros(Int8, 16 * 16)
+    function wmma_int_kernel(out)
+        CUDA.WMMA.llvm_wmma_load_a_col_m16n16k16_global_stride_s8(
+            pointer(out), Int32(16))
+        return
+    end
+    @test_throws "requires compute capability 7.2" @cuda launch=false arch=sm"70" wmma_int_kernel(outi8)
+
+    outbf16 = CUDA.zeros(CUDACore.BFloat16, 16 * 16)
+    function wmma_bf16_kernel(out)
+        CUDA.WMMA.llvm_wmma_load_a_col_m16n16k16_global_stride_bf16(
+            pointer(out), Int32(16))
+        return
+    end
+    @test_throws "requires compute capability 8.0" @cuda launch=false arch=sm"72" wmma_bf16_kernel(outbf16)
+
+    cluster_kernel() = cluster_arrive()
+    @test_throws "requires compute capability 9.0" @cuda launch=false arch=sm"80" cluster_kernel()
+
+    function distributed_shared_kernel()
+        CuDistributedSharedArray(CuStaticSharedArray(UInt32, 1), 1)
+        return
+    end
+    @test_throws "requires compute capability 9.0" @cuda launch=false arch=sm"80" distributed_shared_kernel()
 end
 
 
@@ -337,4 +391,3 @@ capability(device()) >= v"9" || # JuliaGPU/CUDA.jl#1846
 end
 
 ############################################################################################
-

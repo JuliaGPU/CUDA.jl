@@ -1,6 +1,7 @@
 name: Benchmarks
 permissions:
   contents: write       # update benchmark contents in gh-pages branch
+  issues: write         # comment on PR with benchmark results
   pull-requests: write  # comment on PR with benchmark results
   deployments: write    # deploy GitHub pages website
 
@@ -11,6 +12,9 @@ on:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
+    concurrency:
+      group: benchmarks-${{ github.event.client_payload.pull_request != 'false' && format('pr-{0}', github.event.client_payload.pull_request) || github.run_id }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
@@ -44,3 +48,58 @@ jobs:
           alert-threshold: "125%"
           fail-on-alert: false
           auto-push: ${{ github.event.client_payload.branch == 'main' }}
+
+      - name: Move Benchmark Results to Pull Request
+        if: ${{ steps.locate.outputs.path != '' && github.event.client_payload.pull_request != 'false' }}
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const commit_sha = context.payload.client_payload.commit;
+            const issue_number = Number(context.payload.client_payload.pull_request);
+            const marker = '<!-- github-benchmark-action-comment(start): CUDA.jl Benchmarks Summary -->';
+
+            const commitComments = await github.paginate(
+              github.rest.repos.listCommentsForCommit,
+              {owner, repo, commit_sha, per_page: 100},
+            );
+            const source = commitComments.filter(comment => comment.body?.startsWith(marker)).at(-1);
+            if (!source) {
+              throw new Error(`No benchmark comment found on commit ${commit_sha}`);
+            }
+
+            const pullRequestComments = await github.paginate(
+              github.rest.issues.listComments,
+              {owner, repo, issue_number, per_page: 100},
+            );
+            const benchmarkComments = pullRequestComments.filter(comment => comment.body?.startsWith(marker));
+            const existing = benchmarkComments.at(-1);
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body: source.body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: source.body,
+              });
+            }
+
+            for (const duplicate of benchmarkComments.slice(0, -1)) {
+              await github.rest.issues.deleteComment({
+                owner,
+                repo,
+                comment_id: duplicate.id,
+              });
+            }
+
+            await github.rest.repos.deleteCommitComment({
+              owner,
+              repo,
+              comment_id: source.id,
+            });
