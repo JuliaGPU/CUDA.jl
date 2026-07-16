@@ -954,17 +954,17 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
                 # grid dimensions
                 N_blocks = max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block), other_block_dims...
                 block_size = pseudo_block_length, threads1 ÷ pseudo_block_length
-                current = Base.setindex(invocation1, I(k), 3)
-                current = Base.setindex(current, I(j), 4)
-                current = Base.setindex(current, I(j_final), 5)
+                current = rebind(invocation1, 3 => I(k))
+                current = rebind(current, 4 => I(j))
+                current = rebind(current, 5 => I(j_final))
                 CUDACore.launch(kernel1, current;
                                 blocks=N_blocks, threads=block_size,
                                 shmem=bitonic_shmem(c, block_size))
                 break
             else
                 N_blocks = cld(c_len, threads2), other_block_dims...
-                current = Base.setindex(invocation2, I(k), 3)
-                current = Base.setindex(current, I(j), 4)
+                current = rebind(invocation2, 3 => I(k))
+                current = rebind(current, 4 => I(j))
                 CUDACore.launch(kernel2, current; blocks=N_blocks, threads=threads2)
             end
         end

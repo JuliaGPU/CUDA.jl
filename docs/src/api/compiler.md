@@ -18,6 +18,7 @@ If needed, you can use a lower-level API that lets you inspect the compiler kern
 prepare
 KernelInvocation
 compile
+rebind
 cudaconvert
 cufunction
 AbstractKernel
@@ -29,7 +30,7 @@ memory
 ```
 
 Launch a compiled invocation with `launch(kernel, invocation; launch_kwargs...)`. Arguments
-can be replaced immutably with `Base.setindex(invocation, value, index)` before launching.
+can be rebound immutably with `rebind(invocation, index => value)` before launching.
 
 The PTX compilation target is identified by an `SMVersion`, constructed via the
 `sm"..."` string macro:

@@ -3,7 +3,7 @@
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
 @public AbstractBackend, LLVMBackend, DefaultBackend
-@public KernelInvocation, prepare, compile
+@public KernelInvocation, prepare, compile, rebind
 @public AbstractKernel, HostKernel, DeviceKernel, backend
 
 
@@ -114,17 +114,17 @@ Return host argument `i` from a [`KernelInvocation`](@ref).
 @inline Base.getindex(invocation::KernelInvocation, i::Integer) = invocation.roots.arguments[i]
 
 """
-    Base.setindex(invocation::KernelInvocation, value, i)
+    rebind(invocation::KernelInvocation, i => value)
 
-Return an invocation with host argument `i` replaced and converted for the same backend. The
+Return an invocation with host argument `i` rebound and converted for the same backend. The
 new converted argument may have a different type; [`launch`](@ref) coerces arguments to the
 compiled kernel signature.
 """
-@inline Base.setindex(invocation::KernelInvocation, value, i::Integer) =
-    setindex_invocation(invocation, value, Val(i))
+@inline rebind(invocation::KernelInvocation, binding::Pair{<:Integer}) =
+    rebind_argument(invocation, binding.second, Val(binding.first))
 
-@generated function setindex_invocation(invocation::KernelInvocation{B,F,A,R}, value,
-                                        ::Val{I}) where {B,F,A,R,I}
+@generated function rebind_argument(invocation::KernelInvocation{B,F,A,R}, value,
+                                    ::Val{I}) where {B,F,A,R,I}
     if !(1 <= I <= fieldcount(A))
         return :(throw(BoundsError(invocation, $I)))
     end

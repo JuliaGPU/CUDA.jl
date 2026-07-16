@@ -93,7 +93,7 @@ end
 
     replacement_counter = Ref(0)
     replacement = CountedHost(CuArray([12]), replacement_counter)
-    replacement_invocation = Base.setindex(invocation, replacement, 1)
+    replacement_invocation = CUDA.rebind(invocation, 1 => replacement)
     @test invocation[1] === arg
     @test replacement_invocation[1] === replacement
     @test replacement_counter[] == 1
@@ -117,13 +117,13 @@ end
     empty_invocation = CUDA.prepare(dummy)
     CUDA.launch(CUDA.compile(empty_invocation), empty_invocation)
 
-    replace_int(inv, value) = Base.setindex(inv, value, 1)
+    rebind_int(inv, value) = CUDA.rebind(inv, 1 => value)
     int_invocation = CUDA.prepare(identity, Int32(1))
-    @test @inferred(replace_int(int_invocation, Int32(2))) isa CUDA.KernelInvocation
-    replace_int(int_invocation, Int32(2))
-    @test @allocated(replace_int(int_invocation, Int32(2))) == 0
+    @test @inferred(rebind_int(int_invocation, Int32(2))) isa CUDA.KernelInvocation
+    rebind_int(int_invocation, Int32(2))
+    @test @allocated(rebind_int(int_invocation, Int32(2))) == 0
     runtime_index = Ref(1)[]
-    @test Base.setindex(int_invocation, Int64(3), runtime_index)[1] == 3
+    @test CUDA.rebind(int_invocation, runtime_index => Int64(3))[1] == 3
 
     function write_scalar(value, output)
         output[] = value
@@ -132,11 +132,11 @@ end
     scalar_output = CuArray(Int32[0])
     scalar_invocation = CUDA.prepare(write_scalar, Int32(1), scalar_output)
     scalar_kernel = CUDA.compile(scalar_invocation)
-    widened_invocation = Base.setindex(scalar_invocation, Int64(2), 1)
+    widened_invocation = CUDA.rebind(scalar_invocation, 1 => Int64(2))
     CUDA.launch(scalar_kernel, widened_invocation)
     @test Array(scalar_output) == Int32[2]
     @test_throws InexactError CUDA.launch(
-        scalar_kernel, Base.setindex(scalar_invocation, typemax(Int64), 1))
+        scalar_kernel, CUDA.rebind(scalar_invocation, 1 => typemax(Int64)))
 
     scalar_kernel(Int64(3), scalar_output)
     @test Array(scalar_output) == Int32[3]
@@ -149,7 +149,7 @@ end
     array_invocation = CUDA.prepare(copy_first, input, output)
     array_kernel = CUDA.compile(array_invocation)
     @test_throws MethodError CUDA.launch(
-        array_kernel, Base.setindex(array_invocation, float_input, 1))
+        array_kernel, CUDA.rebind(array_invocation, 1 => float_input))
 end
 
 
@@ -418,12 +418,12 @@ end
     kernel = CUDA.compile(invocation; opt_level=3)
     @test kernel isa BackendStub.Kernel
     CUDA.launch(kernel, invocation; threads=4)
-    invocation = Base.setindex(invocation, 3, 1)
+    invocation = CUDA.rebind(invocation, 1 => 3)
     CUDA.launch(kernel, invocation; threads=8)
-    drifted = Base.setindex(invocation, 4.0, 2)
+    drifted = CUDA.rebind(invocation, 2 => 4.0)
     @test drifted[2] == 4.0
     @test BackendStub.compile_calls[] == 1
-    @test BackendStub.convert_calls[] == 5 # function, two arguments, and two replacements
+    @test BackendStub.convert_calls[] == 5 # function, two arguments, and two rebindings
     @test BackendStub.launch_calls[] == 2
     @test BackendStub.last_kwargs[] == (opt_level=3,)
     @test BackendStub.last_launch_kwargs[] == (threads=8,)

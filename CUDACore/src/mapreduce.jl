@@ -289,7 +289,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
             partial .= R
         end
 
-        partial_invocation = Base.setindex(partial_invocation, partial, 7)
+        partial_invocation = rebind(partial_invocation, 7 => partial)
         launch(partial_kernel, partial_invocation;
                threads=partial_threads, blocks=partial_blocks, shmem=partial_shmem)
 
