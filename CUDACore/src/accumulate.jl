@@ -149,53 +149,54 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    prepare_launch(partial_scan, f, output, input, Rdim, Rpre, Rpost, Rother,
-                   neutral, init, Val(true); name="scan") do launch
-        kernel_config = launch_configuration(launch.kernel.fun;
-                                             shmem=threads -> 2*threads*sizeof(T))
+    invocation = prepare(partial_scan, f, output, input, Rdim, Rpre, Rpost, Rother,
+                         neutral, init, Val(true))
+    kernel = compile(invocation; name="scan")
+    kernel_config = launch_configuration(kernel.fun;
+                                         shmem=threads -> 2*threads*sizeof(T))
 
-        # determine the grid layout to cover the other dimensions
-        blocks_other = if length(Rother) > 1
-            dev = device()
-            max_other_blocks = attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
-            (min(length(Rother), max_other_blocks),
-             cld(length(Rother), max_other_blocks))
-        else
-            (1, 1)
-        end
-
-        # does that suffice to scan the array in one go?
-        full = nextpow(2, length(Rdim))
-        if full <= kernel_config.threads
-            launch(; threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T))
-            return
-        end
-
-        # perform partial scans across the scanning dimension
-        # NOTE: don't set init here to avoid applying the value multiple times
-        partial = prevpow(2, kernel_config.threads)
-        blocks_dim = cld(length(Rdim), partial)
-        @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
-              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, nothing, Val(true)))
-
-        # get the total of each thread block (except the first) of the partial scans
-        aggregates = fill(neutral, Base.setindex(size(input), blocks_dim, dims))
-        partials = selectdim(output, dims, partial:partial:length(Rdim))
-        indices = CartesianIndices(partials)
-        copyto!(aggregates, indices, partials, indices)
-
-        # scan these totals to get totals for the entire partial scan
-        accumulate!(f, aggregates, aggregates; dims=dims)
-
-        # add those totals to the partial scan result
-        # NOTE: we assume that this kernel requires fewer resources than the scan kernel.
-        #       if that does not hold, launch with fewer threads and calculate
-        #       the aggregate block index within the kernel itself.
-        @cuda(threads=partial, blocks=(blocks_dim, blocks_other...),
-              aggregate_partial_scan(f, output, aggregates, Rdim, Rpre, Rpost, Rother, init))
-
-        unsafe_free!(aggregates)
+    # determine the grid layout to cover the other dimensions
+    blocks_other = if length(Rother) > 1
+        dev = device()
+        max_other_blocks = attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
+        (min(length(Rother), max_other_blocks),
+         cld(length(Rother), max_other_blocks))
+    else
+        (1, 1)
     end
+
+    # does that suffice to scan the array in one go?
+    full = nextpow(2, length(Rdim))
+    if full <= kernel_config.threads
+        launch(kernel, invocation;
+               threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T))
+        return output
+    end
+
+    # perform partial scans across the scanning dimension
+    # NOTE: don't set init here to avoid applying the value multiple times
+    partial = prevpow(2, kernel_config.threads)
+    blocks_dim = cld(length(Rdim), partial)
+    @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
+          partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, nothing, Val(true)))
+
+    # get the total of each thread block (except the first) of the partial scans
+    aggregates = fill(neutral, Base.setindex(size(input), blocks_dim, dims))
+    partials = selectdim(output, dims, partial:partial:length(Rdim))
+    indices = CartesianIndices(partials)
+    copyto!(aggregates, indices, partials, indices)
+
+    # scan these totals to get totals for the entire partial scan
+    accumulate!(f, aggregates, aggregates; dims=dims)
+
+    # add those totals to the partial scan result
+    # NOTE: we assume that this kernel requires fewer resources than the scan kernel.
+    #       if that does not hold, launch with fewer threads and calculate
+    #       the aggregate block index within the kernel itself.
+    @cuda(threads=partial, blocks=(blocks_dim, blocks_other...),
+          aggregate_partial_scan(f, output, aggregates, Rdim, Rpre, Rpost, Rother, init))
+
+    unsafe_free!(aggregates)
 
     return output
 end

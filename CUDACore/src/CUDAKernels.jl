@@ -132,10 +132,10 @@ end
 
 @inline function launch_kernel(obj, args, ndrange, ::Nothing, iterspace, ctx,
                                maxthreads, backend)
-    launch = CUDACore.prepared_launch(obj.f, ctx, args...;
-                                      always_inline=backend.always_inline,
-                                      maxthreads=maxthreads)
-    config = CUDACore.launch_configuration(launch.kernel.fun;
+    invocation = CUDACore.prepare(obj.f, ctx, args...)
+    kernel = CUDACore.compile(invocation; always_inline=backend.always_inline,
+                             maxthreads)
+    config = CUDACore.launch_configuration(kernel.fun;
                                            max_threads=prod(ndrange))
     threads = if backend.prefer_blocks
         threads = min(prod(ndrange), config.threads)
@@ -152,7 +152,8 @@ end
 
     threads = length(KA.workitems(iterspace))
     ctx = KA.mkcontext(obj, ndrange, iterspace)
-    CUDACore.launch_replacing(launch, Val(1), ctx; threads, blocks)
+    invocation = Base.setindex(invocation, ctx, 1)
+    CUDACore.launch(kernel, invocation; threads, blocks)
     return nothing
 end
 
@@ -162,16 +163,15 @@ end
 end
 
 @inline function launch_configured_kernel(obj, args, iterspace, ctx, maxthreads, backend)
-    CUDACore.prepare_launch(obj.f, ctx, args...;
-                            always_inline=backend.always_inline,
-                            maxthreads=maxthreads) do launch
-        blocks = length(KA.blocks(iterspace))
-        blocks == 0 && return nothing
+    blocks = length(KA.blocks(iterspace))
+    blocks == 0 && return nothing
 
-        threads = length(KA.workitems(iterspace))
-        launch(; threads, blocks)
-        return nothing
-    end
+    invocation = CUDACore.prepare(obj.f, ctx, args...)
+    kernel = CUDACore.compile(invocation; always_inline=backend.always_inline,
+                             maxthreads)
+    threads = length(KA.workitems(iterspace))
+    CUDACore.launch(kernel, invocation; threads, blocks)
+    return nothing
 end
 
 ## indexing

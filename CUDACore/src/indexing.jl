@@ -45,12 +45,12 @@ function Base.findall(bools::AnyCuArray{Bool})
         end
         ## COV_EXCL_STOP
 
-        prepare_launch(kernel, ys, bools, indices; name="findall") do launch
-            config = launch_configuration(launch.kernel.fun)
-            threads = min(length(indices), config.threads)
-            blocks = cld(length(indices), threads)
-            launch(; threads, blocks)
-        end
+        invocation = prepare(kernel, ys, bools, indices)
+        compiled = compile(invocation; name="findall")
+        config = launch_configuration(compiled.fun)
+        threads = min(length(indices), config.threads)
+        blocks = cld(length(indices), threads)
+        launch(compiled, invocation; threads, blocks)
     end
 
     unsafe_free!(indices)

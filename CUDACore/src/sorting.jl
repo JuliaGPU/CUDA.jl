@@ -484,11 +484,12 @@ function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int, partial_k=
              max_depth, nothing, lt, by, Val(dims)), partial_k)
 
     get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
-    CUDACore.prepare_launch(qsort_kernel, my_sort_args...) do launch
-        config = launch_configuration(launch.kernel.fun, shmem=get_shmem)
-        threads = prevpow(2, config.threads) >> block_size_shift
-        launch(; blocks=prod(otherdims), threads, shmem=get_shmem(threads))
-    end
+    invocation = CUDACore.prepare(qsort_kernel, my_sort_args...)
+    kernel = CUDACore.compile(invocation)
+    config = launch_configuration(kernel.fun, shmem=get_shmem)
+    threads = prevpow(2, config.threads) >> block_size_shift
+    CUDACore.launch(kernel, invocation;
+                    blocks=prod(otherdims), threads, shmem=get_shmem(threads))
 
     return c
 end
@@ -915,56 +916,58 @@ function bitonic_sort!(c; by = identity, lt = isless, rev = false, dims=1)
 
     args1 = (c, I(c_len), one(I), one(I), one(I), by, lt, Val(rev), Val(dims))
     args2 = (c, I(c_len), one(I), one(I), by, lt, Val(rev), Val(dims))
-    CUDACore.prepare_launch(comparator_small_kernel, args1...) do launch1
-        config1 = launch_configuration(launch1.kernel.fun,
-                                       shmem=threads -> bitonic_shmem(c, threads))
-        # blocksize for kernel1 MUST be a power of 2
-        threads1 = prevpow(2, config1.threads)
+    invocation1 = CUDACore.prepare(comparator_small_kernel, args1...)
+    kernel1 = CUDACore.compile(invocation1)
+    config1 = launch_configuration(kernel1.fun,
+                                   shmem=threads -> bitonic_shmem(c, threads))
+    # blocksize for kernel1 MUST be a power of 2
+    threads1 = prevpow(2, config1.threads)
 
-        CUDACore.prepare_launch(comparator_kernel, args2...) do launch2
-            config2 = launch_configuration(launch2.kernel.fun,
-                                           shmem=threads -> bitonic_shmem(c, threads))
-            threads2 = config2.threads
+    invocation2 = CUDACore.prepare(comparator_kernel, args2...)
+    kernel2 = CUDACore.compile(invocation2)
+    config2 = launch_configuration(kernel2.fun,
+                                   shmem=threads -> bitonic_shmem(c, threads))
+    threads2 = config2.threads
 
-            # determines cutoff for when to use kernel1 vs kernel2
-            log_threads = threads1 |> log2 |> Int
+    # determines cutoff for when to use kernel1 vs kernel2
+    log_threads = threads1 |> log2 |> Int
 
-            # These two outer loops are the same as the serial version outlined here:
-            # https://en.wikipedia.org/wiki/Bitonic_sorter#Example_code
-            # Notation: our k/j are the base2 logs of k/j in Wikipedia example
-            k0 = ceil(Int, log2(c_len))
-            for k = k0:-1:1
-                j_final = 1 + k0 - k
-                # non-sorting dims are put into blocks along grid y/z. Using sqrt minimizes wasted blocks
-                other_block_dims = (Int(ceil(sqrt(otherdims_len))),
-                                    Int(ceil(sqrt(otherdims_len))))
+    # These two outer loops are the same as the serial version outlined here:
+    # https://en.wikipedia.org/wiki/Bitonic_sorter#Example_code
+    # Notation: our k/j are the base2 logs of k/j in Wikipedia example
+    k0 = ceil(Int, log2(c_len))
+    for k = k0:-1:1
+        j_final = 1 + k0 - k
+        # non-sorting dims are put into blocks along grid y/z. Using sqrt minimizes wasted blocks
+        other_block_dims = (Int(ceil(sqrt(otherdims_len))),
+                            Int(ceil(sqrt(otherdims_len))))
 
-                for j = 1:j_final
-                    if k0 - k - j + 2 <= log_threads
-                        # pseudo_block_length = max(nextpow(2, length(comparator))
-                        # for all comparators in this layer of the network)
-                        pseudo_block_length = 1 << abs(j_final + 1 - j)
-                        # N_pseudo_blocks = how many pseudo-blocks are in this layer of the network
-                        N_pseudo_blocks = nextpow(2, c_len) ÷ pseudo_block_length
-                        pseudo_blocks_per_block = threads1 ÷ pseudo_block_length
+        for j = 1:j_final
+            if k0 - k - j + 2 <= log_threads
+                # pseudo_block_length = max(nextpow(2, length(comparator))
+                # for all comparators in this layer of the network)
+                pseudo_block_length = 1 << abs(j_final + 1 - j)
+                # N_pseudo_blocks = how many pseudo-blocks are in this layer of the network
+                N_pseudo_blocks = nextpow(2, c_len) ÷ pseudo_block_length
+                pseudo_blocks_per_block = threads1 ÷ pseudo_block_length
 
-                        # grid dimensions
-                        N_blocks = (max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block),
-                                    other_block_dims...)
-                        block_size = (pseudo_block_length,
-                                      threads1 ÷ pseudo_block_length)
-                        current_launch = CUDACore.replace_arguments(
-                            launch1, 3 => I(k), 4 => I(j), 5 => I(j_final))
-                        current_launch(; blocks=N_blocks, threads=block_size,
-                                       shmem=bitonic_shmem(c, block_size))
-                        break
-                    else
-                        N_blocks = (cld(c_len, threads2), other_block_dims...)
-                        current_launch = CUDACore.replace_arguments(
-                            launch2, 3 => I(k), 4 => I(j))
-                        current_launch(; blocks=N_blocks, threads=threads2)
-                    end
-                end
+                # grid dimensions
+                N_blocks = (max(1, N_pseudo_blocks ÷ pseudo_blocks_per_block),
+                            other_block_dims...)
+                block_size = (pseudo_block_length,
+                              threads1 ÷ pseudo_block_length)
+                current = Base.setindex(invocation1, I(k), 3)
+                current = Base.setindex(current, I(j), 4)
+                current = Base.setindex(current, I(j_final), 5)
+                CUDACore.launch(kernel1, current;
+                                blocks=N_blocks, threads=block_size,
+                                shmem=bitonic_shmem(c, block_size))
+                break
+            else
+                N_blocks = (cld(c_len, threads2), other_block_dims...)
+                current = Base.setindex(invocation2, I(k), 3)
+                current = Base.setindex(current, I(j), 4)
+                CUDACore.launch(kernel2, current; blocks=N_blocks, threads=threads2)
             end
         end
     end
