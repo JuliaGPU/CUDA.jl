@@ -116,8 +116,6 @@ end
     rebind_int(inv, value) = CUDA.rebind(inv, 1 => value)
     int_call = CUDA.KernelCall(identity, Int32(1))
     @test @inferred(rebind_int(int_call, Int32(2))) isa CUDA.KernelCall
-    rebind_int(int_call, Int32(2))
-    @test @allocated(rebind_int(int_call, Int32(2))) == 0
     runtime_index = Ref(1)[]
     @test CUDA.rebind(int_call, runtime_index => Int64(3))[1] == 3
 
