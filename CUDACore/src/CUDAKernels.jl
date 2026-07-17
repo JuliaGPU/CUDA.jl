@@ -141,7 +141,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         workgroupsize = threads_to_workgroupsize(threads, ndrange)
         iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
         ctx = KA.mkcontext(obj, ndrange, iterspace)
-        call = CUDACore.rebind(call, 1, ctx)
+        call = CUDACore.rebind(call, ctx, 1)
     end
 
     blocks = length(KA.blocks(iterspace))

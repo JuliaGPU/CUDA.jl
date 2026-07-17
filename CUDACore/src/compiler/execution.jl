@@ -127,13 +127,13 @@ with different compiler options.
 end
 
 """
-    rebind(call::KernelCall, i, value)
+    rebind(call::KernelCall, value, i)
 
 Return a call with host argument `i` rebound and converted for the same backend. The
 new converted argument may have a different type; [`kernel_launch`](@ref) coerces arguments
 to the compiled kernel signature.
 """
-@inline rebind(call::KernelCall, i::Integer, value) = rebind_argument(call, value, Val(i))
+@inline rebind(call::KernelCall, value, i::Integer) = rebind_argument(call, value, Val(i))
 
 @inline @generated function rebind_argument(call::KernelCall{B,F,A,S}, value,
                                             ::Val{I}) where {B,F,A,S,I}

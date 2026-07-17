@@ -160,7 +160,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
     threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
-    call = CUDACore.rebind(call, 6 => result)
+    call = CUDACore.rebind(call, result, 6)
     CUDACore.kernel_launch(compiled, call; threads, blocks)
 
     return sum(result)
@@ -219,7 +219,7 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
     threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
-    call = CUDACore.rebind(call, 6 => result)
+    call = CUDACore.rebind(call, result, 6)
     CUDACore.kernel_launch(compiled, call; threads, blocks)
 
     return sum(result)

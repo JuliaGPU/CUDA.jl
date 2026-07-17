@@ -29,7 +29,7 @@ memory
 ```
 
 Launch a compiled call with `kernel_launch(kernel, call; launch_kwargs...)`. Arguments
-can be rebound immutably with `rebind(call, index, value)` before launching.
+can be rebound immutably with `rebind(call, value, index)` before launching.
 
 The PTX compilation target is identified by an `SMVersion`, constructed via the
 `sm"..."` string macro:

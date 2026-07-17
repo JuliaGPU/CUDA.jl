@@ -89,7 +89,7 @@ end
 
     replacement_counter = Ref(0)
     replacement = CountedHost(CuArray([12]), replacement_counter)
-    replacement_call = CUDA.rebind(call, 1, replacement)
+    replacement_call = CUDA.rebind(call, replacement, 1)
     @test call.source.arguments[1] === arg
     @test replacement_call.source.arguments[1] === replacement
     @test replacement_counter[] == 1
@@ -113,11 +113,11 @@ end
     empty_call = CUDA.KernelCall(dummy)
     CUDA.kernel_launch(CUDA.kernel_compile(empty_call), empty_call)
 
-    rebind_int(inv, value) = CUDA.rebind(inv, 1, value)
+    rebind_int(inv, value) = CUDA.rebind(inv, value, 1)
     int_call = CUDA.KernelCall(identity, Int32(1))
     @test @inferred(rebind_int(int_call, Int32(2))) isa CUDA.KernelCall
     runtime_index = Ref(1)[]
-    @test CUDA.rebind(int_call, runtime_index, Int64(3)).source.arguments[1] == 3
+    @test CUDA.rebind(int_call, Int64(3), runtime_index).source.arguments[1] == 3
 
     function write_scalar(value, output)
         output[] = value
@@ -126,11 +126,11 @@ end
     scalar_output = CuArray(Int32[0])
     scalar_call = CUDA.KernelCall(write_scalar, Int32(1), scalar_output)
     scalar_kernel = CUDA.kernel_compile(scalar_call)
-    widened_call = CUDA.rebind(scalar_call, 1, Int64(2))
+    widened_call = CUDA.rebind(scalar_call, Int64(2), 1)
     CUDA.kernel_launch(scalar_kernel, widened_call)
     @test Array(scalar_output) == Int32[2]
     @test_throws InexactError CUDA.kernel_launch(
-        scalar_kernel, CUDA.rebind(scalar_call, 1, typemax(Int64)))
+        scalar_kernel, CUDA.rebind(scalar_call, typemax(Int64), 1))
 
     scalar_kernel(Int64(3), scalar_output)
     @test Array(scalar_output) == Int32[3]
@@ -143,7 +143,7 @@ end
     array_call = CUDA.KernelCall(copy_first, input, output)
     array_kernel = CUDA.kernel_compile(array_call)
     @test_throws MethodError CUDA.kernel_launch(
-        array_kernel, CUDA.rebind(array_call, 1, float_input))
+        array_kernel, CUDA.rebind(array_call, float_input, 1))
 end
 
 
@@ -411,9 +411,9 @@ end
     kernel = CUDA.kernel_compile(call; opt_level=3)
     @test kernel isa BackendStub.Kernel
     CUDA.kernel_launch(kernel, call; threads=4)
-    call = CUDA.rebind(call, 1, 3)
+    call = CUDA.rebind(call, 3, 1)
     CUDA.kernel_launch(kernel, call; threads=8)
-    drifted = CUDA.rebind(call, 2, 4.0)
+    drifted = CUDA.rebind(call, 4.0, 2)
     @test drifted.source.arguments[2] == 4.0
     @test BackendStub.compile_calls[] == 1
     @test BackendStub.convert_calls[] == 5 # function, two arguments, and two rebindings
