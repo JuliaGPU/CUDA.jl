@@ -1,5 +1,24 @@
 dummy() = return
 
+struct CountedHost{T}
+    value::T
+    counter::Base.RefValue{Int}
+end
+
+struct CountedDevice{T}
+    value::T
+end
+
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, arg::CountedHost)
+    arg.counter[] += 1
+    CountedDevice(Adapt.adapt(to, arg.value))
+end
+
+function copy_counted(arg, output)
+    output[] = arg.value[]
+    return
+end
+
 @testset "@cuda" begin
 
 @test_throws UndefVarError @cuda undefined()
@@ -38,6 +57,93 @@ end
     CUDA.memory(k)
     CUDA.registers(k)
     CUDA.maxthreads(k)
+end
+
+
+@testset "kernel call" begin
+    input = CuArray([11])
+    output = CuArray([0])
+
+    counter = Ref(0)
+    arg = CountedHost(input, counter)
+    @cuda copy_counted(arg, output)
+    @test counter[] == 1
+    @test Array(output) == [11]
+
+    counter[] = 0
+    call = CUDA.KernelCall(copy_counted, arg, output)
+    @test call isa CUDA.KernelCall
+    @test call.source.arguments[1] === arg
+    kernel = CUDA.kernel_compile(call)
+    @test kernel isa CUDACore.HostKernel
+    @test CUDACore.launch_configuration(kernel.fun).threads > 0
+    CUDA.kernel_launch(kernel, call)
+    CUDA.kernel_launch(kernel, call)
+    @test counter[] == 1
+    @test Array(output) == [11]
+    counter[] = 0
+    kernel = @cuda launch=false copy_counted(arg, output)
+    @test counter[] == 1
+    kernel(arg, output)
+    @test counter[] == 2
+
+    replacement_counter = Ref(0)
+    replacement = CountedHost(CuArray([12]), replacement_counter)
+    replacement_call = CUDA.rebind(call, replacement, 1)
+    @test call.source.arguments[1] === arg
+    @test replacement_call.source.arguments[1] === replacement
+    @test replacement_counter[] == 1
+    GC.gc(true)
+    CUDA.kernel_launch(kernel, replacement_call)
+    @test replacement_counter[] == 1
+    @test Array(output) == [12]
+
+    ephemeral_counter = Ref(0)
+    function escaping_call()
+        CUDA.KernelCall(copy_counted,
+                        CountedHost(CuArray([14]), ephemeral_counter), output)
+    end
+    escaped = escaping_call()
+    GC.gc(true)
+    escaped_kernel = CUDA.kernel_compile(escaped)
+    CUDA.kernel_launch(escaped_kernel, escaped)
+    @test ephemeral_counter[] == 1
+    @test Array(output) == [14]
+
+    empty_call = CUDA.KernelCall(dummy)
+    CUDA.kernel_launch(CUDA.kernel_compile(empty_call), empty_call)
+
+    rebind_int(inv, value) = CUDA.rebind(inv, value, 1)
+    int_call = CUDA.KernelCall(identity, Int32(1))
+    @test @inferred(rebind_int(int_call, Int32(2))) isa CUDA.KernelCall
+    runtime_index = Ref(1)[]
+    @test CUDA.rebind(int_call, Int64(3), runtime_index).source.arguments[1] == 3
+
+    function write_scalar(value, output)
+        output[] = value
+        return
+    end
+    scalar_output = CuArray(Int32[0])
+    scalar_call = CUDA.KernelCall(write_scalar, Int32(1), scalar_output)
+    scalar_kernel = CUDA.kernel_compile(scalar_call)
+    widened_call = CUDA.rebind(scalar_call, Int64(2), 1)
+    CUDA.kernel_launch(scalar_kernel, widened_call)
+    @test Array(scalar_output) == Int32[2]
+    @test_throws InexactError CUDA.kernel_launch(
+        scalar_kernel, CUDA.rebind(scalar_call, typemax(Int64), 1))
+
+    scalar_kernel(Int64(3), scalar_output)
+    @test Array(scalar_output) == Int32[3]
+
+    float_input = CuArray(Float32[1])
+    function copy_first(input, output)
+        output[] = input[]
+        return
+    end
+    array_call = CUDA.KernelCall(copy_first, input, output)
+    array_kernel = CUDA.kernel_compile(array_call)
+    @test_throws MethodError CUDA.kernel_launch(
+        array_kernel, CUDA.rebind(array_call, float_input, 1))
 end
 
 
@@ -212,6 +318,15 @@ end
     kernel(a) = return
     bar(a) = @cuda kernel(a)
     @inferred bar(CuArray([1]))
+
+    function reassigned_launch_kwarg()
+        threads = 1
+        @cuda threads=threads dummy()
+        threads = 2
+        return threads
+    end
+    lowered = only(code_lowered(reassigned_launch_kwarg, Tuple{}))
+    @test !occursin("Core.Box", sprint(show, lowered))
 end
 
 
@@ -234,28 +349,34 @@ end
     @cuda backend=CUDA dummy()
     @cuda backend=CUDACore dummy()
 
-    # custom backend stub: assert kernel_convert/kernel_compile are called
+    # custom backend stub: assert conversion, compilation, and launch hooks are called
     # and that unknown kwargs are forwarded
     @eval module BackendStub
         using CUDA
         const compile_calls = Ref(0)
         const convert_calls = Ref(0)
+        const launch_calls = Ref(0)
         const last_kwargs = Ref{Any}(nothing)
+        const last_launch_kwargs = Ref{Any}(nothing)
 
         struct Backend <: CUDACore.AbstractBackend end
         DefaultBackend() = Backend()
 
-        struct Kernel{F}
+        struct Kernel{F,TT} <: CUDACore.AbstractKernel{F,TT}
             f::F
         end
-        (::Kernel)(args...; kwargs...) = nothing
 
         CUDACore.kernel_convert(::Backend, x) = (convert_calls[] += 1; x)
         function CUDACore.kernel_compile(::Backend, f::F, tt::Type{<:Tuple};
                                          kwargs...) where {F}
             compile_calls[] += 1
             last_kwargs[] = (; kwargs...)
-            Kernel{F}(f)
+            Kernel{F,tt}(f)
+        end
+        function CUDACore.kernel_launch(::Backend, kernel::Kernel, args::Tuple; kwargs...)
+            launch_calls[] += 1
+            last_launch_kwargs[] = (; kwargs...)
+            nothing
         end
     end
 
@@ -266,15 +387,39 @@ end
     @test BackendStub.compile_calls[] == 1
     # f + 0 args, all routed through kernel_convert
     @test BackendStub.convert_calls[] == 1
+    @test BackendStub.launch_calls[] == 1
 
     # module-as-backend resolution for the custom backend
     @cuda backend=BackendStub dummy()
     @test BackendStub.compile_calls[] == 2
 
-    # other_kwargs forwarding to kernel_compile
+    # other_kwargs forwarding to compile
     @cuda backend=BackendStub.Backend() opt_level=2 dummy()
     @test haskey(BackendStub.last_kwargs[], :opt_level)
     @test BackendStub.last_kwargs[][:opt_level] == 2
+
+    @cuda backend=BackendStub.Backend() opt_level=3 threads=16 dummy()
+    @test BackendStub.last_kwargs[] == (opt_level=3,)
+    @test BackendStub.last_launch_kwargs[] == (threads=16,)
+
+    BackendStub.compile_calls[] = 0
+    BackendStub.convert_calls[] = 0
+    BackendStub.launch_calls[] = 0
+    call = CUDA.KernelCall(dummy, 1, 2; backend=BackendStub)
+    @test call isa CUDA.KernelCall
+    @test call.source.arguments[1] == 1
+    kernel = CUDA.kernel_compile(call; opt_level=3)
+    @test kernel isa BackendStub.Kernel
+    CUDA.kernel_launch(kernel, call; threads=4)
+    call = CUDA.rebind(call, 3, 1)
+    CUDA.kernel_launch(kernel, call; threads=8)
+    drifted = CUDA.rebind(call, 4.0, 2)
+    @test drifted.source.arguments[2] == 4.0
+    @test BackendStub.compile_calls[] == 1
+    @test BackendStub.convert_calls[] == 5 # function, two arguments, and two rebindings
+    @test BackendStub.launch_calls[] == 2
+    @test BackendStub.last_kwargs[] == (opt_level=3,)
+    @test BackendStub.last_launch_kwargs[] == (threads=8,)
 
     # dynamic + backend kwargs are rejected (errors at macro-expansion time,
     # so wrap in @macroexpand to defer)

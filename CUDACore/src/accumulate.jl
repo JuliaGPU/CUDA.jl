@@ -149,7 +149,8 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    kernel = @cuda launch=false partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
+    call = KernelCall(partial_scan, f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
+    kernel = kernel_compile(call; name="scan")
     kernel_config = launch_configuration(kernel.fun; shmem=(threads)->2*threads*sizeof(T))
 
     # determine the grid layout to cover the other dimensions
@@ -165,8 +166,8 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     # does that suffice to scan the array in one go?
     full = nextpow(2, length(Rdim))
     if full <= kernel_config.threads
-        @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
-              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true)))
+        kernel_launch(kernel, call;
+               threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T))
     else
         # perform partial scans across the scanning dimension
         # NOTE: don't set init here to avoid applying the value multiple times
@@ -231,4 +232,3 @@ function Base.accumulate(op, A::AnyCuArray;
     end
     accumulate!(op, out, A; dims=dims, kw...)
 end
-

@@ -64,6 +64,10 @@ end
 
 group["broadcast"] = @async_benchmarkable $gpu_mat .= 0f0
 
+broadcast_src = CUDA.fill(1f0, 257)
+broadcast_dest = similar(broadcast_src)
+group["broadcast launch"] = @async_benchmarkable $broadcast_dest .= $broadcast_src .+ 2f0
+
 # no need to test inplace version, which performs the same operation (but with an alloc)
 let group = addgroup!(group, "accumulate")
     let group = addgroup!(group, "Float32")

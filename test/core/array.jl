@@ -621,6 +621,12 @@ end
   @test vec(Array(sum!(view(CUDA.zeros(1,1,1), 1, :, :), CUDA.ones(1,4096)))) == [4096f0]
 end
 
+@testset "mapreduce inference" begin
+  input = CUDA.ones(512)
+  output = similar(input, 1)
+  @test @inferred(GPUArrays.mapreducedim!(identity, +, output, input; init=0f0)) === output
+end
+
 @testset "issue 1202" begin
   # test that deepcopying a struct with a CuArray field gets properly deepcopied
   a = (x = CUDA.zeros(2),)

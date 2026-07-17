@@ -122,7 +122,8 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    kernel = @cuda launch=false always_inline=backend.always_inline maxthreads=maxthreads obj.f(ctx, args...)
+    call = CUDACore.kernel_call(obj.f, (ctx, args...))
+    kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline, maxthreads)
 
     # figure out the optimal workgroupsize automatically
     if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
@@ -140,6 +141,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         workgroupsize = threads_to_workgroupsize(threads, ndrange)
         iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
         ctx = KA.mkcontext(obj, ndrange, iterspace)
+        call = CUDACore.rebind(call, ctx, 1)
     end
 
     blocks = length(KA.blocks(iterspace))
@@ -150,7 +152,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
     end
 
     # Launch kernel
-    kernel(ctx, args...; threads, blocks)
+    CUDACore.kernel_launch(kernel, call; threads, blocks)
 
     return nothing
 end

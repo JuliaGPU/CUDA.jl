@@ -153,15 +153,19 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSC{T}, x::CuVector{
     shuffle = true
 
     result = CuArray{T}(undef, 1)
-    kernel = @cuda launch=false kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle))
-    config = launch_configuration(kernel.fun)
+    call = CUDACore.KernelCall(kernel, y, A.colPtr, A.rowVal, A.nzVal, x,
+                               result, n, Val(shuffle))
+    compiled = CUDACore.kernel_compile(call)
+    config = launch_configuration(compiled.fun)
     threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
-    kernel(y, A.colPtr, A.rowVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
+    call = CUDACore.rebind(call, result, 6)
+    CUDACore.kernel_launch(compiled, call; threads, blocks)
 
     return sum(result)
 end
+
 
 function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{T}) where {T<:Union{BlasInt, BlasFloat}}
     if length(y) != size(A, 1) || length(x) != size(A, 2)
@@ -208,13 +212,15 @@ function LinearAlgebra.dot(y::CuVector{T}, A::CuSparseMatrixCSR{T}, x::CuVector{
     shuffle = true
 
     result = CuArray{T}(undef, 1)
-    kernel = @cuda launch=false kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle))
-    config = launch_configuration(kernel.fun)
+    call = CUDACore.KernelCall(kernel, y, A.rowPtr, A.colVal, A.nzVal, x,
+                               result, n, Val(shuffle))
+    compiled = CUDACore.kernel_compile(call)
+    config = launch_configuration(compiled.fun)
     threads = compute_threads(config.threads, n, shuffle, device())
     blocks = min(config.blocks, cld(n, threads))
     result = CuArray{T}(undef, blocks)
-    kernel(y, A.rowPtr, A.colVal, A.nzVal, x, result, n, Val(shuffle); threads, blocks)
+    call = CUDACore.rebind(call, result, 6)
+    CUDACore.kernel_launch(compiled, call; threads, blocks)
 
     return sum(result)
 end
-

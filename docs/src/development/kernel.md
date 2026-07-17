@@ -43,6 +43,17 @@ julia> CUDA.registers(k)
 julia> k()
 ```
 
+Calling a `HostKernel` with positional arguments converts those host values for each call.
+For an occupancy query followed by an immediate launch, construct the call explicitly so
+the arguments are only converted once:
+
+```julia
+call = CUDA.KernelCall(my_kernel)
+kernel = CUDA.kernel_compile(call)
+config = launch_configuration(kernel.fun)
+CUDA.kernel_launch(kernel, call; threads=config.threads)
+```
+
 
 ## Kernel inputs and outputs
 

@@ -201,11 +201,12 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # If `Rother` is large enough, then a naive loop is more efficient than partial reductions.
     if length(Rother) >= serial_mapreduce_threshold(dev)
         args = (f, op, init, Rreduce, Rother, R, A)
-        kernel = @cuda launch=false serial_mapreduce_kernel(args...)
+        call = KernelCall(serial_mapreduce_kernel, args...)
+        kernel = kernel_compile(call)
         kernel_config = launch_configuration(kernel.fun)
         threads = kernel_config.threads
         blocks = cld(length(Rother), threads)
-        kernel(args...; threads, blocks)
+        kernel_launch(kernel, call; threads, blocks)
         return R
     end
 
@@ -228,8 +229,9 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # we might not be able to launch all those threads to reduce each slice in one go.
     # that's why each threads also loops across their inputs, processing multiple values
     # so that we can span the entire reduction dimension using a single thread block.
-    kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), R, A)
     compute_shmem(threads) = shuffle ? 0 : threads*sizeof(T)
+    call = KernelCall(partial_mapreduce_grid, f, op, init, Rreduce, Rother, Val(shuffle), R, A)
+    kernel = kernel_compile(call)
     kernel_config = launch_configuration(kernel.fun; shmem=compute_shmem∘compute_threads)
     reduce_threads = compute_threads(kernel_config.threads)
     reduce_shmem = compute_shmem(reduce_threads)
@@ -255,17 +257,19 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # perform the actual reduction
     if reduce_blocks == 1
         # we can cover the dimensions to reduce using a single block
-        kernel(f, op, init, Rreduce, Rother, Val(shuffle), R, A; threads, blocks, shmem)
+        kernel_launch(kernel, call; threads, blocks, shmem)
     else
         # TODO: provide a version that atomically reduces from different blocks
 
         # temporary empty array whose type will match the final partial array
-	    partial = similar(R, ntuple(_ -> 0, Val(ndims(R)+1)))
+        partial = similar(R, ntuple(_ -> 0, Val(ndims(R)+1)))
 
         # NOTE: we can't use the previously-compiled kernel, or its launch configuration,
         #       since the type of `partial` might not match the original output container
         #       (e.g. if that was a view).
-        partial_kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), partial, A)
+        partial_call = KernelCall(partial_mapreduce_grid, f, op, init, Rreduce, Rother,
+                                  Val(shuffle), partial, A)
+        partial_kernel = kernel_compile(partial_call)
         partial_kernel_config = launch_configuration(partial_kernel.fun; shmem=compute_shmem∘compute_threads)
         partial_reduce_threads = compute_threads(partial_kernel_config.threads)
         partial_reduce_shmem = compute_shmem(partial_reduce_threads)
@@ -285,8 +289,9 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
             partial .= R
         end
 
-        partial_kernel(f, op, init, Rreduce, Rother, Val(shuffle), partial, A;
-                       threads=partial_threads, blocks=partial_blocks, shmem=partial_shmem)
+        partial_call = rebind(partial_call, partial, 7)
+        kernel_launch(partial_kernel, partial_call;
+               threads=partial_threads, blocks=partial_blocks, shmem=partial_shmem)
 
         GPUArrays.mapreducedim!(identity, op, R, partial; init)
     end
