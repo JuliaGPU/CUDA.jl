@@ -337,32 +337,29 @@ CUDA.@profile trace=true bench_gpu3!(y_d, x_d)
 # as using more threads generally improves performance, but the maximum number of allowed
 # threads to launch depends on your GPU as well as on the kernel. To automatically select an
 # appropriate number of threads, it is recommended to use the launch configuration API. This
-# API takes a compiled (but not launched) kernel, returns a tuple with an upper bound on the
-# number of threads, and the minimum number of blocks that are required to fully saturate
-# the GPU:
+# API takes a compiled kernel and returns an upper bound on the number of threads and the
+# minimum number of blocks required to fully saturate the GPU. Constructing the call first
+# keeps the converted arguments available while we inspect and launch the kernel:
 
-kernel = @cuda launch=false gpu_add3!(y_d, x_d)
+fill!(y_d, 2)
+call = CUDA.KernelCall(gpu_add3!, y_d, x_d)
+kernel = CUDA.kernel_compile(call)
 config = launch_configuration(kernel.fun)
 threads = min(N, config.threads)
 blocks = cld(N, threads)
-
-# The compiled kernel is callable, and we can pass the computed launch configuration as
-# keyword arguments:
-
-fill!(y_d, 2)
-kernel(y_d, x_d; threads, blocks)
+CUDA.kernel_launch(kernel, call; threads, blocks)
 @test all(Array(y_d) .== 3.0f0)
 
 # Now let's benchmark this:
 
 function bench_gpu4!(y, x)
-    kernel = @cuda launch=false gpu_add3!(y, x)
-    config = launch_configuration(kernel.fun)
-    threads = min(length(y), config.threads)
-    blocks = cld(length(y), threads)
-
     CUDA.@sync begin
-        kernel(y, x; threads, blocks)
+        call = CUDA.KernelCall(gpu_add3!, y, x)
+        kernel = CUDA.kernel_compile(call)
+        config = launch_configuration(kernel.fun)
+        threads = min(length(y), config.threads)
+        blocks = cld(length(y), threads)
+        CUDA.kernel_launch(kernel, call; threads, blocks)
     end
 end
 
