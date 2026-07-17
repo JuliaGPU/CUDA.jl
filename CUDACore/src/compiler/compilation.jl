@@ -550,7 +550,7 @@ function compile(@nospecialize(job::CompilerJob))
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context
-function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entry::String,
+function link_kernel(image::Vector{UInt8}, entry::String,
                      relocs::GPUCompiler.Relocations)
     # load as an executable kernel object on the current context
     mod = CuModule(image)
@@ -559,7 +559,7 @@ function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entr
         ptr_ref = Ref{CuPtr{Cvoid}}()
         size_ref = Ref{Csize_t}()
         cuModuleGetGlobal_v2(ptr_ref, size_ref, mod, site.name)
-        site.offset >= 0 && site.offset + sizeof(UInt) <= size_ref[] ||
+        site.offset + sizeof(UInt) <= size_ref[] ||
             error("Relocation '$(site.name)+$(site.offset)' is outside its " *
                   "$(size_ref[])-byte global")
         value_ref = Ref(value)
