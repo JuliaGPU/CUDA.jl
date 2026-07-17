@@ -555,18 +555,15 @@ function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entr
     # load as an executable kernel object on the current context
     mod = CuModule(image)
     relocations = GPUCompiler.resolved_relocations(relocs)
-    for (name, value) in relocations.slots
-        slot = CuGlobal{UInt}(mod, name)
-        slot[] = value
-    end
-    for ((name, offset), value) in relocations.interior
+    for (site, value) in relocations.sites
         ptr_ref = Ref{CuPtr{Cvoid}}()
         size_ref = Ref{Csize_t}()
-        cuModuleGetGlobal_v2(ptr_ref, size_ref, mod, name)
-        offset >= 0 && offset + sizeof(UInt) <= size_ref[] ||
-            error("Interior relocation '$name+$offset' is outside its $(size_ref[])-byte global")
+        cuModuleGetGlobal_v2(ptr_ref, size_ref, mod, site.name)
+        site.offset >= 0 && site.offset + sizeof(UInt) <= size_ref[] ||
+            error("Relocation '$(site.name)+$(site.offset)' is outside its " *
+                  "$(size_ref[])-byte global")
         value_ref = Ref(value)
-        cuMemcpyHtoD_v2(ptr_ref[] + offset, value_ref, sizeof(UInt))
+        cuMemcpyHtoD_v2(ptr_ref[] + site.offset, value_ref, sizeof(UInt))
     end
     return CuFunction(mod, entry), relocations.roots
 end
