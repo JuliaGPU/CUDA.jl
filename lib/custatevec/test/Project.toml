@@ -8,3 +8,4 @@ cuStateVec = "92f7fd98-d22e-4c0d-85a8-6ade11b672fb"
 
 [compat]
 ParallelTestRunner = "2"
+cuStateVec = "6.2.1"
