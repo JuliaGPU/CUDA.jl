@@ -58,4 +58,5 @@ cuTENSOR = {path = "../lib/cutensor"}
 cuTensorNet = {path = "../lib/cutensornet"}
 
 [compat]
+CUDA_Driver_jll = "13.3.0+1"
 ParallelTestRunner = "2.6.0"
