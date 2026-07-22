@@ -93,7 +93,6 @@ for T in (:Float16, :Float32, :Float64)
         rmw = Symbol("f$op")
 
         fn = Symbol("atomic_$(op)!")
-        # XXX: cannot select
         @eval @inline $fn(ptr::Union{LLVMPtr{$T,AS.Generic},
                                      LLVMPtr{$T,AS.Global},
                                      LLVMPtr{$T,AS.Shared}}, val::$T) =
@@ -120,7 +119,7 @@ end
         atomic_add!(ptr, -val)
 end
 
-@generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
+@generated function _llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T, A}
     @dispose ctx=Context() begin
         T_val = convert(LLVMType, T)
         T_ptr = convert(LLVMType, ptr)
@@ -148,12 +147,19 @@ end
     end
 end
 
+@device_function @inline function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T) where {T,A}
+    GPUCompiler.@static_assert(
+        A == AS.Generic || A == AS.Global || A == AS.Shared,
+        "atomics require a generic, global, or shared address space")
+    _llvm_atomic_cas(ptr, cmp, val)
+end
+
 for T in (:Int32, :Int64, :UInt32, :UInt64)
     @eval @inline atomic_cas!(ptr::LLVMPtr{$T}, cmp::$T, val::$T) =
         llvm_atomic_cas(ptr, cmp, val)
 end
 
-# NVPTX doesn't support cmpxchg with i16 yet
+# LLVM expands i16 cmpxchg to a 32-bit CAS loop; use native PTX where available.
 for A in (AS.Generic, AS.Global, AS.Shared), T in (:Int16, :UInt16)
     if A == AS.Global
         scope = ".global"
@@ -165,9 +171,12 @@ for A in (AS.Generic, AS.Global, AS.Shared), T in (:Int16, :UInt16)
 
     intr = "atom$scope.cas.b16 \$0, [\$1], \$2, \$3;"
     @eval @device_function @inline function atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T)
-        require_sm_70()
-        @asmcall($intr, "=h,l,h,h", true, $T,
-                 Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
+        if compute_capability() >= sv"7.0"
+            @asmcall($intr, "=h,l,h,h", true, $T,
+                     Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
+        else
+            llvm_atomic_cas(ptr, cmp, val)
+        end
     end
 end
 
@@ -237,9 +246,9 @@ Reads the value `old` located at address `ptr` and compare with `cmp`. If `old` 
 `cmp`, stores `val` at the same address. Otherwise, doesn't change the value `old`. These
 operations are performed in one atomic transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
-Additionally, on GPU hardware with compute capability 7.0+, values of type UInt16 are
-supported.
+This operation is supported for values of type Int16, Int32, Int64, UInt16, UInt32,
+UInt64, Float16, Float32, Float64, and BFloat16. 16-bit operations use a native
+instruction on GPU hardware with compute capability 7.0+, and are emulated otherwise.
 """
 atomic_cas!
 
@@ -260,9 +269,9 @@ Reads the value `old` located at address `ptr`, computes `old + val`, and stores
 back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32, UInt64, and Float32.
-Additionally, on GPU hardware with compute capability 6.0+, values of type Float64 are
-supported.
+This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float16,
+Float32, and Float64. BFloat16 is supported on Julia 1.11+. The back-end uses a native
+instruction where available and emulates the operation otherwise.
 """
 atomic_add!
 

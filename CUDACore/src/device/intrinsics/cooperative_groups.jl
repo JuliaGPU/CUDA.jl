@@ -24,7 +24,7 @@ Noteworthy missing functionality:
 module CG
 
 using ..CUDACore
-using ..CUDACore: i32, Aligned, alignment, @device_function
+using ..CUDACore: i32, Aligned, alignment, GPUCompiler, @device_function
 
 import ..LLVM
 using ..LLVM.Interop
@@ -523,7 +523,8 @@ end
     wait_prior(group, stage)
 
 Make all threads in this group wait for all but `stage` previously submitted
-[`memcpy_async`](@ref) operations to complete.
+[`memcpy_async`](@ref) operations to complete. `stage` must be a compile-time integer
+between 0 and 8.
 """
 function wait_prior(group::memcpy_group, stage::Integer)
     if compute_capability() >= sv"8.0"
@@ -564,8 +565,12 @@ end
 @device_function pipeline_commit() =
     ccall("llvm.nvvm.cp.async.commit.group", llvmcall, Cvoid, ())
 
-@device_function pipeline_wait_prior(n) =
+@device_function function pipeline_wait_prior(n)
+    GPUCompiler.@static_assert(
+        0 <= n <= 8,
+        "wait_prior stage must be a compile-time integer between 0 and 8")
     ccall("llvm.nvvm.cp.async.wait.group", llvmcall, Cvoid, (Int32,), n)
+end
 
 @device_function @generated function pipeline_memcpy_async(dst::LLVMPtr{T}, src::LLVMPtr{T}) where T
     size_and_align = sizeof(T)
@@ -584,7 +589,9 @@ end
 @inline function _memcpy_async(group, dst::LLVMPtr, src::LLVMPtr,
                                bytes, ::Val{align_hint}) where {align_hint}
     align = min(16, align_hint)
-    ispow2(align) || throw(ArgumentError("Alignment must be a power of 2"))
+    GPUCompiler.@static_assert(
+        ispow2(align),
+        "memcpy_async alignment must be a power of 2")
     if compute_capability() >= sv"8.0"
         _memcpy_async_dispatch(group, Val{align}(), dst, src, bytes[])
         pipeline_commit()
