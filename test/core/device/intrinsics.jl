@@ -64,12 +64,26 @@ end
     nanosleep_kernel() = nanosleep(UInt32(1))
     @test_throws "requires compute capability 7.0" @cuda launch=false arch=sm"61" nanosleep_kernel()
 
-    out16 = CUDA.zeros(UInt16, 1)
-    function atomic_cas_kernel(out)
-        CUDA.atomic_cas!(pointer(out), UInt16(0), UInt16(1))
+    @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"61") do ptr
+        @check "{{atom(\\.sys)?\\.global\\.cas\\.b32}}"
+        @check_not "cas.b16"
+        CUDA.atomic_cas!(ptr, UInt16(0), UInt16(1))
         return
     end
-    @test_throws "requires compute capability 7.0" @cuda launch=false arch=sm"61" atomic_cas_kernel(out16)
+    @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"70") do ptr
+        @check "atom.global.cas.b16"
+        CUDA.atomic_cas!(ptr, UInt16(0), UInt16(1))
+        return
+    end
+
+    function invalid_atomic_address_space_kernel(ptr)
+        CUDA.atomic_cas!(ptr, UInt32(0), UInt32(1))
+        return
+    end
+    local_ptr_t = Core.LLVMPtr{UInt32,AS.Local}
+    @test_throws "atomics require a generic, global, or shared address space" begin
+        CUDA.cufunction(invalid_atomic_address_space_kernel, Tuple{local_ptr_t}; arch=sm"80")
+    end
 
     outf16 = CUDA.zeros(Float16, 16 * 16)
     function wmma_kernel(out)
@@ -108,6 +122,35 @@ end
         return
     end
     @test_throws "requires compute capability 9.0" @cuda launch=false arch=sm"80" distributed_shared_kernel()
+
+    # `cp.async.wait_group` takes an immediate operand, so the number of stages needs to
+    # be materialized as a constant, capping it at 8 like CUDA's `__pipeline_wait_prior`
+    @test @filecheck CUDA.code_ptx(Tuple{}; arch=sm"80", kernel=true) do
+        @check "cp.async.wait_group {{0;}}"
+        CG.wait_prior(CG.this_thread_block(), 0)
+        return
+    end
+    @test @filecheck CUDA.code_ptx(Tuple{}; arch=sm"80", kernel=true) do
+        @check "cp.async.wait_group {{8;}}"
+        CG.wait_prior(CG.this_thread_block(), 20)
+        return
+    end
+    # a run-time number of stages is dispatched to those constants
+    @test @filecheck CUDA.code_ptx((Int32,); arch=sm"80", kernel=true) do stage
+        @check "cp.async.wait_group"
+        CG.wait_prior(CG.this_thread_block(), stage)
+        return
+    end
+
+    function invalid_memcpy_alignment_kernel(dst, src)
+        CG.memcpy_async(CG.this_thread_block(), dst, src, 4)
+        return
+    end
+    dst_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Shared},3}
+    src_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Global},3}
+    @test_throws "memcpy_async alignment must be a power of 2" begin
+        CUDA.cufunction(invalid_memcpy_alignment_kernel, Tuple{dst_t,src_t}; arch=sm"80")
+    end
 end
 
 
