@@ -34,7 +34,7 @@ end
     dA = CUDA.ones(64)
     A .= (1:1:64)
     dA .= 1
-    Enzyme.autodiff(Forward, square!, Duplicated(A, dA))
+    Enzyme.autodiff(Forward, square!, Const, Duplicated(A, dA))
     @test all(dA .≈ (2:2:128))
 
     A = CuArray(rand(Float32, 32))
@@ -43,7 +43,7 @@ end
     A .= (1:1:32)
     dA .= 1
     dA2 .= 3
-    Enzyme.autodiff(Forward, square!, BatchDuplicated(A, (dA, dA2)))
+    Enzyme.autodiff(Forward, square!, Const, BatchDuplicated(A, (dA, dA2)))
     @test all(dA .≈ (2:2:64))
     @test all(dA2 .≈ 3*(2:2:64))
 end
@@ -84,7 +84,7 @@ end
     @test all(dA .≈ 0)
 end
 
-alloc(x) = CuArray{Float32, 1, CUDA.Mem.DeviceBuffer}(undef, (x,))
+alloc(x) = CuArray{Float32, 1, CUDA.DeviceMemory}(undef, (x,))
 
 @testset "Forward allocate" begin
     dup = Enzyme.autodiff(ForwardWithPrimal, alloc, Duplicated, Const(10))

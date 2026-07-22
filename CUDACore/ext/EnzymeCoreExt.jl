@@ -37,6 +37,13 @@ function metaf(config, fn, args::Vararg{Any, N}) where N
 end
 
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cufunction)},
+                                        ::Type{<:Const}, f::Const{F},
+                                        tt::Const{TT}; kwargs...) where {F,TT}
+    res = ofn.val(f.val, tt.val; kwargs...)
+    return res
+end
+
+function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cufunction)},
                                         ::Type{<:Duplicated}, f::Const{F},
                                         tt::Const{TT}; kwargs...) where {F,TT}
     res = ofn.val(f.val, tt.val; kwargs...)
