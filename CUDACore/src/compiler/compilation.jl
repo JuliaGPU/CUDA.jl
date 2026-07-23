@@ -21,10 +21,9 @@ const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 const minreq = (; ptx=v"8.0", sm=sm"50")
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
-function GPUCompiler.lower_relocations!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module,
-                                        relocs::GPUCompiler.Relocations)
-    GPUCompiler.emit_patchable_relocations!(mod, relocs)
-end
+# keep host references symbolic and emit them as patchable globals; `link_kernel`
+# patches every site after loading the module
+GPUCompiler.relocation_lowering(@nospecialize(job::AnyCUDAJob)) = :patch
 
 # filter out functions from libdevice and cudadevrt
 GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
