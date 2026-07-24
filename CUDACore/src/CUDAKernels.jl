@@ -1,9 +1,10 @@
 module CUDAKernels
 
 using ..CUDACore
-using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays
+using ..CUDACore: @device_override, default_memory, UnifiedMemory, cufunction, cudaconvert, GPUArrays
 
 import KernelAbstractions as KA
+import KernelAbstractions: KI
 
 import StaticArrays
 
@@ -17,6 +18,8 @@ struct CUDABackend <: KA.GPU
     prefer_blocks::Bool
     always_inline::Bool
 end
+
+KA.versioninfo(io::IO, ::CUDABackend) = CUDA.versioninfo(io)
 
 CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
@@ -157,35 +160,78 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
     return nothing
 end
 
+KI.argconvert(::CUDABackend, arg) = cudaconvert(arg)
+
+function KI.kernel_function(::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    kern = cufunction(f, tt; name, kwargs...)
+    KI.Kernel{CUDABackend, typeof(kern)}(CUDABackend(), kern)
+end
+
+function (obj::KI.Kernel{CUDABackend})(args...; numworkgroups = 1, workgroupsize = 1)
+    KI.check_launch_args(numworkgroups, workgroupsize)
+
+    obj.kern(args...; threads=workgroupsize, blocks=numworkgroups)
+    return nothing
+end
+
+
+function KI.kernel_max_work_group_size(kernel::KI.Kernel{<:CUDABackend}; max_work_items::Int=typemax(Int))::Int
+    kernel_config = launch_configuration(kernel.kern.fun)
+
+    Int(min(kernel_config.threads, max_work_items))
+end
+function KI.max_work_group_size(::CUDABackend)::Int
+    Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
+end
+function KI.sub_group_size(::CUDABackend)::Int
+    warpsize(device())
+end
+function KI.multiprocessor_count(::CUDABackend)::Int
+    Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
+end
+
+KI.shfl_down_types(::CUDABackend) = DataType[Bool,
+                                             UInt8, UInt16, UInt32, UInt64, UInt128,
+                                             Int8, Int16, Int32, Int64, Int128,
+                                             Float16, Float32, Float64,
+                                             ComplexF16, ComplexF32, ComplexF64]
+
 ## indexing
 
 ## COV_EXCL_START
-@device_override @inline function KA.__index_Local_Linear(ctx)
-    return threadIdx().x
+@device_override @inline function KI.get_local_id()
+    return (; x = Int(threadIdx().x), y = Int(threadIdx().y), z = Int(threadIdx().z))
 end
 
-
-@device_override @inline function KA.__index_Group_Linear(ctx)
-    return blockIdx().x
+@device_override @inline function KI.get_group_id()
+    return (; x = Int(blockIdx().x), y = Int(blockIdx().y), z = Int(blockIdx().z))
 end
 
-@device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
-    # TODO: This is unfortunate, can we get the linear index cheaper
-    @inbounds LinearIndices(KA.__ndrange(ctx))[I]
+@device_override @inline function KI.get_global_id()
+    return (; x = Int((blockIdx().x-1)*blockDim().x + threadIdx().x), y = Int((blockIdx().y-1)*blockDim().y + threadIdx().y), z = Int((blockIdx().z-1)*blockDim().z + threadIdx().z))
 end
 
-@device_override @inline function KA.__index_Local_Cartesian(ctx)
-    @inbounds KA.workitems(KA.__iterspace(ctx))[threadIdx().x]
+@device_override @inline function KI.get_local_size()
+    return (; x = Int(blockDim().x), y = Int(blockDim().y), z = Int(blockDim().z))
 end
 
-@device_override @inline function KA.__index_Group_Cartesian(ctx)
-    @inbounds KA.blocks(KA.__iterspace(ctx))[blockIdx().x]
+@device_override @inline function KI.get_num_groups()
+    return (; x = Int(gridDim().x), y = Int(gridDim().y), z = Int(gridDim().z))
 end
 
-@device_override @inline function KA.__index_Global_Cartesian(ctx)
-    return @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
+@device_override @inline function KI.get_global_size()
+    return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(blockDim().z * gridDim().z))
 end
+
+@device_override KI.get_sub_group_size() = UInt32(warpsize())
+
+@device_override KI.get_max_sub_group_size() = UInt32(warpsize())
+
+@device_override KI.get_num_sub_groups() = UInt32(prod(blockDim()) ÷ warpsize())
+
+@device_override KI.get_sub_group_id() = UInt32(((threadIdx().x - 1) + blockDim().x * (threadIdx().y - 1) + blockDim().x * blockDim().y * (threadIdx().z - 1)) ÷ warpsize()) + 0x1
+
+@device_override KI.get_sub_group_local_id() = UInt32(laneid())
 
 @device_override @inline function KA.__validindex(ctx)
     if KA.__dynamic_checkbounds(ctx)
@@ -198,7 +244,8 @@ end
 
 ## shared and scratch memory
 
-@device_override @inline function KA.SharedMemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
+# @device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
+@device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
     CuStaticSharedArray(T, Dims)
 end
 
@@ -208,11 +255,19 @@ end
 
 ## synchronization and printing
 
-@device_override @inline function KA.__synchronize()
+@device_override @inline function KI.barrier()
     sync_threads()
 end
 
-@device_override @inline function KA.__print(args...)
+@device_override @inline function KI.sub_group_barrier()
+    sync_warp()
+end
+
+@device_override function KI.shfl_down(val::T, offset::Integer) where T
+    shfl_down_sync(0xffffffff, val, offset)
+end
+
+@device_override @inline function KI._print(args...)
     CUDACore._cuprint(args...)
 end
 
