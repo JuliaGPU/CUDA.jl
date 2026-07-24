@@ -427,6 +427,8 @@ steps:
         --data "$$payload"
     agents:
       queue: "cuda"
+    # fork PRs can't decrypt the GITHUB_TOKEN secret, so skip the dispatch there
+    if: build.pull_request.repository.fork != true
 
 env:
   JULIA_PKG_SERVER_REGISTRY_PREFERENCE: "eager" # OK to downloading JLLs from GitHub
