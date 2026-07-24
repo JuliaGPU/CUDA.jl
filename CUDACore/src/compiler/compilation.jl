@@ -545,8 +545,21 @@ end
 # link a compiled image into a session-local `CuFunction` on the active context
 function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entry::String)
     # load as an executable kernel object on the current context
-    mod = CuModule(image)
-    CuFunction(mod, entry)
+    try
+        mod = CuModule(image)
+        CuFunction(mod, entry)
+    catch
+        # the driver rejected our compiled image (e.g. ERROR_NOT_SUPPORTED). dump the cubin
+        # so the failure can be reported with a reproducer, mirroring how we keep the PTX
+        # around when `ptxas` fails above.
+        cubin = tempname(cleanup=false) * ".cubin"
+        write(cubin, image)
+        @error "Failed to load compiled kernel image.\nIf you think this is a bug, please file an issue and attach $(cubin)"
+        if parse(Bool, get(ENV, "BUILDKITE", "false"))
+            run(`buildkite-agent artifact upload $(cubin)`)
+        end
+        rethrow()
+    end
 end
 
 # look up the cached compilation artifacts for `job`, running the compiler on a miss.
