@@ -54,7 +54,7 @@ ChainRulesCore = "1"
 EnzymeCore = "0.8.2"
 ExprTools = "0.1"
 GPUArrays = "11.5.4"
-GPUCompiler = "2.1"
+GPUCompiler = "2.2"
 GPUToolbox = "3"
 KernelAbstractions = "0.9.38"
 LLVM = "9.6"
@@ -78,3 +78,6 @@ julia = "1.10"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[sources]
+GPUCompiler = {url="https://github.com/JuliaGPU/GPUCompiler.jl", rev="tb/relocations"}

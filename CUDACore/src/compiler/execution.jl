@@ -474,6 +474,7 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
     fun::CuFunction
     state::KernelState
+    roots::Vector{Any}
 end
 
 @doc (@doc AbstractKernel) HostKernel
@@ -580,19 +581,22 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         # the scan is almost always over a single entry (one `===` comparison).
         ctx = cuda.context
         fun = nothing
-        for (cached_ctx, cached_fun) in res.kernels
+        roots = Any[]
+        for (cached_ctx, cached_fun, cached_roots) in res.kernels
             if cached_ctx === ctx
                 fun = cached_fun
+                roots = cached_roots
                 break
             end
         end
         if fun === nothing
-            fun = link_kernel(job, res.image::Vector{UInt8}, res.entry::String)
+            fun, roots = link_kernel(res.image::Vector{UInt8}, res.entry::String,
+                                     res.relocations)
             # don't cache session-local handles while generating output: the results struct
             # is serialized into the package image along with its CodeInstance, and the
             # handles would come back dangling.
             if ccall(:jl_generating_output, Cint, ()) != 1
-                push!(res.kernels, (ctx, fun))
+                push!(res.kernels, (ctx, fun, roots))
             end
         end
 
@@ -604,7 +608,7 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             # create the kernel state object
             state = KernelState(create_exceptions!(fun.mod), UInt32(0))
 
-            kernel = HostKernel{F,tt}(f, fun, state)
+            kernel = HostKernel{F,tt}(f, fun, state, roots)
             _kernel_instances[key] = kernel
         end
         return kernel::HostKernel{F,tt}

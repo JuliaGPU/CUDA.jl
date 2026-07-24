@@ -21,6 +21,9 @@ const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 const minreq = (; ptx=v"8.0", sm=sm"50")
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
+# keep host references symbolic and emit them as patchable globals; `link_kernel`
+# patches every site after loading the module
+GPUCompiler.relocation_lowering(@nospecialize(job::AnyCUDAJob)) = :patch
 
 # filter out functions from libdevice and cudadevrt
 GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
@@ -189,18 +192,21 @@ end
 # GPUCompiler 2.0 caching: back-ends attach a mutable results struct to each cached
 # `CodeInstance` (on Julia 1.11+ this is Julia's integrated code cache, which also persists
 # artifacts through package precompilation; on 1.10 it's a session-local store). We keep
-# session-portable artifacts (the cubin `image` and entry-point `entry`) separate from the
+# conditionally session-portable artifacts (the cubin `image`, entry point, and relocations)
+# separate from the
 # session-local `CuFunction` handles, which are context-specific and must not be serialized
 # into a package image.
 mutable struct CUDACompilerResults
     # session-portable artifacts (safe to persist across sessions)
     image::Union{Nothing,Vector{UInt8}}
     entry::Union{Nothing,String}
+    relocations::GPUCompiler.Relocations
 
     # session-local kernel handles, linear-scanned by context; usually holds a single entry
-    kernels::Vector{Tuple{CuContext,CuFunction}}
+    kernels::Vector{Tuple{CuContext,CuFunction,Vector{Any}}}
 
-    CUDACompilerResults() = new(nothing, nothing, Tuple{CuContext,CuFunction}[])
+    CUDACompilerResults() = new(nothing, nothing, GPUCompiler.Relocations(),
+                                Tuple{CuContext,CuFunction,Vector{Any}}[])
 end
 
 # cache of compiler configurations, per device (but additionally configurable via kwargs)
@@ -539,14 +545,26 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry))
+    return (image, entry=LLVM.name(meta.entry), relocations=meta.relocations)
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context
-function link_kernel(@nospecialize(job::CompilerJob), image::Vector{UInt8}, entry::String)
+function link_kernel(image::Vector{UInt8}, entry::String,
+                     relocs::GPUCompiler.Relocations)
     # load as an executable kernel object on the current context
     mod = CuModule(image)
-    CuFunction(mod, entry)
+    relocations = GPUCompiler.resolved_relocations(relocs)
+    for (site, value) in relocations.sites
+        ptr_ref = Ref{CuPtr{Cvoid}}()
+        size_ref = Ref{Csize_t}()
+        cuModuleGetGlobal_v2(ptr_ref, size_ref, mod, site.name)
+        site.offset + sizeof(UInt) <= size_ref[] ||
+            error("Relocation '$(site.name)+$(site.offset)' is outside its " *
+                  "$(size_ref[])-byte global")
+        value_ref = Ref(value)
+        cuMemcpyHtoD_v2(ptr_ref[] + site.offset, value_ref, sizeof(UInt))
+    end
+    return CuFunction(mod, entry), relocations.roots
 end
 
 # look up the cached compilation artifacts for `job`, running the compiler on a miss.
@@ -560,9 +578,16 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::CUDACompilerResults
     res = GPUCompiler.cached_results(CUDACompilerResults, job)
     if res === nothing || res.image === nothing || GPUCompiler.compile_hook[] !== nothing
         compiled = compile(job)
-        res = @something res GPUCompiler.cached_results(CUDACompilerResults, job)
+        if GPUCompiler.supports_relocatable_ir()
+            res = @something res GPUCompiler.cached_results(CUDACompilerResults, job)
+        else
+            # The CodeInstance may be serialized, but generated code from a Julia runtime
+            # without a reliable GV table is session-bound.
+            res = CUDACompilerResults()
+        end
         res.image = compiled.image
         res.entry = compiled.entry
+        res.relocations = compiled.relocations
     end
     return res
 end
