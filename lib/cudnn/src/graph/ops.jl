@@ -794,8 +794,8 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
                    causal::Bool=false, dropout_p::Real=0,
                    bias=nothing)
-    dropout_p == 0 || throw(ArgumentError("cuDNN SDPA dropout is not implemented yet"))
-    bias === nothing || throw(ArgumentError("cuDNN SDPA bias is not implemented yet"))
+    dropout_p == 0 || throw(ArgumentError("sdpa_fwd! does not support dropout"))
+    bias === nothing || throw(ArgumentError("sdpa_fwd! does not support bias"))
 
     length(q.dims) == 4 || throw(ArgumentError("q must be rank 4"))
     length(k.dims) == 4 || throw(ArgumentError("k must be rank 4"))
@@ -838,8 +838,8 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
                    causal::Bool=false, dropout_p::Real=0, bias=nothing)
-    dropout_p == 0 || throw(ArgumentError("cuDNN SDPA backward dropout is not implemented yet"))
-    bias === nothing || throw(ArgumentError("cuDNN SDPA backward bias is not implemented yet"))
+    dropout_p == 0 || throw(ArgumentError("sdpa_bwd! does not support dropout"))
+    bias === nothing || throw(ArgumentError("sdpa_bwd! does not support bias"))
 
     length(q.dims) == 4 || throw(ArgumentError("q must be rank 4"))
     length(k.dims) == 4 || throw(ArgumentError("k must be rank 4"))

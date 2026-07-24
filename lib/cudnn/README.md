@@ -13,10 +13,8 @@ wrapper is organized around cuDNN's backend and graph APIs:
 - `ops/` exposes the Julia-facing operations used by downstream packages, such as
   `attention!`, `convolution!`, pooling, and batch normalization.
 
-Older fixed-function wrappers remain available for compatibility, but are kept in
-`src/legacy` with matching tests in `test/legacy`. New code should prefer the graph-backed
-ops layer when cuDNN supports the operation. Softmax, dropout, and RNN wrappers remain on
-their fixed-function APIs for now.
+Fixed-function compatibility wrappers live in `src/legacy`, with matching tests in
+`test/legacy`. Softmax, dropout, and RNN remain outside `legacy`.
 
 See the CUDA.jl manual's [cuDNN wrapper design](https://cuda.juliagpu.org/stable/lib/cudnn/)
 section for the detailed layering, migration notes, and debugging hints.

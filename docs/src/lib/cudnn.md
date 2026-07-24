@@ -4,159 +4,55 @@
 CurrentModule = cuDNN
 ```
 
-cuDNN.jl wraps NVIDIA cuDNN for use with `CuArray` values. New wrappers are built around
-cuDNN's backend and graph APIs: describe the operation graph in Julia, let cuDNN choose an
-execution engine, cache the resulting plan, and execute it against concrete arrays.
+cuDNN.jl provides generated C bindings, a graph frontend, and graph-backed operations for
+`CuArray` values.
 
-The older fixed-function wrappers are still available for compatibility. They are kept
-separate from the modern wrappers so downstream packages can migrate without losing access
-to legacy entry points.
+## Structure
 
-## Wrapper Design
+- `libcudnn.jl` contains the generated C API.
+- `backend.jl` manages generic backend descriptors.
+- `graph/` defines `Graph`, `Tensor`, operation factories, plan selection, and execution.
+- `ops/` defines the Julia-facing attention, convolution, pooling, and batch-normalization
+  APIs.
+- `legacy/` contains fixed-function compatibility wrappers.
 
-The package has four layers:
+Public operations use Julia array order: spatial dimensions, channels, then batch. Graph
+tensors record any ordering required by cuDNN.
 
-- Generated bindings in `libcudnn.jl` mirror the C API and expose the raw cuDNN constants,
-  structs, and functions. These bindings are not deprecated by cuDNN.jl.
-- Backend descriptor helpers wrap `cudnnBackendDescriptor_t` for the generic cuDNN backend
-  API. Descriptors are indexed with short field symbols derived from the attribute enums —
-  `d[:qdesc] = tensor` on an SDPA node sets `CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC`, and
-  `plan[:workspace_size, Int64]` reads an attribute back — with typed `setattr!`/`getattr`
-  underneath for cases the derived names don't cover.
-- The graph frontend uses `Graph` and `Tensor` objects to describe tensors, scalar values,
-  virtual intermediates, and operations before lowering them to backend descriptors.
-- Operation wrappers such as `attention!`, `convolution!`, pooling, and batch normalization
-  provide the Julia-facing API used by downstream packages such as NNlib and LuxLib.
+## Graphs
 
-The modern wrappers should prefer Julia names over C names. In-place methods take the output
-array first and end in `!`. Allocating methods, when present, call the in-place method after
-allocating the output. Keyword arguments should use Julia values such as symbols, integers,
-booleans, and `nothing`; conversion to cuDNN enums and descriptors belongs near the cuDNN
-call.
+Create a `Graph`, add tensors and operations, then call `build!` and `execute!`. `Tensor`
+objects contain metadata; `execute!` binds them to arrays or scalar values.
 
-Shape and stride handling should follow Julia array order at the public API boundary. When
-cuDNN expects a different backend order, the graph tensor records that order explicitly and
-the lowering step translates dimensions and strides. This keeps public calls consistent with
-the arrays users pass in while still matching cuDNN's graph requirements.
+`build!` validates and lowers the graph, queries cuDNN heuristics, and selects an execution
+plan. `deterministic`, `math_mode`, and `max_workspace` constrain plan selection.
+`is_supported` performs the same build and returns a boolean.
 
-The generated binding layer still uses cuDNN names because it mirrors the C headers. The
-legacy compatibility layer also keeps historical cuDNN-style names, such as
-`cudnnConvolutionForward!`, so existing callers keep working during the transition.
+`cached_graph` caches plans and unsupported configurations per cuDNN handle.
+`graph_unsupported` identifies errors suitable for an equivalent fallback.
 
-## Graph Execution
+## Operations
 
-A graph is built in three steps:
+- `attention!` and `attention_backward!` implement fused SDPA for
+  `(head_dim, heads, sequence, batch)` tensors, including causal and sequence-length masks.
+- `convolution!` and its gradient methods support grouped and asymmetric convolutions,
+  optional bias and residual inputs, and pointwise activation.
+- `maxpool!`, `meanpool!`, `∇maxpool!`, and `∇meanpool!` use graph resampling.
+- `batchnorm_training!`, `batchnorm_inference!`, and `batchnorm_gradient!` implement spatial
+  batch normalization.
 
-1. Create a `Graph` with the desired IO, intermediate, and compute data types.
-2. Add `Tensor` objects for inputs, outputs, scalars, and virtual intermediates.
-3. Add operations, call `build!`, and then call `execute!` with concrete array and scalar
-   bindings.
+Support predicates build and cache a plan without executing it.
 
-`build!` validates the graph, assigns tensor ids, lowers operations to backend descriptors,
-asks cuDNN heuristics for candidate engines, and finalizes the first supported execution
-plan; engine selection honors the `deterministic`, `math_mode`, and `max_workspace`
-keywords. `is_supported(g)` runs the same pipeline but returns `false` instead of throwing
-when no engine finalizes. `execute!` builds a variant pack from the supplied bindings and
-runs the cached plan with an automatically allocated workspace.
+## Compatibility
 
-High-level wrappers should normally cache built graphs through `cached_graph`, with a key
-that includes every layout, type, alignment, and option that affects engine selection.
-`UnsupportedGraphError` is the expected signal that cuDNN could not build a plan for the
-requested graph, and `cached_graph` caches that outcome so repeated calls stay cheap.
-Callers with an equivalent generic implementation should test errors with
-`graph_unsupported` and fall back when it returns `true`.
-
-Op factories can create by-value tensors implicitly, such as the scale scalar of an SDPA
-node or the fill value of its causal mask. These must be bound at execution time like any
-other non-virtual tensor; `tensor(g, name)` looks them up by name.
-
-The graph layer is intentionally close to NVIDIA's cudnn-frontend model, but expressed as
-ordinary Julia objects and keyword-heavy factory functions instead of C++ builders. The
-`Tensor` objects describe metadata only; concrete device pointers are supplied later when
-calling `execute!`.
-
-Execution plans are cached per cuDNN handle. cuDNN execution plans are handle-bound, so the
-cache lives with the pooled handle and is destroyed before the handle itself. Cache keys must
-include the input and output layouts, element types, pointer alignments, operation options,
-math mode, determinism, and workspace limit.
-
-## Operation Wrappers
-
-The ops layer is the preferred public surface for downstream packages. These methods accept
-preallocated outputs and hide backend descriptors for common calls:
-
-- `attention!` and `attention_backward!` use unified SDPA graph operations for
-  `(head_dim, heads, sequence, batch)` tensors. Forward supports optional saved stats and
-  top-left causal masking, and backward accepts the same causal mode. Forward and backward
-  support dense padding masks through Int32 `seq_len_q` and `seq_len_kv` tensors shaped
-  `(1, 1, 1, batch)`. Dropout and bias are not wired yet. `attention_supported` and
-  `attention_backward_supported` report whether the fused path can run a given call, so
-  callers can pick a fallback up front; engine coverage differs between forward and
-  backward on some architectures.
-- `convolution!`, `convolution_data_gradient!`, and `convolution_filter_gradient!` use graph
-  convolution operations for plain convolutions and gradients, with native asymmetric
-  padding. When a fused bias, residual, and activation graph is unsupported, the wrapper
-  uses a plain graph convolution followed by CUDA broadcasts. If an engine rejects
-  asymmetric padding, the wrapper materializes the padding and retries a symmetric graph.
-  No path calls the fixed-function convolution API.
-- `maxpool!`, `∇maxpool!`, `meanpool!`, and `∇meanpool!` use graph resample operations
-  and report `UnsupportedGraphError` when cuDNN cannot build a plan.
-- `batchnorm_training!`, `batchnorm_inference!`, and `batchnorm_gradient!` use graph norm
-  operations. The corresponding support predicates let downstream packages choose an
-  ecosystem fallback before execution. Non-default output scaling is rejected because the
-  norm graph nodes do not provide the fixed-function alpha/beta semantics.
-
-The wrappers should return early for empty arrays before touching cuDNN. Size-one dimensions
-should use contiguous-consistent strides because cuDNN plan selection is sensitive to tensor
-metadata. Pointer alignment is part of both the tensor descriptor and the graph cache key.
-
-## Descriptor Rules
-
-Fixed-function cuDNN calls take tensor and operator descriptors directly. That pattern is
-fine for low-level use, but new ops should avoid making descriptors part of ordinary call
-signatures: descriptor construction is cheap enough to keep close to the cuDNN call, built
-from ordinary Julia values, converting `nothing` to `C_NULL` or `CU_NULL` only at the
-low-level call boundary.
-
-Workspaces should be requested as close as possible to the cuDNN call or execution plan.
-cuDNN can make workspace requirements depend on details beyond the visible input shapes, so
-workspace allocation should not be moved far away from the final algorithm or plan choice.
-
-cuDNN distinguishes training and inference inconsistently across operation families. The ops
-layer should expose that distinction explicitly when it matters, as batch normalization does,
-and avoid inventing a training flag for operations where cuDNN has no such mode.
-
-## Legacy Wrappers
-
-The cordoned legacy wrappers preserve the historical imperative cuDNN API: activation,
-pooling, convolution, normalization, multi-head attention, elementwise ops, reductions,
-and related tests. Source files live in `lib/cudnn/src/legacy`, and matching tests live in
-`lib/cudnn/test/legacy`. Nothing outside that directory depends on the wrappers in it, so
-the whole directory can be deleted in the next breaking release once downstream packages
-require the graph-backed ops layer.
-
-Legacy wrappers should remain available until the next breaking release, but new APIs should
-not grow around them. New functionality should target the backend and graph layers when
-cuDNN exposes the needed operation there. Unsupported graphs should be reported to the
-caller so an ecosystem implementation can take over when one exists.
-
-Softmax, dropout, and RNN wrappers are fixed-function survivors rather than legacy code:
-cuDNN has no graph replacement for dropout and RNN, and NNlib's softmax hook still uses
-the fixed-function entry points. Descriptor plumbing shared with the surviving layers
-(array-based tensor and filter descriptor constructors) also lives outside `legacy`. The
-generated C bindings remain available regardless of the legacy-wrapper deprecation schedule.
+Fixed-function compatibility wrappers and tests live under `src/legacy` and `test/legacy`.
+The graph and operation layers do not depend on them. Softmax, dropout, and RNN remain
+outside `legacy`.
 
 ## Debugging
 
-cuDNN can emit detailed diagnostics for graph support and plan selection. Set
-`CUDNN_LOGLEVEL_DBG=3` in the environment, or start Julia with `JULIA_DEBUG=cuDNN` (or
-`-g2`) so the cuDNN log callback registered at initialization reports messages through
-Julia logging.
-
-When graph construction fails with `UnsupportedGraphError`, check the tensor dimensions,
-strides, data types, pointer alignments, math mode, determinism setting, and workspace
-limit. Unsupported graph plans are normal for some layouts and operation combinations; the
-ops layer should fall back only when the fallback has the same semantics.
+Set `CUDNN_LOGLEVEL_DBG=3` or start Julia with `JULIA_DEBUG=cuDNN` to report cuDNN
+diagnostics through Julia logging.
 
 ## Public
 

@@ -50,15 +50,15 @@ function normtest(
 
     # Main argument defaults:
     format::cudnnTensorFormat_t = CUDNN_TENSOR_NCHW, # or NHWC
-    _sdims = (mode == CUDNN_NORM_PER_CHANNEL    && format == CUDNN_TENSOR_NCHW ? (1,1,size(x,3),1) :
+    sdims = (mode == CUDNN_NORM_PER_CHANNEL    && format == CUDNN_TENSOR_NCHW ? (1,1,size(x,3),1) :
                 mode == CUDNN_NORM_PER_CHANNEL    && format == CUDNN_TENSOR_NHWC ? (size(x,1),1,1,1) :
                 mode == CUDNN_NORM_PER_ACTIVATION && format == CUDNN_TENSOR_NCHW ? (size(x)[1:3]...,1) :
                 mode == CUDNN_NORM_PER_ACTIVATION && format == CUDNN_TENSOR_NHWC ? (size(x)[1:3]...,1) :
                 error("Unknown mode $mode and format $format")),
-    scale = fill!(similar(x, _sdims), 1),
-    bias =  fill!(similar(x, _sdims), 0),
-    xmean =  fill!(similar(x, _sdims), 0),
-    xvar = fill!(similar(x, _sdims), 1),
+    scale = fill!(similar(x, sdims), 1),
+    bias =  fill!(similar(x, sdims), 0),
+    xmean =  fill!(similar(x, sdims), 0),
+    xvar = fill!(similar(x, sdims), 1),
 
     # Training-only parameters:
     exponentialAverageFactor::Real = 0.1,

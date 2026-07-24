@@ -41,7 +41,6 @@ function select_plan(g::Graph, opgraph::BackendDescriptor;
     deviceprop = backend_deviceprop()
     cfgs = BackendDescriptor[]
     try
-        # only query the next heuristic mode when the previous one yields no plan
         for mode in heuristics
             new_cfgs = engine_configs(opgraph; deviceprop, mode)
             append!(cfgs, new_cfgs)
@@ -84,7 +83,6 @@ function build!(g::Graph; kwargs...)
             end
         end
     catch e
-        # lowering and heuristics can report unsupported graphs directly
         (e isa CUDNNError && is_unsupported(e)) || rethrow()
         throw(UnsupportedGraphError("cuDNN: cannot build graph " * graph_signature(g) *
                                     " ($(name(e)))"))

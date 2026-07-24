@@ -46,7 +46,7 @@ include("ops/convolution.jl")
 include("ops/pooling.jl")
 include("ops/normalization.jl")
 
-# legacy fixed-function wrappers kept for downstream compatibility
+# fixed-function compatibility wrappers
 include("legacy/descriptors.jl")
 include("legacy/inplace.jl")
 include("legacy/optensor.jl")
@@ -79,12 +79,7 @@ end
 
 ## handles
 
-# a cuDNN handle pooled together with the execution plans finalized against it: cuDNN
-# execution plans are bound to the handle they were built with, and are not guaranteed safe
-# for concurrent execution, so they travel with the handle as one unit.
-# NOTE: deliberately an immutable struct, not a Tuple: HandleCache tracks active entries in
-# a Set, so the pooled value needs identity-based hashing that stays stable while `plans` is
-# mutated, and the value reconstructed in handle_finalizer must be egal.
+# Execution plans are bound to their cuDNN handle.
 struct PooledHandle
     handle::cudnnHandle_t
     plans::Dict{Any,Any}
@@ -97,8 +92,6 @@ function handle_ctor(ctx)
 end
 function handle_dtor(ctx, pooled::PooledHandle)
     context!(ctx) do
-        # destroy cached execution plans before the handle they were built against
-        # (the cache also holds UnsupportedGraphErrors, which carry no descriptors)
         for plan in values(pooled.plans)
             plan isa Graph && unsafe_destroy!(plan)
         end
@@ -115,7 +108,7 @@ const idle_handles = HandleCache{CuContext,PooledHandle}(handle_ctor, handle_dto
 mutable struct Handle
     const handle::cudnnHandle_t
     const ctx::CuContext
-    const plans::Dict{Any,Any}   # execution plans built against this handle (see graph/cache.jl)
+    const plans::Dict{Any,Any}
 end
 Base.unsafe_convert(::Type{cudnnHandle_t}, h::Handle) = h.handle
 

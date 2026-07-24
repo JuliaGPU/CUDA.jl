@@ -1,9 +1,3 @@
-"""
-    BackendDescriptor
-
-A managed cuDNN backend descriptor. Attributes use symbolic indexing, for example
-`descriptor[:dimensions, Vector{Int64}]`.
-"""
 mutable struct BackendDescriptor
     ptr::cudnnBackendDescriptor_t
     descriptor_type::cudnnBackendDescriptorType_t
@@ -42,7 +36,7 @@ end
 
 ## Attributes
 
-# `buf` owns the storage passed to cuDNN and must remain live across the call.
+# Keep attribute storage alive across the C call.
 function setattr!(d::BackendDescriptor, name::cudnnBackendAttributeName_t,
                   atype::cudnnBackendAttributeType_t, count::Integer, buf)
     GC.@preserve buf begin
@@ -134,11 +128,7 @@ function getattr_count(d::BackendDescriptor, name::cudnnBackendAttributeName_t,
     return n[]
 end
 
-# Read an array of nested descriptors. cuDNN requires the caller to pre-create the output
-# descriptors; GetAttribute then populates their contents.
-#
-# Keep raw handles until we know how many cuDNN returned, then destroy the unused descriptors
-# synchronously. Julia finalizers are a last-resort cleanup path for descriptors that escape.
+# cuDNN requires preallocated output descriptors; destroy unused ones immediately.
 function getattr_descriptors(d::BackendDescriptor, name::cudnnBackendAttributeName_t,
                              desctype::cudnnBackendDescriptorType_t, maxcount::Integer)
     maxcount == 0 && return BackendDescriptor[]
@@ -175,13 +165,7 @@ end
 
 ## Symbolic attributes
 
-# cuDNN names attributes after the descriptor type that owns them:
-# CUDNN_BACKEND_X_DESCRIPTOR takes CUDNN_ATTR_X_FIELD attributes, with a few abbreviated
-# spellings (BACKWARD/BWD, FORWARD/FWD, ...). Deriving that relation from the generated
-# enums lets descriptors be indexed with short field symbols:
-#
-#     d[:qdesc] = tensor_desc      # CUDNN_ATTR_OPERATION_SDPA_FWD_QDESC on an SDPA node
-#     d[:workspace_size, Int64]    # CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE
+# Map descriptor fields to their CUDNN_ATTR_* names, including cuDNN abbreviations.
 
 function attribute_prefixes(stem::String)
     variants = [stem, replace(stem, "BACKWARD" => "BWD", "FORWARD" => "FWD")]
@@ -242,12 +226,6 @@ make_descriptor(f, type::Symbol) = make_descriptor(f, descriptor_types[type])
 
 ## Constructors
 
-"""
-    backend_tensor(; uid, dims, strides, dtype, is_virtual=false, by_value=false, alignment=16)
-
-Create and finalize a `CUDNN_BACKEND_TENSOR_DESCRIPTOR`. `dims`/`strides` are in cuDNN order
-(outermost first, innermost last; the innermost stride is typically 1).
-"""
 function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
                         is_virtual::Bool=false, by_value::Bool=false, alignment::Integer=16)
     make_descriptor(:tensor) do d
@@ -443,8 +421,7 @@ function convolution_filter_backward_operation(convdesc::BackendDescriptor,
     end
 end
 
-# alpha/beta take their type from the convolution compute type, so the usual
-# value-based dispatch does not apply
+# alpha and beta use the convolution compute type.
 function setattr_alphabeta!(d::BackendDescriptor, name::Symbol, value, atype)
     if atype == CUDNN_TYPE_DOUBLE
         setattr!(d, attribute(d, name), CUDNN_TYPE_DOUBLE, 1, Float64[value])
@@ -564,7 +541,6 @@ function diagonal_band_mask_operation(x::BackendDescriptor, b::BackendDescriptor
     end
 end
 
-# Return caller-owned engine-config descriptors the heuristic suggests, in preference order.
 function engine_configs(graph::BackendDescriptor;
                         deviceprop::Union{Nothing,BackendDescriptor}=nothing,
                         mode::cudnnBackendHeurMode_t=CUDNN_HEUR_MODE_A)
@@ -585,10 +561,7 @@ end
 
 is_unsupported(e::CUDNNError) = 3000 <= Int(e.code) < 4000
 
-# Build and finalize an execution plan for an engine config. Returns `nothing` if cuDNN
-# reports the config as not supported (a normal outcome: callers iterate configs until one
-# finalizes). Any other error (e.g. BAD_PARAM, which indicates a graph-construction bug
-# rather than an unsupported config) is rethrown.
+# Unsupported configurations are expected while searching for a plan.
 function try_execution_plan(enginecfg::BackendDescriptor;
                             deviceprop::Union{Nothing,BackendDescriptor}=nothing)
     try
@@ -619,8 +592,6 @@ engine_numerical_notes(engine::BackendDescriptor) =
 engine_behavior_notes(engine::BackendDescriptor) =
     engine[:behavior_note, Vector{cudnnBackendBehaviorNote_t}]
 
-# Build and finalize a variant pack. `pointers` are device (or, for by-value tensors, host)
-# pointers matching `uids` one-to-one; `workspace` is a device pointer or C_NULL.
 function variant_pack(; uids::AbstractVector{<:Integer}, pointers::AbstractVector,
                       workspace)
     make_descriptor(:variant_pack) do vp
@@ -629,6 +600,3 @@ function variant_pack(; uids::AbstractVector{<:Integer}, pointers::AbstractVecto
         vp[:workspace] = reinterpret(Ptr{Cvoid}, workspace)
     end
 end
-
-# deliberately not @public: the graph frontend and ops layers are the supported API,
-# and the raw backend C API remains available through the generated bindings

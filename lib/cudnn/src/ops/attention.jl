@@ -40,7 +40,7 @@ end
 attention_optional_key(a) =
     a === nothing ? nothing : (eltype(a), size(a), strides(a), pointer_alignment(a))
 
-# scale is a by-value binding supplied at execution time, so it does not key the plan
+# By-value scale does not affect plan selection.
 function attention_key(out, q, k, v, stats, seq_len_q, seq_len_kv, causal,
                         deterministic, math_mode, max_workspace)
     (:attention_fwd, eltype(q),
@@ -124,8 +124,8 @@ function attention!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::DenseCuArra
                     max_workspace::Union{Nothing,Integer}=nothing) where {T}
     T in (Float16, BFloat16) ||
         throw(ArgumentError("cuDNN attention! only supports Float16/BFloat16, got $T"))
-    dropout_p == 0 || throw(ArgumentError("cuDNN attention! dropout is not implemented yet"))
-    bias === nothing || throw(ArgumentError("cuDNN attention! bias is not implemented yet"))
+    dropout_p == 0 || throw(ArgumentError("attention! does not support dropout"))
+    bias === nothing || throw(ArgumentError("attention! does not support bias"))
     isempty(out) && return out
     d, h, sq, skv, b = attention_dims(q, k, v, out)
     attention_stats_dims(stats, h, sq, b)
@@ -170,8 +170,9 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
     T in (Float16, BFloat16) ||
         throw(ArgumentError("cuDNN attention_backward! only supports Float16/BFloat16, got $T"))
     dropout_p == 0 ||
-        throw(ArgumentError("cuDNN attention_backward! dropout is not implemented yet"))
-    bias === nothing || throw(ArgumentError("cuDNN attention_backward! bias is not implemented yet"))
+        throw(ArgumentError("attention_backward! does not support dropout"))
+    bias === nothing ||
+        throw(ArgumentError("attention_backward! does not support bias"))
     isempty(dq) && isempty(dk) && isempty(dv) && return dq, dk, dv
     d, h, sq, skv, b = attention_dims(q, k, v, o)
     size(dO) == size(q) ||
@@ -308,12 +309,9 @@ Supported inputs are `Float16` and `BFloat16` `DenseCuArray`s. `scale` defaults 
 `1 / sqrt(head_dim)`. Forward can write the Float32 `stats` tensor needed by backward.
 Set `causal=true` for top-left causal forward masking. Dense padding masks are enabled by
 passing Int32 `seq_len_q` and `seq_len_kv` tensors shaped `(1, 1, 1, batch_size)`.
-`dropout_p` and `bias` are reserved for cuDNN graph features that are not wired yet.
+`dropout_p` must be zero and `bias` must be `nothing`.
 
-The `_supported` predicates report whether cuDNN can execute the corresponding call,
-building (and caching) the execution plan without running it. Callers with a generic
-implementation can use them to decide between the fused and fallback paths; engine
-coverage differs between forward and backward on some architectures.
+The support predicates build and cache a plan without executing it.
 """
 attention, attention!, attention_backward, attention_backward!, attention_supported,
 attention_backward_supported

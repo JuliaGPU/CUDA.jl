@@ -34,9 +34,7 @@ function check_convolution_groups(input_channels, filter_input_channels, output_
     return
 end
 
-# symmetric-padding geometry equivalent to convolving x with asymmetric (pre, post)
-# padding: the excess padding is materialized as zeros, with x at `ranges` in the
-# padded array
+# Convert asymmetric padding to symmetric padding over a zero-padded input.
 function padded_convolution_geometry(x, pre, post)
     rank = length(pre)
     pad = min.(pre, post)

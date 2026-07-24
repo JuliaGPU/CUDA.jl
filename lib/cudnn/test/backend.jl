@@ -1,6 +1,3 @@
-# corner cases of the internal backend descriptor layer that the public graph and op
-# tests cannot reach; everything else is covered end-to-end by those suites
-
 using cuDNN:
     BackendDescriptor,
     backend_tensor,
@@ -18,16 +15,13 @@ using cuDNN:
     @test cuDNN.cuda_version() isa VersionNumber
 end
 
-# destruction must be idempotent and safe to combine with finalization
 d = BackendDescriptor(CUDNN_BACKEND_TENSOR_DESCRIPTOR)
 unsafe_destroy!(d)
 @test unsafe_destroy!(d) === nothing
 @test Base.finalize(d) === nothing
 
-# the attribute table derived from the enums covers every attribute
 @test Set(values(cuDNN.attribute_names)) == Set(instances(cudnnBackendAttributeName_t))
 
-# attributes round-trip through symbolic indexing
 t = backend_tensor(uid=42,
                    dims=Int64[1, 2, 3, 4],
                    strides=Int64[24, 12, 4, 1],

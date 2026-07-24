@@ -19,7 +19,6 @@ function zero_padded_queries!(a, seq_len_q)
     return a
 end
 
-# Reference dense attention in Float32 for the (d, h, s, b) layout (matches NNlib's layout).
 function sdpa_ref(q, k, v; scale, causal=false, stats=false, seq_len_q=nothing,
                   seq_len_kv=nothing)
     d, h, sq, b = size(q); hk = size(k, 2); skv = size(k, 3)
@@ -99,7 +98,6 @@ function sdpatest(T; d=64, sq=32, skv=32, h=4, hk=h, b=2, scale=1/sqrt(d), rtol=
     @test eltype(y) == T
     @test Array(y) ≈ ref rtol=rtol
 
-    # in-place form must agree with the allocating form
     out = similar(q)
     attention!(out, q, k, v; scale, causal)
     @test Array(out) == Array(y)
@@ -140,7 +138,6 @@ function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
     @test Array(dk) ≈ refdk rtol=rtol
     @test Array(dv) ≈ refdv rtol=rtol
 
-    # the allocating form must agree with the in-place form
     a_dq, a_dk, a_dv = attention_backward(dO, q, k, v, o, stats; scale, causal)
     @test Array(a_dq) == Array(dq)
     @test Array(a_dk) == Array(dk)
@@ -202,7 +199,6 @@ if capability(device()) >= v"8.0"
         sdpa_padding_test(T)
     end
 
-    # invalid inputs are rejected rather than silently producing wrong results
     let q = CuArray(Float16.(randn(Float32, 64, 4, 64, 2)))
         qview = view(q, :, :, 1:32, :)  # non-contiguous: dense strides would be wrong
         @test_throws MethodError attention(qview, qview, qview)
