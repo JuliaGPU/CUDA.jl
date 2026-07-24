@@ -274,14 +274,14 @@ graph_padding_mode(mode::Symbol) =
     mode === :edge ? CUDNN_EDGE_VAL_PAD :
     throw(ArgumentError("unknown cuDNN padding mode $mode"))
 
-norm_mode(mode::cudnnBackendNormMode_t) = mode
+function norm_mode(mode::cudnnBackendNormMode_t)
+    mode == CUDNN_BATCH_NORM ||
+        throw(ArgumentError("only batch normalization is supported"))
+    return mode
+end
 norm_mode(mode::Symbol) =
     mode === :batchnorm ? CUDNN_BATCH_NORM :
-    mode === :layernorm ? CUDNN_LAYER_NORM :
-    mode === :instancenorm ? CUDNN_INSTANCE_NORM :
-    mode === :groupnorm ? CUDNN_GROUP_NORM :
-    mode === :rmsnorm ? CUDNN_RMS_NORM :
-    throw(ArgumentError("unknown cuDNN norm mode $mode"))
+    throw(ArgumentError("unsupported cuDNN norm mode $mode"))
 
 norm_phase(phase::cudnnBackendNormFwdPhase_t) = phase
 norm_phase(phase::Symbol) =

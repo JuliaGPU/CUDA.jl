@@ -131,6 +131,9 @@ ndx, ndscale, ndbias = norm_bwd!(g, ny, nx, nscale, nmean, ninv)
 @test ndbias.dims == nbias.dims
 badscale = tensor!(g; dims=(1, 1, 4, 1), dtype=Float32, name="BadScale")
 @test_throws DimensionMismatch norm_fwd!(g, nx, badscale, nbias; epsilon=neps)
+@test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; mode=:layernorm)
+@test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias;
+                                     mode=cuDNN.CUDNN_LAYER_NORM)
 @test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; phase=:inference,
                                      mean=nmean, inv_variance=ninv, epsilon=neps)
 @test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; phase=:inference,
