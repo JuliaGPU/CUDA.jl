@@ -120,46 +120,6 @@ function cudnnConvolutionForwardAD(w, x, bias, z; y, activation, convDesc, wDesc
     return y
 end
 
-function cudnnGetConvolutionDescriptor(d::cudnnConvolutionDescriptor)
-    # we don't know the dimension of the convolution, so we start by
-    # allocating the maximum size it can be.
-    nbDimsRequested = CUDNN_DIM_MAX - 2
-    # later, here we get the actual dimensionality of the convolution
-    arrlen = Ref{Cint}(nbDimsRequested)
-    padding = Array{Cint}(undef, nbDimsRequested)
-    stride = Array{Cint}(undef, nbDimsRequested)
-    dilation = Array{Cint}(undef, nbDimsRequested)
-    mode = Ref{cuDNN.cudnnConvolutionMode_t}(CUDNN_CONVOLUTION)
-    dataType = Ref{cuDNN.cudnnDataType_t}(cuDNN.CUDNN_DATA_FLOAT)
-
-    cudnnGetConvolutionNdDescriptor(d, nbDimsRequested, arrlen, padding, stride, dilation,
-                                    mode, dataType)
-    T = juliaDataType(dataType[])
-    SZ = arrlen[]
-    P = (padding[1:SZ]..., )
-    S = (stride[1:SZ]..., )
-    D = (dilation[1:SZ]..., )
-    return T, mode[], SZ, P, S, D
-end
-
-# Helper for cudnnConvolutionDescriptor
-function cudnnSetConvolutionDescriptor(
-    ptr::cudnnConvolutionDescriptor_t,
-    padding::Vector{Cint},
-    stride::Vector{Cint},
-    dilation::Vector{Cint},
-    mode::cudnnConvolutionMode_t,
-    dataType::cudnnDataType_t,
-    mathType::cudnnMathType_t,
-    reorderType::cudnnReorderType_t,
-    groupCount::Cint,
-)
-    cudnnSetConvolutionNdDescriptor(ptr, Cint(length(padding)), padding, stride, dilation, mode, dataType)
-    mathType != CUDNN_DEFAULT_MATH       && cudnnSetConvolutionMathType(ptr, mathType)
-    reorderType != CUDNN_DEFAULT_REORDER && cudnnSetConvolutionReorderType(ptr, reorderType)
-    groupCount != 1                      && cudnnSetConvolutionGroupCount(ptr, groupCount)
-end
-
 
 ## cudnnConvolutionForward helpers:
 
@@ -175,38 +135,26 @@ function cudnnConvolutionForwardOutput(x, xDesc, wDesc, convDesc, format)
     similar(x, ydims...)
 end
 
-
-# Convert the integer, tuple or array to padding/stride/dilation dims compatible with array size
-function convdims(d, s::Dims{N}, default) where N
-    @assert d isa Integer || length(d) == N-2  "Cannot use $d padding/stride/dilation with $(Base.dims2string(s)) array."
+function convdims(d, s::Dims{N}, default) where {N}
+    @assert d isa Integer || length(d) == N-2 "Cannot use $d padding/stride/dilation with $(Base.dims2string(s)) array."
     if N >= 4
-        (d isa Integer ? fill(Cint(d), N-2) : Cint[reverse(d)...])
+        d isa Integer ? fill(Cint(d), N-2) : Cint[reverse(d)...]
     elseif N == 3
-        Cint[d[1], default]    # 3D tensors are padded to 4D
+        Cint[d[1], default]
     else
-        Cint[default, default] # lower dim tensors have no spatial dims
+        Cint[default, default]
     end
 end
-
-
-## Utilities to find a fast algorithm
 
 const cudnnConvolutionFwdAlgoPerfCache = Dict{Tuple,cudnnConvolutionFwdAlgoPerf_t}()
 const cudnnConvolutionFwdAlgoPerfCacheLock = ReentrantLock()
 
-"""
-    cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, allocateTmpBuf=true)
-
-`allocateTmpBuf` controls whether a temporary buffer is allocated for the output y.
-It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
-"""
-function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, allocateTmpBuf=true)
+function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc,
+                                     activation, allocateTmpBuf=true)
     xDesc_native = cudnnGetTensorDescriptor(xDesc)
     wDesc_native = cudnnGetFilterDescriptor(wDesc)
     convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
-    biasDesc_native = (isnothing(biasDesc) ? nothing
-                                           : cudnnGetTensorDescriptor(biasDesc))
-
+    biasDesc_native = isnothing(biasDesc) ? nothing : cudnnGetTensorDescriptor(biasDesc)
     key = (xDesc_native, wDesc_native, convDesc_native, biasDesc, activation)
     val = lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
         get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
@@ -214,13 +162,16 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
     if val === nothing
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef,requestedAlgoCount)
+        perfResults = Array{cudnnConvolutionFwdAlgoPerf_t}(undef, requestedAlgoCount)
         workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-        yTmp = allocateTmpBuf ? similar(y) : y  # if beta is zero we can avoid the allocation
+        yTmp = allocateTmpBuf ? similar(y) : y
         with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionForwardAlgorithmEx(handle(),xDesc,x,wDesc,w,convDesc,yDesc,yTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            cudnnFindConvolutionForwardAlgorithmEx(handle(), xDesc, x, wDesc, w, convDesc,
+                yDesc, yTmp, requestedAlgoCount, returnedAlgoCount, perfResults, workspace,
+                sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults,
+                                             returnedAlgoCount[1])
         lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
             cudnnConvolutionFwdAlgoPerfCache[key] = val
         end
@@ -228,20 +179,15 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
     return val
 end
 
-const cudnnConvolutionBwdDataAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdDataAlgoPerf_t}()
+const cudnnConvolutionBwdDataAlgoPerfCache =
+    Dict{Tuple,cudnnConvolutionBwdDataAlgoPerf_t}()
 const cudnnConvolutionBwdDataAlgoPerfCacheLock = ReentrantLock()
 
-"""
-    cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx, allocateTmpBuf=true)
-
-`allocateTmpBuf` controls whether a temporary buffer is allocated for the input gradient dx.
-It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
-"""
-function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx, allocateTmpBuf=true)
+function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc, dx,
+                                         allocateTmpBuf=true)
     wDesc_native = cudnnGetFilterDescriptor(wDesc)
     dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
     convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
-
     key = (wDesc_native, dyDesc_native, convDesc_native)
     val = lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
         get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
@@ -249,34 +195,32 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
     if val === nothing
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef,requestedAlgoCount)
+        perfResults = Array{cudnnConvolutionBwdDataAlgoPerf_t}(undef, requestedAlgoCount)
         workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(dx)
         dxTmp = allocateTmpBuf ? similar(dx) : dx
         with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardDataAlgorithmEx(handle(),wDesc,w,dyDesc,dy,convDesc,dxDesc,dxTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            cudnnFindConvolutionBackwardDataAlgorithmEx(handle(), wDesc, w, dyDesc, dy,
+                convDesc, dxDesc, dxTmp, requestedAlgoCount, returnedAlgoCount, perfResults,
+                workspace, sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, dyDesc, perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, dyDesc, perfResults,
+                                             returnedAlgoCount[1])
         lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
             cudnnConvolutionBwdDataAlgoPerfCache[key] = val
         end
     end
-    val
+    return val
 end
 
-const cudnnConvolutionBwdFilterAlgoPerfCache = Dict{Tuple,cudnnConvolutionBwdFilterAlgoPerf_t}()
+const cudnnConvolutionBwdFilterAlgoPerfCache =
+    Dict{Tuple,cudnnConvolutionBwdFilterAlgoPerf_t}()
 const cudnnConvolutionBwdFilterAlgoPerfCacheLock = ReentrantLock()
 
-"""
-    cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw, allocateTmpBuf=true)
-
-`allocateTmpBuf` controls whether a temporary buffer is allocated for the weight gradient dw.
-It can be set to false when beta is zero to save an allocation and must otherwise be set to true.
-"""
-function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw, allocateTmpBuf=true)
+function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDesc, dw,
+                                           allocateTmpBuf=true)
     xDesc_native = cudnnGetTensorDescriptor(xDesc)
     dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
     convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
-
     key = (xDesc_native, dyDesc_native, convDesc_native)
     val = lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
         get(cudnnConvolutionBwdFilterAlgoPerfCache, key, nothing)
@@ -284,26 +228,27 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
     if val === nothing
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
-        perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef,requestedAlgoCount)
+        perfResults = Array{cudnnConvolutionBwdFilterAlgoPerf_t}(undef, requestedAlgoCount)
         workspaceSize() = cudnnFindConvolutionAlgorithmWorkspaceSize(x)
         dwTmp = allocateTmpBuf ? similar(dw) : dw
         with_workspace(workspaceSize) do workspace
-            cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(),xDesc,x,dyDesc,dy,convDesc,dwDesc,dwTmp,requestedAlgoCount,returnedAlgoCount,perfResults,workspace,sizeof(workspace))
+            cudnnFindConvolutionBackwardFilterAlgorithmEx(handle(), xDesc, x, dyDesc, dy,
+                convDesc, dwDesc, dwTmp, requestedAlgoCount, returnedAlgoCount, perfResults,
+                workspace, sizeof(workspace))
         end
-        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults, returnedAlgoCount[1])
+        val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults,
+                                             returnedAlgoCount[1])
         lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
             cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
         end
     end
-    val
+    return val
 end
 
-
-# Return algorithm with best memory that is within 10% of best time
 function cudnnConvolutionAlgoPerfChoose(convDesc, tensorDesc, perfResults, n)
     mathType = Ref{cudnnMathType_t}(CUDNN_DEFAULT_MATH)
     cudnnGetConvolutionMathType(convDesc, mathType)
-    skipMathTypeCheck = let  # See https://github.com/JuliaGPU/CUDA.jl/pull/1943#issuecomment-1605267932
+    skipMathTypeCheck = let
         dtype, _ = cudnnGetTensorDescriptor(tensorDesc)
         dtype == Float32
     end
@@ -311,26 +256,21 @@ function cudnnConvolutionAlgoPerfChoose(convDesc, tensorDesc, perfResults, n)
     ibest, mbest, tbest = 0, Inf, Inf
     for (i, ps) in enumerate(perfResults)
         i > n && break
-        # These metrics are written in a sorted fashion where the first element has the lowest compute time.
-        if ((skipMathTypeCheck || ps.mathType == mathType[])
-            && ps.status == CUDNN_STATUS_SUCCESS && ps.memory < mbest && ps.time < tbest * 1.1)
+        if ((skipMathTypeCheck || ps.mathType == mathType[]) &&
+            ps.status == CUDNN_STATUS_SUCCESS && ps.memory < mbest && ps.time < tbest * 1.1)
             ibest, mbest, tbest = i, ps.memory, ps.time
         end
     end
     if ibest == 0
         @warn "No valid algorithm found, probably bad params for convolution." maxlog=1
-        ibest = findfirst(p->p.algo==0, perfResults)
+        ibest = findfirst(p -> p.algo == 0, perfResults)
         ibest === nothing && error("Cannot find backup algorithm for convolution, giving up.")
     end
     return perfResults[ibest]
 end
 
-
-# Allocate the maximum reasonable amount of memory for algorithm discovery
 function cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-    # Because algorithm discovery runs infrequently yet allocates more than conv functions,
-    # This is a good place to synchronize and trim the memory pool to reduce fragmentation.
     CUDACore.reclaim()
     gpufree = CUDACore.free_memory() + coalesce(CUDACore.cached_memory(), 0)
-    min(gpufree ÷ 10, sizeof(x) * 100)
+    return min(gpufree ÷ 10, sizeof(x) * 100)
 end

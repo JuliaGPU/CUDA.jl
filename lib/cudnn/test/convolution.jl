@@ -1,191 +1,242 @@
-import NNlib
-using cuDNN:
-    cudnnConvolutionForward,
-    cudnnConvolutionForward!,
-    cudnnConvolutionBackwardFilter,
-    cudnnConvolutionBackwardData,
-    cudnnGetConvolutionNdForwardOutputDim,
-    cudnnSetConvolutionMathType,
-    cudnnSetConvolutionReorderType,
-    cudnnSetConvolutionGroupCount,
-    cudnnFindConvolutionForwardAlgorithmEx,
-        cudnnConvolutionFwdAlgoPerf_t,
-    cudnnFindConvolutionBackwardFilterAlgorithmEx,
-        cudnnConvolutionBwdFilterAlgoPerf_t,
-    cudnnFindConvolutionBackwardDataAlgorithmEx,
-        cudnnConvolutionBwdDataAlgoPerf_t,
-    cudnnConvolutionDescriptor,
-        cudnnConvolutionDescriptor_t,
-        cudnnCreateConvolutionDescriptor,
-        cudnnSetConvolutionNdDescriptor,
-        cudnnDestroyConvolutionDescriptor,
-    cudnnConvolutionMode_t,
-        CUDNN_CONVOLUTION,       # 0
-        CUDNN_CROSS_CORRELATION, # 1
-    cudnnActivationMode_t,
-        CUDNN_ACTIVATION_SIGMOID,      # 0
-        CUDNN_ACTIVATION_RELU,         # 1
-        CUDNN_ACTIVATION_TANH,         # 2
-        CUDNN_ACTIVATION_CLIPPED_RELU, # 3
-        CUDNN_ACTIVATION_ELU,          # 4
-        CUDNN_ACTIVATION_IDENTITY,     # 5
-    cudnnNanPropagation_t,
-        CUDNN_NOT_PROPAGATE_NAN, # 0
-        CUDNN_PROPAGATE_NAN,     # 1
-    cudnnMathType_t,
-        CUDNN_DEFAULT_MATH,                    # 0
-        CUDNN_TENSOR_OP_MATH,                  # 1
-        CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION, # 2
-        CUDNN_FMA_MATH,                        # 3
-    cudnnReorderType_t,
-        CUDNN_DEFAULT_REORDER, # 0
-        CUDNN_NO_REORDER,      # 1
-    cudnnConvolutionFwdAlgo_t,
-        CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM,         # 0
-        CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM, # 1
-        CUDNN_CONVOLUTION_FWD_ALGO_GEMM,                  # 2
-        CUDNN_CONVOLUTION_FWD_ALGO_DIRECT,                # 3
-        CUDNN_CONVOLUTION_FWD_ALGO_FFT,                   # 4
-        CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING,            # 5
-        CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD,              # 6
-        CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED,     # 7
-        CUDNN_CONVOLUTION_FWD_ALGO_COUNT,                 # 8
-    cudnnConvolutionBwdFilterAlgo_t,
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0,                 # 0, /* non-deterministic */
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1,                 # 1,
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT,               # 2,
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3,                 # 3, /* non-deterministic */
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD,          # 4, /* not implemented */
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED, # 5,
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING,        # 6,
-        CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT,             # 7
-    cudnnConvolutionBwdDataAlgo_t,
-        CUDNN_CONVOLUTION_BWD_DATA_ALGO_0,                 # 0, /* non-deterministic */
-        CUDNN_CONVOLUTION_BWD_DATA_ALGO_1,                 # 1,
-        CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT,               # 2,
-        CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING,        # 3,
-        CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD,          # 4,
-        CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED, # 5,
-        CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT,             # 6
-    cudnnTensorFormat_t,
-        CUDNN_TENSOR_NCHW,        # 0, /* row major (wStride = 1, hStride = w) */
-        CUDNN_TENSOR_NHWC,        # 1, /* feature maps interleaved ( cStride = 1 )*/
-        CUDNN_TENSOR_NCHW_VECT_C, # 2, /* each image point is vector of element of C, vector length in data type */
-    cudnnDataType,
-    convdims,
-    math_mode
+using CUDA
+using cuDNN: convolution!, convolution_data_gradient!, convolution_filter_gradient!
 
+CUDA.allowscalar(false)
 
-T = Float32
-ax,aw,ab = randn(T,8,8,4,4),randn(T,3,3,4,4),randn(T,1,1,4,1)
-cx,cw,cb = CuArray.((ax,aw,ab))
+conv_ref_type(::Type{Float64}) = Float64
+conv_ref_type(::Type) = Float32
 
-function convtest(;
-                    blendz=false,
-                    bias=nothing,
-                    activation = CUDNN_ACTIVATION_IDENTITY,
-                    mode = CUDNN_CONVOLUTION,
-                    padding = 0,
-                    stride = 1,
-                    dilation = 1,
-                    group = 1,
-                    dataType = eltype(cx),
-                    mathType = math_mode(),
-                    reorderType = CUDNN_DEFAULT_REORDER,
-                    alpha = 1,
-                    beta = 0)
-    if group == 1
-        cdims = NNlib.DenseConvDims(ax, aw; stride, padding, dilation, flipkernel = (mode === CUDNN_CROSS_CORRELATION))
-        ay = NNlib.conv(ax, aw, cdims)
-        cw0 = cw
-    else
-        # Implement grouped convolution
-        xchan = size(aw,3)÷group
-        ychan = size(aw,4)÷group
-        xdims = (size(ax,1),size(ax,2),xchan,size(ax,4))
-        wdims = (size(aw,1),size(aw,2),xchan,ychan)
-        cdims = NNlib.DenseConvDims(xdims, wdims; stride, padding, dilation, flipkernel = (mode === CUDNN_CROSS_CORRELATION))
-        ay = nothing
-        for g in 1:group
-            xrange = 1+(g-1)*xchan:g*xchan
-            yrange = 1+(g-1)*ychan:g*ychan
-            ay0 = NNlib.conv(ax[:,:,xrange,:], aw[:,:,1:xchan,yrange], cdims)
-            ay = (ay === nothing ? ay0 : cat(ay, ay0; dims=3))
+function conv2d_ref(x, w; pre_padding, post_padding, stride, dilation)
+    wx, hx, cin, n = size(x)
+    ww, hw, cfilter, cout = size(w)
+    cin == cfilter || throw(DimensionMismatch("grouped convolution not supported here"))
+    outw = fld(wx + pre_padding[1] + post_padding[1] - dilation[1] * (ww - 1) - 1,
+               stride[1]) + 1
+    outh = fld(hx + pre_padding[2] + post_padding[2] - dilation[2] * (hw - 1) - 1,
+               stride[2]) + 1
+    R = conv_ref_type(eltype(x))
+    xx = R.(Array(x))
+    wwgt = R.(Array(w))
+    y = zeros(R, outw, outh, cout, n)
+    for batch in 1:n, co in 1:cout, oy in 1:outh, ox in 1:outw
+        acc = 0f0
+        for ci in 1:cin, ky in 1:hw, kx in 1:ww
+            ix = (ox - 1) * stride[1] + (kx - 1) * dilation[1] - pre_padding[1] + 1
+            iy = (oy - 1) * stride[2] + (ky - 1) * dilation[2] - pre_padding[2] + 1
+            if 1 <= ix <= wx && 1 <= iy <= hx
+                acc += xx[ix, iy, ci, batch] * wwgt[kx, ky, ci, co]
+            end
         end
-        cw0 = CuArray(aw[:,:,1:xchan,:])
+        y[ox, oy, co, batch] = acc
     end
-
-    if alpha != 1; ay = alpha * ay; end
-    if bias != nothing; ay = ay .+ Array(bias); end
-
-    act = (activation === CUDNN_ACTIVATION_RELU ? NNlib.relu :
-            activation === CUDNN_ACTIVATION_IDENTITY ? identity :
-            error("Unsupported activation $activation"))
-    ay1 = act.(ay)
-
-    az0 = randn(T,size(ay)...)
-    ay0 = randn(T,size(ay)...)
-    cy0, cy1 = CuArray.((ay0,ay0))
-    if blendz
-        cz0 = cz1 = CuArray(az0)
-        ay2 = act.(ay .+ beta * az0)
-    else
-        cz0, cz1 = cy0, cy1
-        ay2 = act.(ay .+ beta * ay0)
-    end
-
-    d = cudnnConvolutionDescriptor(convdims(padding,size(ax),1),
-                                    convdims(stride,size(ax),1),
-                                    convdims(dilation,size(ax),1), mode,
-                                    cudnnDataType(dataType), mathType, reorderType,
-                                    Cint(group))
-    @test ay1 ≈ cudnnConvolutionForward(cw0, cx; bias, activation, mode, padding,
-                                        stride, dilation, group, mathType, reorderType,
-                                        alpha) |> Array
-    @test ay1 ≈ cudnnConvolutionForward(cw0, cx, d; bias, activation, alpha) |> Array
-    @test ay2 ≈ cudnnConvolutionForward!(cy0, cw0, cx; z=cz0, bias, activation, mode,
-                                            padding, stride, dilation, group, mathType,
-                                            reorderType, alpha, beta) |> Array
-    @test ay2 ≈ cudnnConvolutionForward!(cy1, cw0, cx, d; z=cz1, bias, activation,
-                                            alpha, beta) |> Array
+    return y
 end
 
-# These call cudnnConvolutionForward
-convtest()
-convtest(padding=1)
-convtest(stride=2)
-convtest(dilation=2)
-convtest(group=2) # See https://blog.yani.ai/filter-group-tutorial/
-convtest(mathType=CUDNN_DEFAULT_MATH)
-convtest(mathType=CUDNN_TENSOR_OP_MATH)
-convtest(mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
-convtest(reorderType=CUDNN_NO_REORDER)
-convtest(alpha=2)
-convtest(beta=2)
+function conv2d_dgrad_ref(dy, w, x_size; pre_padding, stride, dilation)
+    wx, hx, cin, n = x_size
+    ww, hw, cfilter, cout = size(w)
+    cin == cfilter || throw(DimensionMismatch("grouped convolution not supported here"))
+    R = conv_ref_type(eltype(dy))
+    ddy = R.(Array(dy))
+    wwgt = R.(Array(w))
+    dx = zeros(R, x_size)
+    for batch in 1:n, co in 1:cout, oy in 1:size(dy, 2), ox in 1:size(dy, 1)
+        grad = ddy[ox, oy, co, batch]
+        for ci in 1:cin, ky in 1:hw, kx in 1:ww
+            ix = (ox - 1) * stride[1] + (kx - 1) * dilation[1] - pre_padding[1] + 1
+            iy = (oy - 1) * stride[2] + (ky - 1) * dilation[2] - pre_padding[2] + 1
+            if 1 <= ix <= wx && 1 <= iy <= hx
+                dx[ix, iy, ci, batch] += grad * wwgt[kx, ky, ci, co]
+            end
+        end
+    end
+    return dx
+end
 
-# These call cudnnConvolutionBiasActivationForward
-convtest(bias=cb)
-convtest(blendz=true)
-convtest(activation=CUDNN_ACTIVATION_RELU)
-convtest(bias=cb,blendz=true)
-convtest(bias=cb,activation=CUDNN_ACTIVATION_RELU)
-convtest(bias=cb,padding=1)
-convtest(bias=cb,stride=2)
-convtest(bias=cb,dilation=2)
-convtest(bias=cb,group=2)
-convtest(bias=cb,mathType=CUDNN_DEFAULT_MATH)
-convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH)
-convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
-convtest(bias=cb,reorderType=CUDNN_NO_REORDER)
-convtest(bias=cb,alpha=2)
-convtest(bias=cb,beta=2)
-convtest(bias=cb,beta=2,blendz=true)
+function conv2d_wgrad_ref(dy, x, w_size; pre_padding, stride, dilation)
+    ww, hw, cin, cout = w_size
+    wx, hx, cx, n = size(x)
+    cin == cx || throw(DimensionMismatch("grouped convolution not supported here"))
+    R = conv_ref_type(eltype(dy))
+    ddy = R.(Array(dy))
+    xx = R.(Array(x))
+    dw = zeros(R, w_size)
+    for batch in 1:n, co in 1:cout, oy in 1:size(dy, 2), ox in 1:size(dy, 1)
+        grad = ddy[ox, oy, co, batch]
+        for ci in 1:cin, ky in 1:hw, kx in 1:ww
+            ix = (ox - 1) * stride[1] + (kx - 1) * dilation[1] - pre_padding[1] + 1
+            iy = (oy - 1) * stride[2] + (ky - 1) * dilation[2] - pre_padding[2] + 1
+            if 1 <= ix <= wx && 1 <= iy <= hx
+                dw[kx, ky, ci, co] += grad * xx[ix, iy, ci, batch]
+            end
+        end
+    end
+    return dw
+end
 
-# Test tensor format
-cx2,cw2,cb2 = (x->permutedims(x,(3,1,2,4))).((cx,cw,cb))
-whcn = cudnnConvolutionForward(cw,cx) |> Array
-cwhn = cudnnConvolutionForward(cw2,cx2,format=CUDNN_TENSOR_NHWC) |> Array
-@test cwhn ≈ permutedims(whcn,(3,1,2,4))
-whcn = cudnnConvolutionForward(cw,cx;bias=cb) |> Array
-cwhn = cudnnConvolutionForward(cw2,cx2;bias=cb2,format=CUDNN_TENSOR_NHWC) |> Array
-@test cwhn ≈ permutedims(whcn,(3,1,2,4))
+function conv1d_wgrad_ref(dy, x, w_size; pre_padding, stride, dilation)
+    ww, cin, cout = w_size
+    wx, cx, n = size(x)
+    cin == cx || throw(DimensionMismatch("grouped convolution not supported here"))
+    R = conv_ref_type(eltype(dy))
+    ddy = R.(Array(dy))
+    xx = R.(Array(x))
+    dw = zeros(R, w_size)
+    for batch in 1:n, co in 1:cout, ox in 1:size(dy, 1)
+        grad = ddy[ox, co, batch]
+        for ci in 1:cin, kx in 1:ww
+            ix = (ox - 1) * stride[1] + (kx - 1) * dilation[1] - pre_padding[1] + 1
+            if 1 <= ix <= wx
+                dw[kx, ci, co] += grad * xx[ix, ci, batch]
+            end
+        end
+    end
+    return dw
+end
+
+let W=8, H=7, C=3, N=2, K=5
+    x = CuArray(reshape(Float16.(sin.(1:W*H*C*N)), W, H, C, N) ./ 32)
+    w = CuArray(reshape(Float16.(cos.(1:3*2*C*K)), 3, 2, C, K) ./ 32)
+    y0 = CuArray(reshape(Float16.(sin.(1:5*6*K*N)), 5, 6, K, N) ./ 64)
+    y = copy(y0)
+    pre_padding = (1, 0)
+    post_padding = (2, 1)
+    stride = (2, 1)
+    dilation = (1, 2)
+    alpha = 1.5f0
+    beta = 0.25f0
+    ref = alpha .* conv2d_ref(x, w; pre_padding, post_padding, stride, dilation) .+
+          beta .* Float32.(Array(y0))
+
+    supported = true
+    try
+        convolution!(y, x, w; padding=(1, 2, 0, 1), stride, dilation, alpha, beta)
+    catch e
+        e isa cuDNN.UnsupportedGraphError || rethrow()
+        @test_skip "convolution! graph engine is unsupported on this device"
+        supported = false
+    end
+    if supported
+        @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+    end
+
+    dy = CuArray(reshape(Float16.(sin.(1:length(ref))), size(ref)) ./ 64)
+    dx0 = CuArray(reshape(Float16.(cos.(1:W*H*C*N)), W, H, C, N) ./ 128)
+    dx = copy(dx0)
+    dgrad_ref = alpha .* conv2d_dgrad_ref(dy, w, size(x); pre_padding, stride, dilation) .+
+                 beta .* Float32.(Array(dx0))
+    supported = true
+    try
+        convolution_data_gradient!(dx, dy, w; padding=(1, 2, 0, 1), stride, dilation,
+                                   alpha, beta)
+    catch e
+        e isa cuDNN.UnsupportedGraphError || rethrow()
+        @test_skip "convolution_data_gradient! graph engine is unsupported on this device"
+        supported = false
+    end
+    if supported
+        @test Float32.(Array(dx)) ≈ dgrad_ref rtol=3f-2 atol=3f-2
+    end
+
+    dw0 = CuArray(reshape(Float16.(cos.(1:length(w))), size(w)) ./ 128)
+    dw = copy(dw0)
+    wgrad_ref = alpha .* conv2d_wgrad_ref(dy, x, size(w); pre_padding, stride, dilation) .+
+                 beta .* Float32.(Array(dw0))
+    supported = true
+    try
+        convolution_filter_gradient!(dw, x, dy; padding=(1, 2, 0, 1), stride, dilation,
+                                     alpha, beta)
+    catch e
+        e isa cuDNN.UnsupportedGraphError || rethrow()
+        @test_skip "convolution_filter_gradient! graph engine is unsupported on this device"
+        supported = false
+    end
+    if supported
+        @test Float32.(Array(dw)) ≈ wgrad_ref rtol=3f-2 atol=3f-2
+    end
+end
+
+let W=8, H=7, C=3, N=2, K=5
+    x = CuArray(reshape(Float16.(sin.(1:W*H*C*N)), W, H, C, N) ./ 32)
+    w = CuArray(reshape(Float16.(cos.(1:3*2*C*K)), 3, 2, C, K) ./ 32)
+    z = CuArray(reshape(Float16.(cos.(1:5*6*K*N)), 5, 6, K, N) ./ 64)
+    bias = CuArray(reshape(Float16.(sin.(1:K)), 1, 1, K, 1) ./ 16)
+    y = similar(z)
+    pre_padding = (1, 0)
+    post_padding = (2, 1)
+    stride = (2, 1)
+    dilation = (1, 2)
+    alpha = 1.25f0
+    beta = 0.5f0
+    ref = alpha .* conv2d_ref(x, w; pre_padding, post_padding, stride, dilation) .+
+          beta .* Float32.(Array(z)) .+ Float32.(Array(bias))
+    ref = max.(ref, 0f0)
+
+    convolution!(y, x, w; padding=(1, 2, 0, 1), stride, dilation, alpha, beta,
+                 z, bias, activation=:relu)
+    @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+
+    # without z, beta scales the previous contents of y
+    y0 = CuArray(reshape(Float16.(cos.(1:5*6*K*N)), 5, 6, K, N) ./ 64)
+    y = copy(y0)
+    ref = alpha .* conv2d_ref(x, w; pre_padding, post_padding, stride, dilation) .+
+          beta .* Float32.(Array(y0)) .+ Float32.(Array(bias))
+    convolution!(y, x, w; padding=(1, 2, 0, 1), stride, dilation, alpha, beta, bias)
+    @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+
+    # z may alias y
+    y = copy(y0)
+    convolution!(y, x, w; padding=(1, 2, 0, 1), stride, dilation, alpha, beta,
+                 z=y, bias)
+    @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+end
+
+let W=4, H=4, C=1, N=1, K=1
+    x = CuArray(reshape(Float64.(1:W*H*C*N), W, H, C, N))
+    w = CuArray(reshape(Float64.(1:4), 2, 2, C, K))
+    y0 = CuArray(reshape(Float64.(sin.(1:9)), 3, 3, K, N))
+    y = copy(y0)
+    alpha = 1.25
+    beta = 0.5
+    ref = alpha .* Float64.(conv2d_ref(x, w; pre_padding=(0, 0),
+                                       post_padding=(0, 0), stride=(1, 1),
+                                       dilation=(1, 1))) .+ beta .* Array(y0)
+    convolution!(y, x, w; alpha, beta, compute_type=Float64)
+    @test Array(y) ≈ ref rtol=1e-12 atol=1e-12
+
+    dy = CuArray(reshape(Float64.(cos.(1:9)), size(ref)))
+    dx0 = CuArray(reshape(Float64.(sin.(1:W*H*C*N)), W, H, C, N))
+    dx = copy(dx0)
+    dref = alpha .* Float64.(conv2d_dgrad_ref(dy, w, size(x); pre_padding=(0, 0),
+                                              stride=(1, 1), dilation=(1, 1))) .+
+           beta .* Array(dx0)
+    convolution_data_gradient!(dx, dy, w; alpha, beta, compute_type=Float64)
+    @test Array(dx) ≈ dref rtol=1e-12 atol=1e-12
+
+    dw0 = CuArray(reshape(Float64.(sin.(1:4)), size(w)))
+    dw = copy(dw0)
+    wref = alpha .* Float64.(conv2d_wgrad_ref(dy, x, size(w); pre_padding=(0, 0),
+                                              stride=(1, 1), dilation=(1, 1))) .+
+           beta .* Array(dw0)
+    convolution_filter_gradient!(dw, x, dy; alpha, beta, compute_type=Float64)
+    @test Array(dw) ≈ wref rtol=1e-12 atol=1e-12
+end
+
+let W=5, C=2, N=1, K=3
+    x = CuArray(reshape(Float64.(1:W*C*N), W, C, N))
+    alpha = 1.25
+    beta = 0.5
+    stride = (1,)
+    dilation = (1,)
+    for (pre, post) in ((1, 0), (0, 1), (2, 3))
+        ylen = fld(W + pre + post - 2, 1) + 1
+        dy = CuArray(reshape(Float64.(1:ylen*K*N), ylen, K, N))
+        dw0 = CuArray(reshape(Float64.(sin.(1:2*C*K)), 2, C, K))
+        dw = copy(dw0)
+        ref = alpha .* conv1d_wgrad_ref(dy, x, size(dw); pre_padding=(pre,),
+                                        stride, dilation) .+ beta .* Array(dw0)
+        convolution_filter_gradient!(dw, x, dy; padding=(pre, post), stride, dilation,
+                                     alpha, beta, compute_type=Float64)
+        @test Array(dw) ≈ ref rtol=1e-12 atol=1e-12
+    end
+end

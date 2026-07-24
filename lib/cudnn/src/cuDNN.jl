@@ -34,17 +34,32 @@ include("util.jl")
 include("base.jl")
 include("descriptors.jl")
 include("tensor.jl")
-include("inplace.jl")
-include("optensor.jl")
-include("reduce.jl")
-include("convolution.jl")
-include("pooling.jl")
-include("activation.jl")
-include("softmax.jl")
+include("backend.jl")
+include("graph/graph.jl")
+include("graph/lower.jl")
+include("graph/ops.jl")
+include("graph/engines.jl")
+include("graph/execute.jl")
+include("graph/cache.jl")
+include("ops/attention.jl")
+include("ops/convolution.jl")
+include("ops/pooling.jl")
+include("ops/normalization.jl")
+
+# fixed-function compatibility wrappers
+include("legacy/descriptors.jl")
+include("legacy/inplace.jl")
+include("legacy/optensor.jl")
+include("legacy/reduce.jl")
+include("legacy/convolution.jl")
+include("legacy/pooling.jl")
+include("legacy/activation.jl")
+include("legacy/multiheadattn.jl")
+include("legacy/normalization.jl")
+
 include("dropout.jl")
 include("rnn.jl")
-include("multiheadattn.jl")
-include("normalization.jl")
+include("softmax.jl")
 
 
 function math_mode(mode=CUDACore.math_mode())
@@ -64,17 +79,27 @@ end
 
 ## handles
 
+# Execution plans are bound to their cuDNN handle.
+struct PooledHandle
+    handle::cudnnHandle_t
+    plans::Dict{Any,Any}
+end
+
 function handle_ctor(ctx)
     context!(ctx) do
-        cudnnCreate()
+        PooledHandle(cudnnCreate(), Dict{Any,Any}())
     end
 end
-function handle_dtor(ctx, handle)
+function handle_dtor(ctx, pooled::PooledHandle)
     context!(ctx) do
-        cudnnDestroy(handle)
+        for plan in values(pooled.plans)
+            plan isa Graph && unsafe_destroy!(plan)
+        end
+        empty!(pooled.plans)
+        cudnnDestroy(pooled.handle)
     end
 end
-const idle_handles = HandleCache{CuContext,cudnnHandle_t}(handle_ctor, handle_dtor)
+const idle_handles = HandleCache{CuContext,PooledHandle}(handle_ctor, handle_dtor)
 
 # mutable wrapper so the raw handle is released via an object-bound
 # finalizer: when TLS state is cleared on reclaim (or the owning task is
@@ -83,11 +108,12 @@ const idle_handles = HandleCache{CuContext,cudnnHandle_t}(handle_ctor, handle_dt
 mutable struct Handle
     const handle::cudnnHandle_t
     const ctx::CuContext
+    const plans::Dict{Any,Any}
 end
 Base.unsafe_convert(::Type{cudnnHandle_t}, h::Handle) = h.handle
 
 function handle_finalizer(h::Handle)
-    push!(idle_handles, h.ctx, h.handle)
+    push!(idle_handles, h.ctx, PooledHandle(h.handle, h.plans))
 end
 
 const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
@@ -100,11 +126,11 @@ function handle()
 
     # get library state
     @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context)
-        wrapped = Handle(new_handle, cuda.context)
+        pooled = pop!(idle_handles, cuda.context)
+        wrapped = Handle(pooled.handle, cuda.context, pooled.plans)
         finalizer(handle_finalizer, wrapped)
 
-        cudnnSetStream(new_handle, cuda.stream)
+        cudnnSetStream(pooled.handle, cuda.stream)
 
         (; handle=wrapped, cuda.stream)
     end
