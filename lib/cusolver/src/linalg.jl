@@ -298,7 +298,7 @@ end
 
 function LinearAlgebra.ldiv!(x::CuArray, _qr::QR, b::CuArray)
     _x = ldiv!(_qr, b)
-    x .= vec(_x)
+    copyto!(x, _x)
     unsafe_free!(_x)
     return x
 end

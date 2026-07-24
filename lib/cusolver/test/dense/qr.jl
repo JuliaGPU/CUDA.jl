@@ -129,4 +129,15 @@ end
         ldiv!(y, qr(A), x)
         y
     end
+
+    # multi-column rhs, e.g. inverting a matrix via `A \ I`
+    @test testf(rand(elty, m, m), rand(elty, m, l)) do A, X
+        ldiv!(qr(A), X)
+        X
+    end
+
+    @test testf(rand(elty, m, m), rand(elty, m, l), rand(elty, m, l)) do A, X, Y
+        ldiv!(Y, qr(A), X)
+        Y
+    end
 end
