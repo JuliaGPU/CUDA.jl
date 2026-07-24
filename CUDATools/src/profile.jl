@@ -144,6 +144,9 @@ function filtermask(t::NamedTuple, mask::AbstractVector{Bool})
     NamedTuple{keys(t)}(Tuple(col[mask] for col in t))
 end
 
+# NVTX colors are ARGB, while Crayons expects RGB.
+nvtx_crayon(color::UInt32) = Crayon(; foreground=color & 0x00ffffff)
+
 #
 # external profiler
 #
@@ -1072,7 +1075,7 @@ function Base.show(io::IO, results::ProfileResults)
             for color in unique(df.color)
                 if color !== nothing
                     ids = Set(df.id[isequal.(df.color, color)])
-                    highlighter = TextHighlighter(Crayon(; foreground=color)) do data, i, j
+                    highlighter = TextHighlighter(nvtx_crayon(color)) do data, i, j
                         keys(data)[j] in (:name, :domain) && data.id[i] in ids
                     end
                     push!(color_highlighters, highlighter)
