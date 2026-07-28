@@ -410,20 +410,18 @@ end
     Float16(FastMath.pow_fast(Float32(x), Float32(y)))
 end
 
-# stay with Base's semantics and avoid the drift of libdevice's integer powers,
-# which square at the working precision.
 @device_function powi(x::Float64, y::Int32) = ccall("extern __nv_powi", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_function powi(x::Float32, y::Int32) = ccall("extern __nv_powif", llvmcall, Cfloat, (Cfloat, Int32), x, y)
 
-# Base's `^(::Float, ::Integer)` calls `power_by_squaring`, whose
-# `trailing_zeros` loop emits `cttz_int`, so convert and defer to `__nv_pow`.
+# `power_by_squaring` uses `cttz_int`, which NVPTX cannot lower.
 @device_override @assume_effects :foldable @inline function Base.:(^)(x::Float32, y::Integer)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    x ^ Float32(y)
+    magnitude = abs(x) ^ Float32(y)
+    ifelse(signbit(x) & isodd(y), -magnitude, magnitude)
 end
 @device_override @assume_effects :foldable @inline function Base.:(^)(x::Float64, y::Integer)
     y == -1 && return inv(x)
@@ -431,7 +429,8 @@ end
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    x ^ Float64(y)
+    magnitude = abs(x) ^ Float64(y)
+    ifelse(signbit(x) & isodd(y), -magnitude, magnitude)
 end
 
 ## rounding and selection

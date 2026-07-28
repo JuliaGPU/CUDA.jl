@@ -14,17 +14,13 @@ using SpecialFunctions
             @test testf((x,y)->x.^y, rand(Float32, 1), -rand(range, 1))
         end
 
-        # Integer exponents: accuracy must not depend on the exponent's width.
-        # __nv_powi/__nv_powif used to back the Int32 methods and drifted by
-        # ~1500 ulp on the cases below, while Int64 went via __nv_pow.
         @testset "integer exponent ($T, $I)" for T in (Float32, Float64),
                                                  I in (Int32, Int64)
-            x = T[1.001, 0.9, 1.1, 1.0001, 2, 0.5]
-            n = I[500, 200, 30, 5000, 7, -3]
+            x = T[1.001, 0.9, 1.1, 1.0001, 2, 0.5, -1]
+            n = I[500, 200, 30, 5000, 7, -3, 16_777_217]
             @test Array(CuArray(x) .^ CuArray(n)) ≈ x .^ n rtol=8*eps(T)
         end
 
-        # Both widths have to agree with each other, not just with the CPU
         @testset "integer exponent width agreement ($T)" for T in (Float32, Float64)
             x = CuArray(T[1.001, 0.9, 1.1, 1.0001])
             n = Int64[500, 200, 30, 5000]
