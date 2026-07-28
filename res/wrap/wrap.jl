@@ -1,6 +1,10 @@
 # script to parse CUDA headers and generate Julia wrappers
 #
-# Usage: (cd res/wrap && julia +1.10 --project=@. wrap.jl [name])
+# Usage: (cd res/wrap && julia --project=@. wrap.jl [name])
+#
+# Use the Julia version `Manifest.toml` was resolved with (currently 1.12); older versions
+# cannot instantiate it. Set `CUDA_INCLUDE_DIR` to wrap a local CUDA install instead of
+# the headers from CUDA_SDK_jll.
 #
 # By default, all CUDA headers are wrapped. If `name` is given, e.g. `cuda` or `cublas`,
 # only the corresponding headers are wrapped.
