@@ -42,12 +42,12 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
 #
-# `ptx_sm_db` below gives a sanity floor on the lower bounds: a CC cannot predate the CUDA
-# release that shipped the PTX ISA introducing its `.target`. That floor is not always
-# tight (sm_100's `.target` needs PTX ISA 8.6 / CUDA 12.7, but ptxas only grew the target
-# in 12.8), yet it does catch bounds that are outright too low -- which is how the entries
-# for 8.8/10.3/10.7/11.0 were corrected: sm_110 needs PTX ISA 9.0, i.e. CUDA 13.0, so
-# ptxas 12.8 cannot have targeted it.
+# The bounds across every supported toolkit (12.0 through 13.4) were measured rather than
+# inferred, by pinning `CUDA_SDK_jll` to each release in a temporary environment and
+# reading the `--gpu-name` list off that toolkit's ptxas; do the same when adding entries.
+# What that pins down: sm_100/sm_101/sm_120 arrive in 12.8, sm_103/sm_121 and the `f`
+# variants in 12.9, sm_88/sm_110 in 13.0 -- which is also where sm_50-sm_72 and sm_101 are
+# dropped -- and sm_107 in 13.4.
 const ptxas_cap_db = Dict(
     v"1.0"   => between(lowest, v"6.5"),
     v"1.1"   => between(lowest, v"6.5"),
@@ -75,6 +75,7 @@ const ptxas_cap_db = Dict(
     v"8.9"   => between(v"11.8", highest),
     v"9.0"   => between(v"11.8", highest),
     v"10.0"  => between(v"12.8", highest),
+    v"10.1"  => between(v"12.8", v"12.9"),
     v"10.3"  => between(v"12.9", highest),
     v"10.7"  => between(v"13.4", highest),
     v"11.0"  => between(v"13.0", highest),
@@ -96,6 +97,10 @@ end
 ## PTX ISAs supported by ptxas
 
 # Source: PTX ISA document, Release History table
+#
+# Verified from 12.0 onwards by feeding a pinned `CUDA_SDK_jll`'s ptxas a stub module at
+# each `.version` and taking the highest it accepts. The one gap is 8.6: no CUDA 12.7
+# exists in the JLL set to test against (12.6 tops out at 8.5, 12.8 already accepts 8.7).
 const ptxas_ptx_db = Dict(
     v"1.0" => between(v"1.0", highest),
     v"1.1" => between(v"1.1", highest),
