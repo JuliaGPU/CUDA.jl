@@ -728,7 +728,18 @@ const cublasLtEmulationDesc_t = Ptr{cublasLtEmulationDescOpaque_t}
     CUBLASLT_MATMUL_TILE_256x1024 = 632
     CUBLASLT_MATMUL_TILE_512x512 = 633
     CUBLASLT_MATMUL_TILE_512x1024 = 634
-    CUBLASLT_MATMUL_TILE_END = 635
+    CUBLASLT_MATMUL_TILE_4x1 = 635
+    CUBLASLT_MATMUL_TILE_8x1 = 636
+    CUBLASLT_MATMUL_TILE_16x1 = 637
+    CUBLASLT_MATMUL_TILE_24x1 = 638
+    CUBLASLT_MATMUL_TILE_32x1 = 639
+    CUBLASLT_MATMUL_TILE_40x1 = 640
+    CUBLASLT_MATMUL_TILE_48x1 = 641
+    CUBLASLT_MATMUL_TILE_64x1 = 642
+    CUBLASLT_MATMUL_TILE_128x1 = 643
+    CUBLASLT_MATMUL_TILE_192x1 = 644
+    CUBLASLT_MATMUL_TILE_256x1 = 645
+    CUBLASLT_MATMUL_TILE_END = 646
 end
 
 @cenum cublasLtMatmulStages_t::UInt32 begin
@@ -845,6 +856,7 @@ end
     CUBLASLT_MATMUL_MATRIX_SCALE_BLK128x128_32F = 5
     CUBLASLT_MATMUL_MATRIX_SCALE_PER_BATCH_SCALAR_32F = 6
     CUBLASLT_MATMUL_MATRIX_SCALE_END = 7
+    CUBLASLT_MATMUL_MATRIX_SCALE_RESERVED = 127
 end
 
 @cenum cublasLtPointerMode_t::UInt32 begin
@@ -1485,7 +1497,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2869:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2882:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t
