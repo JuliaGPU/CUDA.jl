@@ -41,6 +41,13 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
 # Source:
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
+#
+# `ptx_sm_db` below gives a sanity floor on the lower bounds: a CC cannot predate the CUDA
+# release that shipped the PTX ISA introducing its `.target`. That floor is not always
+# tight (sm_100's `.target` needs PTX ISA 8.6 / CUDA 12.7, but ptxas only grew the target
+# in 12.8), yet it does catch bounds that are outright too low -- which is how the entries
+# for 8.8/10.3/10.7/11.0 were corrected: sm_110 needs PTX ISA 9.0, i.e. CUDA 13.0, so
+# ptxas 12.8 cannot have targeted it.
 const ptxas_cap_db = Dict(
     v"1.0"   => between(lowest, v"6.5"),
     v"1.1"   => between(lowest, v"6.5"),
@@ -64,11 +71,13 @@ const ptxas_cap_db = Dict(
     v"8.0"   => between(v"11.0", highest),
     v"8.6"   => between(v"11.1", highest),
     v"8.7"   => between(v"11.4", highest),
+    v"8.8"   => between(v"13.0", highest),
     v"8.9"   => between(v"11.8", highest),
     v"9.0"   => between(v"11.8", highest),
     v"10.0"  => between(v"12.8", highest),
-    v"10.3"  => between(v"12.8", highest),
-    v"11.0"  => between(v"12.8", highest),
+    v"10.3"  => between(v"12.9", highest),
+    v"10.7"  => between(v"13.4", highest),
+    v"11.0"  => between(v"13.0", highest),
     v"12.0"  => between(v"12.8", highest),
     v"12.1"  => between(v"12.9", highest),
 )
@@ -134,6 +143,7 @@ const ptxas_ptx_db = Dict(
     v"9.1" => between(v"13.1", highest),
     v"9.2" => between(v"13.2", highest),
     v"9.3" => between(v"13.3", highest),
+    v"9.4" => between(v"13.4", highest),
 )
 
 function ptxas_ptx_support(ver::VersionNumber)
@@ -173,6 +183,7 @@ const ptx_sm_db = Dict{SMVersion, VersionRange}(
     sm"80"   => between(v"7.0", highest),
     sm"86"   => between(v"7.1", highest),
     sm"87"   => between(v"7.4", highest),
+    sm"88"   => between(v"9.0", highest),
     sm"89"   => between(v"7.8", highest),
     sm"90"   => between(v"7.8", highest),
     sm"90a"  => between(v"8.0", highest),
@@ -185,6 +196,12 @@ const ptx_sm_db = Dict{SMVersion, VersionRange}(
     sm"103"  => between(v"8.8", highest),
     sm"103a" => between(v"8.8", highest),
     sm"103f" => between(v"8.8", highest),
+    sm"107"  => between(v"9.4", highest),
+    sm"107a" => between(v"9.4", highest),
+    sm"107f" => between(v"9.4", highest),
+    sm"110"  => between(v"9.0", highest),
+    sm"110a" => between(v"9.0", highest),
+    sm"110f" => between(v"9.0", highest),
     sm"120"  => between(v"8.7", highest),
     sm"120a" => between(v"8.7", highest),
     sm"120f" => between(v"8.8", highest),
