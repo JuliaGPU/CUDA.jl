@@ -258,8 +258,18 @@ function rewriter!(ctx, options)
 end
 
 function main(name="all")
-    cuda = joinpath(CUDA_SDK_jll.artifact_dir, "cuda", "include")
-    @assert CUDA_SDK_jll.is_available()
+    # the CUDA headers normally come from the SDK artifact, but can be overridden to point
+    # at a local installation (e.g. to wrap a developer preview that has no JLL yet) by
+    # setting `CUDA_INCLUDE_DIR` to its `include` directory.
+    cuda = if haskey(ENV, "CUDA_INCLUDE_DIR")
+        dir = ENV["CUDA_INCLUDE_DIR"]
+        @assert isdir(dir) "CUDA_INCLUDE_DIR=$dir does not exist"
+        @info "Using local CUDA headers from $dir"
+        dir
+    else
+        @assert CUDA_SDK_jll.is_available()
+        joinpath(CUDA_SDK_jll.artifact_dir, "cuda", "include")
+    end
 
     opengl = joinpath(Libglvnd_jll.artifact_dir, "include")
     @assert Libglvnd_jll.is_available()
@@ -275,7 +285,7 @@ function main(name="all")
     end
 
     if name == "all" || name == "cupti"
-        cupti = joinpath(CUDA_SDK_jll.artifact_dir, "cuda", "include")
+        cupti = cuda
 
         wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h"];
             include_dirs=[cuda, cupti],
