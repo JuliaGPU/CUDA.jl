@@ -208,7 +208,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         threads = kernel_config.threads
         blocks = cld(length(Rother), threads)
         kernel_launch(kernel, call; threads, blocks)
-        return R
+        return R_old
     end
 
     # how many threads do we want?
