@@ -298,18 +298,53 @@ function process(f, cfg::ActivityConfig)
         CUPTI_ACTIVITY_KIND_MARKER              => CUpti_ActivityMarker2,
         CUPTI_ACTIVITY_KIND_MARKER_DATA         => CUpti_ActivityMarkerData,
     )
+    # CUPTI emits whichever record version the CUDA release it ships with implements, so
+    # select the newest struct that release is known to write. Each new version only
+    # appends fields, which makes the direction matter: reading a newer record through an
+    # older struct just hides the added fields, but reading an older record through a
+    # newer struct would run past the record into the next one. When adding a version,
+    # take the introducing release from the CUPTI release notes, and prefer the later
+    # release when unsure -- being late costs fields, being early corrupts them.
+    #
+    # NOTE: the CUPTI version is unreliable (e.g. CUDA 11.5 and 11.6 both had CUPTI 16),
+    #       so key off the CUDA version instead.
+    cuda = CUDACore.runtime_version()
     ## kernel activities
     activity_types[CUPTI_ACTIVITY_KIND_KERNEL] =
-        CUpti_ActivityKernel9
+        if cuda >= v"13.4"
+            CUpti_ActivityKernel13
+        elseif cuda >= v"13.3"
+            CUpti_ActivityKernel12
+        elseif cuda >= v"13.1"
+            CUpti_ActivityKernel11
+        elseif cuda >= v"13.0"
+            CUpti_ActivityKernel10
+        else
+            CUpti_ActivityKernel9
+        end
     activity_types[CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL] =
         activity_types[CUPTI_ACTIVITY_KIND_KERNEL]
     ## memcpy activities
     activity_types[CUPTI_ACTIVITY_KIND_MEMCPY] =
-        CUpti_ActivityMemcpy5
+        if cuda >= v"13.4"
+            CUpti_ActivityMemcpy7
+        elseif cuda >= v"12.8"
+            CUpti_ActivityMemcpy6
+        else
+            CUpti_ActivityMemcpy5
+        end
     activity_types[CUPTI_ACTIVITY_KIND_MEMSET] =
-        CUpti_ActivityMemset4
+        if cuda >= v"13.4"
+            CUpti_ActivityMemset5
+        else
+            CUpti_ActivityMemset4
+        end
     activity_types[CUPTI_ACTIVITY_KIND_MEMORY2] =
-        CUpti_ActivityMemory3
+        if cuda >= v"12.6"
+            CUpti_ActivityMemory4
+        else
+            CUpti_ActivityMemory3
+        end
 
     # extract typed activity records
     for (ctx_handle, stream_id, buf_ptr, sz, valid_sz) in cfg.results
