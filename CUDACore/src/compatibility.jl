@@ -41,6 +41,13 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
 # Source:
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
+#
+# The bounds across every supported toolkit (12.0 through 13.4) were measured rather than
+# inferred, by pinning `CUDA_SDK_jll` to each release in a temporary environment and
+# reading the `--gpu-name` list off that toolkit's ptxas; do the same when adding entries.
+# What that pins down: sm_100/sm_101/sm_120 arrive in 12.8, sm_103/sm_121 and the `f`
+# variants in 12.9, sm_88/sm_110 in 13.0 -- which is also where sm_50-sm_72 and sm_101 are
+# dropped -- and sm_107 in 13.4.
 const ptxas_cap_db = Dict(
     v"1.0"   => between(lowest, v"6.5"),
     v"1.1"   => between(lowest, v"6.5"),
@@ -64,11 +71,14 @@ const ptxas_cap_db = Dict(
     v"8.0"   => between(v"11.0", highest),
     v"8.6"   => between(v"11.1", highest),
     v"8.7"   => between(v"11.4", highest),
+    v"8.8"   => between(v"13.0", highest),
     v"8.9"   => between(v"11.8", highest),
     v"9.0"   => between(v"11.8", highest),
     v"10.0"  => between(v"12.8", highest),
-    v"10.3"  => between(v"12.8", highest),
-    v"11.0"  => between(v"12.8", highest),
+    v"10.1"  => between(v"12.8", v"12.9"),
+    v"10.3"  => between(v"12.9", highest),
+    v"10.7"  => between(v"13.4", highest),
+    v"11.0"  => between(v"13.0", highest),
     v"12.0"  => between(v"12.8", highest),
     v"12.1"  => between(v"12.9", highest),
 )
@@ -87,6 +97,10 @@ end
 ## PTX ISAs supported by ptxas
 
 # Source: PTX ISA document, Release History table
+#
+# Verified from 12.0 onwards by feeding a pinned `CUDA_SDK_jll`'s ptxas a stub module at
+# each `.version` and taking the highest it accepts. The one gap is 8.6: no CUDA 12.7
+# exists in the JLL set to test against (12.6 tops out at 8.5, 12.8 already accepts 8.7).
 const ptxas_ptx_db = Dict(
     v"1.0" => between(v"1.0", highest),
     v"1.1" => between(v"1.1", highest),
@@ -134,6 +148,7 @@ const ptxas_ptx_db = Dict(
     v"9.1" => between(v"13.1", highest),
     v"9.2" => between(v"13.2", highest),
     v"9.3" => between(v"13.3", highest),
+    v"9.4" => between(v"13.4", highest),
 )
 
 function ptxas_ptx_support(ver::VersionNumber)
@@ -173,6 +188,7 @@ const ptx_sm_db = Dict{SMVersion, VersionRange}(
     sm"80"   => between(v"7.0", highest),
     sm"86"   => between(v"7.1", highest),
     sm"87"   => between(v"7.4", highest),
+    sm"88"   => between(v"9.0", highest),
     sm"89"   => between(v"7.8", highest),
     sm"90"   => between(v"7.8", highest),
     sm"90a"  => between(v"8.0", highest),
@@ -185,6 +201,12 @@ const ptx_sm_db = Dict{SMVersion, VersionRange}(
     sm"103"  => between(v"8.8", highest),
     sm"103a" => between(v"8.8", highest),
     sm"103f" => between(v"8.8", highest),
+    sm"107"  => between(v"9.4", highest),
+    sm"107a" => between(v"9.4", highest),
+    sm"107f" => between(v"9.4", highest),
+    sm"110"  => between(v"9.0", highest),
+    sm"110a" => between(v"9.0", highest),
+    sm"110f" => between(v"9.0", highest),
     sm"120"  => between(v"8.7", highest),
     sm"120a" => between(v"8.7", highest),
     sm"120f" => between(v"8.8", highest),

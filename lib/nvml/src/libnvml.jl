@@ -117,6 +117,19 @@ end
 
 const nvmlMemory_v2_t = nvmlMemory_v2_st
 
+struct nvmlSetMemoryLimits_v1_t
+    nameSpace::Cstring
+    softLimit::Culonglong
+    hardLimit::Culonglong
+end
+
+struct nvmlGetMemoryLimits_v1_t
+    nameSpace::Cstring
+    softLimit::Culonglong
+    hardLimit::Culonglong
+    currentUsed::Culonglong
+end
+
 struct nvmlBAR1Memory_st
     bar1Total::Culonglong
     bar1Free::Culonglong
@@ -504,14 +517,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#317"
+struct var"##Ctag#318"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#317"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -520,14 +533,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#317"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#317", f::Symbol)
-    r = Ref{var"##Ctag#317"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#317"}, r)
+function Base.getproperty(x::var"##Ctag#318", f::Symbol)
+    r = Ref{var"##Ctag#318"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#318"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#317"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#318"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -537,7 +550,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#317"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#318"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -662,6 +675,140 @@ end
 
 const nvmlPdi_t = nvmlPdi_v1_t
 
+struct nvmlPmgrPwrTuple_t
+    pwrmW::Cuint
+end
+
+struct nvmlRailMetrics_t
+    freqkHz::Cuint
+    utilPct::Culonglong
+end
+
+struct nvmlCoreRailMetrics_t
+    rails::NTuple{2,nvmlRailMetrics_t}
+end
+
+struct nvmlPwrModelMetricsDlppm1xPerf_t
+    perfms::Cuint
+end
+
+struct nvmlPwrModelMetricsDlppm1x_t
+    bValid::Cuchar
+    coreRail::nvmlCoreRailMetrics_t
+    fbRail::nvmlRailMetrics_t
+    tgpPwrTuple::nvmlPmgrPwrTuple_t
+    perfMetrics::nvmlPwrModelMetricsDlppm1xPerf_t
+end
+
+struct nvmlPwrModelMetricsDlppm1xDramclkEstimates_t
+    estimatedMetrics::NTuple{8,nvmlPwrModelMetricsDlppm1x_t}
+    numEstimatedMetrics::Cuchar
+end
+
+struct nvmlObservedMetrics_t
+    initialDramclkEst::NTuple{3,nvmlPwrModelMetricsDlppm1xDramclkEstimates_t}
+    bValid::Cuchar
+    coreRail::nvmlCoreRailMetrics_t
+    fbRail::nvmlRailMetrics_t
+    tgpPwrTuple::nvmlPmgrPwrTuple_t
+    perfMetrics::nvmlPwrModelMetricsDlppm1xPerf_t
+end
+
+struct nvmlPerfMetricsDlppc2xSample_t
+    observedMetrics::nvmlObservedMetrics_t
+end
+
+struct nvmlPwrModelMetricsSamplePfpp1x_t
+    freqkHz::NTuple{16,Cuint}
+    estTgpPwrmW::Cuint
+end
+
+struct nvmlPwrModelOperatingPointPfpp1x_t
+    freqkHz::Cuint
+    pwrmW::Cuint
+end
+
+struct nvmlPwrModelMetricsPfpp1x_t
+    numVfPoints::Cuchar
+    estimatedMetrics::NTuple{32,nvmlPwrModelMetricsSamplePfpp1x_t}
+    bValid::Cuchar
+    maxPerfPerWattPoint::nvmlPwrModelOperatingPointPfpp1x_t
+    fmaxAtVmaxPoint::nvmlPwrModelOperatingPointPfpp1x_t
+    tgpHeadroommW::Cuint
+end
+
+struct nvmlPerfMetricsPfpp1xSample_t
+    estimatedMetrics::nvmlPwrModelMetricsPfpp1x_t
+end
+
+struct var"##Ctag#313"
+    data::NTuple{2208,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"##Ctag#313"}, f::Symbol)
+    f === :dlppc2x && return Ptr{nvmlPerfMetricsDlppc2xSample_t}(x + 0)
+    f === :pfpp1x && return Ptr{nvmlPerfMetricsPfpp1xSample_t}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#313", f::Symbol)
+    r = Ref{var"##Ctag#313"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#313"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#313"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::var"##Ctag#313", private::Bool=false)
+    return (:dlppc2x, :pfpp1x, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct nvmlPerfMetricControllerSample_t
+    data::NTuple{2216,UInt8}
+end
+
+function Base.getproperty(x::Ptr{nvmlPerfMetricControllerSample_t}, f::Symbol)
+    f === :controllerType && return Ptr{Cuint}(x + 0)
+    f === :data && return Ptr{var"##Ctag#313"}(x + 8)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::nvmlPerfMetricControllerSample_t, f::Symbol)
+    r = Ref{nvmlPerfMetricControllerSample_t}(x)
+    ptr = Base.unsafe_convert(Ptr{nvmlPerfMetricControllerSample_t}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{nvmlPerfMetricControllerSample_t}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::nvmlPerfMetricControllerSample_t, private::Bool=false)
+    return (:controllerType, :data, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct nvmlPerfMetricsSample_t
+    numControllerData::Cuchar
+    controllerData::NTuple{4,nvmlPerfMetricControllerSample_t}
+end
+
+struct nvmlPerfMetricsSamples_v1_t
+    numSamples::Cuint
+    samples::NTuple{13,nvmlPerfMetricsSample_t}
+end
+
 struct nvmlBBXTimeData_v1_t
     timeRun::Cuint
 end
@@ -699,7 +846,10 @@ const nvmlDramEncryptionInfo_t = nvmlDramEncryptionInfo_v1_t
     NVML_BRAND_NVIDIA = 14
     NVML_BRAND_GEFORCE_RTX = 15
     NVML_BRAND_TITAN_RTX = 16
-    NVML_BRAND_COUNT = 18
+    NVML_BRAND_NVIDIA_DLA = 17
+    NVML_BRAND_NVIDIA_VGAMEDEV = 18
+    NVML_BRAND_NVIDIA_NPU = 19
+    NVML_BRAND_COUNT = 20
 end
 
 const nvmlBrandType_t = nvmlBrandType_enum
@@ -720,7 +870,8 @@ const nvmlTemperatureThresholds_t = nvmlTemperatureThresholds_enum
 
 @cenum nvmlTemperatureSensors_enum::UInt32 begin
     NVML_TEMPERATURE_GPU = 0
-    NVML_TEMPERATURE_COUNT = 1
+    NVML_TEMPERATURE_GPU_MAX = 1
+    NVML_TEMPERATURE_COUNT = 2
 end
 
 const nvmlTemperatureSensors_t = nvmlTemperatureSensors_enum
@@ -1064,13 +1215,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#315"
+struct var"##Ctag#316"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#315"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#316"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1078,14 +1229,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#315"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#315", f::Symbol)
-    r = Ref{var"##Ctag#315"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#315"}, r)
+function Base.getproperty(x::var"##Ctag#316", f::Symbol)
+    r = Ref{var"##Ctag#316"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#316"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#315"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#316"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1095,7 +1246,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#315"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#316"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1126,6 +1277,14 @@ struct nvmlPowerValue_v2_t
     version::Cuint
     powerScope::nvmlPowerScopeType_t
     powerValueMw::Cuint
+end
+
+struct nvmlAdaptiveTgpModeInfo_v1_t
+    inBandEnableRequest::nvmlEnableState_t
+    featureAllowedByAdmin::nvmlEnableState_t
+    adminOverrideEnabled::nvmlEnableState_t
+    enablementStatus::nvmlEnableState_t
+    adjustedLimitMw::Cuint
 end
 
 @cenum nvmlGpuVirtualizationMode::UInt32 begin
@@ -1166,6 +1325,7 @@ const nvmlVgpuGuestInfoState_t = nvmlVgpuGuestInfoState_enum
     NVML_GRID_LICENSE_FEATURE_CODE_VWORKSTATION = 2
     NVML_GRID_LICENSE_FEATURE_CODE_GAMING = 3
     NVML_GRID_LICENSE_FEATURE_CODE_COMPUTE = 4
+    NVML_GRID_LICENSE_FEATURE_CODE_VGAMEDEV = 5
 end
 
 @cenum nvmlVgpuCapability_enum::UInt32 begin
@@ -1376,8 +1536,8 @@ struct nvmlVgpuSchedulerParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#313"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#314"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#314"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#315"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1484,8 +1644,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#318"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#319"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#319"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#320"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1612,6 +1772,8 @@ const nvmlGridLicensableFeatures_t = nvmlGridLicensableFeatures_st
     NVML_GPU_RECOVERY_ACTION_DRAIN_P2P = 3
     NVML_GPU_RECOVERY_ACTION_DRAIN_AND_RESET = 4
     NVML_GPU_RECOVERY_ACTION_RECOVER_IMEX_DOMAIN = 5
+    NVML_GPU_RECOVERY_ACTION_BUS_RESET = 6
+    NVML_GPU_RECOVERY_ACTION_SYSTEM_REBOOT = 7
 end
 
 const nvmlDeviceGpuRecoveryAction_t = nvmlDeviceGpuRecoveryAction_s
@@ -1911,6 +2073,48 @@ end
 
 const nvmlEventData_t = nvmlEventData_st
 
+@cenum nvmlGpuOperationalEventLogLevel_t::UInt32 begin
+    NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_ALL = 0
+    NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_TELEMETRY = 10
+    NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_DIAG = 20
+    NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_NOTICE = 30
+    NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_WARNING = 40
+    NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_ERROR = 50
+end
+
+@cenum nvmlOperationalEventSeverity_t::UInt32 begin
+    NVML_OPERATIONAL_EVENT_SEVERITY_ALL = 0
+    NVML_OPERATIONAL_EVENT_SEVERITY_INFORMATIONAL = 10
+    NVML_OPERATIONAL_EVENT_SEVERITY_CORRECTED = 20
+    NVML_OPERATIONAL_EVENT_SEVERITY_RECOVERABLE = 30
+    NVML_OPERATIONAL_EVENT_SEVERITY_FATAL = 40
+end
+
+@cenum nvmlEventDataType_t::UInt32 begin
+    NVML_EVENT_DATA_TYPE_NVML_EVENT = 0
+    NVML_EVENT_DATA_TYPE_GPU_OPERATIONAL_EVENT = 1
+end
+
+@cenum nvmlGpuOperationalEventContextType_t::UInt32 begin
+    NVML_GPU_OPERATIONAL_EVENT_CONTEXT_TYPE_UNKNOWN = 0
+    NVML_GPU_OPERATIONAL_EVENT_CONTEXT_TYPE_LEGACY_XID = 1
+end
+
+struct nvmlOperationalEventContextInfo_v1_st
+    nvmlGpuOperationalEventContextType::Cuint
+    sourceEventContextType::Cuint
+    dataSize::Cuint
+    dataFormatVersion::Cushort
+end
+
+const nvmlOperationalEventContextInfo_v1_t = nvmlOperationalEventContextInfo_v1_st
+
+struct nvmlGpuOperationalEventContextLegacyXid_v1_st
+    xidCode::Cuint
+end
+
+const nvmlGpuOperationalEventContextLegacyXid_v1_t = nvmlGpuOperationalEventContextLegacyXid_v1_st
+
 mutable struct nvmlSystemEventSet_st end
 
 const nvmlSystemEventSet_t = Ptr{nvmlSystemEventSet_st}
@@ -2149,6 +2353,21 @@ end
 
 const nvmlGpuFabricInfoV_t = nvmlGpuFabricInfo_v3_t
 
+struct nvmlGpuFabricClique_v1_t
+    type::Cuchar
+    id::Cuint
+end
+
+struct nvmlGpuFabricInfo_v4_t
+    clusterUuid::NTuple{16,Cuchar}
+    status::nvmlReturn_t
+    cliques::NTuple{64,nvmlGpuFabricClique_v1_t}
+    numCliques::Cuint
+    state::nvmlGpuFabricState_t
+    healthMask::Cuint
+    healthSummary::Cuchar
+end
+
 @checked function nvmlInit_v2()
     @gcsafe_ccall libnvml.nvmlInit_v2()::nvmlReturn_t
 end
@@ -2164,6 +2383,43 @@ end
 function nvmlErrorString(result)
     @gcsafe_ccall libnvml.nvmlErrorString(result::nvmlReturn_t)::Cstring
 end
+
+struct nvmlGpuOperationalEventConfig_v1_st
+    uuid::NTuple{96,Cchar}
+    minLogLevel::Cuint
+    minSeverity::Cuint
+end
+
+const nvmlGpuOperationalEventConfig_v1_t = nvmlGpuOperationalEventConfig_v1_st
+
+struct nvmlEventData_v2_st
+    uuid::NTuple{96,Cchar}
+    sourceModule::NTuple{16,Cchar}
+    eventType::Culonglong
+    eventData::Culonglong
+    groupCursor::Culonglong
+    instanceId::Culonglong
+    timestampUsec::Culonglong
+    traceId::Culonglong
+    dataType::Cuint
+    gpuInstanceId::Cuint
+    computeInstanceId::Cuint
+    severity::Cuint
+    categoryId::Cuint
+    moduleEventCode::Cuint
+    scope::Cuint
+    originator::Cuint
+    moduleInstance::Cuint
+    chipletId::Cuint
+    logLevel::Cuint
+    attributes::Cuint
+    groupCperSize::Cuint
+    groupAttributes::Cuint
+    groupSize::Cuchar
+    groupIndex::Cuchar
+end
+
+const nvmlEventData_v2_t = nvmlEventData_v2_st
 
 @cenum nvmlCPERType_t::UInt32 begin
     NVML_CPER_ACCESS_TYPE_GPU = 1
@@ -2897,6 +3153,18 @@ end
                                                           limit::Ptr{Cuint})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceSetAdaptiveTgpMode_v1(device, mode)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceSetAdaptiveTgpMode_v1(device::nvmlDevice_t,
+                                                          mode::nvmlEnableState_t)::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetAdaptiveTgpModeInfo_v1(device, info)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetAdaptiveTgpModeInfo_v1(device::nvmlDevice_t,
+                                                              info::Ptr{nvmlAdaptiveTgpModeInfo_v1_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetGpuOperationMode(device, current, pending)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetGpuOperationMode(device::nvmlDevice_t,
@@ -2914,6 +3182,18 @@ end
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetMemoryInfo_v2(device::nvmlDevice_t,
                                                      memory::Ptr{nvmlMemory_v2_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceSetMemoryLimits_v1(device, limits)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceSetMemoryLimits_v1(device::nvmlDevice_t,
+                                                       limits::Ptr{nvmlSetMemoryLimits_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetMemoryLimits_v1(device, limits)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetMemoryLimits_v1(device::nvmlDevice_t,
+                                                       limits::Ptr{nvmlGetMemoryLimits_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetComputeMode(device, mode)
@@ -3207,6 +3487,12 @@ end
                                                       gpuFabricInfo::Ptr{nvmlGpuFabricInfoV_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetGpuFabricInfo_v4(device, gpuFabricInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetGpuFabricInfo_v4(device::nvmlDevice_t,
+                                                        gpuFabricInfo::Ptr{nvmlGpuFabricInfo_v4_t})::nvmlReturn_t
+end
+
 @checked function nvmlSystemGetConfComputeCapabilities(capabilities)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlSystemGetConfComputeCapabilities(capabilities::Ptr{nvmlConfComputeSystemCaps_t})::nvmlReturn_t
@@ -3419,6 +3705,12 @@ end
                                                    hostname::Ptr{nvmlHostname_v1_t})::nvmlReturn_t
 end
 
+@checked function nvmlDevicePerfMetricsGetSamples_v1(device, samples)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDevicePerfMetricsGetSamples_v1(device::nvmlDevice_t,
+                                                             samples::Ptr{nvmlPerfMetricsSamples_v1_t})::nvmlReturn_t
+end
+
 @checked function nvmlUnitSetLedState(unit, color)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlUnitSetLedState(unit::nvmlUnit_t,
@@ -3618,6 +3910,12 @@ end
 
 const nvmlNvlinkSetBwMode_t = nvmlNvlinkSetBwMode_v1_t
 
+struct nvmlNvlinkSetBwModeAsync_v1_t
+    bSetBest::Cuint
+    bwMode::Cuint
+    asyncPollTimeoutMs::Cuint
+end
+
 struct nvmlNvLinkInfo_v1_t
     version::Cuint
     isNvleEnabled::Cuint
@@ -3763,10 +4061,41 @@ end
                                                     setBwMode::Ptr{nvmlNvlinkSetBwMode_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceSetNvlinkBwModeAsync_v1(device, setBwModeAsync)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceSetNvlinkBwModeAsync_v1(device::nvmlDevice_t,
+                                                            setBwModeAsync::Ptr{nvmlNvlinkSetBwModeAsync_v1_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetNvLinkInfo(device, info)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetNvLinkInfo(device::nvmlDevice_t,
                                                   info::Ptr{nvmlNvLinkInfo_t})::nvmlReturn_t
+end
+
+@cenum nvmlNvlinkTelemetrySampleType_t::UInt32 begin
+    NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_THROUGHPUT_RAW_TX = 0
+    NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_THROUGHPUT_RAW_RX = 1
+    NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_COUNT = 2
+end
+
+struct nvmlNvlinkTelemetrySample_v1_t
+    linkId::Cuint
+    sampleType::Cuint
+    sampleCount::Cuint
+    samples::Ptr{Culonglong}
+    nvmlReturn::nvmlReturn_t
+end
+
+struct nvmlNvlinkTelemetrySamples_v1_t
+    telemetryCount::Cuint
+    telemetrySamples::Ptr{nvmlNvlinkTelemetrySample_v1_t}
+end
+
+@checked function nvmlDeviceGetNvLinkTelemetrySamples_v1(device, samples)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetNvLinkTelemetrySamples_v1(device::nvmlDevice_t,
+                                                                 samples::Ptr{nvmlNvlinkTelemetrySamples_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlEventSetCreate(set)
@@ -3792,6 +4121,45 @@ end
     @gcsafe_ccall libnvml.nvmlEventSetWait_v2(set::nvmlEventSet_t,
                                               data::Ptr{nvmlEventData_t},
                                               timeoutms::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlEventSetRegisterGpuOperationalEvents_v1(eventSet, config)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlEventSetRegisterGpuOperationalEvents_v1(eventSet::nvmlEventSet_t,
+                                                                      config::Ptr{nvmlGpuOperationalEventConfig_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlEventSetWait_v3(set, data, timeoutms)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlEventSetWait_v3(set::nvmlEventSet_t,
+                                              data::Ptr{nvmlEventData_v2_t},
+                                              timeoutms::Cuint)::nvmlReturn_t
+end
+
+@checked function nvmlEventSetGetContextCount_v1(set, count)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlEventSetGetContextCount_v1(set::nvmlEventSet_t,
+                                                         count::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlEventSetGetContextInfo_v1(set, index, info)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlEventSetGetContextInfo_v1(set::nvmlEventSet_t, index::Cuint,
+                                                        info::Ptr{nvmlOperationalEventContextInfo_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlEventSetGetContextData_v1(set, index, data, dataSize)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlEventSetGetContextData_v1(set::nvmlEventSet_t, index::Cuint,
+                                                        data::Ptr{Cvoid},
+                                                        dataSize::Ptr{Cuint})::nvmlReturn_t
+end
+
+@checked function nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1(set, index, xid)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1(set::nvmlEventSet_t,
+                                                                                index::Cuint,
+                                                                                xid::Ptr{nvmlGpuOperationalEventContextLegacyXid_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlEventSetFree(set)
@@ -4515,6 +4883,14 @@ end
     NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_SUCCESSFUL_RECOVERY_EVENTS = 101
     NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TIME_SINCE_LAST_RECOVERY = 102
     NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TIME_BETWEEN_LAST_TWO_RECOVERIES = 103
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TIME_IN_LAST_HOST_SERDES_FEQ_RECOVERY = 104
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_TIME_IN_HOST_SERDES_FEQ_RECOVERY = 105
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_HOST_SERDES_FEQ_RECOVERY_COUNT = 106
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_HOST_SERDES_FEQ_SUCCESSFUL_RECOVERY_COUNT = 107
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_LAST_HOST_SERDES_FEQ_ATTEMPTS_COUNT = 108
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_LAST_SUCCESSFUL_RECOVERY_STEP_ATTEMPTS = 109
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_LAST_SUCCESSFUL_RECOVERY_TIME = 110
+    NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_SUCCESSFUL_RECOVERY_TIME = 111
     NVML_PRM_COUNTER_ID_PPCNT_PORTCOUNTERS_PORT_XMIT_WAIT = 201
     NVML_PRM_COUNTER_ID_PPCNT_PLR_RCV_CODES = 301
     NVML_PRM_COUNTER_ID_PPCNT_PLR_RCV_CODE_ERR = 302
@@ -5248,33 +5624,177 @@ end
     NVML_GPM_METRIC_NVLINK_L34_TX = 330
     NVML_GPM_METRIC_NVLINK_L35_RX = 331
     NVML_GPM_METRIC_NVLINK_L35_TX = 332
-    NVML_GPM_METRIC_MAX = 333
+    NVML_GPM_METRIC_NVLINK_L36_RX = 333
+    NVML_GPM_METRIC_NVLINK_L36_TX = 334
+    NVML_GPM_METRIC_NVLINK_L37_RX = 335
+    NVML_GPM_METRIC_NVLINK_L37_TX = 336
+    NVML_GPM_METRIC_NVLINK_L38_RX = 337
+    NVML_GPM_METRIC_NVLINK_L38_TX = 338
+    NVML_GPM_METRIC_NVLINK_L39_RX = 339
+    NVML_GPM_METRIC_NVLINK_L39_TX = 340
+    NVML_GPM_METRIC_NVLINK_L40_RX = 341
+    NVML_GPM_METRIC_NVLINK_L40_TX = 342
+    NVML_GPM_METRIC_NVLINK_L41_RX = 343
+    NVML_GPM_METRIC_NVLINK_L41_TX = 344
+    NVML_GPM_METRIC_NVLINK_L42_RX = 345
+    NVML_GPM_METRIC_NVLINK_L42_TX = 346
+    NVML_GPM_METRIC_NVLINK_L43_RX = 347
+    NVML_GPM_METRIC_NVLINK_L43_TX = 348
+    NVML_GPM_METRIC_NVLINK_L44_RX = 349
+    NVML_GPM_METRIC_NVLINK_L44_TX = 350
+    NVML_GPM_METRIC_NVLINK_L45_RX = 351
+    NVML_GPM_METRIC_NVLINK_L45_TX = 352
+    NVML_GPM_METRIC_NVLINK_L46_RX = 353
+    NVML_GPM_METRIC_NVLINK_L46_TX = 354
+    NVML_GPM_METRIC_NVLINK_L47_RX = 355
+    NVML_GPM_METRIC_NVLINK_L47_TX = 356
+    NVML_GPM_METRIC_NVLINK_L48_RX = 357
+    NVML_GPM_METRIC_NVLINK_L48_TX = 358
+    NVML_GPM_METRIC_NVLINK_L49_RX = 359
+    NVML_GPM_METRIC_NVLINK_L49_TX = 360
+    NVML_GPM_METRIC_NVLINK_L50_RX = 361
+    NVML_GPM_METRIC_NVLINK_L50_TX = 362
+    NVML_GPM_METRIC_NVLINK_L51_RX = 363
+    NVML_GPM_METRIC_NVLINK_L51_TX = 364
+    NVML_GPM_METRIC_NVLINK_L52_RX = 365
+    NVML_GPM_METRIC_NVLINK_L52_TX = 366
+    NVML_GPM_METRIC_NVLINK_L53_RX = 367
+    NVML_GPM_METRIC_NVLINK_L53_TX = 368
+    NVML_GPM_METRIC_NVLINK_L54_RX = 369
+    NVML_GPM_METRIC_NVLINK_L54_TX = 370
+    NVML_GPM_METRIC_NVLINK_L55_RX = 371
+    NVML_GPM_METRIC_NVLINK_L55_TX = 372
+    NVML_GPM_METRIC_NVLINK_L56_RX = 373
+    NVML_GPM_METRIC_NVLINK_L56_TX = 374
+    NVML_GPM_METRIC_NVLINK_L57_RX = 375
+    NVML_GPM_METRIC_NVLINK_L57_TX = 376
+    NVML_GPM_METRIC_NVLINK_L58_RX = 377
+    NVML_GPM_METRIC_NVLINK_L58_TX = 378
+    NVML_GPM_METRIC_NVLINK_L59_RX = 379
+    NVML_GPM_METRIC_NVLINK_L59_TX = 380
+    NVML_GPM_METRIC_NVLINK_L60_RX = 381
+    NVML_GPM_METRIC_NVLINK_L60_TX = 382
+    NVML_GPM_METRIC_NVLINK_L61_RX = 383
+    NVML_GPM_METRIC_NVLINK_L61_TX = 384
+    NVML_GPM_METRIC_NVLINK_L62_RX = 385
+    NVML_GPM_METRIC_NVLINK_L62_TX = 386
+    NVML_GPM_METRIC_NVLINK_L63_RX = 387
+    NVML_GPM_METRIC_NVLINK_L63_TX = 388
+    NVML_GPM_METRIC_NVLINK_L64_RX = 389
+    NVML_GPM_METRIC_NVLINK_L64_TX = 390
+    NVML_GPM_METRIC_NVLINK_L65_RX = 391
+    NVML_GPM_METRIC_NVLINK_L65_TX = 392
+    NVML_GPM_METRIC_NVLINK_L66_RX = 393
+    NVML_GPM_METRIC_NVLINK_L66_TX = 394
+    NVML_GPM_METRIC_NVLINK_L67_RX = 395
+    NVML_GPM_METRIC_NVLINK_L67_TX = 396
+    NVML_GPM_METRIC_NVLINK_L68_RX = 397
+    NVML_GPM_METRIC_NVLINK_L68_TX = 398
+    NVML_GPM_METRIC_NVLINK_L69_RX = 399
+    NVML_GPM_METRIC_NVLINK_L69_TX = 400
+    NVML_GPM_METRIC_NVLINK_L70_RX = 401
+    NVML_GPM_METRIC_NVLINK_L70_TX = 402
+    NVML_GPM_METRIC_NVLINK_L71_RX = 403
+    NVML_GPM_METRIC_NVLINK_L71_TX = 404
+    NVML_GPM_METRIC_NVLINK_L36_RX_PER_SEC = 405
+    NVML_GPM_METRIC_NVLINK_L36_TX_PER_SEC = 406
+    NVML_GPM_METRIC_NVLINK_L37_RX_PER_SEC = 407
+    NVML_GPM_METRIC_NVLINK_L37_TX_PER_SEC = 408
+    NVML_GPM_METRIC_NVLINK_L38_RX_PER_SEC = 409
+    NVML_GPM_METRIC_NVLINK_L38_TX_PER_SEC = 410
+    NVML_GPM_METRIC_NVLINK_L39_RX_PER_SEC = 411
+    NVML_GPM_METRIC_NVLINK_L39_TX_PER_SEC = 412
+    NVML_GPM_METRIC_NVLINK_L40_RX_PER_SEC = 413
+    NVML_GPM_METRIC_NVLINK_L40_TX_PER_SEC = 414
+    NVML_GPM_METRIC_NVLINK_L41_RX_PER_SEC = 415
+    NVML_GPM_METRIC_NVLINK_L41_TX_PER_SEC = 416
+    NVML_GPM_METRIC_NVLINK_L42_RX_PER_SEC = 417
+    NVML_GPM_METRIC_NVLINK_L42_TX_PER_SEC = 418
+    NVML_GPM_METRIC_NVLINK_L43_RX_PER_SEC = 419
+    NVML_GPM_METRIC_NVLINK_L43_TX_PER_SEC = 420
+    NVML_GPM_METRIC_NVLINK_L44_RX_PER_SEC = 421
+    NVML_GPM_METRIC_NVLINK_L44_TX_PER_SEC = 422
+    NVML_GPM_METRIC_NVLINK_L45_RX_PER_SEC = 423
+    NVML_GPM_METRIC_NVLINK_L45_TX_PER_SEC = 424
+    NVML_GPM_METRIC_NVLINK_L46_RX_PER_SEC = 425
+    NVML_GPM_METRIC_NVLINK_L46_TX_PER_SEC = 426
+    NVML_GPM_METRIC_NVLINK_L47_RX_PER_SEC = 427
+    NVML_GPM_METRIC_NVLINK_L47_TX_PER_SEC = 428
+    NVML_GPM_METRIC_NVLINK_L48_RX_PER_SEC = 429
+    NVML_GPM_METRIC_NVLINK_L48_TX_PER_SEC = 430
+    NVML_GPM_METRIC_NVLINK_L49_RX_PER_SEC = 431
+    NVML_GPM_METRIC_NVLINK_L49_TX_PER_SEC = 432
+    NVML_GPM_METRIC_NVLINK_L50_RX_PER_SEC = 433
+    NVML_GPM_METRIC_NVLINK_L50_TX_PER_SEC = 434
+    NVML_GPM_METRIC_NVLINK_L51_RX_PER_SEC = 435
+    NVML_GPM_METRIC_NVLINK_L51_TX_PER_SEC = 436
+    NVML_GPM_METRIC_NVLINK_L52_RX_PER_SEC = 437
+    NVML_GPM_METRIC_NVLINK_L52_TX_PER_SEC = 438
+    NVML_GPM_METRIC_NVLINK_L53_RX_PER_SEC = 439
+    NVML_GPM_METRIC_NVLINK_L53_TX_PER_SEC = 440
+    NVML_GPM_METRIC_NVLINK_L54_RX_PER_SEC = 441
+    NVML_GPM_METRIC_NVLINK_L54_TX_PER_SEC = 442
+    NVML_GPM_METRIC_NVLINK_L55_RX_PER_SEC = 443
+    NVML_GPM_METRIC_NVLINK_L55_TX_PER_SEC = 444
+    NVML_GPM_METRIC_NVLINK_L56_RX_PER_SEC = 445
+    NVML_GPM_METRIC_NVLINK_L56_TX_PER_SEC = 446
+    NVML_GPM_METRIC_NVLINK_L57_RX_PER_SEC = 447
+    NVML_GPM_METRIC_NVLINK_L57_TX_PER_SEC = 448
+    NVML_GPM_METRIC_NVLINK_L58_RX_PER_SEC = 449
+    NVML_GPM_METRIC_NVLINK_L58_TX_PER_SEC = 450
+    NVML_GPM_METRIC_NVLINK_L59_RX_PER_SEC = 451
+    NVML_GPM_METRIC_NVLINK_L59_TX_PER_SEC = 452
+    NVML_GPM_METRIC_NVLINK_L60_RX_PER_SEC = 453
+    NVML_GPM_METRIC_NVLINK_L60_TX_PER_SEC = 454
+    NVML_GPM_METRIC_NVLINK_L61_RX_PER_SEC = 455
+    NVML_GPM_METRIC_NVLINK_L61_TX_PER_SEC = 456
+    NVML_GPM_METRIC_NVLINK_L62_RX_PER_SEC = 457
+    NVML_GPM_METRIC_NVLINK_L62_TX_PER_SEC = 458
+    NVML_GPM_METRIC_NVLINK_L63_RX_PER_SEC = 459
+    NVML_GPM_METRIC_NVLINK_L63_TX_PER_SEC = 460
+    NVML_GPM_METRIC_NVLINK_L64_RX_PER_SEC = 461
+    NVML_GPM_METRIC_NVLINK_L64_TX_PER_SEC = 462
+    NVML_GPM_METRIC_NVLINK_L65_RX_PER_SEC = 463
+    NVML_GPM_METRIC_NVLINK_L65_TX_PER_SEC = 464
+    NVML_GPM_METRIC_NVLINK_L66_RX_PER_SEC = 465
+    NVML_GPM_METRIC_NVLINK_L66_TX_PER_SEC = 466
+    NVML_GPM_METRIC_NVLINK_L67_RX_PER_SEC = 467
+    NVML_GPM_METRIC_NVLINK_L67_TX_PER_SEC = 468
+    NVML_GPM_METRIC_NVLINK_L68_RX_PER_SEC = 469
+    NVML_GPM_METRIC_NVLINK_L68_TX_PER_SEC = 470
+    NVML_GPM_METRIC_NVLINK_L69_RX_PER_SEC = 471
+    NVML_GPM_METRIC_NVLINK_L69_TX_PER_SEC = 472
+    NVML_GPM_METRIC_NVLINK_L70_RX_PER_SEC = 473
+    NVML_GPM_METRIC_NVLINK_L70_TX_PER_SEC = 474
+    NVML_GPM_METRIC_NVLINK_L71_RX_PER_SEC = 475
+    NVML_GPM_METRIC_NVLINK_L71_TX_PER_SEC = 476
+    NVML_GPM_METRIC_MAX = 477
 end
 
 mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#316"
+struct var"##Ctag#317"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#316"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#317"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#316", f::Symbol)
-    r = Ref{var"##Ctag#316"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#316"}, r)
+function Base.getproperty(x::var"##Ctag#317", f::Symbol)
+    r = Ref{var"##Ctag#317"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#317"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#316"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#317"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -5286,7 +5806,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#316"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#317"}(x + 16)
     return getfield(x, f)
 end
 
@@ -5314,7 +5834,7 @@ struct nvmlGpmMetricsGet_t
     numMetrics::Cuint
     sample1::nvmlGpmSample_t
     sample2::nvmlGpmSample_t
-    metrics::NTuple{333,nvmlGpmMetric_t}
+    metrics::NTuple{477,nvmlGpmMetric_t}
 end
 
 struct nvmlGpmSupport_t
@@ -5400,7 +5920,17 @@ end
     NVML_POWER_PROFILE_SYNC_BALANCED = 12
     NVML_POWER_PROFILE_HPC = 13
     NVML_POWER_PROFILE_MIG = 14
-    NVML_POWER_PROFILE_MAX = 15
+    NVML_POWER_PROFILE_MAX_Q_1 = 15
+    NVML_POWER_PROFILE_NETWORK_BOUND = 16
+    NVML_POWER_PROFILE_HIGH_THROUGHPUT_INFERENCE = 17
+    NVML_POWER_PROFILE_MEDIUM_THROUGHPUT_INFERENCE = 18
+    NVML_POWER_PROFILE_LOW_LATENCY_INFERENCE = 19
+    NVML_POWER_PROFILE_TRAINING = 20
+    NVML_POWER_PROFILE_INFERENCE = 21
+    NVML_POWER_PROFILE_MAX_Q_2 = 22
+    NVML_POWER_PROFILE_MAX_Q_3 = 23
+    NVML_POWER_PROFILE_LOW_PRIORITY_BACKGROUND = 24
+    NVML_POWER_PROFILE_MAX = 25
 end
 
 @cenum nvmlPowerProfileOperation_t::UInt32 begin
@@ -5530,6 +6060,24 @@ end
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceSetRusdSettings_v1(device::nvmlDevice_t,
                                                        settings::Ptr{nvmlRusdSettings_v1_t})::nvmlReturn_t
+end
+
+struct nvmlEccBankRemapperHistogram_v1_t
+    maxSpareGroupCount::Cuint
+    noSpareGroupCount::Cuint
+end
+
+struct nvmlEccBankRemapperStatus_v1_t
+    activeRemappings::Cuint
+    inactiveRemappings::Cuint
+    bPending::Cuint
+    histogram::nvmlEccBankRemapperHistogram_v1_t
+end
+
+@checked function nvmlDeviceGetBankRemapperStatus_v1(device, pBankRemapperStatus)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetBankRemapperStatus_v1(device::nvmlDevice_t,
+                                                             pBankRemapperStatus::Ptr{nvmlEccBankRemapperStatus_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlInit()
@@ -5677,32 +6225,13 @@ end
                                                    pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#313"
+struct var"##Ctag#314"
     avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#313"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#314"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :timeslice && return Ptr{Cuint}(x + 4)
-    return getfield(x, f)
-end
-
-function Base.getproperty(x::var"##Ctag#313", f::Symbol)
-    r = Ref{var"##Ctag#313"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#313"}, r)
-    fptr = getproperty(ptr, f)
-    GC.@preserve r unsafe_load(fptr)
-end
-
-function Base.setproperty!(x::Ptr{var"##Ctag#313"}, f::Symbol, v)
-    return unsafe_store!(getproperty(x, f), v)
-end
-
-struct var"##Ctag#314"
-    timeslice::Cuint
-end
-function Base.getproperty(x::Ptr{var"##Ctag#314"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
@@ -5717,32 +6246,32 @@ function Base.setproperty!(x::Ptr{var"##Ctag#314"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#318"
-    avgFactor::Cuint
-    frequency::Cuint
+struct var"##Ctag#315"
+    timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
-    f === :avgFactor && return Ptr{Cuint}(x + 0)
-    f === :frequency && return Ptr{Cuint}(x + 4)
+function Base.getproperty(x::Ptr{var"##Ctag#315"}, f::Symbol)
+    f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#318", f::Symbol)
-    r = Ref{var"##Ctag#318"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#318"}, r)
+function Base.getproperty(x::var"##Ctag#315", f::Symbol)
+    r = Ref{var"##Ctag#315"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#315"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#318"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#315"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
 struct var"##Ctag#319"
-    timeslice::Cuint
+    avgFactor::Cuint
+    frequency::Cuint
 end
 function Base.getproperty(x::Ptr{var"##Ctag#319"}, f::Symbol)
-    f === :timeslice && return Ptr{Cuint}(x + 0)
+    f === :avgFactor && return Ptr{Cuint}(x + 0)
+    f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
@@ -5754,6 +6283,25 @@ function Base.getproperty(x::var"##Ctag#319", f::Symbol)
 end
 
 function Base.setproperty!(x::Ptr{var"##Ctag#319"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+struct var"##Ctag#320"
+    timeslice::Cuint
+end
+function Base.getproperty(x::Ptr{var"##Ctag#320"}, f::Symbol)
+    f === :timeslice && return Ptr{Cuint}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#320", f::Symbol)
+    r = Ref{var"##Ctag#320"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#320"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#320"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -5774,6 +6322,8 @@ const NVML_DEVICE_PCI_BUS_ID_LEGACY_FMT = "%04X:%02X:%02X.0"
 const NVML_DEVICE_PCI_BUS_ID_FMT = "%08X:%02X:%02X.0"
 
 const nvmlMemory_v2 = @NVML_STRUCT_VERSION(Memory, 2)
+
+const NVML_DEVICE_MEMORY_LIMIT_MAX = 0xffffffffffffffff
 
 const nvmlProcessDetailList_v1 = @NVML_STRUCT_VERSION(ProcessDetailList, 1)
 
@@ -5800,6 +6350,32 @@ const NVML_DEVICE_UUID_BINARY_LEN = 16
 const nvmlUUID_v1 = @NVML_STRUCT_VERSION(UUID, 1)
 
 const nvmlPdi_v1 = @NVML_STRUCT_VERSION(Pdi, 1)
+
+const NVML_PERF_METRICS_PWR_MODEL_DLPPM_1X_MAX_CORE_RAILS = 2
+
+const NVML_PERF_METRICS_NNE_DESC_INFERENCE_LOOPS_MAX = 8
+
+const NVML_PERF_METRICS_PWR_MODEL_METRICS_DLPPM_1X_OBESRVED_INTIAL_DRAMCLK_ESTIMATES_MAX = 3
+
+const NVML_PERF_METRICS_CONTROLLER_DLPPC_2X_PWR_POLICY_RELATIONSHIP_SET_LIMITS_MAX = 4
+
+const NVML_PERF_METRICS_CONTROLLER_STATUS_DLPPC_2X_DRAMCLK_NUM = 3
+
+const NVML_PERF_METRICS_CONTROLLER_SAMPLE_CONTROLLER_MAX_NUM = 4
+
+const NVML_PERF_METRICS_SAMPLE_COUNT = 13
+
+const NVML_PERF_METRICS_PWR_MODEL_SCALE_LOOPS_MAX_PFPP_1X = 32
+
+const NVML_PERF_METRICS_PWR_MODEL_SCALE_METRICS_INPUT_MAX = 16
+
+const NVML_PERF_METRICS_CONTROLLER_TYPE_DLPPC_2X = 0
+
+const NVML_PERF_METRICS_CONTROLLER_TYPE_PFPP_1X = 1
+
+const NVML_PERF_METRICS_PWR_MODEL_SCALE_METRICS_PFPP_1X_GPCCLK_IDX = 0
+
+const NVML_PERF_CF_PM_SENSOR_MAX_SIGNALS = 1024
 
 const nvmlFlagDefault = 0x00
 
@@ -5890,7 +6466,13 @@ const NVML_DEVICE_ARCH_HOPPER = 9
 
 const NVML_DEVICE_ARCH_BLACKWELL = 10
 
+const NVML_DEVICE_ARCH_DLA = 11
+
+const NVML_DEVICE_ARCH_DLA2 = 12
+
 const NVML_DEVICE_ARCH_RUBIN = 13
+
+const NVML_DEVICE_ARCH_NPU3 = 15
 
 const NVML_DEVICE_ARCH_UNKNOWN = 0xffffffff
 
@@ -6677,7 +7259,17 @@ const NVML_FI_DEV_REMAPPED_ROWS_COR_INACTIVE = 301
 
 const NVML_FI_DEV_REMAPPED_ROWS_UNC_INACTIVE = 302
 
-const NVML_FI_MAX = 303
+const NVML_FI_DEV_ACTIVE_BANK_REMAPPINGS = 303
+
+const NVML_FI_DEV_INACTIVE_BANK_REMAPPINGS = 304
+
+const NVML_FI_DEV_BANK_REMAPPER_HISTOGRAM_MAX = 305
+
+const NVML_FI_DEV_BANK_REMAPPER_HISTOGRAM_NONE = 306
+
+const NVML_FI_DEV_PENDING_BANK_REMAPPING = 307
+
+const NVML_FI_MAX = 308
 
 const NVML_MCLK_SWITCH_TYPE_NOT_SUPPORTED = 0x00
 
@@ -6746,6 +7338,30 @@ const nvmlEventTypeAll = (((((((((((((nvmlEventTypeNone | nvmlEventTypeSingleBit
                            nvmlEventTypeFatalPoisonError) |
                           nvmlEventTypeGpuUnavailableError) | nvmlEventTypeGpuRecoveryAction
 
+const NVML_GPU_INSTANCE_ID_ANY = Cuint(0xffffffff)
+
+const NVML_COMPUTE_INSTANCE_ID_ANY = Cuint(0xffffffff)
+
+const NVML_OPERATIONAL_EVENT_ATTR_UNCONTAINED = Cuint(1) << 0
+
+const NVML_OPERATIONAL_EVENT_ATTR_LATENT = Cuint(1) << 1
+
+const NVML_OPERATIONAL_EVENT_ATTR_PROPAGATED = Cuint(1) << 2
+
+const NVML_OPERATIONAL_EVENT_ATTR_COMPONENT_RESET = Cuint(1) << 3
+
+const NVML_OPERATIONAL_EVENT_ATTR_THRESHOLD_EXCEEDED = Cuint(1) << 4
+
+const NVML_OPERATIONAL_EVENT_ATTR_PRIMARY = Cuint(1) << 5
+
+const NVML_OPERATIONAL_EVENT_ATTR_OVERFLOW = Cuint(1) << 6
+
+const NVML_OPERATIONAL_EVENT_GROUP_ATTR_RECOVERED = Cuint(1) << 0
+
+const NVML_OPERATIONAL_EVENT_GROUP_ATTR_PREVERR = Cuint(1) << 1
+
+const NVML_OPERATIONAL_EVENT_GROUP_ATTR_SIMULATED = Cuint(1) << 2
+
 const nvmlSystemEventTypeGpuDriverUnbind = Clonglong(0x0000000000000001)
 
 const nvmlSystemEventTypeGpuDriverBind = Clonglong(0x0000000000000002)
@@ -6780,9 +7396,13 @@ const nvmlClocksThrottleReasonHwPowerBrakeSlowdown = Clonglong(0x000000000000008
 
 const nvmlClocksEventReasonDisplayClockSetting = Clonglong(0x0000000000000100)
 
+const nvmlClocksEventReasonBoardLimit = Clonglong(0x0000000000000200)
+
+const nvmlClocksEventReasonReliability = Clonglong(0x0000000000000400)
+
 const nvmlClocksEventReasonNone = Clonglong(0x0000000000000000)
 
-# Skipping MacroDefinition: nvmlClocksEventReasonAll ( nvmlClocksThrottleReasonNone | nvmlClocksEventReasonGpuIdle | nvmlClocksEventReasonApplicationsClocksSetting | nvmlClocksEventReasonSwPowerCap | nvmlClocksThrottleReasonHwSlowdown | nvmlClocksEventReasonSyncBoost | nvmlClocksEventReasonSwThermalSlowdown | nvmlClocksThrottleReasonHwThermalSlowdown | nvmlClocksThrottleReasonHwPowerBrakeSlowdown | nvmlClocksEventReasonDisplayClockSetting \
+# Skipping MacroDefinition: nvmlClocksEventReasonAll ( nvmlClocksThrottleReasonNone | nvmlClocksEventReasonGpuIdle | nvmlClocksEventReasonApplicationsClocksSetting | nvmlClocksEventReasonSwPowerCap | nvmlClocksThrottleReasonHwSlowdown | nvmlClocksEventReasonSyncBoost | nvmlClocksEventReasonSwThermalSlowdown | nvmlClocksThrottleReasonHwThermalSlowdown | nvmlClocksThrottleReasonHwPowerBrakeSlowdown | nvmlClocksEventReasonDisplayClockSetting | nvmlClocksEventReasonBoardLimit | nvmlClocksEventReasonReliability \
 #)
 
 const NVML_NVFBC_SESSION_FLAG_DIFFMAP_ENABLED = 0x00000001
@@ -6941,6 +7561,16 @@ const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_PARTITION_ASSIGNED = 12
 
 const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_PARTITION_ASSIGNED = 0x03
 
+const NVML_GPU_FABRIC_HEALTH_MASK_GFM_STATE_NOT_SUPPORTED = 0
+
+const NVML_GPU_FABRIC_HEALTH_MASK_GFM_STATE_CONNECTED = 1
+
+const NVML_GPU_FABRIC_HEALTH_MASK_GFM_STATE_DISCONNECTED = 2
+
+const NVML_GPU_FABRIC_HEALTH_MASK_SHIFT_GFM_STATE = 14
+
+const NVML_GPU_FABRIC_HEALTH_MASK_WIDTH_GFM_STATE = 0x03
+
 const NVML_GPU_FABRIC_HEALTH_SUMMARY_NOT_SUPPORTED = 0
 
 const NVML_GPU_FABRIC_HEALTH_SUMMARY_HEALTHY = 1
@@ -6952,6 +7582,16 @@ const NVML_GPU_FABRIC_HEALTH_SUMMARY_LIMITED_CAPACITY = 3
 const nvmlGpuFabricInfo_v2 = @NVML_STRUCT_VERSION(GpuFabricInfo, 2)
 
 const nvmlGpuFabricInfo_v3 = @NVML_STRUCT_VERSION(GpuFabricInfo, 3)
+
+const NVML_GPU_FABRIC_CLIQUE_MAX = 64
+
+const NVML_GPU_FABRIC_CLIQUE_TYPE_UNICAST_POINTER = 0
+
+const NVML_GPU_FABRIC_CLIQUE_TYPE_MULTICAST_POINTER = 1
+
+const NVML_GPU_FABRIC_CLIQUE_TYPE_UNICAST_LOGICAL_ENDPOINT = 2
+
+const NVML_GPU_FABRIC_CLIQUE_TYPE_MULTICAST_LOGICAL_ENDPOINT = 3
 
 const NVML_INIT_FLAG_NO_GPUS = 1 << 0
 
@@ -7002,6 +7642,8 @@ const NVML_NVLINK_STATE_INACTIVE = 0x00
 const NVML_NVLINK_STATE_ACTIVE = 0x01
 
 const NVML_NVLINK_STATE_SLEEP = 0x02
+
+const NVML_NVLINK_STATE_ACTIVE_TRAFFIC_DISABLED = 0x03
 
 const NVML_NVLINK_TOTAL_SUPPORTED_BW_MODES = 23
 

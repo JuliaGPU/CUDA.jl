@@ -6280,8 +6280,10 @@ end
     initialize_context()
     @gcsafe_ccall libcusparse.cusparseSpGEAM(handle::cusparseHandle_t,
                                              opA::cusparseOperation_t,
-                                             opB::cusparseOperation_t, alpha::PtrOrCuPtr{Cvoid},
-                                             matA::cusparseSpMatDescr_t, beta::PtrOrCuPtr{Cvoid},
+                                             opB::cusparseOperation_t,
+                                             alpha::PtrOrCuPtr{Cvoid},
+                                             matA::cusparseSpMatDescr_t,
+                                             beta::PtrOrCuPtr{Cvoid},
                                              matB::cusparseSpMatDescr_t,
                                              matC::cusparseSpMatDescr_t,
                                              computeType::cudaDataType,

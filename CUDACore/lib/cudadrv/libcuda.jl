@@ -57,6 +57,7 @@ const CUdevice = CUdevice_v1
     CUDA_ERROR_STUB_LIBRARY = 34
     CUDA_ERROR_CALL_REQUIRES_NEWER_DRIVER = 36
     CUDA_ERROR_DEVICE_UNAVAILABLE = 46
+    CUDA_ERROR_MULTICAST_RESOURCE_FULL = 47
     CUDA_ERROR_NO_DEVICE = 100
     CUDA_ERROR_INVALID_DEVICE = 101
     CUDA_ERROR_DEVICE_NOT_LICENSED = 102
@@ -85,6 +86,7 @@ const CUdevice = CUdevice_v1
     CUDA_ERROR_UNSUPPORTED_EXEC_AFFINITY = 224
     CUDA_ERROR_UNSUPPORTED_DEVSIDE_SYNC = 225
     CUDA_ERROR_CONTAINED = 226
+    CUDA_ERROR_INSUFFICIENT_LOADER_VERSION = 227
     CUDA_ERROR_INVALID_SOURCE = 300
     CUDA_ERROR_FILE_NOT_FOUND = 301
     CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND = 302
@@ -147,6 +149,7 @@ const CUdevice = CUdevice_v1
     CUDA_ERROR_KEY_ROTATION = 916
     CUDA_ERROR_STREAM_DETACHED = 917
     CUDA_ERROR_GRAPH_RECAPTURE_FAILURE = 918
+    CUDA_ERROR_FABRIC_NOT_READY = 919
     CUDA_ERROR_UNKNOWN = 999
 end
 
@@ -328,6 +331,7 @@ const CUmem_advise = CUmem_advise_enum
     CU_MEM_LOCATION_TYPE_HOST_NUMA = 3
     CU_MEM_LOCATION_TYPE_HOST_NUMA_CURRENT = 4
     CU_MEM_LOCATION_TYPE_INVISIBLE = 5
+    CU_MEM_LOCATION_TYPE_DEVICE_LOCALITY_DOMAIN = 6
     CU_MEM_LOCATION_TYPE_MAX = 2147483647
 end
 
@@ -340,6 +344,7 @@ end
 function Base.getproperty(x::Ptr{CUmemLocation_st}, f::Symbol)
     f === :type && return Ptr{CUmemLocationType}(x + 0)
     f === :id && return Ptr{Cint}(x + 4)
+    f === :localized && return Ptr{Cvoid}(x + 4)
     return getfield(x, f)
 end
 
@@ -355,7 +360,7 @@ function Base.setproperty!(x::Ptr{CUmemLocation_st}, f::Symbol, v)
 end
 
 function Base.propertynames(x::CUmemLocation_st, private::Bool=false)
-    return (:type, :id, if private
+    return (:type, :id, :localized, if private
                 fieldnames(typeof(x))
             else
                 ()
@@ -1934,13 +1939,18 @@ const CUfilter_mode = CUfilter_mode_enum
     CU_DEVICE_ATTRIBUTE_HOST_ALLOC_DMA_BUF_SUPPORTED = 146
     CU_DEVICE_ATTRIBUTE_ONLY_PARTIAL_HOST_NATIVE_ATOMIC_SUPPORTED = 147
     CU_DEVICE_ATTRIBUTE_ATOMIC_REDUCTION_SUPPORTED = 148
+    CU_DEVICE_ATTRIBUTE_LOCALITY_DOMAIN_COUNT = 149
+    CU_DEVICE_ATTRIBUTE_MAX_OVERSIZED_SHARED_MEMORY_PER_BLOCK = 150
     CU_DEVICE_ATTRIBUTE_D3D12_CIG_STREAMS_SUPPORTED = 151
     CU_DEVICE_ATTRIBUTE_DMA_BUF_MMAP_SUPPORTED = 152
     CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_SUPPORTED = 153
     CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_MULTICAST_SUPPORTED = 154
     CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_COUNTED_OPS_SUPPORTED = 155
     CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_UNICAST_ACCESS_ON_OWNER_DEVICE_SUPPORTED = 156
-    CU_DEVICE_ATTRIBUTE_MAX = 157
+    CU_DEVICE_ATTRIBUTE_LOCALITY_DOMAIN_MULTIPROCESSOR_COUNT = 157
+    CU_DEVICE_ATTRIBUTE_LOGICAL_ENDPOINT_SUPPORTED_HANDLE_TYPES = 158
+    CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_LOCALIZED_MEMORY_SUPPORTED = 161
+    CU_DEVICE_ATTRIBUTE_MAX = 162
 end
 
 const CUdevice_attribute = CUdevice_attribute_enum
@@ -1984,6 +1994,7 @@ const CUdevprop = CUdevprop_v1
     CU_POINTER_ATTRIBUTE_MAPPING_BASE_ADDR = 19
     CU_POINTER_ATTRIBUTE_MEMORY_BLOCK_ID = 20
     CU_POINTER_ATTRIBUTE_IS_HW_DECOMPRESS_CAPABLE = 21
+    CU_POINTER_ATTRIBUTE_LOCALITY_DOMAIN_ORDINAL = 22
 end
 
 const CUpointer_attribute = CUpointer_attribute_enum
@@ -2006,7 +2017,8 @@ const CUpointer_attribute = CUpointer_attribute_enum
     CU_FUNC_ATTRIBUTE_NON_PORTABLE_CLUSTER_SIZE_ALLOWED = 14
     CU_FUNC_ATTRIBUTE_CLUSTER_SCHEDULING_POLICY_PREFERENCE = 15
     CU_FUNC_ATTRIBUTE_DEVICE_NODE_UPDATE_SUPPORTED = 16
-    CU_FUNC_ATTRIBUTE_MAX = 17
+    CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE = 17
+    CU_FUNC_ATTRIBUTE_MAX = 18
 end
 
 const CUfunction_attribute = CUfunction_attribute_enum
@@ -2079,17 +2091,20 @@ const CUmem_range_attribute = CUmem_range_attribute_enum
     CU_TARGET_COMPUTE_100 = 100
     CU_TARGET_COMPUTE_110 = 110
     CU_TARGET_COMPUTE_103 = 103
+    CU_TARGET_COMPUTE_107 = 107
     CU_TARGET_COMPUTE_120 = 120
     CU_TARGET_COMPUTE_121 = 121
     CU_TARGET_COMPUTE_90A = 65626
     CU_TARGET_COMPUTE_100A = 65636
     CU_TARGET_COMPUTE_110A = 65646
     CU_TARGET_COMPUTE_103A = 65639
+    CU_TARGET_COMPUTE_107A = 65643
     CU_TARGET_COMPUTE_120A = 65656
     CU_TARGET_COMPUTE_121A = 65657
     CU_TARGET_COMPUTE_100F = 131172
     CU_TARGET_COMPUTE_110F = 131182
     CU_TARGET_COMPUTE_103F = 131175
+    CU_TARGET_COMPUTE_107F = 131179
     CU_TARGET_COMPUTE_120F = 131192
     CU_TARGET_COMPUTE_121F = 131193
 end
@@ -2151,7 +2166,8 @@ const CUarray_cubemap_face = CUarray_cubemap_face_enum
     CU_LIMIT_SHMEM_SIZE = 7
     CU_LIMIT_CIG_ENABLED = 8
     CU_LIMIT_CIG_SHMEM_FALLBACK_ENABLED = 9
-    CU_LIMIT_MAX = 10
+    CU_LIMIT_PER_BLOCK_MEMORY_SIZE = 10
+    CU_LIMIT_MAX = 11
 end
 
 const CUlimit = CUlimit_enum
@@ -2255,9 +2271,35 @@ const CUDA_HOST_NODE_PARAMS_v1 = CUDA_HOST_NODE_PARAMS_st
 const CUDA_HOST_NODE_PARAMS = CUDA_HOST_NODE_PARAMS_v1
 
 struct CUDA_HOST_NODE_PARAMS_v2_st
-    fn::CUhostFn
-    userData::Ptr{Cvoid}
-    syncMode::Cuint
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUDA_HOST_NODE_PARAMS_v2_st}, f::Symbol)
+    f === :fn && return Ptr{CUhostFn}(x + 0)
+    f === :userData && return Ptr{Ptr{Cvoid}}(x + 8)
+    f === :syncMode && return Ptr{Cuint}(x + 16)
+    f === :ctx && return Ptr{CUcontext}(x + 24)
+    f === :gCtx && return Ptr{CUgreenCtx}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUDA_HOST_NODE_PARAMS_v2_st, f::Symbol)
+    r = Ref{CUDA_HOST_NODE_PARAMS_v2_st}(x)
+    ptr = Base.unsafe_convert(Ptr{CUDA_HOST_NODE_PARAMS_v2_st}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUDA_HOST_NODE_PARAMS_v2_st}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUDA_HOST_NODE_PARAMS_v2_st, private::Bool=false)
+    return (:fn, :userData, :syncMode, :ctx, :gCtx, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
 end
 
 const CUDA_HOST_NODE_PARAMS_v2 = CUDA_HOST_NODE_PARAMS_v2_st
@@ -2318,6 +2360,7 @@ const CUsynchronizationPolicy = CUsynchronizationPolicy_enum
     CU_CLUSTER_SCHEDULING_POLICY_DEFAULT = 0
     CU_CLUSTER_SCHEDULING_POLICY_SPREAD = 1
     CU_CLUSTER_SCHEDULING_POLICY_LOAD_BALANCING = 2
+    CU_CLUSTER_SCHEDULING_POLICY_RUBIN_DSMEM_LOCALITY = 3
 end
 
 const CUclusterSchedulingPolicy = CUclusterSchedulingPolicy_enum
@@ -2348,6 +2391,8 @@ const CUlaunchAttributePortableClusterMode = CUlaunchAttributePortableClusterMod
     CU_SHARED_MEMORY_MODE_DEFAULT = 0
     CU_SHARED_MEMORY_MODE_REQUIRE_PORTABLE = 1
     CU_SHARED_MEMORY_MODE_ALLOW_NON_PORTABLE = 2
+    CU_SHARED_MEMORY_MODE_ALLOW_OVERSIZED_SHARED_MEMORY = 3
+    CU_SHARED_MEMORY_MODE_PREFER_OVERSIZED_SHARED_MEMORY = 4
 end
 
 const CUsharedMemoryMode = CUsharedMemoryMode_enum
@@ -3394,9 +3439,36 @@ const CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v1 = CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_st
 const CUDA_EXT_SEM_SIGNAL_NODE_PARAMS = CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v1
 
 struct CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st
-    extSemArray::Ptr{CUexternalSemaphore}
-    paramsArray::Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS}
-    numExtSems::Cuint
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st}, f::Symbol)
+    f === :extSemArray && return Ptr{Ptr{CUexternalSemaphore}}(x + 0)
+    f === :paramsArray && return Ptr{Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS}}(x + 8)
+    f === :numExtSems && return Ptr{Cuint}(x + 16)
+    f === :ctx && return Ptr{CUcontext}(x + 24)
+    f === :gCtx && return Ptr{CUgreenCtx}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st, f::Symbol)
+    r = Ref{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st}(x)
+    ptr = Base.unsafe_convert(Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st, private::Bool=false)
+    return (:extSemArray, :paramsArray, :numExtSems, :ctx, :gCtx,
+            if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
 end
 
 const CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2 = CUDA_EXT_SEM_SIGNAL_NODE_PARAMS_v2_st
@@ -3412,9 +3484,36 @@ const CUDA_EXT_SEM_WAIT_NODE_PARAMS_v1 = CUDA_EXT_SEM_WAIT_NODE_PARAMS_st
 const CUDA_EXT_SEM_WAIT_NODE_PARAMS = CUDA_EXT_SEM_WAIT_NODE_PARAMS_v1
 
 struct CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st
-    extSemArray::Ptr{CUexternalSemaphore}
-    paramsArray::Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS}
-    numExtSems::Cuint
+    data::NTuple{32,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st}, f::Symbol)
+    f === :extSemArray && return Ptr{Ptr{CUexternalSemaphore}}(x + 0)
+    f === :paramsArray && return Ptr{Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS}}(x + 8)
+    f === :numExtSems && return Ptr{Cuint}(x + 16)
+    f === :ctx && return Ptr{CUcontext}(x + 24)
+    f === :gCtx && return Ptr{CUgreenCtx}(x + 24)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st, f::Symbol)
+    r = Ref{CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st}(x)
+    ptr = Base.unsafe_convert(Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st, private::Bool=false)
+    return (:extSemArray, :paramsArray, :numExtSems, :ctx, :gCtx,
+            if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
 end
 
 const CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2 = CUDA_EXT_SEM_WAIT_NODE_PARAMS_v2_st
@@ -3733,6 +3832,7 @@ const CUmemAccessDesc = CUmemAccessDesc_v1
     CU_MEMPOOL_ATTR_LOCATION_TYPE = 12
     CU_MEMPOOL_ATTR_MAX_POOL_SIZE = 13
     CU_MEMPOOL_ATTR_HW_DECOMPRESS_ENABLED = 14
+    CU_MEMPOOL_ATTR_LOCALITY_DOMAIN_ID = 15
 end
 
 const CUmemPool_attribute = CUmemPool_attribute_enum
@@ -3744,7 +3844,8 @@ struct CUmemPoolProps_st
     win32SecurityAttributes::Ptr{Cvoid}
     maxSize::Csize_t
     usage::Cushort
-    reserved::NTuple{54,Cuchar}
+    gpuDirectRDMACapable::Cuchar
+    reserved::NTuple{53,Cuchar}
 end
 
 const CUmemPoolProps_v1 = CUmemPoolProps_st
@@ -3829,7 +3930,33 @@ end
 const CUDA_CHILD_GRAPH_NODE_PARAMS = CUDA_CHILD_GRAPH_NODE_PARAMS_st
 
 struct CUDA_EVENT_RECORD_NODE_PARAMS_st
-    event::CUevent
+    data::NTuple{16,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUDA_EVENT_RECORD_NODE_PARAMS_st}, f::Symbol)
+    f === :event && return Ptr{CUevent}(x + 0)
+    f === :ctx && return Ptr{CUcontext}(x + 8)
+    f === :gCtx && return Ptr{CUgreenCtx}(x + 8)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUDA_EVENT_RECORD_NODE_PARAMS_st, f::Symbol)
+    r = Ref{CUDA_EVENT_RECORD_NODE_PARAMS_st}(x)
+    ptr = Base.unsafe_convert(Ptr{CUDA_EVENT_RECORD_NODE_PARAMS_st}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUDA_EVENT_RECORD_NODE_PARAMS_st}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUDA_EVENT_RECORD_NODE_PARAMS_st, private::Bool=false)
+    return (:event, :ctx, :gCtx, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
 end
 
 const CUDA_EVENT_RECORD_NODE_PARAMS = CUDA_EVENT_RECORD_NODE_PARAMS_st
@@ -3922,9 +4049,31 @@ const CUdeviceNumaConfig = CUdeviceNumaConfig_enum
     CU_PROCESS_STATE_LOCKED = 1
     CU_PROCESS_STATE_CHECKPOINTED = 2
     CU_PROCESS_STATE_FAILED = 3
+    CU_PROCESS_STATE_CHECKPOINTING = 4
+    CU_PROCESS_STATE_RESTORING = 5
 end
 
 const CUprocessState = CUprocessState_enum
+
+struct CUcheckpointCustomStoragePerDeviceData_st
+    devPtr::CUdeviceptr
+    size::Csize_t
+    stream::CUstream
+end
+
+const CUcheckpointCustomStoragePerDeviceData = CUcheckpointCustomStoragePerDeviceData_st
+
+mutable struct CUIcheckpointOperation_st end
+
+const CUcheckpointOperationHandle = Ptr{CUIcheckpointOperation_st}
+
+struct CUcheckpointCustomStorageInfo_st
+    handle::CUcheckpointOperationHandle
+    perDeviceData::Ptr{CUcheckpointCustomStoragePerDeviceData}
+    deviceCount::Cuint
+end
+
+const CUcheckpointCustomStorageInfo = CUcheckpointCustomStorageInfo_st
 
 struct CUcheckpointLockArgs_st
     timeoutMs::Cuint
@@ -3935,7 +4084,8 @@ end
 const CUcheckpointLockArgs = CUcheckpointLockArgs_st
 
 struct CUcheckpointCheckpointArgs_st
-    reserved::NTuple{8,cuuint64_t}
+    customStorageInfo_out::Ptr{Ptr{CUcheckpointCustomStorageInfo}}
+    reserved::NTuple{56,Cchar}
 end
 
 const CUcheckpointCheckpointArgs = CUcheckpointCheckpointArgs_st
@@ -3950,7 +4100,9 @@ const CUcheckpointGpuPair = CUcheckpointGpuPair_st
 struct CUcheckpointRestoreArgs_st
     gpuPairs::Ptr{CUcheckpointGpuPair}
     gpuPairsCount::Cuint
-    reserved::NTuple{52,Cchar}
+    padding0::Cuint
+    customStorageInfo_out::Ptr{Ptr{CUcheckpointCustomStorageInfo}}
+    reserved::NTuple{40,Cchar}
 end
 
 const CUcheckpointRestoreArgs = CUcheckpointRestoreArgs_st
@@ -4914,6 +5066,41 @@ end
                                                     option::CUmulticastGranularity_flags)::CUresult
 end
 
+@cenum CUcliqueType_enum::UInt32 begin
+    CU_CLIQUE_TYPE_UNICAST_POINTER = 0
+    CU_CLIQUE_TYPE_MULTICAST_POINTER = 1
+    CU_CLIQUE_TYPE_UNICAST_LOGICAL_ENDPOINT = 2
+    CU_CLIQUE_TYPE_MULTICAST_LOGICAL_ENDPOINT = 3
+end
+
+const CUcliqueType = CUcliqueType_enum
+
+struct CUcliqueInfo_st
+    type::CUcliqueType
+    id::Cuint
+end
+
+const CUcliqueInfo = CUcliqueInfo_st
+
+@checked function cuDeviceGetFabricClusterUuid(uuid, dev)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuDeviceGetFabricClusterUuid(uuid::Ptr{CUuuid},
+                                                       dev::CUdevice)::CUresult
+end
+
+@checked function cuDeviceGetCliqueCount(count, dev)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuDeviceGetCliqueCount(count::Ptr{Csize_t},
+                                                 dev::CUdevice)::CUresult
+end
+
+@checked function cuDeviceGetCliqueInfo(cliqueInfo, count, dev)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuDeviceGetCliqueInfo(cliqueInfo::Ptr{CUcliqueInfo},
+                                                count::Ptr{Csize_t},
+                                                dev::CUdevice)::CUresult
+end
+
 const CUlogicalEndpointId = cuuint32_t
 
 @cenum CUlogicalEndpointIpcHandleType_enum::UInt32 begin
@@ -5101,6 +5288,15 @@ end
                                                             numPrefetchLocs::Csize_t,
                                                             flags::Culonglong,
                                                             hStream::CUstream)::CUresult
+end
+
+@checked function cuMemGetLocationInfo(ptr, size, summaryGranularity, samplingGranularity,
+                                       location_out)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuMemGetLocationInfo(ptr::CUdeviceptr, size::Csize_t,
+                                               summaryGranularity::Csize_t,
+                                               samplingGranularity::Csize_t,
+                                               location_out::Ptr{CUmemLocation})::CUresult
 end
 
 @checked function cuMemRangeGetAttribute(data, dataSize, attribute, devPtr, count)
@@ -6031,10 +6227,26 @@ end
                                                    count::Cuint)::CUresult
 end
 
+@checked function cuGraphAddNode_v3(phGraphNode, hGraph, dependencies, dependencyData,
+                                    numDependencies, nodeParams)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuGraphAddNode_v3(phGraphNode::Ptr{CUgraphNode}, hGraph::CUgraph,
+                                            dependencies::Ptr{CUgraphNode},
+                                            dependencyData::Ptr{CUgraphEdgeData},
+                                            numDependencies::Csize_t,
+                                            nodeParams::Ptr{CUgraphNodeParams})::CUresult
+end
+
 @checked function cuGraphNodeSetParams(hNode, nodeParams)
     initialize_context()
     @gcsafe_ccall libcuda.cuGraphNodeSetParams(hNode::CUgraphNode,
                                                nodeParams::Ptr{CUgraphNodeParams})::CUresult
+end
+
+@checked function cuGraphNodeSetParams_v2(hNode, nodeParams)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuGraphNodeSetParams_v2(hNode::CUgraphNode,
+                                                  nodeParams::Ptr{CUgraphNodeParams})::CUresult
 end
 
 @checked function cuGraphNodeGetParams(hNode, nodeParams)
@@ -6582,6 +6794,7 @@ end
 @cenum CUdevSmResourceGroup_flags::UInt32 begin
     CU_DEV_SM_RESOURCE_GROUP_DEFAULT = 0
     CU_DEV_SM_RESOURCE_GROUP_BACKFILL = 1
+    CU_DEV_SM_RESOURCE_GROUP_LOCALITY_DOMAIN_ID = 2
 end
 
 @cenum CUdevSmResourceSplitByCount_flags::UInt32 begin
@@ -6601,6 +6814,7 @@ struct CUdevSmResource_st
     minSmPartitionSize::Cuint
     smCoscheduledAlignment::Cuint
     flags::Cuint
+    localityDomainId::Cuint
 end
 
 const CUdevSmResource = CUdevSmResource_st
@@ -6629,7 +6843,8 @@ struct CU_DEV_SM_RESOURCE_GROUP_PARAMS_st
     coscheduledSmCount::Cuint
     preferredCoscheduledSmCount::Cuint
     flags::Cuint
-    reserved::NTuple{12,Cuint}
+    localityDomainId::Cuint
+    reserved::NTuple{11,Cuint}
 end
 
 const CU_DEV_SM_RESOURCE_GROUP_PARAMS = CU_DEV_SM_RESOURCE_GROUP_PARAMS_st
@@ -6847,6 +7062,11 @@ end
     initialize_context()
     @gcsafe_ccall libcuda.cuCheckpointProcessRestore(pid::Cint,
                                                      args::Ptr{CUcheckpointRestoreArgs})::CUresult
+end
+
+@checked function cuCheckpointOperationComplete(handle)
+    initialize_context()
+    @gcsafe_ccall libcuda.cuCheckpointOperationComplete(handle::CUcheckpointOperationHandle)::CUresult
 end
 
 @checked function cuCheckpointProcessUnlock(pid, args)
@@ -7521,6 +7741,8 @@ const CUDA_NVSCISYNC_ATTR_WAIT = 0x02
 const CU_MEM_CREATE_USAGE_TILE_POOL = 0x01
 
 const CU_MEM_CREATE_USAGE_HW_DECOMPRESS = 0x02
+
+const CU_MEM_CREATE_USAGE_GPU_DIRECT_RDMA_OVER_PCIE = 0x04
 
 const CU_MEM_POOL_CREATE_USAGE_HW_DECOMPRESS = 0x02
 

@@ -6,7 +6,7 @@ using CUDACore
 using CUDACore: retry_reclaim, initialize_context
 using CUDACore: CUuuid, CUcontext, CUstream, CUdevice, CUdevice_attribute, CUstreamAttrID,
               CUgraph, CUgraphNode, CUgraphNodeType, CUgraphExec, CUaccessPolicyWindow,
-              CUstreamAttrValue
+              CUstreamAttrValue, CUevent
 
 if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
