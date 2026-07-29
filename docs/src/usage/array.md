@@ -119,7 +119,7 @@ julia> b = CUDA.zeros(1)
  0.0
 
 julia> Base.mapreducedim!(identity, +, b, a)
-1×1 CuArray{Float32, 2, CUDACore.DeviceMemory}:
+1-element CuArray{Float32, 1, CUDACore.DeviceMemory}:
  6.0
 ```
 
