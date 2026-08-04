@@ -213,7 +213,6 @@ Base.Experimental.Const(A::CuDeviceArray) = Const(A)
 
 Base.IndexStyle(::Type{<:Const}) = IndexLinear()
 Base.size(C::Const) = size(C.a)
-Base.axes(C::Const) = axes(C.a)
 Base.@propagate_inbounds Base.getindex(A::Const, i1::Integer) = const_arrayref(A.a, i1)
 
 # deprecated
