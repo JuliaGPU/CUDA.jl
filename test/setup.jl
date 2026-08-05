@@ -20,7 +20,7 @@ let gpuarrays = pathof(GPUArrays),
     include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 end
 TestSuite.sparse_types(::Type{<:CuArray}) =
-    (CuSparseVector, CuSparseMatrixCSC, CuSparseMatrixCSR)
+    (CUDA.CuSparseVector, CUDA.CuSparseMatrixCSC, CUDA.CuSparseMatrixCSR)
 
 if VERSION >= v"1.13.0-DEV.1044"
     using Base.ScopedValues
