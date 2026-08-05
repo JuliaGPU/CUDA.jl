@@ -19,6 +19,8 @@ let gpuarrays = pathof(GPUArrays),
     gpuarrays_root = dirname(dirname(gpuarrays))
     include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 end
+TestSuite.sparse_types(::Type{<:CuArray}) =
+    (CuSparseVector, CuSparseMatrixCSC, CuSparseMatrixCSR)
 
 if VERSION >= v"1.13.0-DEV.1044"
     using Base.ScopedValues
