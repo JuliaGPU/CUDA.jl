@@ -282,43 +282,185 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
     end
 end
 
-#ormqr
+# Blocked Householder (compact WY) application of Q
+#
+# cuSOLVER only offers ormqr and orgqr in its legacy API, which reports the workspace size
+# as a 32-bit element count. That workspace grows with the number of rows, by an amount
+# that differs between cuSOLVER versions, so these routines reject (or, for orgqr, silently
+# under-allocate for) matrices with millions of rows, however much memory is available
+# (JuliaGPU/CUDA.jl#3234). For those problems we apply the reflectors ourselves, a panel at
+# a time, using only cuBLAS. cuSOLVER's Xlarft is avoided: its workspace is as large as the
+# panel, which for tall and skinny matrices means another copy of A.
+#
+# A panel of reflectors H(1)⋯H(k) = I - V T Vᴴ, where V is unit lower trapezoidal and is
+# read in place from the output of geqrf. The triangular factor is T = R⁻¹ D, with
+# D = diag(τ) and R = I + D triu(VᴴV, 1) unit upper triangular (the UT transform of
+# Joffrain et al., "Accumulating Householder transformations, revisited", 2006, scaled so
+# that τ = 0 needs no special case). We keep R and multiply by T with a triangular solve.
 
-# cuSOLVER's ormqr workspace grows with the number of rows of the reflectors times the
-# number of reflectors, and its 32-bit size query fails once that product gets large
-# (JuliaGPU/CUDA.jl#3234). Applying the reflectors in blocks bounds the workspace.
-const ORMQR_MAX_ELEMENTS = 2^30
-function ormqr_blocksize(mA, k)
-    mA * k <= ORMQR_MAX_ELEMENTS && return k
-    nb = ORMQR_MAX_ELEMENTS ÷ mA
-    return max(32, nb - nb % 32)
+const HOUSEHOLDER_BLOCKSIZE = 128
+
+# compute R for the panel V with reflector coefficients τ. V1 receives the leading jb×jb
+# block of V in explicit unit lower triangular form.
+function householder_ut!(R, V1, V, tau)
+    T = eltype(V)
+    mv, jb = size(V)
+    transv = T <: Real ? 'T' : 'C'
+    V1 .= ifelse.((1:jb) .> (1:jb)', view(V, 1:jb, :), T.((1:jb) .== (1:jb)'))
+    cuBLAS.gemm!(transv, 'N', one(T), V1, V1, zero(T), R)
+    if mv > jb
+        V2 = view(V, (jb+1):mv, :)
+        cuBLAS.gemm!(transv, 'N', one(T), V2, V2, one(T), R)
+    end
+    # only the strict upper triangle is used, R having a unit diagonal
+    R .= tau .* R
 end
 
-# Apply the `k` reflectors stored in `A` to `C` in blocks of `nb`.
-#
-# Reflector `i` only touches rows `i:mA`, so the reflectors `j:jend` can be applied through
-# the trailing submatrices `A[j:mA, j:jend]` and `C[j:mA, :]` (or `C[:, j:mA]` from the
-# right). `Q*C` and `C*Q'` apply the last reflector first; `Q'*C` and `C*Q` the first.
-function ormqr_blocked!(side::Char, trans::Char, A::StridedCuMatrix, tau::CuVector,
-                        C::StridedCuVecOrMat, nb::Integer)
+# W = op(T) W (side 'L') or W = W op(T) (side 'R'), with op(T) = T or Tᴴ
+function householder_t!(side, adj, R, tau, W)
+    T = eltype(W)
+    transr = T <: Real ? 'T' : 'C'
+    if side == 'L'
+        if adj
+            cuBLAS.trsm!('L', 'U', transr, 'U', one(T), R, W)
+            W .= conj.(tau) .* W
+        else
+            W .= tau .* W
+            cuBLAS.trsm!('L', 'U', 'N', 'U', one(T), R, W)
+        end
+    else
+        if adj
+            W .= W .* adjoint(tau)
+            cuBLAS.trsm!('R', 'U', transr, 'U', one(T), R, W)
+        else
+            cuBLAS.trsm!('R', 'U', 'N', 'U', one(T), R, W)
+            W .= W .* transpose(tau)
+        end
+    end
+    W
+end
+
+# apply H = I - V T Vᴴ, or Hᴴ, to C from the left or the right, as LAPACK's larfb does.
+# V's leading block is read as unit lower triangular, so its upper triangle is not
+# referenced. W is scratch space of size (jb, n) for side 'L' or (m, jb) for side 'R'.
+function apply_block_reflector!(side, adj, V, R, tau, C, W)
+    T = eltype(C)
+    mv, jb = size(V)
+    transv = T <: Real ? 'T' : 'C'
+    V1 = view(V, 1:jb, :)
+    V2 = view(V, (jb+1):mv, :)
+    if side == 'L'
+        C1 = view(C, 1:jb, :)
+        C2 = view(C, (jb+1):mv, :)
+        cuBLAS.trmm!('L', 'L', transv, 'U', one(T), V1, C1, W)      # W = Vᴴ C
+        mv > jb && cuBLAS.gemm!(transv, 'N', one(T), V2, C2, one(T), W)
+        householder_t!('L', adj, R, tau, W)                         # W = op(T) W
+        mv > jb && cuBLAS.gemm!('N', 'N', -one(T), V2, W, one(T), C2)
+        cuBLAS.trmm!('L', 'L', 'N', 'U', one(T), V1, W, W)          # C -= V W
+        C1 .-= W
+    else
+        C1 = view(C, :, 1:jb)
+        C2 = view(C, :, (jb+1):mv)
+        cuBLAS.trmm!('R', 'L', 'N', 'U', one(T), V1, C1, W)         # W = C V
+        mv > jb && cuBLAS.gemm!('N', 'N', one(T), C2, V2, one(T), W)
+        householder_t!('R', adj, R, tau, W)                         # W = W op(T)
+        mv > jb && cuBLAS.gemm!('N', transv, -one(T), W, V2, one(T), C2)
+        cuBLAS.trmm!('R', 'L', transv, 'U', one(T), V1, W, W)       # C -= W Vᴴ
+        C1 .-= W
+    end
+    C
+end
+
+function ormqr_blocked!(side::Char, trans::Char, A::StridedCuMatrix{T},
+                        tau::StridedCuVector{T}, C::StridedCuVecOrMat{T},
+                        nb::Integer) where {T}
     mA = size(A, 1)
     k = length(tau)
-    blocks = 1:nb:k
-    forward = (side == 'L') != (trans == 'N')
-    for j in (forward ? blocks : reverse(blocks))
-        jend = min(j + nb - 1, k)
-        Ab = view(A, j:mA, j:jend)
-        τb = tau[j:jend]
-        Cb = if side == 'L'
-            C isa AbstractVector ? view(C, j:mA) : view(C, j:mA, :)
-        else
-            view(C, :, j:mA)
-        end
-        ormqr!(side, trans, Ab, τb, Cb; blocksize=length(τb))
+    k == 0 && return C
+    if C isa AbstractVector && !(C isa CuVector)
+        # cuBLAS needs a matrix, which a reshaped view is not
+        c = copy(C)
+        ormqr_blocked!(side, trans, A, tau, c, nb)
+        copyto!(C, c)
+        unsafe_free!(c)
+        return C
     end
-    return C
+    Cm = C isa AbstractVector ? reshape(C, length(C), 1) : C
+    nb = min(nb, k)
+    R = similar(A, nb, nb)
+    V1 = similar(A, nb, nb)
+    W = side == 'L' ? similar(A, nb, size(Cm, 2)) : similar(A, size(Cm, 1), nb)
+    try
+        # Q = H(1) ⋯ H(k), so Qᴴ C and C Q apply the panels front to back, Q C and C Qᴴ
+        # back to front. The reflectors of panel j only touch rows (or columns) j+1:mA.
+        forward = (side == 'L') != (trans == 'N')
+        for j in (forward ? (0:nb:k-1) : reverse(0:nb:k-1))
+            jb = min(nb, k - j)
+            V = view(A, (j+1):mA, (j+1):(j+jb))
+            tauj = view(tau, (j+1):(j+jb))
+            Rj = view(R, 1:jb, 1:jb)
+            householder_ut!(Rj, view(V1, 1:jb, 1:jb), V, tauj)
+            Cj = side == 'L' ? view(Cm, (j+1):mA, :) : view(Cm, :, (j+1):mA)
+            Wj = side == 'L' ? view(W, 1:jb, :) : view(W, :, 1:jb)
+            apply_block_reflector!(side, trans != 'N', V, Rj, tauj, Cj, Wj)
+        end
+    finally
+        unsafe_free!(R)
+        unsafe_free!(V1)
+        unsafe_free!(W)
+    end
+    C
 end
 
+# overwrite A[:, 1:n] with the first n columns of Q, back to front as LAPACK's orgqr does
+function orgqr_blocked!(A::StridedCuMatrix{T}, tau::StridedCuVector{T}, n::Integer,
+                        nb::Integer) where {T}
+    m = size(A, 1)
+    k = length(tau)
+    if k < n
+        view(A, :, (k+1):n) .= T.((1:m) .== ((k+1):n)')
+    end
+    k == 0 && return A
+    nb = min(nb, k)
+    R = similar(A, nb, nb)
+    V1 = similar(A, nb, nb)
+    Y = similar(A, nb, nb)
+    W = similar(A, nb, n)
+    try
+        for j in reverse(0:nb:k-1)
+            jb = min(nb, k - j)
+            V = view(A, (j+1):m, (j+1):(j+jb))
+            tauj = view(tau, (j+1):(j+jb))
+            Rj = view(R, 1:jb, 1:jb)
+            V1j = view(V1, 1:jb, 1:jb)
+            householder_ut!(Rj, V1j, V, tauj)
+
+            # the columns to the right already hold H(j+jb+1) ⋯ H(k) applied to I
+            if j + jb < n
+                apply_block_reflector!('L', false, V, Rj, tauj, view(A, (j+1):m, (j+jb+1):n),
+                                       view(W, 1:jb, 1:(n-j-jb)))
+            end
+
+            # this panel's columns of I - V T Vᴴ are [I; 0] - V Y with Y = T V1ᴴ, which is
+            # upper triangular, so they can be formed in place over V
+            Yj = view(Y, 1:jb, 1:jb)
+            Yj .= adjoint(V1j)
+            householder_t!('L', false, Rj, tauj, Yj)
+            copyto!(view(V, 1:jb, :), V1j)
+            cuBLAS.trmm!('R', 'U', 'N', 'N', -one(T), Yj, V, V)
+            view(V, 1:jb, :) .+= T.((1:jb) .== (1:jb)')
+            fill!(view(A, 1:j, (j+1):(j+jb)), zero(T))
+        end
+    finally
+        unsafe_free!(R)
+        unsafe_free!(V1)
+        unsafe_free!(Y)
+        unsafe_free!(W)
+    end
+    A
+end
+
+#ormqr
 for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :Float32),
                              (:cusolverDnDormqr_bufferSize, :cusolverDnDormqr, :Float64),
                              (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :ComplexF32),
@@ -352,22 +494,30 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             if side == 'R' && k > n
                 throw(DimensionMismatch("invalid number of reflectors: k = $k should be <= n = $n"))
             end
-            nb = blocksize === nothing ? ormqr_blocksize(mA, k) : Int(blocksize)
-            if nb < k
-                return ormqr_blocked!(side, trans, A, tau, C, nb)
-            end
 
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
             dh = dense_handle()
 
-            function bufferSize()
-                out = Ref{Cint}(0)
-                $bname(dh, side, trans, m, n, k, A, lda, tau, C, ldc, out)
-                return out[] * sizeof($elty)
+            lwork = Ref{Cint}(0)
+            if blocksize === nothing
+                if max(m, n, lda, ldc) > typemax(Cint)
+                    blocksize = HOUSEHOLDER_BLOCKSIZE
+                else
+                    status = $(Symbol(:unchecked_, bname))(dh, side, trans, m, n, k, A, lda,
+                                                           tau, C, ldc, lwork)
+                    if status == CUSOLVER_STATUS_INVALID_VALUE || lwork[] < 0
+                        blocksize = HOUSEHOLDER_BLOCKSIZE
+                    elseif status != CUSOLVER_STATUS_SUCCESS
+                        throw_api_error(status)
+                    end
+                end
+            end
+            if blocksize !== nothing
+                return ormqr_blocked!(side, trans, A, tau, C, blocksize)
             end
 
-            with_workspace(dh.workspace_gpu, bufferSize) do buffer
+            with_workspace(dh.workspace_gpu, lwork[] * sizeof($elty)) do buffer
                 $fname(dh, side, trans, m, n, k, A, lda, tau, C, ldc,
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
@@ -386,28 +536,36 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
                              (:cusolverDnCungqr_bufferSize, :cusolverDnCungqr, :ComplexF32),
                              (:cusolverDnZungqr_bufferSize, :cusolverDnZungqr, :ComplexF64))
     @eval begin
-        function orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty})
+        function orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty};
+                        blocksize::Union{Nothing,Integer}=nothing)
             m = size(A , 1)
             n = min(m, size(A, 2))
             lda = max(1, stride(A, 2))
             k = length(tau)
             dh = dense_handle()
 
-            function bufferSize()
-                out = Ref{Cint}(0)
-                $bname(dh, m, n, k, A, lda, tau, out)
-                return out[] * sizeof($elty)
+            # this workspace query does not fail on overflow, but wraps around: to a
+            # negative size at first, and past 2^32 elements to a small positive one that
+            # makes cuSOLVER write out of bounds. The workspace is no larger than Q, up to
+            # lower-order terms, so bounding `lda * n` rules out the latter.
+            lwork = Ref{Cint}(0)
+            if blocksize === nothing
+                if lda * n > typemax(Cint)
+                    blocksize = HOUSEHOLDER_BLOCKSIZE
+                else
+                    status = $(Symbol(:unchecked_, bname))(dh, m, n, k, A, lda, tau, lwork)
+                    if status == CUSOLVER_STATUS_INVALID_VALUE || lwork[] < 0
+                        blocksize = HOUSEHOLDER_BLOCKSIZE
+                    elseif status != CUSOLVER_STATUS_SUCCESS
+                        throw_api_error(status)
+                    end
+                end
             end
 
-            if bufferSize() < 0
-                # the 32-bit workspace size overflowed for this very tall matrix;
-                # apply the reflectors to an identity matrix in blocks instead
-                Q = CuMatrix{$elty}(I, m, n)
-                ormqr!('L', 'N', A, tau, Q)
-                copyto!(view(A, :, 1:n), Q)
-                unsafe_free!(Q)
+            if blocksize !== nothing
+                orgqr_blocked!(A, tau, n, blocksize)
             else
-                with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                with_workspace(dh.workspace_gpu, lwork[] * sizeof($elty)) do buffer
                     $fname(dh, m, n, k, A, lda, tau,
                            buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
                 end

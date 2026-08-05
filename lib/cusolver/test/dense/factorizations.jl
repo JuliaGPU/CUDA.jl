@@ -52,6 +52,63 @@ end
     end
 end
 
+# the blocked fallback for problems that cuSOLVER's 32-bit workspace size cannot describe,
+# compared against LAPACK for arbitrary reflectors, including some with τ = 0
+@testset "blocked ormqr! and orgqr! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    trans_types = elty <: Real ? ('N', 'T', 'C') : ('N', 'C')
+    @testset "size = $((r, c))" for (r, c) in ((m, n), (n, m), (n, n))
+        k = min(r, c)
+        A = rand(elty, r, c)
+        τ = rand(elty, k)
+        τ[[1, k ÷ 2]] .= 0
+        dA, dτ = CuArray(A), CuArray(τ)
+        @testset "blocksize = $blocksize" for blocksize in (1, 3, 64)
+            @testset "trans = $trans" for trans in trans_types
+                # LAPACK only accepts 'C' for complex matrices
+                ref_trans = elty <: Real && trans == 'C' ? 'T' : trans
+
+                B = rand(elty, r, 4)
+                dB = CuArray(B)
+                cuSOLVER.ormqr!('L', trans, dA, dτ, dB; blocksize)
+                @test Array(dB) ≈ LAPACK.ormqr!('L', ref_trans, copy(A), τ, copy(B))
+
+                B = rand(elty, 4, r)
+                dB = CuArray(B)
+                cuSOLVER.ormqr!('R', trans, dA, dτ, dB; blocksize)
+                @test Array(dB) ≈ LAPACK.ormqr!('R', ref_trans, copy(A), τ, copy(B))
+
+                b = rand(elty, r)
+                db = CuArray(b)
+                cuSOLVER.ormqr!('L', trans, dA, dτ, db; blocksize)
+                @test Array(db) ≈ LAPACK.ormqr!('L', ref_trans, copy(A), τ, copy(b))
+
+                db = CuArray([b; 0])
+                cuSOLVER.ormqr!('L', trans, dA, dτ, view(db, 1:1:r); blocksize)
+                @test Array(db)[1:r] ≈ LAPACK.ormqr!('L', ref_trans, copy(A), τ, copy(b))
+            end
+
+            Q = LAPACK.orgqr!(copy(A), τ)[:, 1:k]
+            @test Array(cuSOLVER.orgqr!(copy(dA), dτ; blocksize)) ≈ Q
+            # fewer reflectors than columns of Q
+            @test Array(cuSOLVER.orgqr!(copy(dA), dτ[1:k-2]; blocksize)) ≈
+                  LAPACK.orgqr!(copy(A), τ[1:k-2])[:, 1:k]
+        end
+    end
+
+    # strided inputs and outputs
+    A = rand(elty, m + 2, n + 1)
+    τ = rand(elty, n)
+    dA, dτ = CuArray(A), CuArray(τ)
+    B = rand(elty, m + 3, 5)
+    dB = CuArray(B)
+    cuSOLVER.ormqr!('L', 'N', view(dA, 2:m+1, 2:n+1), dτ, view(dB, 2:m+1, 2:4); blocksize=3)
+    B[2:m+1, 2:4] = LAPACK.ormqr!('L', 'N', A[2:m+1, 2:n+1], τ, B[2:m+1, 2:4])
+    @test Array(dB) ≈ B
+    cuSOLVER.orgqr!(view(dA, 2:m+1, 2:n+1), dτ; blocksize=3)
+    A[2:m+1, 2:n+1] = LAPACK.orgqr!(A[2:m+1, 2:n+1], τ)
+    @test Array(dA) ≈ A
+end
+
 @testset "getrf! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     A = rand(elty, m, n)
     d_A = CuArray(A)
