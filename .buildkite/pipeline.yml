@@ -389,9 +389,9 @@ steps:
     artifact_paths:
       - "benchmarkresults.json"
     agents:
-      queue: "benchmark"
+      queue: "cuda"
+      benchmark: "*"
       gpu: "rtx2070"
-      cuda: "*"
     if: |
       build.message =~ /\[only benchmarks\]/ ||
       build.message !~ /\[only/ && !build.pull_request.draft &&
