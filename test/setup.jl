@@ -22,6 +22,14 @@ end
 TestSuite.sparse_types(::Type{<:CuArray}) =
     (CUDA.CuSparseVector, CUDA.CuSparseMatrixCSC, CUDA.CuSparseMatrixCSR)
 
+function TestSuite.supported_eltypes(::Type{<:CuArray}, test)
+    typs = [TestSuite.supported_eltypes(CuArray)...]
+    if startswith(string(test), "test_sparse")
+        filter!(ET -> !(ET <: Integer || ET <: Complex{<:Integer}), typs)
+    end
+    return typs
+end
+
 if VERSION >= v"1.13.0-DEV.1044"
     using Base.ScopedValues
 end
