@@ -98,6 +98,11 @@ end
     cluster_kernel() = cluster_arrive()
     @test_throws "requires compute capability 9.0" @cuda launch=false arch=sm"80" cluster_kernel()
 
+    dependent_launch_kernel() = trigger_programmatic_launch_completion()
+    @test_throws "requires compute capability 9.0" begin
+        @cuda launch=false arch=sm"80" dependent_launch_kernel()
+    end
+
     function distributed_shared_kernel()
         CuDistributedSharedArray(CuStaticSharedArray(UInt32, 1), 1)
         return
@@ -178,6 +183,13 @@ end
 end
 
 @testset "parallel synchronization and communication" begin
+
+@test @filecheck CUDA.code_llvm(Tuple{}; arch=sm"90", raw=true) do
+    @check "asm sideeffect \"griddepcontrol.launch_dependents;\", \"\""
+    @check "asm sideeffect \"griddepcontrol.wait;\", \"~{memory}\""
+    trigger_programmatic_launch_completion()
+    grid_dependency_synchronize()
+end
 
 @on_device sync_threads()
 @on_device sync_threads_count(Int32(1))

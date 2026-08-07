@@ -74,6 +74,8 @@ sync_warp
 threadfence_block
 threadfence
 threadfence_system
+trigger_programmatic_launch_completion
+grid_dependency_synchronize
 ```
 
 

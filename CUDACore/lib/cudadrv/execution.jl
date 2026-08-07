@@ -26,7 +26,8 @@ end
 
 """
     launch(f::CuFunction; args...; blocks::CuDim=1, threads::CuDim=1,
-           clustersize::CuDim=1, cooperative=false, shmem=0, stream=stream())
+           clustersize::CuDim=1, cooperative=false, dependent=false,
+           shmem=0, stream=stream())
 
 Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
 respectively the grid and block configuration. Dynamic shared memory is allocated according
@@ -35,19 +36,29 @@ capability is `>= 9.0`, [thread block clusters](https://docs.nvidia.com/cuda/cud
 are launched. If `clustersize > 1` and compute capability is `< 9.0`, an error is thrown, as
 thread block clusters are not supported.
 
+Setting `dependent=true` marks this as a programmatically dependent launch, allowing it to
+overlap with the preceding kernel in `stream`. The preceding kernel should call
+[`trigger_programmatic_launch_completion`](@ref), and this kernel must call
+[`grid_dependency_synchronize`](@ref) before accessing its results. This feature requires
+compute capability 9.0 or higher.
+
 Arguments to a kernel should either be bitstype, in which case they will be copied to the
 internal kernel parameter buffer, or a pointer to device memory.
 
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
 function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
-                clustersize::CuDim=1, cooperative::Bool=false, shmem::Integer=0,
-                stream::CuStream=stream()) where {N}
+                clustersize::CuDim=1, cooperative::Bool=false, dependent::Bool=false,
+                shmem::Integer=0, stream::CuStream=stream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
 
-    attributes = Ref{NTuple{2,CUlaunchAttribute}}()
+    if dependent && capability(device()) < v"9.0"
+        error("Programmatic dependent launch requires compute capability 9.0 or higher")
+    end
+
+    attributes = Ref{NTuple{3,CUlaunchAttribute}}()
     GC.@preserve attributes stream begin
         attributes_ptr = Base.unsafe_convert(Ptr{CUlaunchAttribute}, attributes)
         num_attributes = 0
@@ -65,6 +76,12 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
             attribute.value.clusterDim.z = clusterdim.z
             num_attributes += 1
         end
+        if dependent
+            attribute = attributes_ptr + num_attributes * sizeof(CUlaunchAttribute)
+            attribute.id = CU_LAUNCH_ATTRIBUTE_PROGRAMMATIC_STREAM_SERIALIZATION
+            attribute.value.programmaticStreamSerializationAllowed = 1
+            num_attributes += 1
+        end
 
         config_attrs = num_attributes == 0 ? Ptr{CUlaunchAttribute}(C_NULL) : attributes_ptr
         config = CUlaunchConfig(blockdim.x, blockdim.y, blockdim.z,
@@ -80,7 +97,8 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     end
 end
 
-@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim, clusterdim, shmem)
+@noinline function diagnose_launch_failure(f::CuFunction, err; blockdim, threaddim,
+                                           clusterdim, shmem)
     if !isa(err, CuError) || !in(err.code, [ERROR_INVALID_VALUE,
                                             ERROR_LAUNCH_OUT_OF_RESOURCES])
         rethrow()
@@ -189,7 +207,7 @@ end
 
 """
     cudacall(f, types, values...; blocks::CuDim, threads::CuDim,
-             cooperative=false, shmem=0, stream=stream())
+             cooperative=false, dependent=false, shmem=0, stream=stream())
 
 `ccall`-like interface for launching a CUDA function `f` on a GPU.
 

@@ -452,6 +452,47 @@ end
     end
 end
 
+@testset "programmatic dependent launch" begin
+    if CUDA.capability(device()) >= v"9.0"
+        function producer!(output)
+            i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+            trigger_programmatic_launch_completion()
+            if i <= length(output)
+                @inbounds output[i] = i
+            end
+            return
+        end
+
+        function consumer!(output, input)
+            i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+            independent = i + 1i32
+            grid_dependency_synchronize()
+            if i <= length(output)
+                @inbounds output[i] = input[i] + independent
+            end
+            return
+        end
+
+        input = CUDA.zeros(Int32, 128)
+        output = similar(input)
+        @cuda threads=64 blocks=2 producer!(input)
+        @cuda dependent=true threads=64 blocks=2 consumer!(output, input)
+        @test Array(output) == Int32[2i + 1 for i in 1:length(output)]
+
+        # Exercise the maximum attribute count used by launch().
+        cooperative = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
+        if cooperative
+            kernel = @cuda launch=false consumer!(output, input)
+            @cuda dummy()
+            kernel(output, input; cooperative=true, dependent=true,
+                   threads=64, blocks=2, clustersize=2)
+            synchronize()
+        end
+    else
+        @test_throws "requires compute capability 9.0" @cuda dependent=true dummy()
+    end
+end
+
 @testset "external kernels" begin
     @eval module KernelModule
         export external_dummy

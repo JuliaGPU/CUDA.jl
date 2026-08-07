@@ -161,7 +161,8 @@ end
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
 const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
-const LAUNCH_KWARGS = [:cooperative, :blocks, :threads, :clustersize, :shmem, :stream]
+const LAUNCH_KWARGS = [:cooperative, :dependent, :blocks, :threads, :clustersize, :shmem,
+                       :stream]
 
 
 """
@@ -401,6 +402,11 @@ The following keyword arguments are supported:
 - `cooperative` (default: `false`): whether to launch a cooperative kernel that supports
   grid synchronization (see [`CG.this_grid`](@ref) and [`CG.sync`](@ref)).
   Note that this requires care wrt. the number of blocks launched.
+- `dependent` (default: `false`): whether this kernel is programmatically dependent on the
+  preceding kernel in the same stream. This can enable overlap between the two kernels on
+  devices with compute capability 9.0 or higher; see
+  [`trigger_programmatic_launch_completion`](@ref) and
+  [`grid_dependency_synchronize`](@ref).
 """
 AbstractKernel
 
