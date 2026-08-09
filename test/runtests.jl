@@ -23,6 +23,10 @@ if label_match !== nothing
     toolkit_release = Base.thisminor(CUDA.runtime_version())
     @test toolkit_release == VersionNumber(label_match.captures[1])
 end
+if haskey(ENV, "CUDA_COMPILER_VERSION")
+    compiler_release = Base.thisminor(CUDA.compiler_version())
+    @test compiler_release == VersionNumber(ENV["CUDA_COMPILER_VERSION"])
+end
 
 # forcibly precompile the current environment in parallel (Pkg somehow ignores
 # the dependencies that are pointed through via [sources])

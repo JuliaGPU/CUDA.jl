@@ -30,6 +30,7 @@ cuSOLVER = {path = "lib/cusolver"}
 cuSPARSE = {path = "lib/cusparse"}
 
 [extras]
+CUDA_Compiler_jll = "d1e2174e-dfdc-576e-b43e-73b79eb1aca8"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 
 [compat]

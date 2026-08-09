@@ -86,6 +86,8 @@ function versioninfo(io::IO=stdout)
         "default_memory" => Preferences.load_preference(CUDACore, "default_memory"),
         "CUDA_Runtime_jll.version" => Preferences.load_preference(CUDA_Runtime_jll, "version"),
         "CUDA_Runtime_jll.local" => Preferences.load_preference(CUDA_Runtime_jll, "local"),
+        "CUDA_Compiler_jll.version" => Preferences.load_preference(CUDA_Compiler_jll, "version"),
+        "CUDA_Compiler_jll.local" => Preferences.load_preference(CUDA_Compiler_jll, "local"),
         "CUDA_Driver_jll.compat" => Preferences.load_preference(CUDA_Driver_jll, "compat"),
     ]
     if any(x->!isnothing(x[2]), prefs)

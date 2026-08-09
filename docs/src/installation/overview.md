@@ -105,9 +105,9 @@ for your platform, and automatically download an appropriate artifact containing
 libraries that CUDA.jl supports.
 
 If you *really* need to use a different CUDA toolkit, it's possible (but not recommended) to
-load a different version of the CUDA runtime, or even an installation from your local
-system. Both are configured by setting the `version` preference (using Preferences.jl) on
-the CUDA\_Runtime\_jll.jl package, but there is also a user-friendly API available in CUDA.jl.
+load a different version, or even an installation from your local system. The runtime and
+compiler are configured using `version` and `local` preferences on CUDA\_Runtime\_jll and
+CUDA\_Compiler\_jll, but there is also a user-friendly API available in CUDA.jl.
 
 ### Specifying the CUDA version
 
@@ -118,11 +118,12 @@ You can choose which version to (try to) download and use by calling
 julia> using CUDA
 
 julia> CUDA.set_runtime_version!(v"11.8")
-[ Info: Set CUDA.jl toolkit preference to use CUDA 11.8.0 from artifact sources, please re-start Julia for this to take effect.
+[ Info: Configure the active project to use CUDA 11.8 from artifact sources; please re-start Julia for this to take effect.
 ```
 
-This preference is compatible with other CUDA JLLs, e.g., if you load `CUDNN_jll` it will
-only select artifacts that are compatible with the configured CUDA runtime.
+This configures matching runtime and compiler artifacts. The preference is compatible with
+other CUDA JLLs too: for example, `CUDNN_jll` will only select artifacts compatible with the
+configured CUDA runtime.
 
 `CUDA.set_runtime_version!` performs the following two actions:
 
@@ -131,13 +132,23 @@ only select artifacts that are compatible with the configured CUDA runtime.
    ```
    [CUDA_Runtime_jll]
    version = "11.8"
+
+   [CUDA_Compiler_jll]
+   version = "11.8"
    ```
 
-2. Ensures the following line is in the `[extras]` section of your active `Project.toml` file to allow `Preferences.jl` to find the `version` preference for `CUDA_Runtime_jll`:
+2. Ensures the following lines are in the `[extras]` section of your active `Project.toml`
+   file so Preferences.jl can find both preferences:
 
    ```
    CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+   CUDA_Compiler_jll = "d1e2174e-dfdc-576e-b43e-73b79eb1aca8"
    ```
+
+The JLL preferences can also be set independently, which is useful for testing compiler
+releases while keeping the runtime fixed. Keep them within the same CUDA major because
+runtime libraries may link against compiler libraries with a major-versioned soname.
+CUDA.jl configures them together by default.
 
 ### Using a local CUDA
 
@@ -152,7 +163,7 @@ CUDA runtime 11.8, artifact installation
 ...
 
 julia> CUDA.set_runtime_version!(local_toolkit=true)
-[ Info: Set CUDA.jl toolkit preference to use CUDA from the local system, please re-start Julia for this to take effect.
+[ Info: Configure the active project to use the default CUDA from the local system; please re-start Julia for this to take effect.
 ```
 
 Calling `CUDA.set_runtime_version!(local_toolkit=true)` generates the following `LocalPreferences.toml` file in
@@ -160,6 +171,9 @@ your active environment:
 
 ```
 [CUDA_Runtime_jll]
+local = "true"
+
+[CUDA_Compiler_jll]
 local = "true"
 ```
 
@@ -173,18 +187,17 @@ CUDA runtime 11.8, local installation
 ...
 ```
 
-The preference `local = "true"` under `CUDA_Runtime_jll` not only configures CUDA.jl to use a local toolkit, it also prevents
-downloading any artifact, so it may be interesting to set this preference before ever
-importing CUDA.jl (e.g., by putting a `LocalPreferences.toml` file in a system-wide depot).
+The `local = "true"` preferences configure CUDA.jl to use discovery for the local runtime
+and compiler and prevent downloading their artifacts. It may be useful to set them before
+ever importing CUDA.jl, for example in a system-wide depot.
 
 If CUDA.jl doesn't properly detect your local toolkit, it may be that certain libraries or
 binaries aren't on a globally-discoverable path. For more information, run Julia with the
 `JULIA_DEBUG` environment variable set to `CUDA_Runtime_Discovery`.
 
-Note that using a local toolkit instead of artifacts *any* CUDA-related JLL, not just of
-`CUDA_Runtime_jll`. Any package that depends on such a JLL needs to inspect
-`CUDA.local_toolkit`, and if set use `CUDA_Runtime_Discovery` to detect libraries and
-binaries instead.
+Note that using a local toolkit affects CUDA-related JLLs beyond CUDA\_Runtime\_jll and
+CUDA\_Compiler\_jll. Packages that depend on those JLLs need to use
+CUDA\_Runtime\_Discovery when the corresponding local preference is set.
 
 
 ## Precompiling CUDA.jl without CUDA

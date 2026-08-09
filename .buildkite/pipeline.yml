@@ -17,7 +17,7 @@ steps:
         agents:
           queue: "cuda"
         commands: |
-          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
           julia --project=. -e '
             using Pkg
             Pkg.develop([PackageSpec(; path) for path in (
@@ -49,7 +49,7 @@ steps:
         agents:
           queue: "cuda"
         commands: |
-          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only julia\]/ ||
@@ -97,6 +97,7 @@ steps:
         matrix:
           setup:
             cuda:
+              - "13.4"
               - "13.3"
               - "13.2"
               - "13.1"
@@ -111,7 +112,14 @@ steps:
               - "12.1"
               - "12.0"
         commands: |
-          echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"" >LocalPreferences.toml
+          # use the newest compiler in each major, including the EA compiler for CUDA 13
+          case "{{matrix.cuda}}" in
+            13.*) compiler="13.4" ;;
+            12.*) compiler="12.9" ;;
+            *) exit 1 ;;
+          esac
+          export CUDA_COMPILER_VERSION="${compiler}"
+          echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"\n\n[CUDA_Compiler_jll]\nversion = \"${compiler}\"" >LocalPreferences.toml
 
   - group: ":telescope: Downstream"
     depends_on: "cuda"
