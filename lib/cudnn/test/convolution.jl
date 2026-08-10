@@ -1,4 +1,3 @@
-using CUDACore
 using cuDNN: convolution!, convolution_data_gradient!, convolution_filter_gradient!
 
 CUDACore.allowscalar(false)

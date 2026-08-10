@@ -1,6 +1,4 @@
 using BFloat16s: BFloat16
-import CUDACore
-import cuDNN
 using cuDNN: attention, attention!, attention_backward, attention_backward!, build!, execute!,
              Graph, scalar!, sdpa_fwd!, tensor!
 using cuRAND

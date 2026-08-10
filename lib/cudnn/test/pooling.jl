@@ -1,4 +1,3 @@
-using CUDACore
 using cuDNN: maxpool!, meanpool!, ∇maxpool!, ∇meanpool!, UnsupportedGraphError
 
 CUDACore.allowscalar(false)

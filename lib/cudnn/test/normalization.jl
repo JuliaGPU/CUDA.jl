@@ -1,4 +1,3 @@
-using CUDACore
 using cuDNN: batchnorm_gradient!, batchnorm_gradient_supported,
              batchnorm_inference!, batchnorm_inference_supported,
              batchnorm_training!, batchnorm_training_supported, graph_unsupported

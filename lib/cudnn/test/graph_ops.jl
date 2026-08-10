@@ -1,5 +1,3 @@
-using CUDACore
-
 using cuDNN:
     conv_dgrad!,
     conv_fprop!,
