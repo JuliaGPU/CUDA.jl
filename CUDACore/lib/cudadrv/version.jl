@@ -79,7 +79,8 @@ end
 """
     CUDA.set_runtime_version!([version::VersionNumber]; [local_toolkit::Bool])
 
-Configures the active project to use a specific CUDA toolkit version from a specific source.
+Configures the active project to use a specific CUDA runtime and compiler version from a
+specific source.
 
 If `local_toolkit` is set, the CUDA toolkit will be used from the local system, otherwise it
 will be downloaded from an artifact source. In the case of a local toolkit, `version`
@@ -87,19 +88,23 @@ informs CUDA.jl which version that is (this may be useful if auto-detection fail
 case of artifact sources, `version` controls which version will be downloaded and used.
 
 When not specifying either the `version` or the `local_toolkit` argument, the default
-behavior will be used, which is to use the most recent compatible runtime available from an
-artifact source. Note that this will override any Preferences that may be configured in a
-higher-up depot; to clear preferences nondestructively, use
+behavior will be used, which is to use the most recent compatible artifacts. Note that this
+will override any Preferences that may be configured in a higher-up depot; to clear
+preferences nondestructively, use
 [`CUDACore.reset_runtime_version!`](@ref) instead.
 """
 function set_runtime_version!(version::Union{Nothing,VersionNumber}=nothing;
                               local_toolkit::Union{Nothing,Bool}=nothing)
     # store stringified properties
     let version = isnothing(version) ? nothing : "$(version.major).$(version.minor)"
-        Preferences.set_preferences!(CUDA_Runtime_jll, "version" => version; force=true)
+        for jll in (CUDA_Runtime_jll, CUDA_Compiler_jll)
+            Preferences.set_preferences!(jll, "version" => version; force=true)
+        end
     end
     let local_toolkit = isnothing(local_toolkit) ? nothing : string(local_toolkit)
-        Preferences.set_preferences!(CUDA_Runtime_jll, "local" => local_toolkit; force=true)
+        for jll in (CUDA_Runtime_jll, CUDA_Compiler_jll)
+            Preferences.set_preferences!(jll, "local" => local_toolkit; force=true)
+        end
     end
 
     io = IOBuffer()
@@ -120,13 +125,15 @@ end
     CUDA.reset_runtime_version!()
 
 Resets the CUDA version preferences in the active project to the default, which is to use
-the most recent compatible runtime available from an artifact source, unless a higher-up
-depot has configured a different preference. To force use of the default behavior for the
-local project, use [`CUDACore.set_runtime_version!`](@ref) with no arguments.
+the most recent compatible artifacts, unless a higher-up depot has configured a different
+preference. To force use of the default behavior for the local project, use
+[`CUDACore.set_runtime_version!`](@ref) with no arguments.
 """
 function reset_runtime_version!()
-    Preferences.delete_preferences!(CUDA_Runtime_jll, "version"; force=true)
-    Preferences.delete_preferences!(CUDA_Runtime_jll, "local"; force=true)
+    for jll in (CUDA_Runtime_jll, CUDA_Compiler_jll)
+        Preferences.delete_preferences!(jll, "version"; force=true)
+        Preferences.delete_preferences!(jll, "local"; force=true)
+    end
     @info "Reset CUDA.jl toolkit preference, please re-start Julia for this to take effect."
 end
 
@@ -134,9 +141,8 @@ end
     compiler_version()
 
 Returns the CUDA toolkit version that is used to provide the CUDA compiler (`ptxas`) and
-other tools. This is versioned separately from the CUDA Runtime, in order to ensure
-compatibility with the driver, and make sure we use the latest compatible version regardless
-of the selected runtime.
+other tools. The compiler is selected independently from the CUDA runtime, although
+[`set_runtime_version!`](@ref) configures both to use the same version by default.
 
 Derived by parsing `ptxas --version`.
 """

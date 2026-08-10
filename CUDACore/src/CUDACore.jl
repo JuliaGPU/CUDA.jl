@@ -42,13 +42,13 @@ else
 end
 
 import Preferences
-const local_compiler = Preferences.@load_preference("local_compiler", "false") == "true"
+import CUDA_Compiler_jll
+const local_compiler = CUDA_Compiler_jll.host_platform["cuda_local"] == "true"
 
 if local_compiler
     using CUDA_Runtime_Discovery
     const CUDA_Compiler = CUDA_Runtime_Discovery
 else
-    import CUDA_Compiler_jll
     const CUDA_Compiler = CUDA_Compiler_jll
 end
 

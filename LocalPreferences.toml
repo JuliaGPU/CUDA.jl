@@ -1,9 +1,14 @@
 [CUDA_Runtime_jll]
 # which CUDA runtime to use. in normal cases, this will be auto-detected, but you need to
 # set this preference if you want to precompile CUDA.jl in an envirnonment without CUDA
-#version = "12.9"
+#version = "13.4"
 
 # whether to use a local CUDA installation.
+#local = "false"
+
+[CUDA_Compiler_jll]
+# same, but for the compiler bits
+#version = "13.4"
 #local = "false"
 
 [CUDA]
