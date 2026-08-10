@@ -1,4 +1,4 @@
-using CUDA
+using CUDACore
 
 using cuDNN:
     conv_dgrad!,
@@ -12,7 +12,7 @@ using cuDNN:
     resample_fwd!,
     tensor!
 
-CUDA.allowscalar(false)
+CUDACore.allowscalar(false)
 
 function matmul_ref(a, b)
     M, K, B = size(a)
@@ -141,7 +141,7 @@ end
 let K=16, M=16, N=16, B=2
     a = CuArray(reshape(Float16.(sin.(1:M*K*B)), M, K, B))
     b = CuArray(reshape(Float16.(cos.(1:K*N*B)), K, N, B))
-    y = CUDA.zeros(Float16, M, N, B)
+    y = CUDACore.zeros(Float16, M, N, B)
 
     g = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
     ta = tensor!(g, a; name="A")
@@ -165,7 +165,7 @@ let W=8, H=7, C=3, N=2, K=5
     stride = (2, 1)
     dilation = (1, 2)
     ref = conv2d_ref(x, w; pre_padding, post_padding, stride, dilation)
-    y = CUDA.zeros(Float16, size(ref)...)
+    y = CUDACore.zeros(Float16, size(ref)...)
 
     g = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
     tx = tensor!(g, x; name="X")
@@ -182,7 +182,7 @@ let W=8, H=7, C=3, N=2, K=5
 
     dy = CuArray(reshape(Float16.(sin.(1:length(ref))), size(ref)) ./ 64)
 
-    dx = CUDA.zeros(Float16, size(x))
+    dx = CUDACore.zeros(Float16, size(x))
     dgrad_ref = conv2d_dgrad_ref(dy, w, size(x); pre_padding, stride, dilation)
     gd = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
     tdy = tensor!(gd, dy; name="dY")
@@ -196,7 +196,7 @@ let W=8, H=7, C=3, N=2, K=5
         @test_skip is_supported(gd)
     end
 
-    dw = CUDA.zeros(Float16, size(w))
+    dw = CUDACore.zeros(Float16, size(w))
     wgrad_ref = conv2d_wgrad_ref(dy, x, size(w); pre_padding, stride, dilation)
     gw = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
     tyw = tensor!(gw, dy; name="dY")
@@ -217,7 +217,7 @@ let W=7, H=6, C=2, N=2
     padding = (1, 1)
     stride = (2, 2)
     ref = avgpool2d_ref(x; window, pre_padding=padding, stride, include_pad=true)
-    y = CUDA.zeros(Float32, size(ref))
+    y = CUDACore.zeros(Float32, size(ref))
 
     g = Graph(io_dtype=Float32, intermediate_dtype=Float32, compute_dtype=Float32)
     tx = tensor!(g, x; name="X")
@@ -232,7 +232,7 @@ let W=7, H=6, C=2, N=2
     end
 
     dy = CuArray(reshape(Float32.(sin.(1:length(ref))), size(ref)))
-    dx = CUDA.zeros(Float32, size(x))
+    dx = CUDACore.zeros(Float32, size(x))
     bwd_ref = avgpool2d_bwd_ref(dy, size(x); window, pre_padding=padding, stride,
                                 include_pad=true)
     gb = Graph(io_dtype=Float32, intermediate_dtype=Float32, compute_dtype=Float32)
