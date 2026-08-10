@@ -452,6 +452,45 @@ Within a kernel, only a very limited subset of the CUDA API is available:
   these streams can be passed to `@cuda` using the `stream` keyword argument
 
 
+## Programmatic dependent launch
+
+[Programmatic dependent launch](https://docs.nvidia.com/cuda/cuda-programming-guide/04-special-topics/programmatic-dependent-launch.html)
+can overlap the tail of one kernel with the independent preamble of the next kernel in the
+same stream. The producer signals when its dependent can start, and the consumer waits
+before reading the producer's results:
+
+```julia
+function producer!(output)
+    trigger_programmatic_launch_completion()
+
+    # This work may overlap with the consumer's preamble.
+    output[threadIdx().x] = threadIdx().x
+    return
+end
+
+function consumer!(output, input)
+    i = threadIdx().x # Independent work can run before the wait.
+
+    grid_dependency_synchronize()
+    output[i] = input[i]
+    return
+end
+
+@cuda threads=32 producer!(input)
+@cuda threads=32 dependent=true consumer!(output, input)
+```
+
+The `dependent=true` attribute belongs on the consumer launch. Every producer block should
+call `trigger_programmatic_launch_completion`; a block that exits without calling it
+triggers completion implicitly. The consumer must call `grid_dependency_synchronize` before
+accessing any producer results, even when the trigger has already run, because the trigger
+does not make the producer's writes visible.
+
+Overlap is opportunistic. Correctness must not require the two kernels to run concurrently,
+as doing so can deadlock. Programmatic dependent launch requires compute capability 9.0 or
+higher.
+
+
 ## Cooperative groups
 
 With cooperative groups, it is possible to write parallel kernels that are not tied to a

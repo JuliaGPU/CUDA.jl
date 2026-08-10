@@ -63,6 +63,47 @@ the warp.
 end # @device_functions
 
 
+## grid dependency control
+
+export trigger_programmatic_launch_completion, grid_dependency_synchronize
+
+@device_functions begin
+
+"""
+    trigger_programmatic_launch_completion()
+
+Allow programmatically dependent kernels later in the same stream to start executing. At
+least one thread in every block must call this function; blocks that exit without calling it
+trigger completion implicitly. Calling this function does not make the current kernel's
+writes visible to a dependent kernel, which must call
+[`grid_dependency_synchronize`](@ref) before accessing them.
+
+Requires compute capability 9.0 or higher.
+"""
+@inline function trigger_programmatic_launch_completion()
+    require_sm_90()
+    @asmcall("griddepcontrol.launch_dependents;", "", true, Cvoid, Tuple{})
+    return
+end
+
+"""
+    grid_dependency_synchronize()
+
+Wait for prerequisite kernels to complete and make their global-memory writes visible to
+the current kernel. A kernel using this function should be launched with `dependent=true`.
+All accesses to results from the prerequisite kernels must occur after this call.
+
+Requires compute capability 9.0 or higher.
+"""
+@inline function grid_dependency_synchronize()
+    require_sm_90()
+    @asmcall("griddepcontrol.wait;", "~{memory}", true, Cvoid, Tuple{})
+    return
+end
+
+end # @device_functions
+
+
 ## generalized synchronization (barrier)
 
 export barrier_sync
