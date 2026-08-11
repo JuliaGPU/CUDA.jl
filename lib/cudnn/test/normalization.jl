@@ -1,14 +1,13 @@
-using CUDA
 using cuDNN: batchnorm_gradient!, batchnorm_gradient_supported,
              batchnorm_inference!, batchnorm_inference_supported,
              batchnorm_training!, batchnorm_training_supported, graph_unsupported
 
-CUDA.allowscalar(false)
+CUDACore.allowscalar(false)
 
 let
-    x = CUDA.zeros(Float32, 4, 4, 2, 0)
+    x = CUDACore.zeros(Float32, 4, 4, 2, 0)
     y = similar(x)
-    param = CUDA.zeros(Float32, 1, 1, 2, 1)
+    param = CUDACore.zeros(Float32, 1, 1, 2, 1)
     @test batchnorm_inference_supported(y, x, param, param, param, param)
     @test batchnorm_inference!(y, x, param, param, param, param) === y
 end

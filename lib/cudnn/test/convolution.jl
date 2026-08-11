@@ -1,7 +1,6 @@
-using CUDA
 using cuDNN: convolution!, convolution_data_gradient!, convolution_filter_gradient!
 
-CUDA.allowscalar(false)
+CUDACore.allowscalar(false)
 
 conv_ref_type(::Type{Float64}) = Float64
 conv_ref_type(::Type) = Float32

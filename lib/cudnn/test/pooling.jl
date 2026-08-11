@@ -1,7 +1,6 @@
-using CUDA
 using cuDNN: maxpool!, meanpool!, ∇maxpool!, ∇meanpool!, UnsupportedGraphError
 
-CUDA.allowscalar(false)
+CUDACore.allowscalar(false)
 
 function pool_output_dims(x_size; window, pre_padding, post_padding, stride)
     (fld(x_size[1] + pre_padding[1] + post_padding[1] - window[1], stride[1]) + 1,
@@ -159,7 +158,7 @@ let W=7, H=6, C=2, N=2
     bwd_padding = padding
     max_ref = maxpool2d_ref(x; window, pre_padding=bwd_pre_padding,
                             post_padding=bwd_post_padding, stride)
-    y = CUDA.zeros(Float32, size(max_ref))
+    y = CUDACore.zeros(Float32, size(max_ref))
     maxpool!(y, x; window, padding=bwd_padding, stride)
     dy = CuArray(reshape(Float32.(cos.(1:length(max_ref))), size(max_ref)))
     dx0 = CuArray(reshape(Float32.(sin.(1:length(x))), size(x)) ./ 8)

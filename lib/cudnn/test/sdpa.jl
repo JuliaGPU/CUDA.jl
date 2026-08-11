@@ -1,6 +1,4 @@
 using BFloat16s: BFloat16
-import CUDA
-import cuDNN
 using cuDNN: attention, attention!, attention_backward, attention_backward!, build!, execute!,
              Graph, scalar!, sdpa_fwd!, tensor!
 using cuRAND
@@ -111,7 +109,7 @@ function sdpa_stats_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
 
     ref, refstats = sdpa_ref(q, k, v; scale, causal, stats=true)
     out = similar(q)
-    stats = CUDA.zeros(Float32, 1, h, sq, b)
+    stats = CUDACore.zeros(Float32, 1, h, sq, b)
     attention!(out, q, k, v; scale, causal, stats)
     @test Array(out) ≈ ref rtol=2e-2
     @test Array(stats) ≈ refstats rtol=rtol
@@ -124,7 +122,7 @@ function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
     dO = cuRAND.randn(T, d, h, sq, b) ./ 4
     o = similar(q)
-    stats = CUDA.zeros(Float32, 1, h, sq, b)
+    stats = CUDACore.zeros(Float32, 1, h, sq, b)
     attention!(o, q, k, v; scale, causal, stats)
 
     refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal)
@@ -154,7 +152,7 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
 
     ref = sdpa_ref(q, k, v; scale, seq_len_q, seq_len_kv)
     out = similar(q)
-    stats = CUDA.zeros(Float32, 1, h, sq, b)
+    stats = CUDACore.zeros(Float32, 1, h, sq, b)
     if !cuDNN.attention_supported(out, q, k, v; stats, seq_len_q, seq_len_kv)
         @test_skip "SDPA sequence-length engine is unsupported on this device"
         return
