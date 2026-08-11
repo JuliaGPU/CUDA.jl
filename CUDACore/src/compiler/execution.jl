@@ -5,6 +5,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public AbstractBackend, LLVMBackend, DefaultBackend
 @public kernel_convert, kernel_compile, kernel_launch
 @public KernelCall, rebind
+@public with_managed
 @public AbstractKernel, HostKernel, DeviceKernel
 
 
@@ -51,6 +52,8 @@ implementation for [`LLVMBackend`](@ref) forwards to [`cudaconvert`](@ref);
 other backends override to produce backend-specific argument types.
 """
 kernel_convert(::LLVMBackend, x) = cudaconvert(x)
+kernel_convert(::LLVMBackend, x, managed::Vector{Managed}) = cudaconvert(x, managed)
+kernel_convert(backend::AbstractBackend, x, ::Vector{Managed}) = kernel_convert(backend, x)
 
 """
     kernel_compile(backend, f, tt::Type{<:Tuple}; kwargs...) -> AbstractKernel
@@ -78,22 +81,40 @@ struct KernelCall{B,F,A,S}
     f::F
     arguments::A
     source::S
+    managed::Vector{Managed}
 
-    KernelCall{B,F,A,S}(backend::B, f::F, arguments::A, source::S) where {B,F,A,S} =
-        new(backend, f, arguments, source)
+    KernelCall{B,F,A,S}(backend::B, f::F, arguments::A, source::S,
+                        managed::Vector{Managed}) where {B,F,A,S} =
+        new(backend, f, arguments, source, managed)
 end
 
-@inline kernel_call(backend::B, f::F, arguments::A, source::S) where {B,F,A,S} =
-    KernelCall{B,F,A,S}(backend, f, arguments, source)
+@inline kernel_call(backend::B, f::F, arguments::A, source::S,
+                    managed::Vector{Managed}) where {B,F,A,S} =
+    KernelCall{B,F,A,S}(backend, f, arguments, source, managed)
 
 @inline @generated function kernel_call(backend::B, f::F, args::A) where {B,F,A<:Tuple}
-    converted = [:(kernel_convert(backend, args[$i])) for i in 1:fieldcount(A)]
+    converted = [gensym(:converted) for _ in 1:fieldcount(A)]
+    ranges = [gensym(:managed_range) for _ in 1:fieldcount(A)+1]
+    conversions = Any[]
+    for i in 1:fieldcount(A)
+        push!(conversions, quote
+            start = length(managed) + 1
+            $(converted[i]) = kernel_convert(backend, args[$i], managed)
+            $(ranges[i+1]) = start:length(managed)
+        end)
+    end
     quote
-        source = (f=f, arguments=args)
-        GC.@preserve source begin
-            kernel_f = kernel_convert(backend, f)
+        roots = (f=f, arguments=args)
+        GC.@preserve roots begin
+            managed = Managed[]
+            start = 1
+            kernel_f = kernel_convert(backend, f, managed)
+            $(ranges[1]) = start:length(managed)
+            $(conversions...)
             arguments = ($(converted...),)
-            kernel_call(backend, kernel_f, arguments, source)
+            managed_ranges = (f=$(ranges[1]), arguments=($(ranges[2:end]...),))
+            source = (f=roots.f, arguments=roots.arguments, managed=managed_ranges)
+            kernel_call(backend, kernel_f, arguments, source, managed)
         end
     end
 end
@@ -145,14 +166,34 @@ to the compiled kernel signature.
                                    for i in 1:fieldcount(A)]...)
     arguments = Expr(:tuple, [i == I ? :converted : :(@inbounds call.arguments[$i])
                               for i in 1:fieldcount(A)]...)
+    managed_ranges = [gensym(:managed_range) for _ in 1:fieldcount(A)+1]
+    append_managed = Any[
+        quote
+            start = 1
+            append!(all_managed, @view call.managed[call.source.managed.f])
+            $(managed_ranges[1]) = start:length(all_managed)
+        end
+    ]
+    for i in 1:fieldcount(A)
+        source = i == I ? :managed : :(@view call.managed[call.source.managed.arguments[$i]])
+        push!(append_managed, quote
+            start = length(all_managed) + 1
+            append!(all_managed, $source)
+            $(managed_ranges[i+1]) = start:length(all_managed)
+        end)
+    end
     quote
+        managed = Managed[]
         GC.@preserve value begin
-            converted = kernel_convert(call.backend, value)
+            converted = kernel_convert(call.backend, value, managed)
         end
         host_arguments = $host_arguments
-        source = (f=call.source.f, arguments=host_arguments)
         arguments = $arguments
-        kernel_call(call.backend, call.f, arguments, source)
+        all_managed = Managed[]
+        $(append_managed...)
+        managed_ranges = (f=$(managed_ranges[1]), arguments=($(managed_ranges[2:end]...),))
+        source = (f=call.source.f, arguments=host_arguments, managed=managed_ranges)
+        kernel_call(call.backend, call.f, arguments, source, all_managed)
     end
 end
 
@@ -295,7 +336,53 @@ end
 
 ## host to device value conversion
 
-struct KernelAdaptor end
+struct KernelAdaptor
+    managed::Vector{Managed}
+end
+KernelAdaptor() = KernelAdaptor(Managed[])
+
+function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
+    push!(to.managed, managed)
+    return managed
+end
+
+function lock_managed(managed::AbstractVector{<:Managed})
+    locked = unique(managed)
+    sort!(locked; by=memory -> objectid(memory.lock))
+    for memory in locked
+        lock(memory.lock)
+    end
+    return locked
+end
+
+function unlock_managed(locked::AbstractVector{<:Managed})
+    for memory in Iterators.reverse(locked)
+        unlock(memory.lock)
+    end
+    return
+end
+
+function with_managed(f::F, managed::AbstractVector{<:Managed};
+                      stream::CuStream=stream()) where {F}
+    locked = lock_managed(managed)
+    try
+        state = active_state()
+        for memory in locked
+            take_ownership!(memory; state, stream)
+        end
+        return f()
+    finally
+        unlock_managed(locked)
+    end
+end
+
+function managed_kernel_launch(backend, kernel, arguments, managed; kwargs...)
+    isempty(managed) && return kernel_launch(backend, kernel, arguments; kwargs...)
+    target_stream = haskey(kwargs, :stream) ? kwargs[:stream] : stream()
+    with_managed(managed; stream=target_stream) do
+        kernel_launch(backend, kernel, arguments; kwargs...)
+    end
+end
 
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
@@ -303,31 +390,12 @@ Adapt.adapt_storage(to::KernelAdaptor, p::CuPtr{T}) where {T} =
     reinterpret(LLVMPtr{T,AS.Generic}, p)
 
 # convert CUDA host arrays to device arrays
-function Adapt.adapt_storage(::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
-  # prefetch unified memory as we're likely to use it on the GPU
-  # TODO: make this configurable?
-  if is_unified(xs)
-    # XXX: use convert to pointer and/or prefect(CuArray)
-    mem = xs.data[].mem::UnifiedMemory
-
-    can_prefetch = sizeof(xs) > 0
-    ## prefetching isn't supported during stream capture
-    can_prefetch &= !is_capturing()
-    ## we can only prefetch pageable memory
-    can_prefetch &= !__pinned(convert(Ptr{T}, mem), mem.ctx)
-    ## pageable memory needs to be accessible concurrently
-    can_prefetch &= attribute(device(), DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
-    ## don't prefetch on multi device systems.
-    can_prefetch &= ndevices() == 1
-
-    if can_prefetch
-        # TODO: `view` on buffers?
-        subbuf = UnifiedMemory(mem.ctx, pointer(xs), sizeof(xs))
-        prefetch(subbuf)
-    end
-  end
-
-  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+function Adapt.adapt_storage(to::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
+  managed = xs.data[]
+  push!(to.managed, managed)
+  ptr = convert(CuPtr{T}, managed.mem) + xs.offset
+  CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, ptr), size(xs),
+                               xs.maxsize - xs.offset)
 end
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative.
@@ -363,7 +431,7 @@ input object `x` as-is.
 Do not add methods to this function, but instead extend the underlying Adapt.jl package and
 register methods for the the `CUDA.KernelAdaptor` type.
 """
-cudaconvert(arg) = adapt(KernelAdaptor(), arg)
+cudaconvert(arg, managed::Vector{Managed}=Managed[]) = adapt(KernelAdaptor(managed), arg)
 
 
 ## abstract kernel functionality
@@ -433,7 +501,8 @@ signature at the calling boundary.
     append!(assignments,
             [:($(root_vars[i+1]) = @inbounds call.source.arguments[$i])
              for i in 1:fieldcount(A)])
-    launch = :(kernel_launch(call.backend, kernel, call.arguments; kwargs...))
+    launch = :(managed_kernel_launch(call.backend, kernel, call.arguments, call.managed;
+                                     kwargs...))
     preserve = Expr(:gc_preserve, launch, root_vars...)
     Expr(:block, assignments..., preserve)
 end

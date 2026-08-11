@@ -552,6 +552,7 @@ end
 # XXX: immutable with atomic refs?
 mutable struct Managed{M}
   const mem::M
+  const lock::ReentrantLock
 
   # which stream is currently using the memory.
   stream::CuStream
@@ -569,7 +570,7 @@ mutable struct Managed{M}
                    dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, stream, synchronizing, dirty, captured)
+    new{typeof(mem)}(mem, ReentrantLock(), stream, synchronizing, dirty, captured)
   end
 end
 
@@ -577,25 +578,28 @@ Base.sizeof(managed::Managed) = sizeof(managed.mem)
 
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
-  synchronize(managed.stream)
-  managed.dirty = false
+  Base.@lock managed.lock begin
+    synchronize(managed.stream)
+    managed.dirty = false
+  end
 end
 function maybe_synchronize(managed::Managed)
-  if managed.synchronizing && (managed.dirty || managed.captured)
-    synchronize(managed)
+  Base.@lock managed.lock begin
+    if managed.synchronizing && (managed.dirty || managed.captured)
+      synchronize(managed)
+    end
   end
 end
 
-function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
-  # let null pointers pass through as-is
-  ptr = convert(CuPtr{T}, managed.mem)
-  if ptr == CU_NULL
-    return ptr
-  end
+# Transfer stream ownership of an allocation and mark it dirty in anticipation of a
+# device-side operation. The caller must hold `managed.lock` until that operation has been
+# submitted to `stream`, so the recorded owner cannot become visible before its submission.
+function take_ownership!(managed::Managed{M}; state=active_state(),
+                         stream::CuStream=state.stream) where {M}
+  sizeof(managed) == 0 && return managed
 
   # accessing memory during stream capture: taint the memory so that we always synchronize
-  state = active_state()
-  if is_capturing(state.stream)
+  if is_capturing(stream)
     managed.captured = true
   end
 
@@ -623,38 +627,60 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
   end
 
   # accessing memory on another stream: ensure the data is ready and take ownership
-  if managed.stream != state.stream
+  if managed.stream != stream
     maybe_synchronize(managed)
-    managed.stream = state.stream
+    managed.stream = stream
+  end
+
+  # prefetch unified memory as we're likely to use it on the GPU
+  if M == UnifiedMemory
+    can_prefetch = !is_capturing(stream)
+    can_prefetch &= !__pinned(convert(Ptr{Cvoid}, managed.mem), managed.mem.ctx)
+    can_prefetch &= attribute(state.device,
+                              DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+    can_prefetch &= ndevices() == 1
+    can_prefetch && prefetch(managed.mem; device=state.device, stream)
   end
 
   managed.dirty = true
-  return ptr
+  return managed
+end
+
+function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
+  Base.@lock managed.lock begin
+    # let null pointers pass through as-is
+    ptr = convert(CuPtr{T}, managed.mem)
+    ptr == CU_NULL && return ptr
+
+    state = active_state()
+    take_ownership!(managed; state, stream=state.stream)
+    return ptr
+  end
 end
 
 function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
-  # let null pointers pass through as-is
-  ptr = convert(Ptr{T}, managed.mem)
-  if ptr == C_NULL
+  Base.@lock managed.lock begin
+    # let null pointers pass through as-is
+    ptr = convert(Ptr{T}, managed.mem)
+    ptr == C_NULL && return ptr
+
+    # accessing memory on the CPU: only allowed for host or unified allocations
+    if M == DeviceMemory
+      throw(ArgumentError(
+          """cannot take the CPU address of GPU memory.
+
+             You are probably falling back to or otherwise calling CPU functionality
+             with GPU array inputs. This is not supported by regular device memory;
+             ensure this operation is supported by CUDA.jl, and if it isn't, try to
+             avoid it or rephrase it in terms of supported operations. Alternatively,
+             you can consider using GPU arrays backed by unified memory by
+             allocating using `cu(...; unified=true)`."""))
+    end
+
+    # make sure any work on the memory has finished.
+    maybe_synchronize(managed)
     return ptr
   end
-
-  # accessing memory on the CPU: only allowed for host or unified allocations
-  if M == DeviceMemory
-    throw(ArgumentError(
-        """cannot take the CPU address of GPU memory.
-
-           You are probably falling back to or otherwise calling CPU functionality
-           with GPU array inputs. This is not supported by regular device memory;
-           ensure this operation is supported by CUDA.jl, and if it isn't, try to
-           avoid it or rephrase it in terms of supported operations. Alternatively,
-           you can consider using GPU arrays backed by unified memory by
-           allocating using `cu(...; unified=true)`."""))
-  end
-
-  # make sure any work on the memory has finished.
-  maybe_synchronize(managed)
-  return ptr
 end
 
 
@@ -746,27 +772,29 @@ Releases memory to the pool. If possible, this operation will not block but will
 against the stream that last used the memory.
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
-  mem = managed.mem
+  Base.@lock managed.lock begin
+    mem = managed.mem
 
-  # 0-byte allocations shouldn't hit the pool
-  sz = sizeof(mem)
-  sz == 0 && return
+    # 0-byte allocations shouldn't hit the pool
+    sz = sizeof(mem)
+    sz == 0 && return
 
-  # this function is typically called from a finalizer, where we can't switch tasks,
-  # so perform our own error handling.
-  try
-    time = Base.@elapsed _pool_free(mem, managed.stream)
+    # this function is typically called from a finalizer, where we can't switch tasks,
+    # so perform our own error handling.
+    try
+      time = Base.@elapsed _pool_free(mem, managed.stream)
 
-    Base.@atomic alloc_stats.free_count += 1
-    Base.@atomic alloc_stats.free_bytes += sz
-    Base.@atomic alloc_stats.total_time += time
-  catch ex
-    # NOTE: avoid `show`ing `mem` here since the buffer may be in a bad state
-    # (often the reason free is failing); printing the byte count is safer.
-    Base.showerror_nostdio(ex,
-        "WARNING: Error while freeing $(Base.format_bytes(sz)) of GPU memory")
-    Base.show_backtrace(Core.stdout, catch_backtrace())
-    Core.println()
+      Base.@atomic alloc_stats.free_count += 1
+      Base.@atomic alloc_stats.free_bytes += sz
+      Base.@atomic alloc_stats.total_time += time
+    catch ex
+      # NOTE: avoid `show`ing `mem` here since the buffer may be in a bad state
+      # (often the reason free is failing); printing the byte count is safer.
+      Base.showerror_nostdio(ex,
+          "WARNING: Error while freeing $(Base.format_bytes(sz)) of GPU memory")
+      Base.show_backtrace(Core.stdout, catch_backtrace())
+      Core.println()
+    end
   end
 
   return
