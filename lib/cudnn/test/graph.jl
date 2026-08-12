@@ -131,9 +131,21 @@ ndx, ndscale, ndbias = norm_bwd!(g, ny, nx, nscale, nmean, ninv)
 @test ndbias.dims == nbias.dims
 badscale = tensor!(g; dims=(1, 1, 4, 1), dtype=Float32, name="BadScale")
 @test_throws DimensionMismatch norm_fwd!(g, nx, badscale, nbias; epsilon=neps)
-@test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; mode=:layernorm)
+# layer/RMS norm: scale spans the normalized dims, stats span the complement
+lscale = tensor!(g; dims=(7, 1, 1, 1), dtype=Float32, name="LayerScale")
+lbias = tensor!(g; dims=(7, 1, 1, 1), dtype=Float32, name="LayerBias")
+lny, lnmean, lninv, _, _ = norm_fwd!(g, nx, lscale, lbias; mode=:layernorm)
+@test lny.dims == nx.dims
+@test lnmean.dims == [1, 6, 3, 2]
+@test lninv.dims == [1, 6, 3, 2]
+rny, rnmean, rninv, _, _ = norm_fwd!(g, nx, lscale, nothing; mode=:rmsnorm)
+@test rnmean === nothing
+@test rninv.dims == [1, 6, 3, 2]
+@test norm_fwd!(g, nx, lscale, nothing; mode=:rmsnorm, phase=:inference).dims == nx.dims
+@test_throws ArgumentError norm_fwd!(g, nx, lscale, nothing; mode=:layernorm)
+@test_throws ArgumentError norm_fwd!(g, nx, lscale, lbias; mode=:rmsnorm, mean=lnmean)
 @test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias;
-                                     mode=cuDNN.CUDNN_LAYER_NORM)
+                                     mode=cuDNN.CUDNN_GROUP_NORM)
 @test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; phase=:inference,
                                      mean=nmean, inv_variance=ninv, epsilon=neps)
 @test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias; phase=:inference,

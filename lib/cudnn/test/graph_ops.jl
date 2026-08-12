@@ -8,10 +8,12 @@ using cuDNN:
     execute!,
     is_supported,
     matmul!,
+    norm_fwd!,
     output!,
     pointwise!,
     resample_bwd!,
     resample_fwd!,
+    tensor,
     tensor!,
     CUDNN_DATA_FP8_E4M3,
     CUDNN_DATA_FP8_E8M0,
@@ -358,4 +360,53 @@ let
     @test_throws DimensionMismatch block_scale_quantize!(g, hi; block_size=32, block_dim=3,
                                                          dtype=CUDNN_DATA_FP8_E4M3,
                                                          scale_dtype=CUDNN_DATA_FP8_E8M0)
+end
+
+# layer and RMS norm normalize over the dimensions the scale spans; the
+# statistics span the complement and, at inference, are computed on the fly
+function layernorm_ref(x, scale, bias; epsilon)
+    mean = sum(x; dims=1) ./ size(x, 1)
+    var = sum(abs2, x .- mean; dims=1) ./ size(x, 1)
+    return @. scale * (x - mean) / sqrt(var + epsilon) + bias
+end
+
+function rmsnorm_ref(x, scale; epsilon)
+    ms = sum(abs2, x; dims=1) ./ size(x, 1)
+    return @. scale * x / sqrt(ms + epsilon)
+end
+
+let H=64, S=8, B=2
+    epsilon = 1f-4
+    x_ref = reshape(Float32.(sin.(1:H*S*B)), H, S, B)
+    scale_ref = reshape(1f0 .+ Float32.(cos.(1:H)) ./ 2, H, 1, 1)
+    bias_ref = reshape(Float32.(sin.(1:H)) ./ 4, H, 1, 1)
+    x, scale, bias = CuArray(x_ref), CuArray(scale_ref), CuArray(bias_ref)
+
+    y = CUDACore.zeros(Float32, H, S, B)
+    g = Graph()
+    tx = tensor!(g, x; name="X")
+    tscale = tensor!(g, scale; name="Scale")
+    tbias = tensor!(g, bias; name="Bias")
+    ty = tensor!(g, y; name="Y", output=true)
+    norm_fwd!(g, tx, tscale, tbias; y=ty, mode=:layernorm, phase=:inference)
+    if is_supported(g)
+        execute!(g, tx=>x, tscale=>scale, tbias=>bias, ty=>y,
+                 tensor(g, "Epsilon")=>epsilon)
+        @test Array(y) ≈ layernorm_ref(x_ref, scale_ref, bias_ref; epsilon) rtol=1f-4 atol=1f-4
+    else
+        @test_skip is_supported(g)
+    end
+
+    yr = CUDACore.zeros(Float32, H, S, B)
+    gr = Graph()
+    rx = tensor!(gr, x; name="X")
+    rscale = tensor!(gr, scale; name="Scale")
+    ry = tensor!(gr, yr; name="Y", output=true)
+    norm_fwd!(gr, rx, rscale, nothing; y=ry, mode=:rmsnorm, phase=:inference)
+    if is_supported(gr)
+        execute!(gr, rx=>x, rscale=>scale, ry=>yr, tensor(gr, "Epsilon")=>epsilon)
+        @test Array(yr) ≈ rmsnorm_ref(x_ref, scale_ref; epsilon) rtol=1f-4 atol=1f-4
+    else
+        @test_skip is_supported(gr)
+    end
 end

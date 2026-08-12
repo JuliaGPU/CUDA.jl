@@ -502,7 +502,7 @@ function norm_forward_operation(; mode::cudnnBackendNormMode_t,
                                 mean::Union{Nothing,BackendDescriptor}=nothing,
                                 inv_variance::Union{Nothing,BackendDescriptor}=nothing,
                                 scale::BackendDescriptor,
-                                bias::BackendDescriptor,
+                                bias::Union{Nothing,BackendDescriptor}=nothing,
                                 epsilon::Union{Nothing,BackendDescriptor}=nothing,
                                 momentum::Union{Nothing,BackendDescriptor}=nothing,
                                 input_running_mean::Union{Nothing,BackendDescriptor}=nothing,
@@ -517,7 +517,7 @@ function norm_forward_operation(; mode::cudnnBackendNormMode_t,
         mean === nothing || (op[:mean_desc] = mean)
         inv_variance === nothing || (op[:inv_variance_desc] = inv_variance)
         op[:scale_desc] = scale
-        op[:bias_desc] = bias
+        bias === nothing || (op[:bias_desc] = bias)
         epsilon === nothing || (op[:epsilon_desc] = epsilon)
         momentum === nothing || (op[:exp_avg_factor_desc] = momentum)
         input_running_mean === nothing || (op[:input_running_mean_desc] = input_running_mean)
