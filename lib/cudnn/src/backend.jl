@@ -345,7 +345,7 @@ function pointwise_operation(pwdesc::BackendDescriptor, x::BackendDescriptor,
                              y::BackendDescriptor;
                              b::Union{Nothing,BackendDescriptor}=nothing,
                              t::Union{Nothing,BackendDescriptor}=nothing,
-                             alpha1::Real=1, alpha2::Real=0)
+                             alpha1::Real=1, alpha2::Real=1)
     make_descriptor(:operation_pointwise) do op
         op[:pw_descriptor] = pwdesc
         op[:xdesc] = x

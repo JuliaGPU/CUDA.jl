@@ -364,7 +364,7 @@ function pointwise!(g::Graph, mode, x::Tensor, inputs::Tensor...;
                     relu_lower_clip_slope::Real=0, elu_alpha::Real=1,
                     softplus_beta::Real=1, swish_beta::Real=1,
                     axis::Union{Nothing,Integer}=nothing,
-                    alpha1::Real=1, alpha2::Real=0, name::String="Y")
+                    alpha1::Real=1, alpha2::Real=1, name::String="Y")
     length(inputs) <= 2 || throw(ArgumentError("pointwise! accepts at most three inputs"))
     b = length(inputs) >= 1 ? inputs[1] : nothing
     t = length(inputs) == 2 ? inputs[2] : nothing

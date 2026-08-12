@@ -9,6 +9,7 @@ using cuDNN:
     is_supported,
     matmul!,
     output!,
+    pointwise!,
     resample_bwd!,
     resample_fwd!,
     tensor!,
@@ -156,6 +157,27 @@ let K=16, M=16, N=16, B=2
     if is_supported(g)
         execute!(g, ta=>a, tb=>b, ty=>y)
         @test Float32.(Array(y)) ≈ matmul_ref(a, b) rtol=2f-3 atol=2f-3
+    else
+        @test_skip is_supported(g)
+    end
+end
+
+# binary pointwise: alpha2 must default to 1 — the scaling constants mean
+# y = op(alpha1·x, alpha2·b), so a zero default drops the second operand
+let M=16, N=16
+    x = CuArray(reshape(Float16.(sin.(1:M*N)), M, N, 1))
+    b = CuArray(reshape(Float16.(cos.(1:M*N)), M, N, 1))
+    y = CUDACore.zeros(Float16, M, N, 1)
+
+    g = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+    tx = tensor!(g, x; name="X")
+    tb = tensor!(g, b; name="B")
+    ty = tensor!(g, y; name="Y", output=true)
+    pointwise!(g, :add, tx, tb; y=ty)
+
+    if is_supported(g)
+        execute!(g, tx=>x, tb=>b, ty=>y)
+        @test Float32.(Array(y)) ≈ Float32.(Array(x)) .+ Float32.(Array(b)) rtol=1f-3 atol=1f-3
     else
         @test_skip is_supported(g)
     end
