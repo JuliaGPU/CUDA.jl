@@ -1,15 +1,30 @@
+checked_array_pointer(t::Tensor, value) = throw(ArgumentError(
+    "binding for $(t.name) must be a DenseCuArray, or a type with its own " *
+    "checked_array_pointer method; got $(typeof(value))"))
+
+# Public for array types whose memory layout the dense comparison cannot express.
+# Implementations must validate whatever consistency their storage admits and
+# return a device pointer.
+@public checked_array_pointer
+
 function checked_array_pointer(t::Tensor, a::DenseCuArray)
-    size(a) == Tuple(t.dims) ||
-        throw(DimensionMismatch("binding for $(t.name) has size $(size(a)), expected $(Tuple(t.dims))"))
-    canonical_strides(t.dims, strides(a)) == t.strides ||
-        throw(DimensionMismatch("binding for $(t.name) has strides $(strides(a)), expected $(Tuple(t.strides))"))
     cudnnDataType(eltype(a)) == t.dtype ||
-        throw(ArgumentError("binding for $(t.name) has eltype $(eltype(a)), expected $(juliaDataType(t.dtype))"))
+        throw(ArgumentError("binding for $(t.name) has eltype $(eltype(a)), expected $(t.dtype)"))
+    memory_layout(dims, strides) =
+        sort!([(Int64(d), Int64(s)) for (d, s) in zip(dims, strides) if d != 1]; by=last)
+    if t.reordering == CUDNN_TENSOR_REORDERING_NONE
+        memory_layout(size(a), strides(a)) == memory_layout(t.dims, t.strides) ||
+            throw(DimensionMismatch(
+                "binding for $(t.name) has size $(size(a)) with strides $(strides(a)), " *
+                "which does not lay out the tensor's $(Tuple(t.dims)) with strides $(Tuple(t.strides))"))
+    else
+        length(a) == prod(t.dims) || throw(DimensionMismatch(
+            "binding for $(t.name) has $(length(a)) elements, expected $(prod(t.dims))"))
+    end
     return pointer(a)
 end
 
 function checked_scalar_pointer(t::Tensor, value, refs)
-    t.by_value || throw(ArgumentError("binding for $(t.name) must be a DenseCuArray"))
     T = juliaDataType(t.dtype)
     ref = value isa Ref ? value : Ref{T}(convert(T, value))
     push!(refs, ref)
@@ -25,11 +40,11 @@ function execute!(g::Graph, bindings::AbstractDict)
     for t in g.variant_tensors
         haskey(bindings, t) || throw(ArgumentError("missing binding for cuDNN graph tensor $(t.name)"))
         value = bindings[t]
-        if value isa DenseCuArray
+        if t.by_value
+            push!(pointers, checked_scalar_pointer(t, value, refs))
+        else
             push!(arrays, value)
             push!(pointers, checked_array_pointer(t, value))
-        else
-            push!(pointers, checked_scalar_pointer(t, value, refs))
         end
     end
 

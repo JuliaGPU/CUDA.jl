@@ -77,6 +77,7 @@ backend_attribute_type(::Type{cudnnBackendNormFwdPhase_t}) = CUDNN_TYPE_NORM_FWD
 backend_attribute_type(::Type{cudnnRngDistribution_t}) = CUDNN_TYPE_RNG_DISTRIBUTION
 backend_attribute_type(::Type{cudnnMoeGroupedMatmulMode_t}) = CUDNN_TYPE_MOE_GROUPED_MATMUL_MODE
 backend_attribute_type(::Type{cudnnBackendOperationGraphMode_t}) = CUDNN_TYPE_OPERATIONGRAPH_MODE
+backend_attribute_type(::Type{cudnnBackendTensorReordering_t}) = CUDNN_TYPE_TENSOR_REORDERING_MODE
 backend_attribute_type(::Type{cudnnFraction_t}) = CUDNN_TYPE_FRACTION
 
 setattr!(d, name, v::cudnnFraction_t) =
@@ -227,7 +228,8 @@ make_descriptor(f, type::Symbol) = make_descriptor(f, descriptor_types[type])
 ## Constructors
 
 function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
-                        is_virtual::Bool=false, by_value::Bool=false, alignment::Integer=16)
+                        is_virtual::Bool=false, by_value::Bool=false, alignment::Integer=16,
+                        reordering::cudnnBackendTensorReordering_t=CUDNN_TENSOR_REORDERING_NONE)
     make_descriptor(:tensor) do d
         d[:unique_id] = Int64(uid)
         d[:data_type] = dtype
@@ -236,6 +238,7 @@ function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
         d[:byte_alignment] = Int64(alignment)
         is_virtual && (d[:is_virtual] = true)
         by_value && (d[:is_by_value] = true)
+        reordering == CUDNN_TENSOR_REORDERING_NONE || (d[:reordering_mode] = reordering)
     end
 end
 
@@ -370,6 +373,35 @@ function reduction_operation(reddesc::BackendDescriptor, x::BackendDescriptor,
         op[:desc] = reddesc
         op[:xdesc] = x
         op[:ydesc] = y
+    end
+end
+
+function block_scale_dequantize_operation(x::BackendDescriptor, scale::BackendDescriptor,
+                                          y::BackendDescriptor;
+                                          math_prec::cudnnDataType_t=CUDNN_DATA_FLOAT,
+                                          block_size::Integer)
+    make_descriptor(:operation_block_scale_dequantize) do op
+        op[:xdesc] = x
+        op[:scale_desc] = scale
+        op[:ydesc] = y
+        op[:math_prec] = math_prec
+        setattr!(op, attribute(op, :block_size), CUDNN_TYPE_INT32, 1, Int32[block_size])
+    end
+end
+
+# quantize accepts plain scale output tensors at ranks 2 and 4 (the norm-fused
+# recipe), but at rank 3 demands an F8_128x4-reordered one; without it,
+# finalization fails with the misleading CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE
+function block_scale_quantize_operation(x::BackendDescriptor, y::BackendDescriptor,
+                                        scale::BackendDescriptor;
+                                        math_prec::cudnnDataType_t=CUDNN_DATA_FLOAT,
+                                        block_size::Integer)
+    make_descriptor(:operation_block_scale_quantize) do op
+        op[:xdesc] = x
+        op[:ydesc] = y
+        op[:scale_desc] = scale
+        op[:math_prec] = math_prec
+        setattr!(op, attribute(op, :block_size), CUDNN_TYPE_INT32, 1, Int32[block_size])
     end
 end
 
@@ -561,7 +593,9 @@ end
 
 is_unsupported(e::CUDNNError) = 3000 <= Int(e.code) < 4000
 
-# Unsupported configurations are expected while searching for a plan.
+# A candidate config can fail plan finalization for reasons beyond NOT_SUPPORTED
+# (kernel compilation failures, say); like cudnn-frontend's build_plans, skip it
+# and try the next one.
 function try_execution_plan(enginecfg::BackendDescriptor;
                             deviceprop::Union{Nothing,BackendDescriptor}=nothing)
     try
@@ -572,7 +606,6 @@ function try_execution_plan(enginecfg::BackendDescriptor;
         end
     catch e
         e isa CUDNNError || rethrow()
-        is_unsupported(e) || rethrow()
         return nothing
     end
 end
