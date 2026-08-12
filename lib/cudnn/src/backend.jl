@@ -530,22 +530,22 @@ end
 
 function norm_backward_operation(; mode::cudnnBackendNormMode_t,
                                  x::BackendDescriptor,
-                                 mean::BackendDescriptor,
+                                 mean::Union{Nothing,BackendDescriptor}=nothing,
                                  inv_variance::BackendDescriptor,
                                  dy::BackendDescriptor,
                                  scale::BackendDescriptor,
                                  dscale::BackendDescriptor,
-                                 dbias::BackendDescriptor,
+                                 dbias::Union{Nothing,BackendDescriptor}=nothing,
                                  dx::BackendDescriptor)
     make_descriptor(:operation_norm_backward) do op
         op[:mode] = mode
         op[:xdesc] = x
-        op[:mean_desc] = mean
+        mean === nothing || (op[:mean_desc] = mean)
         op[:inv_variance_desc] = inv_variance
         op[:dydesc] = dy
         op[:scale_desc] = scale
         op[:dscale_desc] = dscale
-        op[:dbias_desc] = dbias
+        dbias === nothing || (op[:dbias_desc] = dbias)
         op[:dxdesc] = dx
     end
 end

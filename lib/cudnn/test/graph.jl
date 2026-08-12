@@ -142,6 +142,15 @@ rny, rnmean, rninv, _, _ = norm_fwd!(g, nx, lscale, nothing; mode=:rmsnorm)
 @test rnmean === nothing
 @test rninv.dims == [1, 6, 3, 2]
 @test norm_fwd!(g, nx, lscale, nothing; mode=:rmsnorm, phase=:inference).dims == nx.dims
+lbdx, lbdscale, lbdbias = norm_bwd!(g, lny, nx, lscale, lnmean, lninv; mode=:layernorm)
+@test lbdx.dims == nx.dims
+@test lbdscale.dims == [7, 1, 1, 1]
+@test lbdbias.dims == [7, 1, 1, 1]
+rbdx, rbdscale, rbdbias = norm_bwd!(g, rny, nx, lscale, nothing, rninv; mode=:rmsnorm)
+@test rbdscale.dims == [7, 1, 1, 1]
+@test rbdbias === nothing
+@test_throws ArgumentError norm_bwd!(g, rny, nx, lscale, lnmean, rninv; mode=:rmsnorm)
+@test_throws ArgumentError norm_bwd!(g, lny, nx, lscale, nothing, lninv; mode=:layernorm)
 @test_throws ArgumentError norm_fwd!(g, nx, lscale, nothing; mode=:layernorm)
 @test_throws ArgumentError norm_fwd!(g, nx, lscale, lbias; mode=:rmsnorm, mean=lnmean)
 @test_throws ArgumentError norm_fwd!(g, nx, nscale, nbias;
