@@ -502,7 +502,7 @@ function norm_forward_operation(; mode::cudnnBackendNormMode_t,
                                 mean::Union{Nothing,BackendDescriptor}=nothing,
                                 inv_variance::Union{Nothing,BackendDescriptor}=nothing,
                                 scale::BackendDescriptor,
-                                bias::BackendDescriptor,
+                                bias::Union{Nothing,BackendDescriptor}=nothing,
                                 epsilon::Union{Nothing,BackendDescriptor}=nothing,
                                 momentum::Union{Nothing,BackendDescriptor}=nothing,
                                 input_running_mean::Union{Nothing,BackendDescriptor}=nothing,
@@ -517,7 +517,7 @@ function norm_forward_operation(; mode::cudnnBackendNormMode_t,
         mean === nothing || (op[:mean_desc] = mean)
         inv_variance === nothing || (op[:inv_variance_desc] = inv_variance)
         op[:scale_desc] = scale
-        op[:bias_desc] = bias
+        bias === nothing || (op[:bias_desc] = bias)
         epsilon === nothing || (op[:epsilon_desc] = epsilon)
         momentum === nothing || (op[:exp_avg_factor_desc] = momentum)
         input_running_mean === nothing || (op[:input_running_mean_desc] = input_running_mean)
@@ -530,22 +530,22 @@ end
 
 function norm_backward_operation(; mode::cudnnBackendNormMode_t,
                                  x::BackendDescriptor,
-                                 mean::BackendDescriptor,
+                                 mean::Union{Nothing,BackendDescriptor}=nothing,
                                  inv_variance::BackendDescriptor,
                                  dy::BackendDescriptor,
                                  scale::BackendDescriptor,
                                  dscale::BackendDescriptor,
-                                 dbias::BackendDescriptor,
+                                 dbias::Union{Nothing,BackendDescriptor}=nothing,
                                  dx::BackendDescriptor)
     make_descriptor(:operation_norm_backward) do op
         op[:mode] = mode
         op[:xdesc] = x
-        op[:mean_desc] = mean
+        mean === nothing || (op[:mean_desc] = mean)
         op[:inv_variance_desc] = inv_variance
         op[:dydesc] = dy
         op[:scale_desc] = scale
         op[:dscale_desc] = dscale
-        op[:dbias_desc] = dbias
+        dbias === nothing || (op[:dbias_desc] = dbias)
         op[:dxdesc] = dx
     end
 end

@@ -8,10 +8,13 @@ using cuDNN:
     execute!,
     is_supported,
     matmul!,
+    norm_bwd!,
+    norm_fwd!,
     output!,
     pointwise!,
     resample_bwd!,
     resample_fwd!,
+    tensor,
     tensor!,
     CUDNN_DATA_FP8_E4M3,
     CUDNN_DATA_FP8_E8M0,
@@ -358,4 +361,152 @@ let
     @test_throws DimensionMismatch block_scale_quantize!(g, hi; block_size=32, block_dim=3,
                                                          dtype=CUDNN_DATA_FP8_E4M3,
                                                          scale_dtype=CUDNN_DATA_FP8_E8M0)
+end
+
+# layer and RMS norm normalize over the dimensions the scale spans; the
+# statistics span the complement and, at inference, are computed on the fly
+function layernorm_ref(x, scale, bias; epsilon)
+    mean = sum(x; dims=1) ./ size(x, 1)
+    var = sum(abs2, x .- mean; dims=1) ./ size(x, 1)
+    return @. scale * (x - mean) / sqrt(var + epsilon) + bias
+end
+
+function rmsnorm_ref(x, scale; epsilon)
+    ms = sum(abs2, x; dims=1) ./ size(x, 1)
+    return @. scale * x / sqrt(ms + epsilon)
+end
+
+let H=64, S=8, B=2
+    epsilon = 1f-4
+    x_ref = reshape(Float32.(sin.(1:H*S*B)), H, S, B)
+    scale_ref = reshape(1f0 .+ Float32.(cos.(1:H)) ./ 2, H, 1, 1)
+    bias_ref = reshape(Float32.(sin.(1:H)) ./ 4, H, 1, 1)
+    x, scale, bias = CuArray(x_ref), CuArray(scale_ref), CuArray(bias_ref)
+
+    y = CUDACore.zeros(Float32, H, S, B)
+    g = Graph()
+    tx = tensor!(g, x; name="X")
+    tscale = tensor!(g, scale; name="Scale")
+    tbias = tensor!(g, bias; name="Bias")
+    ty = tensor!(g, y; name="Y", output=true)
+    norm_fwd!(g, tx, tscale, tbias; y=ty, mode=:layernorm, phase=:inference)
+    if is_supported(g)
+        execute!(g, tx=>x, tscale=>scale, tbias=>bias, ty=>y,
+                 tensor(g, "Epsilon")=>epsilon)
+        @test Array(y) ≈ layernorm_ref(x_ref, scale_ref, bias_ref; epsilon) rtol=1f-4 atol=1f-4
+    else
+        @test_skip is_supported(g)
+    end
+
+    yr = CUDACore.zeros(Float32, H, S, B)
+    gr = Graph()
+    rx = tensor!(gr, x; name="X")
+    rscale = tensor!(gr, scale; name="Scale")
+    ry = tensor!(gr, yr; name="Y", output=true)
+    norm_fwd!(gr, rx, rscale, nothing; y=ry, mode=:rmsnorm, phase=:inference)
+    if is_supported(gr)
+        execute!(gr, rx=>x, rscale=>scale, ry=>yr, tensor(gr, "Epsilon")=>epsilon)
+        @test Array(yr) ≈ rmsnorm_ref(x_ref, scale_ref; epsilon) rtol=1f-4 atol=1f-4
+    else
+        @test_skip is_supported(gr)
+    end
+end
+
+# backward references, normalized over dimension 1 with statistics saved by
+# the training forward
+function layernorm_bwd_ref(dy, x, scale; epsilon)
+    H = size(x, 1)
+    mean = sum(x; dims=1) ./ H
+    var = sum(abs2, x .- mean; dims=1) ./ H
+    iv = @. 1 / sqrt(var + epsilon)
+    xhat = @. (x - mean) * iv
+    dxhat = @. dy * scale
+    dx = iv .* (dxhat .- sum(dxhat; dims=1) ./ H .-
+                xhat .* (sum(dxhat .* xhat; dims=1) ./ H))
+    return dx, sum(dy .* xhat; dims=(2, 3)), sum(dy; dims=(2, 3))
+end
+
+function rmsnorm_bwd_ref(dy, x, scale; epsilon)
+    H = size(x, 1)
+    iv = @. 1 / sqrt($(sum(abs2, x; dims=1)) / H + epsilon)
+    xhat = @. x * iv
+    dxhat = @. dy * scale
+    dx = iv .* (dxhat .- xhat .* (sum(dxhat .* xhat; dims=1) ./ H))
+    return dx, sum(dy .* xhat; dims=(2, 3))
+end
+
+# training forward to backward round trip: the forward saves the per-sample
+# statistics, the backward consumes them; returns nothing when unsupported
+function norm_roundtrip(mode, x, scale, bias, dy; epsilon)
+    (H, S, B) = size(x)
+    y, dx = CUDACore.zeros(Float32, H, S, B), CUDACore.zeros(Float32, H, S, B)
+    sinv = CUDACore.zeros(Float32, 1, S, B)
+    smean = mode === :rmsnorm ? nothing : CUDACore.zeros(Float32, 1, S, B)
+    dscale = CUDACore.zeros(Float32, H, 1, 1)
+    dbias = mode === :rmsnorm ? nothing : CUDACore.zeros(Float32, H, 1, 1)
+    inout(g, a; kws...) = a === nothing ? nothing : tensor!(g, a; kws...)
+    bind!(binds, t, a) = t === nothing ? binds : push!(binds, t => a)
+
+    g = Graph()
+    tx, tscale, tbias = tensor!(g, x; name="X"), tensor!(g, scale; name="S"),
+                        inout(g, bias; name="B")
+    ty = tensor!(g, y; name="Y", output=true)
+    tinv = tensor!(g, sinv; name="IV", output=true)
+    tmean = inout(g, smean; name="M", output=true)
+    norm_fwd!(g, tx, tscale, tbias; y=ty, mean=tmean, inv_variance=tinv,
+              mode, phase=:training)
+    is_supported(g) || return nothing
+    binds = Any[tx => x, tscale => scale, ty => y, tinv => sinv,
+                tensor(g, "Epsilon") => epsilon]
+    bind!(bind!(binds, tbias, bias), tmean, smean)
+    execute!(g, binds...)
+
+    gb = Graph()
+    bdy, bx, bscale = tensor!(gb, dy; name="dY"), tensor!(gb, x; name="X"),
+                      tensor!(gb, scale; name="S")
+    binv, bmean = tensor!(gb, sinv; name="IV"), inout(gb, smean; name="M")
+    bdx = tensor!(gb, dx; name="dX", output=true)
+    bdscale = tensor!(gb, dscale; name="dS", output=true)
+    bdbias = inout(gb, dbias; name="dB", output=true)
+    norm_bwd!(gb, bdy, bx, bscale, bmean, binv;
+              dx=bdx, dscale=bdscale, dbias=bdbias, mode)
+    is_supported(gb) || return nothing
+    binds = Any[bdy => dy, bx => x, bscale => scale, binv => sinv,
+                bdx => dx, bdscale => dscale]
+    bind!(bind!(binds, bmean, smean), bdbias, dbias)
+    execute!(gb, binds...)
+    return y, dx, dscale, dbias
+end
+
+let H=64, S=8, B=2
+    epsilon = 1f-4
+    x_ref = reshape(Float32.(sin.(1:H*S*B)), H, S, B)
+    scale_ref = reshape(1f0 .+ Float32.(cos.(1:H)) ./ 2, H, 1, 1)
+    bias_ref = reshape(Float32.(sin.(1:H)) ./ 4, H, 1, 1)
+    dy_ref = reshape(Float32.(cos.(1:H*S*B)), H, S, B) ./ 2
+    x, scale, bias, dy = CuArray.((x_ref, scale_ref, bias_ref, dy_ref))
+
+    r = norm_roundtrip(:layernorm, x, scale, bias, dy; epsilon)
+    if r === nothing
+        @test_skip false
+    else
+        y, dx, dscale, dbias = r
+        dx_ref, dscale_ref, dbias_ref = layernorm_bwd_ref(dy_ref, x_ref, scale_ref; epsilon)
+        @test Array(y) ≈ layernorm_ref(x_ref, scale_ref, bias_ref; epsilon) rtol=1f-3 atol=1f-3
+        @test Array(dx) ≈ dx_ref rtol=1f-3 atol=1f-3
+        @test Array(dscale) ≈ dscale_ref rtol=1f-3 atol=1f-3
+        @test Array(dbias) ≈ dbias_ref rtol=1f-3 atol=1f-3
+    end
+
+    r = norm_roundtrip(:rmsnorm, x, scale, nothing, dy; epsilon)
+    if r === nothing
+        @test_skip false
+    else
+        y, dx, dscale, dbias = r
+        dx_ref, dscale_ref = rmsnorm_bwd_ref(dy_ref, x_ref, scale_ref; epsilon)
+        @test dbias === nothing
+        @test Array(y) ≈ rmsnorm_ref(x_ref, scale_ref; epsilon) rtol=1f-3 atol=1f-3
+        @test Array(dx) ≈ dx_ref rtol=1f-3 atol=1f-3
+        @test Array(dscale) ≈ dscale_ref rtol=1f-3 atol=1f-3
+    end
 end

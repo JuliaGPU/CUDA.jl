@@ -163,7 +163,7 @@ struct NormFwdOp <: Operation
     mean::Union{Nothing,Tensor}
     inv_variance::Union{Nothing,Tensor}
     scale::Tensor
-    bias::Tensor
+    bias::Union{Nothing,Tensor}
     epsilon::Union{Nothing,Tensor}
     momentum::Union{Nothing,Tensor}
     input_running_mean::Union{Nothing,Tensor}
@@ -179,11 +179,11 @@ struct NormBwdOp <: Operation
     dy::Tensor
     x::Tensor
     scale::Tensor
-    mean::Tensor
+    mean::Union{Nothing,Tensor}
     inv_variance::Tensor
     dx::Tensor
     dscale::Tensor
-    dbias::Tensor
+    dbias::Union{Nothing,Tensor}
     mode::cudnnBackendNormMode_t
 end
 
@@ -291,12 +291,14 @@ graph_padding_mode(mode::Symbol) =
     throw(ArgumentError("unknown cuDNN padding mode $mode"))
 
 function norm_mode(mode::cudnnBackendNormMode_t)
-    mode == CUDNN_BATCH_NORM ||
-        throw(ArgumentError("only batch normalization is supported"))
+    mode in (CUDNN_BATCH_NORM, CUDNN_LAYER_NORM, CUDNN_RMS_NORM) ||
+        throw(ArgumentError("unsupported cuDNN norm mode $mode"))
     return mode
 end
 norm_mode(mode::Symbol) =
     mode === :batchnorm ? CUDNN_BATCH_NORM :
+    mode === :layernorm ? CUDNN_LAYER_NORM :
+    mode === :rmsnorm ? CUDNN_RMS_NORM :
     throw(ArgumentError("unsupported cuDNN norm mode $mode"))
 
 norm_phase(phase::cudnnBackendNormFwdPhase_t) = phase
@@ -340,6 +342,21 @@ function norm_channel_dims(x::Tensor)
     dims[end-1] = x.dims[end-1]
     return dims
 end
+
+function norm_layer_param_dims(x::Tensor, scale::Tensor)
+    length(scale.dims) == length(x.dims) ||
+        throw(DimensionMismatch("norm scale rank must match the input rank"))
+    all(i -> scale.dims[i] == 1 || scale.dims[i] == x.dims[i], eachindex(x.dims)) ||
+        throw(DimensionMismatch(
+            "norm scale dimensions must be 1 or match the input; " *
+            "got $(Tuple(scale.dims)) for input $(Tuple(x.dims))"))
+    any(i -> scale.dims[i] != 1, eachindex(x.dims)) ||
+        throw(ArgumentError("norm scale must span at least one normalized dimension"))
+    return collect(scale.dims)
+end
+
+norm_stat_dims(x::Tensor, pdims) =
+    Int64[p == 1 ? d : Int64(1) for (p, d) in zip(pdims, x.dims)]
 
 function check_norm_param(name, t::Tensor, dims)
     t.dims == dims || throw(DimensionMismatch("$name dimensions must be $(Tuple(dims))"))
@@ -634,7 +651,7 @@ function conv_wgrad!(g::Graph, dy::Tensor, x::Tensor;
     return dw
 end
 
-function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
+function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Union{Nothing,Tensor};
                    y::Union{Nothing,Tensor}=nothing,
                    mean::Union{Nothing,Tensor}=nothing,
                    inv_variance::Union{Nothing,Tensor}=nothing,
@@ -646,16 +663,22 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
                    output_running_mean::Union{Nothing,Tensor}=nothing,
                    output_running_var::Union{Nothing,Tensor}=nothing,
                    name::String="Y")
-    pdims = norm_channel_dims(x)
+    nphase = norm_phase(phase)
+    nmode = norm_mode(mode)
+    pdims = nmode == CUDNN_BATCH_NORM ? norm_channel_dims(x) :
+                                        norm_layer_param_dims(x, scale)
     check_norm_param("norm scale", scale, pdims)
-    check_norm_param("norm bias", bias, pdims)
     xdtype = something(x.dtype, g.io_dtype)
     check_norm_dtype("norm input", x, xdtype)
     stat_dtype = norm_stat_dtype(xdtype)
     check_norm_dtype("norm scale", scale, stat_dtype)
-    check_norm_dtype("norm bias", bias, stat_dtype)
-    nphase = norm_phase(phase)
-    nmode = norm_mode(mode)
+    if bias === nothing
+        nmode == CUDNN_RMS_NORM ||
+            throw(ArgumentError("only RMS norm allows omitting the bias"))
+    else
+        check_norm_param("norm bias", bias, pdims)
+        check_norm_dtype("norm bias", bias, stat_dtype)
+    end
 
     if y === nothing
         y = tensor!(g; dims=x.dims, dtype=xdtype, virtual=true, name,
@@ -665,7 +688,8 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
         check_norm_dtype("norm output", y, xdtype)
     end
 
-    if nphase == CUDNN_NORM_FWD_TRAINING
+    training = nphase == CUDNN_NORM_FWD_TRAINING
+    if nmode == CUDNN_BATCH_NORM && training
         mean === nothing &&
             (mean = tensor!(g; dims=pdims, dtype=stat_dtype, virtual=true, name="Mean",
                             backend_order=x.backend_order))
@@ -697,7 +721,7 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
             check_norm_dtype("output_running_var", output_running_var, stat_dtype)
             check_norm_dtype("norm momentum", momentum, graph_dtype(norm_scalar_type(g)))
         end
-    else
+    elseif nmode == CUDNN_BATCH_NORM
         mean === nothing && throw(ArgumentError("norm inference requires mean"))
         inv_variance === nothing &&
             throw(ArgumentError("norm inference requires inv_variance"))
@@ -711,31 +735,78 @@ function norm_fwd!(g::Graph, x::Tensor, scale::Tensor, bias::Tensor;
         input_running_mean === nothing && input_running_var === nothing &&
             output_running_mean === nothing && output_running_var === nothing ||
             throw(ArgumentError("norm inference does not take running statistics"))
+    else
+        # layer/RMS norm: statistics are per sample and computed on the fly
+        momentum === nothing ||
+            throw(ArgumentError("per-sample norms do not take momentum"))
+        input_running_mean === nothing && input_running_var === nothing &&
+            output_running_mean === nothing && output_running_var === nothing ||
+            throw(ArgumentError("per-sample norms do not take running statistics"))
+        epsilon === nothing &&
+            (epsilon = scalar!(g, norm_scalar_type(g); rank=length(x.dims), name="Epsilon"))
+        check_norm_dtype("norm epsilon", epsilon, graph_dtype(norm_scalar_type(g)))
+        sdims = norm_stat_dims(x, pdims)
+        if training
+            if nmode == CUDNN_RMS_NORM
+                mean === nothing ||
+                    throw(ArgumentError("RMS norm has no mean statistic"))
+            else
+                mean === nothing &&
+                    (mean = tensor!(g; dims=sdims, dtype=stat_dtype, virtual=true,
+                                    name="Mean", backend_order=x.backend_order))
+                check_norm_param("norm mean", mean, sdims)
+                check_norm_dtype("norm mean", mean, stat_dtype)
+            end
+            inv_variance === nothing &&
+                (inv_variance = tensor!(g; dims=sdims, dtype=stat_dtype, virtual=true,
+                                        name="InvVariance", backend_order=x.backend_order))
+            check_norm_param("norm inv_variance", inv_variance, sdims)
+            check_norm_dtype("norm inv_variance", inv_variance, stat_dtype)
+        else
+            mean === nothing ||
+                throw(ArgumentError("per-sample norm inference does not take mean"))
+            inv_variance === nothing ||
+                throw(ArgumentError("per-sample norm inference does not take inv_variance"))
+        end
     end
 
     push!(g.ops, NormFwdOp(x, mean, inv_variance, scale, bias, epsilon, momentum,
                            input_running_mean, input_running_var, output_running_mean,
                            output_running_var, y, nmode, nphase))
-    return nphase == CUDNN_NORM_FWD_TRAINING ?
-           (y, mean, inv_variance, output_running_mean, output_running_var) : y
+    return training ? (y, mean, inv_variance, output_running_mean, output_running_var) : y
 end
 
-function norm_bwd!(g::Graph, dy::Tensor, x::Tensor, scale::Tensor, mean::Tensor,
-                   inv_variance::Tensor; dx::Union{Nothing,Tensor}=nothing,
+function norm_bwd!(g::Graph, dy::Tensor, x::Tensor, scale::Tensor,
+                   mean::Union{Nothing,Tensor}, inv_variance::Tensor;
+                   dx::Union{Nothing,Tensor}=nothing,
                    dscale::Union{Nothing,Tensor}=nothing,
                    dbias::Union{Nothing,Tensor}=nothing, mode=:batchnorm,
                    name::String="dX")
+    nmode = norm_mode(mode)
     dy.dims == x.dims || throw(DimensionMismatch("norm dY dimensions must match input"))
     xdtype = something(x.dtype, g.io_dtype)
     check_norm_dtype("norm input", x, xdtype)
     stat_dtype = norm_stat_dtype(xdtype)
     check_norm_dtype("norm dY", dy, xdtype)
-    pdims = norm_channel_dims(x)
+    # scale and its gradient take the parameter shape; the statistics saved
+    # by training take the complement
+    if nmode == CUDNN_BATCH_NORM
+        pdims = norm_channel_dims(x)
+        sdims = pdims
+    else
+        pdims = norm_layer_param_dims(x, scale)
+        sdims = norm_stat_dims(x, pdims)
+    end
     check_norm_param("norm scale", scale, pdims)
-    check_norm_param("norm mean", mean, pdims)
-    check_norm_param("norm inv_variance", inv_variance, pdims)
     check_norm_dtype("norm scale", scale, stat_dtype)
-    check_norm_dtype("norm mean", mean, stat_dtype)
+    if nmode == CUDNN_RMS_NORM
+        mean === nothing || throw(ArgumentError("RMS norm has no mean statistic"))
+    else
+        mean === nothing && throw(ArgumentError("norm_bwd! requires the saved mean"))
+        check_norm_param("norm mean", mean, sdims)
+        check_norm_dtype("norm mean", mean, stat_dtype)
+    end
+    check_norm_param("norm inv_variance", inv_variance, sdims)
     check_norm_dtype("norm inv_variance", inv_variance, stat_dtype)
     dx === nothing && (dx = tensor!(g; dims=x.dims, dtype=x.dtype, virtual=true, name,
                                     backend_order=x.backend_order))
@@ -744,15 +815,17 @@ function norm_bwd!(g::Graph, dy::Tensor, x::Tensor, scale::Tensor, mean::Tensor,
     dscale === nothing &&
         (dscale = tensor!(g; dims=pdims, dtype=scale.dtype, virtual=true,
                           name="dScale", backend_order=x.backend_order))
-    dbias === nothing &&
+    check_norm_param("norm dscale", dscale, pdims)
+    check_norm_dtype("norm dscale", dscale, stat_dtype)
+    # RMS norm's bias is optional, so its gradient is created on request only
+    dbias === nothing && nmode != CUDNN_RMS_NORM &&
         (dbias = tensor!(g; dims=pdims, dtype=scale.dtype, virtual=true,
                          name="dBias", backend_order=x.backend_order))
-    check_norm_param("norm dscale", dscale, pdims)
-    check_norm_param("norm dbias", dbias, pdims)
-    check_norm_dtype("norm dscale", dscale, stat_dtype)
-    check_norm_dtype("norm dbias", dbias, stat_dtype)
-    push!(g.ops, NormBwdOp(dy, x, scale, mean, inv_variance, dx, dscale, dbias,
-                           norm_mode(mode)))
+    if dbias !== nothing
+        check_norm_param("norm dbias", dbias, pdims)
+        check_norm_dtype("norm dbias", dbias, stat_dtype)
+    end
+    push!(g.ops, NormBwdOp(dy, x, scale, mean, inv_variance, dx, dscale, dbias, nmode))
     return dx, dscale, dbias
 end
 
@@ -1116,7 +1189,8 @@ function lower(op::NormFwdOp, ctx::LoweringContext)
                            mean=op.mean === nothing ? nothing : desc(ctx, op.mean),
                            inv_variance=op.inv_variance === nothing ? nothing :
                                         desc(ctx, op.inv_variance),
-                           scale=desc(ctx, op.scale), bias=desc(ctx, op.bias),
+                           scale=desc(ctx, op.scale),
+                           bias=op.bias === nothing ? nothing : desc(ctx, op.bias),
                            epsilon=op.epsilon === nothing ? nothing : desc(ctx, op.epsilon),
                            momentum=op.momentum === nothing ? nothing : desc(ctx, op.momentum),
                            input_running_mean=op.input_running_mean === nothing ? nothing :
@@ -1131,10 +1205,12 @@ function lower(op::NormFwdOp, ctx::LoweringContext)
 end
 
 function lower(op::NormBwdOp, ctx::LoweringContext)
-    norm_backward_operation(mode=op.mode, x=desc(ctx, op.x), mean=desc(ctx, op.mean),
+    norm_backward_operation(mode=op.mode, x=desc(ctx, op.x),
+                            mean=op.mean === nothing ? nothing : desc(ctx, op.mean),
                             inv_variance=desc(ctx, op.inv_variance),
                             dy=desc(ctx, op.dy), scale=desc(ctx, op.scale),
-                            dscale=desc(ctx, op.dscale), dbias=desc(ctx, op.dbias),
+                            dscale=desc(ctx, op.dscale),
+                            dbias=op.dbias === nothing ? nothing : desc(ctx, op.dbias),
                             dx=desc(ctx, op.dx))
 end
 
