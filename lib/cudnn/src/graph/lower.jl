@@ -14,7 +14,7 @@ function lower_tensor!(ctx::LoweringContext, t::Tensor)
     d = track!(ctx, backend_tensor(uid=t.uid, dims=cudnn_order(t, t.dims),
                                    strides=cudnn_order(t, t.strides), dtype=t.dtype,
                                    is_virtual=t.virtual, by_value=t.by_value,
-                                   alignment=t.alignment))
+                                   alignment=t.alignment, reordering=t.reordering))
     ctx.tensor_descs[t] = d
     return d
 end

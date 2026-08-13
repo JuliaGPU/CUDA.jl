@@ -66,6 +66,22 @@ struct ReductionOp <: Operation
     deterministic::Bool
 end
 
+struct BlockScaleDequantizeOp <: Operation
+    x::Tensor
+    scale::Tensor
+    y::Tensor
+    block_size::Int
+    math_prec::cudnnDataType_t
+end
+
+struct BlockScaleQuantizeOp <: Operation
+    x::Tensor
+    y::Tensor
+    scale::Tensor
+    block_size::Int
+    math_prec::cudnnDataType_t
+end
+
 struct ConvFpropOp <: Operation
     x::Tensor
     w::Tensor
@@ -764,6 +780,115 @@ function matmul!(g::Graph, a::Tensor, b::Tensor;
     return c
 end
 
+function swizzled_scale_dims(xdims, block_size, order)
+    dims = copy(collect(Int64, xdims))
+    isempty(order) && return dims
+    round_up(x::Integer, m::Integer) = cld(x, m) * m
+    dims[order[1]] = round_up(cld(dims[order[1]], block_size), 4)
+    length(order) >= 2 && (dims[order[2]] = round_up(dims[order[2]], 128))
+    return dims
+end
+
+# engines address whole tiles regardless of the declared extents; cuDNN accepts
+# unpadded declarations at build time but crashes the context at execution
+function check_swizzled_scale_dims(fname, x::Tensor, scale::Tensor, block_size)
+    order = [i for i in sortperm(scale.strides) if scale.dims[i] != 1]
+    expected = swizzled_scale_dims(x.dims, block_size, order)
+    scale.dims == expected || throw(DimensionMismatch(
+        "$fname F8_128x4 scale dimensions $(Tuple(scale.dims)) do not tile data " *
+        "dimensions $(Tuple(x.dims)) with block_size=$block_size; the swizzled layout " *
+        "needs whole 128×4 tiles: cld(extent, block_size) scales rounded up to a " *
+        "multiple of 4 along the packed dimension and the next dimension rounded up " *
+        "to a multiple of 128, i.e. $(Tuple(expected))"))
+    return nothing
+end
+
+function check_block_scale_dims(fname, x::Tensor, scale::Tensor, block_size)
+    length(x.dims) == length(scale.dims) ||
+        throw(DimensionMismatch("$fname data and scale tensors must have the same rank"))
+    scale.reordering == CUDNN_TENSOR_REORDERING_F8_128x4 &&
+        return check_swizzled_scale_dims(fname, x, scale, block_size)
+    blocked = 0
+    for (dx, ds) in zip(x.dims, scale.dims)
+        if dx == ds * block_size
+            blocked += 1
+        elseif dx != ds
+            throw(DimensionMismatch(
+                "$fname scale dimensions $(Tuple(scale.dims)) must match data dimensions " *
+                "$(Tuple(x.dims)) except along one dimension divided by block_size=$block_size"))
+        end
+    end
+    blocked == 1 || throw(DimensionMismatch(
+        "$fname expects exactly one dimension blocked by block_size=$block_size; " *
+        "got data $(Tuple(x.dims)) and scale $(Tuple(scale.dims))"))
+    return nothing
+end
+
+function block_scale_dequantize!(g::Graph, x::Tensor, scale::Tensor;
+                                 block_size::Integer, math_prec=Float32,
+                                 y::Union{Nothing,Tensor}=nothing, name::String="Y")
+    version() >= v"9.7" || throw(ArgumentError(
+        "block_scale_dequantize! requires cuDNN 9.7, got $(version())"))
+    block_size > 1 ||
+        throw(ArgumentError("block_scale_dequantize! block_size must be > 1, got $block_size"))
+    check_block_scale_dims("block_scale_dequantize!", x, scale, block_size)
+    if y === nothing
+        y = tensor!(g; dims=x.dims, dtype=nothing, virtual=true, name)
+    else
+        y.dims == x.dims || throw(DimensionMismatch(
+            "block_scale_dequantize! output dimensions must be $(Tuple(x.dims))"))
+    end
+    push!(g.ops, BlockScaleDequantizeOp(x, scale, y, Int(block_size), graph_dtype(math_prec)))
+    return y
+end
+
+# dense strides assigning stride 1 to `order`'s first dimension, with dimensions
+# absent from `order` (singletons) outermost
+function ordered_strides(dims, order)
+    strides = similar(dims)
+    s = one(eltype(dims))
+    for i in [order; [i for i in eachindex(dims) if !(i in order)]]
+        strides[i] = s
+        s *= dims[i]
+    end
+    return strides
+end
+
+function block_scale_quantize!(g::Graph, x::Tensor;
+                               block_size::Integer, block_dim::Integer=1,
+                               dtype=nothing, scale_dtype=nothing, math_prec=Float32,
+                               y::Union{Nothing,Tensor}=nothing,
+                               scale::Union{Nothing,Tensor}=nothing, name::String="Q")
+    version() >= v"9.7" || throw(ArgumentError(
+        "block_scale_quantize! requires cuDNN 9.7, got $(version())"))
+    block_size > 1 ||
+        throw(ArgumentError("block_scale_quantize! block_size must be > 1, got $block_size"))
+    if y === nothing
+        dtype === nothing &&
+            throw(ArgumentError("block_scale_quantize! needs dtype to create the quantized output"))
+        y = tensor!(g; dims=x.dims, dtype, output=true, name)
+    else
+        y.dims == x.dims || throw(DimensionMismatch(
+            "block_scale_quantize! output dimensions must be $(Tuple(x.dims))"))
+    end
+    if scale === nothing
+        scale_dtype === nothing &&
+            throw(ArgumentError("block_scale_quantize! needs scale_dtype to create the scale output"))
+        1 <= block_dim <= length(x.dims) ||
+            throw(ArgumentError("block_scale_quantize! block_dim must index a dimension of x"))
+        x.dims[block_dim] % block_size == 0 || throw(DimensionMismatch(
+            "block_scale_quantize! dimension $block_dim of x must be divisible by block_size=$block_size"))
+        order = [block_dim; [i for i in sortperm(x.strides) if i != block_dim && x.dims[i] != 1]]
+        sdims = swizzled_scale_dims(x.dims, block_size, order)
+        scale = tensor!(g; dims=sdims, strides=ordered_strides(sdims, order),
+                        dtype=scale_dtype, output=true, name=name * ".scale",
+                        reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    end
+    check_block_scale_dims("block_scale_quantize!", x, scale, block_size)
+    push!(g.ops, BlockScaleQuantizeOp(x, y, scale, Int(block_size), graph_dtype(math_prec)))
+    return y, scale
+end
+
 function reduction!(g::Graph, mode, x::Tensor;
                     y::Union{Nothing,Tensor}=nothing, dims,
                     compute_dtype=g.compute_dtype, deterministic::Bool=false,
@@ -901,6 +1026,16 @@ end
 function lower(op::MatmulOp, ctx::LoweringContext)
     matdesc = track!(ctx, matmul_descriptor(compute_type=op.compute_dtype))
     matmul_operation(matdesc, desc(ctx, op.b), desc(ctx, op.a), desc(ctx, op.c))
+end
+
+function lower(op::BlockScaleDequantizeOp, ctx::LoweringContext)
+    block_scale_dequantize_operation(desc(ctx, op.x), desc(ctx, op.scale), desc(ctx, op.y);
+                                     math_prec=op.math_prec, block_size=op.block_size)
+end
+
+function lower(op::BlockScaleQuantizeOp, ctx::LoweringContext)
+    block_scale_quantize_operation(desc(ctx, op.x), desc(ctx, op.y), desc(ctx, op.scale);
+                                   math_prec=op.math_prec, block_size=op.block_size)
 end
 
 function lower(op::ReductionOp, ctx::LoweringContext)
@@ -1049,4 +1184,5 @@ function lower(op::SDPABwdOp, ctx::LoweringContext)
 end
 
 @public pointwise!, matmul!, reduction!, conv_fprop!, conv_dgrad!, conv_wgrad!,
-        resample_fwd!, resample_bwd!, norm_fwd!, norm_bwd!, sdpa_fwd!, sdpa_bwd!
+        resample_fwd!, resample_bwd!, norm_fwd!, norm_bwd!, sdpa_fwd!, sdpa_bwd!,
+        block_scale_dequantize!, block_scale_quantize!

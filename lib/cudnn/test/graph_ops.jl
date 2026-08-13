@@ -1,4 +1,6 @@
 using cuDNN:
+    block_scale_dequantize!,
+    block_scale_quantize!,
     conv_dgrad!,
     conv_fprop!,
     conv_wgrad!,
@@ -6,9 +8,13 @@ using cuDNN:
     execute!,
     is_supported,
     matmul!,
+    output!,
     resample_bwd!,
     resample_fwd!,
-    tensor!
+    tensor!,
+    CUDNN_DATA_FP8_E4M3,
+    CUDNN_DATA_FP8_E8M0,
+    CUDNN_TENSOR_REORDERING_F8_128x4
 
 CUDACore.allowscalar(false)
 
@@ -246,4 +252,88 @@ let W=7, H=6, C=2, N=2
     else
         @test_skip is_supported(gb)
     end
+end
+
+# block-scale requires Blackwell
+blockscale_claimed = CUDACore.capability(CUDACore.device()) >= v"10.0"
+
+# helper: MXFP8 operand pair, dequantized and multiplied. F8_128x4 scale
+# dimensions are padded to whole 128×4 tiles
+function blockscale_matmul!(g; K, M, N)
+    MP, KS = cld(M, 128) * 128, cld(cld(K, 32), 4) * 4
+    NP = cld(N, 128) * 128
+    a = tensor!(g; dims=(M, K, 1), strides=(K, 1, M * K), dtype=CUDNN_DATA_FP8_E4M3,
+                name="A")
+    as = tensor!(g; dims=(MP, KS, 1), strides=(KS, 1, MP * KS),
+                 dtype=CUDNN_DATA_FP8_E8M0, name="A.scale",
+                 reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    da = block_scale_dequantize!(g, a, as; block_size=32)
+    b = tensor!(g; dims=(K, N, 1), dtype=CUDNN_DATA_FP8_E4M3, name="B")
+    bs = tensor!(g; dims=(KS, NP, 1), dtype=CUDNN_DATA_FP8_E8M0, name="B.scale",
+                 reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    db = block_scale_dequantize!(g, b, bs; block_size=32)
+    return matmul!(g, da, db)
+end
+
+let K=128, M=128, N=128
+    g = Graph(intermediate_dtype=Float32, compute_dtype=Float32)
+    output!(blockscale_matmul!(g; K, M, N))
+    @test is_supported(g) == blockscale_claimed
+end
+
+let K=128, M=128, N=64
+    g = Graph(intermediate_dtype=Float32, compute_dtype=Float32)
+    output!(blockscale_matmul!(g; K, M, N))
+    @test is_supported(g) == blockscale_claimed
+
+    g2 = Graph()
+    b = tensor!(g2; dims=(K, N, 1), dtype=CUDNN_DATA_FP8_E4M3)
+    unpadded = tensor!(g2; dims=(K ÷ 32, N, 1), dtype=CUDNN_DATA_FP8_E8M0,
+                       reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    @test_throws DimensionMismatch block_scale_dequantize!(g2, b, unpadded; block_size=32)
+end
+
+let K=160, M=128, N=128
+    g = Graph(intermediate_dtype=Float32, compute_dtype=Float32)
+    output!(blockscale_matmul!(g; K, M, N))
+    @test is_supported(g) == blockscale_claimed
+end
+
+let K=128, M=128, N=128
+    g = Graph(intermediate_dtype=Float32, compute_dtype=Float32)
+    c = blockscale_matmul!(g; K, M, N)
+    y, scale = block_scale_quantize!(g, c; block_size=32, block_dim=1,
+                                     dtype=CUDNN_DATA_FP8_E4M3,
+                                     scale_dtype=CUDNN_DATA_FP8_E8M0)
+    @test y.dims == [M, N, 1]
+    @test scale.dims == [M ÷ 32, N, 1]
+    @test scale.reordering == CUDNN_TENSOR_REORDERING_F8_128x4
+    @test is_supported(g) == blockscale_claimed
+end
+
+let
+    g = Graph()
+    x = tensor!(g; dims=(64, 200, 1), dtype=Float32)
+    y, scale = block_scale_quantize!(g, x; block_size=32, block_dim=1,
+                                     dtype=CUDNN_DATA_FP8_E4M3,
+                                     scale_dtype=CUDNN_DATA_FP8_E8M0)
+    @test scale.dims == [4, 256, 1]     # cld(64, 32) = 2 → 4; 200 → 256
+    @test scale.strides == [1, 4, 1024]
+end
+
+let
+    g = Graph()
+    x = tensor!(g; dims=(128, 64, 1), dtype=CUDNN_DATA_FP8_E4M3)
+    bad_scale = tensor!(g; dims=(128, 3, 1), dtype=CUDNN_DATA_FP8_E8M0)
+    @test_throws DimensionMismatch block_scale_dequantize!(g, x, bad_scale; block_size=32)
+    bad_rank = tensor!(g; dims=(128, 2), dtype=CUDNN_DATA_FP8_E8M0)
+    @test_throws DimensionMismatch block_scale_dequantize!(g, x, bad_rank; block_size=32)
+    unblocked = tensor!(g; dims=(128, 64, 1), dtype=CUDNN_DATA_FP8_E8M0)
+    @test_throws DimensionMismatch block_scale_dequantize!(g, x, unblocked; block_size=32)
+    @test_throws ArgumentError block_scale_dequantize!(g, x, bad_scale; block_size=1)
+    hi = tensor!(g; dims=(128, 64, 1), dtype=Float32)
+    @test_throws ArgumentError block_scale_quantize!(g, hi; block_size=32)
+    @test_throws DimensionMismatch block_scale_quantize!(g, hi; block_size=32, block_dim=3,
+                                                         dtype=CUDNN_DATA_FP8_E4M3,
+                                                         scale_dtype=CUDNN_DATA_FP8_E8M0)
 end
