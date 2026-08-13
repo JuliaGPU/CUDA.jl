@@ -818,6 +818,7 @@ CuSparseVector{T}(Mat::SparseMatrixCSC) where {T} =
 CuSparseMatrixCSC{T}(Vec::SparseVector) where {T} =
     CuSparseMatrixCSC{T}(CuVector{Cint}([1]), CuVector{Cint}(Vec.nzind),
                          CuVector{T}(Vec.nzval), (length(Vec), 1))
+CuSparseMatrixCSR{T}(Vec::SparseVector) where {T} = CuSparseMatrixCSR(CuSparseMatrixCSC{T}(Vec))
 CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =
     CuSparseMatrixCSC{T}(CuVector{Cint}(Mat.colptr), CuVector{Cint}(Mat.rowval),
                          CuVector{T}(Mat.nzval), size(Mat))
