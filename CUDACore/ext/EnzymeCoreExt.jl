@@ -96,12 +96,19 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(cudac
     end
     
     shadow = if EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
+        if EnzymeRules.width(config) == 1 && !(IT <: Const)
             ofn.val(x.dval)
-        else
+        elseif EnzymeRules.width(config) == 1 && IT <: Const
+            ofn.val(EnzymeCore.make_zero(x.val))
+        elseif !(IT <: Const)
           ntuple(Val(EnzymeRules.width(config))) do i
               Base.@_inline_meta
               ofn.val(x.dval[i])
+          end
+        else
+          ntuple(Val(EnzymeRules.width(config))) do i
+              Base.@_inline_meta
+              ofn.val(EnzymeCore.make_zero(x.val[i]))
           end
         end
     else
