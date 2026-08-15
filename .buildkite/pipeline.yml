@@ -368,8 +368,7 @@ steps:
                 - lib
                 - examples
         agents:
-          queue: "juliagpu"
-          cuda: "*"
+          queue: "cuda"
         commands: |
           git clone https://github.com/StefanKarpinski/Resolver.jl /tmp/Resolver
           julia -e 'using Pkg; Pkg.activate("/tmp/Resolver/bin"); Pkg.instantiate()'
