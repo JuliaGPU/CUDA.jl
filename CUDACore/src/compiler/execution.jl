@@ -694,7 +694,8 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             end
         end
         if fun === nothing
-            fun = link_kernel(job, res.image::Vector{UInt8}, res.entry::String)
+            fun = link_kernel(res.image::Vector{UInt8}, res.entry::String,
+                              res.relocations)
             # don't cache session-local handles while generating output: the results struct
             # is serialized into the package image along with its CodeInstance, and the
             # handles would come back dangling.
