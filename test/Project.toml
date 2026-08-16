@@ -58,5 +58,7 @@ cuTENSOR = {path = "../lib/cutensor"}
 cuTensorNet = {path = "../lib/cutensornet"}
 
 [compat]
+DataStructures = "0.17"
+FileCheck = "1.1"
 JLD2 = "0.5.12"
 ParallelTestRunner = "2.6.0"
