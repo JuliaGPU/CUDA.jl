@@ -347,8 +347,17 @@ function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
 end
 
 function lock_managed(managed::AbstractVector{<:Managed})
-    locked = unique(managed)
-    sort!(locked; by=memory -> objectid(memory.lock))
+    # Sort globally to avoid deadlocks and make duplicates adjacent.
+    locked = sort(managed; by=memory -> objectid(memory.lock))
+    n = 0
+    prev = nothing
+    for memory in locked
+        memory === prev && continue
+        n += 1
+        @inbounds locked[n] = memory
+        prev = memory
+    end
+    resize!(locked, n)
     for memory in locked
         lock(memory.lock)
     end
@@ -364,11 +373,22 @@ end
 
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
+    state = active_state()
+    capturing = is_capturing(stream)
+    if length(managed) == 1
+        memory = @inbounds managed[1]
+        lock(memory.lock)
+        try
+            take_ownership!(memory; state, stream, capturing)
+            return f()
+        finally
+            unlock(memory.lock)
+        end
+    end
     locked = lock_managed(managed)
     try
-        state = active_state()
         for memory in locked
-            take_ownership!(memory; state, stream)
+            take_ownership!(memory; state, stream, capturing)
         end
         return f()
     finally
