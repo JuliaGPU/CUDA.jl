@@ -753,13 +753,17 @@ end
     @cuda kernel(out_dev, 1, 2)
     @test Array(out_dev)[1] == 3
 
-    all_splat = (out_dev, 3, 4)
-    @cuda kernel(all_splat...)
+    tuple_splat = (out_dev, 3, 4)
+    @cuda kernel(tuple_splat...)
     @test Array(out_dev)[1] == 7
 
     partial_splat = (5, 6)
     @cuda kernel(out_dev, partial_splat...)
     @test Array(out_dev)[1] == 11
+
+    vector_splat = Any[out_dev, 7, 8]
+    @cuda kernel(vector_splat...)
+    @test Array(out_dev)[1] == 15
 end
 
 @testset "object invoke" begin

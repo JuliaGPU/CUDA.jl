@@ -198,6 +198,19 @@ to the compiled kernel signature.
 end
 
 
+# Keep the pipeline behind one function barrier for type-unstable argument tuples.
+@inline function compile_and_launch(backend, f::F, args::Tuple, ::Val{launch};
+                                    launch_kwargs::NamedTuple=(;),
+                                    compiler_kwargs...) where {F,launch}
+    call = kernel_call(backend, f, args)
+    kernel = kernel_compile(call; compiler_kwargs...)
+    if launch
+        kernel_launch(kernel, call; launch_kwargs...)
+    end
+    return kernel
+end
+
+
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
@@ -316,11 +329,10 @@ macro cuda(ex...)
                     $backend_raw isa $AbstractBackend ? $backend_raw : $backend_raw.DefaultBackend()
                 end
                 $f_var = $f
-                $call = $KernelCall($f_var, $(var_exprs...); backend=$backend)
-                $kernel = $kernel_compile($call; $(compiler_kwargs...), $(other_kwargs...))
-                if $should_launch
-                    $kernel_launch($kernel, $call; $(call_kwargs...))
-                end
+                $kernel = $compile_and_launch($backend, $f_var, ($(var_exprs...),),
+                                              Val($should_launch);
+                                              launch_kwargs=(; $(call_kwargs...)),
+                                              $(compiler_kwargs...), $(other_kwargs...))
                 $kernel
              end)
     end
