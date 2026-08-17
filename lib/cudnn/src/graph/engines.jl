@@ -66,12 +66,14 @@ function select_plan(g::Graph, opgraph::BackendDescriptor;
     end
 end
 
-function build!(g::Graph; kwargs...)
+function build!(g::Graph;
+                mode::cudnnBackendOperationGraphMode_t=CUDNN_OPERATIONGRAPH_MODE_AUTO,
+                kwargs...)
     g.plan === nothing || unsafe_destroy!(g)
     validate!(g)
     assign_uids!(g)
     try
-        opgraph, intermediates = lower_graph(g)
+        opgraph, intermediates = lower_graph(g; mode)
         try
             plan, workspace_size = select_plan(g, opgraph; kwargs...)
             g.plan = plan

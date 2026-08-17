@@ -13,10 +13,12 @@ function attention_dims(q, k, v, out)
     return d, hq, sq, skv, b
 end
 
+# stats uses the (1, s, h, b) packing the backward's spill buffers require;
+# the forward writes it through strides at no cost
 function attention_stats_dims(stats, h, sq, b)
     stats === nothing && return
-    size(stats) == (1, h, sq, b) ||
-        throw(DimensionMismatch("stats must have size $((1, h, sq, b)), got $(size(stats))"))
+    size(stats) == (1, sq, h, b) ||
+        throw(DimensionMismatch("stats must have size $((1, sq, h, b)), got $(size(stats))"))
     eltype(stats) == Float32 ||
         throw(ArgumentError("stats must be a Float32 DenseCuArray"))
     return
@@ -78,8 +80,11 @@ function build_attention_graph(out, q, k, v, stats, seq_len_q, seq_len_kv, causa
     tv = tensor!(g, v; name="V")
     to = tensor!(g, out; name="O", output=true)
     ts = scalar!(g, Float32; rank=4, name="Scale")
+    # the (1, sq, h, b) stats buffer, declared on sdpa_fwd!'s (1, h, sq, b) dims
+    _, h, sq, _ = size(q)
     tstats = stats === nothing ? nothing :
-             tensor!(g, stats; name="Stats", output=true)
+             tensor!(g; dims=(1, h, sq, size(q, 4)), strides=(1, sq, 1, sq * h),
+                     dtype=Float32, name="Stats", output=true)
     tseqq = seq_len_q === nothing ? nothing :
             tensor!(g, seq_len_q; name="SeqLenQ")
     tseqkv = seq_len_kv === nothing ? nothing :
@@ -89,24 +94,28 @@ function build_attention_graph(out, q, k, v, stats, seq_len_q, seq_len_kv, causa
     build!(g; deterministic, math_mode, max_workspace)
 end
 
-function build_attention_backward_graph(dq, dk, dv, dO, q, k, v, o, stats, seq_len_q,
-                                         seq_len_kv, causal; deterministic, math_mode,
-                                         max_workspace)
-    g = Graph(io_dtype=eltype(q), intermediate_dtype=Float32, compute_dtype=Float32)
-    tq = tensor!(g, q; name="Q")
-    tk = tensor!(g, k; name="K")
-    tv = tensor!(g, v; name="V")
-    to = tensor!(g, o; name="O")
-    tdO = tensor!(g, dO; name="dO")
-    tstats = tensor!(g, stats; name="Stats")
-    tdq = tensor!(g, dq; name="dQ", output=true)
-    tdk = tensor!(g, dk; name="dK", output=true)
-    tdv = tensor!(g, dv; name="dV", output=true)
+function build_attention_backward_graph(::Type{T}, d, h, hk, sq, skv, b, causal,
+                                        padded; deterministic, math_mode,
+                                        max_workspace) where {T}
+    g = Graph(io_dtype=T, intermediate_dtype=Float32, compute_dtype=Float32)
+    # canonical (d, h, s, b) buffers bind through transposed strides for free
+    io(name, s, nh; output=false) = tensor!(g; dims=(d, s, nh, b),
+                                            strides=(1, d * nh, d, d * nh * s),
+                                            dtype=T, output, name)
+    tq = io("Q", sq, h)
+    tk = io("K", skv, hk)
+    tv = io("V", skv, hk)
+    to = io("O", sq, h)
+    tdO = io("dO", sq, h)
+    tstats = tensor!(g; dims=(1, sq, h, b), dtype=Float32, name="Stats")
+    tdq = io("dQ", sq, h; output=true)
+    tdk = io("dK", skv, hk; output=true)
+    tdv = io("dV", skv, hk; output=true)
     ts = scalar!(g, Float32; rank=4, name="Scale")
-    tseqq = seq_len_q === nothing ? nothing :
-            tensor!(g, seq_len_q; name="SeqLenQ")
-    tseqkv = seq_len_kv === nothing ? nothing :
-             tensor!(g, seq_len_kv; name="SeqLenKV")
+    tseqq = padded ? tensor!(g; dims=(1, 1, 1, b), dtype=Int32, name="SeqLenQ") :
+            nothing
+    tseqkv = padded ? tensor!(g; dims=(1, 1, 1, b), dtype=Int32, name="SeqLenKV") :
+             nothing
     sdpa_bwd!(g, tq, tk, tv, to, tdO, tstats; dQ=tdq, dK=tdk, dV=tdv, scale=ts,
               seq_len_q=tseqq, seq_len_kv=tseqkv, causal)
     build!(g; deterministic, math_mode, max_workspace)
@@ -175,6 +184,8 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
         throw(ArgumentError("attention_backward! does not support bias"))
     isempty(dq) && isempty(dk) && isempty(dv) && return dq, dk, dv
     d, h, sq, skv, b = attention_dims(q, k, v, o)
+    hk = size(k, 2)
+    attention_lengths_dims(seq_len_q, seq_len_kv, b)
     size(dO) == size(q) ||
         throw(DimensionMismatch("dO must have size $(size(q)), got $(size(dO))"))
     size(dq) == size(q) ||
@@ -184,7 +195,6 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
     size(dv) == size(v) ||
         throw(DimensionMismatch("dV must have size $(size(v)), got $(size(dv))"))
     attention_stats_dims(stats, h, sq, b)
-    attention_lengths_dims(seq_len_q, seq_len_kv, b)
     d % 8 == 0 || throw(ArgumentError("head dimension must be a multiple of 8, got $d"))
     d <= 256 || throw(ArgumentError("head dimension must be <= 256, got $d"))
 
@@ -192,10 +202,14 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
                                   seq_len_kv, causal, deterministic, math_mode,
                                   max_workspace)
     g = cached_graph(key) do
-        build_attention_backward_graph(dq, dk, dv, dO, q, k, v, o, stats, seq_len_q,
-                                        seq_len_kv, causal; deterministic, math_mode,
-                                        max_workspace)
+        build_attention_backward_graph(T, d, h, hk, sq, skv, b, causal,
+                                       seq_len_q !== nothing;
+                                       deterministic, math_mode, max_workspace)
     end
+
+    # workspace outputs the composite pattern requires, scratch per call
+    softmax_sum = CUDACore.zeros(Float32, 1, sq, h, b)
+    dQ_accum = CUDACore.zeros(Float32, d, sq, h, b)
 
     bindings = IdDict{Tensor,Any}(
         tensor(g, "Q") => q,
@@ -207,11 +221,21 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
         tensor(g, "dQ") => dq,
         tensor(g, "dK") => dk,
         tensor(g, "dV") => dv,
+        tensor(g, "SoftmaxSum") => softmax_sum,
+        tensor(g, "dQAccum") => dQ_accum,
         tensor(g, "Scale") => Float32(scale),
+        tensor(g, "One") => 1f0,
     )
-    seq_len_q === nothing || (bindings[tensor(g, "SeqLenQ")] = seq_len_q)
-    seq_len_kv === nothing || (bindings[tensor(g, "SeqLenKV")] = seq_len_kv)
-    causal && (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    (causal || seq_len_q !== nothing) &&
+        (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    if seq_len_q !== nothing
+        bindings[tensor(g, "SeqLenQ")] = seq_len_q
+        bindings[tensor(g, "SeqLenKV")] = seq_len_kv
+    end
+    if hk != h
+        bindings[tensor(g, "dKFullhead")] = CUDACore.zeros(T, d, skv, h, b)
+        bindings[tensor(g, "dVFullhead")] = CUDACore.zeros(T, d, skv, h, b)
+    end
     execute!(g, bindings)
     return dq, dk, dv
 end
@@ -283,9 +307,9 @@ function attention_backward_supported(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,
                                  max_workspace)
     try
         cached_graph(key) do
-            build_attention_backward_graph(dq, dk, dv, dO, q, k, v, o, stats, seq_len_q,
-                                           seq_len_kv, causal; deterministic, math_mode,
-                                           max_workspace)
+            build_attention_backward_graph(T, d, h, size(k, 2), sq, skv, b, causal,
+                                           seq_len_q !== nothing;
+                                           deterministic, math_mode, max_workspace)
         end
         return true
     catch e
@@ -303,13 +327,18 @@ end
     attention_backward_supported(dQ, dK, dV, dO, q, k, v, o, stats; kwargs...) -> Bool
 
 Execute fused scaled dot-product attention with tensors shaped
-`(head_dim, heads, sequence_length, batch_size)`.
+`(head_dim, heads, sequence_length, batch_size)`, except `stats`, which is
+shaped `(1, sequence_length, heads, batch_size)`.
 
 Supported inputs are `Float16` and `BFloat16` `DenseCuArray`s. `scale` defaults to
 `1 / sqrt(head_dim)`. Forward can write the Float32 `stats` tensor needed by backward.
-Set `causal=true` for top-left causal forward masking. Dense padding masks are enabled by
-passing Int32 `seq_len_q` and `seq_len_kv` tensors shaped `(1, 1, 1, batch_size)`.
+Set `causal=true` for top-left causal masking. Dense padding masks are enabled by
+passing Int32 `seq_len_q` and `seq_len_kv` tensors shaped `(1, 1, 1, batch_size)`;
+padded backward gradients are defined inside the valid region only.
 `dropout_p` must be zero and `bias` must be `nothing`.
+
+The backward pass builds the composite graph of `sdpa_bwd!` and allocates its
+workspace buffers per call (two more under grouped-query attention).
 
 The support predicates build and cache a plan without executing it.
 """

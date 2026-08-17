@@ -16,20 +16,9 @@ struct SDPAFwdOp <: Operation
     mask_subgraph::Union{Nothing,SDPAMaskSubgraph}
 end
 
-struct SDPABwdOp <: Operation
-    q::Tensor
-    k::Tensor
-    v::Tensor
-    o::Tensor
-    dO::Tensor
-    stats::Tensor
-    scale::Tensor
-    dQ::Tensor
-    dK::Tensor
-    dV::Tensor
-    seq_len_q::Union{Nothing,Tensor}
-    seq_len_kv::Union{Nothing,Tensor}
-    mask_subgraph::Union{Nothing,SDPAMaskSubgraph}
+struct ReshapeOp <: Operation
+    x::Tensor
+    y::Tensor
 end
 
 struct PointwiseOp <: Operation
@@ -56,7 +45,13 @@ struct MatmulOp <: Operation
     b::Tensor
     c::Tensor
     compute_dtype::cudnnDataType_t
+    m_override::Union{Nothing,Tensor}
+    n_override::Union{Nothing,Tensor}
+    k_override::Union{Nothing,Tensor}
 end
+
+MatmulOp(a, b, c, compute_dtype) = MatmulOp(a, b, c, compute_dtype,
+                                            nothing, nothing, nothing)
 
 struct ReductionOp <: Operation
     mode::cudnnReduceTensorOp_t
@@ -221,18 +216,6 @@ function sdpa_causal_subgraph!(g::Graph, skv, sq, hq, b)
     output = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name="MaskedScore")
     return SDPAMaskSubgraph(input, fill, output)
 end
-
-operation_graph_mode(::SDPAFwdOp) = CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_FWD
-operation_graph_mode(::SDPABwdOp) = CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_BWD
-operation_graph_mode(::ConvFpropOp) = CUDNN_OPERATIONGRAPH_MODE_CONV_FORWARD
-operation_graph_mode(::ConvDgradOp) = CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_DATA
-operation_graph_mode(::ConvWgradOp) = CUDNN_OPERATIONGRAPH_MODE_CONV_BWD_FILTER
-operation_graph_mode(::ResampleFwdOp) = CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_FWD
-operation_graph_mode(::ResampleBwdOp) = CUDNN_OPERATIONGRAPH_MODE_RESAMPLE_BWD
-operation_graph_mode(op::NormFwdOp) =
-    op.phase == CUDNN_NORM_FWD_TRAINING ? CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_TRAIN :
-    CUDNN_OPERATIONGRAPH_MODE_NORM_FWD_INFER
-operation_graph_mode(::NormBwdOp) = CUDNN_OPERATIONGRAPH_MODE_NORM_BWD
 
 alphabeta_type(dtype::cudnnDataType_t) =
     dtype == CUDNN_DATA_DOUBLE ? CUDNN_TYPE_DOUBLE : CUDNN_TYPE_FLOAT
@@ -1027,11 +1010,72 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     return stats === nothing ? o : (o, stats)
 end
 
+# re-presents x with new dims/strides/dtype: the virtual-transpose mechanism
+# of pattern-matched graphs
+function reshape!(g::Graph, x::Tensor; dims, strides=dense_strides(dims),
+                  dtype=nothing, virtual::Bool=true, name::String="Y")
+    prod(dims) == prod(x.dims) ||
+        throw(DimensionMismatch(
+            "reshape! element count must match: $(Tuple(x.dims)) -> $(Tuple(dims))"))
+    y = tensor!(g; dims, strides, dtype, virtual, name)
+    push!(g.ops, ReshapeOp(x, y))
+    return y
+end
+
+function check_sdpa_bwd_shape(name, t::Tensor, dims)
+    length(t.dims) == 4 || throw(ArgumentError("$name must be rank 4"))
+    t.backend_order == [4, 3, 2, 1] ||
+        throw(ArgumentError("$name must use the default dimension order"))
+    t.dims == collect(Int64, dims) ||
+        throw(DimensionMismatch(
+            "$name dimensions must be $(Tuple(dims)), got $(Tuple(t.dims))"))
+    t.virtual && throw(ArgumentError("$name must not be virtual"))
+    return t
+end
+
+# io strides are engine-parameterized; only head-dim-innermost is required
+function check_sdpa_bwd_io(name, t::Tensor, dims)
+    check_sdpa_bwd_shape(name, t, dims)
+    t.strides[1] == 1 ||
+        throw(ArgumentError("$name must have the head dimension innermost (stride 1)"))
+    return t
+end
+
+# engine spill buffers assume this packing; other strides are accepted at
+# build time and corrupt gradients silently
+function check_sdpa_bwd_workspace(name, t::Tensor, dims)
+    check_sdpa_bwd_shape(name, t, dims)
+    t.strides == dense_strides(t.dims) ||
+        throw(ArgumentError(
+            "$name must be densely packed as $(Tuple(dims)); the fMHA backward " *
+            "engines silently corrupt gradients for other layouts"))
+    return t
+end
+
+function check_sdpa_bwd_dtype(name, t::Tensor, dtype)
+    t.dtype === nothing && (t.dtype = dtype)
+    t.dtype == dtype ||
+        throw(ArgumentError("$name must have $(juliaDataType(dtype)) dtype"))
+    return t
+end
+
+# in-place transpose of the leading two dims: the pattern consumes K^T/V^T
+function sdpa_bwd_transpose!(t::Tensor)
+    t.dims = Int64[t.dims[2], t.dims[1], t.dims[3], t.dims[4]]
+    t.strides = Int64[t.strides[2], t.strides[1], t.strides[3], t.strides[4]]
+    return t
+end
+
+# the composite spelling the fMHA backward engines pattern-match (the unified
+# SDPA_BWD op has no engines anywhere); dims are (d, s, h, b), unlike sdpa_fwd!.
+# Mutates k/v into their transposes; grouped queries add fullhead workspaces.
 function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Tensor,
                    stats::Tensor;
                    dQ::Union{Nothing,Tensor}=nothing,
                    dK::Union{Nothing,Tensor}=nothing,
                    dV::Union{Nothing,Tensor}=nothing,
+                   softmax_sum::Union{Nothing,Tensor}=nothing,
+                   dQ_accum::Union{Nothing,Tensor}=nothing,
                    scale::Union{Nothing,Tensor}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
@@ -1042,42 +1086,165 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     length(q.dims) == 4 || throw(ArgumentError("q must be rank 4"))
     length(k.dims) == 4 || throw(ArgumentError("k must be rank 4"))
     length(v.dims) == 4 || throw(ArgumentError("v must be rank 4"))
-    d, hq, sq, b = q.dims
-    dk, hk, skv, bk = k.dims
-    dv, hv, skvv, bv = v.dims
-    dk == d || throw(DimensionMismatch("q and k head dimensions must match"))
-    dv == d || throw(DimensionMismatch("q and v head dimensions must match"))
-    hk == hv || throw(DimensionMismatch("k and v head counts must match"))
-    skv == skvv || throw(DimensionMismatch("k and v sequence lengths must match"))
-    bk == b && bv == b || throw(DimensionMismatch("q, k, and v batch sizes must match"))
-    hq % hk == 0 || throw(DimensionMismatch("q head count must be a multiple of k/v heads"))
-    o.dims == q.dims || throw(DimensionMismatch("o dimensions must match q"))
-    dO.dims == q.dims || throw(DimensionMismatch("dO dimensions must match q"))
-    stats.dims == [1, hq, sq, b] ||
-        throw(DimensionMismatch("stats dimensions must be $((1, hq, sq, b))"))
-    (stats.dtype === nothing || stats.dtype == CUDNN_DATA_FLOAT) ||
-        throw(ArgumentError("stats must have Float32 dtype"))
+    d, sq, h, b = q.dims
+    hk = k.dims[3]
+    h % hk == 0 ||
+        throw(DimensionMismatch("q head count must be a multiple of k/v heads"))
+    skv = k.dims[2]
+
+    iodt = q.dtype === nothing ? g.io_dtype : q.dtype
+    for (name, t, dims) in (("q", q, (d, sq, h, b)), ("k", k, (d, skv, hk, b)),
+                            ("v", v, (d, skv, hk, b)), ("o", o, (d, sq, h, b)),
+                            ("dO", dO, (d, sq, h, b)))
+        check_sdpa_bwd_io(name, t, dims)
+        check_sdpa_bwd_dtype(name, t, iodt)
+    end
+    check_sdpa_bwd_workspace("stats", stats, (1, sq, h, b))
+    check_sdpa_bwd_dtype("stats", stats, CUDNN_DATA_FLOAT)
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
 
-    dQ === nothing && (dQ = tensor!(g; dims=q.dims, dtype=q.dtype, virtual=true,
+    dQ === nothing && (dQ = tensor!(g; dims=(d, sq, h, b), dtype=iodt, output=true,
                                     name="dQ"))
-    dK === nothing && (dK = tensor!(g; dims=k.dims, dtype=k.dtype, virtual=true,
+    dK === nothing && (dK = tensor!(g; dims=(d, skv, hk, b), dtype=iodt, output=true,
                                     name="dK"))
-    dV === nothing && (dV = tensor!(g; dims=v.dims, dtype=v.dtype, virtual=true,
+    dV === nothing && (dV = tensor!(g; dims=(d, skv, hk, b), dtype=iodt, output=true,
                                     name="dV"))
-    dQ.dims == q.dims || throw(DimensionMismatch("dQ dimensions must match q"))
-    dK.dims == k.dims || throw(DimensionMismatch("dK dimensions must match k"))
-    dV.dims == v.dims || throw(DimensionMismatch("dV dimensions must match v"))
+    softmax_sum === nothing &&
+        (softmax_sum = tensor!(g; dims=(1, sq, h, b), dtype=Float32, output=true,
+                               name="SoftmaxSum"))
+    dQ_accum === nothing &&
+        (dQ_accum = tensor!(g; dims=(d, sq, h, b), dtype=Float32, output=true,
+                            name="dQAccum"))
+    for (name, t, dims) in (("dQ", dQ, (d, sq, h, b)), ("dK", dK, (d, skv, hk, b)),
+                            ("dV", dV, (d, skv, hk, b)))
+        check_sdpa_bwd_io(name, t, dims)
+        check_sdpa_bwd_dtype(name, t, iodt)
+    end
+    check_sdpa_bwd_workspace("softmax_sum", softmax_sum, (1, sq, h, b))
+    check_sdpa_bwd_dtype("softmax_sum", softmax_sum, CUDNN_DATA_FLOAT)
+    check_sdpa_bwd_workspace("dQ_accum", dQ_accum, (d, sq, h, b))
+    check_sdpa_bwd_dtype("dQ_accum", dQ_accum, CUDNN_DATA_FLOAT)
     scale === nothing && (scale = scalar!(g, Float32; rank=4, name="Scale"))
+    one_t = scalar!(g, Float32; rank=4, name="One")
 
-    foreach(sdpa_tensor!, (q, k, v, o, dO, stats, scale, dQ, dK, dV))
-    seq_len_q === nothing || foreach(sdpa_tensor!, (seq_len_q, seq_len_kv))
+    kstrides = Tuple(Int.(k.strides))    # Kview undoes the transpose below
+    foreach(sdpa_bwd_transpose!, (k, v))
 
-    mask_subgraph = causal ? sdpa_causal_subgraph!(g, skv, sq, hq, b) : nothing
+    # C = B×A on the trailing cuDNN dims, pushed directly: the pattern's
+    # grouped-head folding (h against hk) fails matmul!'s generic batch checks.
+    # Under padding masks each GEMM extent is overridden by the sequence lengths.
+    mm!(A, B, C; m=nothing, n=nothing, k=nothing) =
+        (push!(g.ops, MatmulOp(B, A, C, g.compute_dtype, m, n, k)); C)
+    virt(name, dims) = tensor!(g; dims, dtype=nothing, virtual=true, name)
+    # virtual transpose of the leading two dims, narrowed to the io dtype
+    transposed(x, name) = begin
+        n1, n2, n3, n4 = x.dims
+        reshape!(g, x; dims=(Int(n2), Int(n1), n3, n4),
+                 strides=(Int(n1), 1, n1 * n2, n1 * n2 * n3), dtype=iodt, name)
+    end
 
-    push!(g.ops, SDPABwdOp(q, k, v, o, dO, stats, scale, dQ, dK, dV,
-                           seq_len_q, seq_len_kv, mask_subgraph))
-    return dQ, dK, dV
+    # softmax_sum = rowsum(dO ∘ O) × 1  (the ×1 is the pattern's dropout-scale slot)
+    doo = pointwise!(g, CUDNN_POINTWISE_MUL, dO, o; name="mul_dO_O")
+    ssum = reduction!(g, :add, doo; dims=1, name="reduce_dO_o")
+    pointwise!(g, CUDNN_POINTWISE_MUL, ssum, one_t; y=softmax_sum,
+               name="scale_dropout_inv")
+
+    slq, slkv = seq_len_q, seq_len_kv
+    padded = slq !== nothing
+    ninf = causal || padded ? scalar!(g, Float32; rank=4, name="MaskValue") : nothing
+
+    # P = exp(scale · QKᵀ − stats), padding/causally masked on request
+    s = mm!(q, k, virt("S", (skv, sq, h, b)); m=slq, n=slkv)
+    ss = pointwise!(g, CUDNN_POINTWISE_MUL, s, scale; name="mul_s_attn_scale")
+    sm = pointwise!(g, CUDNN_POINTWISE_SUB, ss, stats; name="sub_s_m")
+    if padded
+        score_dims = (skv, sq, h, b)
+        row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                      name="row_idx_padding")
+        col = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                      name="col_idx_padding")
+        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=row, axis=2,
+                   compute_dtype=CUDNN_DATA_INT32, name="gen_row_idx_padding")
+        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=col, axis=3,
+                   compute_dtype=CUDNN_DATA_INT32, name="gen_col_idx_padding")
+        rmask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
+                        name="row_mask_padding")
+        cmask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
+                        name="col_mask_padding")
+        pointwise!(g, CUDNN_POINTWISE_CMP_LT, row, slq; y=rmask,
+                   compute_dtype=CUDNN_DATA_BOOLEAN, name="lt_row_sq_padding")
+        pointwise!(g, CUDNN_POINTWISE_CMP_LT, col, slkv; y=cmask,
+                   compute_dtype=CUDNN_DATA_BOOLEAN, name="lt_col_skv_padding")
+        pmask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
+                        name="padding_mask")
+        pointwise!(g, CUDNN_POINTWISE_LOGICAL_AND, rmask, cmask; y=pmask,
+                   compute_dtype=CUDNN_DATA_BOOLEAN, name="and_row_col_padding")
+        sm = pointwise!(g, CUDNN_POINTWISE_BINARY_SELECT, sm, ninf, pmask,
+                        name="select_padding")
+    end
+    if causal
+        score_dims = (skv, sq, h, b)
+        row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                      name="row_idx")
+        col = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                      name="col_idx")
+        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=row, axis=2,
+                   compute_dtype=CUDNN_DATA_INT32, name="gen_row_idx")
+        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=col, axis=3,
+                   compute_dtype=CUDNN_DATA_INT32, name="gen_col_idx")
+        mask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
+                       name="causal_mask")
+        pointwise!(g, CUDNN_POINTWISE_CMP_GE, row, col; y=mask,
+                   compute_dtype=CUDNN_DATA_INT32, name="row_ge_col")
+        sm = pointwise!(g, CUDNN_POINTWISE_BINARY_SELECT, sm, ninf, mask,
+                        name="select_causal")
+    end
+    p = pointwise!(g, CUDNN_POINTWISE_EXP, sm; name="exp_s")
+
+    # grouped-query gradients accumulate per query head into fullhead
+    # workspaces, then fold onto the shared k/v heads by reduction
+    dK_fullhead = dV_fullhead = nothing
+    if hk != h
+        dK_fullhead = tensor!(g; dims=(d, skv, h, b), dtype=iodt, output=true,
+                              name="dKFullhead")
+        dV_fullhead = tensor!(g; dims=(d, skv, h, b), dtype=iodt, output=true,
+                              name="dVFullhead")
+    end
+
+    # dV = Pᵀ dO
+    pt = transposed(p, "PT")
+    if hk == h
+        mm!(pt, dO, dV; m=slkv, k=slq)
+    else
+        mm!(pt, dO, dV_fullhead; m=slkv, k=slq)
+        push!(g.ops, ReductionOp(reduction_mode(:add), dV_fullhead, dV,
+                                 g.compute_dtype, false))
+    end
+
+    # dS = scale · P ∘ (dO Vᵀ − softmax_sum)
+    dp = mm!(dO, v, virt("dP", (skv, sq, h, b)); m=slq, n=slkv)
+    dps = pointwise!(g, CUDNN_POINTWISE_SUB, dp, softmax_sum;
+                     name="sub_dP_softmax_sum")
+    ds0 = pointwise!(g, CUDNN_POINTWISE_MUL, dps, p; name="mul_dP_exp_s")
+    ds = pointwise!(g, CUDNN_POINTWISE_MUL, ds0, scale; name="mul_dS_attn_scale")
+
+    # dK = dSᵀ Q
+    dst = transposed(ds, "dST")
+    if hk == h
+        mm!(dst, q, dK; m=slkv, k=slq)
+    else
+        mm!(dst, q, dK_fullhead; m=slkv, k=slq)
+        push!(g.ops, ReductionOp(reduction_mode(:add), dK_fullhead, dK,
+                                 g.compute_dtype, false))
+    end
+
+    # dQ = dS K, accumulated in Float32 and cast to the io dtype
+    kview = reshape!(g, k; dims=(d, skv, hk, b), strides=kstrides, dtype=iodt,
+                     name="Kview")
+    mm!(ds, kview, dQ_accum; m=slq, k=slkv)
+    pointwise!(g, CUDNN_POINTWISE_IDENTITY, dQ_accum; y=dQ, name="identity_dQ")
+
+    return dQ, dK, dV, softmax_sum, dQ_accum, dK_fullhead, dV_fullhead
 end
 
 function lower(op::PointwiseOp, ctx::LoweringContext)
@@ -1098,7 +1265,13 @@ end
 
 function lower(op::MatmulOp, ctx::LoweringContext)
     matdesc = track!(ctx, matmul_descriptor(compute_type=op.compute_dtype))
-    matmul_operation(matdesc, desc(ctx, op.b), desc(ctx, op.a), desc(ctx, op.c))
+    matmul_operation(matdesc, desc(ctx, op.b), desc(ctx, op.a), desc(ctx, op.c);
+                     m_override=op.m_override === nothing ? nothing :
+                                desc(ctx, op.m_override),
+                     n_override=op.n_override === nothing ? nothing :
+                                desc(ctx, op.n_override),
+                     k_override=op.k_override === nothing ? nothing :
+                                desc(ctx, op.k_override))
 end
 
 function lower(op::BlockScaleDequantizeOp, ctx::LoweringContext)
@@ -1240,25 +1413,13 @@ function lower(op::SDPAFwdOp, ctx::LoweringContext)
     end
 end
 
-function lower(op::SDPABwdOp, ctx::LoweringContext)
-    make_descriptor(:operation_sdpa_bwd) do d
-        d[:qdesc] = desc(ctx, op.q)
-        d[:kdesc] = desc(ctx, op.k)
-        d[:vdesc] = desc(ctx, op.v)
-        d[:odesc] = desc(ctx, op.o)
-        d[:doddesc] = desc(ctx, op.dO)
-        d[:statsdesc] = desc(ctx, op.stats)
-        d[:scaledesc] = desc(ctx, op.scale)
-        d[:dqdesc] = desc(ctx, op.dQ)
-        d[:dkdesc] = desc(ctx, op.dK)
-        d[:dvdesc] = desc(ctx, op.dV)
-        op.seq_len_q === nothing || (d[:seq_len_qdesc] = desc(ctx, op.seq_len_q))
-        op.seq_len_kv === nothing || (d[:seq_len_kvdesc] = desc(ctx, op.seq_len_kv))
-        op.mask_subgraph === nothing ||
-            lower_sdpa_mask_subgraph!(d, ctx, op.mask_subgraph)
+function lower(op::ReshapeOp, ctx::LoweringContext)
+    make_descriptor(:operation_reshape) do d
+        d[:xdesc] = desc(ctx, op.x)
+        d[:ydesc] = desc(ctx, op.y)
     end
 end
 
-@public pointwise!, matmul!, reduction!, conv_fprop!, conv_dgrad!, conv_wgrad!,
-        resample_fwd!, resample_bwd!, norm_fwd!, norm_bwd!, sdpa_fwd!, sdpa_bwd!,
-        block_scale_dequantize!, block_scale_quantize!
+@public pointwise!, matmul!, reduction!, reshape!, conv_fprop!, conv_dgrad!,
+        conv_wgrad!, resample_fwd!, resample_bwd!, norm_fwd!, norm_bwd!,
+        sdpa_fwd!, sdpa_bwd!, block_scale_dequantize!, block_scale_quantize!

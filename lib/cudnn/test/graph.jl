@@ -13,6 +13,7 @@ using cuDNN:
     reduction!,
     resample_bwd!,
     resample_fwd!,
+    reshape!,
     sdpa_bwd!,
     scalar!,
     sdpa_fwd!,
@@ -44,21 +45,100 @@ seqfloat = tensor!(g; dims=(1, 1, 1, 2), dtype=Float32, name="FloatSeqLen")
 @test_throws ArgumentError sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqfloat,
                                      seq_len_kv=seqkv)
 
-dO = tensor!(g; dims=(64, 4, 32, 2), dtype=Float16, name="dO")
-stats = tensor!(g; dims=(1, 4, 32, 2), dtype=Float32, name="Stats")
-dq, dk, dv = sdpa_bwd!(g, q, k, v, o, dO, stats; scale)
-@test dq.dims == q.dims
-@test dk.dims == k.dims
-@test dv.dims == v.dims
-dqc, dkc, dvc = sdpa_bwd!(g, q, k, v, o, dO, stats; scale, causal=true)
-@test dqc.dims == q.dims
-@test dkc.dims == k.dims
-@test dvc.dims == v.dims
-dqp, dkp, dvp = sdpa_bwd!(g, q, k, v, o, dO, stats; scale, seq_len_q=seqq,
-                           seq_len_kv=seqkv)
-@test dqp.dims == q.dims
-@test dkp.dims == k.dims
-@test dvp.dims == v.dims
+# the composite backward uses (d, s, h, b) dims, unlike the forward
+gbwd = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+bq = tensor!(gbwd; dims=(64, 32, 4, 2), dtype=Float16, name="Q")
+bk = tensor!(gbwd; dims=(64, 48, 4, 2), dtype=Float16, name="K")
+bv = tensor!(gbwd; dims=(64, 48, 4, 2), dtype=Float16, name="V")
+bo = tensor!(gbwd; dims=(64, 32, 4, 2), dtype=Float16, name="O")
+bdO = tensor!(gbwd; dims=(64, 32, 4, 2), dtype=Float16, name="dO")
+bstats = tensor!(gbwd; dims=(1, 32, 4, 2), dtype=Float32, name="Stats")
+dq, dk, dv, ssum, dqacc = sdpa_bwd!(gbwd, bq, bk, bv, bo, bdO, bstats)
+@test dq.dims == [64, 32, 4, 2]
+@test dk.dims == [64, 48, 4, 2]
+@test dv.dims == [64, 48, 4, 2]
+@test ssum.dims == [1, 32, 4, 2]
+@test ssum.dtype == cuDNN.CUDNN_DATA_FLOAT
+@test dqacc.dims == [64, 32, 4, 2]
+@test dqacc.dtype == cuDNN.CUDNN_DATA_FLOAT
+# k and v were re-presented in place as their transposes
+@test bk.dims == [48, 64, 4, 2]
+@test bk.strides == [64, 1, 64 * 48, 64 * 48 * 4]
+
+gbwdc = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+cq = tensor!(gbwdc; dims=(64, 32, 4, 2), dtype=Float16, name="Q")
+ck = tensor!(gbwdc; dims=(64, 48, 4, 2), dtype=Float16, name="K")
+cv = tensor!(gbwdc; dims=(64, 48, 4, 2), dtype=Float16, name="V")
+co = tensor!(gbwdc; dims=(64, 32, 4, 2), dtype=Float16, name="O")
+cdO = tensor!(gbwdc; dims=(64, 32, 4, 2), dtype=Float16, name="dO")
+cstats = tensor!(gbwdc; dims=(1, 32, 4, 2), dtype=Float32, name="Stats")
+cdq, _ = sdpa_bwd!(gbwdc, cq, ck, cv, co, cdO, cstats; causal=true)
+@test cdq.dims == [64, 32, 4, 2]
+@test cuDNN.tensor(gbwdc, "MaskValue").by_value
+
+# grouped queries add fullhead workspaces folded onto the shared k/v heads
+ggqa = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+mq = tensor!(ggqa; dims=(64, 32, 4, 2), dtype=Float16, name="Q")
+mk = tensor!(ggqa; dims=(64, 48, 2, 2), dtype=Float16, name="K")
+mv = tensor!(ggqa; dims=(64, 48, 2, 2), dtype=Float16, name="V")
+mo = tensor!(ggqa; dims=(64, 32, 4, 2), dtype=Float16, name="O")
+mdO = tensor!(ggqa; dims=(64, 32, 4, 2), dtype=Float16, name="dO")
+mstats = tensor!(ggqa; dims=(1, 32, 4, 2), dtype=Float32, name="Stats")
+mdq, mdk, mdv, _, _, mdkf, mdvf = sdpa_bwd!(ggqa, mq, mk, mv, mo, mdO, mstats)
+@test mdq.dims == [64, 32, 4, 2]
+@test mdk.dims == [64, 48, 2, 2]
+@test mdv.dims == [64, 48, 2, 2]
+@test mdkf.dims == [64, 48, 4, 2]
+@test mdvf.dims == [64, 48, 4, 2]
+
+# io strides are free: a (d, h, s, b)-packed buffer binds through transposed strides
+gbshd = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+tq = tensor!(gbshd; dims=(64, 32, 4, 2), strides=(1, 256, 64, 8192),
+              dtype=Float16, name="Q")
+tk = tensor!(gbshd; dims=(64, 48, 4, 2), strides=(1, 256, 64, 12288),
+             dtype=Float16, name="K")
+tv = tensor!(gbshd; dims=(64, 48, 4, 2), strides=(1, 256, 64, 12288),
+             dtype=Float16, name="V")
+to = tensor!(gbshd; dims=(64, 32, 4, 2), strides=(1, 256, 64, 8192),
+             dtype=Float16, name="O")
+tdO = tensor!(gbshd; dims=(64, 32, 4, 2), strides=(1, 256, 64, 8192),
+              dtype=Float16, name="dO")
+tstats = tensor!(gbshd; dims=(1, 32, 4, 2), dtype=Float32, name="Stats")
+tdq, _ = sdpa_bwd!(gbshd, tq, tk, tv, to, tdO, tstats)
+@test tdq.dims == [64, 32, 4, 2]
+@test tk.strides == [256, 1, 64, 12288]
+
+# rejections: unpaired seq lens, indivisible heads, head dim not innermost,
+# non-packed stats/workspaces
+gbad = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+xq = tensor!(gbad; dims=(64, 32, 4, 2), dtype=Float16, name="Q")
+xk = tensor!(gbad; dims=(64, 48, 4, 2), dtype=Float16, name="K")
+xv = tensor!(gbad; dims=(64, 48, 4, 2), dtype=Float16, name="V")
+xo = tensor!(gbad; dims=(64, 32, 4, 2), dtype=Float16, name="O")
+xdO = tensor!(gbad; dims=(64, 32, 4, 2), dtype=Float16, name="dO")
+xstats = tensor!(gbad; dims=(1, 32, 4, 2), dtype=Float32, name="Stats")
+xseqq = tensor!(gbad; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenQ")
+@test_throws ArgumentError sdpa_bwd!(gbad, xq, xk, xv, xo, xdO, xstats;
+                                     seq_len_q=xseqq)
+kgqa = tensor!(gbad; dims=(64, 48, 3, 2), dtype=Float16, name="Kgqa")
+vgqa = tensor!(gbad; dims=(64, 48, 3, 2), dtype=Float16, name="Vgqa")
+@test_throws DimensionMismatch sdpa_bwd!(gbad, xq, kgqa, vgqa, xo, xdO, xstats)
+qbad = tensor!(gbad; dims=(64, 32, 4, 2), strides=(32, 1, 2048, 8192),
+               dtype=Float16, name="Qbad")
+@test_throws ArgumentError sdpa_bwd!(gbad, qbad, xk, xv, xo, xdO, xstats)
+badstats = tensor!(gbad; dims=(1, 32, 4, 2), strides=(1, 4, 1, 128),
+                   dtype=Float32, name="BadStats")
+@test_throws ArgumentError sdpa_bwd!(gbad, xq, xk, xv, xo, xdO, badstats)
+badsum = tensor!(gbad; dims=(1, 32, 4, 2), strides=(1, 4, 1, 128),
+                 dtype=Float32, name="BadSum")
+@test_throws ArgumentError sdpa_bwd!(gbad, xq, xk, xv, xo, xdO, xstats;
+                                     softmax_sum=badsum)
+
+rsx = tensor!(g; dims=(8, 16, 2), dtype=Float16, name="ReshapeX")
+rsy = reshape!(g, rsx; dims=(16, 8, 2), strides=(8, 1, 128), name="ReshapeY")
+@test rsy.dims == [16, 8, 2]
+@test rsy.virtual
+@test_throws DimensionMismatch reshape!(g, rsx; dims=(4, 4, 2))
 
 a = tensor!(g; dims=(8, 16, 2), dtype=Float16, name="A")
 b = tensor!(g; dims=(16, 32, 2), dtype=Float16, name="B")
