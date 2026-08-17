@@ -595,11 +595,12 @@ end
 # device-side operation. The caller must hold `managed.lock` until that operation has been
 # submitted to `stream`, so the recorded owner cannot become visible before its submission.
 function take_ownership!(managed::Managed{M}; state=active_state(),
-                         stream::CuStream=state.stream) where {M}
+                         stream::CuStream=state.stream,
+                         capturing::Bool=is_capturing(stream)) where {M}
   sizeof(managed) == 0 && return managed
 
   # accessing memory during stream capture: taint the memory so that we always synchronize
-  if is_capturing(stream)
+  if capturing
     managed.captured = true
   end
 
@@ -634,7 +635,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
 
   # prefetch unified memory as we're likely to use it on the GPU
   if M == UnifiedMemory
-    can_prefetch = !is_capturing(stream)
+    can_prefetch = !capturing
     can_prefetch &= !__pinned(convert(Ptr{Cvoid}, managed.mem), managed.mem.ctx)
     can_prefetch &= attribute(state.device,
                               DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1

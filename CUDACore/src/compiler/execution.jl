@@ -198,6 +198,19 @@ to the compiled kernel signature.
 end
 
 
+# Keep the pipeline behind one function barrier for type-unstable argument tuples.
+@inline function compile_and_launch(backend, f::F, args::Tuple, ::Val{launch};
+                                    launch_kwargs::NamedTuple=(;),
+                                    compiler_kwargs...) where {F,launch}
+    call = kernel_call(backend, f, args)
+    kernel = kernel_compile(call; compiler_kwargs...)
+    if launch
+        kernel_launch(kernel, call; launch_kwargs...)
+    end
+    return kernel
+end
+
+
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
@@ -316,11 +329,10 @@ macro cuda(ex...)
                     $backend_raw isa $AbstractBackend ? $backend_raw : $backend_raw.DefaultBackend()
                 end
                 $f_var = $f
-                $call = $KernelCall($f_var, $(var_exprs...); backend=$backend)
-                $kernel = $kernel_compile($call; $(compiler_kwargs...), $(other_kwargs...))
-                if $should_launch
-                    $kernel_launch($kernel, $call; $(call_kwargs...))
-                end
+                $kernel = $compile_and_launch($backend, $f_var, ($(var_exprs...),),
+                                              Val($should_launch);
+                                              launch_kwargs=(; $(call_kwargs...)),
+                                              $(compiler_kwargs...), $(other_kwargs...))
                 $kernel
              end)
     end
@@ -347,8 +359,17 @@ function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
 end
 
 function lock_managed(managed::AbstractVector{<:Managed})
-    locked = unique(managed)
-    sort!(locked; by=memory -> objectid(memory.lock))
+    # Sort globally to avoid deadlocks and make duplicates adjacent.
+    locked = sort(managed; by=memory -> objectid(memory.lock))
+    n = 0
+    prev = nothing
+    for memory in locked
+        memory === prev && continue
+        n += 1
+        @inbounds locked[n] = memory
+        prev = memory
+    end
+    resize!(locked, n)
     for memory in locked
         lock(memory.lock)
     end
@@ -364,11 +385,22 @@ end
 
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
+    state = active_state()
+    capturing = is_capturing(stream)
+    if length(managed) == 1
+        memory = @inbounds managed[1]
+        lock(memory.lock)
+        try
+            take_ownership!(memory; state, stream, capturing)
+            return f()
+        finally
+            unlock(memory.lock)
+        end
+    end
     locked = lock_managed(managed)
     try
-        state = active_state()
         for memory in locked
-            take_ownership!(memory; state, stream)
+            take_ownership!(memory; state, stream, capturing)
         end
         return f()
     finally

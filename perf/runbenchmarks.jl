@@ -2,6 +2,9 @@
 
 using CUDA
 
+# Record the environment alongside benchmark results.
+CUDA.versioninfo()
+
 using BenchmarkTools
 
 using Random, StableRNGs

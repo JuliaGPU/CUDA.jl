@@ -3,6 +3,16 @@ precompile(Tuple{typeof(Profile.detect_cupti)})
 precompile(Tuple{typeof(Profile.profile_internally), Function})
 precompile(Tuple{typeof(Profile.capture), CUPTI.ActivityConfig})
 
+# Reflection depends on a GPU; `func` and `types` are deliberately unspecialized.
+for io in (Base.TTY, Base.DevNull)
+    precompile(Tuple{typeof(code_native), io, Any, Any})
+    precompile(Tuple{typeof(Core.kwcall), @NamedTuple{kernel::Bool}, typeof(code_native),
+                     io, Any, Any})
+    precompile(Tuple{typeof(code_llvm), io, Any, Any})
+    precompile(Tuple{typeof(Core.kwcall), @NamedTuple{kernel::Bool}, typeof(code_llvm),
+                     io, Any, Any})
+end
+
 using PrecompileTools
 
 @compile_workload begin
