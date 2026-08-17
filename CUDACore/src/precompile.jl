@@ -52,6 +52,14 @@ let CUDACompilerJob = CompilerJob{PTXCompilerTarget, CUDACompilerParams}
     precompile(Tuple{typeof(GPUCompiler.cached_results), Type{CUDACompilerResults}, CUDACompilerJob})
 end
 
+# GPU-dependent paths cannot be reached by the device-free workload above.
+precompile(Tuple{typeof(context), CuDevice})
+precompile(Tuple{typeof(create_context), CuDevice, Int})
+precompile(Tuple{typeof(active_state)})
+precompile(Tuple{typeof(compiler_config), CuDevice})
+precompile(Tuple{typeof(Core.kwcall), @NamedTuple{kernel::Bool}, typeof(compiler_config),
+                 CuDevice})
+
 # scalar reference (used by cuBLAS for alpha/beta parameters)
 precompile(Tuple{Type{CuRefValue{Float32}}, Float32})
 precompile(Tuple{typeof(pool_free), Managed{DeviceMemory}})

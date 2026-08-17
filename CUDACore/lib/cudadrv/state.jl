@@ -177,29 +177,34 @@ end
 function context(dev::CuDevice)
     devidx = deviceid(dev)+1
 
+    # Keep device-dependent work in a named function so it can be precompiled.
     @memoize index=devidx begin
-        # check if the device isn't too old
-        if capability(dev) < v"5.0"
-            @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA.jl.
-                      Please use a device with at least capability 5.0, or downgrade CUDA.jl (see the README for compatibility details).""",
-                   maxlog=1, _id=devidx)
-        elseif runtime_version() >= v"13" && capability(dev) < v"7.5"
-            @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA toolkit 13+.
-                      Please use a device with at least capability 7.5, or use an older CUDA toolkit (see `CUDA.set_runtime_version!`).""",
-                   maxlog=1, _id=devidx)
-        end
-        # or not among the capabilities ptxas can target.
-        if !in(capability(dev), ptxas_compat().cap)
-            @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not fully supported by CUDA $(compiler_version().major).$(compiler_version().minor).
-                     Some functionality may be broken. Ensure you are using the latest version of CUDA.jl in combination with an up-to-date NVIDIA driver.
-                     If that does not help, please file an issue to add support for the latest CUDA toolkit.""",
-                  maxlog=1, _id=devidx)
-        end
-
-        # configure the primary context
-        pctx = CuPrimaryContext(dev)
-        CuContext(pctx)
+        create_context(dev, devidx)
     end::CuContext
+end
+
+function create_context(dev::CuDevice, devidx::Int)
+    # check if the device isn't too old
+    if capability(dev) < v"5.0"
+        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA.jl.
+                  Please use a device with at least capability 5.0, or downgrade CUDA.jl (see the README for compatibility details).""",
+               maxlog=1, _id=devidx)
+    elseif runtime_version() >= v"13" && capability(dev) < v"7.5"
+        @error("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not supported by CUDA toolkit 13+.
+                  Please use a device with at least capability 7.5, or use an older CUDA toolkit (see `CUDA.set_runtime_version!`).""",
+               maxlog=1, _id=devidx)
+    end
+    # or not among the capabilities ptxas can target.
+    if !in(capability(dev), ptxas_compat().cap)
+        @warn("""Your $(name(dev)) GPU (compute capability $(capability(dev).major).$(capability(dev).minor)) is not fully supported by CUDA $(compiler_version().major).$(compiler_version().minor).
+                 Some functionality may be broken. Ensure you are using the latest version of CUDA.jl in combination with an up-to-date NVIDIA driver.
+                 If that does not help, please file an issue to add support for the latest CUDA toolkit.""",
+              maxlog=1, _id=devidx)
+    end
+
+    # configure the primary context
+    pctx = CuPrimaryContext(dev)
+    CuContext(pctx)
 end
 
 """
