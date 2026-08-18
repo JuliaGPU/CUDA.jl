@@ -1,6 +1,7 @@
 using cuDNN:
     block_scale_dequantize!,
     block_scale_quantize!,
+    build!,
     conv_dgrad!,
     conv_fprop!,
     conv_wgrad!,
@@ -316,6 +317,77 @@ let K=128, M=128, N=64
     unpadded = tensor!(g2; dims=(K ÷ 32, N, 1), dtype=CUDNN_DATA_FP8_E8M0,
                        reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
     @test_throws DimensionMismatch block_scale_dequantize!(g2, b, unpadded; block_size=32)
+end
+
+# the MXFP8-attention V orientation (cudnn-frontend's mxfp8 sample): blocked
+# along the sequence dim, head dim innermost
+let s=288, dh=64
+    g = Graph()
+    v = tensor!(g; dims=(dh, s, 1), dtype=CUDNN_DATA_FP8_E4M3)
+    vs = tensor!(g; dims=(128, 12, 1), dtype=CUDNN_DATA_FP8_E8M0,
+                 reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    @test block_scale_dequantize!(g, v, vs; block_size=32).dims == [dh, s, 1]
+    # the same orientation without the whole-tile padding: rejected
+    bad = tensor!(g; dims=(dh, cld(s, 32), 1), dtype=CUDNN_DATA_FP8_E8M0,
+                  reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    @test_throws DimensionMismatch block_scale_dequantize!(g, v, bad; block_size=32)
+end
+
+# a transposed (1, k) NVFP4 vector operand: the unit partner axis still
+# pads to a whole tile
+let k=32
+    g = Graph()
+    w = tensor!(g; dims=(1, k, 1), strides=(1, 1, k), dtype=CUDNN_DATA_FP8_E4M3)
+    ws = tensor!(g; dims=(128, 4, 1), dtype=CUDNN_DATA_FP8_E4M3,
+                 reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    @test block_scale_dequantize!(g, w, ws; block_size=16).dims == [1, k, 1]
+    bad = tensor!(g; dims=(1, cld(k, 16), 1), dtype=CUDNN_DATA_FP8_E4M3,
+                  reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+    @test_throws DimensionMismatch block_scale_dequantize!(g, w, bad; block_size=16)
+end
+
+# fp8 buffers have no Julia array type; bind raw bytes through the
+# checked_array_pointer seam
+struct RawBytes{A}
+    a::A
+end
+cuDNN.checked_array_pointer(t::cuDNN.Tensor, r::RawBytes) = pointer(r.a)
+
+# execute the V orientation. Uniform scales are swizzle-invariant, so bytes
+# bind without the tile layout; doubling both scales must quadruple the
+# product. E4M3: 1.0 = 0x38, 1.5 = 0x3c; E8M0: 0x7f = 2^0.
+if blockscale_claimed
+    let M=128, K=128, N=64, MP=128, KS=4, NP=128
+        g = Graph(intermediate_dtype=Float32, compute_dtype=Float32)
+        a = tensor!(g; dims=(M, K, 1), strides=(K, 1, M * K),
+                    dtype=CUDNN_DATA_FP8_E4M3, name="A")
+        as = tensor!(g; dims=(MP, KS, 1), strides=(KS, 1, MP * KS),
+                     dtype=CUDNN_DATA_FP8_E8M0, name="A.scale",
+                     reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+        da = block_scale_dequantize!(g, a, as; block_size=32)
+        b = tensor!(g; dims=(K, N, 1), strides=(N, 1, K * N),
+                    dtype=CUDNN_DATA_FP8_E4M3, name="B")
+        bs = tensor!(g; dims=(KS, NP, 1), dtype=CUDNN_DATA_FP8_E8M0, name="B.scale",
+                     reordering=CUDNN_TENSOR_REORDERING_F8_128x4)
+        db = block_scale_dequantize!(g, b, bs; block_size=32)
+        c = matmul!(g, da, db)
+        output!(c)
+        build!(g)
+
+        abuf = CUDACore.fill(0x38, K, M, 1)
+        bbuf = CuArray([iseven(k + n) ? 0x38 : 0x3c for n in 1:N, k in 1:K, _ in 1:1])
+        Bref = [iseven(k + n) ? 1.0f0 : 1.5f0 for k in 1:K, n in 1:N]
+        refC = ones(Float32, M, K) * Bref
+        for (scale_byte, factor) in ((0x7f, 1.0f0), (0x80, 2.0f0))
+            asbuf = CUDACore.fill(scale_byte, MP * KS)
+            bsbuf = CUDACore.fill(scale_byte, KS * NP)
+            cbuf = CUDACore.zeros(Float32, M, N, 1)
+            execute!(g, Dict{cuDNN.Tensor,Any}(a => RawBytes(abuf), as => RawBytes(asbuf),
+                                               b => RawBytes(bbuf), bs => RawBytes(bsbuf),
+                                               c => cbuf))
+            @test Array(cbuf)[:, :, 1] ≈ factor^2 .* refC
+        end
+    end
 end
 
 let K=160, M=128, N=128
