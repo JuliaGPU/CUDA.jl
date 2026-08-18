@@ -24,7 +24,7 @@ Noteworthy missing functionality:
 module CG
 
 using ..CUDACore
-using ..CUDACore: i32, Aligned, alignment, @device_function
+using ..CUDACore: i32, Aligned, alignment, GPUCompiler, @device_function
 
 import ..LLVM
 using ..LLVM.Interop
@@ -523,9 +523,10 @@ end
     wait_prior(group, stage)
 
 Make all threads in this group wait for all but `stage` previously submitted
-[`memcpy_async`](@ref) operations to complete.
+[`memcpy_async`](@ref) operations to complete. At most 8 stages can be kept in flight;
+larger values of `stage` are capped accordingly.
 """
-function wait_prior(group::memcpy_group, stage::Integer)
+@inline function wait_prior(group::memcpy_group, stage::Integer)
     if compute_capability() >= sv"8.0"
         pipeline_wait_prior(stage)
     end
@@ -564,8 +565,19 @@ end
 @device_function pipeline_commit() =
     ccall("llvm.nvvm.cp.async.commit.group", llvmcall, Cvoid, ())
 
-@device_function pipeline_wait_prior(n) =
+# the underlying `cp.async.wait_group` instruction takes an immediate operand, so the
+# number of stages has to be a compile-time constant
+@device_function @inline pipeline_wait_prior(::Val{n}) where {n} =
     ccall("llvm.nvvm.cp.async.wait.group", llvmcall, Cvoid, (Int32,), n)
+
+# ... which we cannot guarantee for a run-time value, so dispatch to a constant instead.
+# CUDA's `__pipeline_wait_prior` does the same, capping the number of stages at 8.
+@device_function @inline function pipeline_wait_prior(n::Integer)
+    Base.Cartesian.@nexprs 8 i -> begin
+        n <= i-1 && return pipeline_wait_prior(Val(i-1))
+    end
+    pipeline_wait_prior(Val(8))
+end
 
 @device_function @generated function pipeline_memcpy_async(dst::LLVMPtr{T}, src::LLVMPtr{T}) where T
     size_and_align = sizeof(T)
@@ -584,7 +596,9 @@ end
 @inline function _memcpy_async(group, dst::LLVMPtr, src::LLVMPtr,
                                bytes, ::Val{align_hint}) where {align_hint}
     align = min(16, align_hint)
-    ispow2(align) || throw(ArgumentError("Alignment must be a power of 2"))
+    GPUCompiler.@static_assert(
+        ispow2(align),
+        "memcpy_async alignment must be a power of 2")
     if compute_capability() >= sv"8.0"
         _memcpy_async_dispatch(group, Val{align}(), dst, src, bytes[])
         pipeline_commit()
