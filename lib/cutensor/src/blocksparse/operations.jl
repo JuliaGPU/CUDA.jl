@@ -13,11 +13,12 @@ function contract!(
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
+        reproducible::Bool=false,
         plan::Union{CuTensorPlan, Nothing}=nothing)
 
     actual_plan = if plan === nothing
         plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut;
-                         jit, workspace, algo, compute_type)
+                         jit, workspace, algo, compute_type, reproducible)
     else
         plan
     end
@@ -62,7 +63,8 @@ function plan_contraction(
         jit::cutensorJitMode_t=JIT_MODE_NONE,
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
-        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing)
+        compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing,
+        reproducible::Bool=false)
 
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
@@ -92,6 +94,12 @@ function plan_contraction(
     descB, modeB, opB,
     descC, modeC, opC,
     descC, modeC, actual_compute_type)
+
+    if reproducible
+        cutensorOperationDescriptorSetAttribute(handle(), desc[],
+            CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE,
+            Ref{Int32}(1), sizeof(Int32))
+    end
 
     plan_pref = Ref{cutensorPlanPreference_t}()
     cutensorCreatePlanPreference(handle(), plan_pref, algo, jit)

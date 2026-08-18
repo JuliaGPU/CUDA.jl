@@ -6,6 +6,10 @@
     COMPUTE_DESC_TF32 = 3
     COMPUTE_DESC_3XTF32 = 4
     COMPUTE_DESC_64F = 5
+    COMPUTE_DESC_16BF = 6
+    COMPUTE_DESC_9X16BF = 7
+    COMPUTE_DESC_8XINT8 = 8
+    COMPUTE_DESC_4X16F = 9
 end
 
 const contraction_compute_types = Dict(
@@ -89,6 +93,14 @@ function Base.cconvert(::Type{cutensorComputeDescriptor_t}, T::cutensorComputeDe
         return CUTENSOR_COMPUTE_DESC_3XTF32()
     elseif T == COMPUTE_DESC_64F
         return CUTENSOR_COMPUTE_DESC_64F()
+    elseif T == COMPUTE_DESC_16BF
+        return CUTENSOR_COMPUTE_DESC_16BF()
+    elseif T == COMPUTE_DESC_9X16BF
+        return CUTENSOR_COMPUTE_DESC_9X16BF()
+    elseif T == COMPUTE_DESC_8XINT8
+        return CUTENSOR_COMPUTE_DESC_8XINT8()
+    elseif T == COMPUTE_DESC_4X16F
+        return CUTENSOR_COMPUTE_DESC_4X16F()
     else
         throw(ArgumentError("cutensorComputeDescriptor equivalent for input enum value $T does not exist!"))
     end
