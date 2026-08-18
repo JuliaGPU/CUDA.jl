@@ -186,6 +186,84 @@ end
     end
 end
 
+@testset "unsafe_wrap!" begin
+    # re-point a wrapper at different memory
+    for (a, b) in [(cu([1]; unified=true), cu([2, 3]; unified=true)),
+                   (cu([1]; device=true), cu([2, 3]; device=true))]
+        wrapper = unsafe_wrap(typeof(a), pointer(a), 1)
+        @test CUDA.unsafe_wrap!(wrapper, pointer(b), 2) === wrapper
+        @test pointer(wrapper) == pointer(b)
+        @test size(wrapper) == (2,)
+        @test Array(wrapper) == [2, 3]
+
+        # writes through the re-pointed wrapper hit the new memory
+        wrapper .= 42
+        @test Array(b) == [42, 42]
+        @test Array(a) == [1]
+
+        # dims-only update, same memory
+        @test CUDA.unsafe_wrap!(wrapper, pointer(b), (1,)) === wrapper
+        @test pointer(wrapper) == pointer(b)
+        @test size(wrapper) == (1,)
+
+        # no-op
+        @test CUDA.unsafe_wrap!(wrapper, pointer(b), (1,)) === wrapper
+        @test pointer(wrapper) == pointer(b)
+        @test size(wrapper) == (1,)
+    end
+
+    # system memory (requires HMM)
+    if CUDA.supports_hmm(device())
+        a = [1]
+        b = [2, 3]
+        wrapper = unsafe_wrap(CuArray{Int,1,CUDA.UnifiedMemory}, a)
+        @test CUDA.unsafe_wrap!(wrapper, b) === wrapper
+        @test size(wrapper) == (2,)
+        @test Array(wrapper) == [2, 3]
+    end
+
+    # the no-op path should not allocate
+    let a = cu([1]; unified=true)
+        wrapper = unsafe_wrap(typeof(a), pointer(a), 1)
+        p = pointer(a)
+        CUDA.unsafe_wrap!(wrapper, p, (1,))
+        @test (@allocated CUDA.unsafe_wrap!(wrapper, p, (1,))) == 0
+    end
+
+    # only non-owning arrays can be re-wrapped
+    let a = cu([1]; unified=true)
+        @test_throws ArgumentError CUDA.unsafe_wrap!(a, pointer(a), (1,))
+    end
+
+    # derived arrays sharing the memory prevent re-wrapping
+    let a = cu([1]; unified=true)
+        wrapper = unsafe_wrap(typeof(a), pointer(a), 1)
+        derived = reshape(wrapper, 1, 1)
+        @test_throws ArgumentError CUDA.unsafe_wrap!(wrapper, pointer(a), (1,))
+        CUDA.unsafe_free!(derived)
+        @test CUDA.unsafe_wrap!(wrapper, pointer(a), (1,)) === wrapper
+    end
+
+    # freed arrays cannot be re-wrapped
+    let a = cu([1]; unified=true)
+        wrapper = unsafe_wrap(typeof(a), pointer(a), 1)
+        CUDA.unsafe_free!(wrapper)
+        @test_throws ArgumentError CUDA.unsafe_wrap!(wrapper, pointer(a), (1,))
+    end
+
+    # system memory cannot back device memory arrays
+    let a = cu([1]; device=true)
+        wrapper = unsafe_wrap(typeof(a), pointer(a), 1)
+        @test_throws ArgumentError CUDA.unsafe_wrap!(wrapper, pointer([2]), (1,))
+    end
+
+    # registered host memory cannot be re-pointed (registration is tied to the memory)
+    let a = [1]
+        wrapper = unsafe_wrap(CuArray{Int,1,CUDA.HostMemory}, a)
+        @test_throws ArgumentError CUDA.unsafe_wrap!(wrapper, pointer([2]), (1,))
+    end
+end
+
 @testset "adapt" begin
   A = rand(Float32, 3, 3)
   dA = CuArray(A)
