@@ -245,6 +245,26 @@ eltypes_compact = [
             @test C[1] ≈ reshape(permutedims(A[1], (2,1,3)), (20, 10 * 30)) * reshape(B[1], (10 * 30))
             ## C[3] = A[1,3,1] * B[1,1]
             @test C[2] ≈ reshape(permutedims(A[3], (2,1,3)), (25, 10 * 30)) * reshape(B[1], (10 * 30))
+
+            ## bitwise-reproducible contraction should yield identical results across runs
+            contract!(1,
+                cuTenA, cuTenA.inds, cuTENSOR.OP_IDENTITY,
+                cuTenB, cuTenB.inds, cuTENSOR.OP_IDENTITY,
+                0,
+                cuTenC, cuTenC.inds, cuTENSOR.OP_IDENTITY,
+                cuTENSOR.OP_IDENTITY;
+                jit=cuTENSOR.JIT_MODE_DEFAULT, reproducible=true)
+            C1 = map(collect, C)
+            contract!(1,
+                cuTenA, cuTenA.inds, cuTENSOR.OP_IDENTITY,
+                cuTenB, cuTenB.inds, cuTENSOR.OP_IDENTITY,
+                0,
+                cuTenC, cuTenC.inds, cuTENSOR.OP_IDENTITY,
+                cuTENSOR.OP_IDENTITY;
+                jit=cuTENSOR.JIT_MODE_DEFAULT, reproducible=true)
+            C2 = map(collect, C)
+            @test C1 == C2
+            @test CuArray(C1[1]) ≈ reshape(permutedims(A[1], (2,1,3)), (20, 10 * 30)) * reshape(B[1], (10 * 30))
         end
     end
     end

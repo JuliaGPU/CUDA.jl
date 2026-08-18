@@ -108,6 +108,7 @@ const cutensorComputeDescriptor_t = Ptr{cutensorComputeDescriptor}
     CUTENSOR_OPERATION_DESCRIPTOR_PADDING_LEFT = 4
     CUTENSOR_OPERATION_DESCRIPTOR_PADDING_RIGHT = 5
     CUTENSOR_OPERATION_DESCRIPTOR_PADDING_VALUE = 6
+    CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE = 14
 end
 
 @cenum cutensorPlanPreferenceAttribute_t::UInt32 begin
@@ -117,6 +118,7 @@ end
     CUTENSOR_PLAN_PREFERENCE_ALGO = 3
     CUTENSOR_PLAN_PREFERENCE_KERNEL_RANK = 4
     CUTENSOR_PLAN_PREFERENCE_JIT = 5
+    CUTENSOR_PLAN_PREFERENCE_GPU_ARCH = 6
 end
 
 @cenum cutensorAutotuneMode_t::UInt32 begin
@@ -559,12 +561,12 @@ function cutensorGetErrorString(error)
     @gcsafe_ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
 
-# no prototype is found for this function at cutensor.h:1419:8, please use with caution
+# no prototype is found for this function at cutensor.h:1456:8, please use with caution
 function cutensorGetVersion()
     @gcsafe_ccall libcutensor.cutensorGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensor.h:1425:8, please use with caution
+# no prototype is found for this function at cutensor.h:1462:8, please use with caution
 function cutensorGetCudartVersion()
     @gcsafe_ccall libcutensor.cutensorGetCudartVersion()::Csize_t
 end
@@ -594,7 +596,7 @@ end
     @gcsafe_ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
-# no prototype is found for this function at cutensor.h:1476:18, please use with caution
+# no prototype is found for this function at cutensor.h:1513:18, please use with caution
 @checked function cutensorLoggerForceDisable()
     initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t
@@ -608,7 +610,10 @@ for desc in [:CUTENSOR_COMPUTE_DESC_16F,
              :CUTENSOR_COMPUTE_DESC_TF32,
              :CUTENSOR_COMPUTE_DESC_3XTF32,
              :CUTENSOR_COMPUTE_DESC_32F,
-             :CUTENSOR_COMPUTE_DESC_64F]
+             :CUTENSOR_COMPUTE_DESC_64F,
+             :CUTENSOR_COMPUTE_DESC_9X16BF,
+             :CUTENSOR_COMPUTE_DESC_8XINT8,
+             :CUTENSOR_COMPUTE_DESC_4X16F]
     @eval begin
         function $desc()
             ptr = Ptr{cutensorComputeDescriptor_t}(cglobal(($(QuoteNode(desc)),
