@@ -9,6 +9,7 @@ using ParallelTestRunner: AbstractTestRecord, TestRecord, WorkerTestSet
 using Test: DefaultTestSet
 using Printf: @sprintf
 using Random
+using StyledStrings: @styled_str
 
 # ensure CUDA.jl is functional
 @assert CUDA.functional(true)
@@ -144,21 +145,18 @@ function ParallelTestRunner.print_header(::Type{CUDATestRecord}, ctx::ParallelTe
     lock(ctx.lock)
     try
         # upper band
-        printstyled(ctx.stdout, " "^(ctx.name_align + textwidth(testgroupheader) - 3), " │ ", color = :white)
-        printstyled(ctx.stdout, "  Test   │", color = :white)
-        ctx.verbose && printstyled(ctx.stdout, "   Init   │", color = :white)
-        VERSION >= v"1.11" && ctx.verbose && printstyled(ctx.stdout, " Compile │", color = :white)
-        printstyled(ctx.stdout, " ──────────── GPU ───────────── │", color = :white)
-        printstyled(ctx.stdout, " ──────────────── CPU ──────────────── │\n", color = :white)
+        name_pad_str = " "^(ctx.name_align + textwidth(testgroupheader) - 3) * " │ "
+        init_str = ctx.verbose ? "   Init   │" : ""
+        compile_str = VERSION >= v"1.11" && ctx.verbose ? " Compile │" : ""
+        header_top_str = styled"{ptr_default:$name_pad_str  Test   │$init_str$compile_str ──────────── GPU ───────────── │ ──────────────── CPU ──────────────── │}\n"
+        print(ctx.stdout, header_top_str)
 
         # lower band
-        printstyled(ctx.stdout, testgroupheader, color = :white)
-        printstyled(ctx.stdout, lpad(workerheader, ctx.name_align - textwidth(testgroupheader) + 1), " │ ", color = :white)
-        printstyled(ctx.stdout, "time (s) │", color = :white)
-        ctx.verbose && printstyled(ctx.stdout, " time (s) │", color = :white)
-        VERSION >= v"1.11" && ctx.verbose && printstyled(ctx.stdout, "   (%)   │", color = :white)
-        printstyled(ctx.stdout, " GC (s) │ Alloc (MB) │ RSS (MB) │", color = :white)
-        printstyled(ctx.stdout, " GC (s) │ GC % │ Alloc (MB) │ RSS (MB) │\n", color = :white)
+        workerheaderstr = lpad(workerheader, ctx.name_align - textwidth(testgroupheader) + 1)
+        init_time_str = ctx.verbose ? " time (s) │" : ""
+        comp_time_str = VERSION >= v"1.11" && ctx.verbose ? "   (%)   │" : ""
+        header_bottom_str = styled"{ptr_default:$testgroupheader$workerheaderstr │ time (s) │$init_time_str$comp_time_str GC (s) │ Alloc (MB) │ RSS (MB) │ GC (s) │ GC % │ Alloc (MB) │ RSS (MB) │}\n"
+        print(ctx.stdout, header_bottom_str)
         flush(ctx.stdout)
     finally
         unlock(ctx.lock)
@@ -166,49 +164,53 @@ function ParallelTestRunner.print_header(::Type{CUDATestRecord}, ctx::ParallelTe
 end
 
 function print_cuda_row(io::IO, record::CUDATestRecord, wrkr, test, ctx::ParallelTestRunner.TestIOContext;
-                       color::Symbol = :white)
+                       face::Symbol = :ptr_default)
     base = record.base
-    printstyled(io, test, color = color)
-    printstyled(io, lpad("($wrkr)", ctx.name_align - textwidth(test) + 1, " "), " │ ", color = color)
+    padded_wrkr = lpad("($wrkr)", ctx.name_align - textwidth(test) + 1, " ")
 
     time_str = @sprintf("%7.2f", base.time)
-    printstyled(io, lpad(time_str, ctx.elapsed_align, " "), " │ ", color = color)
+    padded_time = lpad(time_str, ctx.elapsed_align, " ")
 
-    if ctx.verbose
+    padded_init_time, padded_comp_time = if ctx.verbose
         init_time_str = @sprintf("%7.2f", base.total_time - base.time)
-        printstyled(io, lpad(init_time_str, ctx.elapsed_align, " "), " │ ", color = color)
-        if VERSION >= v"1.11"
+        init_time = lpad(init_time_str, ctx.elapsed_align, " ") * " │ "
+        comp_time = if VERSION >= v"1.11"
             ct = base.time > 0 ? 100 * base.compile_time / base.time : 0.0
             ct_str = @sprintf("%7.2f", Float64(ct))
-            printstyled(io, lpad(ct_str, ctx.compile_align, " "), " │ ", color = color)
+            lpad(ct_str, ctx.compile_align, " ") * " │ "
+        else
+            ""
         end
+        init_time, comp_time
+    else
+        "", ""
     end
 
     # GPU columns
     gpu_time_str = @sprintf("%5.2f", record.gpu_time)
-    printstyled(io, lpad(gpu_time_str, GPU_TIME_ALIGN, " "), " │ ", color = color)
+    padded_gpu_time = lpad(gpu_time_str, GPU_TIME_ALIGN, " ")
     gpu_alloc_str = @sprintf("%5.2f", record.gpu_bytes / 2^20)
-    printstyled(io, lpad(gpu_alloc_str, GPU_ALLOC_ALIGN, " "), " │ ", color = color)
+    padded_gpu_alloc = lpad(gpu_alloc_str, GPU_ALLOC_ALIGN, " ")
     gpu_rss_str = ismissing(record.gpu_rss) ? "N/A" : @sprintf("%5.2f", record.gpu_rss / 2^20)
-    printstyled(io, lpad(gpu_rss_str, GPU_RSS_ALIGN, " "), " │ ", color = color)
+    padded_gpu_rss = lpad(gpu_rss_str, GPU_RSS_ALIGN, " ")
 
     # CPU columns
     gc_str = @sprintf("%5.2f", base.gctime)
-    printstyled(io, lpad(gc_str, ctx.gc_align, " "), " │ ", color = color)
+    padded_gc = lpad(gc_str, ctx.gc_align, " ")
     pct = base.time > 0 ? 100 * base.gctime / base.time : 0.0
-    pct_str = @sprintf("%4.1f", pct)
-    printstyled(io, lpad(pct_str, ctx.percent_align, " "), " │ ", color = color)
-    alloc_str = @sprintf("%5.2f", base.bytes / 2^20)
-    printstyled(io, lpad(alloc_str, ctx.alloc_align, " "), " │ ", color = color)
-    rss_str = @sprintf("%5.2f", base.rss / 2^20)
-    printstyled(io, lpad(rss_str, ctx.rss_align, " "), " │\n", color = color)
+    padded_percent = lpad(@sprintf("%4.1f", pct), ctx.percent_align, " ")
+    padded_alloc = lpad(@sprintf("%5.2f", base.bytes / 2^20), ctx.alloc_align, " ")
+    padded_rss = lpad(@sprintf("%5.2f", base.rss / 2^20), ctx.rss_align, " ")
+
+    out_str = styled"{$face:$test$padded_wrkr │ $padded_time │ $padded_init_time$padded_comp_time$padded_gpu_time │ $padded_gpu_alloc │ $padded_gpu_rss │ $padded_gc │ $padded_percent │ $padded_alloc │ $padded_rss │}\n"
+    print(io, out_str)
 end
 
 function ParallelTestRunner.print_test_finished(record::CUDATestRecord, wrkr, test,
                                                 ctx::ParallelTestRunner.TestIOContext)
     lock(ctx.lock)
     try
-        print_cuda_row(ctx.stdout, record, wrkr, test, ctx; color = :white)
+        print_cuda_row(ctx.stdout, record, wrkr, test, ctx; face = :ptr_default)
         flush(ctx.stdout)
     finally
         unlock(ctx.lock)
@@ -219,7 +221,7 @@ function ParallelTestRunner.print_test_failed(record::CUDATestRecord, wrkr, test
                                               ctx::ParallelTestRunner.TestIOContext)
     lock(ctx.lock)
     try
-        print_cuda_row(ctx.stderr, record, wrkr, test, ctx; color = :red)
+        print_cuda_row(ctx.stderr, record, wrkr, test, ctx; face = :ptr_error)
         flush(ctx.stderr)
     finally
         unlock(ctx.lock)

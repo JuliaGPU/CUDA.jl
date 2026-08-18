@@ -6,6 +6,7 @@ using BFloat16s
 using GPUArrays
 using ParallelTestRunner
 using Pkg
+using StyledStrings: @styled_str
 using InteractiveUtils: versioninfo
 using Base.Filesystem: path_separator
 
@@ -205,11 +206,9 @@ function report_sanitizer_logs(log_dir)
     end
     println()
     if isempty(flagged)
-        printstyled("compute-sanitizer: $total_workers workers checked, no errors\n";
-                    color = :green, bold = true)
+        print(styled"{green,bold:compute-sanitizer: $total_workers workers checked, no errors}\n")
     else
-        printstyled("compute-sanitizer: $(length(flagged))/$total_workers workers reported issues:\n";
-                    color = :red, bold = true)
+        print(styled"{ptr_error,bold:compute-sanitizer: $(length(flagged))/$total_workers workers reported issues:}\n")
         for file in flagged
             println("\n--- ", basename(file), " ---")
             print(read(file, String))
