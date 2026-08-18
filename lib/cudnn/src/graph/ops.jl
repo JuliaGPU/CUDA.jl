@@ -846,17 +846,24 @@ function swizzled_scale_dims(xdims, block_size, order)
 end
 
 # engines address whole tiles regardless of the declared extents; cuDNN accepts
-# unpadded declarations at build time but crashes the context at execution
+# unpadded declarations at build time but crashes the context at execution.
+# Tile roles follow the quantization semantics, not storage order: the blocked
+# axis's scale count pads to a multiple of 4, its partner axis to 128.
 function check_swizzled_scale_dims(fname, x::Tensor, scale::Tensor, block_size)
-    order = [i for i in sortperm(scale.strides) if scale.dims[i] != 1]
-    expected = swizzled_scale_dims(x.dims, block_size, order)
-    scale.dims == expected || throw(DimensionMismatch(
+    round_up(v, m) = cld(v, m) * m
+    for p in eachindex(x.dims), q in eachindex(x.dims)
+        p == q && continue
+        expected = collect(Int64, x.dims)
+        expected[p] = round_up(cld(expected[p], block_size), 4)
+        expected[q] = round_up(expected[q], 128)
+        scale.dims == expected && return nothing
+    end
+    throw(DimensionMismatch(
         "$fname F8_128x4 scale dimensions $(Tuple(scale.dims)) do not tile data " *
-        "dimensions $(Tuple(x.dims)) with block_size=$block_size; the swizzled layout " *
-        "needs whole 128×4 tiles: cld(extent, block_size) scales rounded up to a " *
-        "multiple of 4 along the packed dimension and the next dimension rounded up " *
-        "to a multiple of 128, i.e. $(Tuple(expected))"))
-    return nothing
+        "dimensions $(Tuple(x.dims)) with block_size=$block_size along any dimension; " *
+        "the swizzled layout needs whole 128×4 tiles: one dimension divided into " *
+        "cld(extent, block_size) blocks and rounded up to a multiple of 4, with a " *
+        "partner dimension rounded up to a multiple of 128"))
 end
 
 function check_block_scale_dims(fname, x::Tensor, scale::Tensor, block_size)
