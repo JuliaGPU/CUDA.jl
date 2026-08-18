@@ -202,7 +202,8 @@ function print_cuda_row(io::IO, record::CUDATestRecord, wrkr, test, ctx::Paralle
     padded_alloc = lpad(@sprintf("%5.2f", base.bytes / 2^20), ctx.alloc_align, " ")
     padded_rss = lpad(@sprintf("%5.2f", base.rss / 2^20), ctx.rss_align, " ")
 
-    out_str = styled"{$face:$test$padded_wrkr │ $padded_time │ $padded_init_time$padded_comp_time$padded_gpu_time │ $padded_gpu_alloc │ $padded_gpu_rss │ $padded_gc │ $padded_percent │ $padded_alloc │ $padded_rss │}\n"
+    mem_face = mem_use > ctx.max_worker_rss ? :ptr_warn : :ptr_default
+    out_str = styled"{$face:$test$padded_wrkr │ $padded_time │ $padded_init_time$padded_comp_time$padded_gpu_time │ $padded_gpu_alloc │ $padded_gpu_rss │ $padded_gc │ $padded_percent │ $padded_alloc │ {$mem_face:$padded_rss} │}\n"
     print(io, out_str)
 end
 
