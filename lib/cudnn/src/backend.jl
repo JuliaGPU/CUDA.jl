@@ -358,12 +358,18 @@ function pointwise_operation(pwdesc::BackendDescriptor, x::BackendDescriptor,
 end
 
 function matmul_operation(matdesc::BackendDescriptor, a::BackendDescriptor,
-                          b::BackendDescriptor, c::BackendDescriptor)
+                          b::BackendDescriptor, c::BackendDescriptor;
+                          m_override::Union{Nothing,BackendDescriptor}=nothing,
+                          n_override::Union{Nothing,BackendDescriptor}=nothing,
+                          k_override::Union{Nothing,BackendDescriptor}=nothing)
     make_descriptor(:operation_matmul) do op
         op[:adesc] = a
         op[:bdesc] = b
         op[:cdesc] = c
         op[:desc] = matdesc
+        m_override === nothing || (op[:gemm_m_override_desc] = m_override)
+        n_override === nothing || (op[:gemm_n_override_desc] = n_override)
+        k_override === nothing || (op[:gemm_k_override_desc] = k_override)
     end
 end
 

@@ -21,20 +21,11 @@ end
 
 desc(ctx::LoweringContext, t::Tensor) = ctx.tensor_descs[t]
 
-operation_graph_mode(::Operation) = CUDNN_OPERATIONGRAPH_MODE_AUTO
-
-function operation_graph_mode(g::Graph)
-    length(g.ops) == 1 && return operation_graph_mode(only(g.ops))
-    any(op -> op isa ConvFpropOp || op isa ConvDgradOp || op isa ConvWgradOp, g.ops) &&
-        return CUDNN_OPERATIONGRAPH_MODE_GENERIC_CONV_FUSION
-    any(op -> op isa MatmulOp, g.ops) &&
-        return CUDNN_OPERATIONGRAPH_MODE_GENERIC_MATMUL_FUSION
-    all(op -> op isa PointwiseOp || op isa ReductionOp, g.ops) &&
-        return CUDNN_OPERATIONGRAPH_MODE_GENERIC_POINTWISE_FUSION
-    return CUDNN_OPERATIONGRAPH_MODE_AUTO
-end
-
-function lower_graph(g::Graph)
+# AUTO leaves the mode attribute unset so the backend detects the pattern
+# family itself; an explicit mode scopes matching to one family and can only
+# remove engines from consideration, so it is opt-in via build!'s mode kwarg
+function lower_graph(g::Graph;
+                     mode::cudnnBackendOperationGraphMode_t=CUDNN_OPERATIONGRAPH_MODE_AUTO)
     ctx = LoweringContext(IdDict{Tensor,BackendDescriptor}(),
                           BackendDescriptor[])
     for t in g.tensors
@@ -44,6 +35,6 @@ function lower_graph(g::Graph)
     for op in g.ops
         push!(op_descs, track!(ctx, lower(op, ctx)))
     end
-    graph = track!(ctx, operation_graph(op_descs; mode=operation_graph_mode(g)))
+    graph = track!(ctx, operation_graph(op_descs; mode))
     return graph, ctx.intermediates
 end

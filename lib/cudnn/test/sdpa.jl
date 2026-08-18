@@ -109,10 +109,10 @@ function sdpa_stats_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
 
     ref, refstats = sdpa_ref(q, k, v; scale, causal, stats=true)
     out = similar(q)
-    stats = CUDACore.zeros(Float32, 1, h, sq, b)
+    stats = CUDACore.zeros(Float32, 1, sq, h, b)
     attention!(out, q, k, v; scale, causal, stats)
     @test Array(out) ≈ ref rtol=2e-2
-    @test Array(stats) ≈ refstats rtol=rtol
+    @test Array(stats) ≈ permutedims(refstats, (1, 3, 2, 4)) rtol=rtol
 end
 
 function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
@@ -122,7 +122,7 @@ function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
     dO = cuRAND.randn(T, d, h, sq, b) ./ 4
     o = similar(q)
-    stats = CUDACore.zeros(Float32, 1, h, sq, b)
+    stats = CUDACore.zeros(Float32, 1, sq, h, b)
     attention!(o, q, k, v; scale, causal, stats)
 
     refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal)
@@ -152,7 +152,7 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
 
     ref = sdpa_ref(q, k, v; scale, seq_len_q, seq_len_kv)
     out = similar(q)
-    stats = CUDACore.zeros(Float32, 1, h, sq, b)
+    stats = CUDACore.zeros(Float32, 1, sq, h, b)
     if !cuDNN.attention_supported(out, q, k, v; stats, seq_len_q, seq_len_kv)
         @test_skip "SDPA sequence-length engine is unsupported on this device"
         return
@@ -162,21 +162,26 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
     expected = zero_padded_queries!(copy(ref), seq_len_q)
     @test got ≈ expected rtol=rtol
 
+    # padded backward: gradients compare inside the valid region; out-of-range
+    # rows are clamped away by the GEMM overrides and stay zero
     dO = cuRAND.randn(T, d, h, sq, b) ./ 4
     refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, seq_len_q, seq_len_kv)
-    dq, dk, dv = similar(q), similar(k), similar(v)
+    dq = CUDACore.zeros(T, d, h, sq, b)
+    dk = CUDACore.zeros(T, d, hk, skv, b)
+    dv = CUDACore.zeros(T, d, hk, skv, b)
     if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, out, stats;
                                            seq_len_q, seq_len_kv)
-        @test_skip "SDPA sequence-length backward engine is unsupported on this device"
+        @test_skip "SDPA padded backward engine is unsupported on this device"
         return
     end
     attention_backward!(dq, dk, dv, dO, q, k, v, out, stats; scale, seq_len_q,
                         seq_len_kv)
-    gotdq = zero_padded_queries!(Array(dq), seq_len_q)
-    refdq = zero_padded_queries!(refdq, seq_len_q)
-    @test gotdq ≈ refdq rtol=rtol
-    @test Array(dk) ≈ refdk rtol=rtol
-    @test Array(dv) ≈ refdv rtol=rtol
+    @test zero_padded_queries!(Array(dq), seq_len_q) ≈
+          zero_padded_queries!(refdq, seq_len_q) rtol=rtol
+    @test zero_padded_queries!(Array(dk), seq_len_kv) ≈
+          zero_padded_queries!(refdk, seq_len_kv) rtol=rtol
+    @test zero_padded_queries!(Array(dv), seq_len_kv) ≈
+          zero_padded_queries!(refdv, seq_len_kv) rtol=rtol
 end
 
 if capability(device()) >= v"8.0"
@@ -194,6 +199,7 @@ if capability(device()) >= v"8.0"
         sdpa_backward_test(T)
         sdpa_backward_test(T; h=4, hk=2)
         sdpa_backward_test(T; causal=true)
+        sdpa_backward_test(T; h=4, hk=2, causal=true)
         sdpa_padding_test(T)
     end
 
