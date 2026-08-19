@@ -62,5 +62,5 @@ cuTensorNet = {path = "../lib/cutensornet"}
 DataStructures = "0.17 - 0"
 FileCheck = "1.1"
 JLD2 = "0.5.12 - 0"
-ParallelTestRunner = "2.8.0"
+ParallelTestRunner = "2.8"
 StyledStrings = "1"

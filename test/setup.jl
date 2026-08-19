@@ -202,7 +202,8 @@ function print_cuda_row(io::IO, record::CUDATestRecord, wrkr, test, ctx::Paralle
     padded_alloc = lpad(@sprintf("%5.2f", base.bytes / 2^20), ctx.alloc_align, " ")
     padded_rss = lpad(@sprintf("%5.2f", base.rss / 2^20), ctx.rss_align, " ")
 
-    mem_face = mem_use > ctx.max_worker_rss ? :ptr_warn : :ptr_default
+    # yellow when worker to be killed unless it's a fail
+    mem_face = mem_use > ctx.max_worker_rss ? (face == :ptr_error ? :ptr_error : :ptr_warn) : :ptr_default
     out_str = styled"{$face:$test$padded_wrkr │ $padded_time │ $padded_init_time$padded_comp_time$padded_gpu_time │ $padded_gpu_alloc │ $padded_gpu_rss │ $padded_gc │ $padded_percent │ $padded_alloc │ {$mem_face:$padded_rss} │}\n"
     print(io, out_str)
 end
@@ -222,7 +223,7 @@ function ParallelTestRunner.print_test_failed(record::CUDATestRecord, wrkr, test
                                               ctx::ParallelTestRunner.TestIOContext)
     lock(ctx.lock)
     try
-        print_cuda_row(ctx.stderr, record, wrkr, test, ctx; face = :ptr_error)
+        print_cuda_row(ctx.stderr, record, wrkr, test, ctx; face = ctx.nonpass_face[])
         flush(ctx.stderr)
     finally
         unlock(ctx.lock)
