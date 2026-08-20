@@ -35,18 +35,21 @@ kernel (generic function with 1 method)
 julia> @cuda threads=2 kernel(CuArray([1]))
 ```
 
-If we execute this code, we'll get a very short error message:
+If we execute this code and synchronize, we'll get a short error message:
 
 ```
-ERROR: a exception was thrown during kernel execution.
-Run Julia on debug level 2 for device stack traces.
+julia> synchronize()
+ERROR: KernelException: a BoundsError was thrown during kernel execution on device NVIDIA GeForce RTX 5080, thread (2, 1, 1) in block (1, 1, 1).
+Out-of-bounds array access
+Stacktrace not available, run Julia on debug level 2 for more details (by passing -g2 to the executable).
 ```
 
 As the message suggests, we can have CUDA.jl emit more rich stack trace information by
 setting Julia's debug level to 2 or higher by passing `-g2` to the `julia` invocation:
 
 ```
-ERROR: a exception was thrown during kernel execution.
+ERROR: KernelException: a BoundsError was thrown during kernel execution on device NVIDIA GeForce RTX 5080, thread (2, 1, 1) in block (1, 1, 1).
+Out-of-bounds array access
 Stacktrace:
  [1] throw_boundserror at abstractarray.jl:541
  [2] checkbounds at abstractarray.jl:506
@@ -55,9 +58,14 @@ Stacktrace:
  [5] kernel at REPL[4]:2
 ```
 
+The device reports these details to the host through the hostcall mechanism (see
+[Calling host functions from kernels](@ref)), which is why they are part of the exception
+rather than printed by the device. When hostcall is unavailable (e.g. disabled by the
+`hostcall` preference), the device prints the report to standard output instead.
+
 Note that these messages are embedded in the module (CUDA does not support stack unwinding),
 and thus bloat its size. To avoid any overhead, you can disable these messages by setting
-the debug level to 0 (passing `-g0` to `julia`). This disabled any device-side message, but
+the debug level to 0 (passing `-g0` to `julia`). This disables any device-side message, but
 retains the host-side detection:
 
 ```
@@ -65,7 +73,7 @@ julia> @cuda threads=2 kernel(CuArray([1]))
 # no device-side error message!
 
 julia> synchronize()
-ERROR: KernelException: exception thrown during kernel execution
+ERROR: KernelException: exception thrown during kernel execution on device NVIDIA GeForce RTX 5080
 ```
 
 
