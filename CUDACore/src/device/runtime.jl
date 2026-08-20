@@ -212,6 +212,7 @@ end
 struct KernelState
     exception_info::ExceptionInfo
     random_seed::UInt32
+    hostcall::HostcallClient        # all-null when hostcalls are unavailable
 end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
