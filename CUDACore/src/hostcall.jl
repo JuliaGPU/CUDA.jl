@@ -34,6 +34,7 @@ hostcalls are only enabled with the TCC driver or the `hostcall_wddm` preference
 """
 function hostcall_available(dev::CuDevice=device())
     hostcall_enabled || return false
+    get(ENV, "JULIA_CUDA_HOSTCALL", "true") == "false" && return false
     if Sys.iswindows() && !hostcall_wddm
         return attribute(dev, DEVICE_ATTRIBUTE_TCC_DRIVER) == 1
     end
@@ -554,8 +555,10 @@ function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeade
     return
 end
 
-# built-in targets are registered in `hostcall_builtins` by the code that implements them
-const hostcall_builtins = Dict{UInt64,Function}()
+# built-in targets, implemented by the runtime library and serviced by these handlers
+const hostcall_builtins = Dict{UInt64,Function}(
+    HC_EXCEPTION => service_exception_report,
+)
 
 function service_port!(a::HostcallArea, i::Int, out::UInt32)
     hdr = unsafe_load(header_ptr(a, i))

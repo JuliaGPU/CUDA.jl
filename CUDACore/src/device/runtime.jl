@@ -123,6 +123,33 @@ end
 end
 
 
+# exception reports are sent to the host through the hostcall area (when available) as
+# packets with this layout, one per report or stack frame. the strings are pointers to
+# module-constant device strings, copied over by the host.
+const EXCEPTION_REPORT_NAME = UInt32(1)       # the exception; stack frames follow
+const EXCEPTION_REPORT_FRAME = UInt32(2)      # one stack frame
+const EXCEPTION_REPORT_NOTRACE = UInt32(3)    # the exception, without stack frames
+struct ExceptionReport
+    kind::UInt32
+    idx::Int32                  # frame index
+    a::Ptr{UInt8}               # exception name / frame function
+    b::Ptr{UInt8}               # subtype / frame file
+    c::Ptr{UInt8}               # reason / unused
+    line::Int32
+    thread::@NamedTuple{x::Int32,y::Int32,z::Int32}
+    block::@NamedTuple{x::Int32,y::Int32,z::Int32}
+end
+
+# send a report through a hostcall port, without waiting for the host. must not throw.
+@inline function send_exception_report(client::HostcallClient, report::ExceptionReport)
+    port = hostcall_open(client, HC_EXCEPTION)
+    port = hostcall_send!(port) do pkt
+        unsafe_store!(reinterpret(LLVMPtr{ExceptionReport,AS.Global}, pkt), report)
+    end
+    hostcall_close!(port)
+    return
+end
+
 # it's not useful to have several threads report exceptions (interleaved output, can crash
 # CUDA), so use an output lock to only have a single thread write an exception message
 @inline function lock_output!(info::ExceptionInfo)
@@ -145,16 +172,21 @@ function report_exception(ex)
     # this is the first reporting function being called, so claim the exception
     info = kernel_state().exception_info
     if lock_output!(info)
-        # override the exception type GPUCompiler deduced if the user provided a subtype
-        if info.subtype != C_NULL
-            ex = info.subtype
+        client = kernel_state().hostcall
+        if client.nports != 0
+            send_exception_report(client,
+                ExceptionReport(EXCEPTION_REPORT_NOTRACE, 0, ex, info.subtype, info.reason, 0,
+                                threadIdx(), blockIdx()))
+        else
+            # override the type GPUCompiler deduced if a quirk supplied a subtype
+            info.subtype != C_NULL && (ex = info.subtype)
+            @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
+                      ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
+            if info.reason != C_NULL
+                @cuprintf("%s\n", info.reason)
+            end
+            @cuprintf("Stacktrace not available, run Julia on debug level 2 for more details (by passing -g2 to the executable).\n")
         end
-        @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
-                  ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
-        if info.reason != C_NULL
-            @cuprintf("%s\n", info.reason)
-        end
-        @cuprintf("Stacktrace not available, run Julia on debug level 2 for more details (by passing -g2 to the executable).\n")
     end
     return
 end
@@ -164,16 +196,21 @@ function report_exception_name(ex)
 
     # this is the first reporting function being called, so claim the exception
     if lock_output!(info)
-        # override the exception type GPUCompiler deduced if the user provided a subtype
-        if info.subtype != C_NULL
-            ex = info.subtype
+        client = kernel_state().hostcall
+        if client.nports != 0
+            send_exception_report(client,
+                ExceptionReport(EXCEPTION_REPORT_NAME, 0, ex, info.subtype, info.reason, 0,
+                                threadIdx(), blockIdx()))
+        else
+            # override the type GPUCompiler deduced if a quirk supplied a subtype
+            info.subtype != C_NULL && (ex = info.subtype)
+            @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
+                      ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
+            if info.reason != C_NULL
+                @cuprintf("%s\n", info.reason)
+            end
+            @cuprintf("Stacktrace:\n")
         end
-        @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
-                  ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
-        if info.reason != C_NULL
-            @cuprintf("%s\n", info.reason)
-        end
-        @cuprintf("Stacktrace:\n")
     end
     return
 end
@@ -182,7 +219,14 @@ function report_exception_frame(idx, func, file, line)
     info = kernel_state().exception_info
 
     if lock_output!(info)
-        @cuprintf(" [%d] %s at %s:%d\n", idx, func, file, line)
+        client = kernel_state().hostcall
+        if client.nports != 0
+            send_exception_report(client,
+                ExceptionReport(EXCEPTION_REPORT_FRAME, idx, func, file, C_NULL, line,
+                                threadIdx(), blockIdx()))
+        else
+            @cuprintf(" [%d] %s at %s:%d\n", idx, func, file, line)
+        end
     end
     return
 end
@@ -192,7 +236,9 @@ function signal_exception()
 
     # finalize output
     if lock_output!(info)
-        @cuprintf("\n")
+        if kernel_state().hostcall.nports == 0
+            @cuprintf("\n")
+        end
         info.output_lock = 2
     end
 
