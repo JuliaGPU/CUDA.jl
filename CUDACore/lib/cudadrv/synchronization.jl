@@ -183,7 +183,7 @@ function nonblocking_synchronize(val)
 end
 
 function device_synchronize(; blocking::Bool=false, spin::Bool=true)
-    if use_nonblocking_synchronization && !blocking
+    if use_nonblocking_synchronization && !blocking && !hostcall_in_handler()
         if spin && spinning_synchronization(isdone, legacy_stream())
             cuCtxSynchronize()
         else
@@ -195,11 +195,13 @@ function device_synchronize(; blocking::Bool=false, spin::Bool=true)
         cuCtxSynchronize()
     end
 
+    hostcall_drain()
     check_exceptions()
 end
 
 function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool=true)
-    if use_nonblocking_synchronization && !blocking
+    # hostcall handlers run on a foreign thread that must not wait on the Julia scheduler
+    if use_nonblocking_synchronization && !blocking && !hostcall_in_handler()
         if spin && spinning_synchronization(isdone, stream)
             cuStreamSynchronize(stream)
         else
@@ -211,11 +213,12 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
         cuStreamSynchronize(stream)
     end
 
+    hostcall_drain()
     check_exceptions()
 end
 
 function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
-    if use_nonblocking_synchronization && !blocking
+    if use_nonblocking_synchronization && !blocking && !hostcall_in_handler()
         if spin && spinning_synchronization(isdone, event)
             cuEventSynchronize(event)
         else
@@ -226,4 +229,7 @@ function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
         maybe_collect(true)
         cuEventSynchronize(event)
     end
+
+    hostcall_drain()
+    check_exceptions()
 end

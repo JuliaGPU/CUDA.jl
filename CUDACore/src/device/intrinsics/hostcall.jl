@@ -432,8 +432,10 @@ struct DeviceHostFunction{RT,AT}
     id::UInt64
 end
 
-# device-side argument conversion: arguments travel as isbits values in their Julia layout
+# device-side argument conversion: arguments travel as isbits values in their Julia layout;
+# pointers to device memory are shipped as `CuPtr`, which is what the host expects
 hostconvert(x) = x
+hostconvert(p::LLVMPtr{T}) where {T} = reinterpret(CuPtr{T}, p)
 
 # The hash is computed while compiling and travels with the image. Restricting static
 # targets to the low half keeps runtime handles disjoint; the registry detects collisions.

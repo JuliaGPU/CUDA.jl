@@ -711,7 +711,8 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         kernel = get(_kernel_instances, key, nothing)
         if kernel === nothing
             # create the kernel state object
-            state = KernelState(create_exceptions!(fun.mod), UInt32(0), HostcallClient())
+            state = KernelState(create_exceptions!(fun.mod), UInt32(0),
+                                hostcall_client(ctx, cuda.device))
 
             kernel = HostKernel{F,tt}(f, fun, state)
             _kernel_instances[key] = kernel

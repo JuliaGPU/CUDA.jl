@@ -27,6 +27,7 @@ end
 
 # check the exception flags on every API call, similarly to how CUDA handles errors
 function check_exceptions()
+    check_hostcall_exceptions()
     for (ctx,mem) in exception_infos
         exception_info = convert(ExceptionInfo, mem)
         if exception_info.status != 0
