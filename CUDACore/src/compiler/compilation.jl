@@ -201,10 +201,17 @@ mutable struct CUDACompilerResults
     entry::Union{Nothing,String}
     relocations::GPUCompiler.Relocations
 
+    # whether the kernel calls host functions, and the statically-known targets of those
+    # calls (identifier => key type), as recovered from the compiled method instances; the
+    # identifiers are baked into the image, so the table travels with it
+    hostcall::Bool
+    hostcall_targets::Vector{Pair{UInt64,Type}}
+
     # session-local kernel handles, linear-scanned by context; usually holds a single entry
     kernels::Vector{Tuple{CuContext,CuFunction}}
 
     CUDACompilerResults() = new(nothing, nothing, GPUCompiler.Relocations(),
+                                false, Pair{UInt64,Type}[],
                                 Tuple{CuContext,CuFunction}[])
 end
 
@@ -387,6 +394,22 @@ function compile(@nospecialize(job::CompilerJob))
         invoke_frozen(GPUCompiler.compile, :asm, job)
     end
 
+    # recover the hostcall targets: the device-side `hostcall_impl` is specialized on the
+    # key type of every statically-known call, and `meta.compiled` lists everything codegen
+    # emitted (including deferred compilation jobs)
+    hostcall = false
+    hostcall_targets = Pair{UInt64,Type}[]
+    for mi in keys(meta.compiled)
+        mi.def isa Method || continue
+        mi.def.module === CUDACore && mi.def.name === :hostcall_impl || continue
+        hostcall = true
+        K = mi.specTypes.parameters[2]
+        K isa DataType && K <: Type && K !== Type || continue
+        K = K.parameters[1]
+        K === Nothing && continue  # runtime handle; registered by `HostFunction`
+        push!(hostcall_targets, hostcall_target_id_value(K) => K)
+    end
+
     # check if we'll need the device runtime
     undefined_fs = filter(collect(functions(meta.ir))) do f
         isdeclaration(f) && !LLVM.isintrinsic(f) &&
@@ -544,7 +567,8 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry), relocations=meta.relocations)
+    return (image, entry=LLVM.name(meta.entry), relocations=meta.relocations,
+            hostcall, hostcall_targets)
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context
@@ -597,6 +621,8 @@ function compile_or_lookup(@nospecialize(job::CompilerJob))::CUDACompilerResults
         res.image = compiled.image
         res.entry = compiled.entry
         res.relocations = compiled.relocations
+        res.hostcall = compiled.hostcall
+        res.hostcall_targets = compiled.hostcall_targets
     end
     return res
 end

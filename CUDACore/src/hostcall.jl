@@ -92,7 +92,7 @@ function HostcallArea(ctx::CuContext, nports::Integer)
         client = HostcallClient(nports, dp(layout.inbox, UInt32), dp(layout.outbox, UInt32),
                                 dp(layout.header, HostcallHeader), dp(layout.packet, UInt8),
                                 reinterpret(LLVMPtr{UInt32,AS.Global}, convert(CuPtr{UInt32}, locks)))
-        shadow = zeros(UInt32, nports)
+        shadow = Base.zeros(UInt32, nports)
         outbox = unsafe_wrap(Array, convert(Ptr{UInt32}, base + layout.outbox), nports)
         HostcallArea(ctx, nports, mem, base, layout, locks, client, shadow, outbox, 0, nothing)
     end
@@ -168,6 +168,9 @@ all-null client when hostcalls are not available.
 """
 function hostcall_client(ctx::CuContext, dev::CuDevice=device(ctx); ports::Integer=HOSTCALL_MIN_PORTS)
     hostcall_available(dev) || return HostcallClient()
+    # kernels compiled during precompilation are not launched; creating the area would
+    # start the server thread in the precompilation process
+    ccall(:jl_generating_output, Cint, ()) != 0 && return HostcallClient()
     return hostcall_area(ctx; ports).client
 end
 
@@ -244,6 +247,7 @@ mutable struct HostFunction{RT,AT}
         isconcretetype(AT) && isbitstype(AT) ||
             throw(ArgumentError("hostcall argument types must be a concrete tuple of isbits types, got $AT"))
         id = next_hostfunction_id()
+        precompile(Tuple{typeof(f), AT.parameters...})
         hf = new{RT,AT}(f, id, true)
         @lock hostcall_targets_lock begin
             hostcall_targets[id] = HostcallTarget(nothing, f, RT, AT, true)
@@ -274,8 +278,11 @@ Adapt.adapt_storage(::KernelAdaptor, hf::HostFunction{RT,AT}) where {RT,AT} =
 
 # conversion of values received from the device (pointers already arrive as `CuPtr`, see
 # the device-side `hostconvert`)
-hostconvert_host(x) = x
-hostconvert_host(p::LLVMPtr{T}) where {T} = reinterpret(CuPtr{T}, p)
+hostconvert_host(@nospecialize(x)) = x
+function hostconvert_host(@nospecialize(p::LLVMPtr))
+    T = typeof(p).parameters[1]
+    return load_bits(CuPtr{T}, reinterpret(Ptr{UInt8}, ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), p)))
+end
 
 
 ## exceptions and deferred output
@@ -418,16 +425,34 @@ end
 
 lane_packet(p::HostPort, lane) = packet_ptr(p.area, p.index, lane)
 
-# read a value of type `T` from a lane's packets, receiving additional chunks if needed
-function read_lanes(p::HostPort, ::Type{T}, mask::UInt32) where {T}
-    values = Vector{T}(undef, 32)
-    if sizeof(T) <= HOSTCALL_PACKET_SIZE
+# everything below is deliberately type-erased (`@nospecialize`, `jl_new_bits`,
+# `jl_value_ptr`): the server thread must not have to compile code for every new target
+# type, only the handlers themselves, which are precompiled on registration.
+
+# load a value of (isbits) type `T` from memory, boxed
+@inline load_bits(@nospecialize(T::Type), ptr::Ptr{UInt8}) =
+    ccall(:jl_new_bits, Any, (Any, Ptr{Cvoid}), T, ptr)
+
+# store the bits of a boxed isbits value
+@inline function store_bits!(ptr::Ptr{UInt8}, @nospecialize(x))
+    n = Core.sizeof(typeof(x))
+    n == 0 && return
+    src = ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), x)
+    ccall(:memcpy, Ptr{Cvoid}, (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t), ptr, src, n)
+    return
+end
+
+# read every live lane's value of type `T`, receiving additional chunks if needed
+function read_lanes(p::HostPort, @nospecialize(T::Type), mask::UInt32)
+    values = Vector{Any}(undef, 32)
+    nbytes = Core.sizeof(T)
+    if nbytes <= HOSTCALL_PACKET_SIZE
         for lane in 0:31
             (mask >> lane) & 1 == 0 && continue
-            @inbounds values[lane + 1] = unsafe_load(convert(Ptr{T}, lane_packet(p, lane)))
+            @inbounds values[lane + 1] = load_bits(T, lane_packet(p, lane))
         end
     else
-        nchunks = cld(sizeof(T), HOSTCALL_PACKET_SIZE)
+        nchunks = cld(nbytes, HOSTCALL_PACKET_SIZE)
         bufs = [Vector{UInt8}(undef, nchunks * HOSTCALL_PACKET_SIZE) for _ in 1:32]
         for chunk in 0:nchunks-1
             if chunk > 0
@@ -442,27 +467,29 @@ function read_lanes(p::HostPort, ::Type{T}, mask::UInt32) where {T}
         end
         for lane in 0:31
             (mask >> lane) & 1 == 0 && continue
-            @inbounds values[lane + 1] = unsafe_load(convert(Ptr{T}, pointer(bufs[lane + 1])))
+            @inbounds values[lane + 1] = load_bits(T, pointer(bufs[lane + 1]))
         end
     end
     return values
 end
 
-# write each lane's value of type `T` to its packets and hand the buffer back; for large
+# write each lane's value (of type `T`) to its packets and hand the buffer back; for large
 # values this involves multiple flips, for which the device must be receiving.
-function write_lanes!(p::HostPort, values::Vector{T}, mask::UInt32, status::UInt32) where {T}
-    if sizeof(T) <= HOSTCALL_PACKET_SIZE
+function write_lanes!(p::HostPort, @nospecialize(T::Type), values::Vector{Any}, mask::UInt32,
+                      status::UInt32)
+    nbytes = Core.sizeof(T)
+    if nbytes <= HOSTCALL_PACKET_SIZE
         for lane in 0:31
             (mask >> lane) & 1 == 0 && continue
-            @inbounds unsafe_store!(convert(Ptr{T}, lane_packet(p, lane)), values[lane + 1])
+            @inbounds store_bits!(lane_packet(p, lane), values[lane + 1])
         end
         hport_flip!(p, status)
     else
-        nchunks = cld(sizeof(T), HOSTCALL_PACKET_SIZE)
+        nchunks = cld(nbytes, HOSTCALL_PACKET_SIZE)
         bufs = [Vector{UInt8}(undef, nchunks * HOSTCALL_PACKET_SIZE) for _ in 1:32]
         for lane in 0:31
             (mask >> lane) & 1 == 0 && continue
-            @inbounds unsafe_store!(convert(Ptr{T}, pointer(bufs[lane + 1])), values[lane + 1])
+            @inbounds store_bits!(pointer(bufs[lane + 1]), values[lane + 1])
         end
         for chunk in 0:nchunks-1
             if chunk > 0
@@ -480,23 +507,29 @@ function write_lanes!(p::HostPort, values::Vector{T}, mask::UInt32, status::UInt
     return
 end
 
+# the arguments of a call: the payload tuple without the callable (if shipped), converted
+function call_arguments(@nospecialize(payload), skip::Int)
+    n = nfields(payload) - skip
+    args = Vector{Any}(undef, n)
+    for i in 1:n
+        @inbounds args[i] = hostconvert_host(getfield(payload, i + skip))
+    end
+    return args
+end
+
 # invoke a registered target for every live lane of a port
 function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeader)
     mask = hdr.mask
     RT = target.RT
     reply = (hdr.flags & HOSTCALL_FLAG_ASYNC) == 0 && RT !== Nothing
     payloads = read_lanes(p, target.AT, mask)
-    results = reply ? Vector{RT}(undef, 32) : nothing
+    results = Vector{Any}(undef, 32)
     status = HOSTCALL_STATUS_OK
     for lane in 0:31
         (mask >> lane) & 1 == 0 && continue
         payload = @inbounds payloads[lane + 1]
-        f, args = if target.stored
-            target.f, payload
-        else
-            first(payload), Base.tail(payload)
-        end
-        args = map(hostconvert_host, args)
+        f = target.stored ? target.f : getfield(payload, 1)
+        args = call_arguments(payload, target.stored ? 0 : 1)
         try
             if is_print_target(f)
                 queue_hostcall_output(f, args...)
@@ -505,7 +538,8 @@ function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeade
                 rv = Base.invokelatest(f, args...)
             end
             if reply
-                results[lane + 1] = convert(RT, rv)
+                rv isa RT || (rv = convert(RT, rv))
+                @inbounds results[lane + 1] = rv
             end
         catch err
             record_hostcall_exception!(f, err, catch_backtrace())
@@ -515,7 +549,7 @@ function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeade
     if status != HOSTCALL_STATUS_OK || !reply
         hport_flip!(p, status)
     else
-        write_lanes!(p, results, mask, status)
+        write_lanes!(p, RT, results, mask, status)
     end
     return
 end
@@ -534,7 +568,12 @@ function service_port!(a::HostcallArea, i::Int, out::UInt32)
                     record_hostcall_exception!(hdr.target, ErrorException("unknown built-in hostcall target"))
                     hport_flip!(p, HOSTCALL_STATUS_ERROR)
                 else
-                    handler(p, hdr)
+                    try
+                        handler(p, hdr)
+                    catch err
+                        record_hostcall_exception!(hdr.target, err, catch_backtrace())
+                        hport_flip!(p, HOSTCALL_STATUS_ERROR)
+                    end
                 end
             else
                 target = hostcall_target(hdr.target)

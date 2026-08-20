@@ -214,8 +214,12 @@ end
         @test Array(out) == data .+ 1
         println("OK")
     """
-    for threads in ["1,0", "1,1", "2,1"]
+    # Julia 1.10 and 1.11 reject an explicit zero for the interactive pool,
+    # although `-t 1` produces the same one-default, zero-interactive layout.
+    thread_layouts = VERSION >= v"1.12" ? ["1,0", "1,1", "2,1"] : ["1", "1,1", "2,1"]
+    for threads in thread_layouts
         proc, out, err = julia_exec(`-t $threads -e $script`)
+        success(proc) || @error "hostcall subprocess failed" threads stdout=out stderr=err
         @test success(proc)
         @test occursin("OK", out)
     end
@@ -245,4 +249,138 @@ if length(devices()) > 1
         end
     end
 end
+end
+
+# statically-known targets: functions whose value is recoverable from their type, called
+# without any registration; the compiler records them with the kernel.
+hostcall_double(x::Int) = 2.0 * x
+hostcall_failing(x::Int) = x == 5 ? error("nope") : x
+struct HostcallScale
+    a::Float32
+end
+(s::HostcallScale)(x) = s.a * x
+
+@testset "static targets" begin
+    function kernel(out)
+        i = Int(threadIdx().x)
+        a = @hostcall hostcall_double(i)::Float64
+        b = @hostcall HostcallScale(3f0)(i)::Float32
+        offset = 10
+        c = @hostcall (x -> x + offset)(i)::Int     # closure capturing an isbits value
+        d = hostcall(hostcall_double, Float64, i)
+        out[i] = a + b + c + d
+        return
+    end
+    out = CUDA.zeros(Float64, 32)
+    @cuda threads=32 kernel(out)
+    synchronize()
+    @test Array(out) == [2i + 3i + i + 10 + 2i for i in 1:32]
+
+    # the compiler records the targets and marks the kernel
+    k = @cuda launch=false kernel(out)
+    @test k.hostcall
+
+    # asynchronous calls and the print family, whose output is emitted at synchronization
+    function printer()
+        @hostcall async=true println("thread ", threadIdx().x)
+        @hostcall print("!")::Nothing
+        return
+    end
+    _, output = @grab_output begin
+        @cuda threads=2 printer()
+        synchronize()
+    end
+    @test occursin("thread 1", output)
+    @test occursin("thread 2", output)
+    @test count("!", output) == 2
+
+    # handler exceptions
+    function failing(out)
+        out[threadIdx().x] = @hostcall hostcall_failing(Int(threadIdx().x))::Int
+        return
+    end
+    @cuda threads=8 failing(CUDA.zeros(Int, 8))
+    @test_throws HostcallException synchronize()
+
+    # many warps
+    function many(out)
+        i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+        out[i] = @hostcall hostcall_double(Int(i))::Float64
+        return
+    end
+    out = CUDA.zeros(Float64, 256 * 32)
+    @cuda threads=256 blocks=32 many(out)
+    synchronize()
+    @test Array(out) == 2.0 .* (1:256*32)
+end
+
+@testset "graph capture" begin
+    # kernels replayed from a graph are not armed; they are serviced by the heartbeat
+    function kernel(out)
+        i = Int(threadIdx().x)
+        out[i] = @hostcall hostcall_double(i)::Float64
+        return
+    end
+    out = CUDA.zeros(Float64, 32)
+    for i in 1:3
+        CUDA.@captured begin
+            @cuda threads=32 kernel(out)
+        end
+        synchronize()
+        @test Array(out) == 2.0 .* (1:32)
+        out .= 0
+    end
+end
+
+@testset "precompiled kernels" begin
+    # a kernel compiled during package precompilation carries its hostcall targets along
+    # with the cached image, so calling it in a fresh session works without recompilation
+    mktempdir() do dir
+        pkgdir = joinpath(dir, "HostcallPrecompTest")
+        mkpath(joinpath(pkgdir, "src"))
+        write(joinpath(pkgdir, "src", "HostcallPrecompTest.jl"), """
+            module HostcallPrecompTest
+            using CUDA
+            triple(x::Int) = 3.0 * x
+            function kernel(out)
+                i = Int(threadIdx().x)
+                out[i] = @hostcall triple(i)::Float64
+                @hostcall async=true println("precompiled hostcall ", i)
+                return
+            end
+            const TT = Tuple{CuDeviceVector{Float64,CUDA.AS.Global}}
+            function run()
+                out = CUDA.zeros(Float64, 4)
+                @cuda threads=4 kernel(out)
+                synchronize()
+                return Array(out)
+            end
+            if ccall(:jl_generating_output, Cint, ()) != 0 && CUDA.functional()
+                # compile (but do not launch) the kernel during precompilation
+                cufunction(kernel, TT)
+            end
+            end
+            """)
+        script = """
+            pushfirst!(LOAD_PATH, $(repr(dir)))
+            using CUDA, HostcallPrecompTest
+            using CUDACore: GPUCompiler, methodinstance, CompilerJob, compiler_config
+            # the image, with its hostcall targets, must come from the package image
+            job = CompilerJob(methodinstance(typeof(HostcallPrecompTest.kernel), HostcallPrecompTest.TT),
+                              compiler_config(device()))
+            res = GPUCompiler.cached_results(CUDACore.CUDACompilerResults, job)
+            println("cached: ", res !== nothing && res.image !== nothing && res.hostcall &&
+                                length(res.hostcall_targets) == 2)
+            println("result: ", HostcallPrecompTest.run())
+        """
+        # first run precompiles the package, the second one is a fresh session
+        for i in 1:2
+            proc, out, err = julia_exec(`-e $script`)
+            @test success(proc)
+            # GPUCompiler's package-image cache is only available on Julia 1.11+.
+            VERSION >= v"1.11" && @test occursin("cached: true", out)
+            @test occursin("result: [3.0, 6.0, 9.0, 12.0]", out)
+            @test occursin("precompiled hostcall 1", out)
+        end
+    end
 end
