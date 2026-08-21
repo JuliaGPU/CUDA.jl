@@ -200,6 +200,8 @@ function device_synchronize(; blocking::Bool=false, spin::Bool=true)
 end
 
 function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool=true)
+    # the special streams (default, legacy, per-thread) belong to the current context
+    ctx = something(stream.ctx, context())
     # hostcall handlers run on a foreign thread that must not wait on the Julia scheduler
     if use_nonblocking_synchronization && !blocking && !hostcall_in_handler()
         if spin && spinning_synchronization(isdone, stream)
@@ -214,7 +216,7 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
     end
 
     hostcall_drain()
-    check_exceptions()
+    check_exceptions(ctx)
 end
 
 function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
@@ -231,5 +233,5 @@ function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
     end
 
     hostcall_drain()
-    check_exceptions()
+    check_exceptions(event.ctx)
 end

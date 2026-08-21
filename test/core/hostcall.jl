@@ -182,6 +182,7 @@ end
     @test err isa HostcallException
     @test err.error isa ErrorException && err.error.msg == "boom 3"
     @test occursin("boom 3", sprint(showerror, err))
+    @test err.device == device()
     # the exception has been consumed
     synchronize()
 
@@ -253,6 +254,53 @@ if length(devices()) > 1
             @test Array(out) == (1:32) .+ 1
         end
     end
+
+    # concurrent blocking calls from kernels on every device, each with its own handler:
+    # the server interleaves contexts, and results must not cross over between areas
+    hfs = Dict(dev => HostFunction(Int, Tuple{Int}) do i
+                   i + 1_000_000 * (deviceid(dev) + 1)
+               end for dev in devices())
+    function tagged(out, hf)
+        i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+        out[i] = hf(Int(i))
+        return
+    end
+    outs = Dict(dev => device!(dev) do
+                    out = CUDA.zeros(Int, 256 * 16)
+                    @cuda threads=256 blocks=16 tagged(out, hfs[dev])
+                    out
+                end for dev in devices())
+    for dev in devices()
+        device!(dev) do
+            synchronize()
+            @test Array(outs[dev]) == (1:256*16) .+ 1_000_000 * (deviceid(dev) + 1)
+        end
+    end
+
+    # exceptions are reported per context: a handler error on one device surfaces when
+    # synchronizing that device, not another one
+    devA, devB = collect(Iterators.take(devices(), 2))
+    hf_fail = HostFunction(Int, Tuple{Int}) do i
+        error("boom")
+    end
+    device!(devB) do
+        # a single lane, so that exactly one exception is recorded
+        @cuda threads=1 increment(CUDA.zeros(Int, 1), hf_fail)
+        CUDACore.cuStreamSynchronize(stream())   # wait for the kernel without checking
+    end
+    device!(devA) do
+        synchronize()
+    end
+    err = device!(devB) do
+        try
+            synchronize()
+            nothing
+        catch err
+            err
+        end
+    end
+    @test err isa HostcallException
+    @test err.device == devB
 end
 end
 

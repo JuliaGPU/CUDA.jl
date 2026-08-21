@@ -96,6 +96,24 @@ enqueued after it); kernels that do not use hostcalls are unaffected. While arme
 thread polls (one CPU core), backing off to short sleeps when nothing happens; when idle it
 sleeps, waking up every millisecond to service stragglers.
 
+## Multiple devices
+
+Hostcall areas are per context, created lazily and sized for their device (the default
+number of ports is the number of resident warps of that device, so heterogeneous GPUs get
+differently sized areas), and a single server thread services the areas of all devices,
+switching to the calling kernel's context for every call. Consequences:
+
+- The server is a resource shared by all devices: the latency of a call grows with the
+  total number of warps waiting for service across all devices.
+- Exceptions are reported per context. `synchronize()`, `synchronize(stream)` and
+  `device_synchronize()` throw the [`HostcallException`](@ref CUDA.HostcallException)s
+  and `KernelException`s of the context they synchronize, and the exception names the
+  device; with the usual pattern of one task per device, each task sees the errors of its
+  own kernels. Errors in the server thread itself are reported by whichever synchronization
+  comes first.
+- Synchronizing any device does complete pending asynchronous calls of all devices,
+  running their handlers with their own context active.
+
 ## Configuration
 
 Preferences (set with `Preferences.set_preferences!(CUDACore, ...)` and restart; the
@@ -108,9 +126,7 @@ preferences belong to the `CUDACore` package, not `CUDA`):
 
 ## Display watchdogs
 
-On devices with a display watchdog — Windows with the WDDM driver (TDR, 2 s by default), or
-a GPU driving a display — a kernel blocked in a hostcall counts as running, so a slow handler
-can push the kernel over the watchdog limit and get it killed, like any other long-running
-kernel. Keep handlers fast on such devices, or raise the watchdog timeout (on Windows, the
-`TdrDelay` registry key). This is the same constraint every CUDA kernel is subject to;
-hostcalls do not change it, and are enabled by default on these devices.
+On devices with a display watchdog, a kernel blocked in a hostcall counts as running. A
+slow handler can therefore push the kernel over the watchdog limit, like any other
+long-running kernel. Hostcalls remain enabled by default on these devices, but handlers
+should avoid long or unbounded waits.

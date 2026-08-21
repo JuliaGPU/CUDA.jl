@@ -136,6 +136,58 @@ end
     synchronize()
 end
 
+if length(devices()) > 1
+@testset "multiple devices" begin
+    # device exceptions are reported when synchronizing the device they happened on
+    function kernel(arr, val)
+        arr[threadIdx().x] = val
+        return
+    end
+    devA, devB = collect(Iterators.take(devices(), 2))
+    device!(devB) do
+        @cuda threads=3 kernel(CuArray(zeros(Int)), 1)
+        CUDACore.cuStreamSynchronize(stream())   # wait for the kernel without checking
+    end
+    device!(devA) do
+        synchronize()   # not this device's exception
+    end
+    err = device!(devB) do
+        try
+            synchronize()
+            nothing
+        catch err
+            err
+        end
+    end
+    @test err isa CUDACore.KernelException
+    @test err.dev == devB
+    @test occursin("BoundsError", sprint(showerror, err))
+    device!(devB) do
+        synchronize()
+    end
+
+    # two devices failing concurrently
+    device!(devA) do
+        @cuda threads=3 kernel(CuArray(zeros(Int)), 1)
+    end
+    device!(devB) do
+        @cuda threads=3 kernel(CuArray(zeros(Int)), 2)
+    end
+    for dev in (devA, devB)
+        err = device!(dev) do
+            try
+                synchronize()
+                nothing
+            catch err
+                err
+            end
+        end
+        @test err isa CUDACore.KernelException
+        @test err.dev == dev
+    end
+end
+end
+
 @testset "precompiled kernels" begin
     # exception reports do not depend on any per-kernel registration, so a kernel
     # compiled during precompilation reports just as well in a fresh session

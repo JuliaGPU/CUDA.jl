@@ -47,6 +47,7 @@ headers and packets of `nports` ports, the lock bitfield in device memory, and t
 """
 mutable struct HostcallArea
     const ctx::CuContext
+    const dev::CuDevice
     const nports::Int
     const mem::HostMemory
     const base::Ptr{UInt8}
@@ -74,6 +75,9 @@ function HostcallArea(ctx::CuContext, nports::Integer)
         throw(ArgumentError("too many hostcall ports: $nports"))
     nports = cld(Int(nports), HOSTCALL_SWEEP_CHUNK) * HOSTCALL_SWEEP_CHUNK
     layout = hostcall_packet_layout(nports)
+    # look up the device through the context: `context!` does not activate a context that
+    # is already the task's current one, so `current_device()` may not work here yet
+    dev = device(ctx)
     context!(ctx) do
         mem = alloc(HostMemory, layout.total, MEMHOSTALLOC_DEVICEMAP | MEMHOSTALLOC_PORTABLE)
         base = convert(Ptr{UInt8}, mem)
@@ -89,7 +93,7 @@ function HostcallArea(ctx::CuContext, nports::Integer)
                                 reinterpret(LLVMPtr{UInt32,AS.Global}, convert(CuPtr{UInt32}, locks)))
         shadow = Base.zeros(UInt32, nports)
         outbox = unsafe_wrap(Array, convert(Ptr{UInt32}, base + layout.outbox), nports)
-        HostcallArea(ctx, nports, mem, base, layout, locks, client, shadow, outbox, 0, nothing)
+        HostcallArea(ctx, dev, nports, mem, base, layout, locks, client, shadow, outbox, 0, nothing)
     end
 end
 
@@ -288,16 +292,23 @@ end
 Thrown by `synchronize()` when a host function called from a kernel threw, when the
 target of a call is unknown, or when its result could not be converted. The calling device
 thread has been stopped. The original error and backtrace are available in the `error`
-and `backtrace` fields.
+and `backtrace` fields, and the device the call came from in `device` (`nothing` for errors
+in the server itself). Like device-side exceptions, these are reported by synchronizing the
+context the kernel ran in.
 """
 struct HostcallException <: Exception
     target::Any
     error::Any
     backtrace::Any
+    device::Union{Nothing,CuDevice}
 end
+HostcallException(target, error, backtrace=nothing) =
+    HostcallException(target, error, backtrace, nothing)
 
 function Base.showerror(io::IO, err::HostcallException)
-    print(io, "HostcallException: error while servicing a hostcall to ", err.target, ":\n")
+    print(io, "HostcallException: error while servicing a hostcall to ", err.target)
+    err.device === nothing || print(io, " on device ", name(err.device))
+    print(io, ":\n")
     showerror(io, err.error)
     if err.backtrace !== nothing
         println(io)
@@ -305,23 +316,32 @@ function Base.showerror(io::IO, err::HostcallException)
     end
 end
 
-const hostcall_exceptions = HostcallException[]
+# pending exceptions, tagged with the context of the area they were recorded for (or
+# `nothing` for errors in the server itself, which any context reports)
+const hostcall_exceptions = Tuple{Union{Nothing,CuContext},HostcallException}[]
 const hostcall_exceptions_lock = Threads.SpinLock()
 const hostcall_exceptions_pending = Threads.Atomic{Int}(0)
 
-function record_hostcall_exception!(target, err, bt=nothing)
-    @lock hostcall_exceptions_lock push!(hostcall_exceptions, HostcallException(target, err, bt))
-    Threads.atomic_add!(hostcall_exceptions_pending, 1)
+function record_hostcall_exception!(area::Union{Nothing,HostcallArea}, target, err, bt=nothing)
+    ctx = area === nothing ? nothing : area.ctx
+    dev = area === nothing ? nothing : area.dev
+    @lock hostcall_exceptions_lock begin
+        push!(hostcall_exceptions, (ctx, HostcallException(target, err, bt, dev)))
+        Threads.atomic_add!(hostcall_exceptions_pending, 1)
+    end
     return
 end
 
-# throw the oldest pending exception (called from `check_exceptions`)
-function check_hostcall_exceptions()
+# throw the oldest pending exception of `ctx` (called from `check_exceptions`). exceptions
+# are reported per context, like device-side exceptions: synchronizing one device does not
+# surface the errors of kernels running on another.
+function check_hostcall_exceptions(ctx::CuContext)
     hostcall_exceptions_pending[] == 0 && return
     err = @lock hostcall_exceptions_lock begin
-        isempty(hostcall_exceptions) && return
+        i = findfirst(((c, _),) -> c === nothing || c == ctx, hostcall_exceptions)
+        i === nothing && return
         Threads.atomic_sub!(hostcall_exceptions_pending, 1)
-        popfirst!(hostcall_exceptions)
+        popat!(hostcall_exceptions, i)[2]
     end
     throw(err)
 end
@@ -537,7 +557,7 @@ function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeade
                 @inbounds results[lane + 1] = rv
             end
         catch err
-            record_hostcall_exception!(f, err, catch_backtrace())
+            record_hostcall_exception!(p.area, f, err, catch_backtrace())
             status = HOSTCALL_STATUS_ERROR
         end
     end
@@ -562,20 +582,20 @@ function service_port!(a::HostcallArea, i::Int, out::UInt32)
             if hdr.target < HOSTCALL_BUILTIN_IDS
                 handler = get(hostcall_builtins, hdr.target, nothing)
                 if handler === nothing
-                    record_hostcall_exception!(hdr.target, ErrorException("unknown built-in hostcall target"))
+                    record_hostcall_exception!(a, hdr.target, ErrorException("unknown built-in hostcall target"))
                     hport_flip!(p, HOSTCALL_STATUS_ERROR)
                 else
                     try
                         handler(p, hdr)
                     catch err
-                        record_hostcall_exception!(hdr.target, err, catch_backtrace())
+                        record_hostcall_exception!(a, hdr.target, err, catch_backtrace())
                         hport_flip!(p, HOSTCALL_STATUS_ERROR)
                     end
                 end
             else
                 target = hostcall_target(hdr.target)
                 if target === nothing
-                    record_hostcall_exception!(hdr.target, ErrorException("unknown hostcall target; was the kernel compiled in another session without its targets being registered?"))
+                    record_hostcall_exception!(a, hdr.target, ErrorException("unknown hostcall target; was the kernel compiled in another session without its targets being registered?"))
                     hport_flip!(p, HOSTCALL_STATUS_ERROR)
                 else
                     service_target!(p, target, hdr)
@@ -590,6 +610,10 @@ end
 # words are compared against our shadow of the inbox in chunks, which vectorizes and keeps
 # the cost of scanning idle ports negligible.
 function sweep!(a::HostcallArea)
+    # fast-path the all-idle case with a single scan over the whole area: the chunked walk
+    # below has per-chunk overhead that adds up on slower CPUs, and with one server thread
+    # sweeping every context's area, idle areas are the common case
+    pending_ports(a) || return 0
     n = 0
     nports = a.nports
     outbox = a.outbox
@@ -623,7 +647,7 @@ mutable struct HostcallServer
     const sem::Ptr{Cvoid}           # uv_sem_t, posted by `cuLaunchHostFunc` after every armed kernel
     const sweep_lock::Ptr{Cvoid}    # uv_mutex_t, serializes sweeps (server thread vs. draining tasks)
     const launches::Threads.Atomic{Int}
-    const sweep_owner::Threads.Atomic{Int}   # thread id holding `sweep_lock`, or 0
+    const sweep_owner::Threads.Atomic{UInt}  # identity of the task holding `sweep_lock`, or 0
     finished::Int                   # launches that completed; only touched by the server thread
 end
 
@@ -636,16 +660,20 @@ function lock_sweeps(srv::HostcallServer)
         ccall(:jl_cpu_pause, Cvoid, ())
         ccall(:jl_gc_safepoint, Cvoid, ())
     end
-    srv.sweep_owner[] = Threads.threadid()
+    srv.sweep_owner[] = task_identity()
     return
 end
 function unlock_sweeps(srv::HostcallServer)
-    srv.sweep_owner[] = 0
+    srv.sweep_owner[] = UInt(0)
     @ccall uv_mutex_unlock(srv.sweep_lock::Ptr{Cvoid})::Cvoid
     return
 end
-# whether the current thread is in the middle of a sweep, i.e. running a handler
-sweeping(srv::HostcallServer) = srv.sweep_owner[] == Threads.threadid()
+# sweeps are owned by a task (the server thread's root task, or a draining task), not a
+# thread: a draining task that migrates between threads keeps its ownership, and other
+# tasks running on its thread do not inherit it.
+task_identity() = UInt(pointer_from_objref(current_task()))
+# whether the current task is in the middle of a sweep, i.e. running a handler
+sweeping(srv::HostcallServer) = srv.sweep_owner[] == task_identity()
 function hostcall_in_handler()
     srv = hostcall_server[]
     srv === nothing && return false
@@ -675,8 +703,8 @@ end
 
 const HOSTCALL_SPIN_BEFORE_SLEEP = 1 << 16    # empty sweeps before backing off to sleeps
 
-# a short GC-safe sleep for the armed-but-idle path. Windows has no `usleep` (nor any
-# sub-millisecond sleep), so back off in 1 ms steps there.
+# a short GC-safe sleep for the armed-but-idle path. Windows has no `usleep`, so use
+# libuv's millisecond sleep there.
 @static if Sys.iswindows()
     hostcall_backoff() = @gcsafe_ccall uv_sleep(1::Cuint)::Cvoid
 else
@@ -721,7 +749,7 @@ function hostcall_server_main(srv::HostcallServer)
         catch err
             # errors in the server itself (not in handlers, which are caught separately)
             # are reported at the next synchronization; keep the thread alive
-            record_hostcall_exception!(:server, err, catch_backtrace())
+            record_hostcall_exception!(nothing, :server, err, catch_backtrace())
         end
         ccall(:jl_gc_safepoint, Cvoid, ())
     end
@@ -747,7 +775,7 @@ function hostcall_server_start()
         @ccall(uv_cond_init(cond::Ptr{Cvoid})::Cint) == 0 || error("uv_cond_init failed")
         @ccall(uv_sem_init(sem::Ptr{Cvoid}, 0::Cuint)::Cint) == 0 || error("uv_sem_init failed")
         srv = HostcallServer(mutex, cond, sem, sweep_lock, Threads.Atomic{Int}(0),
-                             Threads.Atomic{Int}(0), 0)
+                             Threads.Atomic{UInt}(0), 0)
 
         # Compile the server and its dynamically-dispatched handlers on this thread.
         precompile(hostcall_server_main, (HostcallServer,))
@@ -856,9 +884,8 @@ function hostcall_drain()
     return
 end
 
-# forget the areas of a context that is about to be destroyed: its pinned memory goes away
-# with it, so the server must stop sweeping it. (the hostcall machinery otherwise assumes
-# that contexts are immortal, as CUDA.jl's primary contexts are.)
+# Forget the areas of a context that is about to be destroyed. Stop the server from
+# sweeping them before releasing their streams and raw allocations.
 function hostcall_forget!(pred)
     srv = hostcall_server[]
     srv === nothing && return
@@ -867,7 +894,26 @@ function hostcall_forget!(pred)
     try
         @lock hostcall_areas_lock begin
             areas = Base.@atomic hostcall_areas.list
+            forgotten = filter(pred, areas)
+            isempty(forgotten) && return
             Base.@atomic hostcall_areas.list = filter(a -> !pred(a), areas)
+            # Release resources while the context is still valid. These low-level memory
+            # wrappers do not own finalizers.
+            for a in forgotten
+                context!(a.ctx) do
+                    a.stream === nothing || unsafe_destroy!(a.stream)
+                    a.stream = nothing
+                    free(a.locks)
+                    free(a.mem)
+                end
+            end
+            # exceptions recorded for these contexts can no longer be reported
+            ctxs = Set(a.ctx for a in forgotten)
+            @lock hostcall_exceptions_lock begin
+                n = length(hostcall_exceptions)
+                filter!(((c, _),) -> !(c in ctxs), hostcall_exceptions)
+                Threads.atomic_sub!(hostcall_exceptions_pending, n - length(hostcall_exceptions))
+            end
         end
     finally
         nested || unlock_sweeps(srv)
@@ -875,4 +921,4 @@ function hostcall_forget!(pred)
     return
 end
 hostcall_forget!(ctx::CuContext) = hostcall_forget!(a -> a.ctx == ctx)
-hostcall_forget!(dev::CuDevice) = hostcall_forget!(a -> isvalid(a.ctx) && device(a.ctx) == dev)
+hostcall_forget!(dev::CuDevice) = hostcall_forget!(a -> a.dev == dev)

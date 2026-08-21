@@ -577,7 +577,10 @@ function link_kernel(image::Vector{UInt8}, entry::String,
     # load as an executable kernel object on the current context
     mod = try
         CuModule(image)
-    catch
+    catch err
+        # loading synchronizes the device first, which may surface an unrelated exception
+        # from an earlier kernel; only driver errors are about our image
+        err isa CuError || rethrow()
         # the driver rejected our compiled image (e.g. ERROR_NOT_SUPPORTED). dump the cubin
         # so the failure can be reported with a reproducer, mirroring how we keep the PTX
         # around when `ptxas` fails above.
