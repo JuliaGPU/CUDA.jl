@@ -592,8 +592,9 @@ end
     try
         cudacall(fun, tt, args...; stream, kwargs...)
         @static if Sys.iswindows()
-            # WDDM batches launches; make sure the kernel has actually been submitted
-            # before the host starts polling for it
+            # WDDM may batch command submission (observed to be eager with hardware GPU
+            # scheduling, but not guaranteed without it); a stream query is a cheap way to
+            # flush the queue so that the kernel is running while the host polls for it
             unchecked_cuStreamQuery(stream)
         end
     catch

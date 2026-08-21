@@ -98,12 +98,19 @@ sleeps, waking up every millisecond to service stragglers.
 
 ## Configuration
 
-Preferences (set with `Preferences.set_preferences!(CUDA, ...)` and restart):
+Preferences (set with `Preferences.set_preferences!(CUDACore, ...)` and restart; the
+preferences belong to the `CUDACore` package, not `CUDA`):
 - `hostcall` (default `true`): disable the mechanism entirely; kernels using it fail to
   link, and device exceptions fall back to `printf`-based reporting.
 - `hostcall_ports`: the number of ports (warp-level call slots) per context; the default is the
   number of resident warps of the device (~8 MiB of pinned memory on a large GPU). Contexts
   start with a small area until a kernel that calls host functions is linked.
-- `hostcall_wddm` (default `false`): on Windows with the WDDM driver, kernels are batched and
-  subject to the display watchdog; hostcalls are therefore only enabled with the TCC driver
-  unless this preference is set.
+
+## Display watchdogs
+
+On devices with a display watchdog — Windows with the WDDM driver (TDR, 2 s by default), or
+a GPU driving a display — a kernel blocked in a hostcall counts as running, so a slow handler
+can push the kernel over the watchdog limit and get it killed, like any other long-running
+kernel. Keep handlers fast on such devices, or raise the watchdog timeout (on Windows, the
+`TdrDelay` registry key). This is the same constraint every CUDA kernel is subject to;
+hostcalls do not change it, and are enabled by default on these devices.

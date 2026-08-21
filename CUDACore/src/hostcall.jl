@@ -21,23 +21,17 @@ const hostcall_enabled = @load_preference("hostcall", true)::Bool
 # the number of ports per area; defaults to the number of resident warps of the device
 const hostcall_ports_pref = @load_preference("hostcall_ports", nothing)
 
-# hostcalls require the host to poll while a kernel is running. on Windows with WDDM
-# kernels are batched and subject to a 2s watchdog, so require an explicit opt-in there.
-const hostcall_wddm = @load_preference("hostcall_wddm", false)::Bool
-
 """
     hostcall_available([dev::CuDevice]) -> Bool
 
 Whether hostcalls (and thus hostcall-based functionality such as device exception
-reporting) are available on `dev`. Controlled by the `hostcall` preference; on Windows
-hostcalls are only enabled with the TCC driver or the `hostcall_wddm` preference.
+reporting) are available on `dev`. Controlled by the `hostcall` preference. Note that on
+devices with a display watchdog (Windows WDDM, or a display attached), kernels blocked in
+a hostcall remain subject to that watchdog, like any other running kernel.
 """
 function hostcall_available(dev::CuDevice=device())
     hostcall_enabled || return false
     get(ENV, "JULIA_CUDA_HOSTCALL", "true") == "false" && return false
-    if Sys.iswindows() && !hostcall_wddm
-        return attribute(dev, DEVICE_ATTRIBUTE_TCC_DRIVER) == 1
-    end
     return true
 end
 
@@ -681,6 +675,14 @@ end
 
 const HOSTCALL_SPIN_BEFORE_SLEEP = 1 << 16    # empty sweeps before backing off to sleeps
 
+# a short GC-safe sleep for the armed-but-idle path. Windows has no `usleep` (nor any
+# sub-millisecond sleep), so back off in 1 ms steps there.
+@static if Sys.iswindows()
+    hostcall_backoff() = @gcsafe_ccall uv_sleep(1::Cuint)::Cvoid
+else
+    hostcall_backoff() = @gcsafe_ccall usleep(20::Cuint)::Cint
+end
+
 function hostcall_server_main(srv::HostcallServer)
     idle = 0
     while true
@@ -708,7 +710,7 @@ function hostcall_server_main(srv::HostcallServer)
                     if idle < HOSTCALL_SPIN_BEFORE_SLEEP
                         ccall(:jl_cpu_pause, Cvoid, ())
                     else
-                        @gcsafe_ccall usleep(20::Cuint)::Cint
+                        hostcall_backoff()
                     end
                 end
             else

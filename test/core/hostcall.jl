@@ -157,6 +157,11 @@ using CUDA: HostFunction, HostcallException
     @test Array(out) == [3]
 end
 
+@testset "idle backoff" begin
+    # This used to call `usleep` unconditionally, which is unavailable on Windows.
+    @test_nowarn CUDACore.hostcall_backoff()
+end
+
 @testset "exceptions" begin
     hf = HostFunction(Int, Tuple{Int}) do i
         i == 3 && error("boom $i")
