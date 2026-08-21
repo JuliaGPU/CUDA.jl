@@ -160,7 +160,9 @@ const HOSTCALL_BACKOFF_MIN = UInt32(8)
 const HOSTCALL_BACKOFF_MAX = UInt32(256)
 @inline function hostcall_backoff(ns::UInt32)
     if compute_capability() >= sv"7.0"
-        nanosleep(ns)
+        # Do not call `nanosleep` here: its static capability check runs before this
+        # target-dependent branch is eliminated on some Julia versions.
+        @asmcall("nanosleep.u32 \$0;", "r", true, Cvoid, Tuple{UInt32}, ns)
     end
     return min(ns << 1, HOSTCALL_BACKOFF_MAX)
 end
