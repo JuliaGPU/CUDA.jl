@@ -78,6 +78,8 @@ struct CUDATestRecord <: AbstractTestRecord
     gpu_rss::Union{UInt64, Missing}
 end
 
+ParallelTestRunner.memory_usage(rec::CUDATestRecord) = ParallelTestRunner.memory_usage(rec.base)
+
 # GPU per-process memory via NVML. Returns `missing` in containers or on
 # devices without NVML support.
 function gpu_rss_nvml()
@@ -203,6 +205,7 @@ function print_cuda_row(io::IO, record::CUDATestRecord, wrkr, test, ctx::Paralle
     padded_rss = lpad(@sprintf("%5.2f", base.rss / 2^20), ctx.rss_align, " ")
 
     # yellow when worker to be killed unless it's a fail
+    mem_use = memory_usage(record)
     mem_face = mem_use > ctx.max_worker_rss ? (face == :ptr_error ? :ptr_error : :ptr_warn) : :ptr_default
     out_str = styled"{$face:$test$padded_wrkr │ $padded_time │ $padded_init_time$padded_comp_time$padded_gpu_time │ $padded_gpu_alloc │ $padded_gpu_rss │ $padded_gc │ $padded_percent │ $padded_alloc │ {$mem_face:$padded_rss} │}\n"
     print(io, out_str)
