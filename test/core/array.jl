@@ -1016,3 +1016,9 @@ end
   sum!(a, b)
   @test Array(a) == [2f0]
 end
+
+@testset "mapreducedim! returning same type" begin
+    R = transpose(CUDA.zeros(Float32, 2, 3))
+    A = CUDA.rand(Float32, 3, 2, 10)
+    @test @inferred(GPUArrays.mapreducedim!(identity, +, R, A)) === R
+end

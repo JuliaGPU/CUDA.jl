@@ -182,6 +182,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
                          Float16, Float32, Float64,
                          ComplexF16, ComplexF32, ComplexF64}
 
+    R_old = R
     # add singleton dimensions to the output container, if needed
     if ndims(R) < ndims(A)
         dims = Base.fill_to_length(size(R), 1, Val(ndims(A)))
@@ -206,7 +207,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         threads = kernel_config.threads
         blocks = cld(length(Rother), threads)
         kernel(args...; threads, blocks)
-        return R
+        return R_old
     end
 
     # how many threads do we want?
@@ -291,5 +292,5 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
         GPUArrays.mapreducedim!(identity, op, R, partial; init)
     end
 
-    return R
+    return R_old
 end
