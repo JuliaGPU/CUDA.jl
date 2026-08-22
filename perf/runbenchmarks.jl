@@ -26,6 +26,7 @@ SUITE = BenchmarkGroup()
 
 include("cuda.jl")
 include("kernel.jl")
+include("hostcall.jl")
 include("array.jl")
 
 @info "Preparing main benchmarks"

@@ -382,7 +382,7 @@ steps:
           build.message !~ /\[only/ && !build.pull_request.draft &&
             build.message !~ /\[skip tests\]/ &&
             build.message !~ /\[skip special\]/
-        timeout_in_minutes: 30
+        timeout_in_minutes: 45
 
   - wait: ~
     continue_on_failure: true
