@@ -56,7 +56,7 @@ function versioninfo(io::IO=stdout)
     println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")
     println(io)
 
-    get_module(name::Symbol) = (name, getfield(Metal, name))
+    get_module(name::Symbol) = (name, getfield(CUDACore, name))
     function get_module(pkg::Tuple{String, String})
         id = Base.PkgId(Base.UUID(pkg[1]), pkg[2])
         (pkg[2], get(Base.loaded_modules, id, nothing))
@@ -64,12 +64,11 @@ function versioninfo(io::IO=stdout)
 
     println(io, "Julia packages: ")
     println(io, "- CUDACore: $(Base.pkgversion(CUDACore))")
-    for name in [:GPUArrays, :GPUCompiler, ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
-                 :CUDA_Driver_jll, :CUDA_Compiler_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery,
-                 :NVPTX_LLVM_Backend_jll]
-        isdefined(CUDACore, name) || continue
-        mod = getfield(CUDACore, name)
-        println(io, "- $(name): $(Base.pkgversion(mod))")
+    for pkg in [:GPUArrays, :GPUCompiler, ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
+                 :CUDA_Driver_jll, :CUDA_Compiler_jll, ("76a88914-d11a-5bdc-97e0-2f5a05c973a2", "CUDA_Runtime_jll"),
+                 ("1af6417a-86b4-443c-805f-a4643ffb695f", "CUDA_Runtime_Discovery"), :NVPTX_LLVM_Backend_jll]
+        name, mod = get_module(pkg)
+        isnothing(mod) || println(io, "- $(name): $(Base.pkgversion(mod))")
     end
     println(io)
 
