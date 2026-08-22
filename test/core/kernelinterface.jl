@@ -1,10 +1,10 @@
 import KernelInterface
 import KernelInterface as KI
-using CUDACore.CUDAInterface
+using CUDACore
 
 include(joinpath(dirname(pathof(KernelInterface)), "..", "test", "testsuite.jl"))
 
-Testsuite.testsuite(CUDAInterface.CUDABackend(), CuArray)
+Testsuite.testsuite(CUDABackend(), CuArray)
 
 function ki_subgroup_kernel(num, sizes, id, lane)
     l = KI.get_local_id()
@@ -29,7 +29,7 @@ end
     sizes = CuArray{UInt32}(undef, n)
     id = CuArray{UInt32}(undef, n)
     lane = CuArray{UInt32}(undef, n)
-    KI.@launch CUDAInterface.CUDABackend() workgroupsize=workgroupsize ki_subgroup_kernel(num, sizes, id, lane)
+    KI.@launch CUDABackend() workgroupsize=workgroupsize ki_subgroup_kernel(num, sizes, id, lane)
     @test all(==(3), Array(num))
     @test Array(sizes) == [i < 64 ? 32 : 2 for i in 0:n-1]
     @test Array(id) == [div(i, 32) + 1 for i in 0:n-1]
@@ -37,7 +37,7 @@ end
 end
 
 @testset "copyto!" begin
-    backend = CUDAInterface.CUDABackend()
+    backend = CUDABackend()
 
     # bits unions store their type tags separately
     host = Union{Missing, Int32}[1, missing, 3]
@@ -58,5 +58,5 @@ end
 end
 
 @testset "versioninfo" begin
-    @test occursin("CUDA toolchain", sprint(KI.versioninfo, CUDAInterface.CUDABackend()))
+    @test occursin("CUDA toolchain", sprint(KI.versioninfo, CUDABackend()))
 end
