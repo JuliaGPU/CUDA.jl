@@ -1,4 +1,4 @@
-# Debugging
+# [Debugging](@id DebuggingKernels)
 
 Even if your kernel executes, it may be computing the wrong values, or even error at run
 time. To debug these issues, both CUDA.jl and the CUDA toolkit provide several utilities.

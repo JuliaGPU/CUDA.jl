@@ -55,8 +55,7 @@ const HOSTCALL_STATUS_ERROR = UInt32(1)    # the handler threw, or the target is
 Device-side descriptor of a hostcall area: the number of ports and pointers to the
 mailboxes, headers, packets (all in pinned host memory) and the lock bitfield (in device
 memory). An all-null client (`nports == 0`) indicates that hostcalls are not available.
-It is part of the [`KernelState`](@ref) and normally accessed through
-`kernel_state().hostcall`.
+It is part of the kernel state and normally accessed through `kernel_state().hostcall`.
 """
 struct HostcallClient
     nports::UInt32

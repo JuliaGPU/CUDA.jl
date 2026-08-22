@@ -131,21 +131,21 @@ shfl_xor_sync
 hostcall
 hostcall_async
 HostFunction
-CUDA.DeviceHostFunction
-CUDA.HostcallException
-CUDA.hostcall_available
+DeviceHostFunction
+HostcallException
+hostcall_available
 ```
 
 Raw ports, for library code:
 
 ```@docs
-CUDA.HostcallClient
-CUDA.HostcallPort
-CUDA.hostcall_open
-CUDA.hostcall_send!
-CUDA.hostcall_recv!
-CUDA.hostcall_close!
-CUDA.hostcall_lane_packet
+HostcallClient
+HostcallPort
+hostcall_open
+hostcall_send!
+hostcall_recv!
+hostcall_close!
+hostcall_lane_packet
 ```
 
 ## Assertions

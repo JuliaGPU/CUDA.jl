@@ -66,7 +66,7 @@ Three layers are available, all built on the same protocol.
     at the next `synchronize()`, or earlier by a printer task when thread 1 is free.
 - **Errors**: an exception thrown by a handler, an unknown target, or a result that cannot be
   converted stops all lanes of that call on the device (like a device-side exception) and is
-  rethrown as a [`HostcallException`](@ref CUDA.HostcallException) at the next stream, event,
+  rethrown as a [`HostcallException`](@ref CUDACore.HostcallException) at the next stream, event,
   or device synchronization, which also completes pending asynchronous calls and flushes queued
   output. A handler exception therefore poisons every lane of the warp-level call.
 - **Asynchronous calls** never send a result back to the device. For a `HostFunction` handle,
@@ -81,7 +81,7 @@ Three layers are available, all built on the same protocol.
 CUDA.jl itself uses hostcall to report device-side exceptions: the runtime library sends the
 exception name, reason and (with `-g2`) stack frames through the hostcall area, without
 waiting for the host, and `synchronize()` attaches the decoded report to the `KernelException`
-it throws (see [Debugging](@ref)). This needs no registration, so it also works for kernels
+it throws (see [Debugging](@ref DebuggingKernels)). This needs no registration, so it also works for kernels
 compiled during package precompilation. Every kernel that can throw therefore refers to a small
 hostcall area (64 ports), which is created on first use in each context; when hostcall is
 unavailable, the device falls back to printing the report with `printf`.
@@ -106,7 +106,7 @@ switching to the calling kernel's context for every call. Consequences:
 - The server is a resource shared by all devices: the latency of a call grows with the
   total number of warps waiting for service across all devices.
 - Exceptions are reported per context. `synchronize()`, `synchronize(stream)` and
-  `device_synchronize()` throw the [`HostcallException`](@ref CUDA.HostcallException)s
+  `device_synchronize()` throw the [`HostcallException`](@ref CUDACore.HostcallException)s
   and `KernelException`s of the context they synchronize, and the exception names the
   device; with the usual pattern of one task per device, each task sees the errors of its
   own kernels. Errors in the server thread itself are reported by whichever synchronization
