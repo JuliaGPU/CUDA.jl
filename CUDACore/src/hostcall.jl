@@ -43,8 +43,9 @@ end
 
 Host-side owner of a hostcall area: pinned, device-mapped memory for the mailboxes,
 headers and packets of `nports` ports, the lock bitfield in device memory, and the mapped
-`HostcallClient` descriptor referenced by kernels. Areas are created per context by
-[`hostcall_area`](@ref).
+`HostcallClient` descriptor referenced by kernels. Exception-only areas are polled by the
+server heartbeat; other areas are polled while an ordinary hostcall kernel is active.
+Areas are created per context by [`hostcall_area`](@ref).
 """
 mutable struct HostcallArea
     const ctx::CuContext
@@ -56,6 +57,7 @@ mutable struct HostcallArea
                               packet::Int, total::Int}
     const locks::DeviceMemory
     const client::HostcallClientPtr
+    const heartbeat::Bool               # poll while idle (exception-only kernels use this area)
 
     # host-side sweep state
     const shadow::Vector{UInt32}        # the inbox words we last wrote (host is the only writer)
@@ -71,7 +73,7 @@ const HOSTCALL_SWEEP_CHUNK = 64
 const HOSTCALL_MIN_PORTS = 64
 const HOSTCALL_MAX_PORTS = 4096
 
-function HostcallArea(ctx::CuContext, nports::Integer)
+function HostcallArea(ctx::CuContext, nports::Integer; heartbeat::Bool=true)
     nports > 0 || throw(ArgumentError("the number of hostcall ports must be positive"))
     nports <= typemax(UInt32) - (HOSTCALL_SWEEP_CHUNK - 1) ||
         throw(ArgumentError("too many hostcall ports: $nports"))
@@ -100,7 +102,8 @@ function HostcallArea(ctx::CuContext, nports::Integer)
         client = dp(layout.client, HostcallClient)
         shadow = Base.zeros(UInt32, nports)
         outbox = unsafe_wrap(Array, convert(Ptr{UInt32}, base + layout.outbox), nports)
-        HostcallArea(ctx, dev, nports, mem, base, layout, locks, client, shadow, outbox, 0, nothing)
+        HostcallArea(ctx, dev, nports, mem, base, layout, locks, client, heartbeat,
+                     shadow, outbox, 0, nothing)
     end
 end
 
@@ -152,14 +155,16 @@ area (for exception reporting), so contexts start with a minimal one and get a l
 when a kernel that uses hostcalls is linked; earlier areas stay alive and keep being
 serviced, because running kernels may still refer to them.
 """
-function hostcall_area(ctx::CuContext=context(); ports::Integer=HOSTCALL_MIN_PORTS)
+function hostcall_area(ctx::CuContext=context(); ports::Integer=HOSTCALL_MIN_PORTS,
+                       heartbeat::Bool=true)
     @lock hostcall_areas_lock begin
         areas = Base.@atomic hostcall_areas.list
         # newest first: the last area created for a context is the largest
         for area in Iterators.reverse(areas)
-            area.ctx == ctx && area.nports >= ports && return area
+            area.ctx == ctx && area.nports >= ports &&
+                (!heartbeat || area.heartbeat) && return area
         end
-        area = HostcallArea(ctx, ports)
+        area = HostcallArea(ctx, ports; heartbeat)
         hostcall_server_start()
         Base.@atomic hostcall_areas.list = [areas..., area]
         return area
@@ -169,15 +174,16 @@ end
 """
     hostcall_client(ctx::CuContext) -> HostcallClientPtr
 
-Pointer to the client descriptor kernels should be launched with: the newest area of
-`ctx`, or a null pointer when hostcalls are not available.
+Pointer to a suitable client descriptor for kernels launched in `ctx`, or a null pointer
+when hostcalls are not available.
 """
-function hostcall_client(ctx::CuContext, dev::CuDevice=device(ctx); ports::Integer=HOSTCALL_MIN_PORTS)
+function hostcall_client(ctx::CuContext, dev::CuDevice=device(ctx);
+                         ports::Integer=HOSTCALL_MIN_PORTS, heartbeat::Bool=true)
     hostcall_available(dev) || return null_hostcall_client
     # kernels compiled during precompilation are not launched; creating the area would
     # start the server thread in the precompilation process
     ccall(:jl_generating_output, Cint, ()) != 0 && return null_hostcall_client
-    return hostcall_area(ctx; ports).client
+    return hostcall_area(ctx; ports, heartbeat).client
 end
 
 
@@ -654,6 +660,8 @@ mutable struct HostcallServer
     const sem::Ptr{Cvoid}           # uv_sem_t, posted by `cuLaunchHostFunc` after every armed kernel
     const sweep_lock::Ptr{Cvoid}    # uv_mutex_t, serializes sweeps (server thread vs. draining tasks)
     const launches::Threads.Atomic{Int}
+    const serviced::Threads.Atomic{Int} # completed launches covered by a full sweep
+    const graphs::Threads.Atomic{Bool}  # graph replays cannot be armed
     const sweep_owner::Threads.Atomic{UInt}  # identity of the task holding `sweep_lock`, or 0
     finished::Int                   # launches that completed; only touched by the server thread
 end
@@ -695,6 +703,18 @@ function sweep_all!()
     return n
 end
 
+# Unarmed kernels can only use hostcalls for exception reporting. Poll just the areas
+# assigned to those kernels; full-size areas are swept while their kernels are armed, or
+# on every heartbeat once a hostcall graph has been captured.
+function sweep_heartbeat!()
+    n = 0
+    for area in Base.@atomic hostcall_areas.list
+        area.heartbeat || continue
+        n += sweep!(area)
+    end
+    return n
+end
+
 # wait for a kernel to be armed, or for the heartbeat interval to pass. a thread blocked in
 # a plain ccall holds up garbage collection, so the wait is GC-safe (and short anyway).
 const HOSTCALL_HEARTBEAT_NS = 1_000_000
@@ -727,13 +747,15 @@ function hostcall_server_main(srv::HostcallServer)
                 srv.finished += 1
             end
             armed = srv.launches[] - srv.finished
+            full_sweep = armed > 0 || srv.finished != srv.serviced[] || srv.graphs[]
 
             lock_sweeps(srv)
             found = try
-                sweep_all!()
+                full_sweep ? sweep_all!() : sweep_heartbeat!()
             finally
                 unlock_sweeps(srv)
             end
+            full_sweep && (srv.serviced[] = srv.finished)
 
             if armed > 0
                 # kernels that may hostcall are running: poll, backing off to short sleeps
@@ -782,6 +804,7 @@ function hostcall_server_start()
         @ccall(uv_cond_init(cond::Ptr{Cvoid})::Cint) == 0 || error("uv_cond_init failed")
         @ccall(uv_sem_init(sem::Ptr{Cvoid}, 0::Cuint)::Cint) == 0 || error("uv_sem_init failed")
         srv = HostcallServer(mutex, cond, sem, sweep_lock, Threads.Atomic{Int}(0),
+                             Threads.Atomic{Int}(0), Threads.Atomic{Bool}(false),
                              Threads.Atomic{UInt}(0), 0)
 
         # Compile the server and its dynamically-dispatched handlers on this thread.
@@ -812,6 +835,14 @@ end
 
 
 ## arming and draining
+
+# Captured kernels are replayed without passing through `hostcall_launch`, so keep idle
+# heartbeat sweeps enabled for every area after the first hostcall graph is captured.
+function hostcall_mark_graph!()
+    srv = hostcall_server[]::HostcallServer
+    srv.graphs[] = true
+    return
+end
 
 """
     hostcall_arm!()
@@ -888,6 +919,20 @@ function hostcall_drain()
         unlock_sweeps(srv)
     end
     flush_hostcall_output()
+    return
+end
+
+# Synchronization normally follows an armed launch. If the server has completed a full
+# sweep after every such launch, there cannot be an outstanding regular or asynchronous
+# call. Exception-only kernels are checked separately by `check_exceptions`, which invokes
+# the full drain before collecting a device report.
+function hostcall_drain_active()
+    srv = hostcall_server[]
+    srv === nothing && return
+    if !srv.graphs[] && srv.launches[] == srv.serviced[] && hostcall_output_pending[] == 0
+        return
+    end
+    hostcall_drain()
     return
 end
 

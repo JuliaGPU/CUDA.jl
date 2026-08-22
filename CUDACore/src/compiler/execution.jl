@@ -586,6 +586,7 @@ end
 @inline function hostcall_launch(fun, tt, args...; stream::CuStream=stream(), kwargs...)
     if is_capturing(stream)
         # graph replays are not visible to us; such kernels are serviced by the heartbeat
+        hostcall_mark_graph!()
         return cudacall(fun, tt, args...; stream, kwargs...)
     end
     hostcall_arm!()
@@ -760,7 +761,8 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             # kernels that call host functions get a full-size hostcall area
             ports = res.hostcall ? hostcall_default_ports(cuda.device) : HOSTCALL_MIN_PORTS
             state = KernelState(create_exceptions!(fun.mod), UInt32(0),
-                                hostcall_client(ctx, cuda.device; ports))
+                                hostcall_client(ctx, cuda.device; ports,
+                                                heartbeat=!res.hostcall))
 
             kernel = HostKernel{F,tt}(f, fun, state, res.hostcall)
             _kernel_instances[key] = kernel

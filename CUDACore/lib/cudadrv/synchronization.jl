@@ -195,7 +195,7 @@ function device_synchronize(; blocking::Bool=false, spin::Bool=true)
         cuCtxSynchronize()
     end
 
-    hostcall_drain()
+    hostcall_drain_active()
     check_exceptions()
 end
 
@@ -215,7 +215,7 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
         cuStreamSynchronize(stream)
     end
 
-    hostcall_drain()
+    hostcall_drain_active()
     check_exceptions(ctx)
 end
 
@@ -232,6 +232,6 @@ function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
         cuEventSynchronize(event)
     end
 
-    hostcall_drain()
+    hostcall_drain_active()
     check_exceptions(event.ctx)
 end
