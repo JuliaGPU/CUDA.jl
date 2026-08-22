@@ -1,4 +1,4 @@
-module CUDAInterface
+module CUDAKernels
 
 using ..CUDACore
 using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays
