@@ -1,9 +1,9 @@
-module CUDAKernels
+module CUDAInterface
 
 using ..CUDACore
 using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays
 
-import KernelAbstractions as KA
+import KernelInterface as KI
 
 import StaticArrays
 
@@ -13,31 +13,30 @@ import Adapt
 
 export CUDABackend
 
-struct CUDABackend <: KA.GPU
+struct CUDABackend <: KI.GPU
     prefer_blocks::Bool
     always_inline::Bool
 end
 
 CUDABackend(; prefer_blocks=false, always_inline=false) = CUDABackend(prefer_blocks, always_inline)
 
-@inline KA.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
-@inline KA.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), zero(T))
-@inline KA.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), one(T))
+@inline KI.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
+@inline KI.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), zero(T))
+@inline KI.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), one(T))
 
-KA.get_backend(::CuArray) = CUDABackend()
-KA.synchronize(::CUDABackend) = synchronize()
+KI.get_backend(::CuArray) = CUDABackend()
+KI.synchronize(::CUDABackend) = synchronize()
 
-KA.functional(::CUDABackend) = CUDACore.functional()
+KI.functional(::CUDABackend) = CUDACore.functional()
 
-KA.supports_unified(::CUDABackend) = true
+KI.supports_unified(::CUDABackend) = true
 
 Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}) = a
-Adapt.adapt_storage(::KA.CPU, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}) = Adapt.adapt(Array, a)
 
 ## memory operations
 
-function KA.copyto!(::CUDABackend, A, B)
+function KI.copyto!(::CUDABackend, A, B)
     GC.@preserve A B begin
         destptr = pointer(A)
         srcptr  = pointer(B)
@@ -47,172 +46,175 @@ function KA.copyto!(::CUDABackend, A, B)
     return A
 end
 
-function KA.pagelock!(::CUDABackend, A::Array)
+function KI.pagelock!(::CUDABackend, A::Array)
     CUDACore.pin(A)
     return nothing
 end
 
 ## device operations
 
-function KA.ndevices(::CUDABackend)
+function KI.ndevices(::CUDABackend)
     return Int(ndevices())
 end
 
-function KA.device(::CUDABackend)::Int
+function KI.device(::CUDABackend)::Int
     deviceid(CUDACore.active_state().device) + 1
 end
 
-function KA.device!(backend::CUDABackend, id::Int)
-    if !(0 < id <= KA.ndevices(backend))
+function KI.device!(backend::CUDABackend, id::Int)
+    if !(0 < id <= KI.ndevices(backend))
         throw(ArgumentError("Device id $id out of bounds."))
     end
     device!(id - 1)
 end
 
-## kernel launch
+# function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
+#     backend = KA.backend(obj)
 
-function KA.mkcontext(kernel::KA.Kernel{CUDABackend}, _ndrange, iterspace)
-    KA.CompilerMetadata{KA.ndrange(kernel), KA.DynamicCheck}(_ndrange, iterspace)
+#     ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
+#     # this might not be the final context, since we may tune the workgroupsize
+#     ctx = KA.mkcontext(obj, ndrange, iterspace)
+
+#     # If the kernel is statically sized we can tell the compiler about that
+#     if KA.workgroupsize(obj) <: KA.StaticSize
+#         maxthreads = prod(KA.get(KA.workgroupsize(obj)))
+#     else
+#         maxthreads = nothing
+#     end
+
+#     call = CUDACore.kernel_call(obj.f, (ctx, args...))
+#     kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline, maxthreads)
+
+#     # figure out the optimal workgroupsize automatically
+#     if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
+#         config = CUDACore.launch_configuration(kernel.fun; max_threads=prod(ndrange))
+#         if backend.prefer_blocks
+#             # Prefer blocks over threads
+#             threads = min(prod(ndrange), config.threads)
+#             # XXX: Some kernels performs much better with all blocks active
+#             cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
+#             threads = cld(prod(ndrange), cu_blocks)
+#         else
+#             threads = config.threads
+#         end
+
+#         workgroupsize = threads_to_workgroupsize(threads, ndrange)
+#         iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
+#         ctx = KA.mkcontext(obj, ndrange, iterspace)
+#         call = CUDACore.rebind(call, ctx, 1)
+#     end
+
+#     blocks = length(KA.blocks(iterspace))
+#     threads = length(KA.workitems(iterspace))
+
+#     if blocks == 0
+#         return nothing
+#     end
+
+#     # Launch kernel
+#     CUDACore.kernel_launch(kernel, call; threads, blocks)
+
+#     return nothing
+# end
+
+KI.argconvert(::CUDABackend, arg) = cudaconvert(arg)
+
+function KI.kernel_function(::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    kern = cufunction(f, tt; name, kwargs...)
+    KI.Kernel{CUDABackend, typeof(kern)}(CUDABackend(), kern)
 end
 
-function KA.launch_config(kernel::KA.Kernel{CUDABackend}, ndrange, workgroupsize)
-    if ndrange isa Integer
-        ndrange = (ndrange,)
-    end
-    if workgroupsize isa Integer
-        workgroupsize = (workgroupsize, )
-    end
+function (obj::KI.Kernel{CUDABackend})(args...; numworkgroups=(), workgroupsize=(), ndrange=(), max_work_group_size=typemax(Int))
+    KI.check_launch_args(numworkgroups, workgroupsize, ndrange)
+    prod(ndrange) == 0 && return nothing
 
-    # partition checked that the ndrange's agreed
-    if KA.ndrange(kernel) <: KA.StaticSize
-        ndrange = nothing
-    end
+    numworkgroups, workgroupsize = KI.auto_launch_sizes(obj, numworkgroups, workgroupsize, ndrange, max_work_group_size)
 
-    iterspace, dynamic = if KA.workgroupsize(kernel) <: KA.DynamicSize &&
-        workgroupsize === nothing
-        # use ndrange as preliminary workgroupsize for autotuning
-        KA.partition(kernel, ndrange, ndrange)
-    else
-        KA.partition(kernel, ndrange, workgroupsize)
-    end
-
-    return ndrange, workgroupsize, iterspace, dynamic
-end
-
-function threads_to_workgroupsize(threads, ndrange)
-    total = 1
-    return map(ndrange) do n
-        x = min(div(threads, total), n)
-        total *= x
-        return x
-    end
-end
-
-function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
-    backend = KA.backend(obj)
-
-    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
-    # this might not be the final context, since we may tune the workgroupsize
-    ctx = KA.mkcontext(obj, ndrange, iterspace)
-
-    # If the kernel is statically sized we can tell the compiler about that
-    if KA.workgroupsize(obj) <: KA.StaticSize
-        maxthreads = prod(KA.get(KA.workgroupsize(obj)))
-    else
-        maxthreads = nothing
-    end
-
-    call = CUDACore.kernel_call(obj.f, (ctx, args...))
-    kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline, maxthreads)
-
-    # figure out the optimal workgroupsize automatically
-    if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
-        config = CUDACore.launch_configuration(kernel.fun; max_threads=prod(ndrange))
-        if backend.prefer_blocks
-            # Prefer blocks over threads
-            threads = min(prod(ndrange), config.threads)
-            # XXX: Some kernels performs much better with all blocks active
-            cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
-            threads = cld(prod(ndrange), cu_blocks)
-        else
-            threads = config.threads
-        end
-
-        workgroupsize = threads_to_workgroupsize(threads, ndrange)
-        iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
-        ctx = KA.mkcontext(obj, ndrange, iterspace)
-        call = CUDACore.rebind(call, ctx, 1)
-    end
-
-    blocks = length(KA.blocks(iterspace))
-    threads = length(KA.workitems(iterspace))
-
-    if blocks == 0
-        return nothing
-    end
-
-    # Launch kernel
-    CUDACore.kernel_launch(kernel, call; threads, blocks)
-
+    obj.kern(args...; threads=workgroupsize, blocks=numworkgroups)
     return nothing
 end
+
+
+function KI.kernel_max_work_group_size(kernel::KI.Kernel{<:CUDABackend}; max_work_items::Int=typemax(Int))::Int
+    kernel_config = launch_configuration(kernel.kern.fun)
+
+    Int(min(kernel_config.threads, max_work_items))
+end
+function KI.max_work_group_size(::CUDABackend)::Int
+    Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
+end
+function KI.sub_group_size(::CUDABackend)::Int
+    warpsize(device())
+end
+function KI.multiprocessor_count(::CUDABackend)::Int
+    Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
+end
+
+KI.shfl_down_types(::CUDABackend) = DataType[Bool,
+                                             UInt8, UInt16, UInt32, UInt64, UInt128,
+                                             Int8, Int16, Int32, Int64, Int128,
+                                             Float16, Float32, Float64,
+                                             ComplexF16, ComplexF32, ComplexF64]
 
 ## indexing
 
 ## COV_EXCL_START
-@device_override @inline function KA.__index_Local_Linear(ctx)
-    return threadIdx().x
+@device_override @inline function KI.get_local_id()
+    return (; x = Int(threadIdx().x), y = Int(threadIdx().y), z = Int(threadIdx().z))
 end
 
-
-@device_override @inline function KA.__index_Group_Linear(ctx)
-    return blockIdx().x
+@device_override @inline function KI.get_group_id()
+    return (; x = Int(blockIdx().x), y = Int(blockIdx().y), z = Int(blockIdx().z))
 end
 
-@device_override @inline function KA.__index_Global_Linear(ctx)
-    I =  @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
-    # TODO: This is unfortunate, can we get the linear index cheaper
-    @inbounds LinearIndices(KA.__ndrange(ctx))[I]
+@device_override @inline function KI.get_global_id()
+    return (; x = Int((blockIdx().x-1)*blockDim().x + threadIdx().x), y = Int((blockIdx().y-1)*blockDim().y + threadIdx().y), z = Int((blockIdx().z-1)*blockDim().z + threadIdx().z))
 end
 
-@device_override @inline function KA.__index_Local_Cartesian(ctx)
-    @inbounds KA.workitems(KA.__iterspace(ctx))[threadIdx().x]
+@device_override @inline function KI.get_local_size()
+    return (; x = Int(blockDim().x), y = Int(blockDim().y), z = Int(blockDim().z))
 end
 
-@device_override @inline function KA.__index_Group_Cartesian(ctx)
-    @inbounds KA.blocks(KA.__iterspace(ctx))[blockIdx().x]
+@device_override @inline function KI.get_num_groups()
+    return (; x = Int(gridDim().x), y = Int(gridDim().y), z = Int(gridDim().z))
 end
 
-@device_override @inline function KA.__index_Global_Cartesian(ctx)
-    return @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
+@device_override @inline function KI.get_global_size()
+    return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(blockDim().z * gridDim().z))
 end
 
-@device_override @inline function KA.__validindex(ctx)
-    if KA.__dynamic_checkbounds(ctx)
-        I = @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
-        return I in KA.__ndrange(ctx)
-    else
-        return true
-    end
-end
+@device_override KI.get_sub_group_size() = UInt32(warpsize())
+
+@device_override KI.get_max_sub_group_size() = UInt32(warpsize())
+
+@device_override KI.get_num_sub_groups() = UInt32(prod(blockDim()) ÷ warpsize())
+
+@device_override KI.get_sub_group_id() = UInt32(((threadIdx().x - 1) + blockDim().x * (threadIdx().y - 1) + blockDim().x * blockDim().y * (threadIdx().z - 1)) ÷ warpsize()) + 0x1
+
+@device_override KI.get_sub_group_local_id() = UInt32(laneid())
+
 
 ## shared and scratch memory
 
-@device_override @inline function KA.SharedMemory(::Type{T}, ::Val{Dims}, ::Val{Id}) where {T, Dims, Id}
+@device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
     CuStaticSharedArray(T, Dims)
-end
-
-@device_override @inline function KA.Scratchpad(ctx, ::Type{T}, ::Val{Dims}) where {T, Dims}
-    StaticArrays.MArray{KA.__size(Dims), T}(undef)
 end
 
 ## synchronization and printing
 
-@device_override @inline function KA.__synchronize()
+@device_override @inline function KI.barrier()
     sync_threads()
 end
 
-@device_override @inline function KA.__print(args...)
+@device_override @inline function KI.sub_group_barrier()
+    sync_warp()
+end
+
+@device_override function KI.shfl_down(val::T, offset::Integer) where T
+    shfl_down_sync(0xffffffff, val, offset)
+end
+
+@device_override @inline function KI._print(args...)
     CUDACore._cuprint(args...)
 end
 
@@ -220,11 +222,7 @@ end
 
 ## other
 
-Adapt.adapt_storage(to::KA.ConstAdaptor, a::CuDeviceArray) = Base.Experimental.Const(a)
-
-KA.argconvert(k::KA.Kernel{CUDABackend}, arg) = cudaconvert(arg)
-
-function KA.priority!(::CUDABackend, prio::Symbol)
+function KI.priority!(::CUDABackend, prio::Symbol)
     if !(prio in (:high, :normal, :low))
         error("priority must be one of :high, :normal, :low")
     end

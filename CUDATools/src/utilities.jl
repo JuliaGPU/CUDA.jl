@@ -64,7 +64,7 @@ function versioninfo(io::IO=stdout)
 
     println(io, "Julia packages: ")
     println(io, "- CUDACore: $(Base.pkgversion(CUDACore))")
-    for pkg in [:GPUArrays, :GPUCompiler, ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"),
+    for pkg in [:GPUArrays, :GPUCompiler, ("63c18a36-062a-441e-b654-da1e3ab1ce7c", "KernelAbstractions"), :KernelInterface,
                  :CUDA_Driver_jll, :CUDA_Compiler_jll, ("76a88914-d11a-5bdc-97e0-2f5a05c973a2", "CUDA_Runtime_jll"),
                  ("1af6417a-86b4-443c-805f-a4643ffb695f", "CUDA_Runtime_Discovery"), :NVPTX_LLVM_Backend_jll]
         name, mod = get_module(pkg)
