@@ -1,10 +1,10 @@
 import KernelInterface
 import KernelInterface as KI
-using CUDACore.CUDAInterface
+using CUDACore
 
 include(joinpath(dirname(pathof(KernelInterface)), "..", "test", "testsuite.jl"))
 
-Testsuite.testsuite(CUDAInterface.CUDABackend, "CUDACore", CUDACore, CuArray, CUDACore.CuDeviceArray)
+Testsuite.testsuite(CUDABackend, "CUDACore", CUDACore, CuArray, CUDACore.CuDeviceArray)
 
 function ki_subgroup_kernel(num, id, lane)
     l = KI.get_local_id()
@@ -25,12 +25,12 @@ end
     num = CuArray{UInt32}(undef, n)
     id = CuArray{UInt32}(undef, n)
     lane = CuArray{UInt32}(undef, n)
-    KI.@kernel CUDAInterface.CUDABackend() workgroupsize=workgroupsize ki_subgroup_kernel(num, id, lane)
+    KI.@kernel CUDABackend() workgroupsize=workgroupsize ki_subgroup_kernel(num, id, lane)
     @test all(==(3), Array(num))
     @test Array(id) == [div(i, 32) + 1 for i in 0:n-1]
     @test Array(lane) == [rem(i, 32) + 1 for i in 0:n-1]
 end
 
 @testset "versioninfo" begin
-    @test occursin("CUDA toolchain", sprint(KI.versioninfo, CUDAInterface.CUDABackend()))
+    @test occursin("CUDA toolchain", sprint(KI.versioninfo, CUDABackend()))
 end

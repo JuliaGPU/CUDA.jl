@@ -25,7 +25,8 @@ end
 
 include(joinpath(dirname(pathof(KernelAbstractions)), "..", "test", "testsuite.jl"))
 
-ka_skip_tests = Set{String}(["sparse"])
+# sparse is tested by cuSPARSE; the others run kernels on KA's POCL-based CPU back-end
+ka_skip_tests = Set{String}(["sparse", "CPU synchronization", "fallback test: callable types"])
 Testsuite.testsuite(()->CUDABackend(false, false), "CUDA", CUDA, CuArray, CuDeviceArray;
                     skip_tests=ka_skip_tests)
 for (PreferBlocks, AlwaysInline) in Iterators.product((true, false), (true, false))
