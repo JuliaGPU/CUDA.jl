@@ -142,7 +142,9 @@ end
 
 # Send a report without waiting for the host. The exception output lock admits exactly one
 # lane, so this only needs the scalar subset of the warp-collective hostcall protocol.
-@noinline function send_exception_report(client::HostcallClient, report::ExceptionReport)
+# Keep this inline: CUDA 12.9 ptxas crashes on the debug information for an out-of-line
+# function taking ExceptionReport by value. Inlining also produces less PTX for this path.
+@inline function send_exception_report(client::HostcallClient, report::ExceptionReport)
     index = hostcall_start_index(client.nports)
     lane = laneid() - Int32(1)
     mask = UInt32(1) << lane
