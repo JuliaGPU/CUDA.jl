@@ -47,6 +47,7 @@ CUDA = {path = ".."}
 CUDACore = {path = "../CUDACore"}
 CUDATools = {path = "../CUDATools"}
 CUPTI = {path = "../lib/cupti"}
+KernelAbstractions = {rev = "main", url = "https://github.com/JuliaGPU/KernelAbstractions.jl"}
 NVML = {path = "../lib/nvml"}
 cuBLAS = {path = "../lib/cublas"}
 cuDNN = {path = "../lib/cudnn"}
