@@ -55,7 +55,8 @@ const HOSTCALL_STATUS_ERROR = UInt32(1)    # the handler threw, or the target is
 Device-side descriptor of a hostcall area: the number of ports and pointers to the
 mailboxes, headers, packets (all in pinned host memory) and the lock bitfield (in device
 memory). An all-null client (`nports == 0`) indicates that hostcalls are not available.
-It is part of the kernel state and normally accessed through `kernel_state().hostcall`.
+The kernel state holds a pointer to this descriptor so that child-kernel parameter blocks
+stay small.
 """
 struct HostcallClient
     nports::UInt32
@@ -72,25 +73,30 @@ HostcallClient() = HostcallClient(0, reinterpret(LLVMPtr{UInt32,AS.Global}, C_NU
                                   reinterpret(LLVMPtr{UInt8,AS.Global}, C_NULL),
                                   reinterpret(LLVMPtr{UInt32,AS.Global}, C_NULL))
 
+const HostcallClientPtr = LLVMPtr{HostcallClient,AS.Global}
+const null_hostcall_client = reinterpret(HostcallClientPtr, C_NULL)
+
 """
     hostcall_packet_layout(nports)
 
 Compute the byte layout of a hostcall area with `nports` ports. Returns a named tuple with
-the offsets of the inbox, outbox, header and packet arrays, and the total size. The layout
-is shared between the device-side client and the host-side area.
+the offsets of the client descriptor, inbox, outbox, header and packet arrays, and the
+total size. The layout is shared between the device-side client and the host-side area.
 """
 function hostcall_packet_layout(nports::Integer)
     nports >= 0 || throw(ArgumentError("the number of hostcall ports must be non-negative"))
     nports <= typemax(UInt32) || throw(ArgumentError("too many hostcall ports: $nports"))
     nports = Int(nports)
-    inbox = 0
+    client = 0
+    # Keep the immutable descriptor off the cache line containing the first mailboxes.
+    inbox = Base.checked_mul(cld(sizeof(HostcallClient), 128), 128)
     outbox = Base.checked_add(inbox, Base.checked_mul(4, nports))
     header = Base.checked_add(outbox, Base.checked_mul(4, nports))
     packet = Base.checked_mul(cld(Base.checked_add(header,
                                                    Base.checked_mul(sizeof(HostcallHeader), nports)),
                                   128), 128)
     total = Base.checked_add(packet, Base.checked_mul(nports, HOSTCALL_PORT_BYTES))
-    return (; inbox, outbox, header, packet, total)
+    return (; client, inbox, outbox, header, packet, total)
 end
 
 """
@@ -451,7 +457,7 @@ end
 # so that its specializations show up in the compiled method instances, and must not throw.
 @noinline function hostcall_impl(::Type{K}, id::UInt64, ::Type{RT}, args::AT,
                                  ::Val{async}) where {K, RT, AT<:Tuple, async}
-    client = kernel_state().hostcall
+    client = hostcall_client()
     flags = async ? HOSTCALL_FLAG_ASYNC : UInt32(0)
     port = hostcall_open(client, id, flags)
     port = hostcall_send_value!(port, args)

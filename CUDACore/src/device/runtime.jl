@@ -216,7 +216,7 @@ function report_exception(ex)
     # this is the first reporting function being called, so claim the exception
     info = kernel_state().exception_info
     if lock_output!(info)
-        client = kernel_state().hostcall
+        client = hostcall_client()
         if client.nports != 0
             send_exception_report(client,
                 ExceptionReport(EXCEPTION_REPORT_NOTRACE, 0, ex, info.subtype, info.reason, 0,
@@ -233,7 +233,7 @@ function report_exception_name(ex)
 
     # this is the first reporting function being called, so claim the exception
     if lock_output!(info)
-        client = kernel_state().hostcall
+        client = hostcall_client()
         if client.nports != 0
             send_exception_report(client,
                 ExceptionReport(EXCEPTION_REPORT_NAME, 0, ex, info.subtype, info.reason, 0,
@@ -249,7 +249,7 @@ function report_exception_frame(idx, func, file, line)
     info = kernel_state().exception_info
 
     if lock_output!(info)
-        client = kernel_state().hostcall
+        client = hostcall_client()
         if client.nports != 0
             send_exception_report(client,
                 ExceptionReport(EXCEPTION_REPORT_FRAME, idx, func, file, C_NULL, line,
@@ -266,7 +266,7 @@ function signal_exception()
 
     # finalize output
     if lock_output!(info)
-        if kernel_state().hostcall.nports == 0
+        if hostcall_client().nports == 0
             @cuprintf("\n")
         end
         info.output_lock = 2
@@ -288,10 +288,16 @@ end
 struct KernelState
     exception_info::ExceptionInfo
     random_seed::UInt32
-    hostcall::HostcallClient        # all-null when hostcalls are unavailable
+    hostcall::HostcallClientPtr     # null when hostcalls are unavailable
 end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
+
+@inline function hostcall_client()
+    ptr = kernel_state().hostcall
+    ptr == null_hostcall_client && return HostcallClient()
+    return unsafe_load(ptr)
+end
 
 
 ## other

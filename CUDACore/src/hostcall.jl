@@ -42,8 +42,9 @@ end
     HostcallArea
 
 Host-side owner of a hostcall area: pinned, device-mapped memory for the mailboxes,
-headers and packets of `nports` ports, the lock bitfield in device memory, and the
-`HostcallClient` handed to kernels. Areas are created per context by [`hostcall_area`](@ref).
+headers and packets of `nports` ports, the lock bitfield in device memory, and the mapped
+`HostcallClient` descriptor referenced by kernels. Areas are created per context by
+[`hostcall_area`](@ref).
 """
 mutable struct HostcallArea
     const ctx::CuContext
@@ -51,9 +52,10 @@ mutable struct HostcallArea
     const nports::Int
     const mem::HostMemory
     const base::Ptr{UInt8}
-    const layout::@NamedTuple{inbox::Int, outbox::Int, header::Int, packet::Int, total::Int}
+    const layout::@NamedTuple{client::Int, inbox::Int, outbox::Int, header::Int,
+                              packet::Int, total::Int}
     const locks::DeviceMemory
-    const client::HostcallClient
+    const client::HostcallClientPtr
 
     # host-side sweep state
     const shadow::Vector{UInt32}        # the inbox words we last wrote (host is the only writer)
@@ -88,9 +90,14 @@ function HostcallArea(ctx::CuContext, nports::Integer)
         locks = alloc(DeviceMemory, 4 * cld(nports, 32))
         cuMemsetD32_v2(locks, 0, cld(nports, 32))
         dp(off, T) = reinterpret(LLVMPtr{T,AS.Global}, base + off)
-        client = HostcallClient(nports, dp(layout.inbox, UInt32), dp(layout.outbox, UInt32),
-                                dp(layout.header, HostcallHeader), dp(layout.packet, UInt8),
-                                reinterpret(LLVMPtr{UInt32,AS.Global}, convert(CuPtr{UInt32}, locks)))
+        descriptor = HostcallClient(nports, dp(layout.inbox, UInt32),
+                                    dp(layout.outbox, UInt32),
+                                    dp(layout.header, HostcallHeader),
+                                    dp(layout.packet, UInt8),
+                                    reinterpret(LLVMPtr{UInt32,AS.Global},
+                                                convert(CuPtr{UInt32}, locks)))
+        unsafe_store!(convert(Ptr{HostcallClient}, base + layout.client), descriptor)
+        client = dp(layout.client, HostcallClient)
         shadow = Base.zeros(UInt32, nports)
         outbox = unsafe_wrap(Array, convert(Ptr{UInt32}, base + layout.outbox), nports)
         HostcallArea(ctx, dev, nports, mem, base, layout, locks, client, shadow, outbox, 0, nothing)
@@ -160,16 +167,16 @@ function hostcall_area(ctx::CuContext=context(); ports::Integer=HOSTCALL_MIN_POR
 end
 
 """
-    hostcall_client(ctx::CuContext) -> HostcallClient
+    hostcall_client(ctx::CuContext) -> HostcallClientPtr
 
-The client descriptor kernels should be launched with: the newest area of `ctx`, or an
-all-null client when hostcalls are not available.
+Pointer to the client descriptor kernels should be launched with: the newest area of
+`ctx`, or a null pointer when hostcalls are not available.
 """
 function hostcall_client(ctx::CuContext, dev::CuDevice=device(ctx); ports::Integer=HOSTCALL_MIN_PORTS)
-    hostcall_available(dev) || return HostcallClient()
+    hostcall_available(dev) || return null_hostcall_client
     # kernels compiled during precompilation are not launched; creating the area would
     # start the server thread in the precompilation process
-    ccall(:jl_generating_output, Cint, ()) != 0 && return HostcallClient()
+    ccall(:jl_generating_output, Cint, ()) != 0 && return null_hostcall_client
     return hostcall_area(ctx; ports).client
 end
 
