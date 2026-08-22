@@ -5,7 +5,7 @@ using FileCheck
 using GPUArrays
 using NVML: has_nvml, NVML
 using ParallelTestRunner
-using ParallelTestRunner: AbstractTestRecord, TestRecord, WorkerTestSet
+using ParallelTestRunner: AbstractTestRecord, TestRecord, WorkerTestSet, memory_usage
 using Test: DefaultTestSet
 using Printf: @sprintf
 using Random
