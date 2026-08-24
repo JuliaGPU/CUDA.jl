@@ -14,15 +14,28 @@ end
 ## exception handling
 
 const exception_infos = Dict{CuContext, HostMemory}()
+const exception_infos_lock = ReentrantLock()
+
+# A no-hostcall descriptor follows the exception flag in the same mapped allocation. This
+# gives every kernel one runtime-state pointer, even when hostcalls are unavailable.
+const exception_client_offset = cld(sizeof(ExceptionInfo_st), sizeof(UInt)) * sizeof(UInt)
+const exception_state_size = exception_client_offset + sizeof(HostcallClient)
 
 # create a CPU/GPU exception flag for error signalling, and put it in the module
 function create_exceptions!(mod::CuModule)
-    mem = get!(exception_infos, mod.ctx) do
-        alloc(HostMemory, sizeof(ExceptionInfo_st), MEMHOSTALLOC_DEVICEMAP)
+    mem = @lock exception_infos_lock begin
+        get!(exception_infos, mod.ctx) do
+            alloc(HostMemory, exception_state_size, MEMHOSTALLOC_DEVICEMAP)
+        end
     end
     exception_info = convert(ExceptionInfo, mem)
     unsafe_store!(exception_info, ExceptionInfo_st())
-    return exception_info
+    base = convert(Ptr{UInt8}, mem)
+    client_ptr = base + exception_client_offset
+    unsafe_store!(convert(Ptr{HostcallClient}, client_ptr),
+                  HostcallClient(reinterpret(Ptr{Cvoid}, exception_info)))
+    client = reinterpret(HostcallClientPtr, client_ptr)
+    return exception_info, client
 end
 
 # check the exception flags on every API call, similarly to how CUDA handles errors

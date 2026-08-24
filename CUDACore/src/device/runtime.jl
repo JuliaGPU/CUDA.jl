@@ -144,7 +144,7 @@ end
 
 @device_function function report_exception(ex)
     # this is the first reporting function being called, so claim the exception
-    info = kernel_state().exception_info
+    info = exception_info()
     if lock_output!(info)
         # override the exception type GPUCompiler deduced if the user provided a subtype
         if info.subtype != C_NULL
@@ -161,7 +161,7 @@ end
 end
 
 @device_function function report_exception_name(ex)
-    info = kernel_state().exception_info
+    info = exception_info()
 
     # this is the first reporting function being called, so claim the exception
     if lock_output!(info)
@@ -180,7 +180,7 @@ end
 end
 
 @device_function function report_exception_frame(idx, func, file, line)
-    info = kernel_state().exception_info
+    info = exception_info()
 
     if lock_output!(info)
         @cuprintf(" [%d] %s at %s:%d\n", idx, func, file, line)
@@ -189,7 +189,7 @@ end
 end
 
 @device_function function signal_exception()
-    info = kernel_state().exception_info
+    info = exception_info()
 
     # finalize output
     if lock_output!(info)
@@ -211,11 +211,17 @@ end
 ## kernel state
 
 struct KernelState
-    exception_info::ExceptionInfo
+    client::HostcallClientPtr
     random_seed::UInt32
 end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
+
+@inline function hostcall_client()
+    return unsafe_load(kernel_state().client)
+end
+
+@inline exception_info() = reinterpret(ExceptionInfo, hostcall_client().exception_info)
 
 
 ## other

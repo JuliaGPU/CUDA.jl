@@ -12,6 +12,7 @@ include("intrinsics/output.jl")
 include("intrinsics/assertion.jl")
 include("intrinsics/atomics.jl")
 include("intrinsics/misc.jl")
+include("intrinsics/hostcall.jl")
 include("intrinsics/wmma.jl")
 
 # functionality from libdevice
