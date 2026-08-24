@@ -560,7 +560,7 @@ end
 
     # add the kernel state, passing an instance with a unique seed
     pushfirst!(call_t, KernelState)
-    pushfirst!(call_args, :(KernelState(kernel.state.exception_info, make_seed(kernel))))
+    pushfirst!(call_args, :(KernelState(kernel.state.client, make_seed(kernel))))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
@@ -710,7 +710,8 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         kernel = get(_kernel_instances, key, nothing)
         if kernel === nothing
             # create the kernel state object
-            state = KernelState(create_exceptions!(fun.mod), UInt32(0))
+            _, client = create_exceptions!(fun.mod)
+            state = KernelState(client, UInt32(0))
 
             kernel = HostKernel{F,tt}(f, fun, state)
             _kernel_instances[key] = kernel
