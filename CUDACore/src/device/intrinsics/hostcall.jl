@@ -38,9 +38,9 @@ const HOSTCALL_PORT_BYTES = HOSTCALL_PACKET_SIZE * HOSTCALL_LANES
 # Header flags used by the generic host service. Raw protocols may use the remaining bits.
 const HOSTCALL_FLAG_ASYNC = UInt32(1)
 
-# Built-in targets occupy the low identifiers; static targets have the high bit set.
+# Built-in targets occupy the low identifiers; statically-known targets are identified by
+# the address of their rooted key type `Tuple{F,RT,AT}`, which is never that small.
 const HOSTCALL_BUILTIN_IDS = UInt64(256)
-const HOSTCALL_STATIC_ID_BIT = UInt64(0x8000_0000_0000_0000)
 const HC_EXCEPTION = UInt64(1)
 const HC_OOM = UInt64(2)
 
@@ -546,16 +546,16 @@ end
 hostconvert(x) = x
 hostconvert(p::LLVMPtr{T}) where {T} = reinterpret(CuPtr{T}, p)
 
-# The hash is computed while compiling and travels with the image. The high bit keeps
-# static targets disjoint from built-ins; the registry detects collisions.
-function hostcall_target_id_value(@nospecialize(K::Type))
-    return (hash(K) % UInt64) | HOSTCALL_STATIC_ID_BIT
-end
-@generated hostcall_target_id(::Type{K}) where {K} = :($(hostcall_target_id_value(K)))
+# `jl_value_ptr` is a codegen intrinsic (no runtime call): since `K` is a compile-time
+# literal, this lowers to a load from its relocation slot, like `emit_invoke`'s literal
+# MethodInstance pointer.
+@inline hostcall_target_id(::Type{K}) where {K} =
+    reinterpret(UInt64, ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), K))
 
-# the marker function the compiler scans for: `K` is the registry key
-# (`Tuple{typeof(f), RT, AT}`). it must not be inlined so that its specializations show up
-# in the compiled method instances, and must not throw.
+# `K` is the registry key (`Tuple{typeof(f), RT, AT}`). the compiler scans the compiled
+# method instances for specializations of this function to find the kernel's targets, so
+# it must not be inlined (which also keeps the protocol out of the kernel's hot code), and
+# must not throw.
 @noinline function hostcall_impl(::Type{K}, ::Type{RT}, args::AT,
                                  ::Val{async}) where {K, RT, AT<:Tuple, async}
     client = hostcall_client()

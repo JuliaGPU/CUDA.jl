@@ -64,6 +64,13 @@ Two layers are available, both built on the same protocol.
     (julia#55525). The `print` family (`print`, `println`, `printstyled`, `show`, `display`)
     called directly as a hostcall target is special-cased: its output is queued and written
     at the next `synchronize()`, or earlier by a printer task when thread 1 is free.
+- **Handlers run in the latest world**, like `invokelatest`: redefining a handler takes
+  effect immediately — without recompiling the kernel, and including for kernels that are
+  already running. Internally, calls are dispatched like Julia's `invoke`: the compiled
+  kernel identifies each target by a literal pointer to its rooted key type (cached images
+  carry a relocation that is re-resolved on load), and the service thread calls `jl_invoke`
+  with a cached `MethodInstance` that is re-resolved when the world moves, so the steady
+  state performs no generic dispatch.
 - **Errors**: an exception thrown by a handler, an unknown target, or a result that cannot be
   converted stops all lanes of that call on the device (like a device-side exception) and is
   rethrown as a [`HostcallException`](@ref CUDACore.HostcallException) at the next stream, event,

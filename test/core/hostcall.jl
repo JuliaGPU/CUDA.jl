@@ -4,6 +4,16 @@ using CUDA: HostcallException
 # child launches, so it must stay compact
 @test sizeof(CUDACore.KernelState) == 2sizeof(UInt)
 
+# Closed type arguments use TypeEgal dispatch keys on Julia 1.14 and later.
+let K = Tuple{typeof(identity),Int,Tuple{Int}}
+    P = @static if isdefined(Core, :TypeEgal)
+        Core.TypeEgal{K}
+    else
+        Type{K}
+    end
+    @test CUDACore.hostcall_key_type(P) === K
+end
+
 hostcall_lookup(i::Int) = 10f0 * i
 hostcall_increment(i::Int) = i + 1
 const hostcall_counter = Threads.Atomic{Int}(0)
@@ -131,13 +141,46 @@ end
     synchronize()
     @test Array(out)[1] == 55
 
-    # A hash collision must fail at registration instead of silently changing dispatch.
+    # Targets are identified by the address of their rooted key type, like Julia's invoke
+    # references its callee: distinct keys cannot collide, identifiers never fall in the
+    # builtin id space, and registration is idempotent.
     K1 = Tuple{typeof(identity),Int,Tuple{Int}}
     K2 = Tuple{typeof(abs),Int,Tuple{Int}}
-    id = CUDACore.hostcall_target_id_value(K1)
-    @test id & CUDACore.HOSTCALL_STATIC_ID_BIT != 0
-    CUDACore.register_hostcall_targets!([id => K1])
-    @test_throws ErrorException CUDACore.register_hostcall_targets!([id => K2])
+    id1 = CUDACore.hostcall_target_word(K1)
+    id2 = CUDACore.hostcall_target_word(K2)
+    @test id1 != id2
+    @test id1 >= CUDACore.HOSTCALL_BUILTIN_IDS
+    @test id1 == UInt64(CUDACore.GPUCompiler.resolve_relocation_target(
+                           CUDACore.GPUCompiler.JuliaValueRef(K1)))
+    @test id1 == CUDACore.hostcall_target_word(K1)
+    CUDACore.register_hostcall_targets!([K1])
+    CUDACore.register_hostcall_targets!([K1])
+    target = CUDACore.hostcall_target(id1)
+    @test target !== nothing
+    @test target.key === K1
+end
+
+# handler and kernel for the redefinition testset below: they must be globals, both for the
+# redefinition to be a plain method replacement (redefining a local boxes the binding, which
+# the kernel would then capture) and so the kernel need not be recompiled
+hostcall_redef(x::Int) = x + 1
+function hostcall_redef_kernel(out)
+    out[1] = @hostcall hostcall_redef(1)::Int
+    return
+end
+
+@testset "handler redefinition" begin
+    # hostcalls behave like `invokelatest`: redefining the handler between launches takes
+    # effect without recompiling the kernel, re-seeding the service fast path
+    out = CUDA.zeros(Int, 1)
+    @cuda hostcall_redef_kernel(out)
+    synchronize()
+    @test Array(out)[1] == 2
+
+    @eval hostcall_redef(x::Int) = x + 41
+    @cuda hostcall_redef_kernel(out)
+    synchronize()
+    @test Array(out)[1] == 42
 end
 
 @testset "idle backoff" begin

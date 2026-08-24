@@ -201,17 +201,19 @@ mutable struct CUDACompilerResults
     entry::Union{Nothing,String}
     relocations::GPUCompiler.Relocations
 
-    # whether the kernel calls host functions, and the statically-known targets of those
-    # calls (identifier => key type), as recovered from the compiled method instances; the
-    # identifiers are baked into the image, so the table travels with it
+    # whether the kernel calls host functions, and the key types of the statically-known
+    # targets of those calls, as recovered from the compiled method instances. the wire
+    # identifiers are not stored: they are the addresses of the egal-rooted target markers,
+    # recomputed at registration in each session (the image's relocated marker slots
+    # resolve to the same addresses)
     hostcall::Bool
-    hostcall_targets::Vector{Pair{UInt64,Type}}
+    hostcall_targets::Vector{Type}
 
     # session-local kernel handles, linear-scanned by context; usually holds a single entry
     kernels::Vector{Tuple{CuContext,CuFunction}}
 
     CUDACompilerResults() = new(nothing, nothing, GPUCompiler.Relocations(),
-                                false, Pair{UInt64,Type}[],
+                                false, Type[],
                                 Tuple{CuContext,CuFunction}[])
 end
 
@@ -386,6 +388,17 @@ device_compatible_layout(@nospecialize(T)) =
     Base.datatype_alignment(Int128) == 16 ||
     !layout_reaches(S -> device_layout(S) === :mismatch, T)
 
+# Recover the value of a type-valued dispatch key. Julia 1.14 uses `Core.TypeEgal{T}`
+# for closed type arguments, while earlier releases represent them as `Type{T}`.
+@inline function hostcall_key_type(@nospecialize(T))
+    Base.isType(T) || return nothing
+    @static if isdefined(Base, :type_parameter)
+        return Base.type_parameter(T)
+    else
+        return T.parameters[1]
+    end
+end
+
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
@@ -398,15 +411,14 @@ function compile(@nospecialize(job::CompilerJob))
     # key type of every statically-known call, and `meta.compiled` lists everything codegen
     # emitted (including deferred compilation jobs)
     hostcall = false
-    hostcall_targets = Pair{UInt64,Type}[]
+    hostcall_targets = Type[]
     for mi in keys(meta.compiled)
         mi.def isa Method || continue
         mi.def.module === CUDACore && mi.def.name === :hostcall_impl || continue
         hostcall = true
-        K = mi.specTypes.parameters[2]
-        K isa DataType && K <: Type && K !== Type || continue
-        K = K.parameters[1]
-        push!(hostcall_targets, hostcall_target_id_value(K) => K)
+        K = hostcall_key_type(mi.specTypes.parameters[2])
+        K === nothing && continue
+        push!(hostcall_targets, K)
     end
 
     # check if we'll need the device runtime

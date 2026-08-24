@@ -173,47 +173,121 @@ end
 
 ## target registry
 
-# a statically-known host function and how its arguments and result are encoded
-struct HostcallTarget
-    key::Type                # registry key `Tuple{F,RT,AT}`
-    f::Any
-    RT::Type                # return type (`Nothing` for calls without a reply)
-    AT::Type                # payload tuple type; includes `f` when it is not stored
-    stored::Bool            # callable is stored in `f`, rather than included in the payload
+# a statically-known host function and how its arguments and result are encoded. `method`
+# caches the MethodInstance that `jl_invoke` calls through, tagged with the world in which
+# dispatch resolved it (see "invoking targets" below).
+mutable struct HostcallTarget
+    const key::Type          # registry key `Tuple{F,RT,AT}`
+    const f::Any
+    const RT::Type           # return type (`Nothing` for calls without a reply)
+    const AT::Type           # payload tuple type; includes `f` when it is not stored
+    const stored::Bool       # callable is stored in `f`, rather than included in the payload
+    Base.@atomic method::Union{Nothing,Tuple{UInt,Core.MethodInstance}}
 end
 
-const hostcall_targets = Dict{UInt64,HostcallTarget}()
+# targets keyed by the address of their rooted key type — the word the kernel's relocated
+# literal slot holds. an immutable snapshot is swapped on registration, so the server
+# thread reads it without locking (like `hostcall_areas`).
+mutable struct HostcallTargets
+    Base.@atomic table::Dict{UInt64,HostcallTarget}
+end
+const hostcall_targets = HostcallTargets(Dict{UInt64,HostcallTarget}())
 const hostcall_targets_lock = Threads.SpinLock()
 
-"""
-    register_hostcall_targets!(targets)
+# The wire identifier of a key: the relocation resolver permanently roots and canonicalizes
+# the key type, then returns its address. This matches the word in the image whether codegen
+# baked the literal directly or `link_kernel` re-resolved a cached image's relocation slot.
+hostcall_target_word(@nospecialize(K::Type)) =
+    UInt64(GPUCompiler.resolve_relocation_target(GPUCompiler.JuliaValueRef(K)))
 
-Register the statically-known hostcall targets of a kernel (pairs of identifier and key
-type `Tuple{F,RT,AT}`, as recorded by the compiler) so that the server can dispatch calls.
 """
-function register_hostcall_targets!(targets)
-    isempty(targets) && return
-    for (id, K) in targets
+    register_hostcall_targets!(keys)
+
+Register the statically-known hostcall targets of a kernel (key types `Tuple{F,RT,AT}`, as
+recorded by the compiler) so that the server can dispatch calls. Registration is
+idempotent: a key's identifier is the address of the key type itself, so distinct keys
+cannot collide.
+"""
+function register_hostcall_targets!(keys)
+    isempty(keys) && return
+    for K in keys
+        id = hostcall_target_word(K)
+        haskey(Base.@atomic(hostcall_targets.table), id) && continue
         F, RT, AT = K.parameters
         stored = Base.issingletontype(F)
         f = stored ? F.instance : nothing
-        target = HostcallTarget(K, f, RT, AT, stored)
+        target = HostcallTarget(K, f, RT, AT, stored, nothing)
 
-        # Compile the handler on the registering thread, before taking the registry lock.
-        precompile(stored ? Tuple{F, AT.parameters...} : AT)
+        # Compile the handler and resolve its MethodInstance on the registering thread,
+        # before publishing the target: the server thread should not have to compile.
+        seed_hostcall_method!(target)
         @lock hostcall_targets_lock begin
-            previous = get(hostcall_targets, id, nothing)
-            if previous === nothing
-                hostcall_targets[id] = target
-            elseif previous.key !== K
-                error("hostcall target identifier collision between $(previous.key) and $K")
+            table = Base.@atomic hostcall_targets.table
+            if !haskey(table, id)
+                table = copy(table)
+                table[id] = target
+                Base.@atomic hostcall_targets.table = table
             end
         end
     end
     return
 end
 
-hostcall_target(id::UInt64) = @lock hostcall_targets_lock get(hostcall_targets, id, nothing)
+hostcall_target(id::UInt64) = get(Base.@atomic(hostcall_targets.table), id, nothing)
+
+
+## invoking targets
+
+# The service path calls Julia's exported `jl_invoke`: resolve the handler's MethodInstance
+# once per serviced call, then invoke every lane through Julia's own compiled fast path.
+# The cache is tagged with the world counter because replacing a method does not invalidate
+# the old MethodInstance: currency in the *latest* world — hostcalls behave like
+# `invokelatest` — is a dispatch-level property that must be re-resolved when the world
+# moves.
+
+# the handler call signature, after the argument conversion `call_arguments` applies
+hostconvert_host_type(@nospecialize(P)) = P <: LLVMPtr ? CuPtr{P.parameters[1]} : P
+function hostcall_handler_sig(target::HostcallTarget)
+    AT = target.AT
+    params = Any[hostconvert_host_type(P) for P in AT.parameters]
+    target.stored && pushfirst!(params, target.key.parameters[1])
+    return Tuple{params...}
+end
+
+# Resolve and cache the handler's MethodInstance for the current world. This returns
+# `nothing` when dispatch fails, in which case the service path uses `invokelatest` to
+# report the ordinary MethodError. Resolution runs in the latest world explicitly: the
+# server thread's adopted task remains in the world in which it was adopted.
+function seed_hostcall_method!(target::HostcallTarget)
+    world = Base.get_world_counter()
+    method = Base.invoke_in_world(world, resolve_hostcall_method, target, world)
+    Base.@atomic target.method = method
+    return method
+end
+function resolve_hostcall_method(target::HostcallTarget, world::UInt)
+    try
+        sig = hostcall_handler_sig(target)
+        precompile(sig)
+        ft = sig.parameters[1]
+        tt = Tuple{sig.parameters[2:end]...}
+        mi = methodinstance(ft, tt, world)
+        return (world, mi)
+    catch
+        return nothing
+    end
+end
+
+# Call Julia's `jl_invoke`, which finds or compiles a CodeInstance for `mi` and invokes its
+# boxed entry point. The handler is precompiled at registration, so the common path is the
+# same atomic cache walk and indirect call Julia uses for an `invoke` expression. `args`
+# excludes `f`, and the caller runs in the seed world (see `service_target!`).
+@inline function invoke_hostcall_method(mi::Core.MethodInstance, @nospecialize(f),
+                                        args::Vector{Any})
+    GC.@preserve args begin
+        ccall(:jl_invoke, Any, (Any, Ptr{Any}, UInt32, Any),
+              f, pointer(args), length(args), mi)
+    end
+end
 
 # conversion of values received from the device (pointers already arrive as `CuPtr`, see
 # the device-side `hostconvert`)
@@ -482,9 +556,32 @@ end
 
 # invoke a registered target for every live lane of a port
 function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeader)
+    # Resolve the handler's method once per call. A stale cache (the world moved since the
+    # last resolution, e.g. the handler was redefined) is re-seeded before any lane calls.
+    printing = target.stored && is_print_target(target.f)
+    method = nothing
+    if !printing
+        method = Base.@atomic target.method
+        if method === nothing || method[1] != Base.get_world_counter()
+            method = seed_hostcall_method!(target)
+        end
+    end
+    if method === nothing
+        service_lanes!(p, target, hdr, nothing)
+    else
+        # Switch to the seed world once for the whole call, so `jl_invoke` and calls inside
+        # the handler use the same latest-world snapshot.
+        Base.invoke_in_world(method[1], service_lanes!, p, target, hdr, method[2])
+    end
+    return
+end
+
+function service_lanes!(p::HostPort, target::HostcallTarget, hdr::HostcallHeader,
+                        mi::Union{Nothing,Core.MethodInstance})
     mask = hdr.mask
     RT = target.RT
     reply = (hdr.flags & HOSTCALL_FLAG_ASYNC) == 0 && RT !== Nothing
+    printing = target.stored && is_print_target(target.f)
     payloads = read_lanes(p, target.AT, mask)
     results = Vector{Any}(undef, 32)
     status = HOSTCALL_STATUS_OK
@@ -494,9 +591,11 @@ function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeade
         f = target.stored ? target.f : getfield(payload, 1)
         args = call_arguments(payload, target.stored ? 0 : 1)
         try
-            if is_print_target(f)
+            if printing
                 queue_hostcall_output(f, args...)
                 rv = nothing
+            elseif mi !== nothing
+                rv = invoke_hostcall_method(mi, f, args)
             else
                 rv = Base.invokelatest(f, args...)
             end
@@ -724,6 +823,11 @@ function hostcall_server_main(srv::HostcallServer)
     end
 end
 
+# NOTE: the adopted task's world age is fixed when the thread enters Julia and never
+#       advances (the server never returns to top level), so anything the server dispatches
+#       resolves in that world: later method definitions — handler redefinitions, but also
+#       Revise edits to the server code itself — are only visible through `invokelatest` /
+#       `invoke_in_world`, which is how handlers are resolved and invoked.
 function hostcall_server_entry(::Ptr{Cvoid})
     srv = hostcall_server[]::HostcallServer
     hostcall_server_main(srv)
