@@ -31,6 +31,11 @@ Two layers are available, both built on the same protocol.
   `hostcall(f, R, args...)` and `hostcall_async(f, args...)`.
 - Raw ports (`hostcall_open`, `hostcall_send!`, `hostcall_recv!`, `hostcall_close!`) for
   library code that wants to stream data through the 64-byte per-lane packets itself.
+  These are warp-collective. A scalar tier (`hostcall_send_scalar!`,
+  `hostcall_call_scalar!`) sends a single packet from one elected lane — fire-and-forget
+  or as a blocking round trip — without any warp intrinsics. The elected lane may be in
+  divergent code; on pre-Volta hardware, several lanes of one converged warp must not use
+  this tier independently. The runtime uses it for exception and out-of-memory reports.
 
 ## Semantics and rules
 

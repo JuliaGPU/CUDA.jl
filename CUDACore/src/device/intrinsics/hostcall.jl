@@ -13,7 +13,7 @@
 export @hostcall, hostcall, hostcall_async
 @public HostcallClient, HostcallPort, HostcallHeader,
         hostcall_open, hostcall_send!, hostcall_recv!, hostcall_close!,
-        hostcall_send_scalar!,
+        hostcall_send_scalar!, hostcall_call_scalar!,
         hostcall_lane_packet, HOSTCALL_PACKET_SIZE, hostcall_packet_layout
 
 
@@ -359,23 +359,18 @@ receive) the call is completed asynchronously by the host.
     return
 end
 
-"""
-    hostcall_send_scalar!(client::HostcallClient, target::UInt64, value)
+# The scalar tier: operations for one elected lane that involve no warp intrinsics, so the
+# lane may call from divergent code on any hardware. On pre-Volta hardware, multiple lanes
+# of one converged warp must not claim ports independently: lockstep reconvergence can keep
+# successful claimants from submitting while their peers spin. The runtime's exception
+# lock enforces the single-lane condition; other callers must do likewise.
+#
+# Keep everything inline: CUDA 12.9 ptxas crashes on the debug information for an
+# out-of-line function taking an aggregate value by value. Inlining also produces less PTX.
 
-Send a single `value` (at most one packet in size) to `target` from the calling lane,
-without waiting for the host to service the call. Unlike the warp-collective port API,
-this may be called from arbitrarily divergent code, on any hardware: it involves no warp
-intrinsics. The runtime uses it for exception and out-of-memory reports.
-"""
-# Keep this inline: CUDA 12.9 ptxas crashes on the debug information for an out-of-line
-# function taking an aggregate value by value. Inlining also produces less PTX.
-@inline function hostcall_send_scalar!(c::HostcallClient, target::UInt64,
-                                       value::T) where {T}
-    GPUCompiler.@static_assert(sizeof(T) <= HOSTCALL_PACKET_SIZE,
-                               "hostcall_send_scalar! values must fit in one packet")
+# claim a free, device-owned port for the calling lane; returns the index and outbox word
+@inline function hostcall_claim_scalar!(c::HostcallClient)
     index = hostcall_start_index(c.nports)
-    lane = laneid() - Int32(1)
-    mask = UInt32(1) << lane
     while true
         word = c.lock + 4 * (index >> 5)
         bit = UInt32(1) << (index & UInt32(31))
@@ -383,23 +378,89 @@ intrinsics. The runtime uses it for exception and out-of-memory reports.
             fence_gpu()
             in = mailbox_load(c.inbox + 4index)
             out = mailbox_load(c.outbox + 4index)
-            if hostcall_owned(in, out)
-                unsafe_store!(c.header + sizeof(HostcallHeader) * index,
-                              HostcallHeader(mask, UInt32(0), target))
-                packet = c.packet + (index * HOSTCALL_LANES + lane) * HOSTCALL_PACKET_SIZE
-                unsafe_store!(reinterpret(LLVMPtr{T,AS.Global}, packet), value)
-                fence_sys()
-                mailbox_store!(c.outbox + 4index, out ⊻ UInt32(1))
-                fence_gpu()
-                atomic_and!(word, ~bit)
-                return
-            end
+            hostcall_owned(in, out) && return index, out
             fence_gpu()
             atomic_and!(word, ~bit)
         end
         index += UInt32(1)
         index >= c.nports && (index = UInt32(0))
     end
+end
+
+@inline function hostcall_unlock_scalar!(c::HostcallClient, index::UInt32)
+    fence_gpu()
+    word = c.lock + 4 * (index >> 5)
+    bit = UInt32(1) << (index & UInt32(31))
+    atomic_and!(word, ~bit)
+    return
+end
+
+# write the header and the lane's packet, and hand the buffer to the host; returns the
+# flipped outbox word
+@inline function hostcall_submit_scalar!(c::HostcallClient, index::UInt32, out::UInt32,
+                                         target::UInt64, value::T) where {T}
+    lane = laneid() - Int32(1)
+    mask = UInt32(1) << lane
+    unsafe_store!(c.header + sizeof(HostcallHeader) * index,
+                  HostcallHeader(mask, UInt32(0), target))
+    packet = c.packet + (index * HOSTCALL_LANES + lane) * HOSTCALL_PACKET_SIZE
+    unsafe_store!(reinterpret(LLVMPtr{T,AS.Global}, packet), value)
+    fence_sys()
+    inverted = out ⊻ UInt32(1)
+    mailbox_store!(c.outbox + 4index, inverted)
+    return inverted
+end
+
+"""
+    hostcall_send_scalar!(client::HostcallClient, target::UInt64, value)
+
+Send a single `value` (at most one packet in size) to `target` from one elected lane,
+without waiting for the host to service the call. Unlike the warp-collective port API,
+this may be called from divergent code and involves no warp intrinsics. On pre-Volta
+hardware, do not call it independently from several lanes of one converged warp. See also
+[`hostcall_call_scalar!`](@ref) for the blocking variant.
+"""
+@inline function hostcall_send_scalar!(c::HostcallClient, target::UInt64,
+                                       value::T) where {T}
+    GPUCompiler.@static_assert(sizeof(T) <= HOSTCALL_PACKET_SIZE,
+                               "hostcall_send_scalar! values must fit in one packet")
+    index, out = hostcall_claim_scalar!(c)
+    hostcall_submit_scalar!(c, index, out, target, value)
+    hostcall_unlock_scalar!(c, index)
+    return
+end
+
+"""
+    hostcall_call_scalar!(client::HostcallClient, target::UInt64, request, RT) -> (value, status)
+
+Send `request` to `target` from one elected lane and wait for the host's reply, returning
+the value of type `RT` read back from the packet and the status word set by the host (`0`
+on success). Like [`hostcall_send_scalar!`](@ref), this may be called from divergent code,
+but several lanes of one converged pre-Volta warp must not call it independently. Both
+`request` and `RT` must fit in one packet.
+"""
+@inline function hostcall_call_scalar!(c::HostcallClient, target::UInt64, request::T,
+                                       ::Type{RT}) where {T,RT}
+    GPUCompiler.@static_assert(sizeof(T) <= HOSTCALL_PACKET_SIZE,
+                               "hostcall_call_scalar! requests must fit in one packet")
+    GPUCompiler.@static_assert(sizeof(RT) <= HOSTCALL_PACKET_SIZE,
+                               "hostcall_call_scalar! replies must fit in one packet")
+    index, out = hostcall_claim_scalar!(c)
+    out = hostcall_submit_scalar!(c, index, out, target, request)
+    # wait for the reply (scalar counterpart of `hostcall_wait_for_ownership`, which is
+    # warp-collective and thus off limits here)
+    ns = HOSTCALL_BACKOFF_MIN
+    in = mailbox_load(c.inbox + 4index)
+    while !hostcall_owned(in, out)
+        ns = hostcall_backoff(ns)
+        in = mailbox_load(c.inbox + 4index)
+    end
+    fence_sys()
+    lane = laneid() - Int32(1)
+    packet = c.packet + (index * HOSTCALL_LANES + lane) * HOSTCALL_PACKET_SIZE
+    val = unsafe_load(reinterpret(LLVMPtr{RT,AS.Global}, packet))
+    hostcall_unlock_scalar!(c, index)
+    return val, in >> 1
 end
 
 

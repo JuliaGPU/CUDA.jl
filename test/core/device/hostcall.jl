@@ -1,5 +1,6 @@
 using CUDA: HostcallClient, HostcallPort, HostcallHeader,
             hostcall_open, hostcall_send!, hostcall_recv!, hostcall_close!,
+            hostcall_send_scalar!, hostcall_call_scalar!,
             hostcall_lane_packet, HOSTCALL_PACKET_SIZE, hostcall_packet_layout
 
 @testset "@hostcall syntax" begin
@@ -228,6 +229,112 @@ end
         @test all(==(0), Array(area.locks))
     finally
         TestPoller.free(area)
+    end
+end
+
+@testset "scalar tier" begin
+    area = TestPoller.Area(64)
+    try
+        OP_ADD1 = UInt64(1)
+        OP_RECORD = UInt64(3)
+        OP_FAIL = UInt64(4)
+        records = Threads.Atomic{Int}(0)
+        function handler(target, lane, pkt)
+            p = convert(Ptr{UInt64}, pkt)
+            if target == OP_ADD1
+                unsafe_store!(p, unsafe_load(p) + 1)
+            elseif target == OP_RECORD
+                Threads.atomic_add!(records, 1)
+            elseif target == OP_FAIL
+                return 1
+            end
+            return 0
+        end
+
+        # blocking round trips and fire-and-forget sends from divergent lanes
+        function scalar_kernel(client, out)
+            t = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+            if isodd(t)
+                v, _ = hostcall_call_scalar!(client, OP_ADD1, UInt64(t), UInt64)
+                out[t] = v
+            else
+                hostcall_send_scalar!(client, OP_RECORD, UInt64(t))
+                out[t] = UInt64(t)
+            end
+            return
+        end
+        if capability(device()) >= v"7.0"
+            for (threads, blocks) in [(32, 1), (20, 2), (256, 4)]
+                records[] = 0
+                out = CUDA.zeros(UInt64, threads * blocks)
+                @cuda threads=threads blocks=blocks scalar_kernel(area.client, out)
+                TestPoller.serve!(handler, area)
+                synchronize()
+                n = threads * blocks
+                @test Array(out) == [isodd(t) ? UInt64(t + 1) : UInt64(t) for t in 1:n]
+                @test records[] == count(iseven, 1:n)
+            end
+        else
+            # Pre-Volta warps execute divergent paths in lockstep. Elect one lane so a
+            # successful claimant can submit without waiting for peers that still need a
+            # port; callers must use the same pattern.
+            function scalar_elected_kernel(client, out)
+                if laneid() == 1
+                    t = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+                    v, _ = hostcall_call_scalar!(client, OP_ADD1, UInt64(t), UInt64)
+                    hostcall_send_scalar!(client, OP_RECORD, v)
+                    out[t] = v
+                end
+                return
+            end
+            for (threads, blocks) in [(32, 1), (20, 2), (256, 4)]
+                records[] = 0
+                out = CUDA.zeros(UInt64, threads * blocks)
+                @cuda threads=threads blocks=blocks scalar_elected_kernel(area.client, out)
+                TestPoller.serve!(handler, area)
+                synchronize()
+                expected = zeros(UInt64, threads * blocks)
+                for block in 0:blocks-1, thread in 1:32:threads
+                    t = block * threads + thread
+                    expected[t] = t + 1
+                end
+                @test Array(out) == expected
+                @test records[] == blocks * cld(threads, 32)
+            end
+        end
+
+        # an error status from the host is returned alongside the value
+        function failing_scalar(client, out)
+            _, status = hostcall_call_scalar!(client, OP_FAIL, UInt64(0), UInt64)
+            out[threadIdx().x] = status
+            return
+        end
+        threads = capability(device()) >= v"7.0" ? 4 : 1
+        out = CUDA.zeros(UInt32, threads)
+        @cuda threads=threads failing_scalar(area.client, out)
+        TestPoller.serve!(handler, area)
+        synchronize()
+        @test all(==(1), Array(out))
+
+        # all ports are released afterwards
+        @test all(==(0), Array(area.locks))
+    finally
+        TestPoller.free(area)
+    end
+
+    # the scalar tier services divergent code, so it must not use warp intrinsics
+    function scalar_probe(client, out)
+        v, _ = hostcall_call_scalar!(client, UInt64(1), UInt64(1), UInt64)
+        hostcall_send_scalar!(client, UInt64(2), v)
+        out[1] = v
+        return
+    end
+    tt = Tuple{HostcallClient, CuDeviceVector{UInt64,1}}
+    for arch in [sm"70", sm"60"]
+        ptx = sprint(io -> CUDA.code_ptx(io, scalar_probe, tt; arch))
+        @test !occursin("activemask", ptx)
+        @test !occursin("bar.warp.sync", ptx)
+        @test !occursin("shfl", ptx)
     end
 end
 
