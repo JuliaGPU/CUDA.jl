@@ -124,6 +124,28 @@ shfl_xor_sync
 ```
 
 
+## Host calls
+
+```@docs
+@hostcall
+hostcall
+hostcall_async
+HostcallException
+hostcall_available
+```
+
+Raw ports, for library code:
+
+```@docs
+HostcallClient
+HostcallPort
+hostcall_open
+hostcall_send!
+hostcall_recv!
+hostcall_close!
+hostcall_lane_packet
+```
+
 ## Assertions
 
 ```@docs

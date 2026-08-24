@@ -27,6 +27,18 @@ that package's image instead of being recompiled in every fresh session; on
 Julia 1.10 the cache stays session-local
 ([#3185](https://github.com/JuliaGPU/CUDA.jl/pull/3185)).
 
+Kernels can now call host functions. `@hostcall f(args...)::R` invokes any
+suitable Julia function on the host and returns its result to the calling
+thread; `@hostcall async=true f(args...)` is a fire-and-forget variant whose
+call has completed by the next synchronization. A raw port API is available
+for library code. The calls are serviced by a dedicated host thread, so they
+keep making progress even when Julia's own threads are blocked in CUDA API
+calls. Device-side exceptions now use the same mechanism: the
+`KernelException` thrown when synchronizing carries the exception type,
+message and (with `-g2`) device stack trace, instead of the device printing
+those details to standard output
+([#3243](https://github.com/JuliaGPU/CUDA.jl/pull/3243)).
+
 *Technically breaking changes*:
 
 - The CUDA compiler artifacts (`ptxas` and friends) are now selected
