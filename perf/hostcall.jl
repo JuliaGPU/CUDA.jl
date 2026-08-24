@@ -14,7 +14,7 @@ end
 out = CUDA.zeros(Int, 1)
 group["launch_armed"] = @benchmarkable @cuda hostcall_armed_kernel($out, false)
 
-# a single blocking call per warp; latency dominated
+# one collective request per warp, invoking the handler for every participating lane
 function hostcall_blocking_kernel(out)
     i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     out[i] = @hostcall hostcall_identity(Int(i))::Int
