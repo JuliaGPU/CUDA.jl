@@ -14,6 +14,13 @@ let K = Tuple{typeof(identity),Int,Tuple{Int}}
     @test CUDACore.hostcall_key_type(P) === K
 end
 
+# Blocking calls must not rely on forward progress from warps waiting for a port.
+let dev = device()
+    sms = attribute(dev, CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
+    warps = attribute(dev, CUDACore.DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR) ÷ 32
+    @test CUDACore.hostcall_default_ports(dev) >= sms * warps
+end
+
 hostcall_lookup(i::Int) = 10f0 * i
 hostcall_increment(i::Int) = i + 1
 const hostcall_counter = Threads.Atomic{Int}(0)

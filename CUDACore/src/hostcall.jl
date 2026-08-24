@@ -53,7 +53,7 @@ end
 
 const HOSTCALL_SWEEP_CHUNK = 64
 const HOSTCALL_MIN_PORTS = 64
-const HOSTCALL_MAX_PORTS = 4096
+const HOSTCALL_MAX_PORTS = 16384       # also LLVM libc RPC's protocol maximum
 
 function HostcallArea(ctx::CuContext, nports::Integer, exception_info::ExceptionInfo;
                       heartbeat::Bool=true)
@@ -115,12 +115,18 @@ end
 # the default number of ports: enough for every resident warp, so that a warp never has to
 # wait for another warp to release a port (GPUs have no forward-progress guarantee)
 function hostcall_default_ports(dev::CuDevice)
-    if hostcall_ports_pref !== nothing
-        return Int(hostcall_ports_pref)
-    end
     sms = attribute(dev, DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
     warps = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR) ÷ 32
-    return clamp(sms * warps, HOSTCALL_MIN_PORTS, HOSTCALL_MAX_PORTS)
+    ports = max(sms * warps, HOSTCALL_MIN_PORTS)
+    if hostcall_ports_pref !== nothing
+        preferred = Int(hostcall_ports_pref)
+        1 <= preferred <= HOSTCALL_MAX_PORTS ||
+            throw(ArgumentError("hostcall_ports must be between 1 and $HOSTCALL_MAX_PORTS"))
+        ports = max(ports, preferred)
+    end
+    ports <= HOSTCALL_MAX_PORTS ||
+        error("device requires $ports hostcall ports, more than the supported maximum of $HOSTCALL_MAX_PORTS")
+    return ports
 end
 
 # all areas, as an immutable snapshot that the server thread can read without locking

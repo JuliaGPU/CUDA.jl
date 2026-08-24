@@ -129,9 +129,10 @@ switching to the calling kernel's context for every call. Consequences:
 ## Configuration
 
 The `hostcall_ports` preference (set with `Preferences.set_preferences!(CUDACore, ...)` and
-restart; the preference belongs to the `CUDACore` package, not `CUDA`) controls the number
-of ports (warp-level call slots) per context; the default is the number of resident warps
-of the device (~8 MiB of pinned memory on a large GPU). Contexts start with a small area
+restart; the preference belongs to the `CUDACore` package, not `CUDA`) sets a lower bound
+on the number of ports (warp-level call slots) per context. CUDA.jl always allocates at
+least one per resident warp to avoid depending on GPU forward progress; the resulting
+area uses about 8 MiB of pinned memory on a large GPU. Contexts start with a small area
 until a kernel that calls host functions is linked.
 
 ## Display watchdogs
