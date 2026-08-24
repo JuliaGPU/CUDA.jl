@@ -38,18 +38,42 @@ function create_exceptions!(mod::CuModule)
     return exception_info, client
 end
 
-# check the exception flags on every API call, similarly to how CUDA handles errors
-function check_exceptions()
-    for (ctx,mem) in exception_infos
-        exception_info = convert(ExceptionInfo, mem)
-        if exception_info.status != 0
-            # restore the structure
-            unsafe_store!(exception_info, ExceptionInfo_st())
+# check the exception flags of a context after synchronizing it, similarly to how CUDA
+# handles errors. exceptions are reported per context: synchronizing one device does not
+# surface exceptions from kernels on another device, and the flag memory of a context that
+# has been destroyed (`unsafe_reset!`) is never touched again.
+function check_exceptions(ctx::CuContext=context())
+    hostcall_synchronize(ctx)
+    mem = @lock exception_infos_lock get(exception_infos, ctx, nothing)
+    mem === nothing && return
+    exception_info = convert(ExceptionInfo, mem)
+    if exception_info.status != 0
+        # restore the structure
+        unsafe_store!(exception_info, ExceptionInfo_st())
 
-            # throw host-side
-            dev = device(ctx)
-            throw(KernelException(dev))
-        end
+        # throw host-side
+        dev = device(ctx)
+        throw(KernelException(dev))
     end
     return
 end
+
+# Drop exception state before destroying a context. The flag is raw pinned memory and must
+# be released explicitly.
+function forget_exceptions!(pred)
+    forgotten = @lock exception_infos_lock begin
+        entries = Pair{CuContext,HostMemory}[]
+        for (ctx, mem) in collect(exception_infos)
+            pred(ctx) || continue
+            push!(entries, ctx => mem)
+            delete!(exception_infos, ctx)
+        end
+        entries
+    end
+    for (_, mem) in forgotten
+        free(mem)
+    end
+    return
+end
+forget_exceptions!(ctx::CuContext) = forget_exceptions!(candidate -> candidate == ctx)
+forget_exceptions!(dev::CuDevice) = forget_exceptions!(ctx -> device(ctx) == dev)
