@@ -565,9 +565,51 @@ end
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
 
-    quote
-        cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
+    if kernel <: HostKernel
+        quote
+            if kernel.hostcall
+                hostcall_launch(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
+            else
+                cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
+            end
+        end
+    else
+        quote
+            cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
+        end
     end
+end
+
+# launch a kernel that may call host functions: the hostcall server is armed for the
+# duration of the kernel, and disarmed by a host function enqueued after it.
+@inline function hostcall_launch(fun, tt, args...; stream::CuStream=stream(), kwargs...)
+    if is_capturing(stream)
+        # graph replays are not visible to us; such kernels are serviced by the heartbeat
+        hostcall_mark_graph!()
+        return cudacall(fun, tt, args...; stream, kwargs...)
+    end
+    hostcall_arm!()
+    try
+        cudacall(fun, tt, args...; stream, kwargs...)
+        @static if Sys.iswindows()
+            # WDDM may batch command submission (observed to be eager with hardware GPU
+            # scheduling, but not guaranteed without it); a stream query is a cheap way to
+            # flush the queue so that the kernel is running while the host polls for it
+            unchecked_cuStreamQuery(stream)
+        end
+    catch
+        hostcall_disarm!()
+        rethrow()
+    end
+    try
+        hostcall_disarm!(stream)
+    catch
+        # The launch is already submitted, but failed callback submission must not leave
+        # the server permanently armed. Heartbeat polling still services this kernel.
+        hostcall_disarm!()
+        rethrow()
+    end
+    return
 end
 
 
@@ -581,6 +623,7 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
     fun::CuFunction
     state::KernelState
+    hostcall::Bool      # whether launches need the hostcall server to be armed
 end
 
 @doc (@doc AbstractKernel) HostKernel
@@ -694,8 +737,12 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             end
         end
         if fun === nothing
+            if res.hostcall && !hostcall_available(cuda.device)
+                error("This kernel calls host functions, but hostcall is not available on this device (see the `hostcall` preference, and `CUDA.hostcall_available`).")
+            end
             fun = link_kernel(res.image::Vector{UInt8}, res.entry::String,
                               res.relocations)
+            register_hostcall_targets!(res.hostcall_targets)
             # don't cache session-local handles while generating output: the results struct
             # is serialized into the package image along with its CodeInstance, and the
             # handles would come back dangling.
@@ -710,11 +757,14 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         kernel = get(_kernel_instances, key, nothing)
         if kernel === nothing
             # create the kernel state object
+            # kernels that call host functions get a full-size hostcall area
+            ports = res.hostcall ? hostcall_default_ports(cuda.device) : HOSTCALL_MIN_PORTS
             exception_info, fallback = create_exceptions!(fun.mod)
-            client = hostcall_client(ctx, cuda.device, exception_info, fallback)
+            client = hostcall_client(ctx, cuda.device, exception_info, fallback;
+                                     ports, heartbeat=!res.hostcall)
             state = KernelState(client, UInt32(0))
 
-            kernel = HostKernel{F,tt}(f, fun, state)
+            kernel = HostKernel{F,tt}(f, fun, state, res.hostcall)
             _kernel_instances[key] = kernel
         end
         return kernel::HostKernel{F,tt}
