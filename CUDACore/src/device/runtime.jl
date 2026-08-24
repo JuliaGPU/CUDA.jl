@@ -140,39 +140,8 @@ struct ExceptionReport
     block::@NamedTuple{x::Int32,y::Int32,z::Int32}
 end
 
-# Send a report without waiting for the host. The exception output lock admits exactly one
-# lane, so this only needs the scalar subset of the warp-collective hostcall protocol.
-# Keep this inline: CUDA 12.9 ptxas crashes on the debug information for an out-of-line
-# function taking ExceptionReport by value. Inlining also produces less PTX for this path.
-@inline function send_exception_report(client::HostcallClient, report::ExceptionReport)
-    index = hostcall_start_index(client.nports)
-    lane = laneid() - Int32(1)
-    mask = UInt32(1) << lane
-    while true
-        word = client.lock + 4 * (index >> 5)
-        bit = UInt32(1) << (index & UInt32(31))
-        if (atomic_or!(word, bit) & bit) == 0
-            fence_gpu()
-            in = mailbox_load(client.inbox + 4index)
-            out = mailbox_load(client.outbox + 4index)
-            if hostcall_owned(in, out)
-                unsafe_store!(client.header + sizeof(HostcallHeader) * index,
-                              HostcallHeader(mask, UInt32(0), HC_EXCEPTION))
-                packet = client.packet + (index * HOSTCALL_LANES + lane) * HOSTCALL_PACKET_SIZE
-                unsafe_store!(reinterpret(LLVMPtr{ExceptionReport,AS.Global}, packet), report)
-                fence_sys()
-                mailbox_store!(client.outbox + 4index, out ⊻ UInt32(1))
-                fence_gpu()
-                atomic_and!(word, ~bit)
-                return
-            end
-            fence_gpu()
-            atomic_and!(word, ~bit)
-        end
-        index += UInt32(1)
-        index >= client.nports && (index = UInt32(0))
-    end
-end
+# reports are sent through `hostcall_send_scalar!`: the exception output lock admits
+# exactly one lane, so the warp-collective port protocol is not needed.
 
 # it's not useful to have several threads report exceptions (interleaved output, can crash
 # CUDA), so use an output lock to only have a single thread write an exception message
@@ -194,7 +163,7 @@ end
 
 # NOTE: kernels always run with a functional hostcall client; a no-port client only exists
 #       for kernels compiled during precompilation, which are never launched. still guard
-#       against it: `send_exception_report` with zero ports would divide by zero and spin.
+#       against it: `hostcall_send_scalar!` with zero ports would divide by zero and spin.
 #       the exception itself is still signalled through the flag, just without a report.
 
 function report_exception(ex)
@@ -203,7 +172,7 @@ function report_exception(ex)
     if lock_output!(info)
         client = hostcall_client()
         if client.nports != 0
-            send_exception_report(client,
+            hostcall_send_scalar!(client, HC_EXCEPTION,
                 ExceptionReport(EXCEPTION_REPORT_NOTRACE, 0, ex, info.subtype, info.reason, 0,
                                 threadIdx(), blockIdx()))
         end
@@ -218,7 +187,7 @@ function report_exception_name(ex)
     if lock_output!(info)
         client = hostcall_client()
         if client.nports != 0
-            send_exception_report(client,
+            hostcall_send_scalar!(client, HC_EXCEPTION,
                 ExceptionReport(EXCEPTION_REPORT_NAME, 0, ex, info.subtype, info.reason, 0,
                                 threadIdx(), blockIdx()))
         end
@@ -232,9 +201,36 @@ function report_exception_frame(idx, func, file, line)
     if lock_output!(info)
         client = hostcall_client()
         if client.nports != 0
-            send_exception_report(client,
+            hostcall_send_scalar!(client, HC_EXCEPTION,
                 ExceptionReport(EXCEPTION_REPORT_FRAME, idx, func, file, C_NULL, line,
                                 threadIdx(), blockIdx()))
+        end
+    end
+    return
+end
+
+# out-of-memory reports carry the size of the failed allocation. `gc_pool_alloc` throws an
+# OutOfMemoryError right after calling `report_oom`, whose report only carries the
+# exception name; the host merges the two by thread and attaches the size as the reason.
+struct OOMReport
+    sz::UInt64
+    thread::@NamedTuple{x::Int32,y::Int32,z::Int32}
+    block::@NamedTuple{x::Int32,y::Int32,z::Int32}
+end
+
+function report_oom(sz)
+    # this runs before the ensuing exception, so claim that exception's report: the same
+    # thread re-enters the output lock when it throws, and other threads (which may be
+    # failing the same allocation) do not send reports of their own
+    info = exception_info()
+    if lock_output!(info)
+        # the throw in `gc_pool_alloc` lowers to a generic "exception" name, so label the
+        # report like the quirks do
+        info.subtype = @strptr "OutOfMemoryError"
+        client = hostcall_client()
+        if client.nports != 0
+            hostcall_send_scalar!(client, HC_OOM,
+                                  OOMReport(sz % UInt64, threadIdx(), blockIdx()))
         end
     end
     return
@@ -273,11 +269,3 @@ end
 end
 
 @inline exception_info() = reinterpret(ExceptionInfo, hostcall_client().exception_info)
-
-
-## other
-
-function report_oom(sz)
-    @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %d bytes)\n", sz)
-    return
-end

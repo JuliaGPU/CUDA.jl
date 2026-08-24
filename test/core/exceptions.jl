@@ -61,6 +61,44 @@ end
 
 end
 
+@testset "out-of-memory reports" begin
+
+# device-side allocation failures attach the size of the failed allocation to the
+# ensuing OutOfMemoryError's report
+script = """
+    using CUDA
+
+    CUDA.limit!(CUDA.LIMIT_MALLOC_HEAP_SIZE, 32*1024)
+
+    mutable struct Box
+        x::Int64
+    end
+    @noinline make_box(x) = Box(x)
+
+    function kernel(a)
+        i = 1
+        while i <= 100_000
+            b = make_box(Int64(i))
+            a[1] = b.x
+            i += 1
+        end
+        return
+    end
+
+    a = CuArray{Int64}(undef, 1)
+    @cuda kernel(a)
+    synchronize()
+"""
+
+let (proc, out, err) = julia_exec(`-g1 -e $script`)
+    @test !success(proc)
+    @test occursin(host_error_re, err)
+    @test occursin("OutOfMemoryError", err)
+    @test occursin(r"Out of dynamic GPU memory \(trying to allocate \d+ bytes\)", err)
+end
+
+end
+
 @testset "#329" begin
 
 script = """

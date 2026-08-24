@@ -97,13 +97,46 @@ function service_exception_report(p, hdr)
             reason = device_string(report.c, stream)
             @lock kernel_exception_reports_lock begin
                 reports = get!(Dict{NTuple{6,Int}, KernelExceptionInfo}, kernel_exception_reports, area.ctx)
+                prev = get(reports, key, nothing)
+                # an OOM report may have recorded a reason before the exception's own
+                # report arrived (see `service_oom_report`)
+                if isempty(reason) && prev !== nothing
+                    reason = prev.reason
+                end
                 frames = if report.kind == EXCEPTION_REPORT_NAME
-                    prev = get(reports, key, nothing)
                     prev === nothing || prev.stacktrace === nothing ? @NamedTuple{idx::Int, func::String, file::String, line::Int}[] : prev.stacktrace
                 else
                     nothing
                 end
                 reports[key] = KernelExceptionInfo(name, subtype, reason, key[4:6], key[1:3], frames)
+            end
+        end
+    end
+    hport_flip!(p)
+    return
+end
+
+# the built-in handler for out-of-memory reports: attach the size of the failed allocation
+# to the reporting thread's exception report (the device throws an OutOfMemoryError right
+# after sending this, but its reports may be serviced in any order)
+function service_oom_report(p, hdr)
+    mask = hdr.mask
+    for lane in 0:31
+        (mask >> lane) & 1 == 0 && continue
+        report = unsafe_load(convert(Ptr{OOMReport}, lane_packet(p, lane)))
+        key = (Int(report.block.x), Int(report.block.y), Int(report.block.z),
+               Int(report.thread.x), Int(report.thread.y), Int(report.thread.z))
+        reason = "Out of dynamic GPU memory (trying to allocate $(report.sz) bytes)"
+        @lock kernel_exception_reports_lock begin
+            reports = get!(Dict{NTuple{6,Int}, KernelExceptionInfo}, kernel_exception_reports, p.area.ctx)
+            info = get(reports, key, nothing)
+            if info === nothing
+                # the exception's own report has not arrived yet; create a placeholder
+                reports[key] = KernelExceptionInfo("", "", reason, key[4:6], key[1:3],
+                                                   @NamedTuple{idx::Int, func::String, file::String, line::Int}[])
+            elseif isempty(info.reason)
+                reports[key] = KernelExceptionInfo(info.name, info.subtype, reason,
+                                                   info.thread, info.block, info.stacktrace)
             end
         end
     end

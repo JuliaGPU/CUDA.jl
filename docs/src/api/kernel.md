@@ -142,6 +142,7 @@ hostcall_open
 hostcall_send!
 hostcall_recv!
 hostcall_close!
+hostcall_send_scalar!
 hostcall_lane_packet
 ```
 

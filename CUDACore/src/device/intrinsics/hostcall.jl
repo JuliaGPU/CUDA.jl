@@ -13,6 +13,7 @@
 export @hostcall, hostcall, hostcall_async
 @public HostcallClient, HostcallPort, HostcallHeader,
         hostcall_open, hostcall_send!, hostcall_recv!, hostcall_close!,
+        hostcall_send_scalar!,
         hostcall_lane_packet, HOSTCALL_PACKET_SIZE, hostcall_packet_layout
 
 
@@ -41,6 +42,7 @@ const HOSTCALL_FLAG_ASYNC = UInt32(1)
 const HOSTCALL_BUILTIN_IDS = UInt64(256)
 const HOSTCALL_STATIC_ID_BIT = UInt64(0x8000_0000_0000_0000)
 const HC_EXCEPTION = UInt64(1)
+const HC_OOM = UInt64(2)
 
 # inbox words carry a status in the bits above the ownership bit; the host sets these
 # when it replies to a port. bit 0 is the ownership bit.
@@ -355,6 +357,49 @@ receive) the call is completed asynchronously by the host.
     sync_warp(port.mask)
     unlock!(port.client, port.mask, port.index)
     return
+end
+
+"""
+    hostcall_send_scalar!(client::HostcallClient, target::UInt64, value)
+
+Send a single `value` (at most one packet in size) to `target` from the calling lane,
+without waiting for the host to service the call. Unlike the warp-collective port API,
+this may be called from arbitrarily divergent code, on any hardware: it involves no warp
+intrinsics. The runtime uses it for exception and out-of-memory reports.
+"""
+# Keep this inline: CUDA 12.9 ptxas crashes on the debug information for an out-of-line
+# function taking an aggregate value by value. Inlining also produces less PTX.
+@inline function hostcall_send_scalar!(c::HostcallClient, target::UInt64,
+                                       value::T) where {T}
+    GPUCompiler.@static_assert(sizeof(T) <= HOSTCALL_PACKET_SIZE,
+                               "hostcall_send_scalar! values must fit in one packet")
+    index = hostcall_start_index(c.nports)
+    lane = laneid() - Int32(1)
+    mask = UInt32(1) << lane
+    while true
+        word = c.lock + 4 * (index >> 5)
+        bit = UInt32(1) << (index & UInt32(31))
+        if (atomic_or!(word, bit) & bit) == 0
+            fence_gpu()
+            in = mailbox_load(c.inbox + 4index)
+            out = mailbox_load(c.outbox + 4index)
+            if hostcall_owned(in, out)
+                unsafe_store!(c.header + sizeof(HostcallHeader) * index,
+                              HostcallHeader(mask, UInt32(0), target))
+                packet = c.packet + (index * HOSTCALL_LANES + lane) * HOSTCALL_PACKET_SIZE
+                unsafe_store!(reinterpret(LLVMPtr{T,AS.Global}, packet), value)
+                fence_sys()
+                mailbox_store!(c.outbox + 4index, out ⊻ UInt32(1))
+                fence_gpu()
+                atomic_and!(word, ~bit)
+                return
+            end
+            fence_gpu()
+            atomic_and!(word, ~bit)
+        end
+        index += UInt32(1)
+        index >= c.nports && (index = UInt32(0))
+    end
 end
 
 

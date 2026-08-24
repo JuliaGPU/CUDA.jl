@@ -79,7 +79,9 @@ CUDA.jl itself uses hostcall to report device-side exceptions: the runtime libra
 exception name, reason and (with `-g2`) stack frames through the hostcall area, without
 waiting for the host, and `synchronize()` attaches the decoded report to the `KernelException`
 it throws (see [Debugging](@ref DebuggingKernels)). This needs no registration, so it also works for kernels
-compiled during package precompilation. Every kernel that can throw therefore refers to a small
+compiled during package precompilation. Out-of-memory failures of device-side allocations
+are reported the same way: the size of the failed allocation is attached to the
+`OutOfMemoryError` that follows it. Every kernel that can throw therefore refers to a small
 hostcall area (64 ports), which is created on first use in each context. Hostcall is core
 infrastructure and cannot be disabled: exception reporting depends on it, as will other
 functionality built on top of it.

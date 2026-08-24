@@ -33,10 +33,11 @@ thread; `@hostcall async=true f(args...)` is a fire-and-forget variant whose
 call has completed by the next synchronization. A raw port API is available
 for library code. The calls are serviced by a dedicated host thread, so they
 keep making progress even when Julia's own threads are blocked in CUDA API
-calls. Device-side exceptions now use the same mechanism: the
-`KernelException` thrown when synchronizing carries the exception type,
-message and (with `-g2`) device stack trace, instead of the device printing
-those details to standard output
+calls. Device-side exception and out-of-memory reporting now use the same
+mechanism: the `KernelException` thrown when synchronizing carries the
+exception type, message, (with `-g2`) device stack trace, and the size of a
+failed device-side allocation, instead of the device printing those details
+to standard output
 ([#3243](https://github.com/JuliaGPU/CUDA.jl/pull/3243)).
 
 *Technically breaking changes*:

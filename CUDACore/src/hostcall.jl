@@ -520,6 +520,7 @@ end
 # built-in targets, implemented by the runtime library and serviced by these handlers
 const hostcall_builtins = Dict{UInt64,Function}(
     HC_EXCEPTION => service_exception_report,
+    HC_OOM => service_oom_report,
 )
 
 function service_port!(a::HostcallArea, i::Int, out::UInt32)
