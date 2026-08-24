@@ -618,7 +618,7 @@ mutable struct HostcallServer
     const sweep_lock::Ptr{Cvoid}    # uv_mutex_t, serializes sweeps (server thread vs. draining tasks)
     const launches::Threads.Atomic{Int}
     const serviced::Threads.Atomic{Int} # completed launches covered by a full sweep
-    const graphs::Threads.Atomic{Bool}  # graph replays cannot be armed
+    const heartbeat::Threads.Atomic{Bool} # poll all areas for launches without callbacks
     const sweep_owner::Threads.Atomic{UInt}  # identity of the task holding `sweep_lock`, or 0
     finished::Int                   # launches that completed; only touched by the server thread
 end
@@ -704,7 +704,7 @@ function hostcall_server_main(srv::HostcallServer)
                 srv.finished += 1
             end
             armed = srv.launches[] - srv.finished
-            full_sweep = armed > 0 || srv.finished != srv.serviced[] || srv.graphs[]
+            full_sweep = armed > 0 || srv.finished != srv.serviced[] || srv.heartbeat[]
 
             lock_sweeps(srv)
             found = try
@@ -797,11 +797,11 @@ end
 
 ## arming and draining
 
-# Captured kernels are replayed without passing through `hostcall_launch`, so keep idle
-# heartbeat sweeps enabled for every area after the first hostcall graph is captured.
-function hostcall_mark_graph!()
+# Keep every area polled when launches cannot be tracked by completion callbacks: graph
+# replays bypass `hostcall_launch`, and callback submission can fail after a launch.
+function hostcall_enable_heartbeat!()
     srv = hostcall_server[]::HostcallServer
-    if !Threads.atomic_cas!(srv.graphs, false, true)
+    if !Threads.atomic_cas!(srv.heartbeat, false, true)
         Threads.atomic_add!(hostcall_sync_pending, 1)
     end
     return
