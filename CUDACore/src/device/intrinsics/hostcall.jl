@@ -13,6 +13,7 @@
 export @hostcall, hostcall, hostcall_async
 @public HostcallClient, HostcallPort, HostcallHeader,
         hostcall_open, hostcall_send!, hostcall_recv!, hostcall_close!,
+        hostcall_send_scalar!, hostcall_call_scalar!,
         hostcall_lane_packet, HOSTCALL_PACKET_SIZE, hostcall_packet_layout
 
 
@@ -41,6 +42,7 @@ const HOSTCALL_FLAG_ASYNC = UInt32(1)
 const HOSTCALL_BUILTIN_IDS = UInt64(256)
 const HOSTCALL_STATIC_ID_BIT = UInt64(0x8000_0000_0000_0000)
 const HC_EXCEPTION = UInt64(1)
+const HC_OOM = UInt64(2)
 
 # inbox words carry a status in the bits above the ownership bit; the host sets these
 # when it replies to a port. bit 0 is the ownership bit.
@@ -52,7 +54,8 @@ const HOSTCALL_STATUS_ERROR = UInt32(1)    # the handler threw, or the target is
 
 Device-side descriptor of a hostcall area: the number of ports and pointers to the
 mailboxes, headers, packets (all in pinned host memory) and the lock bitfield (in device
-memory). A client with `nports == 0` indicates that hostcalls are not available.
+memory). A client with `nports == 0` is a placeholder used for kernels compiled during
+precompilation, which are never launched.
 The descriptor also points to the context's exception state. The kernel state holds only
 a pointer to this descriptor, keeping it small (it is passed to child launches during
 dynamic parallelism).
@@ -356,6 +359,118 @@ receive) the call is completed asynchronously by the host.
     return
 end
 
+# The scalar tier: operations for one elected lane that involve no warp intrinsics, so the
+# lane may call from divergent code on any hardware. On pre-Volta hardware, multiple lanes
+# of one converged warp must not claim ports independently: lockstep reconvergence can keep
+# successful claimants from submitting while their peers spin. The runtime's exception
+# lock enforces the single-lane condition; other callers must do likewise.
+#
+# Keep everything inline: CUDA 12.9 ptxas crashes on the debug information for an
+# out-of-line function taking an aggregate value by value. Inlining also produces less PTX.
+
+# claim a free, device-owned port for the calling lane; returns the index and outbox word
+@inline function hostcall_claim_scalar!(c::HostcallClient)
+    index = hostcall_start_index(c.nports)
+    while true
+        word = c.lock + 4 * (index >> 5)
+        bit = UInt32(1) << (index & UInt32(31))
+        if (atomic_or!(word, bit) & bit) == 0
+            fence_gpu()
+            in = mailbox_load(c.inbox + 4index)
+            out = mailbox_load(c.outbox + 4index)
+            if hostcall_owned(in, out)
+                # Pair with the host's release before overwriting its packet. The
+                # device lock only orders GPU claimants, not the host's accesses.
+                fence_sys()
+                return index, out
+            end
+            fence_gpu()
+            atomic_and!(word, ~bit)
+        end
+        index += UInt32(1)
+        index >= c.nports && (index = UInt32(0))
+    end
+end
+
+@inline function hostcall_unlock_scalar!(c::HostcallClient, index::UInt32)
+    fence_gpu()
+    word = c.lock + 4 * (index >> 5)
+    bit = UInt32(1) << (index & UInt32(31))
+    atomic_and!(word, ~bit)
+    return
+end
+
+# write the header and the lane's packet, and hand the buffer to the host; returns the
+# flipped outbox word
+@inline function hostcall_submit_scalar!(c::HostcallClient, index::UInt32, out::UInt32,
+                                         target::UInt64, value::T, flags::UInt32) where {T}
+    lane = laneid() - Int32(1)
+    mask = UInt32(1) << lane
+    unsafe_store!(c.header + sizeof(HostcallHeader) * index,
+                  HostcallHeader(mask, flags, target))
+    packet = c.packet + (index * HOSTCALL_LANES + lane) * HOSTCALL_PACKET_SIZE
+    unsafe_store!(reinterpret(LLVMPtr{T,AS.Global}, packet), value)
+    fence_sys()
+    inverted = out ⊻ UInt32(1)
+    mailbox_store!(c.outbox + 4index, inverted)
+    return inverted
+end
+
+"""
+    hostcall_send_scalar!(client::HostcallClient, target::UInt64, value)
+
+Send a single `value` (at most one packet in size) to `target` from one elected lane,
+without waiting for the host to service the call. Unlike the warp-collective port API,
+this may be called from divergent code and involves no warp intrinsics. On pre-Volta
+hardware, do not call it independently from several lanes of one converged warp. See also
+[`hostcall_call_scalar!`](@ref) for the blocking variant.
+"""
+@inline function hostcall_send_scalar!(c::HostcallClient, target::UInt64,
+                                       value::T) where {T}
+    GPUCompiler.@static_assert(sizeof(T) <= HOSTCALL_PACKET_SIZE,
+                               "hostcall_send_scalar! values must fit in one packet")
+    index, out = hostcall_claim_scalar!(c)
+    hostcall_submit_scalar!(c, index, out, target, value, HOSTCALL_FLAG_ASYNC)
+    hostcall_unlock_scalar!(c, index)
+    return
+end
+
+"""
+    hostcall_call_scalar!(client::HostcallClient, target::UInt64, request, RT) -> (value, status)
+
+Send `request` to `target` from one elected lane and wait for the host's reply, returning
+the value of type `RT` read back from the packet and the status word set by the host (`0`
+on success). Like [`hostcall_send_scalar!`](@ref), this may be called from divergent code,
+but several lanes of one converged pre-Volta warp must not call it independently. Both
+`request` and `RT` must fit in one packet; `RT` must be isbits. The returned value is
+unspecified when the status is nonzero.
+"""
+@inline function hostcall_call_scalar!(c::HostcallClient, target::UInt64, request::T,
+                                       ::Type{RT}) where {T,RT}
+    GPUCompiler.@static_assert(sizeof(T) <= HOSTCALL_PACKET_SIZE,
+                               "hostcall_call_scalar! requests must fit in one packet")
+    GPUCompiler.@static_assert(isbitstype(RT),
+                               "hostcall_call_scalar! replies must be isbits")
+    GPUCompiler.@static_assert(sizeof(RT) <= HOSTCALL_PACKET_SIZE,
+                               "hostcall_call_scalar! replies must fit in one packet")
+    index, out = hostcall_claim_scalar!(c)
+    out = hostcall_submit_scalar!(c, index, out, target, request, UInt32(0))
+    # wait for the reply (scalar counterpart of `hostcall_wait_for_ownership`, which is
+    # warp-collective and thus off limits here)
+    ns = HOSTCALL_BACKOFF_MIN
+    in = mailbox_load(c.inbox + 4index)
+    while !hostcall_owned(in, out)
+        ns = hostcall_backoff(ns)
+        in = mailbox_load(c.inbox + 4index)
+    end
+    fence_sys()
+    lane = laneid() - Int32(1)
+    packet = c.packet + (index * HOSTCALL_LANES + lane) * HOSTCALL_PACKET_SIZE
+    val = unsafe_load(reinterpret(LLVMPtr{RT,AS.Global}, packet))
+    hostcall_unlock_scalar!(c, index)
+    return val, in >> 1
+end
+
 
 ## value marshalling
 
@@ -483,7 +598,7 @@ Call the host function `f` with `args...` from device code, returning its result
 to `R`. `hostcall_async` does not wait for the call to complete and implies `R === Nothing`.
 `R` must be isbits or `Nothing`. Arguments may contain compiler-relocated host constants,
 such as string literals, but arbitrary Julia references are unsupported. `f` must be
-recoverable from its type (a named function or an isbits functor). See [`@hostcall`](@ref).
+statically identifiable (a named function or an isbits functor). See [`@hostcall`](@ref).
 """
 @inline function hostcall(f::F, ::Type{RT}, args...) where {F,RT}
     # Results are reconstructed on the device and cannot contain host references. Argument
@@ -510,8 +625,8 @@ end
 
 Call the host function `f` from device code, `@ccall`-style: the return type annotation
 `::R` is required (it is the one thing the device cannot know) unless `async=true`, in
-which case the call returns immediately, `R` is `Nothing`, and the call is completed by the
-time the next `synchronize()` returns. Individual arguments may be annotated (`a::T`) to
+which case the call returns after submitting its arguments, `R` is `Nothing`, and the call
+is completed by the time the next `synchronize()` returns. Individual arguments may be annotated (`a::T`) to
 convert them before shipping.
 
 The call is warp-collective: all active lanes submit their own arguments and receive their
@@ -525,7 +640,7 @@ non-blocking stream; handler exceptions surface as `HostcallException` at the ne
 
 ```julia
 function kernel(out, i)
-    y = @hostcall load_from_disk(i)::Float32
+    y = @hostcall lookup_value(i)::Float32
     @hostcall async=true println("thread ", i)
     ...
 end
