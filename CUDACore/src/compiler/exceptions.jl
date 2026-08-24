@@ -127,8 +127,9 @@ end
 const exception_infos = Dict{CuContext, HostMemory}()
 const exception_infos_lock = ReentrantLock()
 
-# A no-hostcall descriptor follows the exception flag in the same mapped allocation. This
-# gives every kernel one runtime-state pointer, even when hostcalls are unavailable.
+# A no-port descriptor follows the exception flag in the same mapped allocation. It is
+# used for kernels compiled during precompilation (which are never launched), and gives
+# every kernel one runtime-state pointer.
 const exception_client_offset = cld(sizeof(ExceptionInfo_st), sizeof(UInt)) * sizeof(UInt)
 const exception_state_size = exception_client_offset + sizeof(HostcallClient)
 

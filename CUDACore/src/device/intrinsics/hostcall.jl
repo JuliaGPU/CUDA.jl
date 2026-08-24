@@ -52,7 +52,8 @@ const HOSTCALL_STATUS_ERROR = UInt32(1)    # the handler threw, or the target is
 
 Device-side descriptor of a hostcall area: the number of ports and pointers to the
 mailboxes, headers, packets (all in pinned host memory) and the lock bitfield (in device
-memory). A client with `nports == 0` indicates that hostcalls are not available.
+memory). A client with `nports == 0` is a placeholder used for kernels compiled during
+precompilation, which are never launched.
 The descriptor also points to the context's exception state. The kernel state holds only
 a pointer to this descriptor, keeping it small (it is passed to child launches during
 dynamic parallelism).

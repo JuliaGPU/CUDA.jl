@@ -60,8 +60,7 @@ Stacktrace:
 
 The device reports these details to the host through the hostcall mechanism (see
 [Calling host functions from kernels](@ref)), which is why they are part of the exception
-rather than printed by the device. When hostcall is unavailable (e.g. disabled by the
-`hostcall` preference), the device prints the report to standard output instead.
+rather than printed by the device.
 
 Note that these messages are embedded in the module (CUDA does not support stack unwinding),
 and thus bloat its size. To avoid any overhead, you can disable these messages by setting

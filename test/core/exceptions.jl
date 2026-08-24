@@ -1,8 +1,7 @@
 # XXX: these tests occasionally hang under compute-sanitizer
 if !sanitize
 
-# with hostcall available (the default), the device's report travels with the exception;
-# without it, the device prints it with printf and the exception is message-less
+# the device's report travels to the host through hostcall, as part of the exception
 host_error_re = r"ERROR: (KernelException: .*during kernel execution on device|CUDA error: an illegal instruction was encountered|CUDA error: unspecified launch failure)"
 device_error_re = r"a \w+ was thrown during kernel execution"
 
@@ -58,16 +57,6 @@ let (proc, out, err) = julia_exec(`-g2 -e $script`)
     @test count("Out-of-bounds array access", err) == 1
     @test occursin("] kernel at $(joinpath(".", "none"))", err)
     @test !occursin(device_error_re, out)
-end
-
-# without hostcall, the device prints the report itself
-let (proc, out, err) = julia_exec(`-g2 -e $script`, "JULIA_CUDA_HOSTCALL" => "false")
-    @test !success(proc)
-    @test occursin(host_error_re, err)
-    @test count(device_error_re, out) == 1
-    @test count("BoundsError", out) == 1
-    @test count("Out-of-bounds array access", out) == 1
-    @test occursin("] kernel at $(joinpath(".", "none"))", out)
 end
 
 end

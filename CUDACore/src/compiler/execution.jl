@@ -737,9 +737,6 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             end
         end
         if fun === nothing
-            if res.hostcall && !hostcall_available(cuda.device)
-                error("This kernel calls host functions, but hostcall is not available on this device (see the `hostcall` preference, and `CUDA.hostcall_available`).")
-            end
             fun = link_kernel(res.image::Vector{UInt8}, res.entry::String,
                               res.relocations)
             register_hostcall_targets!(res.hostcall_targets)
@@ -760,7 +757,7 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             # kernels that call host functions get a full-size hostcall area
             ports = res.hostcall ? hostcall_default_ports(cuda.device) : HOSTCALL_MIN_PORTS
             exception_info, fallback = create_exceptions!(fun.mod)
-            client = hostcall_client(ctx, cuda.device, exception_info, fallback;
+            client = hostcall_client(ctx, exception_info, fallback;
                                      ports, heartbeat=!res.hostcall)
             state = KernelState(client, UInt32(0))
 

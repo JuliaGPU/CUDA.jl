@@ -131,7 +131,6 @@ shfl_xor_sync
 hostcall
 hostcall_async
 HostcallException
-hostcall_available
 ```
 
 Raw ports, for library code:

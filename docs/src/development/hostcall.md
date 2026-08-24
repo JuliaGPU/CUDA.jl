@@ -80,8 +80,9 @@ exception name, reason and (with `-g2`) stack frames through the hostcall area, 
 waiting for the host, and `synchronize()` attaches the decoded report to the `KernelException`
 it throws (see [Debugging](@ref DebuggingKernels)). This needs no registration, so it also works for kernels
 compiled during package precompilation. Every kernel that can throw therefore refers to a small
-hostcall area (64 ports), which is created on first use in each context; when hostcall is
-unavailable, the device falls back to printing the report with `printf`.
+hostcall area (64 ports), which is created on first use in each context. Hostcall is core
+infrastructure and cannot be disabled: exception reporting depends on it, as will other
+functionality built on top of it.
 
 ## Performance
 
@@ -113,17 +114,14 @@ switching to the calling kernel's context for every call. Consequences:
 
 ## Configuration
 
-Preferences (set with `Preferences.set_preferences!(CUDACore, ...)` and restart; the
-preferences belong to the `CUDACore` package, not `CUDA`):
-- `hostcall` (default `true`): disable the mechanism entirely; kernels using it fail to
-  link, and device exceptions fall back to `printf`-based reporting.
-- `hostcall_ports`: the number of ports (warp-level call slots) per context; the default is the
-  number of resident warps of the device (~8 MiB of pinned memory on a large GPU). Contexts
-  start with a small area until a kernel that calls host functions is linked.
+The `hostcall_ports` preference (set with `Preferences.set_preferences!(CUDACore, ...)` and
+restart; the preference belongs to the `CUDACore` package, not `CUDA`) controls the number
+of ports (warp-level call slots) per context; the default is the number of resident warps
+of the device (~8 MiB of pinned memory on a large GPU). Contexts start with a small area
+until a kernel that calls host functions is linked.
 
 ## Display watchdogs
 
 On devices with a display watchdog, a kernel blocked in a hostcall counts as running. A
 slow handler can therefore push the kernel over the watchdog limit, like any other
-long-running kernel. Hostcalls remain enabled by default on these devices, but handlers
-should avoid long or unbounded waits.
+long-running kernel, so handlers should avoid long or unbounded waits.

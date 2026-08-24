@@ -123,8 +123,8 @@ end
 end
 
 
-# exception reports are sent to the host through the hostcall area (when available) as
-# packets with this layout, one per report or stack frame. the strings are pointers to
+# exception reports are sent to the host through the hostcall area as packets with this
+# layout, one per report or stack frame. the strings are pointers to
 # module-constant device strings, copied over by the host.
 const EXCEPTION_REPORT_NAME = UInt32(1)       # the exception; stack frames follow
 const EXCEPTION_REPORT_FRAME = UInt32(2)      # one stack frame
@@ -174,28 +174,6 @@ end
     end
 end
 
-@noinline function print_exception_report(ex, info::ExceptionInfo, trace::Bool)
-    # override the type GPUCompiler deduced if a quirk supplied a subtype
-    info.subtype != C_NULL && (ex = info.subtype)
-    @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
-              ex, threadIdx().x, threadIdx().y, threadIdx().z,
-              blockIdx().x, blockIdx().y, blockIdx().z)
-    if info.reason != C_NULL
-        @cuprintf("%s\n", info.reason)
-    end
-    if trace
-        @cuprintf("Stacktrace:\n")
-    else
-        @cuprintf("Stacktrace not available, run Julia on debug level 2 for more details (by passing -g2 to the executable).\n")
-    end
-    return
-end
-
-@noinline function print_exception_frame(idx, func, file, line)
-    @cuprintf(" [%d] %s at %s:%d\n", idx, func, file, line)
-    return
-end
-
 # it's not useful to have several threads report exceptions (interleaved output, can crash
 # CUDA), so use an output lock to only have a single thread write an exception message
 @inline function lock_output!(info::ExceptionInfo)
@@ -214,6 +192,11 @@ end
     end
 end
 
+# NOTE: kernels always run with a functional hostcall client; a no-port client only exists
+#       for kernels compiled during precompilation, which are never launched. still guard
+#       against it: `send_exception_report` with zero ports would divide by zero and spin.
+#       the exception itself is still signalled through the flag, just without a report.
+
 function report_exception(ex)
     # this is the first reporting function being called, so claim the exception
     info = exception_info()
@@ -223,8 +206,6 @@ function report_exception(ex)
             send_exception_report(client,
                 ExceptionReport(EXCEPTION_REPORT_NOTRACE, 0, ex, info.subtype, info.reason, 0,
                                 threadIdx(), blockIdx()))
-        else
-            print_exception_report(ex, info, false)
         end
     end
     return
@@ -240,8 +221,6 @@ function report_exception_name(ex)
             send_exception_report(client,
                 ExceptionReport(EXCEPTION_REPORT_NAME, 0, ex, info.subtype, info.reason, 0,
                                 threadIdx(), blockIdx()))
-        else
-            print_exception_report(ex, info, true)
         end
     end
     return
@@ -256,8 +235,6 @@ function report_exception_frame(idx, func, file, line)
             send_exception_report(client,
                 ExceptionReport(EXCEPTION_REPORT_FRAME, idx, func, file, C_NULL, line,
                                 threadIdx(), blockIdx()))
-        else
-            print_exception_frame(idx, func, file, line)
         end
     end
     return
@@ -266,11 +243,8 @@ end
 function signal_exception()
     info = exception_info()
 
-    # finalize output
+    # mark the report as complete
     if lock_output!(info)
-        if hostcall_client().nports == 0
-            @cuprintf("\n")
-        end
         info.output_lock = 2
     end
 

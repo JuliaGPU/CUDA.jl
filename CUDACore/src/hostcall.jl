@@ -7,32 +7,15 @@
 # independent of Julia's scheduler, so hostcalls keep being serviced while the launching
 # thread is blocked in a CUDA call.
 
-@public HostcallException, HostcallArea, hostcall_area, hostcall_drain, hostcall_available
+@public HostcallException, HostcallArea, hostcall_area, hostcall_drain
 
 using Preferences: @load_preference
 
 
 ## preferences
 
-# whether hostcalls are enabled at all
-const hostcall_enabled = @load_preference("hostcall", true)::Bool
-
 # the number of ports per area; defaults to the number of resident warps of the device
 const hostcall_ports_pref = @load_preference("hostcall_ports", nothing)
-
-"""
-    hostcall_available([dev::CuDevice]) -> Bool
-
-Whether hostcalls (and thus hostcall-based functionality such as device exception
-reporting) are available on `dev`. Controlled by the `hostcall` preference. Note that on
-devices with a display watchdog (Windows WDDM, or a display attached), kernels blocked in
-a hostcall remain subject to that watchdog, like any other running kernel.
-"""
-function hostcall_available(::CuDevice=device())
-    hostcall_enabled || return false
-    get(ENV, "JULIA_CUDA_HOSTCALL", "true") == "false" && return false
-    return true
-end
 
 
 ## area
@@ -173,17 +156,16 @@ function hostcall_area(ctx::CuContext, exception_info::ExceptionInfo;
 end
 
 """
-    hostcall_client(ctx, dev, exception_info, fallback; ports, heartbeat)
+    hostcall_client(ctx, exception_info, fallback; ports, heartbeat)
 
-Pointer to a suitable runtime descriptor for kernels launched in `ctx`. When hostcalls are
-unavailable, `fallback` is returned so device exception handling remains usable.
+Pointer to a suitable runtime descriptor for kernels launched in `ctx`.
 """
-function hostcall_client(ctx::CuContext, dev::CuDevice, exception_info::ExceptionInfo,
+function hostcall_client(ctx::CuContext, exception_info::ExceptionInfo,
                          fallback::HostcallClientPtr;
                          ports::Integer=HOSTCALL_MIN_PORTS, heartbeat::Bool=true)
-    hostcall_available(dev) || return fallback
     # kernels compiled during precompilation are not launched; creating the area would
-    # start the server thread in the precompilation process
+    # start the server thread in the precompilation process. such kernels get the no-port
+    # fallback descriptor, which is never dereferenced on the device.
     ccall(:jl_generating_output, Cint, ()) != 0 && return fallback
     return hostcall_area(ctx, exception_info; ports, heartbeat).client
 end
