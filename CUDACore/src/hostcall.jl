@@ -536,7 +536,9 @@ function service_target!(p::HostPort, target::HostcallTarget, hdr::HostcallHeade
 end
 
 # built-in targets, implemented by the runtime library and serviced by these handlers
-const hostcall_builtins = Dict{UInt64,Function}()
+const hostcall_builtins = Dict{UInt64,Function}(
+    HC_EXCEPTION => service_exception_report,
+)
 
 function service_port!(a::HostcallArea, i::Int, out::UInt32)
     hdr = unsafe_load(header_ptr(a, i))
