@@ -4,6 +4,16 @@ using CUDA: HostcallException
 # child launches, so it must stay compact
 @test sizeof(CUDACore.KernelState) == 2sizeof(UInt)
 
+# Closed type arguments use TypeEgal dispatch keys on Julia 1.14 and later.
+let K = Tuple{typeof(identity),Int,Tuple{Int}}
+    P = @static if isdefined(Core, :TypeEgal)
+        Core.TypeEgal{K}
+    else
+        Type{K}
+    end
+    @test CUDACore.hostcall_key_type(P) === K
+end
+
 # Blocking calls must not rely on forward progress from warps waiting for a port.
 let dev = device()
     sms = attribute(dev, CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
@@ -28,11 +38,18 @@ hostcall_boom(i::Int) = i == 3 ? error("boom $i") : 2i
 hostcall_tagged(i::Int, tag::Int) = i + tag
 hostcall_fail(::Int) = error("boom")
 hostcall_double(x::Int) = 2.0 * x
+hostcall_type(::Type) = 0
+hostcall_type(::Type{Int}) = 1
+hostcall_type(::Type{Float32}) = 2
 
 struct HostcallScale
     a::Float32
 end
 (s::HostcallScale)(x) = s.a * x
+
+struct HostcallDisplay
+    value::Int
+end
 
 # Calls from kernels into host functions, serviced by a foreign server thread.
 @testset "service" begin
@@ -110,6 +127,23 @@ end
     synchronize()
     @test hostcall_async_big_calls[] == 32
 
+    # The scalar send tier must also tell the service not to send a result. Otherwise a
+    # target with a multi-packet return value waits for a receiver that has already left.
+    scalar_key = Tuple{typeof(hostcall_async_big),NTuple{20,Int},Tuple{Int}}
+    CUDACore.register_hostcall_targets!([scalar_key])
+    function scalar_async_big()
+        K = Tuple{typeof(hostcall_async_big),NTuple{20,Int},Tuple{Int}}
+        CUDACore.hostcall_send_scalar!(CUDACore.hostcall_client(),
+                                      CUDACore.hostcall_target_id(K), (1,))
+        return
+    end
+    hostcall_async_big_calls[] = 0
+    @cuda threads=1 scalar_async_big()
+    synchronize()
+    # Raw protocols do not arm the generic service through compiler target discovery.
+    CUDACore.hostcall_drain()
+    @test hostcall_async_big_calls[] == 1
+
     # arguments and results larger than a packet
     function big(out)
         i = Int(threadIdx().x)
@@ -138,13 +172,46 @@ end
     synchronize()
     @test Array(out)[1] == 55
 
-    # A hash collision must fail at registration instead of silently changing dispatch.
+    # Targets are identified by the address of their rooted key type, like Julia's invoke
+    # references its callee: distinct keys cannot collide, identifiers never fall in the
+    # builtin id space, and registration is idempotent.
     K1 = Tuple{typeof(identity),Int,Tuple{Int}}
     K2 = Tuple{typeof(abs),Int,Tuple{Int}}
-    id = CUDACore.hostcall_target_id_value(K1)
-    @test id & CUDACore.HOSTCALL_STATIC_ID_BIT != 0
-    CUDACore.register_hostcall_targets!([id => K1])
-    @test_throws ErrorException CUDACore.register_hostcall_targets!([id => K2])
+    id1 = CUDACore.hostcall_target_word(K1)
+    id2 = CUDACore.hostcall_target_word(K2)
+    @test id1 != id2
+    @test id1 >= CUDACore.HOSTCALL_BUILTIN_IDS
+    @test id1 == UInt64(CUDACore.GPUCompiler.resolve_relocation_target(
+                           CUDACore.GPUCompiler.JuliaValueRef(K1)))
+    @test id1 == CUDACore.hostcall_target_word(K1)
+    CUDACore.register_hostcall_targets!([K1])
+    CUDACore.register_hostcall_targets!([K1])
+    target = CUDACore.hostcall_target(id1)
+    @test target !== nothing
+    @test target.key === K1
+end
+
+# handler and kernel for the redefinition testset below: they must be globals, both for the
+# redefinition to be a plain method replacement (redefining a local boxes the binding, which
+# the kernel would then capture) and so the kernel need not be recompiled
+hostcall_redef(x::Int) = x + 1
+function hostcall_redef_kernel(out)
+    out[1] = @hostcall hostcall_redef(1)::Int
+    return
+end
+
+@testset "handler redefinition" begin
+    # hostcalls behave like `invokelatest`: redefining the handler between launches takes
+    # effect without recompiling the kernel, re-seeding the service fast path
+    out = CUDA.zeros(Int, 1)
+    @cuda hostcall_redef_kernel(out)
+    synchronize()
+    @test Array(out)[1] == 2
+
+    @eval hostcall_redef(x::Int) = x + 41
+    @cuda hostcall_redef_kernel(out)
+    synchronize()
+    @test Array(out)[1] == 42
 end
 
 @testset "idle backoff" begin
@@ -274,6 +341,18 @@ end
 end
 
 @testset "static targets" begin
+    # Type values share the DataType payload type but dispatch on Type{T}. The service
+    # must resolve the received value, including on Julia 1.10's invoke lookup path.
+    function type_kernel(out)
+        out[1] = @hostcall hostcall_type(Int)::Int
+        out[2] = @hostcall hostcall_type(Float32)::Int
+        return
+    end
+    type_out = CUDA.zeros(Int, 2)
+    @cuda threads=1 type_kernel(type_out)
+    synchronize()
+    @test Array(type_out) == [1, 2]
+
     function kernel(out)
         i = Int(threadIdx().x)
         a = @hostcall hostcall_double(i)::Float64
@@ -306,6 +385,18 @@ end
     @test occursin("thread 1", output)
     @test occursin("thread 2", output)
     @test count("!", output) == 2
+
+    # Formatting also observes methods introduced after the server's adoption world.
+    @eval Base.show(io::IO, x::HostcallDisplay) = print(io, "display=", x.value)
+    function display_value()
+        @hostcall print(HostcallDisplay(7))::Nothing
+        return
+    end
+    _, output = @grab_output begin
+        @cuda threads=1 display_value()
+        synchronize()
+    end
+    @test output == "display=7"
 end
 
 @testset "completion callback failure" begin
