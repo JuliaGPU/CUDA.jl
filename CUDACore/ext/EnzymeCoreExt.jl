@@ -132,13 +132,13 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
     if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
             shadow = ofn.val(uval.val, primargs...)::CT
-            fill!(shadow, 0)
+            fill!(shadow, zero(eltype(shadow)))
             Duplicated(ofn.val(uval.val, primargs...), shadow)
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
                 shadow = ofn.val(uval.val, primargs...)::CT
-                fill!(shadow, 0)
+                fill!(shadow, zero(eltype(shadow)))
                 shadow::CT
             end
             BatchDuplicated(ofn.val(uval.val, primargs...), tup)
@@ -146,13 +146,13 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
     elseif EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
             shadow = ofn.val(uval.val, primargs...)::CT
-            fill!(shadow, 0)
+            fill!(shadow, zero(eltype(shadow)))
 	    shadow::shadow_type(config, RT)
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
                 shadow = ofn.val(uval.val, primargs...)::CT
-                fill!(shadow, 0)
+                fill!(shadow, zero(eltype(shadow)))
                 shadow::CT
             end
 	    tup::shadow_type(config, RT)
@@ -505,13 +505,13 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, :
     shadow = if EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
             subshadow = ofn.val(uval.val, primargs...)::CT
-            fill!(subshadow, 0)
+            fill!(subshadow, zero(eltype(subshadow)))
             subshadow
         else
           ntuple(Val(EnzymeRules.width(config))) do i
               Base.@_inline_meta
               subshadow = ofn.val(uval.val, primargs...)::CT
-              fill!(subshadow, 0)
+              fill!(subshadow, zero(eltype(subshadow)))
               subshadow
           end
         end
@@ -566,14 +566,24 @@ function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...)
     return nothing
 end
 
+# `make_zero`/`make_zero!` are defined element-wise, which would require scalar
+# indexing on a `CuArray`, so zero the array in bulk instead. That is only
+# equivalent to the element-wise definition when every part of the element type is
+# a float, which covers `Float32`, `ComplexF64`, `SVector{3,Float64}`, ...  Other
+# element types are left to the generic implementation, as before.
+@inline float_only(::Type{FT}) where {FT <: AbstractFloat} = true
+@inline float_only(::Type{Complex{FT}}) where {FT <: AbstractFloat} = true
+@inline float_only(::Type{FT}) where {FT} =
+    isbitstype(FT) && fieldcount(FT) > 0 && all(float_only, fieldtypes(FT))
+@inline bulk_zeroable(::Type{FT}) where {FT} =
+    float_only(FT) && hasmethod(Base.zero, Tuple{Type{FT}})
+
 @inline function EnzymeCore.make_zero(
     x::DenseCuArray{FT},
-) where {FT<:AbstractFloat}
-    return Base.zero(x)
-end
-@inline function EnzymeCore.make_zero(
-    x::DenseCuArray{Complex{FT}},
-) where {FT<:AbstractFloat}
+) where {FT}
+    if !bulk_zeroable(FT)
+        return EnzymeCore.make_zero(Core.Typeof(x), IdDict(), x, Val(false))
+    end
     return Base.zero(x)
 end
 
@@ -582,7 +592,10 @@ end
     seen::IdDict,
     prev::CT,
     ::Val{copy_if_inactive} = Val(false),
-)::CT where {copy_if_inactive, FT<:AbstractFloat, CT <: Union{DenseCuArray{FT},DenseCuArray{Complex{FT}}}}
+)::CT where {copy_if_inactive, FT, CT <: DenseCuArray{FT}}
+    if !bulk_zeroable(FT)
+        return copy_if_inactive ? copy(prev) : prev
+    end
     if haskey(seen, prev)
         return seen[prev]
     end
@@ -594,7 +607,8 @@ end
 @inline function EnzymeCore.make_zero!(
     prev::DenseCuArray{FT},
     seen::ST,
-)::Nothing where {FT<:AbstractFloat,ST}
+)::Nothing where {FT,ST}
+    bulk_zeroable(FT) || return nothing
     if !isnothing(seen)
         if prev in seen
             return nothing
@@ -602,20 +616,6 @@ end
         push!(seen, prev)
     end
     fill!(prev, zero(FT))
-    return nothing
-end
-
-@inline function EnzymeCore.make_zero!(
-    prev::DenseCuArray{Complex{FT}},
-    seen::ST,
-)::Nothing where {FT<:AbstractFloat,ST}
-    if !isnothing(seen)
-        if prev in seen
-            return nothing
-        end
-        push!(seen, prev)
-    end
-    fill!(prev, zero(Complex{FT}))
     return nothing
 end
 
@@ -662,7 +662,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(GPUAr
                                         ::Type{RT},
                                         f::EnzymeCore.Const{typeof(Base.identity)},
                                         op::EnzymeCore.Const{typeof(Base.add_sum)},
-                                        R::EnzymeCore.Annotation{<:AnyCuArray{T}}, A; init) where {RT, T<:AbstractFloat}
+                                        R::EnzymeCore.Annotation{<:AnyCuArray{T}}, A; init) where {RT, T}
     if A isa Const || A isa Duplicated || A isa BatchDuplicated
         ofn.val(f.val, op.val, R.val, A.val)
     end
@@ -686,7 +686,7 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(GPUArrays.mapr
                                         tape,
                                         f::EnzymeCore.Const{typeof(Base.identity)},
                                         op::EnzymeCore.Const{typeof(Base.add_sum)},
-                                        R::EnzymeCore.Annotation{<:AnyCuArray{T}}, A; init) where {RT, T<:AbstractFloat}
+                                        R::EnzymeCore.Annotation{<:AnyCuArray{T}}, A; init) where {RT, T}
 
     if !(A isa Const) && !(R isa Const)
         if A isa Duplicated || A isa DuplicatedNoNeed
@@ -742,7 +742,7 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(GPUAr
                                                 ::Type{Active{RT}},
                                         f::EnzymeCore.Const{typeof(Base.identity)},
                                         op::EnzymeCore.Const{typeof(Base.add_sum)},
-                                        A::EnzymeCore.Annotation{<:AnyCuArray{T}}; dims::D, init) where {RT, T<:AbstractFloat, D}
+                                        A::EnzymeCore.Annotation{<:AnyCuArray{T}}; dims::D, init) where {RT, T, D}
     primal = if EnzymeRules.needs_primal(config)
         ofn.val(f.val, op.val, A.val; dims, init)
     else
@@ -762,14 +762,16 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(GPUArrays._map
                                         tape,
                                         f::EnzymeCore.Const{typeof(Base.identity)},
                                         op::EnzymeCore.Const{typeof(Base.add_sum)},
-                                        A::EnzymeCore.Annotation{<:AnyCuArray{T}}; dims::D, init) where {RT, T<:AbstractFloat, D}
+                                        A::EnzymeCore.Annotation{<:AnyCuArray{T}}; dims::D, init) where {RT, T, D}
 
+    # `Ref` so that the cotangent is broadcast as a scalar; for a non-scalar
+    # element type like `SVector` it would otherwise broadcast over its own axes
     if A isa Duplicated || A isa DuplicatedNoNeed
-        A.dval .+= dres.val
+        A.dval .+= Ref(dres.val)
     elseif A isa BatchDuplicated || A isa BatchDuplicatedNoNeed
         ntuple(Val(EnzymeRules.batch_width(A))) do i
             Base.@_inline_meta
-            A.dval[i] .+= dres.val
+            A.dval[i] .+= Ref(dres.val)
             nothing
         end
     end
