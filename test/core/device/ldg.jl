@@ -45,6 +45,27 @@ end
     @test Array(d_a) == Array(d_b)
 end
 
+@testset "unsigned index" begin
+    # `getelementptr` treats its index as signed, so an unsigned index whose high bit is
+    # set must be zero-extended rather than sign-extended (cfr. JuliaLLVM/LLVM.jl#583).
+    # the pointer sits at the midpoint so a sign-extended offset would stay in bounds
+    # (and read the wrong element) instead of faulting.
+    for I in (UInt8, UInt16)
+        half = 1 << (8*sizeof(I) - 1)
+        a = CUDA.zeros(Int8, 2half + 2)
+        b = CUDA.zeros(Int8, 1)
+        CUDA.@allowscalar a[1] = 9
+        CUDA.@allowscalar a[2half + 1] = 3
+
+        ptr_a = reinterpret(Core.LLVMPtr{Int8,AS.Global}, pointer(a) + half)
+        ptr_b = reinterpret(Core.LLVMPtr{Int8,AS.Global}, pointer(b))
+        let ptr_a=ptr_a, ptr_b=ptr_b, i=I(half + 1)
+            @on_device unsafe_store!(ptr_b, unsafe_cached_load(ptr_a, i))
+        end
+        @test Array(b) == [3]
+    end
+end
+
 @testset "Const" begin
     function kernel(a, b, i)
         @inbounds b[i] = Base.Experimental.Const(a)[i]
