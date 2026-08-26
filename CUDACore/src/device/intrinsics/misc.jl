@@ -6,7 +6,7 @@ export clock, nanosleep
 
 Terminate a thread.
 """
-exit() = @asmcall("exit;")
+@device_function exit() = @asmcall("exit;")
 
 @device_functions begin
 """
@@ -33,7 +33,7 @@ Puts a thread for a given amount `t`(in nanoseconds).
 !!! note
     Requires compute capability 7.0.
 """
-@inline function nanosleep(t::Unsigned)
+@device_function @inline function nanosleep(t::Unsigned)
     require_sm_70()
     @asmcall("nanosleep.u32 \$0;", "r", true,
              Cvoid, Tuple{UInt32}, convert(UInt32, t))
