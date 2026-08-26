@@ -94,3 +94,41 @@
     end
     @test ndefs > 50
 end
+
+# The check above only finds definitions that were *supposed* to be device functions. A
+# GPU-only function that was never marked as one is just as fatal to ahead-of-time
+# compilation, which natively compiles every concretely-typed method whether or not it is
+# ever called. Emulate that for the device code: JIT-compile every method with a
+# concrete signature defined under `src/device`, in a subprocess, because a leaked
+# intrinsic or inline PTX kills the process (`LLVM ERROR: Cannot select`).
+@testset "device code survives compile-all" begin
+    script = """
+        using CUDA
+        function compile_all_device_code()
+            root = joinpath(pkgdir(CUDA.CUDACore), "src", "device")
+            mods = Module[CUDA.CUDACore]
+            for i in 1:length(mods), name in names(mods[i]; all=true)
+                isdefined(mods[i], name) || continue
+                v = getfield(mods[i], name)
+                v isa Module && v !== mods[i] && parentmodule(v) === mods[i] && push!(mods, v)
+            end
+            compiled = 0
+            for mod in mods, name in names(mod; all=true)
+                isdefined(mod, name) || continue
+                f = getfield(mod, name)
+                f isa Union{Function,Type} || continue
+                for m in methods(f)
+                    m.module in mods && startswith(String(m.file), root) || continue
+                    m.sig isa DataType && Base.isdispatchtuple(m.sig) || continue
+                    precompile(m.sig)
+                    compiled += 1
+                end
+            end
+            return compiled
+        end
+        compiled = compile_all_device_code()
+        compiled > 100 || error("only \$compiled methods compiled; test is broken")
+        """
+    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) --startup-file=no -e $script`
+    @test success(pipeline(cmd; stdout=stderr, stderr=stderr))
+end
