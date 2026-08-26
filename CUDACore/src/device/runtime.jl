@@ -123,6 +123,26 @@ end
 end
 
 
+# exception reports are sent to the host through the hostcall area as packets with this
+# layout, one per report or stack frame. the strings are pointers to
+# module-constant device strings, copied over by the host.
+const EXCEPTION_REPORT_NAME = UInt32(1)       # the exception; stack frames follow
+const EXCEPTION_REPORT_FRAME = UInt32(2)      # one stack frame
+const EXCEPTION_REPORT_NOTRACE = UInt32(3)    # the exception, without stack frames
+struct ExceptionReport
+    kind::UInt32
+    idx::Int32                  # frame index
+    a::Ptr{UInt8}               # exception name / frame function
+    b::Ptr{UInt8}               # subtype / frame file
+    c::Ptr{UInt8}               # reason / unused
+    line::Int32
+    thread::@NamedTuple{x::Int32,y::Int32,z::Int32}
+    block::@NamedTuple{x::Int32,y::Int32,z::Int32}
+end
+
+# reports are sent through `hostcall_send_scalar!`: the exception output lock admits
+# exactly one lane, so the warp-collective port protocol is not needed.
+
 # it's not useful to have several threads report exceptions (interleaved output, can crash
 # CUDA), so use an output lock to only have a single thread write an exception message
 @inline function lock_output!(info::ExceptionInfo)
@@ -141,58 +161,86 @@ end
     end
 end
 
+# NOTE: kernels always run with a functional hostcall client; a no-port client only exists
+#       for kernels compiled during precompilation, which are never launched. still guard
+#       against it: `hostcall_send_scalar!` with zero ports would divide by zero and spin.
+#       the exception itself is still signalled through the flag, just without a report.
+
 function report_exception(ex)
     # this is the first reporting function being called, so claim the exception
-    info = kernel_state().exception_info
+    info = exception_info()
     if lock_output!(info)
-        # override the exception type GPUCompiler deduced if the user provided a subtype
-        if info.subtype != C_NULL
-            ex = info.subtype
+        client = hostcall_client()
+        if client.nports != 0
+            hostcall_send_scalar!(client, HC_EXCEPTION,
+                ExceptionReport(EXCEPTION_REPORT_NOTRACE, 0, ex, info.subtype, info.reason, 0,
+                                threadIdx(), blockIdx()))
         end
-        @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
-                  ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
-        if info.reason != C_NULL
-            @cuprintf("%s\n", info.reason)
-        end
-        @cuprintf("Stacktrace not available, run Julia on debug level 2 for more details (by passing -g2 to the executable).\n")
     end
     return
 end
 
 function report_exception_name(ex)
-    info = kernel_state().exception_info
+    info = exception_info()
 
     # this is the first reporting function being called, so claim the exception
     if lock_output!(info)
-        # override the exception type GPUCompiler deduced if the user provided a subtype
-        if info.subtype != C_NULL
-            ex = info.subtype
+        client = hostcall_client()
+        if client.nports != 0
+            hostcall_send_scalar!(client, HC_EXCEPTION,
+                ExceptionReport(EXCEPTION_REPORT_NAME, 0, ex, info.subtype, info.reason, 0,
+                                threadIdx(), blockIdx()))
         end
-        @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
-                  ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
-        if info.reason != C_NULL
-            @cuprintf("%s\n", info.reason)
-        end
-        @cuprintf("Stacktrace:\n")
     end
     return
 end
 
 function report_exception_frame(idx, func, file, line)
-    info = kernel_state().exception_info
+    info = exception_info()
 
     if lock_output!(info)
-        @cuprintf(" [%d] %s at %s:%d\n", idx, func, file, line)
+        client = hostcall_client()
+        if client.nports != 0
+            hostcall_send_scalar!(client, HC_EXCEPTION,
+                ExceptionReport(EXCEPTION_REPORT_FRAME, idx, func, file, C_NULL, line,
+                                threadIdx(), blockIdx()))
+        end
+    end
+    return
+end
+
+# out-of-memory reports carry the size of the failed allocation. `gc_pool_alloc` throws an
+# OutOfMemoryError right after calling `report_oom`, whose report only carries the
+# exception name; the host merges the two by thread and attaches the size as the reason.
+struct OOMReport
+    sz::UInt64
+    thread::@NamedTuple{x::Int32,y::Int32,z::Int32}
+    block::@NamedTuple{x::Int32,y::Int32,z::Int32}
+end
+
+function report_oom(sz)
+    # this runs before the ensuing exception, so claim that exception's report: the same
+    # thread re-enters the output lock when it throws, and other threads (which may be
+    # failing the same allocation) do not send reports of their own
+    info = exception_info()
+    if lock_output!(info)
+        # the throw in `gc_pool_alloc` lowers to a generic "exception" name, so label the
+        # report like the quirks do
+        info.subtype = @strptr "OutOfMemoryError"
+        client = hostcall_client()
+        if client.nports != 0
+            hostcall_send_scalar!(client, HC_OOM,
+                                  OOMReport(sz % UInt64, threadIdx(), blockIdx()))
+        end
     end
     return
 end
 
 function signal_exception()
-    info = kernel_state().exception_info
+    info = exception_info()
 
-    # finalize output
+    # mark the report as complete
     if lock_output!(info)
-        @cuprintf("\n")
         info.output_lock = 2
     end
 
@@ -210,16 +258,14 @@ end
 ## kernel state
 
 struct KernelState
-    exception_info::ExceptionInfo
+    client::HostcallClientPtr
     random_seed::UInt32
 end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
 
-
-## other
-
-function report_oom(sz)
-    @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %d bytes)\n", sz)
-    return
+@inline function hostcall_client()
+    return unsafe_load(kernel_state().client)
 end
+
+@inline exception_info() = reinterpret(ExceptionInfo, hostcall_client().exception_info)
