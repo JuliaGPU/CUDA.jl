@@ -83,7 +83,7 @@ end
     CuDeviceArray{T,N,AS.Generic}(ptr, shared_array.dims, shared_array.maxsize)
 end
 
-@inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
+@device_function @inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}
     require_sm_90()
     # This requires LLVM >=20 (i.e. Julia >= 1.13)
     ptr7 = @asmcall(

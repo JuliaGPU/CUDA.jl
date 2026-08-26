@@ -338,7 +338,7 @@ is_cta_master() = threadIdx().x == 1 && threadIdx().y == 1 && threadIdx().z == 1
     barrier_wait(gg, token)
 end
 
-@inline function barrier_arrive(gg::grid_group)
+@device_function @inline function barrier_arrive(gg::grid_group)
     if !is_valid(gg)
         cg_abort()
     end
@@ -373,7 +373,7 @@ end
     return oldArrive
 end
 
-@inline function barrier_wait(gg::grid_group, token)
+@device_function @inline function barrier_wait(gg::grid_group, token)
     arrived = gg.details.barrier
 
     if is_cta_master()

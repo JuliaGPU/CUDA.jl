@@ -12,7 +12,7 @@ import RandomNumbers
 # XXX: this implies that state is shared between `rng` objects, which can be surprising.
 
 # array with seeds, per warp, initialized on kernel start or by calling `seed!`
-@eval @inline function global_random_keys()
+@eval @device_function @inline function global_random_keys()
     ptr = Base.llvmcall(
         $("""@global_random_keys = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
              define i8 addrspace($(AS.Shared))* @entry() #0 {
@@ -26,7 +26,7 @@ import RandomNumbers
 end
 
 # array with per-warp counters, incremented when generating numbers
-@eval @inline function global_random_counters()
+@eval @device_function @inline function global_random_counters()
     ptr = Base.llvmcall(
         $("""@global_random_counters = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
              define i8 addrspace($(AS.Shared))* @entry() #0 {
