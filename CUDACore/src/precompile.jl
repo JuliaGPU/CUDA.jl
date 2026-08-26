@@ -1,7 +1,9 @@
-# `llvm_compat()` requires being able to initialize the NVPTX backend, so we run the
-# precompile workload only when that's supported, to be able to load this package also on
-# systems where the backend isn't available.
-if :NVPTX in LLVM.backends()
+# `llvm_compat()` requires being able to initialize the NVPTX backend, and `ptxas_compat()`
+# requires the CUDA compiler, so we run the precompile workload only when both are
+# available, to be able to load this package also on systems where the backend isn't
+# available or where no CUDA compiler was selected (e.g. no driver and no version
+# preference).
+if :NVPTX in LLVM.backends() && CUDA_Compiler.is_available()
     @compile_workload begin
         # compile a dummy kernel to precompile the GPUCompiler pipeline.
         # this uses the compiler toolchain, but doesn't need a GPU.

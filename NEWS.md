@@ -41,6 +41,15 @@ Julia 1.10 the cache stays session-local
   with `CUDA_Runtime_Discovery`. Requires CUDA_Compiler_jll 0.5 and
   CUDA_Runtime_jll 0.24
   ([#3227](https://github.com/JuliaGPU/CUDA.jl/pull/3227)).
+- On systems without a CUDA driver and without a version preference, no CUDA
+  compiler artifact is selected anymore, matching what already happened for the
+  runtime. Previously `CUDA_Compiler_jll` fell back to the most recent toolkit,
+  which downloaded a large artifact at load time and made `using CUDA` fail
+  when that artifact was unavailable or incomplete. The precompilation workload
+  that compiles a dummy kernel is skipped in that case; to precompile or
+  cross-compile GPU code on such a system, set the toolkit explicitly with
+  `CUDA.set_runtime_version!`. Requires CUDA_Compiler_jll 0.6
+  ([#3242](https://github.com/JuliaGPU/CUDA.jl/issues/3242)).
 - Device intrinsics that need a minimum compute capability now fail at compile
   time with an explanatory error, instead of generating PTX that `ptxas`
   rejects. This affects 16-bit `atomic_cas!`, `dp4a`, `nanosleep`,

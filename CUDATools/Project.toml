@@ -25,7 +25,7 @@ NVML = {path = "../lib/nvml"}
 
 [compat]
 CUDACore = "=6.3.0"
-CUDA_Compiler_jll = "0.5"
+CUDA_Compiler_jll = "0.6"
 CUPTI = "=6.3.0"
 Crayons = "4"
 GPUCompiler = "2"
