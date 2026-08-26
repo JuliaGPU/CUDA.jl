@@ -569,8 +569,8 @@ end
 # `make_zero`/`make_zero!` are defined element-wise, which would require scalar
 # indexing on a `CuArray`, so zero the array in bulk instead. That is only
 # equivalent to the element-wise definition when every part of the element type is
-# a float, which covers `Float32`, `ComplexF64`, `SVector{3,Float64}`, ...  Other
-# element types are left to the generic implementation, as before.
+# a float, which covers `Float32`, `ComplexF64`, `SVector{3,Float64}` etc.
+# For other element types the element-wise definition is run on a host copy instead.
 @inline float_only(::Type{FT}) where {FT <: AbstractFloat} = true
 @inline float_only(::Type{Complex{FT}}) where {FT <: AbstractFloat} = true
 @inline float_only(::Type{FT}) where {FT} =
@@ -578,11 +578,23 @@ end
 @inline bulk_zeroable(::Type{FT}) where {FT} =
     float_only(FT) && hasmethod(Base.zero, Tuple{Type{FT}})
 
+# An element type that is not `bulk_zeroable` can still have float content that has to be
+# zeroed, e.g. any struct mixing floats with flags or indices
+@inline function make_zero_via_host(prev::CT,
+                                    ::Val{copy_if_inactive}) where {copy_if_inactive, CT <: DenseCuArray}
+    zeroed = map(Array(prev)) do x
+        EnzymeCore.make_zero(Core.Typeof(x), IdDict(), x, Val(copy_if_inactive))
+    end
+    newa = similar(prev)
+    copyto!(newa, zeroed)
+    return newa::CT
+end
+
 @inline function EnzymeCore.make_zero(
     x::DenseCuArray{FT},
 ) where {FT}
     if !bulk_zeroable(FT)
-        return EnzymeCore.make_zero(Core.Typeof(x), IdDict(), x, Val(false))
+        return make_zero_via_host(x, Val(false))
     end
     return Base.zero(x)
 end
@@ -593,13 +605,10 @@ end
     prev::CT,
     ::Val{copy_if_inactive} = Val(false),
 )::CT where {copy_if_inactive, FT, CT <: DenseCuArray{FT}}
-    if !bulk_zeroable(FT)
-        return copy_if_inactive ? copy(prev) : prev
-    end
     if haskey(seen, prev)
         return seen[prev]
     end
-    newa = Base.zero(prev)
+    newa = bulk_zeroable(FT) ? Base.zero(prev) : make_zero_via_host(prev, Val(copy_if_inactive))
     seen[prev] = newa
     return newa
 end
@@ -608,14 +617,17 @@ end
     prev::DenseCuArray{FT},
     seen::ST,
 )::Nothing where {FT,ST}
-    bulk_zeroable(FT) || return nothing
     if !isnothing(seen)
         if prev in seen
             return nothing
         end
         push!(seen, prev)
     end
-    fill!(prev, zero(FT))
+    if bulk_zeroable(FT)
+        fill!(prev, zero(FT))
+    else
+        copyto!(prev, map(EnzymeCore.make_zero, Array(prev)))
+    end
     return nothing
 end
 
