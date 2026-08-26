@@ -36,7 +36,9 @@ macro device_function(ex)
     end
 
     esc(quote
-        $(combinedef(def))
+        # `@__doc__` makes docstrings apply to the CPU stub (i.e., to the function
+        # binding), so that `@device_functions` can rewrite documented definitions
+        Base.@__doc__ $(combinedef(def))
 
         # NOTE: no use of `@consistent_overlay` here because the regular function errors
         Base.Experimental.@overlay($(CUDACore.method_table), $ex)
@@ -44,28 +46,39 @@ macro device_function(ex)
 end
 
 macro device_functions(ex)
-    ex = macroexpand(__module__, ex)
-
-    # recursively prepend `@device_function` to all function definitions
-    function rewrite(block)
-        out = Expr(:block)
-        for arg in block.args
-            if Meta.isexpr(arg, :block)
-                # descend into blocks
-                push!(out.args, rewrite(arg))
-            elseif Meta.isexpr(arg, [:function, :(=)])
-                # capture temp variable for Julia 1.13 and rewrite function definitions
-                if Meta.isexpr(arg, :(=)) && isa(arg.args[1], Symbol) && Meta.isexpr(arg.args[2], [:function, :(=)])
-                    push!(out.args, Expr(:(=), arg.args[1], :(@device_function $(arg.args[2]))))
-                else
-                    push!(out.args, :(@device_function $arg))
-                end
-            else
-                # preserve all the rest
-                push!(out.args, arg)
-            end
+    # recursively prepend `@device_function` to all function definitions.
+    #
+    # NOTE: definitions are rewritten *before* macro expansion, where possible. In
+    #       particular, docstrings (`Core.@doc`) are handled by descending into the
+    #       documented expression, because the shape of `@doc`'s expansion has changed
+    #       repeatedly (Julia 1.13 wraps the definition in `if true; val = ...; end`),
+    #       and any definition that escapes this rewrite ends up in the global method
+    #       table as a CPU-callable function containing GPU-only intrinsics, which
+    #       breaks ahead-of-time compilation (JuliaGPU/GPUCompiler.jl#611).
+    isdef(ex) = Meta.isexpr(ex, :function) ||
+                (Meta.isexpr(ex, :(=)) && Meta.isexpr(ex.args[1], (:call, :where, :(::))))
+    isdoc(m) = m === GlobalRef(Core, Symbol("@doc")) || m === Symbol("@doc") ||
+               (Meta.isexpr(m, :.) && m.args[end] == QuoteNode(Symbol("@doc")))
+    function rewrite(ex)
+        if isdef(ex)
+            return :(@device_function $ex)
+        elseif Meta.isexpr(ex, :macrocall) && isdoc(ex.args[1])
+            # docstring: rewrite the documented expression
+            return Expr(:macrocall, ex.args[1:end-1]..., rewrite(ex.args[end]))
+        elseif Meta.isexpr(ex, :macrocall)
+            # other macros (e.g. `@inline`): expand, then rewrite the result
+            return rewrite(macroexpand(__module__, ex))
+        elseif Meta.isexpr(ex, (:block, :if, :elseif))
+            # descend into blocks, and into conditionals (the `@doc` expansion on
+            # Julia 1.13 wraps definitions in `if true ... end`)
+            return Expr(ex.head, map(rewrite, ex.args)...)
+        elseif Meta.isexpr(ex, :(=)) && isa(ex.args[1], Symbol)
+            # assignment of a definition to a temporary (also from `@doc` expansion)
+            return Expr(:(=), ex.args[1], rewrite(ex.args[2]))
+        else
+            # preserve all the rest
+            return ex
         end
-        out
     end
 
     esc(rewrite(ex))
