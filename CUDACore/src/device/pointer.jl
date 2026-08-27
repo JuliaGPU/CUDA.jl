@@ -31,10 +31,10 @@ const LDGTypes = (UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64,
     # method covers both scalar and vector element types, since `convert(LLVMType, T)`
     # already maps `NTuple{N, VecElement{T}}` to `<N x T>`.
     @device_function @inline @generated function pointerref_ldg(ptr::LLVMPtr{T,AS.Global},
-                                                                i::I, ::Val{align}) where {T, I, align}
+                                                                i::Int, ::Val{align}) where {T, align}
         @dispose ctx=Context() begin
             eltyp = convert(LLVMType, T)
-            T_idx = convert(LLVMType, I)
+            T_idx = convert(LLVMType, Int)
             T_ptr = convert(LLVMType, ptr)
 
             llvm_f, _ = create_function(eltyp, [T_ptr, T_idx])
@@ -51,13 +51,13 @@ const LDGTypes = (UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64,
                 ret!(builder, ld)
             end
 
-            call_function(llvm_f, T, Tuple{LLVMPtr{T,AS.Global}, I}, :ptr, :(i-one(I)))
+            call_function(llvm_f, T, Tuple{LLVMPtr{T,AS.Global}, Int}, :ptr, :(i - 1))
         end
     end
 
     for (N, T) in ((4, Float32), (2, Float64), (4, Int8), (4, Int16), (4, Int32), (2, Int64))
-        @eval unsafe_cached_load(p::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer=1, align::Val=Val(1)) =
-            pointerref_ldg(p, i, align)
+        @eval @inline unsafe_cached_load(p::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer=1, align::Val=Val(1)) =
+            pointerref_ldg(p, Int(i), align)
     end
 else
     for T in LDGTypes
@@ -71,10 +71,10 @@ else
         typ = Symbol(class, width)
 
         intr = "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
-        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::I,
-                                              ::Val{align}) where {I <: Integer, align}
-            offset = i-one(i) # in elements
-            ptr = base_ptr + offset*I(sizeof($T))
+        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Int,
+                                              ::Val{align}) where {align}
+            offset = i - 1 # in elements
+            ptr = base_ptr + offset*sizeof($T)
             @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr, Val(align))
         end
     end
@@ -90,14 +90,14 @@ else
         typ = Symbol(class, width)
 
         intr = "llvm.nvvm.ldg.global.$class.v$N$typ.p1v$N$typ"
-        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::I,
-                                              ::Val{align}) where {I <: Integer, align}
-            offset = i-one(i) # in elements
-            ptr = base_ptr + offset*I($N*sizeof($T))
+        @eval @device_function @inline function pointerref_ldg(base_ptr::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Int,
+                                              ::Val{align}) where {align}
+            offset = i - 1 # in elements
+            ptr = base_ptr + offset*($N*sizeof($T))
             @typed_ccall($intr, llvmcall, $NTuple{$N, Base.VecElement{$T}}, (LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, Int32), ptr, Val(align))
         end
-        @eval unsafe_cached_load(p::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer=1, align::Val=Val(1)) =
-            pointerref_ldg(p, i, align)
+        @eval @inline unsafe_cached_load(p::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer=1, align::Val=Val(1)) =
+            pointerref_ldg(p, Int(i), align)
     end
 end
 
@@ -105,8 +105,10 @@ end
 
 export unsafe_cached_load
 
-unsafe_cached_load(p::LLVMPtr{<:Union{LDGTypes...},AS.Global}, i::Integer=1, align::Val=Val(1)) =
-    pointerref_ldg(p, i, align)
+# Like `unsafe_load`, the index is widened to `Int` before reaching the intrinsic so that
+# an unsigned index is zero-extended in Julia, rather than sign-extended by `getelementptr`.
+@inline unsafe_cached_load(p::LLVMPtr{<:Union{LDGTypes...},AS.Global}, i::Integer=1, align::Val=Val(1)) =
+    pointerref_ldg(p, Int(i), align)
 # NOTE: fall back to normal unsafe_load for unsupported types. we could be smarter here,
 #       e.g. destruct/load/reconstruct, but that's too complicated for what it's worth.
 unsafe_cached_load(p::LLVMPtr, i::Integer=1, align::Val=Val(1)) =
