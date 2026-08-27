@@ -205,7 +205,9 @@ CUDA\_Runtime\_Discovery when the corresponding local preference is set.
 CUDA.jl can be precompiled and imported on systems without a GPU or CUDA installation. This
 simplifies the situation where an application optionally uses CUDA. However, when CUDA.jl
 is precompiled in such an environment, it *cannot* be used to run GPU code. This is a
-result of artifacts being selected at precompile time.
+result of artifacts being selected at precompile time: without a CUDA driver, neither the
+CUDA runtime nor the CUDA compiler artifacts are selected, so nothing is downloaded, and
+kernels cannot be compiled.
 
 In some cases, e.g. with containers or HPC log-in nodes, you may want to precompile CUDA.jl
 on a system without CUDA, yet still want to have it download the necessary artifacts and/or
