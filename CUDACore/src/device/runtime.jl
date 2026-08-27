@@ -141,7 +141,7 @@ end
     end
 end
 
-function report_exception(ex)
+@device_function function report_exception(ex)
     # this is the first reporting function being called, so claim the exception
     info = kernel_state().exception_info
     if lock_output!(info)
@@ -159,7 +159,7 @@ function report_exception(ex)
     return
 end
 
-function report_exception_name(ex)
+@device_function function report_exception_name(ex)
     info = kernel_state().exception_info
 
     # this is the first reporting function being called, so claim the exception
@@ -178,7 +178,7 @@ function report_exception_name(ex)
     return
 end
 
-function report_exception_frame(idx, func, file, line)
+@device_function function report_exception_frame(idx, func, file, line)
     info = kernel_state().exception_info
 
     if lock_output!(info)
@@ -187,7 +187,7 @@ function report_exception_frame(idx, func, file, line)
     return
 end
 
-function signal_exception()
+@device_function function signal_exception()
     info = kernel_state().exception_info
 
     # finalize output
@@ -219,7 +219,7 @@ end
 
 ## other
 
-function report_oom(sz)
+@device_function function report_oom(sz)
     @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %d bytes)\n", sz)
     return
 end
