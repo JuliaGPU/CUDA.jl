@@ -245,11 +245,15 @@ steps:
           julia --project -e '
             using CUDA
             @assert !CUDA.functional()
+            @assert !CUDACore.CUDA_Runtime.is_available()
+            @assert !CUDACore.CUDA_Compiler.is_available()
             @assert !isdefined(CUDACore, :libcudart)
             CUDA.set_runtime_version!(v"12.0")'
           julia --project -e '
             using CUDA
             @assert !CUDA.functional()
+            @assert CUDACore.CUDA_Runtime.is_available()
+            @assert CUDACore.CUDA_Compiler.is_available()
             @assert isdefined(CUDACore, :libcudart)'
         agents:
           queue: "oneapi"
