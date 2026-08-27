@@ -1,5 +1,6 @@
 using Enzyme, EnzymeCore
 using GPUCompiler
+using StaticArrays
 using Test
 using CUDA
 
@@ -14,6 +15,22 @@ end
    dA = CUDA.ones(64)
    Enzyme.make_zero!(dA)
    @test all(dA .≈ 0)
+
+   # element types that are made up of floats are zeroed like floats are
+   A = CuArray(fill(SVector{3, Float64}(1, 2, 3), 8))
+   dA = Enzyme.make_zero(A)
+   @test dA isa CuArray{SVector{3, Float64}}
+   @test pointer(dA) != pointer(A)
+   @test all(iszero, Array(dA))
+   Enzyme.make_zero!(A)
+   @test all(iszero, Array(A))
+
+   # element types that hold no float at all are inactive and left alone,
+   # as they are on the CPU
+   B = CuArray(Int32[1, 2, 3])
+   @test Enzyme.make_zero(B) === B
+   Enzyme.make_zero!(B)
+   @test Array(B) == Int32[1, 2, 3]
 end
 
 function square_kernel!(x)
@@ -100,6 +117,17 @@ end
     @test all(shad .≈ 0.0)
 end
 
+svalloc(x) = CuArray{SVector{3, Float64}, 1, CUDA.DeviceMemory}(undef, (x,))
+
+@testset "Allocate SVector" begin
+    dup = Enzyme.autodiff(ForwardWithPrimal, svalloc, Duplicated, Const(10))
+    @test all(iszero, Array(dup[1]))
+
+    fwd, rev = Enzyme.autodiff_thunk(ReverseSplitWithPrimal, Const{typeof(svalloc)}, Duplicated, Const{Int})
+    tape, prim, shad = fwd(Const(svalloc), Const(10))
+    @test all(iszero, Array(shad))
+end
+
 firstsum(x, y) = first(x .+ y)
 @testset "Forward broadcast" begin
     x = CuArray(5*ones(5))
@@ -153,6 +181,24 @@ end
     res = Enzyme.autodiff(Reverse, setadd, Duplicated(out, dout), Duplicated(x, dx), Duplicated(y, dy))
     @test all(dx .≈ 1)
     @test all(dy .≈ 1)
+end
+
+sumsvabs2(x) = sum(sum.(abs2, x))
+
+@testset "Reverse sum abs2 SVector" begin
+    x = CuArray([SVector{3, Float64}(1, 2, 3), SVector{3, Float64}(4, 5, 6)])
+    dx = CUDA.fill(zero(SVector{3, Float64}), 2)
+    Enzyme.autodiff(Reverse, sumsvabs2, Active, Duplicated(x, dx))
+    @test Array(dx) ≈ 2 .* Array(x)
+end
+
+sumsv(x) = sum(abs2, sum(x))
+
+@testset "Reverse sum of SVectors" begin
+    x = CuArray([SVector{3, Float64}(1, 2, 3), SVector{3, Float64}(4, 5, 6)])
+    dx = CUDA.fill(zero(SVector{3, Float64}), 2)
+    Enzyme.autodiff(Reverse, sumsv, Active, Duplicated(x, dx))
+    @test Array(dx) ≈ fill(2 .* SVector{3, Float64}(5, 7, 9), 2)
 end
 
 sumabs2(x) = sum(abs2.(x))
