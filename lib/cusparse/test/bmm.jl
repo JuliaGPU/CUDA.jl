@@ -245,18 +245,9 @@ end
     end
 end
 
-# 16-bit inputs use a wider Float32 cuSPARSE compute type internally (every
-# Float16 value converts to it exactly), so the reference is computed in that
-# same precision. The only rounding error left is the final store back to
-# Float16, at most half a Float16 ULP (~5e-4 relative); rtol leaves margin for
-# summation-order differences between the GPU kernel and this sequential
-# reference.
-#
-# cuSPARSE's mixed-precision SpMM only supports transa = 'N' (no transposed
-# or adjoint sparse operand) and does not support ComplexF16 through the
-# CSR-backed codepath that bmm! uses. These are library limitations, not bugs
-# in `bmm!`, so only the non-transposed Float16 case is exercised here.
-@testset "Sparse-Dense Float16 bmm! 16-bit mixed-precision compute type" begin
+# Float16 must use Float32 as accumulation type, which is the only configuration
+# supported by cuSPARSE
+@testset "Sparse-Dense Float16 bmm! (Float32 accumulation type)" begin
     elty = Float16
     m = 5
     n = 15

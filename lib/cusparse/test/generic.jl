@@ -18,7 +18,7 @@ using LinearAlgebra
     dA = CuSparseMatrixCSR(dA)
     mv!('N', one(T), dA, dx, zero(T), dy, 'O')
     @test Array(dy) ≈ A * x
-    
+
     A_bad = sprand(T, m+1, m, 0.1)
     dA_bad = adapt(CuArray, A_bad)
     @test_throws DimensionMismatch("Y must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy, 'O')
@@ -129,19 +129,9 @@ for SparseMatrixType in keys(SPMM_ALGOS)
     end
 end
 
-# 16-bit inputs use a wider Float32 cuSPARSE compute type internally (every
-# Float16/ComplexF16 value converts to it exactly), so the reference is
-# computed in that same precision. The only rounding error left is the final
-# store back to Float16, at most half a Float16 ULP (~5e-4 relative); rtol
-# leaves margin for summation-order differences between the GPU kernel and
-# this sequential reference.
-#
-# cuSPARSE's mixed-precision SpMM only supports transa = 'N' (no transposed
-# or adjoint sparse operand), does not support CSC at all, and does not
-# support ComplexF16 through the CSR-backed codepath used by CSC and CSR —
-# only COO accepts it. These are library limitations, not bugs in `mm!`;
-# each combination below is one cuSPARSE actually implements.
-@testset "mm! 16-bit mixed-precision compute type" begin
+# Float16 must use Float32 as accumulation type, which is the only configuration
+# supported by cuSPARSE (same for ComplexF16)
+@testset "Float16 mm! (Float32 accumulation type)" begin
     @testset "$T -- $SparseMatrixType" for (T, SparseMatrixTypes) in
         (Float16 => (CuSparseMatrixCSR, CuSparseMatrixCOO), ComplexF16 => (CuSparseMatrixCOO,)),
         SparseMatrixType in SparseMatrixTypes
