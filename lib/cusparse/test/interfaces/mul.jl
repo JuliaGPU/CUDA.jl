@@ -185,3 +185,38 @@ using LinearAlgebra, SparseArrays
         end
     end
 end
+
+# 16-bit inputs use a wider Float32 cuSPARSE compute type internally (every
+# Float16/ComplexF16 value converts to it exactly), so the reference is
+# computed in that same precision. The only rounding error left is the final
+# store back to Float16, at most half a Float16 ULP (~5e-4 relative); rtol
+# leaves margin for summation-order differences between the GPU kernel and
+# this sequential reference.
+#
+# cuSPARSE's mixed-precision SpMM does not support CSC at all, and does not
+# support ComplexF16 through the CSR-backed codepath used by CSR — only COO
+# accepts it. These are library limitations, not bugs in `mul!`; each
+# combination below is one cuSPARSE actually implements.
+@testset "mul! sparse * dense, 16-bit mixed-precision compute type, $elty" for
+    (elty, SparseMatrixTypes) in (Float16 => (CuSparseMatrixCSR, CuSparseMatrixCOO),
+                                   ComplexF16 => (CuSparseMatrixCOO,))
+
+    m, k, n = 20, 15, 10
+    refty = elty <: Complex ? ComplexF32 : Float32
+    alpha = elty(2)
+    beta = elty(3)
+
+    @testset "$SparseMatrixType" for SparseMatrixType in SparseMatrixTypes
+        A = sprand(elty, m, k, 0.5)
+        B = rand(elty, k, n)
+        C = rand(elty, m, n)
+        dA = SparseMatrixType(A)
+        dB = CuArray(B)
+        dC = CuArray(C)
+
+        mul!(dC, dA, dB, alpha, beta)
+
+        Cref = refty(alpha) .* (refty.(A) * refty.(B)) .+ refty(beta) .* refty.(C)
+        @test collect(dC) ≈ Cref rtol=2e-3
+    end
+end

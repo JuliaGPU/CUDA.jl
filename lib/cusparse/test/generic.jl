@@ -129,6 +129,40 @@ for SparseMatrixType in keys(SPMM_ALGOS)
     end
 end
 
+# 16-bit inputs use a wider Float32 cuSPARSE compute type internally (every
+# Float16/ComplexF16 value converts to it exactly), so the reference is
+# computed in that same precision. The only rounding error left is the final
+# store back to Float16, at most half a Float16 ULP (~5e-4 relative); rtol
+# leaves margin for summation-order differences between the GPU kernel and
+# this sequential reference.
+#
+# cuSPARSE's mixed-precision SpMM only supports transa = 'N' (no transposed
+# or adjoint sparse operand), does not support CSC at all, and does not
+# support ComplexF16 through the CSR-backed codepath used by CSC and CSR —
+# only COO accepts it. These are library limitations, not bugs in `mm!`;
+# each combination below is one cuSPARSE actually implements.
+@testset "mm! 16-bit mixed-precision compute type" begin
+    @testset "$T -- $SparseMatrixType" for (T, SparseMatrixTypes) in
+        (Float16 => (CuSparseMatrixCSR, CuSparseMatrixCOO), ComplexF16 => (CuSparseMatrixCOO,)),
+        SparseMatrixType in SparseMatrixTypes
+
+        refT = T <: Complex ? ComplexF32 : Float32
+        A = sprand(T, 10, 10, 0.3)
+        B = rand(T, 10, 4)
+        C = rand(T, 10, 4)
+        dA = SparseMatrixType(A)
+        dB = CuArray(B)
+        dC = CuArray(C)
+
+        alpha = T(2)
+        beta = T(3)
+        mm!('N', 'N', alpha, dA, dB, beta, dC, 'O')
+
+        Cref = refT(alpha) .* (refT.(A) * refT.(B)) .+ refT(beta) .* refT.(C)
+        @test collect(dC) ≈ Cref rtol=2e-3
+    end
+end
+
 # Algorithms for CSC and CSR matrices are swapped
 SPMM_ALGOS = Dict(CuSparseMatrixBSR => [cuSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],
                   CuSparseMatrixCSR => [cuSPARSE.CUSPARSE_SPMM_ALG_DEFAULT],

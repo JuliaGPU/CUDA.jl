@@ -244,3 +244,44 @@ end
         @test D ≈ C
     end
 end
+
+# 16-bit inputs use a wider Float32 cuSPARSE compute type internally (every
+# Float16 value converts to it exactly), so the reference is computed in that
+# same precision. The only rounding error left is the final store back to
+# Float16, at most half a Float16 ULP (~5e-4 relative); rtol leaves margin for
+# summation-order differences between the GPU kernel and this sequential
+# reference.
+#
+# cuSPARSE's mixed-precision SpMM only supports transa = 'N' (no transposed
+# or adjoint sparse operand) and does not support ComplexF16 through the
+# CSR-backed codepath that bmm! uses. These are library limitations, not bugs
+# in `bmm!`, so only the non-transposed Float16 case is exercised here.
+@testset "Sparse-Dense Float16 bmm! 16-bit mixed-precision compute type" begin
+    elty = Float16
+    m = 5
+    n = 15
+    k = 25
+    p = 0.5
+    refT = Float32
+
+    α = elty(2)
+    β = elty(3)
+
+    @testset "C = αAB + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, k, n, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = refT.(collect(C))
+
+        cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O')
+
+        D[:,:,1] = refT(α) * refT.(collect(A1)) * refT.(collect(B[:,:,1])) + refT(β) * D[:,:,1]
+        D[:,:,2] = refT(α) * refT.(collect(A2)) * refT.(collect(B[:,:,2])) + refT(β) * D[:,:,2]
+
+        @test collect(C) ≈ D rtol=2e-3
+    end
+end
