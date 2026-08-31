@@ -98,7 +98,11 @@ mutable struct CuGraphExec
             buflen = 256
             buf = Vector{UInt8}(undef, buflen)
             GC.@preserve buf begin
-                cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
+                if driver_version() >= v"11"
+                    cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
+                else
+                    cuGraphInstantiate(handle_ref, graph, error_node, pointer(buf), buflen)
+                end
             end
         end
 

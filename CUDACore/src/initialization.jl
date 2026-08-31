@@ -89,8 +89,8 @@ function __init__()
         return
     end
 
-    if driver < v"11"
-        @error "This version of CUDA.jl requires an NVIDIA driver for CUDA 11.x or higher (yours only supports up to CUDA $driver)"
+    if driver < v"10.2"
+        @error "This version of CUDA.jl requires an NVIDIA driver for CUDA 10.2 or higher (yours only supports up to CUDA $driver)"
         _initialization_error[] = "NVIDIA driver too old"
         return
     end
@@ -153,8 +153,8 @@ function __init__()
     # ensure the loaded runtime is supported. done after cuInit so that runtime_version()
     # (on Linux, a ccall into libcudart) doesn't have to deal with ERROR_NO_DEVICE.
     runtime = runtime_version()
-    if runtime < v"11"
-        @error "This version of CUDA.jl only supports CUDA 11 or higher (your toolkit provides CUDA $runtime)"
+    if runtime < v"10.2"
+        @error "This version of CUDA.jl only supports CUDA 10.2 or higher (your toolkit provides CUDA $runtime)"
         _initialization_error[] = "CUDA runtime too old"
         return
     end
