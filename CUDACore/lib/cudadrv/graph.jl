@@ -89,7 +89,18 @@ mutable struct CuGraphExec
     global function instantiate(graph::CuGraph, flags=0)
         handle_ref = Ref{CUgraphExec}()
 
-        cuGraphInstantiateWithFlags(handle_ref, graph, flags)
+        if driver_version() >= v"11.4"
+            cuGraphInstantiateWithFlags(handle_ref, graph, flags)
+        else
+            flags == 0 || error("Graph instantiation flags require CUDA 11.4 or higher")
+
+            error_node = Ref{CUgraphNode}()
+            buflen = 256
+            buf = Vector{UInt8}(undef, buflen)
+            GC.@preserve buf begin
+                cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
+            end
+        end
 
         ctx = current_context()
         obj = new(handle_ref[], graph, ctx)
