@@ -171,6 +171,12 @@ function detect_cupti()
         return _cupti_active[]
     end
 
+    if CUDACore.runtime_version() < v"11"
+        # probing CUPTI's activity API segfaults on CUDA 10.x on Tegra
+        _cupti_active[] = false
+        return false
+    end
+
     if !_nvtx_activated[]
         # If we're not running under an external profiler, let CUPTI handle NVTX events
         # We cannot run this unconditionally during initialization to avoid interfering
@@ -371,13 +377,17 @@ Base.@kwdef struct ProfileResults
 end
 
 function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
+    if CUDACore.runtime_version() < v"11"
+        # CUPTI's activity API is broken on CUDA 10.x on Tegra (segfaults during
+        # cuptiActivityRegisterCallbacks), so only support external profiling there.
+        error("CUDA.@profile is not supported on CUDA 10.x; use an external profiler (e.g. nvprof) with CUDA.@profile external=true instead.")
+    end
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
         CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME,
         # kernel execution
         concurrent ? CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL : CUPTI.CUPTI_ACTIVITY_KIND_KERNEL,
-        CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API,
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
@@ -385,6 +395,10 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
     ]
+    if CUDACore.runtime_version() >= v"11"
+        # this activity kind does not exist in CUPTI from CUDA 10.x
+        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API)
+    end
     if CUDACore.runtime_version() >= v"11.2"
         # memory allocation records require CUDA 11.2
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)

@@ -103,6 +103,14 @@ for (elty, felty) in ((:Int16, :Float16),
 end
 
 function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT) where {T}
+    if version() < v"11"
+        # cusparseSparseToDense is only available on CUSPARSE 11+;
+        # fall back to the legacy per-type conversion routines.
+        if T <: BlasFloat && A isa Union{CuSparseMatrixCSR{T},CuSparseMatrixCSC{T}}
+            return sparsetodense_old(A, index)
+        end
+        throw(ErrorException("This operation is not supported by the current CUDA version."))
+    end
     m,n = size(A)
     B = CuMatrix{T}(undef, m, n)
     desc_sparse = CuSparseMatrixDescriptor(A, index)
@@ -120,6 +128,14 @@ function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSpar
 end
 
 function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cusparseDenseToSparseAlg_t=CUSPARSE_DENSETOSPARSE_ALG_DEFAULT) where {T}
+    if version() < v"11"
+        # cusparseDenseToSparse is only available on CUSPARSE 11+;
+        # fall back to the legacy per-type conversion routines.
+        if T <: BlasFloat && fmt in (:csr, :csc)
+            return densetosparse_old(A, fmt, index)
+        end
+        throw(ErrorException("This operation is not supported by the current CUDA version."))
+    end
     m,n = size(A)
     local rowPtr, colPtr, desc_sparse, B
     if fmt == :coo
@@ -179,6 +195,7 @@ end
 Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
 """
 function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseGather(handle(), descY, descX)
@@ -191,6 +208,7 @@ end
 Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
 """
 function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseScatter(handle(), descX, descY)
@@ -203,6 +221,7 @@ end
 Computes `alpha * X + beta * Y` for sparse `X` and dense `Y`.
 """
 function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseAxpby(handle(), Ref{T}(alpha), descX, Ref{T}(beta), descY)
@@ -215,6 +234,7 @@ end
 Performs the Givens rotation specified by `c` and `s` to sparse `X` and dense `Y`.
 """
 function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number, index::SparseChar) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseRot(handle(), Ref{T}(c), Ref{T}(s), descX, descY)
@@ -452,6 +472,7 @@ end
 # AB and C must have the same sparsity pattern if β ≠ 0.
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
                beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     m,k = size(A)
     n = size(C)[2]
@@ -583,6 +604,7 @@ end
 
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
               B::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     m, k = size(A)
     l, n = size(B)
@@ -751,6 +773,7 @@ end
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, X::DenseCuVector{T},
              Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -803,6 +826,7 @@ end
 function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, B::DenseCuMatrix{T},
              C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -898,4 +922,54 @@ function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseC
         cusparseSDDMM(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta), descC, T, algo, buffer)
     end
     return C
+end
+
+## legacy dense <-> sparse conversions, for CUSPARSE 10.x
+
+for (nname, d2rname, d2cname, r2dname, c2dname, elty) in
+        ((:cusparseSnnz, :cusparseSdense2csr, :cusparseSdense2csc, :cusparseScsr2dense, :cusparseScsc2dense, :Float32),
+         (:cusparseDnnz, :cusparseDdense2csr, :cusparseDdense2csc, :cusparseDcsr2dense, :cusparseDcsc2dense, :Float64),
+         (:cusparseCnnz, :cusparseCdense2csr, :cusparseCdense2csc, :cusparseCcsr2dense, :cusparseCcsc2dense, :ComplexF32),
+         (:cusparseZnnz, :cusparseZdense2csr, :cusparseZdense2csc, :cusparseZcsr2dense, :cusparseZcsc2dense, :ComplexF64))
+    @eval begin
+        function sparsetodense_old(csr::CuSparseMatrixCSR{$elty}, index::SparseChar)
+            m,n = size(csr)
+            A = CuMatrix{$elty}(undef, m, n)
+            descr = CuMatrixDescriptor('G', 'L', 'N', index)
+            $r2dname(handle(), m, n, descr, nonzeros(csr), csr.rowPtr, csr.colVal,
+                     A, max(1, stride(A, 2)))
+            return A
+        end
+        function sparsetodense_old(csc::CuSparseMatrixCSC{$elty}, index::SparseChar)
+            m,n = size(csc)
+            A = CuMatrix{$elty}(undef, m, n)
+            descr = CuMatrixDescriptor('G', 'L', 'N', index)
+            $c2dname(handle(), m, n, descr, nonzeros(csc), rowvals(csc), csc.colPtr,
+                     A, max(1, stride(A, 2)))
+            return A
+        end
+        function densetosparse_old(A::CuMatrix{$elty}, fmt::Symbol, index::SparseChar)
+            m,n = size(A)
+            lda = max(1, stride(A, 2))
+            descr = CuMatrixDescriptor('G', 'L', 'N', index)
+            nnzTotal = Ref{Cint}()
+            if fmt == :csr
+                nnzPerRow = CuVector{Cint}(undef, m)
+                $nname(handle(), 'R', m, n, descr, A, lda, nnzPerRow, nnzTotal)
+                rowPtr = CuVector{Cint}(undef, m+1)
+                colVal = CuVector{Cint}(undef, nnzTotal[])
+                nzVal = CuVector{$elty}(undef, nnzTotal[])
+                $d2rname(handle(), m, n, descr, A, lda, nnzPerRow, nzVal, rowPtr, colVal)
+                return CuSparseMatrixCSR{$elty, Cint}(rowPtr, colVal, nzVal, (m, n))
+            else
+                nnzPerCol = CuVector{Cint}(undef, n)
+                $nname(handle(), 'C', m, n, descr, A, lda, nnzPerCol, nnzTotal)
+                colPtr = CuVector{Cint}(undef, n+1)
+                rowVal = CuVector{Cint}(undef, nnzTotal[])
+                nzVal = CuVector{$elty}(undef, nnzTotal[])
+                $d2cname(handle(), m, n, descr, A, lda, nnzPerCol, nzVal, rowVal, colPtr)
+                return CuSparseMatrixCSC{$elty, Cint}(colPtr, rowVal, nzVal, (m, n))
+            end
+        end
+    end
 end

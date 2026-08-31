@@ -386,6 +386,10 @@ end
 
 # Xsyevd
 function Xsyevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    if version() < v"11"
+        # the 64-bit generic API is only available on CUSOLVER 11+
+        return T <: Complex ? heevd!(jobz, uplo, A) : syevd!(jobz, uplo, A)
+    end
     chkuplo(uplo)
     n = checksquare(A)
     R = real(T)

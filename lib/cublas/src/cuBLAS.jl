@@ -55,8 +55,9 @@ function math_mode!(handle, mode, precision=CUDACore.math_precision())
     end
 
     flags |= if mode == CUDACore.PEDANTIC_MATH
-        # prevent use of tensor cores
-        CUBLAS_PEDANTIC_MATH
+        # prevent use of tensor cores. on CUBLAS 10, tensor cores are opt-in,
+        # so the default math mode already accomplishes this.
+        version() >= v"11" ? CUBLAS_PEDANTIC_MATH : CUBLAS_DEFAULT_MATH
     elseif mode == CUDACore.DEFAULT_MATH
         CUBLAS_DEFAULT_MATH
     elseif mode == CUDACore.FAST_MATH
@@ -67,8 +68,10 @@ function math_mode!(handle, mode, precision=CUDACore.math_precision())
             CUBLAS_FP32_EMULATED_BF16X9_MATH
         elseif precision === :FixedPoint && version() >= v"13.1"
             CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH
-        else
+        elseif version() >= v"11"
             CUBLAS_TF32_TENSOR_OP_MATH
+        else
+            CUBLAS_TENSOR_OP_MATH
         end
     end
 

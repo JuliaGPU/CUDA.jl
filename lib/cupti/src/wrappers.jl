@@ -344,8 +344,10 @@ function process(f, cfg::ActivityConfig)
             CUpti_ActivityMemcpy5
         elseif cuda >= v"11.1"
             CUpti_ActivityMemcpy4
-        else # v"11.0"
+        elseif cuda >= v"11.0"
             CUpti_ActivityMemcpy3
+        else # v"10.x"
+            CUpti_ActivityMemcpy
         end
     activity_types[CUPTI_ACTIVITY_KIND_MEMSET] =
         if cuda >= v"13.4"
@@ -354,8 +356,10 @@ function process(f, cfg::ActivityConfig)
             CUpti_ActivityMemset4
         elseif cuda >= v"11.1"
             CUpti_ActivityMemset3
-        else # v"11.0"
+        elseif cuda >= v"11.0"
             CUpti_ActivityMemset2
+        else # v"10.x"
+            CUpti_ActivityMemset
         end
     activity_types[CUPTI_ACTIVITY_KIND_MEMORY2] =
         if cuda >= v"12.6"

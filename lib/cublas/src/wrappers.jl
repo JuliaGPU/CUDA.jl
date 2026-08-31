@@ -1262,10 +1262,18 @@ function gemmEx!(transA::Char, transB::Char,
         throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
     computeT = juliaStorageType(eltype(C), computeType)
     
-    cublasGemmEx(
-        handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, B,
-        eltype(B), ldb, CuRef{computeT}(beta), C, eltype(C), ldc, computeType, algo
-    )
+    if version() >= v"11"
+        cublasGemmEx(
+            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, B,
+            eltype(B), ldb, CuRef{computeT}(beta), C, eltype(C), ldc, computeType, algo
+        )
+    else
+        # CUBLAS 10 takes a cudaDataType, not a cublasComputeType_t
+        cublasGemmEx_old(
+            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, B,
+            eltype(B), ldb, CuRef{computeT}(beta), C, eltype(C), ldc, computeT, algo
+        )
+    end
     C
 end
 
@@ -1301,10 +1309,18 @@ function gemmBatchedEx!(transA::Char, transB::Char,
     Bptrs = unsafe_batch(B)
     Cptrs = unsafe_batch(C)
 
-    cublasGemmBatchedEx(
-        handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
-        eltype(B[1]), ldb, CuRef{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo
-    )
+    if version() >= v"11"
+        cublasGemmBatchedEx(
+            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
+            eltype(B[1]), ldb, CuRef{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeType, algo
+        )
+    else
+        # CUBLAS 10 takes a cudaDataType, not a cublasComputeType_t
+        cublasGemmBatchedEx_old(
+            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), Aptrs, eltype(A[1]), lda, Bptrs,
+            eltype(B[1]), ldb, CuRef{computeT}(beta), Cptrs, eltype(C[1]), ldc, length(A), computeT, algo
+        )
+    end
     unsafe_free!(Cptrs)
     unsafe_free!(Bptrs)
     unsafe_free!(Aptrs)
@@ -1341,10 +1357,18 @@ function gemmStridedBatchedEx!(
     isnothing(computeType) &&
     throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
     computeT = juliaStorageType(eltype(C), computeType)
-    cublasGemmStridedBatchedEx(
-        handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, strideA,
-        B, eltype(B), ldb, strideB, CuRef{computeT}(beta), C, eltype(C), ldc, strideC,
-        batchCount, computeType, algo)
+    if version() >= v"11"
+        cublasGemmStridedBatchedEx(
+            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, strideA,
+            B, eltype(B), ldb, strideB, CuRef{computeT}(beta), C, eltype(C), ldc, strideC,
+            batchCount, computeType, algo)
+    else
+        # CUBLAS 10 takes a cudaDataType, not a cublasComputeType_t
+        cublasGemmStridedBatchedEx_old(
+            handle(), transA, transB, m, n, k, CuRef{computeT}(alpha), A, eltype(A), lda, strideA,
+            B, eltype(B), ldb, strideB, CuRef{computeT}(beta), C, eltype(C), ldc, strideC,
+            batchCount, computeT, algo)
+    end
     C
 end
 
