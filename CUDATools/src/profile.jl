@@ -166,13 +166,17 @@ end
 const _cupti_active = Ref{Union{Nothing,Bool}}(nothing)
 const _nvtx_activated = Ref{Bool}(false)
 
+is_root() = Sys.isunix() && ccall(:geteuid, Cint, ()) == 0
+
 function detect_cupti()
     if _cupti_active[] !== nothing
         return _cupti_active[]
     end
 
-    if CUDACore.runtime_version() < v"11"
-        # probing CUPTI's activity API segfaults on CUDA 10.x on Tegra
+    if CUDACore.runtime_version() < v"11" && !is_root()
+        # on CUDA 10.x on Tegra, CUPTI is only usable by root (the callback API
+        # returns CUPTI_ERROR_INSUFFICIENT_PRIVILEGES for other users, and
+        # probing the activity API outright segfaults)
         _cupti_active[] = false
         return false
     end
@@ -377,10 +381,10 @@ Base.@kwdef struct ProfileResults
 end
 
 function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
-    if CUDACore.runtime_version() < v"11"
-        # CUPTI's activity API is broken on CUDA 10.x on Tegra (segfaults during
-        # cuptiActivityRegisterCallbacks), so only support external profiling there.
-        error("CUDA.@profile is not supported on CUDA 10.x; use an external profiler (e.g. nvprof) with CUDA.@profile external=true instead.")
+    if CUDACore.runtime_version() < v"11" && !is_root()
+        # on CUDA 10.x on Tegra, CUPTI is only usable by root; attempting to use
+        # the activity API as another user segfaults inside libcupti.
+        error("CUDA.@profile requires root privileges on CUDA 10.x; run Julia with elevated permissions, or use an external profiler (e.g. nvprof) with CUDA.@profile external=true.")
     end
     activity_kinds = [
         # API calls
