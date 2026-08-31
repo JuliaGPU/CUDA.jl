@@ -319,8 +319,18 @@ function process(f, cfg::ActivityConfig)
             CUpti_ActivityKernel11
         elseif cuda >= v"13.0"
             CUpti_ActivityKernel10
-        else
+        elseif cuda >= v"12.0"
             CUpti_ActivityKernel9
+        elseif cuda >= v"11.8"
+            CUpti_ActivityKernel8
+        elseif cuda >= v"11.6"
+            CUpti_ActivityKernel7
+        elseif cuda >= v"11.2"
+            CUpti_ActivityKernel6
+        elseif cuda >= v"11.1"
+            CUpti_ActivityKernel5
+        else # v"11.0"
+            CUpti_ActivityKernel4
         end
     activity_types[CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL] =
         activity_types[CUPTI_ACTIVITY_KIND_KERNEL]
@@ -330,20 +340,32 @@ function process(f, cfg::ActivityConfig)
             CUpti_ActivityMemcpy7
         elseif cuda >= v"12.8"
             CUpti_ActivityMemcpy6
-        else
+        elseif cuda >= v"11.6"
             CUpti_ActivityMemcpy5
+        elseif cuda >= v"11.1"
+            CUpti_ActivityMemcpy4
+        else # v"11.0"
+            CUpti_ActivityMemcpy3
         end
     activity_types[CUPTI_ACTIVITY_KIND_MEMSET] =
         if cuda >= v"13.4"
             CUpti_ActivityMemset5
-        else
+        elseif cuda >= v"11.6"
             CUpti_ActivityMemset4
+        elseif cuda >= v"11.1"
+            CUpti_ActivityMemset3
+        else # v"11.0"
+            CUpti_ActivityMemset2
         end
     activity_types[CUPTI_ACTIVITY_KIND_MEMORY2] =
         if cuda >= v"12.6"
             CUpti_ActivityMemory4
-        else
+        elseif cuda >= v"11.6"
             CUpti_ActivityMemory3
+        elseif cuda >= v"11.2"
+            CUpti_ActivityMemory2
+        else # v"11.0"
+            CUpti_ActivityMemory
         end
 
     # extract typed activity records

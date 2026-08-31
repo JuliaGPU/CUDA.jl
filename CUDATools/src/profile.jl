@@ -381,11 +381,14 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
-        CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2,
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
     ]
+    if CUDACore.runtime_version() >= v"11.2"
+        # memory allocation records require CUDA 11.2
+        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)
+    end
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
     # wait for the device to become idle
