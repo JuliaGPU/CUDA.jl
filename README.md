@@ -125,16 +125,36 @@ package manager:
 - Host platform: only 64-bit Linux and Windows are supported;
 - Device hardware: only NVIDIA GPUs with **compute capability 5.0** (Maxwell) or higher are
   supported;
-- NVIDIA driver: a driver for **CUDA 12** or newer is required;
-- CUDA toolkit (in case you need to use your own): only **CUDA toolkit 12.0** or newer are
+- NVIDIA driver: a driver for **CUDA 10.2** or newer is required;
+- CUDA toolkit (in case you need to use your own): only **CUDA toolkit 10.2** or newer are
   supported.
+
+### Platform support
+
+| Host platform | CUDA 12.x–13.x | CUDA 11.x | CUDA 10.2 |
+|---|:---:|:---:|:---:|
+| Linux x86-64 | 🔵 | 🟡 | 🟡 |
+| Linux ARM64/SBSA | 🟢 | 🟡 | — |
+| Linux ARM64/Tegra | 🟢 | 🟡 | 🟡 |
+| Windows x86-64 | 🟢 | 🟡 | 🟡 |
+
+- 🔵 **CI tested** — supported and regularly exercised by functional GPU CI.
+- 🟢 **Supported** — expected to work; regressions are considered bugs, but the
+  configuration is not tracked by functional GPU CI.
+- 🟡 **Best effort** — may be untested or only partially functional. Artifacts or
+  individual features may be unavailable, and fixes are accepted when reasonably scoped.
+- **— Not applicable** — no corresponding NVIDIA platform/toolkit combination.
+
+Best-effort support does not imply complete feature or artifact availability. Some
+configurations may require a local CUDA toolkit, and toolkit components or CUDA.jl
+functionality may be unavailable. Compatibility fixes are welcome when they remain
+reasonably scoped and do not complicate support for current toolkits. See
+[Selecting a CUDA Toolkit](#selecting-a-cuda-toolkit) for configuration details.
 
 If you cannot meet these requirements, you may need to install an older version of CUDA.jl:
 
-* CUDA.jl v5.8 is the last version with support for CUDA 11, and consequently Kepler GPUs (removed in v5.9)
+* CUDA.jl v5.8 is the last version with support for Kepler GPUs (removed in v5.9)
 * CUDA.jl v5.3 is the last version with support for PowerPC (removed in v5.4)
-* CUDA.jl v4.4 is the last version with support for CUDA 11.0-11.3 (deprecated in v5.0)
-* CUDA.jl v4.0 is the last version to work with CUDA 10.2 (removed in v4.1)
 * CUDA.jl v3.8 is the last version to work with CUDA 10.1 (removed in v3.9)
 * CUDA.jl v1.3 is the last version to work with CUDA 9-10.0 (removed in v2.0)
 
@@ -151,7 +171,8 @@ two cases where you may want to select a different version:
   In that case, call e.g. `CUDA.set_runtime_version!(v"12.9")` to
   use a specific toolkit which still supports the device in question.
 - **You want to use a CUDA Toolkit that is already installed on your system**.
-  This is not recommended, but if you want to do it anyway, call
+  This may be necessary on older systems for which matching runtime and compiler
+  artifacts are unavailable. Call
   `CUDA.set_runtime_version!(local_toolkit=true)`.
 
 Both these options will be remembered across sessions via a local preference,
