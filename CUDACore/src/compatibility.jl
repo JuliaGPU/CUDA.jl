@@ -42,9 +42,10 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
 #
-# The bounds across every supported toolkit (12.0 through 13.4) were measured rather than
-# inferred, by pinning `CUDA_SDK_jll` to each release in a temporary environment and
-# reading the `--gpu-name` list off that toolkit's ptxas; do the same when adding entries.
+# The bounds from CUDA 12.0 through 13.4 were measured rather than inferred, by pinning
+# `CUDA_SDK_jll` to each release in a temporary environment and reading the `--gpu-name`
+# list off that toolkit's ptxas; older entries are retained from the historical support
+# table. Use the same measurement when adding entries.
 # What that pins down: sm_100/sm_101/sm_120 arrive in 12.8, sm_103/sm_121 and the `f`
 # variants in 12.9, sm_88/sm_110 in 13.0 -- which is also where sm_50-sm_72 and sm_101 are
 # dropped -- and sm_107 in 13.4.
@@ -98,8 +99,9 @@ end
 
 # Source: PTX ISA document, Release History table
 #
-# Verified from 12.0 onwards by feeding a pinned `CUDA_SDK_jll`'s ptxas a stub module at
-# each `.version` and taking the highest it accepts. The one gap is 8.6: no CUDA 12.7
+# Verified from CUDA 12.0 onwards by feeding a pinned `CUDA_SDK_jll`'s ptxas a stub module
+# at each `.version` and taking the highest it accepts. Older entries are retained from the
+# historical support table. The one gap is 8.6: no CUDA 12.7
 # exists in the JLL set to test against (12.6 tops out at 8.5, 12.8 already accepts 8.7).
 const ptxas_ptx_db = Dict(
     v"1.0" => between(v"1.0", highest),
@@ -366,4 +368,3 @@ function ptxas_compat(version=compiler_version())
     return (cap=ptxas_cap_support(version),
             ptx=ptxas_ptx_support(version))
 end
-

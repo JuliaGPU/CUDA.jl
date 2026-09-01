@@ -17,8 +17,8 @@ end
 const CUDACompilerConfig = CompilerConfig{PTXCompilerTarget, CUDACompilerParams}
 const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 
-# CUDA 12.0 is the oldest supported toolkit, and Maxwell is the oldest supported GPU.
-const minreq = (; ptx=v"8.0", sm=sm"50")
+# CUDA 10.2 is the oldest supported toolkit, and Maxwell is the oldest supported GPU.
+const minreq = (; ptx=v"6.5", sm=sm"50")
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
 # keep host references symbolic and emit them as patchable globals; `link_kernel`

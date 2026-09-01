@@ -207,18 +207,27 @@ end
     asm_post = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", sm"90")
     @test occursin(".target sm_90", asm_post)
 
-    @test success(run_ptxas(asm_post, "sm_90"))
+    # Assembling the rewritten headers requires support for both the requested
+    # PTX ISA and target (CUDA 12+ for PTX 8.0, CUDA 12.9+ for `f` variants).
+    ptxas_support = CUDACore.ptxas_compat()
+    if v"8.0" in ptxas_support.ptx && v"9.0" in ptxas_support.cap
+        @test success(run_ptxas(asm_post, "sm_90"))
+    end
 
     # Architecture-specific feature set appends an `a` suffix to the .target directive (and the same
     # string is what `compile()` passes to --gpu-name, since ptxas requires exact match for `a`-mode).
     asm_arch = CUDACore.rewrite_ptx_header(asm_pre, v"8.0", sm"90a")
     @test occursin(".target sm_90a", asm_arch)
-    @test success(run_ptxas(asm_arch, "sm_90a"))
+    if v"8.0" in ptxas_support.ptx && v"9.0" in ptxas_support.cap
+        @test success(run_ptxas(asm_arch, "sm_90a"))
+    end
 
     # Family-specific appends `f`. Requires PTX 8.8+ at the `.target` line.
     asm_family = CUDACore.rewrite_ptx_header(asm_pre, v"8.8", sm"100f")
     @test occursin(".target sm_100f", asm_family)
-    @test success(run_ptxas(asm_family, "sm_100f"))
+    if v"8.8" in ptxas_support.ptx
+        @test success(run_ptxas(asm_family, "sm_100f"))
+    end
 end
 
 @testset "SMVersion and sm\"...\" macro" begin

@@ -148,6 +148,11 @@ Derived by parsing `ptxas --version`.
 """
 function compiler_version()
     @memoize begin
+        CUDA_Compiler.is_available() ||
+            error("""No CUDA compiler is available for the selected CUDA version and platform.
+                     Select a version with matching artifacts using `CUDA.set_runtime_version!`,
+                     or install a local toolkit and call
+                     `CUDA.set_runtime_version!(local_toolkit=true)`.""")
         output = readchomp(`$(CUDA_Compiler.ptxas()) --version`)
         m = match(r"release (\d+)\.(\d+),\s*V(\d+)\.(\d+)\.(\d+)", output)
         m === nothing && error("Could not parse `ptxas --version` output: $output")

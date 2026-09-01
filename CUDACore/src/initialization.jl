@@ -89,8 +89,8 @@ function __init__()
         return
     end
 
-    if driver < v"12"
-        @error "This version of CUDA.jl requires an NVIDIA driver for CUDA 12.x or higher (yours only supports up to CUDA $driver)"
+    if driver < v"10.2"
+        @error "This version of CUDA.jl requires an NVIDIA driver for CUDA 10.2 or higher (yours only supports up to CUDA $driver)"
         _initialization_error[] = "NVIDIA driver too old"
         return
     end
@@ -117,6 +117,10 @@ function __init__()
                or in a container. In that case, you need to specify which CUDA
                version to use at run time by calling `CUDA.set_runtime_version!`
                or provisioning the preference it sets at compile time.
+
+               If no runtime and compiler artifacts exist for that CUDA version and
+               platform, install a local toolkit and call
+               `CUDA.set_runtime_version!(local_toolkit=true)` instead.
 
                If you are not running in a container or on an HPC log-in node,
                try re-compiling the CUDA runtime JLL and re-loading CUDA.jl:
@@ -153,8 +157,8 @@ function __init__()
     # ensure the loaded runtime is supported. done after cuInit so that runtime_version()
     # (on Linux, a ccall into libcudart) doesn't have to deal with ERROR_NO_DEVICE.
     runtime = runtime_version()
-    if runtime < v"12"
-        @error "This version of CUDA.jl only supports CUDA 12 or higher (your toolkit provides CUDA $runtime)"
+    if runtime < v"10.2"
+        @error "This version of CUDA.jl only supports CUDA 10.2 or higher (your toolkit provides CUDA $runtime)"
         _initialization_error[] = "CUDA runtime too old"
         return
     end

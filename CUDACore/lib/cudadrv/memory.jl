@@ -583,8 +583,15 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
     srcPos = CuDim3(srcPos)
     dstPos = CuDim3(dstPos)
 
-    srcOffset = 0
-    dstOffset = 0
+    # Work around JuliaGPU/CUDA.jl#863. Checking which allocator produced the
+    # pointer would cost more than applying the offset correction unconditionally.
+    if v"11.2" <= driver_version() <= v"11.3"
+        srcOffset = (srcPos.x-1)*aligned_sizeof(T) + srcPitch*((srcPos.y-1) + srcHeight*(srcPos.z-1))
+        dstOffset = (dstPos.x-1)*aligned_sizeof(T) + dstPitch*((dstPos.y-1) + dstHeight*(dstPos.z-1))
+    else
+        srcOffset = 0
+        dstOffset = 0
+    end
 
     srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == HostMemory
         CU_MEMORYTYPE_HOST,
