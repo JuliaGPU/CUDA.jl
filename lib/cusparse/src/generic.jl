@@ -31,6 +31,7 @@ for (elty, felty) in ((:Int16, :Float16),
                       (:Int128, :ComplexF64))
     @eval begin
         function sparsetodense(coo::CuSparseMatrixCOO{$elty}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+            version() < v"11.3" && throw(ErrorException("This operation is not supported by the current CUDA version."))
             m,n = size(coo)
             coo_compat = CuSparseMatrixCOO(
                 coo.rowInd,
@@ -53,6 +54,7 @@ for (elty, felty) in ((:Int16, :Float16),
             return reinterpret($elty, B)
         end
         function sparsetodense(bsr::CuSparseMatrixBSR{$elty}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+            version() < v"11.3" && throw(ErrorException("This operation is not supported by the current CUDA version."))
             m,n = size(bsr)
             bsr_compat = CuSparseMatrixBSR(
                 bsr.rowPtr,
@@ -78,6 +80,7 @@ for (elty, felty) in ((:Int16, :Float16),
             return reinterpret($elty, B)
         end
         function sparsetodense(csr::CuSparseMatrixCSR{$elty}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+            version() < v"11.3" && throw(ErrorException("This operation is not supported by the current CUDA version."))
             m,n = size(csr)
             csr_compat = CuSparseMatrixCSR(
                 csr.rowPtr,
@@ -103,6 +106,13 @@ for (elty, felty) in ((:Int16, :Float16),
 end
 
 function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT) where {T}
+    if version() < v"11.3"
+        # These generic conversions were introduced in cuSPARSE 11.3. Fall back to
+        # legacy per-type routines, which only handle BLAS types and 32-bit indices.
+        isa(A, Union{CuSparseMatrixCSR{T,Cint},CuSparseMatrixCSC{T,Cint}}) && T <: BlasFloat ||
+            throw(ErrorException("This operation is not supported by the current CUDA version."))
+        return sparsetodense_old(A, index)
+    end
     m,n = size(A)
     B = CuMatrix{T}(undef, m, n)
     desc_sparse = CuSparseMatrixDescriptor(A, index)
@@ -120,6 +130,13 @@ function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSpar
 end
 
 function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cusparseDenseToSparseAlg_t=CUSPARSE_DENSETOSPARSE_ALG_DEFAULT) where {T}
+    if version() < v"11.3"
+        # These generic conversions were introduced in cuSPARSE 11.3. Fall back to
+        # legacy per-type routines, which only handle BLAS types.
+        T <: BlasFloat && fmt in (:csr, :csc) ||
+            throw(ErrorException("This operation is not supported by the current CUDA version."))
+        return densetosparse_old(A, fmt, index)
+    end
     m,n = size(A)
     local rowPtr, colPtr, desc_sparse, B
     if fmt == :coo
@@ -179,6 +196,7 @@ end
 Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
 """
 function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseGather(handle(), descY, descX)
@@ -191,6 +209,7 @@ end
 Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
 """
 function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseScatter(handle(), descX, descY)
@@ -203,6 +222,7 @@ end
 Computes `alpha * X + beta * Y` for sparse `X` and dense `Y`.
 """
 function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseAxpby(handle(), Ref{T}(alpha), descX, Ref{T}(beta), descY)
@@ -215,6 +235,7 @@ end
 Performs the Givens rotation specified by `c` and `s` to sparse `X` and dense `Y`.
 """
 function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number, index::SparseChar) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     cusparseRot(handle(), Ref{T}(c), Ref{T}(s), descX, descY)
@@ -245,8 +266,20 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseC
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
 
-    descA = CuSparseMatrixDescriptor(A, index)
-    m,n = size(A)
+    if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
+        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *
+                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
+    end
+
+    if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+        # Before cuSPARSE 12, model CSC input as its transposed CSR representation.
+        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
+        n,m = size(A)
+        transa = transa == 'N' ? 'T' : 'N'
+    else
+        descA = CuSparseMatrixDescriptor(A, index)
+        m,n = size(A)
+    end
 
     if transa == 'N'
         chkmvdims(X,n,Y,m)
@@ -260,9 +293,9 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseC
     # operations with 16-bit numbers always imply mixed-precision computation
     # TODO: we should better model the supported combinations here,
     #       and error if using an unsupported one (like with gemmEx!)
-    compute_type = if T == Float16
+    compute_type = if cuSPARSE.version() >= v"11.4" && T == Float16
         Float32
-    elseif T == ComplexF16
+    elseif cuSPARSE.version() >= v"11.7.2" && T == ComplexF16
         ComplexF32
     else
         T
@@ -290,8 +323,20 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
-    descA = CuSparseMatrixDescriptor(A, index)
-    m,k = size(A)
+    if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
+        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a complex CSC matrix" *
+                            " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
+    end
+
+    if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+        # Before cuSPARSE 12, model CSC input as its transposed CSR representation.
+        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
+        k,m = size(A)
+        transa = transa == 'N' ? 'T' : 'N'
+    else
+        descA = CuSparseMatrixDescriptor(A, index)
+        m,k = size(A)
+    end
     n = size(C)[2]
 
     if transa == 'N' && transb == 'N'
@@ -362,6 +407,10 @@ end
 function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,3},
               B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti}
 
+    if cuSPARSE.version() < v"11.7.2"
+        throw(ErrorException("Batched sparse-matrix times batched dense-matrix (bmm!) requires a CUSPARSE version ≥ 11.7.2 (yours: $(cuSPARSE.version()))."))
+    end
+
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
     transb = T <: Real && transb == 'C' ? 'T' : transb
@@ -422,6 +471,7 @@ end
 # AB and C must have the same sparsity pattern if β ≠ 0.
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
                beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     m,k = size(A)
     n = size(C)[2]
@@ -553,6 +603,7 @@ end
 
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
               B::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     m, k = size(A)
     l, n = size(B)
@@ -721,6 +772,7 @@ end
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, X::DenseCuVector{T},
              Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
+    version() < v"11.5" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -773,6 +825,7 @@ end
 function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, B::DenseCuMatrix{T},
              C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT) where {T}
+    version() < v"11.6" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' and `transb = 'C' for real matrices
     transa = T <: Real && transa == 'C' ? 'T' : transa
@@ -833,6 +886,7 @@ end
 function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
                 beta::Number, C::Union{CuSparseMatrixCSR{T},CuSparseMatrixBSR{T}}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
 
+    cuSPARSE.version() < v"11.4.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     (C isa CuSparseMatrixBSR) && (cuSPARSE.version() < v"12.1.0") && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transa = 'C' and `transb = 'C' for real matrices
@@ -867,4 +921,54 @@ function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseC
         cusparseSDDMM(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta), descC, T, algo, buffer)
     end
     return C
+end
+
+## legacy dense <-> sparse conversions, for cuSPARSE before 11.3
+
+for (nname, d2rname, d2cname, r2dname, c2dname, elty) in
+        ((:cusparseSnnz, :cusparseSdense2csr, :cusparseSdense2csc, :cusparseScsr2dense, :cusparseScsc2dense, :Float32),
+         (:cusparseDnnz, :cusparseDdense2csr, :cusparseDdense2csc, :cusparseDcsr2dense, :cusparseDcsc2dense, :Float64),
+         (:cusparseCnnz, :cusparseCdense2csr, :cusparseCdense2csc, :cusparseCcsr2dense, :cusparseCcsc2dense, :ComplexF32),
+         (:cusparseZnnz, :cusparseZdense2csr, :cusparseZdense2csc, :cusparseZcsr2dense, :cusparseZcsc2dense, :ComplexF64))
+    @eval begin
+        function sparsetodense_old(csr::CuSparseMatrixCSR{$elty,Cint}, index::SparseChar)
+            m,n = size(csr)
+            A = CuMatrix{$elty}(undef, m, n)
+            descr = CuMatrixDescriptor('G', 'L', 'N', index)
+            $r2dname(handle(), m, n, descr, nonzeros(csr), csr.rowPtr, csr.colVal,
+                     A, max(1, stride(A, 2)))
+            return A
+        end
+        function sparsetodense_old(csc::CuSparseMatrixCSC{$elty,Cint}, index::SparseChar)
+            m,n = size(csc)
+            A = CuMatrix{$elty}(undef, m, n)
+            descr = CuMatrixDescriptor('G', 'L', 'N', index)
+            $c2dname(handle(), m, n, descr, nonzeros(csc), rowvals(csc), csc.colPtr,
+                     A, max(1, stride(A, 2)))
+            return A
+        end
+        function densetosparse_old(A::CuMatrix{$elty}, fmt::Symbol, index::SparseChar)
+            m,n = size(A)
+            lda = max(1, stride(A, 2))
+            descr = CuMatrixDescriptor('G', 'L', 'N', index)
+            nnzTotal = Ref{Cint}()
+            if fmt == :csr
+                nnzPerRow = CuVector{Cint}(undef, m)
+                $nname(handle(), 'R', m, n, descr, A, lda, nnzPerRow, nnzTotal)
+                rowPtr = CuVector{Cint}(undef, m+1)
+                colVal = CuVector{Cint}(undef, nnzTotal[])
+                nzVal = CuVector{$elty}(undef, nnzTotal[])
+                $d2rname(handle(), m, n, descr, A, lda, nnzPerRow, nzVal, rowPtr, colVal)
+                return CuSparseMatrixCSR{$elty, Cint}(rowPtr, colVal, nzVal, (m, n))
+            else
+                nnzPerCol = CuVector{Cint}(undef, n)
+                $nname(handle(), 'C', m, n, descr, A, lda, nnzPerCol, nnzTotal)
+                colPtr = CuVector{Cint}(undef, n+1)
+                rowVal = CuVector{Cint}(undef, nnzTotal[])
+                nzVal = CuVector{$elty}(undef, nnzTotal[])
+                $d2cname(handle(), m, n, descr, A, lda, nnzPerCol, nzVal, rowVal, colPtr)
+                return CuSparseMatrixCSC{$elty, Cint}(colPtr, rowVal, nzVal, (m, n))
+            end
+        end
+    end
 end
