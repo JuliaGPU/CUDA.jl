@@ -171,6 +171,9 @@ function detect_cupti()
         return _cupti_active[]
     end
 
+    # Some CUPTI versions crash while probing Tegra without profiling permissions.
+    CUPTI.can_profile() || return false
+
     if !_nvtx_activated[]
         # If we're not running under an external profiler, let CUPTI handle NVTX events
         # We cannot run this unconditionally during initialization to avoid interfering
@@ -371,6 +374,14 @@ Base.@kwdef struct ProfileResults
 end
 
 function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
+    if !CUPTI.can_profile()
+        error("""The integrated profiler relies on CUPTI, which requires additional permissions on Tegra devices.
+                 With CUDA 13 and later, grant read/write access to `/dev/nvgpu/*/prof`
+                 (typically by joining its owning group) and enable non-admin profiling with
+                 `NVreg_RestrictProfilingToAdminUsers=0`. With older CUDA toolkits, run Julia
+                 as root. Alternatively, use an external profiler such as Nsight Systems.""")
+    end
+
     activity_kinds = [
         # API calls
         CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,

@@ -1,6 +1,7 @@
 using Test
 using CUDA
 using CUDACore
+using CUPTI
 using FileCheck
 using GPUArrays
 using NVML: has_nvml, NVML
@@ -42,8 +43,9 @@ const sanitize = any(contains("NV_SANITIZER"), keys(ENV))
 function can_use_cupti()
     sanitize && return false
 
-    # Tegra requires running as root and modifying the device tree
-    if CUDA.is_tegra()
+    # Tegra has platform-specific profiling requirements, and some CUPTI versions crash
+    # instead of reporting insufficient permissions.
+    if !CUPTI.can_profile()
         return false
     end
 
