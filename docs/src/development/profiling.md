@@ -132,6 +132,24 @@ Here, every call is prefixed with an ID, which can be used to correlate host and
 events. For example, here we can see that the host-side `cuLaunchKernel` call with ID 6
 corresponds to the device-side `broadcast` kernel.
 
+#### Profiling on Tegra
+
+The integrated profiler relies on CUPTI, which needs additional permissions on Tegra
+devices (such as the Jetson series). What exactly is required depends on the CUDA version:
+
+- with CUDA 13 and later (typically JetPack 7+), non-root users need read/write access to
+  the GPU profiling device nodes `/dev/nvgpu/*/prof*`. These are commonly owned by the
+  `debug` group on Jetson systems, in which case run `sudo usermod -aG debug $USER` and
+  log in again. The driver also needs to allow non-admin profiling by loading `nvidia` with
+  `NVreg_RestrictProfilingToAdminUsers=0` (see [Troubleshooting Nsight Compute](@ref)
+  below). Without the device node access, CUPTI crashes the process outright instead
+  of reporting an error;
+- with CUDA 10 through 12 (typically JetPack 4 through 6), profiling requires running as
+  root. This was verified with CUDA 10.2 and 11.4; CUDA 12 uses the same conservative gate.
+
+The same requirements apply to other CUPTI-based functionality, such as
+`@device_code_sass`.
+
 ### External profilers
 
 If you want more details, or a graphical representation, we recommend using external
@@ -368,6 +386,8 @@ Nsight Compute does not support the GPU you have. Run `ncu --list-chips` to veri
 ##### `==ERROR== ERR_NVGPUCTRPERM`
 
 Run the terminal as administrator. Refer to [the NVIDIA documentation issue webpage](https://developer.nvidia.com/ERR_NVGPUCTRPERM) for more details.
+On Tegra devices, also see [Profiling on Tegra](@ref) for the additional device node
+permissions required there.
 
 ##### `==ERROR== Cuda driver is not compatible with Nsight Compute`
 

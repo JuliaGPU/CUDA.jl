@@ -65,6 +65,39 @@ function library_version()
                   parse(Int, m.captures[3]))
 end
 
+"""
+    can_profile() -> Bool
+
+Whether CUDA.jl should attempt to use CUPTI in the current process.
+
+On Tegra, CUDA 10 through 12 require root, while CUDA 13 and later require read/write
+access to a profiling device node. This check is intentionally conservative because some
+CUPTI versions crash in `cuptiSubscribe` when that access is missing. On other systems,
+CUPTI reports permission errors normally, so this function returns `true` and lets CUPTI
+handle them.
+"""
+function can_profile()
+    CUDACore.is_tegra() || return true
+
+    # The legacy Tegra driver does not support non-root CUPTI profiling. This was verified
+    # with CUDA 10.2 and 11.4; conservatively apply the same restriction to CUDA 12.
+    if CUDACore.runtime_version() < v"13"
+        return Libc.geteuid() == 0
+    end
+
+    # CUDA 13 and later use per-GPU profiler nodes under /dev/nvgpu. Keep checking the
+    # legacy node as well because the exact device layout is a property of the driver.
+    if isdir("/dev/nvgpu")
+        for dev in readdir("/dev/nvgpu"; join=true)
+            _has_profiling_access(joinpath(dev, "prof")) && return true
+        end
+    end
+    return _has_profiling_access("/dev/nvhost-prof-gpu")
+end
+
+_has_profiling_access(path) =
+    ccall(:access, Cint, (Cstring, Cint), path, #=R_OK | W_OK=# 0x6) == 0
+
 
 #
 # callback API
