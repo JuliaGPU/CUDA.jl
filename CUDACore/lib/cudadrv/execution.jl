@@ -54,8 +54,36 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
 
-    if dependent && capability(device()) < v"9.0"
-        error("Programmatic dependent launch requires compute capability 9.0 or higher")
+    if dependent
+        driver_version() >= v"11.8" ||
+            error("Programmatic dependent launch requires CUDA 11.8 or higher")
+        capability(device()) >= v"9.0" ||
+            error("Programmatic dependent launch requires compute capability 9.0 or higher")
+    end
+
+    if driver_version() < v"11.8"
+        # cuLaunchKernelEx and its launch attributes require CUDA 11.8.
+        if clusterdim.x != 1 || clusterdim.y != 1 || clusterdim.z != 1
+            error("Thread block clusters require CUDA 11.8 or higher")
+        end
+        try
+            pack_arguments(args...) do kernelParams
+                if cooperative
+                    cuLaunchCooperativeKernel(f,
+                                              blockdim.x, blockdim.y, blockdim.z,
+                                              threaddim.x, threaddim.y, threaddim.z,
+                                              shmem, stream, kernelParams)
+                else
+                    cuLaunchKernel(f,
+                                   blockdim.x, blockdim.y, blockdim.z,
+                                   threaddim.x, threaddim.y, threaddim.z,
+                                   shmem, stream, kernelParams, C_NULL)
+                end
+            end
+        catch err
+            diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
+        end
+        return
     end
 
     attributes = Ref{NTuple{3,CUlaunchAttribute}}()

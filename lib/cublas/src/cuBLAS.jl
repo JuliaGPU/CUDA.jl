@@ -50,12 +50,17 @@ function math_mode!(handle, mode, precision=CUDACore.math_precision())
     flags = 0
 
     # https://github.com/facebookresearch/faiss/issues/1385
-    flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
+    if version() > v"11"
+        flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
+    end
 
     flags |= if mode == CUDACore.PEDANTIC_MATH
-        # prevent use of tensor cores
-        CUBLAS_PEDANTIC_MATH
+        # Prevent use of tensor cores. On cuBLAS 10 they are opt-in,
+        # so the default math mode already accomplishes this.
+        version() < v"11" ? CUBLAS_DEFAULT_MATH : CUBLAS_PEDANTIC_MATH
     elseif mode == CUDACore.DEFAULT_MATH
+        # On cuBLAS 10, tensor-op math may convert FP32 inputs to FP16. Keep the
+        # default mode's guarantee of using at least the requested precision.
         CUBLAS_DEFAULT_MATH
     elseif mode == CUDACore.FAST_MATH
         # downcast to a reduced-precision compute mode whenever possible; the
@@ -65,6 +70,8 @@ function math_mode!(handle, mode, precision=CUDACore.math_precision())
             CUBLAS_FP32_EMULATED_BF16X9_MATH
         elseif precision === :FixedPoint && version() >= v"13.1"
             CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH
+        elseif version() < v"11"
+            CUBLAS_TENSOR_OP_MATH
         else
             CUBLAS_TF32_TENSOR_OP_MATH
         end

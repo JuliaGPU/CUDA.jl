@@ -150,9 +150,13 @@ releases while keeping the runtime fixed. Keep them within the same CUDA major b
 runtime libraries may link against compiler libraries with a major-versioned soname.
 CUDA.jl configures them together by default.
 
+CUDA 10.2 and 11 are supported on a best-effort basis. Matching runtime and compiler
+artifacts are not available for every older CUDA version and platform. If artifact
+selection cannot provide both, use a local toolkit as described below.
+
 ### Using a local CUDA
 
-To use a local installation, you set the `local_toolkit` keyword argument to
+To use a local installation, set the `local_toolkit` keyword argument to
 `CUDA.set_runtime_version!`:
 
 ```

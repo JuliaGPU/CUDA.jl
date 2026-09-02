@@ -388,15 +388,21 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME,
         # kernel execution
         concurrent ? CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL : CUPTI.CUPTI_ACTIVITY_KIND_KERNEL,
-        CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API,
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
-        CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2,
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
     ]
+    if CUDACore.runtime_version() >= v"11"
+        # internal launch API records require CUDA 11 or later
+        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API)
+    end
+    if CUDACore.runtime_version() >= v"11.2"
+        # memory allocation records require CUDA 11.2
+        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)
+    end
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
     # wait for the device to become idle
