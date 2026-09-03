@@ -246,7 +246,9 @@ end
 end
 
 # Float16 must use Float32 as accumulation type, which is the only configuration
-# supported by cuSPARSE
+# supported by cuSPARSE. The cuSPARSE versions shipped with CUDA 13.1 and 13.2
+# reject this configuration with CUSPARSE_STATUS_NOT_SUPPORTED, so skip it there.
+if !(Base.thisminor(CUDACore.runtime_version()) in (v"13.1", v"13.2"))
 @testset "Sparse-Dense Float16 bmm! (Float32 accumulation type)" begin
     elty = Float16
     m = 5
@@ -275,4 +277,5 @@ end
 
         @test collect(C) ≈ D rtol=2e-3
     end
+end
 end

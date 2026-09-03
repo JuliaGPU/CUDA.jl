@@ -130,7 +130,10 @@ for SparseMatrixType in keys(SPMM_ALGOS)
 end
 
 # Float16 must use Float32 as accumulation type, which is the only configuration
-# supported by cuSPARSE (same for ComplexF16)
+# supported by cuSPARSE (same for ComplexF16). The cuSPARSE versions shipped with
+# CUDA 13.1 and 13.2 reject this configuration with CUSPARSE_STATUS_NOT_SUPPORTED,
+# so skip it there.
+if !(Base.thisminor(CUDACore.runtime_version()) in (v"13.1", v"13.2"))
 @testset "Float16 mm! (Float32 accumulation type)" begin
     @testset "$T -- $SparseMatrixType" for (T, SparseMatrixTypes) in
         (Float16 => (CuSparseMatrixCSR, CuSparseMatrixCOO), ComplexF16 => (CuSparseMatrixCOO,)),
@@ -151,6 +154,7 @@ end
         Cref = refT(alpha) .* (refT.(A) * refT.(B)) .+ refT(beta) .* refT.(C)
         @test collect(dC) ≈ Cref rtol=2e-3
     end
+end
 end
 
 # Algorithms for CSC and CSR matrices are swapped
