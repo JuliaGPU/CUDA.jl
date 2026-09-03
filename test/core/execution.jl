@@ -192,11 +192,13 @@ end
     # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
     # `.version` line should match what was asked for, independently of what LLVM and
     # ptxas would natively pick.
-    @test @filecheck CUDA.code_ptx((); ptx=v"8.0") do
-        @check ".version 8.0"
-        dummy()
+    if v"8.0" in CUDACore.ptxas_compat().ptx
+        @test @filecheck CUDA.code_ptx((); ptx=v"8.0") do
+            @check ".version 8.0"
+            dummy()
+        end
     end
-    @test_throws "requires PTX ISA 8.0" @cuda launch=false ptx=v"7.8" dummy()
+    @test_throws "requires PTX ISA $(CUDACore.minreq.ptx)" @cuda launch=false ptx=v"6.4" dummy()
 
     # explicit `ptx=` is validated against BOTH LLVM and ptxas (not just LLVM as it
     # used to be); a clearly out-of-range value must error at config time.
@@ -448,12 +450,17 @@ end
             @cuda cooperative=true threads=64 blocks=2 clustersize=2 dummy()
         end
     else
-        @test_throws CuError @cuda threads=64 blocks=2 clustersize=2 dummy()
+        # on drivers without cuLaunchKernelEx (CUDA < 11.8), the launch fails
+        # eagerly with an ErrorException instead of a driver CuError
+        expected = CUDACore.driver_version() >= v"11.8" ? CuError : ErrorException
+        @test_throws expected @cuda threads=64 blocks=2 clustersize=2 dummy()
     end
 end
 
 @testset "programmatic dependent launch" begin
-    if CUDA.capability(device()) >= v"9.0"
+    if CUDA.driver_version() < v"11.8"
+        @test_throws "requires CUDA 11.8" @cuda dependent=true dummy()
+    elseif CUDA.capability(device()) >= v"9.0"
         function producer!(output)
             i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
             trigger_programmatic_launch_completion()

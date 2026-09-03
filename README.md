@@ -111,32 +111,68 @@ numbers that move in lockstep.
 
 ## Requirements
 
-The latest development version of CUDA.jl requires **Julia 1.10** or higher. If you are
-using an older version of Julia, you need to use a previous version of CUDA.jl. This will
-happen automatically when you install the package using Julia's package manager.
+The latest development version of CUDA.jl requires **Julia 1.10** or higher. If
+you are using an older version of Julia, you need to use a previous version of
+CUDA.jl. This will happen automatically when you install the package using
+Julia's package manager.
 
-Note that CUDA.jl may not work with a custom build of Julia; it is recommended that you
-install Julia using the [official binaries](https://julialang.org/downloads/) or
+Note that CUDA.jl may not work with a custom build of Julia; it is recommended
+that you install Julia using the [official
+binaries](https://julialang.org/downloads/) or
 [juliaup](https://github.com/JuliaLang/juliaup).
 
-The latest version of CUDA.jl also has certain requirements that cannot be enforced by the
-package manager:
+| Julia version | Status |
+|---|:---:|
+| ≤ 1.9 | 🔴 |
+| 1.10–1.12 | 🔵 |
+| 1.13 | 🟢 |
+| master | 🟡 |
 
-- Host platform: only 64-bit Linux and Windows are supported;
-- Device hardware: only NVIDIA GPUs with **compute capability 5.0** (Maxwell) or higher are
-  supported;
-- NVIDIA driver: a driver for **CUDA 12** or newer is required;
-- CUDA toolkit (in case you need to use your own): only **CUDA toolkit 12.0** or newer are
-  supported.
+CUDA.jl supports many CUDA toolkit versions, and we generally support those
+toolkits that NVIDIA still supports for their other vendor libraries (like
+cuDNN). Beyond that, we will try to keep some level of support for older
+toolkits such that CUDA.jl can be run on embedded devices that are still
+supported by NVIDIA.
 
-If you cannot meet these requirements, you may need to install an older version of CUDA.jl:
+| Host platform | CUDA 12.0–13.3 | CUDA 11.x | CUDA 10.x | CUDA ≤ 9.x |
+|---|:---:|:---:|:---:|:---:|
+| Linux x86-64 | 🔵 | 🟡 | 🟡 | 🔴 |
+| Linux ARM64/SBSA | 🟢 | 🟡 | — | — |
+| Linux ARM64/Tegra | 🟢 | 🟡 | 🟡 | 🔴 |
+| Windows x86-64 | 🟢 | 🟡 | 🟡 | 🔴 |
 
-* CUDA.jl v5.8 is the last version with support for CUDA 11, and consequently Kepler GPUs (removed in v5.9)
-* CUDA.jl v5.3 is the last version with support for PowerPC (removed in v5.4)
-* CUDA.jl v4.4 is the last version with support for CUDA 11.0-11.3 (deprecated in v5.0)
-* CUDA.jl v4.0 is the last version to work with CUDA 10.2 (removed in v4.1)
-* CUDA.jl v3.8 is the last version to work with CUDA 10.1 (removed in v3.9)
-* CUDA.jl v1.3 is the last version to work with CUDA 9-10.0 (removed in v2.0)
+Toolkit support directly impact the devices we support:
+
+| Architecture | Compute capability | Status |
+|---|:---:|:---:|
+| Kepler and older | ≤ 3.7 | 🔴 |
+| Maxwell | 5.0, 5.2 | 🟢 |
+| Pascal | 6.0, 6.1 | 🟢 |
+| Volta | 7.0 | 🟢 |
+| Turing | 7.5 | 🟢 |
+| Ampere | 8.0, 8.6 | 🔵 |
+| Ada Lovelace | 8.9 | 🟢 |
+| Hopper | 9.0 | 🟢 |
+| Blackwell | 10.0, 10.3, 12.0, 12.1 | 🟢 |
+
+Tegra devices are supported as well, although additionally limited by the CUDA
+toolkit shipped with the last JetPack release for that device:
+
+| Platform | Architecture | Compute capability | Status |
+|---|---|:---:|:---:|
+| Jetson TK1 | Kepler | 3.2 | 🔴 |
+| Jetson Nano, TX1 | Maxwell | 5.3 | 🟡 |
+| Jetson TX2 | Pascal | 6.2 | 🟡 |
+| Jetson Xavier | Volta | 7.2 | 🟡 |
+| Jetson Orin | Ampere | 8.7 | 🟢 |
+| Jetson Thor | Blackwell | 11.0 | 🟢 |
+
+### Support legend
+
+- 🔵 **CI tested**: supported and regularly exercised by CI.
+- 🟢 **Supported**: expected to work, but not covered by CI.
+- 🟡 **Best effort**: untested and not supporting all functionality.
+- 🔴 **Not supported**.
 
 
 ## Selecting a CUDA Toolkit
@@ -145,13 +181,14 @@ CUDA.jl will automatically download and use a CUDA Toolkit that's supported
 by your NVIDIA driver as well as most of the devices in your system. There are
 two cases where you may want to select a different version:
 
-- **You have a GPU that is not supported by the latest CUDA Toolkit**.
+- **You have a GPU that is not supported by the current CUDA Toolkit**.
   Although CUDA.jl tries to select a runtime that supports most of your GPUs,
   specific devices may end up being unsupported by the active toolkit.
   In that case, call e.g. `CUDA.set_runtime_version!(v"12.9")` to
   use a specific toolkit which still supports the device in question.
 - **You want to use a CUDA Toolkit that is already installed on your system**.
-  This is not recommended, but if you want to do it anyway, call
+  This may be necessary on older systems for which matching runtime and compiler
+  artifacts are unavailable. Call
   `CUDA.set_runtime_version!(local_toolkit=true)`.
 
 Both these options will be remembered across sessions via a local preference,
@@ -166,13 +203,6 @@ funding in the future. If you use our software as part of your research, teachin
 activities, we would be grateful if you could cite our work. The
 [CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/main/CITATION.bib) file in the
 root of this repository lists the relevant papers.
-
-
-## Project Status
-
-The package is tested against, and being developed for, Julia 1.10 and above. Main
-development and testing happens on x86 Linux, but the package is expected to work on
-Windows and ARM and as well.
 
 
 ## Questions and Contributions

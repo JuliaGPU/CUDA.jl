@@ -214,7 +214,11 @@ Lower the refcount of a context, possibly freeing up all resources associated wi
 does not respect any users of the context, and might make other objects unusable.
 """
 function unsafe_release!(pctx::CuPrimaryContext)
-    cuDevicePrimaryCtxRelease_v2(pctx.dev)
+    if driver_version() >= v"11"
+        cuDevicePrimaryCtxRelease_v2(pctx.dev)
+    else
+        cuDevicePrimaryCtxRelease(pctx.dev)
+    end
     return
 end
 
@@ -226,7 +230,11 @@ in the current process. Note that this forcibly invalidates all contexts derived
 primary context, and as a result outstanding resources might become invalid.
 """
 function unsafe_reset!(pctx::CuPrimaryContext)
-    cuDevicePrimaryCtxReset_v2(pctx.dev)
+    if driver_version() >= v"11"
+        cuDevicePrimaryCtxReset_v2(pctx.dev)
+    else
+        cuDevicePrimaryCtxReset(pctx.dev)
+    end
     return
 end
 
@@ -257,7 +265,11 @@ flags(pctx::CuPrimaryContext) = state(pctx)[1]
 Set the flags of a primary context.
 """
 function setflags!(pctx::CuPrimaryContext, flags)
-    cuDevicePrimaryCtxSetFlags_v2(pctx.dev, flags)
+    if driver_version() >= v"11"
+        cuDevicePrimaryCtxSetFlags_v2(pctx.dev, flags)
+    else
+        cuDevicePrimaryCtxSetFlags(pctx.dev, flags)
+    end
 end
 
 

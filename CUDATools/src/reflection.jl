@@ -44,6 +44,17 @@ end
 code_sass(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_sass(stdout, func, types; kwargs...)
 
+function _check_cupti_profiling()
+    CUPTI.can_profile() && return true
+
+    @error """SASS code generation relies on CUPTI, which requires additional permissions on Tegra devices.
+              With CUDA 13 and later, grant read/write access to `/dev/nvgpu/*/prof`
+              (typically by joining its owning group) and enable non-admin profiling with
+              `NVreg_RestrictProfilingToAdminUsers=0`. With older CUDA toolkits, run Julia
+              as root."""
+    return false
+end
+
 function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     if !job.config.kernel
         error("Can only generate SASS code for kernel functions")
@@ -55,6 +66,8 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
                   Please use a more recent device."""
         return
     end
+
+    _check_cupti_profiling() || return
 
     # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
     # unless the activity API is first activated. This is fixed in 12.5 Update 1.
@@ -89,6 +102,8 @@ function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
                   Please use a more recent device."""
         return
     end
+
+    _check_cupti_profiling() || return
 
     # NVIDIA bug #4604961: CUPTI in CUDA 12.4 Update 1 does not capture profiled events
     # unless the activity API is first activated. This is fixed in 12.5 Update 1.

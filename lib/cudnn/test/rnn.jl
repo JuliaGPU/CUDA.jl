@@ -118,8 +118,9 @@ rnntest(layout=CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED)
 rnntest(seqLengthArray=Cint[1,2,1,2])
 rnntest(fwdMode=CUDNN_FWD_MODE_TRAINING)
 rnntest(hiddenSize=16)
-# XXX: it's unclear which devices support this algorithm
-if capability(device()) >= v"6.1"
+# Persistent-static RNNs are not supported on integrated GPUs (observed on Orin, sm_87).
+if capability(device()) >= v"6.1" &&
+   CUDACore.attribute(device(), CUDACore.DEVICE_ATTRIBUTE_INTEGRATED) != 1
     rnntest(algo=CUDNN_RNN_ALGO_PERSIST_STATIC)
 end
 #rnntest(algo=CUDNN_RNN_ALGO_PERSIST_DYNAMIC) # causes segfault

@@ -227,11 +227,14 @@ end
 
 @testset "parallel synchronization and communication" begin
 
-@test @filecheck CUDA.code_llvm(Tuple{}; arch=sm"90", raw=true) do
-    @check "asm sideeffect \"griddepcontrol.launch_dependents;\", \"\""
-    @check "asm sideeffect \"griddepcontrol.wait;\", \"~{memory}\""
-    trigger_programmatic_launch_completion()
-    grid_dependency_synchronize()
+# compiling for sm_90 requires a toolchain that supports it (CUDA 11.8+)
+if v"9.0" in CUDACore.ptxas_compat().cap
+    @test @filecheck CUDA.code_llvm(Tuple{}; arch=sm"90", raw=true) do
+        @check "asm sideeffect \"griddepcontrol.launch_dependents;\", \"\""
+        @check "asm sideeffect \"griddepcontrol.wait;\", \"~{memory}\""
+        trigger_programmatic_launch_completion()
+        grid_dependency_synchronize()
+    end
 end
 
 @on_device sync_threads()

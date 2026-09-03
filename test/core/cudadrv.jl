@@ -6,7 +6,9 @@ synchronize()
 
 ctx = current_context()
 @test CUDACore.isvalid(ctx)
-@test unique_id(ctx) > 0
+if CUDA.driver_version() >= v"12"
+    @test unique_id(ctx) > 0
+end
 
 dev = current_device()
 exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS
@@ -45,6 +47,9 @@ end
 end
 
 
+# context-handle reuse detection (needed by the validity tests below) requires
+# the unique context IDs introduced in CUDA 12
+if CUDA.driver_version() >= v"12"
 @testset "primary context" begin
 
 script = """
@@ -107,6 +112,7 @@ script = """
 proc, out, err = julia_exec(`-e $script`)
 @test success(proc)
 
+end
 end
 
 
@@ -847,7 +853,7 @@ end
 @testset "pool" begin
 
 dev = device()
-if attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
+if CUDA.driver_version() >= v"11.2" && attribute(dev, CUDA.DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED) == 1
 
 pool = memory_pool(dev)
 
@@ -877,7 +883,9 @@ end
 s = CuStream()
 synchronize(s)
 @test CUDA.isdone(s)
-@test unique_id(s) > 0
+if CUDA.driver_version() >= v"12"
+    @test unique_id(s) > 0
+end
 
 let s2 = CuStream()
     @test s != s2
