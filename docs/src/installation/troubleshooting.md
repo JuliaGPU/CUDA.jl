@@ -1,6 +1,25 @@
 # Troubleshooting
 
 
+## Getting more details about CUDA errors
+
+Many CUDA API errors are generic (e.g. `ERROR_INVALID_VALUE` or `ERROR_NOT_SUPPORTED`) and
+do not explain what went wrong. With CUDA 12.9 or newer, the driver keeps an error log with
+plain-English explanations of failed API calls, and CUDA.jl includes these messages when it
+reports a `CuError`:
+
+```
+CUDA error: operation not supported (code 801, ERROR_NOT_SUPPORTED)
+Driver log:
+  [12:34:56.789][1234][CUDA][E] ...
+  [12:34:56.789][1234][CUDA][E] Returning 801 (CUDA_ERROR_NOT_SUPPORTED) from cuModuleLoadDataEx
+```
+
+The same log can be written out by the driver directly, which is useful when an error is
+swallowed by another library or when the process crashes: set the `CUDA_LOG_FILE`
+environment variable to `stdout`, `stderr`, or a path before starting Julia.
+
+
 ## UndefVarError: libcuda not defined
 
 This means that CUDA.jl could not find a suitable CUDA driver. For more information,

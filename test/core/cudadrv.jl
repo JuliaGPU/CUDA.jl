@@ -196,6 +196,46 @@ let
 
     @test occursin("0", str)
     @test occursin("no error", str)
+    @test !occursin("Driver log", str)
+
+    # errors can be annotated with the driver's log
+    ex = CuError(CUDA.ERROR_INVALID_VALUE, "explanation")
+    @test ex == CuError(CUDA.ERROR_INVALID_VALUE)
+    @test hash(ex) == hash(CuError(CUDA.ERROR_INVALID_VALUE))
+    @test ex.log[] == "explanation"
+    io = IOBuffer()
+    showerror(io, ex)
+    str = String(take!(io))
+    @test occursin("invalid argument", str)
+    @test occursin("Driver log:", str)
+    @test occursin("explanation", str)
+end
+
+if CUDA.driver_version() >= v"12.9"
+    # the driver explains failed API calls (CUDA 12.9+)
+    let
+        # exercise the initial full-buffer dump even if an earlier test initialized the cursor
+        CUDACore.driver_log_initialized[] = false
+        ex = try
+            CUDACore.cuDeviceGet(Ref{CUDACore.CUdevice}(), typemax(Cint))
+            nothing
+        catch err
+            err
+        end
+        @test ex isa CuError
+        @test ex.code == CUDA.ERROR_INVALID_DEVICE
+        @test ex.log[] !== nothing
+        @test occursin("cuDeviceGet", ex.log[])
+
+        # the log is dumped incrementally, so nothing should be left
+        @test CUDACore.driver_log() === nothing
+
+        # handled out-of-memory errors should not leak preceding log entries
+        res = CUDACore.unchecked_cuDeviceGet(Ref{CUDACore.CUdevice}(), typemax(Cint))
+        @test res == CUDA.ERROR_INVALID_DEVICE
+        @test_throws OutOfGPUMemoryError CUDACore.throw_api_error(CUDA.ERROR_OUT_OF_MEMORY)
+        @test CUDACore.driver_log() === nothing
+    end
 end
 
 end
