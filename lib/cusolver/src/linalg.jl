@@ -309,6 +309,14 @@ end
 CUDACore.CuArray(Q::AbstractQ) = CuMatrix(Q)
 CUDACore.CuArray{T}(Q::AbstractQ) where {T} = CuMatrix{T}(Q)
 CUDACore.CuMatrix(Q::AbstractQ{T}) where {T} = CuMatrix{T}(Q)
+# Generate the compact Q directly. Applying the reflectors to an identity matrix
+# with `ormqr` can overflow cuSOLVER's 32-bit workspace size for tall matrices (#3234).
+function CUDACore.CuMatrix{T}(Q::QRPackedQ{S,<:CuArray,<:CuArray}) where {T,S}
+    factors = Q.factors
+    k = min(size(factors)...)
+    Qk = orgqr!(factors[:, 1:k], Q.τ)
+    T === S ? Qk : CuMatrix{T}(Qk)
+end
 CUDACore.CuMatrix{T}(Q::QRPackedQ{S}) where {T,S} =
     CuMatrix{T}(lmul!(Q, CuMatrix{S}(I, size(Q, 1), min(size(Q.factors)...))))
 CUDACore.CuMatrix{T, B}(Q::QRPackedQ{S}) where {T, B, S} = CuMatrix{T}(Q)

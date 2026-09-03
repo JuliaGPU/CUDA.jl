@@ -187,6 +187,9 @@ Julia 1.10 the cache stays session-local
 - Narrowed the data operand of the `trsm` wrappers to CUDA arrays, resolving a
   dispatch ambiguity with GPUArrays' generic triangular solves
   ([#3240](https://github.com/JuliaGPU/CUDA.jl/pull/3240)).
+- Materializing the `Q` factor of a QR decomposition now uses `orgqr` directly,
+  avoiding an overflow in `ormqr`'s 32-bit workspace size for tall matrices
+  ([#3234](https://github.com/JuliaGPU/CUDA.jl/issues/3234)).
 
 
 ## v6.2 (June 2026)
