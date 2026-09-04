@@ -145,7 +145,10 @@ devices (such as the Jetson series). What exactly is required depends on the CUD
   below). Without the device node access, CUPTI crashes the process outright instead
   of reporting an error;
 - with CUDA 10 through 12 (typically JetPack 4 through 6), profiling requires running as
-  root. This was verified with CUDA 10.2 and 11.4; CUDA 12 uses the same conservative gate.
+  root. Membership of the `debug` group is not enough there: on an AGX Xavier with
+  read/write access to `/dev/nvgpu/igpu0/prof`, CUPTI 11.8 still refuses every activity
+  kind with `CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`. Verified with CUDA 10.2, 11.4 and
+  11.8; CUDA 12 uses the same conservative gate.
 
 The same requirements apply to other CUPTI-based functionality, such as
 `@device_code_sass`.

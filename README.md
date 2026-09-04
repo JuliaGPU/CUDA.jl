@@ -156,16 +156,20 @@ Toolkit support directly impact the devices we support:
 | Blackwell | 10.0, 10.3, 12.0, 12.1 | 🟢 |
 
 Tegra devices are supported as well, although additionally limited by the CUDA
-toolkit shipped with the last JetPack release for that device:
+toolkit shipped with the last JetPack release for that device. On JetPack 5 and
+6, CUDA.jl loads NVIDIA's L4T forward-compatibility driver, so those boards are
+not restricted to the CUDA version they were flashed with; see the
+[installation guide](https://cuda.juliagpu.org/stable/installation/overview/)
+for the per-generation details.
 
-| Platform | Architecture | Compute capability | Status |
-|---|---|:---:|:---:|
-| Jetson TK1 | Kepler | 3.2 | 🔴 |
-| Jetson Nano, TX1 | Maxwell | 5.3 | 🟡 |
-| Jetson TX2 | Pascal | 6.2 | 🟡 |
-| Jetson Xavier | Volta | 7.2 | 🟡 |
-| Jetson Orin | Ampere | 8.7 | 🟢 |
-| Jetson Thor | Blackwell | 11.0 | 🟢 |
+| Platform | Architecture | Compute capability | JetPack | Toolkit used | Status |
+|---|---|:---:|:---:|:---:|:---:|
+| Jetson TK1 | Kepler | 3.2 | ≤ 3 | — | 🔴 |
+| Jetson Nano, TX1 | Maxwell | 5.3 | 4 | 10.2 | 🟡 |
+| Jetson TX2 | Pascal | 6.2 | 4 | 10.2 | 🟡 |
+| Jetson Xavier | Volta | 7.2 | 5 | 12.5 | 🟡 |
+| Jetson Orin | Ampere | 8.7 | 6, 7 | 12.9, 13.x | 🟢 |
+| Jetson Thor | Blackwell | 11.0 | 7 | 13.x | 🟢 |
 
 ### Support legend
 

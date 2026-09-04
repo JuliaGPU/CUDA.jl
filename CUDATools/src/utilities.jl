@@ -1,4 +1,5 @@
 using CUDACore: functional, runtime_version, driver_version, compiler_version,
+                forward_compatible_driver,
                 devices, name, capability, device!, free_memory, total_memory,
                 uuid, parent_uuid, CuDevice, CUDA_Runtime_jll, CUDA_Driver_jll
 
@@ -16,12 +17,12 @@ function versioninfo(io::IO=stdout)
     else
         println(io, "artifact installation")
     end
-    if has_nvml()
-        print(io, "- driver $(NVML.driver_version())")
-    else
-        print(io, "- unknown driver")
-    end
-    println(io, " for $(driver_version().major).$(driver_version().minor)")
+    # NVML reports the kernel-mode driver's own version, but is absent on Tegra
+    print(io, "- driver ")
+    has_nvml() && print(io, NVML.driver_version(), " ")
+    print(io, "for CUDA $(driver_version().major).$(driver_version().minor)")
+    forward_compatible_driver() && print(io, ", forward-compatible")
+    println(io)
     cv = compiler_version()
     print(io, "- compiler $(cv.major).$(cv.minor).$(cv.patch), ")
     if CUDACore.local_compiler
