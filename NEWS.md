@@ -13,6 +13,79 @@ changes to support floors; those are labeled separately below. Patch releases
 are listed as subsections of the minor release they belong to.
 
 
+## v6.4 (unreleased)
+
+NVIDIA's Jetson boards are now a supported platform, across every JetPack
+generation still in the field, and the binary stack that picks the driver and
+the CUDA toolkit was rebuilt to make that selection reliable.
+
+`Pkg.add("CUDA")` on a Jetson selects the `cuda_platform=jetson` toolkit builds
+automatically. On JetPack 7 that is all there is to it: CUDA 13 artifacts on the
+system driver, with every vendor library and the integrated profiler. On
+JetPack 5 and 6, `CUDA_Driver_jll` bundles NVIDIA's L4T forward-compatibility
+driver for the board's kernel-mode driver generation, verifies that it
+initializes and supports every device present, and only then loads it; the
+toolkit is then sized on that driver rather than on the system one. An AGX
+Xavier goes from CUDA 11.4 to CUDA 12.5 without reflashing. On JetPack 4, CUDA
+10.2 is now fully artifact-based, so a Jetson Nano no longer needs a local
+toolkit.
+
+The three JLLs involved now have one responsibility each. `CUDA_Driver_jll`
+decides which driver to load and exports `libcuda`; `CUDA_Runtime_jll` and
+`CUDA_Compiler_jll` decide which toolkit to use by querying that driver directly
+during artifact selection. Previously the driver JLL hosted a toolkit-selection
+library that the other two called across a package boundary, which was
+unreliable in Pkg's artifact-selection subprocess and meant every toolkit
+addition needed a driver release. Requires CUDA_Driver_jll 13.3.4,
+CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
+
+*New features*:
+
+- Forward-compatibility drivers are keyed by a `tegra` platform tag computed
+  from `/etc/nv_tegra_release`, so an r35 board downloads the CUDA 12.2 L4T
+  driver and an r36 board the 12.9 one. Boards without a compat driver, and
+  Windows, no longer download a driver artifact at all. The `compat` preference
+  on `CUDA_Driver_jll` (or `JULIA_CUDA_USE_COMPAT`) forces or forbids its use;
+  a forced compat driver that fails `cuInit` is still rejected.
+- `CUDA.versioninfo()` reports when a forward-compatible driver is in use, and
+  no longer claims the driver version is "unknown" on systems without NVML
+  (such as Tegra).
+- CUDA 10.2 is available as artifacts on Linux x86_64, Linux Tegra aarch64 and
+  Windows: `CUDA_Compiler_jll` gained a 10.2 build, and the 10.2
+  `CUDA_Runtime_jll` artifact now declares `libcublasLt`, without which cuBLAS
+  failed to initialize.
+- Hosts without a visible GPU (a container, an HPC login node) now get a
+  toolkit sized on the driver version instead of no toolkit at all, so
+  precompiling there produces a usable image.
+- `CuError` now includes the driver's own error log, when the driver provides
+  one ([#3259](https://github.com/JuliaGPU/CUDA.jl/pull/3259)).
+- LinearAlgebra's storage-specific `mul!` methods are implemented, keeping
+  CUDA.jl working with the dispatch rework in Julia 1.13
+  ([#3257](https://github.com/JuliaGPU/CUDA.jl/pull/3257)).
+
+*Bug fixes*:
+
+- `CUDA.@profile` and `@device_code_sass` now explain that CUPTI needs extra
+  permissions on Tegra instead of failing obscurely, or crashing the process
+  outright as CUPTI does on CUDA 13 without access to the profiling device
+  nodes ([#3254](https://github.com/JuliaGPU/CUDA.jl/pull/3254)).
+- `CUDA.@profile` works on CUDA 10.2, where CUPTI rejects the optional NVTX
+  marker-data activity records
+  ([#3256](https://github.com/JuliaGPU/CUDA.jl/pull/3256)).
+- Restored best-effort support for CUDA 10.2 and 11 drivers and runtimes, which
+  had regressed to unconditional use of newer driver and library entry points
+  ([#3255](https://github.com/JuliaGPU/CUDA.jl/pull/3255)).
+- Loading CUDA.jl no longer requires a CUDA compiler on systems without CUDA
+  ([#3252](https://github.com/JuliaGPU/CUDA.jl/pull/3252)).
+- `ldg` indices are widened to `Int` before reaching the intrinsic
+  ([#3251](https://github.com/JuliaGPU/CUDA.jl/pull/3251)).
+- Runtime library functions are marked as device functions, so they no longer
+  show up as callable from the host
+  ([#3249](https://github.com/JuliaGPU/CUDA.jl/pull/3249)).
+- Extended the Enzyme rules for `SVector`s
+  ([#3247](https://github.com/JuliaGPU/CUDA.jl/pull/3247)).
+
+
 ## v6.3 (August 2026)
 
 Compiled kernels are now cached by Julia's compiler. Adapting to GPUCompiler 2,
@@ -187,6 +260,13 @@ Julia 1.10 the cache stays session-local
 - Narrowed the data operand of the `trsm` wrappers to CUDA arrays, resolving a
   dispatch ambiguity with GPUArrays' generic triangular solves
   ([#3240](https://github.com/JuliaGPU/CUDA.jl/pull/3240)).
+
+
+### v6.3.1 (September 2026)
+
+- Loading CUDA.jl on a system without CUDA no longer requires a CUDA compiler
+  artifact to be selectable
+  ([#3252](https://github.com/JuliaGPU/CUDA.jl/pull/3252)).
 
 
 ## v6.2 (June 2026)

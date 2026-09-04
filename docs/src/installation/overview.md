@@ -51,11 +51,39 @@ pkg> add LLVM#master
 
 ## Platform support
 
-We support the same operation systems that NVIDIA supports: Linux, and Windows. Similarly,
-we support x86, ARM, PPC, ... as long as Julia is supported on it and there exists an NVIDIA
-driver and CUDA toolkit for your platform. The main development platform (and the only CI
-system) however is x86_64 on Linux, so if you are using a more exotic combination there
-might be bugs.
+We support the same operating systems that NVIDIA supports: Linux and Windows, on x86_64
+and (on Linux) aarch64. The main development platform, and the only CI system, is x86_64
+Linux, so on other combinations there might be bugs. Refer to the [support
+matrix](https://github.com/JuliaGPU/CUDA.jl#requirements) in the README for the level of
+support per platform, CUDA version and device architecture.
+
+### NVIDIA Jetson
+
+Tegra-based systems (the Jetson series) are supported, and `Pkg.add("CUDA")` selects the
+`cuda_platform=jetson` toolkit builds automatically. What you end up with depends on the
+JetPack generation the board runs:
+
+| Board (JetPack, L4T) | System CUDA | CUDA.jl uses |
+|---|---|---|
+| Jetson Nano, TX1, TX2 (JetPack 4, r32) | 10.2 | system driver, CUDA 10.2 artifacts |
+| Xavier (JetPack 5, r35) | 11.4 | bundled CUDA 12.2 L4T driver, CUDA 12.5 artifacts |
+| Orin (JetPack 6, r36) | 12.x | bundled CUDA 12.9 L4T driver, CUDA 12.9 artifacts |
+| Orin, Thor (JetPack 7, r39) | 13.x | system driver, CUDA 13.x artifacts |
+
+On JetPack 5 and 6, `CUDA_Driver_jll` bundles NVIDIA's L4T forward-compatibility driver
+for that kernel-mode driver generation, and only loads it after verifying that it
+initializes and supports every device present. Set the `compat` preference on
+`CUDA_Driver_jll` to `false` (or `JULIA_CUDA_USE_COMPAT=false`) to keep the system driver.
+
+Two Jetson-specific caveats:
+
+- NVIDIA's Jetson library redistributables only contain device code for the architectures
+  of the JetPack generation they belong to. Xavier (sm_72) code disappears from cuBLAS in
+  CUDA 12.6 and from all libraries in 12.8, so on Xavier the toolkit selection is capped
+  at CUDA 12.5 even though `ptxas` would still target sm_72. Setting an explicit `version`
+  preference bypasses that cap, and the vendor libraries will then fail with errors such
+  as `CUBLAS_STATUS_ARCH_MISMATCH`.
+- Profiling and SASS reflection need extra permissions, see [Profiling on Tegra](@ref).
 
 
 
@@ -83,10 +111,15 @@ administrator to upgrade:
 
 ```
 julia> CUDA.versioninfo()
-CUDA runtime 10.2
-CUDA driver 11.8
-NVIDIA driver 520.56.6, originally for CUDA 11.7
+CUDA toolchain:
+- runtime 12.5.0, artifact installation
+- driver 535.171.4 for CUDA 12.2, forward-compatible
+- compiler 12.5.82, artifact installation
+...
 ```
+
+The same mechanism is used on JetPack 5 and 6 Jetson boards, see [Platform
+support](@ref) above.
 
 Finally, to be able to use all of the Julia GPU stack you need to have permission to profile
 GPU code. On Linux, that means loading the `nvidia` kernel module with the
@@ -150,9 +183,11 @@ releases while keeping the runtime fixed. Keep them within the same CUDA major b
 runtime libraries may link against compiler libraries with a major-versioned soname.
 CUDA.jl configures them together by default.
 
-CUDA 10.2 and 11 are supported on a best-effort basis. Matching runtime and compiler
-artifacts are not available for every older CUDA version and platform. If artifact
-selection cannot provide both, use a local toolkit as described below.
+CUDA 10.2 and 11 are supported on a best-effort basis: they are not covered by CI, and
+not all functionality is available. Runtime and compiler artifacts are available for
+every CUDA version CUDA.jl supports on Linux (x86_64 and Tegra aarch64) and Windows; on
+other platforms, or for a version without artifacts, use a local toolkit as described
+below.
 
 ### Using a local CUDA
 
@@ -163,7 +198,8 @@ To use a local installation, set the `local_toolkit` keyword argument to
 julia> using CUDA
 
 julia> CUDA.versioninfo()
-CUDA runtime 11.8, artifact installation
+CUDA toolchain:
+- runtime 11.8.0, artifact installation
 ...
 
 julia> CUDA.set_runtime_version!(local_toolkit=true)
@@ -187,7 +223,8 @@ so that after re-launching Julia:
 julia> using CUDA
 
 julia> CUDA.versioninfo()
-CUDA runtime 11.8, local installation
+CUDA toolchain:
+- runtime 11.8.0, local installation
 ...
 ```
 
