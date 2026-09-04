@@ -57,28 +57,13 @@ function __init__()
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,
     #       and remove functional(), once people sufficiently use weak dependencies.
 
-    # check that we have a driver
-    global libcuda
-    if CUDA_Driver_jll.is_available()
-        if isnothing(CUDA_Driver_jll.libcuda)
-            _initialization_error[] = "CUDA driver not found"
-            return
-        end
-        libcuda = CUDA_Driver_jll.libcuda
-    else
-        # CUDA_Driver_jll only kicks in for supported platforms, so fall back to
-        # a system search if the artifact isn't available (JLLWrappers.jl#50)
-        library = if Sys.iswindows()
-            Libdl.find_library("nvcuda")
-        else
-            Libdl.find_library(["libcuda.so.1", "libcuda.so"])
-        end
-        if library != ""
-            libcuda = library
-        else
-            _initialization_error[] = "CUDA driver not found"
-            return
-        end
+    # check that we have a driver. CUDA_Driver_jll defines `libcuda` on every platform,
+    # also where it ships no artifact, in which case it names the system driver; its
+    # `__init__` may have replaced it with a bundled forwards-compatible driver.
+    global libcuda = CUDA_Driver_jll.libcuda
+    if Libdl.dlopen(libcuda; throw_error=false) === nothing
+        _initialization_error[] = "CUDA driver not found"
+        return
     end
 
     driver = try
@@ -133,7 +118,7 @@ function __init__()
 
                If the issue persists, please file a support ticket with the following details:
                - host platform: $(Base.BinaryPlatforms.triplet(CUDA_Runtime_jll.host_platform))
-               - libcuda: $libcuda (loaded through JLL: $(CUDA_Driver_jll.is_available()))
+               - libcuda: $libcuda ($(forward_compatible_driver() ? "forward-compatible" : "system") driver)
                - driver version: $driver
                """
         end
