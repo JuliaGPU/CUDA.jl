@@ -53,16 +53,28 @@ end
 end
 
 @testset "target requirements" begin
+    # Compile and validate without loading a cubin: targets need not match the test GPU.
+    # PTX reflection disables validation, including the static assertions tested here.
+    function compile_kernel(f, tt; kwargs...)
+        source = CUDACore.methodinstance(typeof(f), tt)
+        config = CUDACore.compiler_config(device(); kwargs...)
+        CUDACore.compile(CUDACore.CompilerJob(source, config))
+    end
+
     out = CUDA.zeros(UInt32, 1)
 
     function dp4a_kernel(out)
         @inbounds out[] = CUDA.dp4a(Int32(1), Int32(2), Int32(3))
         return
     end
-    @test_throws "requires compute capability 6.1" @cuda launch=false arch=sm"60" dp4a_kernel(out)
+    @test_throws "requires compute capability 6.1" compile_kernel(
+        dp4a_kernel, Tuple{typeof(CUDA.cudaconvert(out))};
+        arch=sm"60")
 
     nanosleep_kernel() = nanosleep(UInt32(1))
-    @test_throws "requires compute capability 7.0" @cuda launch=false arch=sm"61" nanosleep_kernel()
+    @test_throws "requires compute capability 7.0" compile_kernel(
+        nanosleep_kernel, Tuple{};
+        arch=sm"61")
 
     @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"61") do ptr
         @check "{{atom(\\.sys)?\\.global\\.cas\\.b32}}"
@@ -82,7 +94,8 @@ end
     end
     local_ptr_t = Core.LLVMPtr{UInt32,AS.Local}
     @test_throws "atomics require a generic, global, or shared address space" begin
-        CUDA.cufunction(invalid_atomic_address_space_kernel, Tuple{local_ptr_t}; arch=sm"80")
+        compile_kernel(invalid_atomic_address_space_kernel, Tuple{local_ptr_t};
+                      arch=sm"80")
     end
 
     outf16 = CUDA.zeros(Float16, 16 * 16)
@@ -91,7 +104,9 @@ end
             pointer(out), Int32(16))
         return
     end
-    @test_throws "requires compute capability 7.0" @cuda launch=false arch=sm"61" wmma_kernel(outf16)
+    @test_throws "requires compute capability 7.0" compile_kernel(
+        wmma_kernel, Tuple{typeof(CUDA.cudaconvert(outf16))};
+        arch=sm"61")
 
     outi8 = CUDA.zeros(Int8, 16 * 16)
     function wmma_int_kernel(out)
@@ -99,7 +114,9 @@ end
             pointer(out), Int32(16))
         return
     end
-    @test_throws "requires compute capability 7.2" @cuda launch=false arch=sm"70" wmma_int_kernel(outi8)
+    @test_throws "requires compute capability 7.2" compile_kernel(
+        wmma_int_kernel, Tuple{typeof(CUDA.cudaconvert(outi8))};
+        arch=sm"70")
 
     outbf16 = CUDA.zeros(CUDACore.BFloat16, 16 * 16)
     function wmma_bf16_kernel(out)
@@ -107,21 +124,27 @@ end
             pointer(out), Int32(16))
         return
     end
-    @test_throws "requires compute capability 8.0" @cuda launch=false arch=sm"72" wmma_bf16_kernel(outbf16)
+    @test_throws "requires compute capability 8.0" compile_kernel(
+        wmma_bf16_kernel, Tuple{typeof(CUDA.cudaconvert(outbf16))};
+        arch=sm"72")
 
     cluster_kernel() = cluster_arrive()
-    @test_throws "requires compute capability 9.0" @cuda launch=false arch=sm"80" cluster_kernel()
+    @test_throws "requires compute capability 9.0" compile_kernel(
+        cluster_kernel, Tuple{};
+        arch=sm"80")
 
     dependent_launch_kernel() = trigger_programmatic_launch_completion()
     @test_throws "requires compute capability 9.0" begin
-        @cuda launch=false arch=sm"80" dependent_launch_kernel()
+        compile_kernel(dependent_launch_kernel, Tuple{}; arch=sm"80")
     end
 
     function distributed_shared_kernel()
         CuDistributedSharedArray(CuStaticSharedArray(UInt32, 1), 1)
         return
     end
-    @test_throws "requires compute capability 9.0" @cuda launch=false arch=sm"80" distributed_shared_kernel()
+    @test_throws "requires compute capability 9.0" compile_kernel(
+        distributed_shared_kernel, Tuple{};
+        arch=sm"80")
 
     # `cp.async.wait_group` takes an immediate operand, so the number of stages needs to
     # be materialized as a constant, capping it at 8 like CUDA's `__pipeline_wait_prior`
@@ -149,7 +172,8 @@ end
     dst_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Shared},3}
     src_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Global},3}
     @test_throws "memcpy_async alignment must be a power of 2" begin
-        CUDA.cufunction(invalid_memcpy_alignment_kernel, Tuple{dst_t,src_t}; arch=sm"80")
+        compile_kernel(invalid_memcpy_alignment_kernel, Tuple{dst_t,src_t};
+                      arch=sm"80")
     end
 end
 
