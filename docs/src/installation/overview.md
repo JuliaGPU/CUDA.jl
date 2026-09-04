@@ -196,9 +196,9 @@ ERROR: LoadError: InitError: could not load library ".../lib/libcusolver.so"
 libnvJitLink.so.12: cannot open shared object file: No such file or directory
 ```
 
-Setting only one of the two preferences by hand has the same effect, because the other
-JLL keeps the selection it cached earlier. `CUDA.set_runtime_version!` configures both,
-and is the recommended way to change them.
+On Julia before 1.13, setting only one of the two preferences by hand has the same
+effect, because the other JLL does not notice and keeps the selection it cached earlier.
+`CUDA.set_runtime_version!` configures both, and is the recommended way to change them.
 
 CUDA 10.2 and 11 are supported on a best-effort basis: they are not covered by CI, and
 not all functionality is available. Runtime and compiler artifacts are available for
