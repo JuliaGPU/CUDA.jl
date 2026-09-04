@@ -283,6 +283,42 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
 end
 
 #ormqr
+
+# cuSOLVER's ormqr workspace grows with the number of rows of the reflectors times the
+# number of reflectors, and its 32-bit size query fails once that product gets large
+# (JuliaGPU/CUDA.jl#3234). Applying the reflectors in blocks bounds the workspace.
+const ORMQR_MAX_ELEMENTS = 2^30
+function ormqr_blocksize(mA, k)
+    mA * k <= ORMQR_MAX_ELEMENTS && return k
+    nb = ORMQR_MAX_ELEMENTS ÷ mA
+    return max(32, nb - nb % 32)
+end
+
+# Apply the `k` reflectors stored in `A` to `C` in blocks of `nb`.
+#
+# Reflector `i` only touches rows `i:mA`, so the reflectors `j:jend` can be applied through
+# the trailing submatrices `A[j:mA, j:jend]` and `C[j:mA, :]` (or `C[:, j:mA]` from the
+# right). `Q*C` and `C*Q'` apply the last reflector first; `Q'*C` and `C*Q` the first.
+function ormqr_blocked!(side::Char, trans::Char, A::StridedCuMatrix, tau::CuVector,
+                        C::StridedCuVecOrMat, nb::Integer)
+    mA = size(A, 1)
+    k = length(tau)
+    blocks = 1:nb:k
+    forward = (side == 'L') != (trans == 'N')
+    for j in (forward ? blocks : reverse(blocks))
+        jend = min(j + nb - 1, k)
+        Ab = view(A, j:mA, j:jend)
+        τb = tau[j:jend]
+        Cb = if side == 'L'
+            C isa AbstractVector ? view(C, j:mA) : view(C, j:mA, :)
+        else
+            view(C, :, j:mA)
+        end
+        ormqr!(side, trans, Ab, τb, Cb; blocksize=length(τb))
+    end
+    return C
+end
+
 for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :Float32),
                              (:cusolverDnDormqr_bufferSize, :cusolverDnDormqr, :Float64),
                              (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :ComplexF32),
@@ -292,7 +328,8 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                         trans::Char,
                         A::StridedCuMatrix{$elty},
                         tau::CuVector{$elty},
-                        C::StridedCuVecOrMat{$elty})
+                        C::StridedCuVecOrMat{$elty};
+                        blocksize::Union{Nothing,Integer}=nothing)
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
@@ -315,6 +352,11 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             if side == 'R' && k > n
                 throw(DimensionMismatch("invalid number of reflectors: k = $k should be <= n = $n"))
             end
+            nb = blocksize === nothing ? ormqr_blocksize(mA, k) : Int(blocksize)
+            if nb < k
+                return ormqr_blocked!(side, trans, A, tau, C, nb)
+            end
+
             lda = max(1, stride(A, 2))
             ldc = max(1, stride(C, 2))
             dh = dense_handle()
@@ -357,13 +399,22 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
                 return out[] * sizeof($elty)
             end
 
-            with_workspace(dh.workspace_gpu, bufferSize) do buffer
-                $fname(dh, m, n, k, A, lda, tau,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
-            end
+            if bufferSize() < 0
+                # the 32-bit workspace size overflowed for this very tall matrix;
+                # apply the reflectors to an identity matrix in blocks instead
+                Q = CuMatrix{$elty}(I, m, n)
+                ormqr!('L', 'N', A, tau, Q)
+                copyto!(view(A, :, 1:n), Q)
+                unsafe_free!(Q)
+            else
+                with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                    $fname(dh, m, n, k, A, lda, tau,
+                           buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
+                end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             if n < size(A, 2)
                 A[:, 1:n]
