@@ -65,6 +65,11 @@ l = 13
     @test collect(CuArray(d_q)) ≈ Array(q)
     @test Array(d_r) ≈ Array(r)
     @test CuArray(d_q) ≈ convert(typeof(d_A), d_q)
+    other_elty = elty <: Complex ? (elty == ComplexF32 ? ComplexF64 : ComplexF32) :
+                                   (elty == Float32 ? Float64 : Float32)
+    d_q_other = CuMatrix{other_elty}(d_q)
+    @test eltype(d_q_other) === other_elty
+    @test collect(d_q_other) ≈ Array(q)
 
     A              = rand(elty, n, m)
     d_A            = CuArray(A)

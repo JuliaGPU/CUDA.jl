@@ -40,6 +40,18 @@ end
 
             cuSOLVER.ormqr!(side, trans, dA, dτ, dC)
             @test dC ≈ dD
+
+            # blocked application of the reflectors (used for very tall matrices)
+            for blocksize in (1, 3, 4)
+                dC = CuArray(C)
+                cuSOLVER.ormqr!(side, trans, dA, dτ, dC; blocksize)
+                @test dC ≈ dD
+                dc = CuArray(C[:, 1])
+                if side == 'L'
+                    cuSOLVER.ormqr!(side, trans, dA, dτ, dc; blocksize)
+                    @test dc ≈ dD[:, 1]
+                end
+            end
         end
     end
 end
