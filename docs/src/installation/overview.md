@@ -118,8 +118,8 @@ CUDA toolchain:
 ...
 ```
 
-The same mechanism is used on JetPack 5 and 6 Jetson boards, see [Platform
-support](@ref) above.
+The same mechanism is used on JetPack 5 and 6 Jetson boards, see
+[Platform support](@ref) above.
 
 Finally, to be able to use all of the Julia GPU stack you need to have permission to profile
 GPU code. On Linux, that means loading the `nvidia` kernel module with the
