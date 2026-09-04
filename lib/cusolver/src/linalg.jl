@@ -356,7 +356,7 @@ LinearAlgebra.rmul!(A::CuVecOrMat{T},
     ormqr!('R', 'C', parent(adjB).factors, parent(adjB).τ, A)
 LinearAlgebra.rmul!(A::CuVecOrMat{T},
                     trA::Transpose{<:Any,<:QRPackedQ{T,<:CuArray,<:CuArray}}) where {T<:BlasFloat} =
-    ormqr!('R', 'T', parent(trA).factors, parent(adjB).τ, A)
+    ormqr!('R', 'T', parent(trA).factors, parent(trA).τ, A)
 
 
 ## SVD
