@@ -21,10 +21,15 @@ function checked_cuModuleLoadDataEx(_module, image, numOptions, options, optionV
     #        that would require a redesign of the memory pool,
     #        so maybe do so when we replace it with CUDA 11.2's pool.
     res = retry_reclaim(isequal(ERROR_OUT_OF_MEMORY)) do
-        unchecked_cuModuleLoadDataEx(_module, image, numOptions, options, optionValues)
+        res = unchecked_cuModuleLoadDataEx(_module, image, numOptions, options, optionValues)
+        if res == ERROR_OUT_OF_MEMORY
+            # OOM is self-explanatory, whether retried here or returned below.
+            discard_driver_log()
+        end
+        res
     end
     if res != SUCCESS
-        throw(CuError(res))
+        throw(CuError(res, driver_log()))
     end
 
     return
@@ -65,7 +70,11 @@ mutable struct CuModule
                                                  ERROR_INVALID_IMAGE,
                                                  ERROR_INVALID_PTX)
                 options = decode(optionKeys, optionVals)
-                error(GC.@preserve options unsafe_string(pointer(options[JIT_ERROR_LOG_BUFFER])))
+                log = GC.@preserve options unsafe_string(pointer(options[JIT_ERROR_LOG_BUFFER]))
+                # the JIT log is only populated when compiling or linking; if the driver
+                # rejected the image outright, the CuError (and its driver log) is all we have
+                isempty(log) && rethrow()
+                error(log)
             else
                 rethrow()
             end

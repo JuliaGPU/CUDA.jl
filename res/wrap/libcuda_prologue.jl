@@ -20,9 +20,11 @@ end
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
     if res == ERROR_OUT_OF_MEMORY
+        # do not attribute this handled, self-explanatory failure to a later CuError
+        discard_driver_log()
         throw(OutOfGPUMemoryError())
     else
-        throw(CuError(res))
+        throw(CuError(res, driver_log()))
     end
 end
 
