@@ -67,7 +67,7 @@ JetPack generation the board runs:
 |---|---|---|
 | Jetson Nano, TX1, TX2 (JetPack 4, r32) | 10.2 | system driver, CUDA 10.2 artifacts |
 | Xavier (JetPack 5, r35) | 11.4 | bundled CUDA 12.2 L4T driver, CUDA 12.5 artifacts |
-| Orin (JetPack 6, r36) | 12.x | bundled CUDA 12.9 L4T driver, CUDA 12.9 artifacts |
+| Orin (JetPack 6, r36) | 12.x | bundled CUDA 12.9 L4T driver, CUDA 12.9 artifacts (not validated on hardware) |
 | Orin, Thor (JetPack 7, r39) | 13.x | system driver, CUDA 13.x artifacts |
 
 On JetPack 5 and 6, `CUDA_Driver_jll` bundles NVIDIA's L4T forward-compatibility driver
@@ -180,8 +180,17 @@ configured CUDA runtime.
 
 The JLL preferences can also be set independently, which is useful for testing compiler
 releases while keeping the runtime fixed. Keep them within the same CUDA major because
-runtime libraries may link against compiler libraries with a major-versioned soname.
-CUDA.jl configures them together by default.
+runtime libraries link against compiler libraries with a major-versioned soname; a
+mismatch shows up as a load failure while precompiling, e.g.
+
+```
+ERROR: LoadError: InitError: could not load library ".../lib/libcusolver.so"
+libnvJitLink.so.12: cannot open shared object file: No such file or directory
+```
+
+Setting only one of the two preferences by hand has the same effect, because the other
+JLL keeps the selection it cached earlier. `CUDA.set_runtime_version!` configures both,
+and is the recommended way to change them.
 
 CUDA 10.2 and 11 are supported on a best-effort basis: they are not covered by CI, and
 not all functionality is available. Runtime and compiler artifacts are available for
@@ -263,6 +272,20 @@ you also need to set the `local_toolkit` keyword argument, e.g., by calling
 here needs to match what will be available at run time. In both cases, i.e. when using
 artifacts or a local toolkit, the chosen version needs to be compatible with the available
 driver.
+
+The same caching applies in reverse: a session where the GPU is hidden (say,
+`CUDA_VISIBLE_DEVICES=""`) selects a toolkit sized on the driver version alone, and that
+selection stays in the JLL's precompilation cache afterwards, because nothing about the
+project changed. This is visible on a Jetson that would otherwise adopt a
+forward-compatibility driver: it keeps the smaller, system-driver-sized toolkit. Setting
+or clearing a preference re-triggers selection, as does recompiling the JLLs by hand:
+
+```julia
+for (uuid, name) in (("76a88914-d11a-5bdc-97e0-2f5a05c973a2", "CUDA_Runtime_jll"),
+                     ("d1e2174e-dfdc-576e-b43e-73b79eb1aca8", "CUDA_Compiler_jll"))
+    Base.compilecache(Base.PkgId(Base.UUID(uuid), name))
+end
+```
 
 Finally, in such a scenario you may also want to call `CUDA.precompile_runtime()` to ensure
 that the GPUCompiler runtime library is precompiled as well. This and all of the above is

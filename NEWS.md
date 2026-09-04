@@ -69,8 +69,10 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   permissions on Tegra instead of failing obscurely, or crashing the process
   outright as CUPTI does on CUDA 13 without access to the profiling device
   nodes ([#3254](https://github.com/JuliaGPU/CUDA.jl/pull/3254)).
-- `CUDA.@profile` works on CUDA 10.2, where CUPTI rejects the optional NVTX
-  marker-data activity records
+- `CUDA.@profile` no longer fails outright when CUPTI cannot enable one of the
+  activity kinds it asks for, and skips that kind instead. Tegra's CUPTI rejects
+  the optional NVTX marker-data records up to and including CUDA 11, which made
+  the profiler unusable on a Jetson Nano and, as root, on an AGX Xavier
   ([#3256](https://github.com/JuliaGPU/CUDA.jl/pull/3256)).
 - Restored best-effort support for CUDA 10.2 and 11 drivers and runtimes, which
   had regressed to unconditional use of newer driver and library entry points
