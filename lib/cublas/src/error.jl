@@ -6,8 +6,13 @@ end
 
 Base.convert(::Type{cublasStatus_t}, err::CUBLASError) = err.code
 
-Base.showerror(io::IO, err::CUBLASError) =
+function Base.showerror(io::IO, err::CUBLASError)
     print(io, "CUBLASError: ", description(err), " (code $(reinterpret(Int32, err.code)), $(name(err)))")
+    if err.code == CUBLAS_STATUS_ARCH_MISMATCH
+        CUDACore.explain_unsupported_device(io)
+    end
+    return
+end
 
 name(err::CUBLASError) = string(err.code)
 

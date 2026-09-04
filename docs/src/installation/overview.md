@@ -83,6 +83,14 @@ Two Jetson-specific caveats:
   at CUDA 12.5 even though `ptxas` would still target sm_72. Setting an explicit `version`
   preference bypasses that cap, and the vendor libraries will then fail with errors such
   as `CUBLAS_STATUS_ARCH_MISMATCH`.
+- The libraries that ship separately from the toolkit follow the same pattern, which is
+  why Xavier is marked best-effort in the README's support matrix. cuDNN's Jetson build
+  targets Orin and newer: cuDNN 9.24 carries SASS for sm_75 through sm_90 and no PTX at
+  all, so there is nothing for a sm_72 Xavier to run or to JIT, and CUDA.jl requires
+  cuDNN 9.24 or newer. cuTENSOR is not published for Jetson by NVIDIA at all; on CUDA 13
+  the aarch64 build is not platform-tagged, so Tegra boards can use it, but on CUDA 12 it
+  is tagged for SBSA and does not apply to a Xavier. The core libraries work in both
+  cases.
 - Profiling and SASS reflection need extra permissions, see [Profiling on Tegra](@ref).
 
 

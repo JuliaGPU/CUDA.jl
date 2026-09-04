@@ -86,6 +86,9 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   ([#3249](https://github.com/JuliaGPU/CUDA.jl/pull/3249)).
 - Extended the Enzyme rules for `SVector`s
   ([#3247](https://github.com/JuliaGPU/CUDA.jl/pull/3247)).
+- cuBLAS and cuDNN errors that mean the library has no device code for the GPU
+  in use now say so, instead of only reporting the status code. This is what an
+  Xavier sees from cuDNN, whose Jetson build stops at sm_75.
 
 
 ## v6.3 (August 2026)

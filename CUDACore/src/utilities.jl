@@ -39,3 +39,33 @@ macro sync(ex...)
 end
 
 @public @sync
+
+
+"""
+    explain_unsupported_device(io::IO)
+
+Print an explanation for a vendor-library error that typically means the library contains
+no device code for the current GPU. Prints nothing when there is no device to talk about.
+"""
+function explain_unsupported_device(io::IO)
+    cap = try
+        functional() ? capability(device()) : nothing
+    catch
+        nothing
+    end
+    cap === nothing && return
+
+    print(io, "\n\nThis can mean the library contains no device code for your GPU " *
+              "(compute capability $(cap.major).$(cap.minor)).")
+    print(io, " Vendor libraries drop older architectures over time, and NVIDIA builds " *
+              "the Tegra redistributables for the JetPack generation they belong to, so " *
+              "a library can load and initialize fine and only fail once it launches a " *
+              "kernel.")
+    if is_tegra()
+        print(io, " Refer to the platform support matrix in the CUDA.jl README, and to " *
+                  "the Jetson section of the installation guide.")
+    else
+        print(io, " Refer to the platform support matrix in the CUDA.jl README.")
+    end
+    return
+end

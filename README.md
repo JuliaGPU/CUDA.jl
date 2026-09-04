@@ -167,7 +167,7 @@ for the per-generation details.
 | Jetson TK1 | Kepler | 3.2 | ≤ 3 | — | 🔴 |
 | Jetson Nano, TX1 | Maxwell | 5.3 | 4 | 10.2 | 🟡 |
 | Jetson TX2 | Pascal | 6.2 | 4 | 10.2 | 🟡 |
-| Jetson Xavier | Volta | 7.2 | 5 | 12.5 | 🟢 |
+| Jetson Xavier | Volta | 7.2 | 5 | 12.5 | 🟡 |
 | Jetson Orin | Ampere | 8.7 | 6, 7 | 12.9, 13.x | 🟢 |
 | Jetson Thor | Blackwell | 11.0 | 7 | 13.x | 🟢 |
 
