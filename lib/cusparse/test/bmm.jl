@@ -244,3 +244,39 @@ end
         @test D ≈ C
     end
 end
+
+# Float16 must use Float32 as accumulation type, which is the only configuration
+# supported by cuSPARSE. Strided-batched SpMM with this configuration is broken in
+# cuSPARSE 12.7.x (CUDA 13.1 and 13.2), returning CUSPARSE_STATUS_NOT_SUPPORTED for
+# every algorithm, while non-batched SpMM works fine; cuSPARSE 12.6 and 12.8 both work.
+if !(v"12.7" <= cuSPARSE.version() < v"12.8")
+@testset "Sparse-Dense Float16 bmm! (Float32 accumulation type)" begin
+    elty = Float16
+    m = 5
+    n = 15
+    k = 25
+    p = 0.5
+    refT = Float32
+
+    α = elty(2)
+    β = elty(3)
+
+    @testset "C = αAB + βC" begin
+        A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
+        A2 = copy(A1)
+        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        A = cat(A1, A2; dims=3)
+
+        B = CuArray(rand(elty, k, n, 2))
+        C = CuArray(rand(elty, m, n, 2))
+        D = refT.(collect(C))
+
+        cuSPARSE.bmm!('N', 'N', α, A, B, β, C, 'O')
+
+        D[:,:,1] = refT(α) * refT.(collect(A1)) * refT.(collect(B[:,:,1])) + refT(β) * D[:,:,1]
+        D[:,:,2] = refT(α) * refT.(collect(A2)) * refT.(collect(B[:,:,2])) + refT(β) * D[:,:,2]
+
+        @test collect(C) ≈ D rtol=2e-3
+    end
+end
+end

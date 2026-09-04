@@ -18,7 +18,7 @@ using LinearAlgebra
     dA = CuSparseMatrixCSR(dA)
     mv!('N', one(T), dA, dx, zero(T), dy, 'O')
     @test Array(dy) ≈ A * x
-    
+
     A_bad = sprand(T, m+1, m, 0.1)
     dA_bad = adapt(CuArray, A_bad)
     @test_throws DimensionMismatch("Y must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy, 'O')
@@ -126,6 +126,30 @@ for SparseMatrixType in keys(SPMM_ALGOS)
                 end
             end
         end
+    end
+end
+
+# Float16 must use Float32 as accumulation type, which is the only configuration
+# supported by cuSPARSE (same for ComplexF16).
+@testset "Float16 mm! (Float32 accumulation type)" begin
+    @testset "$T -- $SparseMatrixType" for (T, SparseMatrixTypes) in
+        (Float16 => (CuSparseMatrixCSR, CuSparseMatrixCOO), ComplexF16 => (CuSparseMatrixCOO,)),
+        SparseMatrixType in SparseMatrixTypes
+
+        refT = T <: Complex ? ComplexF32 : Float32
+        A = sprand(T, 10, 10, 0.3)
+        B = rand(T, 10, 4)
+        C = rand(T, 10, 4)
+        dA = SparseMatrixType(A)
+        dB = CuArray(B)
+        dC = CuArray(C)
+
+        alpha = T(2)
+        beta = T(3)
+        mm!('N', 'N', alpha, dA, dB, beta, dC, 'O')
+
+        Cref = refT(alpha) .* (refT.(A) * refT.(B)) .+ refT(beta) .* refT.(C)
+        @test collect(dC) ≈ Cref rtol=2e-3
     end
 end
 

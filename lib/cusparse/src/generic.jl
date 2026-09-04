@@ -352,22 +352,32 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
+    # operations with 16-bit numbers always imply mixed-precision computation
+    # TODO: we should better model the supported combinations here,
+    #       and error if using an unsupported one (like with gemmEx!)
+    compute_type = if T == Float16
+        Float32
+    elseif T == ComplexF16
+        ComplexF32
+    else
+        T
+    end
 
     # Set default buffer for small matrices (1000 chosen arbitrarly)
     # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
         out = Ref{Csize_t}(1000)
         cusparseSpMM_bufferSize(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, out)
+            handle(), transa, transb, Ref{compute_type}(alpha), descA, descB, Ref{compute_type}(beta),
+            descC, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         # `cusparseSpMM_preprocess` is skipped: we recreate descriptors and
         # buffers each call, so there is no buffer to reuse (see issue #1362).
         cusparseSpMM(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, buffer)
+            handle(), transa, transb, Ref{compute_type}(alpha), descA, descB, Ref{compute_type}(beta),
+            descC, compute_type, algo, buffer)
     end
     return C
 end
@@ -449,21 +459,32 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     strideC = stride(C, 3)
     cusparseDnMatSetStridedBatch(descC, b, strideC)
 
+    # operations with 16-bit numbers always imply mixed-precision computation
+    # TODO: we should better model the supported combinations here,
+    #       and error if using an unsupported one (like with gemmEx!)
+    compute_type = if T == Float16
+        Float32
+    elseif T == ComplexF16
+        ComplexF32
+    else
+        T
+    end
+
     # Set default buffer for small matrices (1000 chosen arbitrarly)
     # Otherwise tries to allocate 120TB of memory (see #2296)
     function bufferSize()
         out = Ref{Csize_t}(1000)
         cusparseSpMM_bufferSize(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, out)
+            handle(), transa, transb, Ref{compute_type}(alpha), descA, descB, Ref{compute_type}(beta),
+            descC, compute_type, algo, out)
         return out[]
     end
     with_workspace(bufferSize) do buffer
         # `cusparseSpMM_preprocess` is skipped: we recreate descriptors and
         # buffers each call, so there is no buffer to reuse (see issue #1362).
         cusparseSpMM(
-            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
-            descC, T, algo, buffer)
+            handle(), transa, transb, Ref{compute_type}(alpha), descA, descB, Ref{compute_type}(beta),
+            descC, compute_type, algo, buffer)
     end
     return C
 end
