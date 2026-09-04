@@ -246,9 +246,10 @@ end
 end
 
 # Float16 must use Float32 as accumulation type, which is the only configuration
-# supported by cuSPARSE. The cuSPARSE versions shipped with CUDA 13.1 and 13.2
-# reject this configuration with CUSPARSE_STATUS_NOT_SUPPORTED, so skip it there.
-if !(Base.thisminor(CUDACore.runtime_version()) in (v"13.1", v"13.2"))
+# supported by cuSPARSE. Strided-batched SpMM with this configuration is broken in
+# cuSPARSE 12.7.x (CUDA 13.1 and 13.2), returning CUSPARSE_STATUS_NOT_SUPPORTED for
+# every algorithm, while non-batched SpMM works fine; cuSPARSE 12.6 and 12.8 both work.
+if !(v"12.7" <= cuSPARSE.version() < v"12.8")
 @testset "Sparse-Dense Float16 bmm! (Float32 accumulation type)" begin
     elty = Float16
     m = 5
