@@ -46,6 +46,34 @@ end
 @static if can_use_cupti()
 @testset "integrated" begin
 
+@testset "activity cleanup" begin
+    @test_throws ErrorException CUDA.@profile error("profiled code failed")
+    @test CUPTI.activity_config[] === nothing
+    @test CUDA.@profile(identity(nothing)) isa CUDA.Profile.ProfileResults
+end
+
+@testset "profiled allocation" begin
+    a = nothing
+    CUDA.@profile begin
+        a = CuArray([1, 2, 3])
+    end
+    @test Array(a) == [1, 2, 3]
+end
+
+if CUDACore.is_tegra() && CUDA.runtime_version() < v"12"
+    @testset "unsupported Tegra activity" begin
+        cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_DRIVER,
+                                    CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA])
+        ran = Ref(false)
+        CUPTI.@enable! cfg begin
+            ran[] = true
+            CUDA.synchronize()
+        end
+        @test ran[]
+        @test CUPTI.activity_config[] === nothing
+    end
+end
+
 # smoke test
 let
     str = string(CUDA.@profile true)

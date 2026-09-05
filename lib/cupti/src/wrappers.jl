@@ -262,16 +262,29 @@ macro enable!(cfg, expr)
 
                 $mod.activity_config[] = _cfg
 
-                # enable requested activity kinds
-                for activity_kind in _cfg.activity_kinds
-                    $mod.cuptiActivityEnable(activity_kind)
-                end
-
+                # Activity support depends on both version and platform: Tegra rejects
+                # NVTX marker-data records through CUDA 11. Skip unsupported kinds and
+                # keep track of what needs to be disabled, including on setup failure.
+                enabled_kinds = $mod.CUpti_ActivityKind[]
                 try
+                    for activity_kind in _cfg.activity_kinds
+                        try
+                            $mod.cuptiActivityEnable(activity_kind)
+                        catch err
+                            if isa(err, $mod.CUPTIError) &&
+                               err.code == $mod.CUPTI_ERROR_NOT_COMPATIBLE
+                                @debug "CUPTI does not support $activity_kind; not profiling it"
+                                continue
+                            end
+                            rethrow()
+                        end
+                        push!(enabled_kinds, activity_kind)
+                    end
+
                     $(esc(expr))
                 finally
                     # disable activity kinds
-                    for activity_kind in _cfg.activity_kinds
+                    for activity_kind in enabled_kinds
                         $mod.cuptiActivityDisable(activity_kind)
                     end
 
