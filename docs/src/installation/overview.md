@@ -75,7 +75,33 @@ for that kernel-mode driver generation, and only loads it after verifying that i
 initializes and supports every device present. Set the `compat` preference on
 `CUDA_Driver_jll` to `false` (or `JULIA_CUDA_USE_COMPAT=false`) to keep the system driver.
 
-Two Jetson-specific caveats:
+When upgrading an existing environment, run `Pkg.update()` to refresh the JLLs too.
+The CUDA 10.2 library-search-path repair is in CUDA_Runtime_jll **0.24.4+2**; a manifest
+that preserves an earlier build of 0.24.4 can miss it, since package compatibility bounds
+do not distinguish JLL build suffixes.
+
+For a hand-written driver preference, ensure its UUID appears in the active project's
+`[extras]` table:
+
+```toml
+# Project.toml
+[extras]
+CUDA_Driver_jll = "4ee394cb-3365-5eb0-8335-949819d2adfc"
+```
+
+```toml
+# LocalPreferences.toml
+[CUDA_Driver_jll]
+compat = false
+```
+
+`JULIA_CUDA_USE_COMPAT=false` also disables the compatibility driver, but does not
+invalidate a toolkit selected in a previous session. If that toolkit requires the newer
+driver, explicitly select a compatible toolkit with `CUDA.set_runtime_version!` and
+restart Julia. For example, Xavier's system driver supports CUDA 11.8 artifacts, or use
+`CUDA.set_runtime_version!(local_toolkit=true)` for the installed toolkit.
+
+Jetson-specific caveats:
 
 - NVIDIA's Jetson library redistributables only contain device code for the architectures
   of the JetPack generation they belong to. Xavier (sm_72) code disappears from cuBLAS in

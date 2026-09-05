@@ -65,6 +65,14 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
 
 *Bug fixes*:
 
+- Reject cached CUDA runtimes that require a newer driver than the one loaded, with
+  instructions to select a compatible toolkit. This can happen after changing
+  `JULIA_CUDA_USE_COMPAT` without invalidating the toolkit selection.
+- Gate optional profiling records on CUPTI's API version, avoiding a native crash with
+  JetPack 5's local CUDA 11.4 toolkit and a forward-compatibility driver.
+- Require CUDA_Runtime_Discovery 2.1.1, which allows local toolkits without the optional
+  cuSOLVERMg library.
+
 - `CUDA.@profile` and `@device_code_sass` now explain that CUPTI needs extra
   permissions on Tegra instead of failing obscurely, or crashing the process
   outright as CUPTI does on CUDA 13 without access to the profiling device
