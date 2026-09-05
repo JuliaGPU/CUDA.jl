@@ -57,7 +57,57 @@ driver and CUDA toolkit for your platform. The main development platform (and th
 system) however is x86_64 on Linux, so if you are using a more exotic combination there
 might be bugs.
 
+### NVIDIA Jetson
 
+CUDA.jl selects toolkit artifacts for Tegra automatically, including CUDA 10.2 on
+Jetson Nano. A system toolkit is not required. On JetPack 5 and 6, it can load NVIDIA's
+bundled L4T forward-compatibility driver after checking that it initializes and supports
+the devices present.
+
+When upgrading an existing environment, run `Pkg.update()` to refresh the JLLs too.
+The CUDA 10.2 library-search-path repair is in CUDA_Runtime_jll **0.24.4+2**; a manifest
+that preserves an earlier build of 0.24.4 can miss it, since package compatibility bounds
+do not distinguish JLL build suffixes.
+
+| Configuration | Automatic selection | Validation |
+|---|---|---|
+| Jetson Nano, JetPack 4 / L4T r32 | system driver, CUDA 10.2 | hardware tested; best-effort support |
+| AGX Xavier, JetPack 5 / L4T r35 | CUDA 12.2 compatibility driver, CUDA 12.5 | hardware tested; best-effort support |
+| Orin, JetPack 6 / L4T r36 | CUDA 12.9 compatibility driver, CUDA 12.9 | not hardware tested |
+| Orin Nano Super, JetPack 7 / L4T r39 | system driver, CUDA 13.x | hardware tested |
+
+Xavier selection stops at CUDA 12.5 because newer Jetson cuBLAS builds no longer carry
+code for its GPU, even though the compiler can still target it. An explicit toolkit pin
+bypasses this ceiling. Separately packaged libraries such as cuDNN and cuTENSOR have
+their own platform and architecture requirements; working core toolkit libraries do not
+imply that these packages support the same board.
+
+Set the `compat` preference on `CUDA_Driver_jll` to `false` to retain the system driver.
+As with the toolkit preferences below, its UUID must appear in the active project's
+`[extras]` table for a hand-written preference to be recognized:
+
+```toml
+# Project.toml
+[extras]
+CUDA_Driver_jll = "4ee394cb-3365-5eb0-8335-949819d2adfc"
+```
+
+```toml
+# LocalPreferences.toml
+[CUDA_Driver_jll]
+compat = false
+```
+
+On Xavier this selects CUDA 11.8 artifacts. `JULIA_CUDA_USE_COMPAT=false` also disables
+the compatibility driver, but does not invalidate a toolkit selected in a previous
+session. If that toolkit requires the newer driver, explicitly select a compatible
+toolkit with `CUDA.set_runtime_version!` and restart Julia. To use the installed toolkit, call
+`CUDA.set_runtime_version!(local_toolkit=true)` and restart Julia. Use
+`CUDA.versioninfo()` to inspect the selected toolkit and whether a forward-compatible
+driver is in use.
+
+Profiling and SASS reflection have additional permission requirements; see
+[Profiling on Tegra](@ref).
 
 ## NVIDIA driver
 
@@ -149,6 +199,11 @@ The JLL preferences can also be set independently, which is useful for testing c
 releases while keeping the runtime fixed. Keep them within the same CUDA major because
 runtime libraries may link against compiler libraries with a major-versioned soname.
 CUDA.jl configures them together by default.
+
+On Julia before 1.13, changing just one JLL's preferences by hand can leave the other
+JLL using a cached selection. A mismatch across CUDA major versions can then prevent
+loading libraries such as `libnvJitLink`. Prefer `CUDA.set_runtime_version!`, which
+configures both JLLs, and restart Julia afterwards.
 
 CUDA 10.2 and 11 are supported on a best-effort basis. Matching runtime and compiler
 artifacts are not available for every older CUDA version and platform. If artifact

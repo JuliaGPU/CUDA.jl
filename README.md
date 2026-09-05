@@ -155,8 +155,10 @@ Toolkit support directly impact the devices we support:
 | Hopper | 9.0 | 🟢 |
 | Blackwell | 10.0, 10.3, 12.0, 12.1 | 🟢 |
 
-Tegra devices are supported as well, although additionally limited by the CUDA
-toolkit shipped with the last JetPack release for that device:
+Tegra devices are supported as well. Their toolkit selection depends on the driver
+shipped with JetPack and, where available, NVIDIA's L4T forward-compatibility driver.
+See the [Jetson installation guide](https://cuda.juliagpu.org/stable/installation/overview/#NVIDIA-Jetson)
+for the toolkits selected on each generation:
 
 | Platform | Architecture | Compute capability | Status |
 |---|---|:---:|:---:|

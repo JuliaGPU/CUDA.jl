@@ -13,6 +13,27 @@ changes to support floors; those are labeled separately below. Patch releases
 are listed as subsections of the minor release they belong to.
 
 
+## v6.4 (unreleased)
+
+- Restore best-effort CUDA 10.2 and 11 support, including artifact-based installations
+  on Jetson Nano. The binary stack selects Tegra toolkit builds and uses NVIDIA's L4T
+  compatibility drivers where available; Xavier automatically selects CUDA 12.5 to
+  retain vendor-library support for its GPU.
+- Require CUDA_Driver_jll 13.3.4, CUDA_Runtime_jll 0.24.4, CUDA_Compiler_jll 0.6.2 and
+  CUDA_Runtime_Discovery 2.1.1, including the Tegra artifact-selection fixes and discovery
+  of local toolkits without cuSOLVERMg. `CUDA.versioninfo()` identifies a bundled
+  forward-compatibility driver, including on systems without NVML.
+- Check Tegra profiling permissions before entering CUPTI, and skip activity kinds
+  the platform does not support. This permits integrated profiling as root with CUDA
+  10.2 and 11 on Tegra, where optional NVTX marker-data records are unavailable.
+  Gate allocation tracing on CUPTI's own API version, avoiding a native crash with
+  JetPack 5's local CUDA 11.4 and the CUDA 12 compatibility driver.
+- Distinguish PTX and cubin target compatibility. Executable compilation rejects
+  targets whose cubins cannot load on the device, while PTX reflection remains available.
+- Diagnose a selected runtime that requires a newer driver before compiling kernels.
+  This can happen when disabling the compatibility driver through the environment
+  leaves a previous toolkit selection cached; select a compatible toolkit and restart.
+
 ## v6.3 (August 2026)
 
 Compiled kernels are now cached by Julia's compiler. Adapting to GPUCompiler 2,

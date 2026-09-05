@@ -150,6 +150,11 @@ devices (such as the Jetson series). What exactly is required depends on the CUD
 The same requirements apply to other CUPTI-based functionality, such as
 `@device_code_sass`.
 
+Some optional trace records are unavailable on older Tegra toolkits. CUDA.jl skips
+unsupported NVTX marker-data records and checks CUPTI's own API version before enabling
+memory-allocation records. In particular, JetPack 5's local CUDA 11.4 installation ships
+an older CUPTI, so its integrated profiles omit memory-allocation records.
+
 ### External profilers
 
 If you want more details, or a graphical representation, we recommend using external
