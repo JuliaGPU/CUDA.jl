@@ -1,6 +1,7 @@
 # Version management
 
-@public driver_version, runtime_version, set_runtime_version!, reset_runtime_version!, compiler_version, is_tegra
+@public driver_version, runtime_version, set_runtime_version!, reset_runtime_version!, compiler_version,
+        is_tegra, forward_compatible_driver
 
 # because of this API call being used so frequently, we use a manual cache set in __init__
 # (@memoize's lazy/thread-safe initialization is too expensive for this purpose)
@@ -178,3 +179,14 @@ function is_tegra()
     end
     return false
 end
+
+"""
+    forward_compatible_driver()
+
+Whether the driver in use is a forward-compatibility driver bundled with
+`CUDA_Driver_jll` instead of the system driver. Such drivers make a newer CUDA version
+available on top of an older kernel-mode driver, and are shipped for data-center GPUs as
+well as for the Tegra generations NVIDIA provides an L4T compatibility package for.
+"""
+forward_compatible_driver() =
+    isdefined(CUDA_Driver_jll, :libcuda_compat) && libcuda == CUDA_Driver_jll.libcuda_compat
