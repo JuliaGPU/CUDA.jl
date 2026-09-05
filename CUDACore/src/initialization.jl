@@ -148,6 +148,19 @@ function __init__()
         return
     end
 
+    # Minor-version compatibility starts with CUDA 11. An environment change can
+    # switch the loaded driver without invalidating the toolkit JLLs' cached selection.
+    if (driver >= v"11" && runtime.major > driver.major) ||
+       (driver < v"11" && Base.thisminor(runtime) > Base.thisminor(driver))
+        reason = """The selected CUDA runtime $runtime is incompatible with the loaded driver for CUDA $driver.
+                    Configure a compatible toolkit with `CUDA.set_runtime_version!` and restart Julia.
+                    Changing `JULIA_CUDA_USE_COMPAT` does not invalidate a previously selected toolkit;
+                    use the `CUDA_Driver_jll` `compat` preference or explicitly select a toolkit."""
+        @error reason
+        _initialization_error[] = reason
+        return
+    end
+
     # warn if we're not using an official build of Julia
     official_release = startswith(Base.TAGGED_RELEASE_BANNER, "Official")
     if !official_release
