@@ -239,6 +239,34 @@ function default_ptx_versions(llvm_support, ptxas_support)
     return maximum(common_ptxs), maximum(ptxas_ptxs)
 end
 
+# Prefer a target whose cubin can execute on the device. If the toolchain cannot produce
+# one, retain the best PTX-compatible target for PTX-level reflection; execution rejects it.
+function select_ptxas_sm(ptx_sms, dev_cap)
+    supported = filter(sm -> base_version(sm) >= base_version(minreq.sm), ptx_sms)
+    candidates = filter(sm -> cubin_compatible(sm, dev_cap), supported)
+    if isempty(candidates)
+        candidates = filter(sm -> ptx_compatible(sm, dev_cap), supported)
+    end
+    isempty(candidates) && return nothing
+
+    fs_rank(fs::Symbol) = fs === :arch ? 2 : fs === :family ? 1 : 0
+    sm_key(sm::SMVersion) = (base_version(sm), fs_rank(sm.feature_set))
+    return argmax(sm_key, candidates)
+end
+
+function select_llvm_sm(llvm_sms, ptxas_sm)
+    ptxas_sm in llvm_sms && return ptxas_sm
+
+    # Arch/family features do not carry across versions. Use the newest baseline
+    # LLVM supports at or below the target that ptxas will assemble for.
+    candidates = filter(llvm_sms) do sm
+        sm.feature_set === :baseline &&
+            base_version(minreq.sm) <= base_version(sm) <= base_version(ptxas_sm)
+    end
+    isempty(candidates) && return nothing
+    return argmax(base_version, candidates)
+end
+
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
                                          arch=nothing, cap=nothing, ptx=nothing, kwargs...)
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
@@ -274,9 +302,6 @@ end
 
     # when selecting compute capabilities, we prefer the most recent one, as
     # well as prefer to use architecture-accelerated features when available.
-    fs_rank(fs::Symbol) = fs === :arch ? 2 : fs === :family ? 1 : 0
-    sm_key(sm::SMVersion) = (base_version(sm), fs_rank(sm.feature_set))
-
     # determine the compute capability to use.
     ## ptxas
     ptx_sms = ptx_sm_support(ptxas_ptx)
@@ -288,31 +313,15 @@ end
             error("$(cpu_name(arch)) is not supported by PTX ISA $(ptxas_ptx)")
         ptxas_sm = arch
     else
-        # pick the most specific capability the selected PTX ISA supports whose cubin
-        # would actually load on the current device. For baseline that's the onion model;
-        # `:arch` requires an exact CC match, `:family` a same-family match.
-        ptxas_candidates = filter(ptx_sms) do sm
-            base_version(sm) >= base_version(minreq.sm) && runs_on(sm, capability(dev))
-        end
-        isempty(ptxas_candidates) &&
+        ptxas_sm = select_ptxas_sm(ptx_sms, capability(dev))
+        ptxas_sm === nothing &&
             error("Compute capability $(capability(dev)) is not supported by ptxas " *
                   "$(compiler_version()) at PTX ISA $(ptxas_ptx)")
-        ptxas_sm = argmax(sm_key, ptxas_candidates)
     end
     ## LLVM
-    if ptxas_sm in llvm_support.sm
-        llvm_sm = ptxas_sm
-    else
-        # Exact `ptxas_sm` unavailable in LLVM. Fall back to baseline LLVM at a
-        # lower base, since arch/family features don't carry across versions.
-        baseline_candidates = filter(llvm_support.sm) do sm
-            sm.feature_set === :baseline &&
-                base_version(minreq.sm) <= base_version(sm) <= base_version(ptxas_sm)
-        end
-        isempty(baseline_candidates) &&
-            error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")
-        llvm_sm = argmax(sm_key, baseline_candidates)
-    end
+    llvm_sm = select_llvm_sm(llvm_support.sm, ptxas_sm)
+    llvm_sm === nothing &&
+        error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")
 
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,

@@ -8,10 +8,11 @@ const highest = v"999"
 # selected via the suffix on the `.target` directive (and the matching `--gpu-name`
 # to ptxas):
 #
-#   - Baseline (no suffix, e.g. sm_90): the forward-compatible feature set. Code compiled
-#     for sm_X runs on any sm_Y with Y >= X (onion model).
-#   - Family (`f` suffix, e.g. sm_100f): a superset of Baseline. Same-major-family-portable;
-#     code compiled for sm_100f runs on sm_100, sm_103, etc., but not across families.
+#   - Baseline (no suffix, e.g. sm_90): the forward-compatible feature set. PTX compiled
+#     for sm_X runs on any sm_Y with Y >= X (onion model); cubins only within a major.
+#   - Family (`f` suffix, e.g. sm_100f): a superset of Baseline. Forward-compatible with
+#     later targets in the same architecture family, i.e. the same major version (with
+#     sm_101f belonging to the sm_11x family).
 #   - Architecture (`a` suffix, e.g. sm_90a): a superset of Family. Locked to one
 #     exact CC; code compiled for sm_103a runs only on CC 10.3 devices.
 #

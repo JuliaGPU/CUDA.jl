@@ -260,6 +260,69 @@ end
     @test sm"103a"                     == SMVersion("103a")
 end
 
+@testset "target compatibility" begin
+    ptx_compatible = CUDACore.ptx_compatible
+    cubin_compatible = CUDACore.cubin_compatible
+
+    # Baseline cubins are forward-compatible only within a major version.
+    @test cubin_compatible(sm"80", v"8.0")
+    @test cubin_compatible(sm"80", v"8.6")
+    @test !cubin_compatible(sm"86", v"8.0")
+    @test !cubin_compatible(sm"90", v"12.0")
+    @test !cubin_compatible(sm"75", v"8.0")
+    @test cubin_compatible(sm"100", v"10.1")
+    @test !cubin_compatible(sm"103", v"10.1")
+    @test cubin_compatible(sm"101", v"11.0")
+
+    # Family compatibility follows NVIDIA's architecture families. sm_101f is the
+    # pre-CUDA-13 spelling of sm_110f.
+    @test cubin_compatible(sm"100f", v"10.0")
+    @test cubin_compatible(sm"100f", v"10.3")
+    @test cubin_compatible(sm"103f", v"10.7")
+    @test !cubin_compatible(sm"100f", v"10.1")
+    @test !cubin_compatible(sm"101f", v"10.3")
+    @test cubin_compatible(sm"101f", v"10.1")
+    @test cubin_compatible(sm"101f", v"11.0")
+    @test cubin_compatible(sm"120f", v"12.1")
+    @test !cubin_compatible(sm"121f", v"12.0")
+    @test !cubin_compatible(sm"100f", v"12.0")
+
+    # Architecture-specific code requires an exact capability.
+    @test cubin_compatible(sm"90a", v"9.0")
+    @test !cubin_compatible(sm"90a", v"9.1")
+    @test !cubin_compatible(sm"90a", v"12.0")
+    @test cubin_compatible(sm"101a", v"11.0")
+
+    # Baseline PTX follows the onion model across major versions.
+    @test ptx_compatible(sm"90", v"12.0")
+    @test !ptx_compatible(sm"120", v"9.0")
+end
+
+@testset "target selection" begin
+    select_ptxas_sm = CUDACore.select_ptxas_sm
+
+    # Prefer the most capable target whose cubin can load.
+    @test select_ptxas_sm([sm"90", sm"120", sm"120f", sm"120a"],
+                          v"12.0") == sm"120a"
+    @test select_ptxas_sm([sm"100", sm"100f", sm"103", sm"103f"],
+                          v"10.3") == sm"103f"
+    @test select_ptxas_sm(CUDACore.ptx_sm_support(v"8.0"), v"9.0") == sm"90a"
+
+    # If no cubin can load, retain only a PTX-compatible target for reflection.
+    @test select_ptxas_sm([sm"80", sm"80a", sm"90", sm"90a"], v"12.0") == sm"90"
+    @test select_ptxas_sm([sm"120"], v"9.0") === nothing
+end
+
+@testset "LLVM target selection" begin
+    select_llvm_sm = CUDACore.select_llvm_sm
+
+    @test select_llvm_sm([sm"90", sm"90a"], sm"90a") == sm"90a"
+    @test select_llvm_sm([sm"90", sm"100", sm"100f"], sm"100f") == sm"100f"
+    @test select_llvm_sm([sm"80", sm"90"], sm"90a") == sm"90"
+    @test select_llvm_sm([sm"80", sm"90", sm"90a"], sm"120a") == sm"90"
+    @test select_llvm_sm([sm"90a", sm"100"], sm"90") === nothing
+end
+
 end
 
 ############################################################################################

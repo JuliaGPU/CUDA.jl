@@ -28,9 +28,10 @@ an already-constructed `SMVersion` interchangeably.
 
 - `:baseline` (no suffix, e.g. `sm_90`) — forward-compatible (the "onion model"):
   PTX compiled for `sm_X` runs on any `sm_Y` with `Y >= X`.
-- `:family` (`f` suffix, e.g. `sm_100f`) — same-major-family-portable: PTX runs on
-  any device in the same architecture family (currently == same major version) at
-  or above this CC.
+- `:family` (`f` suffix, e.g. `sm_100f`) — forward-compatible with later targets
+  in the same architecture family, which NVIDIA defines as a major compute-capability
+  version (sm_10x, sm_11x, sm_12x); the sole exception is `sm_101f`, which belongs to
+  the sm_11x family.
 - `:arch` (`a` suffix, e.g. `sm_90a`) — locked to one exact CC: PTX runs only on
   devices with exactly this compute capability, but in exchange gets access to
   architecture-accelerated features.
@@ -104,22 +105,35 @@ cpu_name(sm::SMVersion) = "sm_$(sm.major)$(sm.minor)$(suffix(sm))"
 # usable against the version-keyed compatibility databases.
 base_version(sm::SMVersion) = VersionNumber(sm.major, sm.minor)
 
-# Would a cubin compiled for `sm` actually load and run on a device with capability
-# `dev_cap`? Per NVIDIA's PTX ISA reference (.target directive):
-#   - baseline: forward-compatible (onion model) -- any sm_X runs on sm_Y for Y >= X.
-#   - family:   same architecture family (currently == same major) and forward-portable
-#               within the family.
-#   - arch:     locked to one exact CC; cubin only loads on devices with that exact cap.
-function runs_on(sm::SMVersion, dev_cap::VersionNumber)
+# CUDA 12.x called Thor sm_101; CUDA 13 renamed the same architecture to sm_110.
+canonical_capability(cap::VersionNumber) = cap == v"10.1" ? v"11.0" : cap
+
+# Whether PTX targeted at `sm` can be JIT-compiled for `dev_cap`.
+function ptx_compatible(sm::SMVersion, dev_cap::VersionNumber)
+    cap = base_version(sm)
     if sm.feature_set === :arch
-        return base_version(sm) == dev_cap
+        return canonical_capability(cap) == canonical_capability(dev_cap)
     elseif sm.feature_set === :family
-        return sm.major == dev_cap.major && base_version(sm) <= dev_cap
+        cap = canonical_capability(cap)
+        dev_cap = canonical_capability(dev_cap)
+        return cap.major == dev_cap.major && cap <= dev_cap
     else  # :baseline
-        return base_version(sm) <= dev_cap
+        return cap <= dev_cap
     end
 end
 
+# Whether a cubin compiled for `sm` can load and run on `dev_cap`. Family- and
+# architecture-specific targets retain their PTX restrictions; baseline cubins add a
+# same-major bound. NVIDIA does not guarantee binary compatibility on Tegra, which
+# cannot be distinguished from `dev_cap` alone.
+function cubin_compatible(sm::SMVersion, dev_cap::VersionNumber)
+    ptx_compatible(sm, dev_cap) || return false
+    sm.feature_set === :baseline || return true
+
+    cap = base_version(sm)
+    cap.major == dev_cap.major && return true
+    return canonical_capability(cap).major == canonical_capability(dev_cap).major
+end
 
 Base.show(io::IO, sm::SMVersion) = print(io, "sm\"", sm.major, sm.minor, suffix(sm), "\"")
 
