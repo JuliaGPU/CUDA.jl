@@ -679,6 +679,14 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
         # look up (or generate) the compilation artifacts for this function
         source = methodinstance(F, tt)
         config = compiler_config(cuda.device; kwargs...)::CUDACompilerConfig
+        # Target selection may retain a PTX-compatible target for reflection, but
+        # executing a kernel requires a cubin that loads on this device.
+        sm = config.params.sm
+        cubin_compatible(sm, capability(cuda.device)) ||
+            error("Cannot execute code compiled for $(cpu_name(sm)) on $(cuda.device): " *
+                  "the cubin would not load on compute capability " *
+                  "$(capability(cuda.device)). Use a CUDA toolkit that supports " *
+                  "this device, or select a compatible target with `arch=`.")
         job = CompilerJob(source, config)
         res = compile_or_lookup(job)::CUDACompilerResults
 

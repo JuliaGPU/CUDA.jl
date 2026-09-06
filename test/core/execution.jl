@@ -188,6 +188,9 @@ end
         @check ".target sm_50"
         dummy()
     end
+    if dev_cap.major != 5
+        @test_throws "would not load" @cuda launch=false arch=sm"50" dummy()
+    end
 
     # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
     # `.version` line should match what was asked for, independently of what LLVM and
@@ -196,6 +199,20 @@ end
         @test @filecheck CUDA.code_ptx((); ptx=v"8.0") do
             @check ".version 8.0"
             dummy()
+        end
+
+        # Reflection may stop at PTX for an older virtual architecture, but executable
+        # compilation must not silently produce a cubin that cannot load on this device.
+        ptx_sms = filter(sm -> CUDACore.base_version(sm) >=
+                               CUDACore.base_version(CUDACore.minreq.sm),
+                          CUDACore.ptx_sm_support(v"8.0"))
+        if !any(sm -> CUDACore.cubin_compatible(sm, dev_cap), ptx_sms)
+            # Only the cross-generation fallback must avoid architecture/family targets.
+            @test @filecheck CUDA.code_ptx((); ptx=v"8.0") do
+                @check_not "{{\\.target sm_[0-9]+[af]}}"
+                dummy()
+            end
+            @test_throws "would not load" @cuda launch=false ptx=v"8.0" dummy()
         end
     end
     @test_throws "requires PTX ISA $(CUDACore.minreq.ptx)" @cuda launch=false ptx=v"6.4" dummy()
