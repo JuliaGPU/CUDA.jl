@@ -394,15 +394,16 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         # NVTX markers
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
     ]
-    if CUDACore.runtime_version() >= v"11"
+    if CUPTI.version() >= v"11"
         # internal launch API records require CUDA 11 or later
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API)
         # NVTX marker data (payload, color, category) is optional, and CUPTI 10.2 rejects
         # enabling it with CUPTI_ERROR_NOT_COMPATIBLE (observed on Jetson)
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA)
     end
-    if CUDACore.runtime_version() >= v"11.2"
-        # memory allocation records require CUDA 11.2
+    if CUPTI.version() >= v"11.2"
+        # Check CUPTI's API version: JetPack 5's CUDA 11.4 ships an older CUPTI.
+        # Enabling MEMORY2 there corrupts the stack with the CUDA 12 compat driver.
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)
     end
     cfg = CUPTI.ActivityConfig(activity_kinds)
