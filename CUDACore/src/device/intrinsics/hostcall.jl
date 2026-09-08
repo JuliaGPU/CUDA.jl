@@ -474,6 +474,51 @@ end
 
 ## value marshalling
 
+# Pack reference-containing tuples before crossing the non-inlined hostcall boundary.
+# Otherwise Julia may pass a constant tuple by its relocated host address, and copying
+# its fields in hostcall_impl would dereference pageable host memory on the device.
+@inline function hostcall_pack(args::AT) where {AT<:Tuple}
+    isbitstype(AT) && return args
+    B = NTuple{sizeof(AT),UInt8}
+    ref = Ref{B}(ntuple(_ -> UInt8(0), Val(sizeof(AT))))
+    GC.@preserve ref begin
+        ptr = reinterpret(LLVMPtr{UInt8,AS.Generic}, Base.unsafe_convert(Ptr{B}, ref))
+        hostcall_pack!(ptr, args)
+        return ref[]
+    end
+end
+
+@inline @generated function hostcall_pack!(ptr::LLVMPtr{UInt8,AS.Generic}, x::T) where {T}
+    if isbitstype(T)
+        return :(unsafe_store!(reinterpret(LLVMPtr{$T,AS.Generic}, ptr), x); nothing)
+    end
+    body = Expr(:block)
+    for i in 1:fieldcount(T)
+        F = fieldtype(T, i)
+        off = Int(fieldoffset(T, i))
+        value = :(getfield(x, $i))
+        if Base.isbitsunion(F)
+            # Inline unions store their selector immediately after the payload.
+            _, size, _ = Base.uniontype_layout(F)
+            push!(body.args, :(hostcall_pack!(ptr + $off, $value)))
+            for (tag, U) in enumerate(Base.uniontypes(F))
+                push!(body.args, :($value isa $U &&
+                    unsafe_store!(ptr + $(off + size), $(UInt8(tag - 1)))))
+            end
+        elseif Base.allocatedinline(F)
+            push!(body.args, :(hostcall_pack!(ptr + $off, $value)))
+        else
+            # Ship the reference itself; only the host may dereference the object.
+            push!(body.args, quote
+                unsafe_store!(reinterpret(LLVMPtr{Ptr{Cvoid},AS.Generic}, ptr + $off),
+                              ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), $value))
+            end)
+        end
+    end
+    push!(body.args, :(nothing))
+    return body
+end
+
 # values are shipped in their Julia layout, 64 bytes per packet; larger values are split
 # over consecutive sends (the host knows the type, and thus the number of chunks)
 
@@ -607,13 +652,13 @@ statically identifiable (a named function or an isbits functor). See [`@hostcall
                                "hostcall return types must be isbits or Nothing")
     payload = hostcall_payload(f, map(hostconvert, args))
     K = hostcall_key(f, RT, typeof(payload))
-    return hostcall_impl(K, RT, payload, Val(false))::RT
+    return hostcall_impl(K, RT, hostcall_pack(payload), Val(false))::RT
 end
 
 @inline function hostcall_async(f::F, args...) where {F}
     payload = hostcall_payload(f, map(hostconvert, args))
     K = hostcall_key(f, Nothing, typeof(payload))
-    hostcall_impl(K, Nothing, payload, Val(true))
+    hostcall_impl(K, Nothing, hostcall_pack(payload), Val(true))
     return nothing
 end
 
