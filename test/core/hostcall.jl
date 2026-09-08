@@ -51,6 +51,14 @@ struct HostcallDisplay
     value::Int
 end
 
+struct HostcallReferenceFields
+    label::String
+    value::Union{Int32,Float64}
+end
+hostcall_reference_fields(x::HostcallReferenceFields) = length(x.label) + Int(x.value)
+hostcall_nested_references(x) = length(x[1]) + x[2]
+hostcall_reference_lengths(x) = sum(length, x)
+
 # Calls from kernels into host functions, serviced by a foreign server thread.
 @testset "service" begin
     function lookup(out)
@@ -397,6 +405,24 @@ end
         synchronize()
     end
     @test output == "display=7"
+end
+
+@testset "reference arguments" begin
+    # Constant tuples can live in pageable host memory. Pack their fields on the device
+    # before passing them to the non-inlined transport, including nested inline fields.
+    function kernel(out)
+        i = Int(threadIdx().x)
+        out[1, i] = @hostcall length("constant")::Int
+        out[2, i] = @hostcall hostcall_nested_references(("nested", i))::Int
+        value = isodd(i) ? Int32(3) : 5.0
+        out[3, i] = @hostcall hostcall_reference_fields(HostcallReferenceFields("union", value))::Int
+        out[4, i] = @hostcall hostcall_reference_lengths(ntuple(_ -> "long", Val(20)))::Int
+        return
+    end
+    out = CUDA.zeros(Int, 4, 2)
+    @cuda threads=2 kernel(out)
+    synchronize()
+    @test Array(out) == [8 8; 7 8; 8 10; 80 80]
 end
 
 @testset "completion callback failure" begin
