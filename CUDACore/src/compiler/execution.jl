@@ -6,6 +6,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public kernel_convert, kernel_compile, kernel_launch
 @public KernelCall, rebind
 @public with_managed
+@public kernel_pipeline
 @public AbstractKernel, HostKernel, DeviceKernel
 
 
@@ -202,6 +203,24 @@ end
 @inline function compile_and_launch(backend, f::F, args::Tuple, ::Val{launch};
                                     launch_kwargs::NamedTuple=(;),
                                     compiler_kwargs...) where {F,launch}
+    kernel_pipeline(backend, f, Val(launch), args...; launch_kwargs, compiler_kwargs...)
+end
+
+"""
+    kernel_pipeline(backend, f, Val(launch), args...; launch_kwargs=(;), compiler_kwargs...)
+
+The pipeline behind `@cuda`: convert the host arguments once, compile the kernel for the
+backend, and launch it with the `launch_kwargs` unless `launch` is `false`. Returns the
+compiled [`AbstractKernel`](@ref).
+
+It receives the host function and the un-converted host arguments as individual positional
+arguments, before any conversion or managed-memory bookkeeping has happened. Packages
+that need to intercept a launch as a whole, such as automatic-differentiation rules,
+should hook this function rather than the conversion or launch steps below it.
+"""
+@inline function kernel_pipeline(backend, f::F, ::Val{launch}, args::Vararg{Any,N};
+                                 launch_kwargs::NamedTuple=(;),
+                                 compiler_kwargs...) where {F,launch,N}
     call = kernel_call(backend, f, args)
     kernel = kernel_compile(call; compiler_kwargs...)
     if launch

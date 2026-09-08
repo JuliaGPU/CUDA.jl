@@ -65,6 +65,14 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
 
 *Bug fixes*:
 
+- Enzyme can differentiate `@cuda` kernel launches again. Since v6.3, `@cuda`
+  no longer launches through the kernel object's call operator that the Enzyme
+  rules hooked, so reverse mode failed on the argument conversion and the
+  managed-memory bookkeeping instead. The rules now hook
+  `CUDACore.kernel_pipeline`, the function `@cuda` expands to, and the
+  meta-kernels that differentiate the kernel launch through the regular
+  `KernelCall` pipeline so the primal and shadow arrays take part in stream
+  ownership tracking ([#3264](https://github.com/JuliaGPU/CUDA.jl/pull/3264)).
 - Reject cached CUDA runtimes that require a newer driver than the one loaded, with
   instructions to select a compatible toolkit. This can happen after changing
   `JULIA_CUDA_USE_COMPAT` without invalidating the toolkit selection.
