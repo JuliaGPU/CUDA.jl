@@ -1075,3 +1075,21 @@ needs_context = false
 
 [api.cusparseConstBlockedEllGet.argtypes]
 4 = "Ref{Int64}"
+
+[api.cusparseLoggerSetCallback]
+needs_context = false
+
+[api.cusparseLoggerSetFile]
+needs_context = false
+
+[api.cusparseLoggerOpenFile]
+needs_context = false
+
+[api.cusparseLoggerSetLevel]
+needs_context = false
+
+[api.cusparseLoggerSetMask]
+needs_context = false
+
+[api.cusparseLoggerForceDisable]
+needs_context = false

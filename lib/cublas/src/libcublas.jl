@@ -3211,7 +3211,6 @@ function cublasGetStatusString(status)
 end
 
 @checked function cublasLoggerConfigure(logIsOn, logToStdOut, logToStdErr, logFileName)
-    initialize_context()
     @gcsafe_ccall libcublas.cublasLoggerConfigure(logIsOn::Cint, logToStdOut::Cint,
                                                   logToStdErr::Cint,
                                                   logFileName::Cstring)::cublasStatus_t

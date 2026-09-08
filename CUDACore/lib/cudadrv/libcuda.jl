@@ -7007,31 +7007,26 @@ const CUlogsCallback = Ptr{Cvoid}
 const CUlogIterator = Cuint
 
 @checked function cuLogsRegisterCallback(callbackFunc, userData, callback_out)
-    initialize_context()
     @gcsafe_ccall libcuda.cuLogsRegisterCallback(callbackFunc::CUlogsCallback,
                                                  userData::Ptr{Cvoid},
                                                  callback_out::Ptr{CUlogsCallbackHandle})::CUresult
 end
 
 @checked function cuLogsUnregisterCallback(callback)
-    initialize_context()
     @gcsafe_ccall libcuda.cuLogsUnregisterCallback(callback::CUlogsCallbackHandle)::CUresult
 end
 
 @checked function cuLogsCurrent(iterator_out, flags)
-    initialize_context()
     @gcsafe_ccall libcuda.cuLogsCurrent(iterator_out::Ptr{CUlogIterator},
                                         flags::Cuint)::CUresult
 end
 
 @checked function cuLogsDumpToFile(iterator, pathToFile, flags)
-    initialize_context()
     @gcsafe_ccall libcuda.cuLogsDumpToFile(iterator::Ptr{CUlogIterator},
                                            pathToFile::Cstring, flags::Cuint)::CUresult
 end
 
 @checked function cuLogsDumpToMemory(iterator, buffer, size, flags)
-    initialize_context()
     @gcsafe_ccall libcuda.cuLogsDumpToMemory(iterator::Ptr{CUlogIterator}, buffer::Cstring,
                                              size::Ptr{Csize_t}, flags::Cuint)::CUresult
 end

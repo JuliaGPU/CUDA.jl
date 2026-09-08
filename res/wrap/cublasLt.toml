@@ -29,3 +29,21 @@ checked_rettypes = [ "cublasStatus_t" ]
 
 [api.cublasLtMatmulDescSetAttribute.argtypes]
 3 = "PtrOrCuPtr{Cvoid}"
+
+[api.cublasLtLoggerSetCallback]
+needs_context = false
+
+[api.cublasLtLoggerSetFile]
+needs_context = false
+
+[api.cublasLtLoggerOpenFile]
+needs_context = false
+
+[api.cublasLtLoggerSetLevel]
+needs_context = false
+
+[api.cublasLtLoggerSetMask]
+needs_context = false
+
+[api.cublasLtLoggerForceDisable]
+needs_context = false

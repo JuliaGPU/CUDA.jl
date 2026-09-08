@@ -77,3 +77,9 @@ needs_context = false
 9 = "CuPtr{Cvoid}"
 10 = "CuPtr{Cvoid}"
 12 = "CuPtr{Cvoid}"
+
+[api.cutensornetLoggerSetCallbackData]
+needs_context = false
+
+[api.cutensornetLoggerSetLevel]
+needs_context = false

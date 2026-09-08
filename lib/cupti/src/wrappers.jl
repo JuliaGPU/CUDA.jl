@@ -276,7 +276,7 @@ macro enable!(cfg, expr)
                         catch err
                             if isa(err, $mod.CUPTIError) &&
                                err.code == $mod.CUPTI_ERROR_NOT_COMPATIBLE
-                                @debug "CUPTI does not support $activity_kind; not profiling it"
+                                @debug "CUPTI does not support $activity_kind; not profiling it" _group=:CUDA
                                 continue
                             end
                             rethrow()

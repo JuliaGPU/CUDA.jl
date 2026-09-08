@@ -18,7 +18,7 @@ else
 end
 
 
-@public functional
+@public functional, enable_logging
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -90,19 +90,29 @@ end
 
 ## logging
 
-function log_message(log_level, function_name, message)
-    function_name = unsafe_string(function_name)
-    message = unsafe_string(message)
-    output = if isempty(message)
-        "$function_name(...)"
+function log_message(level::Int32, function_name::Cstring, message::Cstring)
+    CUDACore.library_log_callback(cuTensorNet, level, function_name, message)
+    return
+end
+
+"""
+    cuTensorNet.enable_logging(enable::Bool=true)
+
+Forward log messages from cuTensorNet to Julia's logging system. API and kernel traces are
+reported at `Debug` level, performance hints at `Info` level, and problems at `Error`
+level. Starting Julia with `JULIA_DEBUG=cuTensorNet` enables this automatically, and also shows
+the `Debug`-level messages.
+"""
+function enable_logging(enable::Bool=true)
+    if enable
+        CUDACore.init_logging()
+        callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
+        cutensornetLoggerSetCallback(callback)
+        # the library also writes to stdout, unless a log file is set
+        cutensornetLoggerOpenFile(CUDACore.devnull_path)
+        cutensornetLoggerSetLevel(5)
     else
-        "$function_name: $message"
-    end
-    if log_level <= 1
-        @error output
-    else
-        # the other log levels are different levels of tracing and hints
-        @debug output
+        cutensornetLoggerSetLevel(0)
     end
     return
 end
@@ -130,12 +140,9 @@ function __init__()
         libcutensornet = cuQuantum_jll.libcutensornet
     end
 
-    # register a log callback
-    if isdebug(:init, cuTensorNet) || Base.JLOptions().debug_level >= 2
-        callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
-        cutensornetLoggerSetCallback(callback)
-        cutensornetLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
-        cutensornetLoggerSetLevel(5)
+    # forward the library's log messages when debugging
+    if !precompiling && isdebug(cuTensorNet)
+        enable_logging(true)
     end
 
     CUDACore.register_reclaimable!(idle_handles)

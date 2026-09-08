@@ -22,10 +22,9 @@ mutable struct CuLink
         handle_ref = Ref{CUlinkState}()
 
         options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-        @debug begin
+        if isdebug()
             options[JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
             options[JIT_LOG_VERBOSE] = true
-            "JIT compiling code" # FIXME: remove this useless message
         end
         if Base.JLOptions().debug_level == 1
             # XXX: does not apply to the linker
@@ -152,11 +151,11 @@ function complete(link::CuLink)
         end
     end
 
-    if isdebug(:CuLink)
+    if isdebug()
         options = decode(link.optionKeys, link.optionVals)
         if !isempty(options[JIT_INFO_LOG_BUFFER])
             @debug """JIT info log:
-                      $(options[JIT_INFO_LOG_BUFFER])"""
+                      $(options[JIT_INFO_LOG_BUFFER])""" _group=:CUDA
         end
     end
 

@@ -26,7 +26,7 @@ else
 end
 
 
-@public functional
+@public functional, enable_logging
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -246,45 +246,106 @@ end
 
 ## logging
 
-# CUBLAS calls the log callback multiple times for each message, so we need to buffer them
-const log_buffer = IOBuffer()
+# cuBLAS invokes the callback once per line of a message, from the calling thread, which
+# for cuBLASXt can be a worker thread. Lines are assembled per thread into complete messages.
+const log_lock = Threads.SpinLock()
+const log_buffers = Dict{Int,IOBuffer}()
+const log_atexit = Ref(false)
 
-function log_message(ptr)
-    global log_buffer
-    str = unsafe_string(ptr)
-
-    # flush if we've started a new log message
-    if startswith(str, r"[A-Z]!")
-        flush_log_messages()
+function log_message(ptr::Cstring)
+    CUDACore.guarded_callback() do
+        line = unsafe_string(ptr)
+        Base.@lock log_lock begin
+            buf = get!(IOBuffer, log_buffers, Threads.threadid())
+            # a message starts with a line marked by an uppercase severity code (e.g. `I!`),
+            # and ends with a chunk of several lines (the time, process and compiler details)
+            if buf.size > 0 && ncodeunits(line) >= 2 && 'A' <= Char(codeunit(line, 1)) <= 'Z' &&
+               codeunit(line, 2) == UInt8('!')
+                flush_log_buffer(buf)
+            end
+            println(buf, line)
+            if occursin('\n', chop(line))
+                flush_log_buffer(buf)
+            end
+        end
     end
-
-    # append the lines to the buffer
-    println(log_buffer, str)
-
     return
 end
 
-function flush_log_messages()
-    global log_buffer
-    message = String(take!(log_buffer))
+# NOTE: must be called with the log lock held
+function flush_log_buffer(buf::IOBuffer)
+    message = String(take!(buf))
     isempty(message) && return
 
-    # the message format isn't documented, but it looks like a message starts with a capital
-    # and the severity (e.g. `I!`), and subsequent lines start with a lowercase mark (`!i`)
+    # the first line is marked with the severity (e.g. `I!`), subsequent ones with a
+    # lowercase code (`i!`), optionally followed by a space
     code = message[1]
-    lines = split(message[3:end], r"\n+[a-z]!")
-    message = join(strip.(lines), '\n')
-    if code == 'I'
-        @debug message
-    elseif code == 'W'
-        @warn message
-    elseif code == 'E'
-        @error message
-    elseif code == 'F'
-        error(message)
-    else
-        @info "Unknown log message, please file an issue.\n$message"
+    lines = map(eachline(IOBuffer(message))) do line
+        strip(ncodeunits(line) >= 2 && codeunit(line, 2) == UInt8('!') ? line[3:end] : line)
     end
+    filter!(!isempty, lines)
+    message = join(lines, '\n')
+
+    level = if code == 'I'
+        CUDACore.Debug
+    elseif code == 'W'
+        CUDACore.Warn
+    elseif code == 'E'
+        CUDACore.Error
+    elseif code == 'F'
+        CUDACore.Error
+    else
+        CUDACore.Info
+    end
+    CUDACore.enqueue_log(cuBLAS, level, message)
+    return
+end
+
+# report incomplete messages, e.g. at exit
+function flush_log_buffers()
+    Base.@lock log_lock begin
+        for buf in values(log_buffers)
+            flush_log_buffer(buf)
+        end
+    end
+    return
+end
+
+# cuBLASLt uses the logging design shared by other libraries
+function lt_log_message(level::Int32, function_name::Cstring, message::Cstring)
+    CUDACore.library_log_callback(cuBLAS, level, function_name, message)
+    return
+end
+
+"""
+    cuBLAS.enable_logging(enable::Bool=true)
+
+Forward log messages from cuBLAS and cuBLASLt to Julia's logging system. API traces are
+reported at `Debug` level, performance hints at `Info` level, and problems at `Warn` or
+`Error` level. Starting Julia with `JULIA_DEBUG=cuBLAS` enables this automatically, and also
+shows the `Debug`-level messages.
+"""
+function enable_logging(enable::Bool=true)
+    if enable
+        CUDACore.init_logging()
+        # the cuBLAS logging callback crashes on Windows (NVIDIA bug #3321130)
+        if !Sys.iswindows()
+            callback = @cfunction(log_message, Nothing, (Cstring,))
+            cublasSetLoggerCallback(callback)
+            if !log_atexit[]
+                atexit(flush_log_buffers)
+                log_atexit[] = true
+            end
+        end
+        callback = @cfunction(lt_log_message, Nothing, (Int32, Cstring, Cstring))
+        cublasLtLoggerSetCallback(callback)
+        cublasLtLoggerOpenFile(CUDACore.devnull_path)
+        cublasLtLoggerSetLevel(5)
+    else
+        Sys.iswindows() || cublasLoggerConfigure(0, 0, 0, C_NULL)
+        cublasLtLoggerSetLevel(0)
+    end
+    return
 end
 
 function __init__()
@@ -311,12 +372,9 @@ function __init__()
         libcublasLt = CUDA_Runtime_jll.libcublasLt
     end
 
-    # register a log callback
-    if !Sys.iswindows() && # NVIDIA bug #3321130 &&
-       !precompiling && (isdebug(:init, cuBLAS) || Base.JLOptions().debug_level >= 2)
-        callback = @cfunction(log_message, Nothing, (Cstring,))
-        cublasSetLoggerCallback(callback)
-        atexit(flush_log_messages)
+    # forward the library's log messages when debugging
+    if !precompiling && isdebug(cuBLAS)
+        enable_logging(true)
     end
 
     # wire up reclaim (precompile-captured constructors can't push into

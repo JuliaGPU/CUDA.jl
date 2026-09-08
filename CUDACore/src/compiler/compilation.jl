@@ -509,7 +509,7 @@ function compile(@nospecialize(job::CompilerJob))
         end
         error(msg)
     elseif !isempty(log)
-        @debug "PTX compiler log:\n" * log
+        @debug "PTX compiler log:\n" * log _group=:CUDA
     end
     rm(ptx_input)
 
@@ -542,7 +542,7 @@ function compile(@nospecialize(job::CompilerJob))
             msg *= "\nIf you think this is a bug, please file an issue and attach $(ptxas_output)"
             error(msg)
         elseif !isempty(log)
-            @debug "PTX linker info log:\n" * log
+            @debug "PTX linker info log:\n" * log _group=:CUDA
         end
         rm(ptxas_output)
 

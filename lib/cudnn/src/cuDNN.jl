@@ -20,7 +20,7 @@ else
 end
 
 
-@public functional
+@public functional, enable_logging
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -153,32 +153,55 @@ end
 
 ## logging
 
-function log_message(sev, udata, dbg_ptr, ptr)
-    dbg = unsafe_load(dbg_ptr)
-
-    # find the length of the message, as denoted by two null terminators
-    len = 0
-    while true && len < 10000
-        if unsafe_load(ptr, len+1) == 0 && unsafe_load(ptr, len+2) == 0
-            break
+function log_message(sev::cudnnSeverity_t, udata::Ptr{Cvoid}, dbg::Ptr{cudnnDebug_t},
+                     msg::Ptr{UInt8})
+    CUDACore.guarded_callback() do
+        # each line of the message is NUL-terminated, and the message ends with two NULs
+        len = 0
+        while len < 1 << 20
+            if unsafe_load(msg, len + 1) == 0 && unsafe_load(msg, len + 2) == 0
+                break
+            end
+            len += 1
         end
-        len += 1
-    end
-    str = unsafe_string(ptr, len)
+        lines = split(unsafe_string(msg, len), '\0')
+        message = join(rstrip.(lines), '\n')
 
-    # split into lines and report
-    lines = split(str, '\0')
-    msg = join(strip.(lines), '\n')
-    if sev == CUDNN_SEV_INFO
-        @debug msg
-    elseif sev == CUDNN_SEV_WARNING
-        @warn msg
-    elseif sev == CUDNN_SEV_ERROR
-        @error msg
-    elseif sev == CUDNN_SEV_FATAL
-        error(msg)
+        level = if sev == CUDNN_SEV_INFO
+            CUDACore.Debug
+        elseif sev == CUDNN_SEV_WARNING
+            CUDACore.Warn
+        elseif sev == CUDNN_SEV_ERROR
+            CUDACore.Error
+        else
+            CUDACore.Error
+        end
+        CUDACore.enqueue_log(cuDNN, level, message)
     end
+    return
+end
 
+"""
+    cuDNN.enable_logging(enable::Bool=true)
+
+Forward log messages from cuDNN to Julia's logging system. API traces are reported at
+`Debug` level, and problems (including the library's explanation of why a call failed) at
+`Warn` or `Error` level. Starting Julia with `JULIA_DEBUG=cuDNN` enables this
+automatically, and also shows the `Debug`-level messages.
+"""
+function enable_logging(enable::Bool=true)
+    if enable
+        CUDACore.init_logging()
+        callback = @cfunction(log_message, Nothing,
+                              (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Ptr{UInt8}))
+        mask = UInt32(1) << UInt32(CUDNN_SEV_INFO) |
+               UInt32(1) << UInt32(CUDNN_SEV_WARNING) |
+               UInt32(1) << UInt32(CUDNN_SEV_ERROR)
+        cudnnSetCallback(mask, C_NULL, callback)
+    else
+        # restores the built-in callback, which respects the CUDNN_LOG* environment variables
+        cudnnSetCallback(0, C_NULL, C_NULL)
+    end
     return
 end
 
@@ -205,11 +228,9 @@ function __init__()
         libcudnn = CUDNN_jll.libcudnn
     end
 
-    # register a log callback
-    if !precompiling && (isdebug(:init, cuDNN) || Base.JLOptions().debug_level >= 2)
-        callback = @cfunction(log_message, Nothing,
-                              (cudnnSeverity_t, Ptr{Cvoid}, Ptr{cudnnDebug_t}, Ptr{UInt8}))
-        cudnnSetCallback(typemax(UInt32), C_NULL, callback)
+    # forward the library's log messages when debugging
+    if !precompiling && isdebug(cuDNN)
+        enable_logging(true)
     end
 
     CUDACore.register_reclaimable!(idle_handles)

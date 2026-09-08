@@ -59,6 +59,13 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   precompiling there produces a usable image.
 - `CuError` now includes the driver's own error log, when the driver provides
   one ([#3259](https://github.com/JuliaGPU/CUDA.jl/pull/3259)).
+- `JULIA_DEBUG=CUDA` now enables diagnostics across CUDA.jl and its libraries.
+  Individual packages also provide `enable_logging()` to toggle forwarding to Julia's
+  logger. cuBLASLt, cuSPARSE, and the driver gain log forwarding; driver failures are
+  reported at `Debug`, while library warnings and errors retain their severity.
+  Deferred delivery avoids callback I/O hangs with cuBLASXt. Use `CUDA.flush_logs()`
+  before inspecting captured messages or closing a log file. Julia's `-g2` flag no
+  longer enables library logging.
 - LinearAlgebra's storage-specific `mul!` methods are implemented, keeping
   CUDA.jl working with the dispatch rework in Julia 1.13
   ([#3257](https://github.com/JuliaGPU/CUDA.jl/pull/3257)).

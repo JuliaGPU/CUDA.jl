@@ -84,7 +84,7 @@ include("../lib/cudadrv/CUDAdrv.jl")
 include("initialization.jl")
 include("compiler/sm.jl")
 include("compatibility.jl")
-include("debug.jl")
+include("logging.jl")
 
 # device functionality (needs to be loaded first, because of generated functions)
 include("device/utils.jl")

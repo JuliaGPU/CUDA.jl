@@ -1278,3 +1278,21 @@ needs_context = false
 15 = "CuPtr{Cvoid}"
 18 = "CuPtr{Cvoid}"
 22 = "CuPtr{Cint}"
+
+[api.cusolverDnLoggerSetCallback]
+needs_context = false
+
+[api.cusolverDnLoggerSetFile]
+needs_context = false
+
+[api.cusolverDnLoggerOpenFile]
+needs_context = false
+
+[api.cusolverDnLoggerSetLevel]
+needs_context = false
+
+[api.cusolverDnLoggerSetMask]
+needs_context = false
+
+[api.cusolverDnLoggerForceDisable]
+needs_context = false

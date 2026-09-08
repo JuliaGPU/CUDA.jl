@@ -87,6 +87,7 @@ function main()
                 "development/kernel.md",
                 "development/troubleshooting.md",
                 "development/debugging.md",
+                "development/logging.md",
             ],
             "Hacking" => Any[
                 "hacking/exposing_new_intrinsics.md",

@@ -5094,33 +5094,27 @@ end
 const cusolverDnLoggerCallback_t = Ptr{Cvoid}
 
 @checked function cusolverDnLoggerSetCallback(callback)
-    initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetCallback(callback::cusolverDnLoggerCallback_t)::cusolverStatus_t
 end
 
 @checked function cusolverDnLoggerSetFile(file)
-    initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetFile(file::Ptr{Libc.FILE})::cusolverStatus_t
 end
 
 @checked function cusolverDnLoggerOpenFile(logFile)
-    initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerOpenFile(logFile::Cstring)::cusolverStatus_t
 end
 
 @checked function cusolverDnLoggerSetLevel(level)
-    initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetLevel(level::Cint)::cusolverStatus_t
 end
 
 @checked function cusolverDnLoggerSetMask(mask)
-    initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
 end
 
 # no prototype is found for this function at cusolverDn.h:5036:32, please use with caution
 @checked function cusolverDnLoggerForceDisable()
-    initialize_context()
     @gcsafe_ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t
 end
 

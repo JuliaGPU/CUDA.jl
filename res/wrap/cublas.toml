@@ -781,3 +781,6 @@ needs_context = false
 8 = "CuPtr{Ptr{T}}"
 10 = "CuPtr{Ptr{T}}"
 13 = "CuPtr{Ptr{T}}"
+
+[api.cublasLoggerConfigure]
+needs_context = false

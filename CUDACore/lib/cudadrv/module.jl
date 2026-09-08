@@ -53,7 +53,7 @@ mutable struct CuModule
         handle_ref = Ref{CUmodule}()
 
         options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-        if isdebug(:CuModule)
+        if isdebug()
             options[JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
             options[JIT_LOG_VERBOSE] = true
         end
@@ -80,11 +80,11 @@ mutable struct CuModule
             end
         end
 
-        if isdebug(:CuModule)
+        if isdebug()
             options = decode(optionKeys, optionVals)
             if !isempty(options[JIT_INFO_LOG_BUFFER])
                 @debug """JIT info log:
-                          $(options[JIT_INFO_LOG_BUFFER])"""
+                          $(options[JIT_INFO_LOG_BUFFER])""" _group=:CUDA
             end
         end
 
