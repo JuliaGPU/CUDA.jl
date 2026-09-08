@@ -128,9 +128,7 @@ function (obj::KI.Kernel{CUDABackend})(args...; numworkgroups=(), workgroupsize=
     KI.check_launch_args(numworkgroups, workgroupsize, ndrange)
     prod(ndrange) == 0 && return nothing
 
-    config = CUDACore.launch_configuration(obj.kern.fun; max_threads=min(prod(ndrange), max_work_group_size))
-
-    blocks, threads = KI.auto_launch_sizes(obj, numworkgroups, workgroupsize, ndrange, config.threads)
+    blocks, threads = KI.auto_launch_sizes(obj, numworkgroups, workgroupsize, ndrange, max_work_group_size)
 
     obj.kern(args...; threads, blocks)
     return nothing
