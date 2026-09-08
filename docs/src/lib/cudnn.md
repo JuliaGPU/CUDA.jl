@@ -51,8 +51,9 @@ outside `legacy`.
 
 ## Debugging
 
-Set `CUDNN_LOGLEVEL_DBG=3` or start Julia with `JULIA_DEBUG=cuDNN` to report cuDNN
-diagnostics through Julia logging.
+Start Julia with `JULIA_DEBUG=cuDNN`, or call `cuDNN.enable_logging()`, to report cuDNN's
+API traces and failure explanations through Julia's logging system. Refer to the
+[Logging](@ref) section for details.
 
 ## Public
 

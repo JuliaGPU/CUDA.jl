@@ -15,9 +15,9 @@ Driver log:
   [12:34:56.789][1234][CUDA][E] Returning 801 (CUDA_ERROR_NOT_SUPPORTED) from cuModuleLoadDataEx
 ```
 
-The same log can be written out by the driver directly, which is useful when an error is
-swallowed by another library or when the process crashes: set the `CUDA_LOG_FILE`
-environment variable to `stdout`, `stderr`, or a path before starting Julia.
+Start Julia with `JULIA_DEBUG=CUDA` to also see diagnostics for failures handled internally
+by CUDA.jl or a library, together with library API traces. Refer to [Logging](@ref) for
+selecting individual libraries and collecting logs when the process crashes.
 
 
 ## UndefVarError: libcuda not defined

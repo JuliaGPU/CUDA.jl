@@ -247,7 +247,7 @@ function KA.priority!(::CUDABackend, prio::Symbol)
     event = CuEvent(CUDACore.EVENT_DISABLE_TIMING)
     record(event, old_stream)
 
-    @debug "Switching default stream" flags priority
+    @debug "Switching default stream" flags priority _group=:CUDA
     new_stream = CuStream(; flags, priority)
     CUDACore.wait(event, new_stream)
     stream!(new_stream)

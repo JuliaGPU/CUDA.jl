@@ -194,32 +194,26 @@ end
 const cusparseLoggerCallback_t = Ptr{Cvoid}
 
 @checked function cusparseLoggerSetCallback(callback)
-    initialize_context()
     @gcsafe_ccall libcusparse.cusparseLoggerSetCallback(callback::cusparseLoggerCallback_t)::cusparseStatus_t
 end
 
 @checked function cusparseLoggerSetFile(file)
-    initialize_context()
     @gcsafe_ccall libcusparse.cusparseLoggerSetFile(file::Ptr{Libc.FILE})::cusparseStatus_t
 end
 
 @checked function cusparseLoggerOpenFile(logFile)
-    initialize_context()
     @gcsafe_ccall libcusparse.cusparseLoggerOpenFile(logFile::Cstring)::cusparseStatus_t
 end
 
 @checked function cusparseLoggerSetLevel(level)
-    initialize_context()
     @gcsafe_ccall libcusparse.cusparseLoggerSetLevel(level::Cint)::cusparseStatus_t
 end
 
 @checked function cusparseLoggerSetMask(mask)
-    initialize_context()
     @gcsafe_ccall libcusparse.cusparseLoggerSetMask(mask::Cint)::cusparseStatus_t
 end
 
 @checked function cusparseLoggerForceDisable()
-    initialize_context()
     @gcsafe_ccall libcusparse.cusparseLoggerForceDisable()::cusparseStatus_t
 end
 

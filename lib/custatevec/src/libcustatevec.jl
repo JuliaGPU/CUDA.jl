@@ -200,7 +200,6 @@ end
 end
 
 @checked function custatevecLoggerSetCallbackData(callback, userData)
-    initialize_context()
     @gcsafe_ccall libcustatevec.custatevecLoggerSetCallbackData(callback::custatevecLoggerCallbackData_t,
                                                                 userData::Ptr{Cvoid})::custatevecStatus_t
 end
@@ -214,7 +213,6 @@ end
 end
 
 @checked function custatevecLoggerSetLevel(level)
-    initialize_context()
     @gcsafe_ccall libcustatevec.custatevecLoggerSetLevel(level::Int32)::custatevecStatus_t
 end
 

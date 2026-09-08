@@ -154,3 +154,9 @@ needs_context = false
 
 [api.custatevecInitializeStateVector.argtypes]
 2 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecLoggerSetCallbackData]
+needs_context = false
+
+[api.custatevecLoggerSetLevel]
+needs_context = false

@@ -64,3 +64,21 @@ needs_context = false
 7 = "Ptr{CuPtr{Cvoid}}"
 8 = "Ptr{CuPtr{Cvoid}}"
 9 = "CuPtr{Cvoid}"
+
+[api.cutensorLoggerSetCallback]
+needs_context = false
+
+[api.cutensorLoggerSetFile]
+needs_context = false
+
+[api.cutensorLoggerOpenFile]
+needs_context = false
+
+[api.cutensorLoggerSetLevel]
+needs_context = false
+
+[api.cutensorLoggerSetMask]
+needs_context = false
+
+[api.cutensorLoggerForceDisable]
+needs_context = false

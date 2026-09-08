@@ -1163,7 +1163,6 @@ end
 end
 
 @checked function cutensornetLoggerSetCallbackData(callback, userData)
-    initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetLoggerSetCallbackData(callback::cutensornetLoggerCallbackData_t,
                                                                   userData::Ptr{Cvoid})::cutensornetStatus_t
 end
@@ -1177,7 +1176,6 @@ end
 end
 
 @checked function cutensornetLoggerSetLevel(level)
-    initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetLoggerSetLevel(level::Int32)::cutensornetStatus_t
 end
 

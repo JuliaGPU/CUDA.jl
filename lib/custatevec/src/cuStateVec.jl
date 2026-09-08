@@ -14,7 +14,7 @@ else
 end
 
 
-@public functional
+@public functional, enable_logging
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -102,19 +102,29 @@ end
 
 ## logging
 
-function log_message(log_level, function_name, message)
-    function_name = unsafe_string(function_name)
-    message = unsafe_string(message)
-    output = if isempty(message)
-        "$function_name(...)"
+function log_message(level::Int32, function_name::Cstring, message::Cstring)
+    CUDACore.library_log_callback(cuStateVec, level, function_name, message)
+    return
+end
+
+"""
+    cuStateVec.enable_logging(enable::Bool=true)
+
+Forward log messages from cuStateVec to Julia's logging system. API and kernel traces are
+reported at `Debug` level, performance hints at `Info` level, and problems at `Error`
+level. Starting Julia with `JULIA_DEBUG=cuStateVec` enables this automatically, and also shows
+the `Debug`-level messages.
+"""
+function enable_logging(enable::Bool=true)
+    if enable
+        CUDACore.init_logging()
+        callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
+        custatevecLoggerSetCallback(callback)
+        # the library also writes to stdout, unless a log file is set
+        custatevecLoggerOpenFile(CUDACore.devnull_path)
+        custatevecLoggerSetLevel(5)
     else
-        "$function_name: $message"
-    end
-    if log_level <= 1
-        @error output
-    else
-        # the other log levels are different levels of tracing and hints
-        @debug output
+        custatevecLoggerSetLevel(0)
     end
     return
 end
@@ -142,12 +152,9 @@ function __init__()
         libcustatevec = cuQuantum_jll.libcustatevec
     end
 
-    # register a log callback
-    if !precompiling && (isdebug(:init, cuStateVec) || Base.JLOptions().debug_level >= 2)
-        callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
-        custatevecLoggerSetCallback(callback)
-        custatevecLoggerOpenFile(Sys.iswindows() ? "NUL" : "/dev/null")
-        custatevecLoggerSetLevel(5)
+    # forward the library's log messages when debugging
+    if !precompiling && isdebug(cuStateVec)
+        enable_logging(true)
     end
 
     CUDACore.register_reclaimable!(idle_handles)

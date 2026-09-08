@@ -1473,33 +1473,27 @@ end
 const cublasLtLoggerCallback_t = Ptr{Cvoid}
 
 @checked function cublasLtLoggerSetCallback(callback)
-    initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetCallback(callback::cublasLtLoggerCallback_t)::cublasStatus_t
 end
 
 @checked function cublasLtLoggerSetFile(file)
-    initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetFile(file::Ptr{Libc.FILE})::cublasStatus_t
 end
 
 @checked function cublasLtLoggerOpenFile(logFile)
-    initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerOpenFile(logFile::Cstring)::cublasStatus_t
 end
 
 @checked function cublasLtLoggerSetLevel(level)
-    initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetLevel(level::Cint)::cublasStatus_t
 end
 
 @checked function cublasLtLoggerSetMask(mask)
-    initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
 # no prototype is found for this function at cublasLt.h:2882:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
-    initialize_context()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t
 end
 

@@ -572,33 +572,27 @@ function cutensorGetCudartVersion()
 end
 
 @checked function cutensorLoggerSetCallback(callback)
-    initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerSetCallback(callback::cutensorLoggerCallback_t)::cutensorStatus_t
 end
 
 @checked function cutensorLoggerSetFile(file)
-    initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerSetFile(file::Ptr{Libc.FILE})::cutensorStatus_t
 end
 
 @checked function cutensorLoggerOpenFile(logFile)
-    initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerOpenFile(logFile::Cstring)::cutensorStatus_t
 end
 
 @checked function cutensorLoggerSetLevel(level)
-    initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerSetLevel(level::Int32)::cutensorStatus_t
 end
 
 @checked function cutensorLoggerSetMask(mask)
-    initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
 # no prototype is found for this function at cutensor.h:1513:18, please use with caution
 @checked function cutensorLoggerForceDisable()
-    initialize_context()
     @gcsafe_ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t
 end
 

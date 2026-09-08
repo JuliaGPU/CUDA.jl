@@ -116,3 +116,18 @@ needs_context = false
 
 [api.cuDeviceGetUuid_v2]
 needs_context = false
+
+[api.cuLogsRegisterCallback]
+needs_context = false
+
+[api.cuLogsUnregisterCallback]
+needs_context = false
+
+[api.cuLogsCurrent]
+needs_context = false
+
+[api.cuLogsDumpToFile]
+needs_context = false
+
+[api.cuLogsDumpToMemory]
+needs_context = false

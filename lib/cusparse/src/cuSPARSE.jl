@@ -4,7 +4,7 @@ using CUDACore
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using CUDACore: unsafe_free!, retry_reclaim, initialize_context, @allowscalar
+using CUDACore: unsafe_free!, retry_reclaim, initialize_context, @allowscalar, isdebug
 
 using GPUArrays
 
@@ -26,7 +26,7 @@ end
 const SparseChar = Char
 
 
-@public functional
+@public functional, enable_logging
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -122,6 +122,35 @@ function handle()
 end
 
 
+## logging
+
+function log_message(level::Int32, function_name::Cstring, message::Cstring)
+    CUDACore.library_log_callback(cuSPARSE, level, function_name, message)
+    return
+end
+
+"""
+    cuSPARSE.enable_logging(enable::Bool=true)
+
+Forward log messages from cuSPARSE to Julia's logging system. API and kernel traces are
+reported at `Debug` level, performance hints at `Info` level, and problems at `Error`
+level. Starting Julia with `JULIA_DEBUG=cuSPARSE` enables this automatically, and also shows
+the `Debug`-level messages.
+"""
+function enable_logging(enable::Bool=true)
+    if enable
+        CUDACore.init_logging()
+        callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
+        cusparseLoggerSetCallback(callback)
+        # the library also writes to stdout, unless a log file is set
+        cusparseLoggerOpenFile(CUDACore.devnull_path)
+        cusparseLoggerSetLevel(5)
+    else
+        cusparseLoggerSetLevel(0)
+    end
+    return
+end
+
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
@@ -139,6 +168,11 @@ function __init__()
         libcusparse = path
     else
         libcusparse = CUDA_Runtime_jll.libcusparse
+    end
+
+    # forward the library's log messages when debugging
+    if !precompiling && isdebug(cuSPARSE)
+        enable_logging(true)
     end
 
     CUDACore.register_reclaimable!(idle_handles)

@@ -4,7 +4,7 @@ using CUDACore
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationStrategy_t, cudaEmulationMantissaControl_t, cudaEmulationSpecialValuesSupport_t
-using CUDACore: @allowscalar, assertscalar, unsafe_free!, retry_reclaim, initialize_context
+using CUDACore: @allowscalar, assertscalar, unsafe_free!, retry_reclaim, initialize_context, isdebug
 
 using cuBLAS
 using cuBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
@@ -23,7 +23,7 @@ else
 end
 
 
-@public functional, has_cusolvermg
+@public functional, has_cusolvermg, enable_logging
 
 const _initialized = Ref{Bool}(false)
 functional() = _initialized[]
@@ -261,6 +261,53 @@ function mg_handle()
 end
 
 
+## logging
+
+# the logging API is documented and defined in the static library, but the shared library
+# does not export it (checked from CUDA 11 through 13.4; NVIDIA bug #6738440)
+function has_logging_api()
+    lib = CUDACore.Libdl.dlopen(libcusolver)
+    try
+        CUDACore.Libdl.dlsym(lib, :cusolverDnLoggerSetCallback; throw_error=false) !== nothing
+    finally
+        CUDACore.Libdl.dlclose(lib)
+    end
+end
+
+function log_message(level::Int32, function_name::Cstring, message::Cstring)
+    CUDACore.library_log_callback(cuSOLVER, level, function_name, message)
+    return
+end
+
+"""
+    cuSOLVER.enable_logging(enable::Bool=true)
+
+Forward log messages from cuSOLVER to Julia's logging system. API and kernel traces are
+reported at `Debug` level, performance hints at `Info` level, and problems at `Error`
+level. Starting Julia with `JULIA_DEBUG=cuSOLVER` enables this automatically, and also shows
+the `Debug`-level messages.
+
+If the installed shared library does not export the logging API, enabling emits a warning.
+Set `CUSOLVERDN_LOG_LEVEL` before starting Julia to use cuSOLVER's own output instead.
+"""
+function enable_logging(enable::Bool=true)
+    if !has_logging_api()
+        enable && @warn "The cuSOLVER $(version()) shared library does not export the logging callback API; set the CUSOLVERDN_LOG_LEVEL environment variable to have the library print its log to stdout instead" maxlog=1
+        return
+    end
+    if enable
+        CUDACore.init_logging()
+        callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
+        cusolverDnLoggerSetCallback(callback)
+        # the library also writes to stdout, unless a log file is set
+        cusolverDnLoggerOpenFile(CUDACore.devnull_path)
+        cusolverDnLoggerSetLevel(5)
+    else
+        cusolverDnLoggerSetLevel(0)
+    end
+    return
+end
+
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
@@ -285,6 +332,13 @@ function __init__()
         if hasproperty(CUDA_Runtime_jll, :libcusolverMg)
             libcusolverMg = CUDA_Runtime_jll.libcusolverMg
         end
+    end
+
+    # forward the library's log messages when debugging. only complain about the missing
+    # API when cuSOLVER was named explicitly, not when implied by `JULIA_DEBUG=CUDA`.
+    if !precompiling && isdebug(cuSOLVER) &&
+       (has_logging_api() || isdebug(cuSOLVER; group=:init))
+        enable_logging(true)
     end
 
     CUDACore.register_reclaimable!(idle_dense_handles)

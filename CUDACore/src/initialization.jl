@@ -69,7 +69,7 @@ function __init__()
     driver = try
         set_driver_version()
     catch err
-        @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace())
+        @debug "CUDA driver failed to report a version" exception=(err, catch_backtrace()) _group=:CUDA
         _initialization_error[] = "CUDA driver not functional"
         return
     end
@@ -137,6 +137,11 @@ function __init__()
     catch err
         _initialization_error[] = "CUDA initialization failed: " * sprint(showerror, err)
         return
+    end
+
+    # forward the driver's log messages when debugging
+    if !precompiling && driver >= v"12.9" && isdebug()
+        enable_logging(true)
     end
 
     # ensure the loaded runtime is supported. done after cuInit so that runtime_version()
