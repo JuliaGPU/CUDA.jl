@@ -176,7 +176,7 @@ function versioninfo(io::IO=stdout)
     end
 end
 
-import CUDACore.CUDAInterface: CUDABackend
+import CUDACore: CUDABackend
 import KernelInterface as KI
 
 KI.versioninfo(io::IO, ::CUDABackend) = versioninfo(io)
