@@ -264,8 +264,12 @@ end
 
 @inline @generated kernel_state() = GPUCompiler.kernel_state_value(KernelState)
 
-@inline function hostcall_client()
-    return unsafe_load(kernel_state().client)
-end
+# these are device-only: `kernel_state` lowers to a GPU intrinsic, so keep them out of
+# the global method table (see the `core/device/method_table` test).
+@device_functions begin
+    @inline function hostcall_client()
+        return unsafe_load(kernel_state().client)
+    end
 
-@inline exception_info() = reinterpret(ExceptionInfo, hostcall_client().exception_info)
+    @inline exception_info() = reinterpret(ExceptionInfo, hostcall_client().exception_info)
+end
