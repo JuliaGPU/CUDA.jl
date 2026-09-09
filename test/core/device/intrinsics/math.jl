@@ -568,13 +568,15 @@ using SpecialFunctions
                 abs(x)
             end
         end
+        # PTX `abs.s` is undefined for INT_MIN, so since LLVM 23 only `llvm.abs` with
+        # the poison flag lowers to it; Julia's `abs` becomes `neg` + `max` instead.
         @test @filecheck CUDA.code_ptx(Tuple{Int32}) do x
-            @check "abs.s32"
+            @check "{{abs|max}}.s32"
             @check_not "__nv_"
             abs(x)
         end
         @test @filecheck CUDA.code_ptx(Tuple{Int64}) do x
-            @check "abs.s64"
+            @check "{{abs|max}}.s64"
             @check_not "__nv_"
             abs(x)
         end
