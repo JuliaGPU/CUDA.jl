@@ -41,9 +41,6 @@ ChainRulesCoreExt = "ChainRulesCore"
 EnzymeCoreExt = "EnzymeCore"
 SpecialFunctionsExt = "SpecialFunctions"
 
-[sources]
-GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/jll-libraries"}
-
 [compat]
 Adapt = "4.4"
 BFloat16s = "0.5, 0.6"
