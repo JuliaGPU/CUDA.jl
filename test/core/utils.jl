@@ -33,7 +33,8 @@ end
     # narrow-precision floats: enum members exist,
     # but no Julia type maps to them in CUDACore.
     for c_type in (CUDACore.R_8F_E4M3, CUDACore.R_8F_E5M2, CUDACore.R_8F_UE8M0,
-                   CUDACore.R_6F_E2M3, CUDACore.R_6F_E3M2, CUDACore.R_4F_E2M1)
+                   CUDACore.R_6F_E2M3, CUDACore.R_6F_E3M2, CUDACore.R_4F_E2M1,
+                   CUDACore.R_8F_UE5M3)
         @test_throws ArgumentError Type(c_type)
     end
 end

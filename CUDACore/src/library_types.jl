@@ -39,6 +39,7 @@ end
     R_6F_E2M3  = 31 # real as a nv_fp6_e2m3
     R_6F_E3M2  = 32 # real as a nv_fp6_e3m2
     R_4F_E2M1  = 33 # real as a nv_fp4_e2m1
+    R_8F_UE5M3 = 34 # real as an unsigned nv_fp8_ue5m3
 end
 
 const R_8F_UE4M3 = R_8F_E4M3 # real as an unsigned nv_fp8_e4m3
