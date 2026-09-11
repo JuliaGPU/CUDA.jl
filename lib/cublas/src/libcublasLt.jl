@@ -855,7 +855,9 @@ end
     CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_32F = 4
     CUBLASLT_MATMUL_MATRIX_SCALE_BLK128x128_32F = 5
     CUBLASLT_MATMUL_MATRIX_SCALE_PER_BATCH_SCALAR_32F = 6
-    CUBLASLT_MATMUL_MATRIX_SCALE_END = 7
+    CUBLASLT_MATMUL_MATRIX_SCALE_VEC128_MN_K4_UE8M0 = 12
+    CUBLASLT_MATMUL_MATRIX_SCALE_VEC32_MN_K4_UE8M0 = 13
+    CUBLASLT_MATMUL_MATRIX_SCALE_END = 14
     CUBLASLT_MATMUL_MATRIX_SCALE_RESERVED = 127
 end
 
@@ -1492,7 +1494,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2882:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2891:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t
 end
