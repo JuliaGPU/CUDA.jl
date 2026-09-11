@@ -126,7 +126,8 @@ end
 # it's not useful to have several threads report exceptions (interleaved output, can crash
 # CUDA), so use an output lock to only have a single thread write an exception message
 @inline function lock_output!(info::ExceptionInfo)
-    # atomic operations on host-pinned memory are iffy, but are fine from the POV of one GPU
+    # the lock lives in host-pinned memory, but only this GPU's threads contend for it, so
+    # the default device scope is what we want (system scope is unavailable on some platforms)
     if atomic_cas!(info.output_lock_ptr, Int32(0), Int32(1)) == Int32(0)
         # we just took the lock, note our index
         info.threadIdx, info.blockIdx = threadIdx(), blockIdx()

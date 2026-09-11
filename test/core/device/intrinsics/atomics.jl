@@ -483,3 +483,276 @@ end
 end
 
 end
+
+
+@testset "memory scopes" begin
+
+dev_cap = capability(device())
+system_scope_supported = dev_cap >= v"6.0" &&
+                         (!Sys.iswindows() || dev_cap >= v"7.0") &&
+                         (!CUDA.is_tegra() || dev_cap >= v"7.2")
+
+@testset "reflection" begin
+    # what LLVM spells out depends on the target: sm_5x has no scope qualifiers at all,
+    # sm_6x adds them, and sm_70+ also adds acquire/release semantics.
+    function cas_pattern(cap, scope)
+        sem = cap >= v"7.0" ? ".acq_rel" : ""
+        qual = cap >= v"6.0" ? ".$scope" : ""
+        "atom$sem$qual.global.cas.b32"
+    end
+
+    # atomicrmw carries the scope in the IR; whether the back-end spells it out in PTX
+    # depends on the LLVM version, so check the IR rather than the PTX.
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1}}) do a
+        @check "atomicrmw add {{.*}} syncscope(\"device\")"
+        CUDA.atomic_add!(pointer(a), Int32(1))
+        return
+    end
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1}}) do a
+        @check "atomicrmw add {{.*}} syncscope(\"block\")"
+        CUDA.atomic_add!(pointer(a), Int32(1), Val(:block))
+        return
+    end
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1}}) do a
+        @check "atomicrmw add"
+        @check_not "syncscope"
+        CUDA.atomic_add!(pointer(a), Int32(1), Val(:system))
+        return
+    end
+
+    for (arch, cap) in ((nothing, dev_cap), (sm"61", v"6.1"), (sm"50", v"5.0"))
+        kwargs = arch === nothing ? (;) : (; arch)
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1}}; kwargs...) do a
+            @check cas_pattern(cap, "gpu")
+            CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1))
+            return
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1}}; kwargs...) do a
+            @check cas_pattern(cap, "cta")
+            CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1), Val(:block))
+            return
+        end
+        if cap >= v"6.0"
+            @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1}}; kwargs...) do a
+                @check cas_pattern(cap, "sys")
+                CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1), Val(:system))
+                return
+            end
+        end
+    end
+
+    # Bounds-checking exception paths must not introduce system atomics (#3187).
+    function checked_store(a)
+        a[1] = Int32(42)
+        return
+    end
+    ptx = sprint(io -> CUDA.code_ptx(io, checked_store, Tuple{CuDeviceVector{Int32,1}};
+                                    arch=sm"61", ptx=v"8.8", kernel=true, dump_module=true))
+    @test occursin("atom.gpu", ptx)
+    @test !occursin(r"(?:atom|red)\.sys", ptx)
+
+    if dev_cap >= v"7.0"
+        # 16-bit CAS uses inline assembly, which spells out the scope too
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
+            @check "atom.acq_rel.gpu.global.cas.b16"
+            CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1))
+            return
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
+            @check "atom.acq_rel.cta.global.cas.b16"
+            CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1), Val(:block))
+            return
+        end
+    end
+end
+
+@testset "block scope" begin
+    a = CuArray(Int32[0])
+
+    function add_kernel(a, scope)
+        CUDA.atomic_add!(pointer(a), Int32(1), scope)
+        return
+    end
+    @cuda threads=1024 add_kernel(a, Val(:block))
+    @test Array(a)[1] == 1024
+
+    function cas_kernel(a, scope)
+        CUDA.atomic_cas!(pointer(a), Int32(1024), Int32(1), scope)
+        return
+    end
+    @cuda threads=1024 cas_kernel(a, Val(:block))
+    @test Array(a)[1] == 1
+
+    function incdec_kernel(a, scope)
+        CUDA.atomic_inc!(pointer(a), Int32(2047), scope)
+        CUDA.atomic_dec!(pointer(a, 2), Int32(2047), scope)
+        return
+    end
+    a = CuArray(Int32[0, 0])
+    @cuda threads=1024 incdec_kernel(a, Val(:block))
+    @test Array(a) == [1024, 2048 - 1024]
+end
+
+# system-scope atomics require sm_60, and are not available on Pascal under Windows
+if system_scope_supported
+@testset "system scope" begin
+    function add_kernel(a, scope)
+        CUDA.atomic_add!(pointer(a), Int32(1), scope)
+        return
+    end
+    function cas_kernel(a, scope)
+        CUDA.atomic_cas!(pointer(a), Int32(1024), Int32(1), scope)
+        return
+    end
+    function incdec_kernel(a, scope)
+        CUDA.atomic_inc!(pointer(a), Int32(2047), scope)
+        CUDA.atomic_dec!(pointer(a, 2), Int32(2047), scope)
+        return
+    end
+
+    a = CuArray(Int32[0])
+    @cuda threads=1024 add_kernel(a, Val(:system))
+    @test Array(a)[1] == 1024
+    @cuda threads=1024 cas_kernel(a, Val(:system))
+    @test Array(a)[1] == 1
+
+    a = CuArray(Int32[0, 0])
+    @cuda threads=1024 incdec_kernel(a, Val(:system))
+    @test Array(a) == [1024, 2048 - 1024]
+
+    # Smoke-test host-pinned memory. Synchronization precedes the host read; this
+    # does not test concurrent CPU/GPU atomicity.
+    counter = Int32[0]
+    a = unsafe_wrap(CuArray{Int32,1,CUDA.HostMemory}, counter)
+    @cuda threads=1024 add_kernel(a, Val(:system))
+    synchronize()
+    @test counter[1] == 1024
+end
+end
+
+@testset "floating-point scopes" begin
+    types = [Float32, Float64]
+    dev_cap >= v"7.0" && push!(types, Float16)
+    for scope in (Val(:block), Val(:device), Val(:system))
+        if scope === Val(:system) && !system_scope_supported
+            continue
+        end
+        for T in types
+            a = CuArray(T[0])
+            function kernel(a, scope)
+                CUDA.atomic_add!(pointer(a), one(eltype(a)), scope)
+                return
+            end
+            @cuda threads=128 kernel(a, scope)
+            @test Array(a) == T[128]
+        end
+    end
+end
+
+@testset "inc/dec return values and unsigned limits" begin
+    scopes = (Val(:device), Val(:block), Val(:system))
+    for scope in scopes
+        if scope === Val(:system) && !system_scope_supported
+            continue
+        end
+        for op in (CUDA.atomic_inc!, CUDA.atomic_dec!),
+            initial in Int32[0, 1, 7, 8, -1, typemin(Int32)],
+            limit in Int32[0, 7, -1, typemin(Int32)]
+            a = CuArray(Int32[initial])
+            result = similar(a)
+            function kernel(a, result, op, limit, scope)
+                @inbounds result[1] = op(pointer(a), limit, scope)
+                return
+            end
+            @cuda kernel(a, result, op, limit, scope)
+            old, bound = reinterpret(UInt32, initial), reinterpret(UInt32, limit)
+            expected = if op === CUDA.atomic_inc!
+                old >= bound ? UInt32(0) : old + UInt32(1)
+            else
+                old == 0 || old > bound ? bound : old - UInt32(1)
+            end
+            @test Array(result) == [initial]
+            @test Array(a) == [reinterpret(Int32, expected)]
+        end
+    end
+end
+
+@testset "validation" begin
+    # compile up to PTX, where validation runs, without invoking ptxas: the targets
+    # tested here need not be supported by the toolkit or match the test GPU.
+    function validate_kernel(f, tt; kwargs...)
+        source = CUDACore.methodinstance(typeof(f), tt)
+        config = CUDACore.compiler_config(device(); kwargs...)
+        job = CUDACore.CompilerJob(source, config)
+        CUDACore.GPUCompiler.JuliaContext() do ctx
+            CUDACore.GPUCompiler.compile(:asm, job)
+        end
+        return
+    end
+
+    function system_kernel(a)
+        CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1), Val(:system))
+        return
+    end
+    function device_kernel(a)
+        CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1))
+        return
+    end
+    function shared_kernel(a)
+        b = CuStaticSharedArray(Int32, 1)
+        CUDA.atomic_add!(pointer(b), Int32(1), Val(:system))
+        a[] = b[]
+        return
+    end
+    T = Tuple{CuDeviceVector{Int32,1}}
+
+    # system scope requires sm_60; LLVM would silently emit device scope on sm_5x
+    err = try
+        validate_kernel(system_kernel, T; arch=sm"50")
+        nothing
+    catch err
+        err
+    end
+    @test err isa CUDA.InvalidIRError
+    @test occursin("system-scope atomics require compute capability 6.0",
+                   sprint(showerror, err))
+    @test any(frame -> frame.func == :system_kernel,
+              Iterators.flatten(e[2] for e in err.errors))
+
+    # RMW, 16-bit CAS emulation, and the inc/dec fallbacks must check the scope too.
+    function rmw_kernel(a)
+        CUDA.atomic_add!(pointer(a), Int32(1), Val(:system))
+        return
+    end
+    function cas16_kernel(a)
+        CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1), Val(:system))
+        return
+    end
+    function inc_kernel(a)
+        CUDA.atomic_inc!(pointer(a), Int32(7), Val(:system))
+        return
+    end
+    function dec_kernel(a)
+        CUDA.atomic_dec!(pointer(a), Int32(7), Val(:system))
+        return
+    end
+    for (f, tt) in ((rmw_kernel, T), (cas16_kernel, Tuple{CuDeviceVector{Int16,1}}),
+                    (inc_kernel, T), (dec_kernel, T))
+        @test_throws CUDA.InvalidIRError validate_kernel(f, tt; arch=sm"50")
+        validate_kernel(f, tt; arch=sm"70")
+    end
+
+    # the default scope, and shared memory, are fine everywhere
+    validate_kernel(device_kernel, T; arch=sm"50")
+    validate_kernel(shared_kernel, T; arch=sm"50")
+
+    # Windows rejects Pascal modules containing system-scope atomics (#3187).
+    if Sys.iswindows()
+        @test_throws CUDA.InvalidIRError validate_kernel(system_kernel, T; arch=sm"61")
+    else
+        validate_kernel(system_kernel, T; arch=sm"61")
+    end
+    validate_kernel(system_kernel, T; arch=sm"70")
+end
+
+end
