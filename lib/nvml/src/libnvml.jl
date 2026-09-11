@@ -517,14 +517,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#318"
+struct var"##Ctag#183"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#183"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -533,14 +533,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#318", f::Symbol)
-    r = Ref{var"##Ctag#318"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#318"}, r)
+function Base.getproperty(x::var"##Ctag#183", f::Symbol)
+    r = Ref{var"##Ctag#183"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#183"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#318"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#183"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -550,7 +550,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#318"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#183"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -741,28 +741,28 @@ struct nvmlPerfMetricsPfpp1xSample_t
     estimatedMetrics::nvmlPwrModelMetricsPfpp1x_t
 end
 
-struct var"##Ctag#313"
+struct var"##Ctag#178"
     data::NTuple{2208,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#313"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#178"}, f::Symbol)
     f === :dlppc2x && return Ptr{nvmlPerfMetricsDlppc2xSample_t}(x + 0)
     f === :pfpp1x && return Ptr{nvmlPerfMetricsPfpp1xSample_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#313", f::Symbol)
-    r = Ref{var"##Ctag#313"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#313"}, r)
+function Base.getproperty(x::var"##Ctag#178", f::Symbol)
+    r = Ref{var"##Ctag#178"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#178"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#313"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#178"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#313", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#178", private::Bool=false)
     return (:dlppc2x, :pfpp1x, if private
                 fieldnames(typeof(x))
             else
@@ -776,7 +776,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlPerfMetricControllerSample_t}, f::Symbol)
     f === :controllerType && return Ptr{Cuint}(x + 0)
-    f === :data && return Ptr{var"##Ctag#313"}(x + 8)
+    f === :data && return Ptr{var"##Ctag#178"}(x + 8)
     return getfield(x, f)
 end
 
@@ -1215,13 +1215,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#316"
+struct var"##Ctag#181"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#316"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#181"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1229,14 +1229,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#316"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#316", f::Symbol)
-    r = Ref{var"##Ctag#316"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#316"}, r)
+function Base.getproperty(x::var"##Ctag#181", f::Symbol)
+    r = Ref{var"##Ctag#181"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#181"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#316"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#181"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1246,7 +1246,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#316"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#181"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1536,8 +1536,8 @@ struct nvmlVgpuSchedulerParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#314"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#315"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#179"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#180"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1644,8 +1644,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#319"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#320"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#184"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#185"}(x + 0)
     return getfield(x, f)
 end
 
@@ -2100,20 +2100,28 @@ end
     NVML_GPU_OPERATIONAL_EVENT_CONTEXT_TYPE_LEGACY_XID = 1
 end
 
-struct nvmlOperationalEventContextInfo_v1_st
+struct nvmlEventSetGetContextCount_v1_t
+    count::Cuint
+end
+
+struct nvmlEventSetGetContextInfo_v1_t
+    index::Cuint
     nvmlGpuOperationalEventContextType::Cuint
     sourceEventContextType::Cuint
     dataSize::Cuint
     dataFormatVersion::Cushort
 end
 
-const nvmlOperationalEventContextInfo_v1_t = nvmlOperationalEventContextInfo_v1_st
-
-struct nvmlGpuOperationalEventContextLegacyXid_v1_st
-    xidCode::Cuint
+struct nvmlEventSetGetContextData_v1_t
+    data::Ptr{Cvoid}
+    index::Cuint
+    dataSize::Cuint
 end
 
-const nvmlGpuOperationalEventContextLegacyXid_v1_t = nvmlGpuOperationalEventContextLegacyXid_v1_st
+struct nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1_t
+    index::Cuint
+    xidCode::Cuint
+end
 
 mutable struct nvmlSystemEventSet_st end
 
@@ -2392,7 +2400,9 @@ end
 
 const nvmlGpuOperationalEventConfig_v1_t = nvmlGpuOperationalEventConfig_v1_st
 
-struct nvmlEventData_v2_st
+struct nvmlEventSetWait_v3_t
+    timeoutMs::Cuint
+    dataType::Cuint
     uuid::NTuple{96,Cchar}
     sourceModule::NTuple{16,Cchar}
     eventType::Culonglong
@@ -2401,7 +2411,6 @@ struct nvmlEventData_v2_st
     instanceId::Culonglong
     timestampUsec::Culonglong
     traceId::Culonglong
-    dataType::Cuint
     gpuInstanceId::Cuint
     computeInstanceId::Cuint
     severity::Cuint
@@ -2418,8 +2427,6 @@ struct nvmlEventData_v2_st
     groupSize::Cuchar
     groupIndex::Cuchar
 end
-
-const nvmlEventData_v2_t = nvmlEventData_v2_st
 
 @cenum nvmlCPERType_t::UInt32 begin
     NVML_CPER_ACCESS_TYPE_GPU = 1
@@ -4129,37 +4136,34 @@ end
                                                                       config::Ptr{nvmlGpuOperationalEventConfig_v1_t})::nvmlReturn_t
 end
 
-@checked function nvmlEventSetWait_v3(set, data, timeoutms)
+@checked function nvmlEventSetWait_v3(set, params)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlEventSetWait_v3(set::nvmlEventSet_t,
-                                              data::Ptr{nvmlEventData_v2_t},
-                                              timeoutms::Cuint)::nvmlReturn_t
+                                              params::Ptr{nvmlEventSetWait_v3_t})::nvmlReturn_t
 end
 
-@checked function nvmlEventSetGetContextCount_v1(set, count)
+@checked function nvmlEventSetGetContextCount_v1(set, params)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlEventSetGetContextCount_v1(set::nvmlEventSet_t,
-                                                         count::Ptr{Cuint})::nvmlReturn_t
+                                                         params::Ptr{nvmlEventSetGetContextCount_v1_t})::nvmlReturn_t
 end
 
-@checked function nvmlEventSetGetContextInfo_v1(set, index, info)
+@checked function nvmlEventSetGetContextInfo_v1(set, params)
     initialize_context()
-    @gcsafe_ccall libnvml.nvmlEventSetGetContextInfo_v1(set::nvmlEventSet_t, index::Cuint,
-                                                        info::Ptr{nvmlOperationalEventContextInfo_v1_t})::nvmlReturn_t
+    @gcsafe_ccall libnvml.nvmlEventSetGetContextInfo_v1(set::nvmlEventSet_t,
+                                                        params::Ptr{nvmlEventSetGetContextInfo_v1_t})::nvmlReturn_t
 end
 
-@checked function nvmlEventSetGetContextData_v1(set, index, data, dataSize)
+@checked function nvmlEventSetGetContextData_v1(set, params)
     initialize_context()
-    @gcsafe_ccall libnvml.nvmlEventSetGetContextData_v1(set::nvmlEventSet_t, index::Cuint,
-                                                        data::Ptr{Cvoid},
-                                                        dataSize::Ptr{Cuint})::nvmlReturn_t
+    @gcsafe_ccall libnvml.nvmlEventSetGetContextData_v1(set::nvmlEventSet_t,
+                                                        params::Ptr{nvmlEventSetGetContextData_v1_t})::nvmlReturn_t
 end
 
-@checked function nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1(set, index, xid)
+@checked function nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1(set, params)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1(set::nvmlEventSet_t,
-                                                                                index::Cuint,
-                                                                                xid::Ptr{nvmlGpuOperationalEventContextLegacyXid_v1_t})::nvmlReturn_t
+                                                                                params::Ptr{nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlEventSetFree(set)
@@ -4679,10 +4683,10 @@ end
 const nvmlVgpuVmCompatibility_t = nvmlVgpuVmCompatibility_enum
 
 @cenum nvmlVgpuPgpuCompatibilityLimitCode_enum::UInt32 begin
-    NVML_VGPU_COMPATIBILITY_LIMIT_NONE = 0
-    NVML_VGPU_COMPATIBILITY_LIMIT_HOST_DRIVER = 1
-    NVML_VGPU_COMPATIBILITY_LIMIT_GUEST_DRIVER = 2
-    NVML_VGPU_COMPATIBILITY_LIMIT_GPU = 4
+    NVML_VGPU_COMPATIBILITY_LIMIT_NONE = 0x0000000000000000
+    NVML_VGPU_COMPATIBILITY_LIMIT_HOST_DRIVER = 0x0000000000000001
+    NVML_VGPU_COMPATIBILITY_LIMIT_GUEST_DRIVER = 0x0000000000000002
+    NVML_VGPU_COMPATIBILITY_LIMIT_GPU = 0x0000000000000004
     NVML_VGPU_COMPATIBILITY_LIMIT_OTHER = 0x0000000080000000
 end
 
@@ -5775,26 +5779,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#317"
+struct var"##Ctag#182"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#317"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#182"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#317", f::Symbol)
-    r = Ref{var"##Ctag#317"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#317"}, r)
+function Base.getproperty(x::var"##Ctag#182", f::Symbol)
+    r = Ref{var"##Ctag#182"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#182"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#317"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#182"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -5806,7 +5810,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#317"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#182"}(x + 16)
     return getfield(x, f)
 end
 
@@ -6225,83 +6229,83 @@ end
                                                    pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#314"
+struct var"##Ctag#179"
     avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#314"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#179"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :timeslice && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#314", f::Symbol)
-    r = Ref{var"##Ctag#314"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#314"}, r)
+function Base.getproperty(x::var"##Ctag#179", f::Symbol)
+    r = Ref{var"##Ctag#179"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#179"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#314"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#179"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#315"
+struct var"##Ctag#180"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#315"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#180"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#315", f::Symbol)
-    r = Ref{var"##Ctag#315"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#315"}, r)
+function Base.getproperty(x::var"##Ctag#180", f::Symbol)
+    r = Ref{var"##Ctag#180"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#180"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#315"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#180"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#319"
+struct var"##Ctag#184"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#319"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#184"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#319", f::Symbol)
-    r = Ref{var"##Ctag#319"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#319"}, r)
+function Base.getproperty(x::var"##Ctag#184", f::Symbol)
+    r = Ref{var"##Ctag#184"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#184"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#319"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#184"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#320"
+struct var"##Ctag#185"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#320"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#185"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#320", f::Symbol)
-    r = Ref{var"##Ctag#320"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#320"}, r)
+function Base.getproperty(x::var"##Ctag#185", f::Symbol)
+    r = Ref{var"##Ctag#185"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#185"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#320"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#185"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 

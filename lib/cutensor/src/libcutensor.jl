@@ -612,7 +612,7 @@ for desc in [:CUTENSOR_COMPUTE_DESC_16F,
         function $desc()
             ptr = Ptr{cutensorComputeDescriptor_t}(cglobal(($(QuoteNode(desc)),
                                                             libcutensor)))
-            return unsafe_load(ptr)
+            unsafe_load(ptr)
         end
     end
 end
