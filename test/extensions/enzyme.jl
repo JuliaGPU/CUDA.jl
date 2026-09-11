@@ -84,6 +84,44 @@ end
     @test all(dA2 .≈ 3*(2:2:64))
 end
 
+# a launch that goes through the kernel object rather than through `@cuda`
+function square_launch_false!(x)
+    kernel = @cuda launch = false square_kernel!(x)
+    kernel(x; threads = length(x))
+    return nothing
+end
+
+# a launch with a constant scalar, and with compiler and extra launch keyword arguments
+function scale_kernel!(x, a)
+    i = threadIdx().x
+    x[i] = a * x[i] * x[i]
+    return nothing
+end
+
+function scale!(x, a)
+    @cuda threads = length(x) maxthreads = 64 shmem = 16 scale_kernel!(x, a)
+    return nothing
+end
+
+@testset "Reverse Kernel (kernel object)" begin
+    A = CuArray(Float32.(1:64))
+    dA = CUDA.ones(64)
+    Enzyme.autodiff(Reverse, square_launch_false!, Duplicated(A, dA))
+    @test all(dA .≈ (2:2:128))
+end
+
+@testset "Kernel with launch keywords" begin
+    A = CuArray(Float32.(1:64))
+    dA = CUDA.ones(64)
+    Enzyme.autodiff(Forward, scale!, Const, Duplicated(A, dA), Const(3f0))
+    @test all(dA .≈ 6 .* (1:64))
+
+    A = CuArray(Float32.(1:64))
+    dA = CUDA.ones(64)
+    Enzyme.autodiff(Reverse, scale!, Duplicated(A, dA), Const(3f0))
+    @test all(dA .≈ 6 .* (1:64))
+end
+
 @testset "Forward Fill!" begin
     A = CUDA.ones(64)
     dA = CUDA.ones(64)
