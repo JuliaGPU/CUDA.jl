@@ -20,6 +20,7 @@ steps:
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
           julia --project=. -e '
             using Pkg
+            Pkg.develop("KernelAbstractions")
             Pkg.develop([PackageSpec(; path) for path in (
               "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
@@ -50,6 +51,7 @@ steps:
           queue: "cuda"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          julia --project=. -e 'using Pkg; Pkg.develop("KernelAbstractions")'
         if: |
           build.message =~ /\[only tests\]/ ||
           build.message =~ /\[only julia\]/ ||

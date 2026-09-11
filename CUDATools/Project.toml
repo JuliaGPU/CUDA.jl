@@ -1,7 +1,7 @@
 name = "CUDATools"
 uuid = "9ec180c6-1c07-47c7-9e6e-ebefa4d1f6d0"
-authors = ["Tim Besard <tim.besard@gmail.com>"]
 version = "6.3.0"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
 
 [deps]
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
@@ -9,6 +9,7 @@ CUDA_Compiler_jll = "d1e2174e-dfdc-576e-b43e-73b79eb1aca8"
 CUPTI = "9e67e8f6-ba02-4b6c-a7db-3b11ae1e7ab7"
 Crayons = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
 GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
+KernelInterface = "4ee993da-d684-4d17-a7dd-4e58e78d92bf"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 NVML = "611af6d1-644e-4c5d-bd58-854d7d1254b9"
 NVTX = "5da4648a-3479-48b8-97b9-01cb529c0a1f"
@@ -29,6 +30,7 @@ CUDA_Compiler_jll = "0.6"
 CUPTI = "=6.3.0"
 Crayons = "4"
 GPUCompiler = "2"
+KernelInterface = "0.2"
 LLVM = "9.3.1"
 NVML = "=6.3.0"
 NVTX = "1"
