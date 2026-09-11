@@ -159,28 +159,28 @@ KI.shfl_down_types(::CUDABackend) = DataType[Bool,
 ## indexing
 
 ## COV_EXCL_START
-@device_override @inline function KI.get_local_id()
-    return (; x = Int(threadIdx().x), y = Int(threadIdx().y), z = Int(threadIdx().z))
+@device_override @inline function KI.get_local_id(::Type{T}) where {T}
+    return (; x = T(threadIdx().x), y = T(threadIdx().y), z = T(threadIdx().z))
 end
 
-@device_override @inline function KI.get_group_id()
-    return (; x = Int(blockIdx().x), y = Int(blockIdx().y), z = Int(blockIdx().z))
+@device_override @inline function KI.get_group_id(::Type{T}) where {T}
+    return (; x = T(blockIdx().x), y = T(blockIdx().y), z = T(blockIdx().z))
 end
 
-@device_override @inline function KI.get_global_id()
-    return (; x = Int((blockIdx().x-1)*blockDim().x + threadIdx().x), y = Int((blockIdx().y-1)*blockDim().y + threadIdx().y), z = Int((blockIdx().z-1)*blockDim().z + threadIdx().z))
+@device_override @inline function KI.get_global_id(::Type{T}) where {T}
+    return (; x = T((blockIdx().x-1)*blockDim().x + threadIdx().x), y = T((blockIdx().y-1)*blockDim().y + threadIdx().y), z = T((blockIdx().z-1)*blockDim().z + threadIdx().z))
 end
 
-@device_override @inline function KI.get_local_size()
-    return (; x = Int(blockDim().x), y = Int(blockDim().y), z = Int(blockDim().z))
+@device_override @inline function KI.get_local_size(::Type{T}) where {T}
+    return (; x = T(blockDim().x), y = T(blockDim().y), z = T(blockDim().z))
 end
 
-@device_override @inline function KI.get_num_groups()
-    return (; x = Int(gridDim().x), y = Int(gridDim().y), z = Int(gridDim().z))
+@device_override @inline function KI.get_num_groups(::Type{T}) where {T}
+    return (; x = T(gridDim().x), y = T(gridDim().y), z = T(gridDim().z))
 end
 
-@device_override @inline function KI.get_global_size()
-    return (; x = Int(blockDim().x * gridDim().x), y = Int(blockDim().y * gridDim().y), z = Int(blockDim().z * gridDim().z))
+@device_override @inline function KI.get_global_size(::Type{T}) where {T}
+    return (; x = T(blockDim().x * gridDim().x), y = T(blockDim().y * gridDim().y), z = T(blockDim().z * gridDim().z))
 end
 
 @device_override KI.get_sub_group_size() = UInt32(warpsize())
