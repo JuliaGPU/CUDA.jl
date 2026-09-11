@@ -39,6 +39,16 @@ unreliable in Pkg's artifact-selection subprocess and meant every toolkit
 addition needed a driver release. Requires CUDA_Driver_jll 13.3.4,
 CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
 
+*Technically breaking changes*:
+
+- CUDA.jl atomic operations now default to device scope, matching the scope of
+  CUDA C's `atomicX` functions. LLVM 22 began honoring system scope for CAS,
+  causing the Windows driver to reject Pascal kernels containing these
+  instructions with error 801, including bounds-checking exception paths
+  ([#3187](https://github.com/JuliaGPU/CUDA.jl/issues/3187)). The low-level
+  `atomic_*!` functions accept a trailing `Val(:block)`, `Val(:device)`, or
+  `Val(:system)`; `CUDA.@atomic` uses device scope.
+
 *New features*:
 
 - Forward-compatibility drivers are keyed by a `tegra` platform tag computed

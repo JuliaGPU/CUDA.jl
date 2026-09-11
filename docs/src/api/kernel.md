@@ -140,7 +140,29 @@ CUDACore.@atomic
 ```
 
 If your expression is not recognized, or you need more control, use the underlying
-functions:
+functions.
+
+### Memory scopes
+
+Each low-level function takes an optional trailing `scope` argument selecting the set of
+threads the operation is atomic with respect to, mirroring CUDA C's scoped variants:
+
+| CUDA.jl                             | CUDA C              | Atomic with respect to          |
+|:------------------------------------|:--------------------|:--------------------------------|
+| `atomic_add!(ptr, val, Val(:block))`  | `atomicAdd_block`   | threads in the same block       |
+| `atomic_add!(ptr, val)`               | `atomicAdd`         | all threads on the device       |
+| `atomic_add!(ptr, val, Val(:system))` | `atomicAdd_system`  | the device, other devices and the host |
+
+Device scope is the default, and what `CUDA.@atomic` uses. System scope is needed only when
+the CPU or another GPU concurrently accesses the same memory, requires compute capability
+6.0 (7.2 on Tegra), and is not available on Pascal GPUs under Windows.
+Memory allocation and platform support must also permit system-wide atomicity.
+
+These scope choices match CUDA C, but the memory ordering is not identical: most CUDA.jl
+operations use acquire/release ordering, whereas CUDA C's legacy `atomicX` functions use
+relaxed ordering. The device-scope `atomic_inc!` and `atomic_dec!` intrinsics are relaxed.
+Ordering guarantees also depend on the target's support (compute capability 7.0+ for
+acquire/release instructions).
 
 ```@docs
 CUDACore.atomic_cas!
