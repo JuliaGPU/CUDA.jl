@@ -13,7 +13,10 @@ function checked_cuModuleLoadDataEx(_module, image, numOptions, options, optionV
     #      available, but cached by the allocator. by configuring the allocator with a
     #      release threshold, we have it actually free up that memory, but that requires
     #      synchronizing all streams to make sure pending frees are actually executed.
-    if !is_capturing()
+    #
+    #      inside a hostcall handler we must not synchronize the device: it would wait for
+    #      the kernel that is waiting for the handler.
+    if !is_capturing() && !hostcall_in_handler()
         device_synchronize()
     end
 
