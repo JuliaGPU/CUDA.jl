@@ -534,7 +534,10 @@ using ..CUDACore: i32
 # General functions
 
 @inline two(::Type{Int}) = 2
-@inline two(::Type{Int32}) = 2i32
+# On 32-bit Julia, Int === Int32 so a separate Int32 method is a method overwrite.
+@static if Int !== Int32
+    @inline two(::Type{Int32}) = 2i32
+end
 
 @inline function gp2lt(x::Int)::Int
     x -= 1
@@ -547,14 +550,16 @@ using ..CUDACore: i32
     xor(x, x >> 1)
 end
 
-@inline function gp2lt(x::Int32)::Int32
-    x -= 1i32
-    x |= x >> 1i32
-    x |= x >> 2i32
-    x |= x >> 4i32
-    x |= x >> 8i32
-    x |= x >> 16i32
-    xor(x, x >> 1i32)
+@static if Int !== Int32
+    @inline function gp2lt(x::Int32)::Int32
+        x -= 1i32
+        x |= x >> 1i32
+        x |= x >> 2i32
+        x |= x >> 4i32
+        x |= x >> 8i32
+        x |= x >> 16i32
+        xor(x, x >> 1i32)
+    end
 end
 
 @inline function bisect_range(index::I, lo::I, n::I) where {I}
