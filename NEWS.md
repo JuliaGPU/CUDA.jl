@@ -47,7 +47,10 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   instructions with error 801, including bounds-checking exception paths
   ([#3187](https://github.com/JuliaGPU/CUDA.jl/issues/3187)). The low-level
   `atomic_*!` functions accept a trailing `Val(:block)`, `Val(:device)`, or
-  `Val(:system)`; `CUDA.@atomic` uses device scope.
+  `Val(:system)`; `CUDA.@atomic` uses device scope. These functions report a
+  compile-time error for system scope below compute capability 6.0 or on
+  Pascal under Windows. This check does not cover Julia field atomics or
+  atomics emitted directly through LLVM.
 
 *New features*:
 

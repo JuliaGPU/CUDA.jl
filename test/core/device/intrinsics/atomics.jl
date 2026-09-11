@@ -677,4 +677,82 @@ end
     end
 end
 
+@testset "validation" begin
+    # compile up to PTX, where validation runs, without invoking ptxas: the targets
+    # tested here need not be supported by the toolkit or match the test GPU.
+    function validate_kernel(f, tt; kwargs...)
+        source = CUDACore.methodinstance(typeof(f), tt)
+        config = CUDACore.compiler_config(device(); kwargs...)
+        job = CUDACore.CompilerJob(source, config)
+        CUDACore.GPUCompiler.JuliaContext() do ctx
+            CUDACore.GPUCompiler.compile(:asm, job)
+        end
+        return
+    end
+
+    function system_kernel(a)
+        CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1), Val(:system))
+        return
+    end
+    function device_kernel(a)
+        CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1))
+        return
+    end
+    function shared_kernel(a)
+        b = CuStaticSharedArray(Int32, 1)
+        CUDA.atomic_add!(pointer(b), Int32(1), Val(:system))
+        a[] = b[]
+        return
+    end
+    T = Tuple{CuDeviceVector{Int32,1}}
+
+    # system scope requires sm_60; LLVM would silently emit device scope on sm_5x
+    err = try
+        validate_kernel(system_kernel, T; arch=sm"50")
+        nothing
+    catch err
+        err
+    end
+    @test err isa CUDA.InvalidIRError
+    @test occursin("system-scope atomics require compute capability 6.0",
+                   sprint(showerror, err))
+    @test any(frame -> frame.func == :system_kernel,
+              Iterators.flatten(e[2] for e in err.errors))
+
+    # RMW, 16-bit CAS emulation, and the inc/dec fallbacks must check the scope too.
+    function rmw_kernel(a)
+        CUDA.atomic_add!(pointer(a), Int32(1), Val(:system))
+        return
+    end
+    function cas16_kernel(a)
+        CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1), Val(:system))
+        return
+    end
+    function inc_kernel(a)
+        CUDA.atomic_inc!(pointer(a), Int32(7), Val(:system))
+        return
+    end
+    function dec_kernel(a)
+        CUDA.atomic_dec!(pointer(a), Int32(7), Val(:system))
+        return
+    end
+    for (f, tt) in ((rmw_kernel, T), (cas16_kernel, Tuple{CuDeviceVector{Int16,1}}),
+                    (inc_kernel, T), (dec_kernel, T))
+        @test_throws CUDA.InvalidIRError validate_kernel(f, tt; arch=sm"50")
+        validate_kernel(f, tt; arch=sm"70")
+    end
+
+    # the default scope, and shared memory, are fine everywhere
+    validate_kernel(device_kernel, T; arch=sm"50")
+    validate_kernel(shared_kernel, T; arch=sm"50")
+
+    # Windows rejects Pascal modules containing system-scope atomics (#3187).
+    if Sys.iswindows()
+        @test_throws CUDA.InvalidIRError validate_kernel(system_kernel, T; arch=sm"61")
+    else
+        validate_kernel(system_kernel, T; arch=sm"61")
+    end
+    validate_kernel(system_kernel, T; arch=sm"70")
+end
+
 end

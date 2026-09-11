@@ -155,8 +155,9 @@ threads the operation is atomic with respect to, mirroring CUDA C's scoped varia
 
 Device scope is the default, and what `CUDA.@atomic` uses. System scope is needed only when
 the CPU or another GPU concurrently accesses the same memory, requires compute capability
-6.0 (7.2 on Tegra), and is not available on Pascal GPUs under Windows.
-Memory allocation and platform support must also permit system-wide atomicity.
+6.0 (7.2 on Tegra), and is not available on Pascal GPUs under Windows. The low-level
+functions reject system scope at compile time on targets below 6.0 and on Pascal under
+Windows. Memory allocation and platform support must also permit system-wide atomicity.
 
 These scope choices match CUDA C, but the memory ordering is not identical: most CUDA.jl
 operations use acquire/release ordering, whereas CUDA C's legacy `atomicX` functions use

@@ -16,6 +16,19 @@ ptx_scope(::Val{:block}) = ".cta"
 ptx_scope(::Val{:device}) = ".gpu"
 ptx_scope(::Val{:system}) = ".sys"
 
+# Shared memory is confined to a block, regardless of the requested scope.
+@inline function check_atomic_scope(::LLVMPtr{T,A}, ::Val{S}) where {T,A,S}
+    if S === :system && A != AS.Shared
+        GPUCompiler.@static_assert(compute_capability() >= sv"6.0",
+            "system-scope atomics require compute capability 6.0; use device scope")
+        @static if Sys.iswindows()
+            GPUCompiler.@static_assert(compute_capability() >= sv"7.0",
+                "system-scope atomics are not supported on Pascal GPUs under Windows; use device scope")
+        end
+    end
+    return
+end
+
 ## LLVM
 
 # all atomic operations have acquire and/or release semantics,
@@ -56,7 +69,10 @@ const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
             ret!(builder, rv)
         end
 
-        call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T}, :ptr, :val)
+        quote
+            check_atomic_scope(ptr, scope)
+            $(call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T}, :ptr, :val))
+        end
     end
 end
 
@@ -159,7 +175,10 @@ end
             ret!(builder, rv)
         end
 
-        call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T, T}, :ptr, :cmp, :val)
+        quote
+            check_atomic_scope(ptr, scope)
+            $(call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T, T}, :ptr, :cmp, :val))
+        end
     end
 end
 
@@ -189,6 +208,7 @@ for A in (AS.Generic, AS.Global, AS.Shared), T in (:Int16, :UInt16), S in atomic
     intr = "atom.acq_rel$(ptx_scope(Val(S)))$space.cas.b16 \$0, [\$1], \$2, \$3;"
     @eval @device_function @inline function atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T,
                                                         scope::Val{$(QuoteNode(S))})
+        check_atomic_scope(ptr, scope)
         if compute_capability() >= sv"7.0"
             @asmcall($intr, "=h,l,h,h", true, $T,
                      Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
