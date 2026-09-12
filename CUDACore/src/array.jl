@@ -310,16 +310,16 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
     # HMM extends unified memory to include system memory
     supports_hmm(device(ctx)) ||
       throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
-    mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
-    DataRef(Returns(nothing), Managed(mem))
+    unified_mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
+    DataRef(Returns(nothing), Managed(unified_mem))
   elseif M == HostMemory
     # register as device-accessible host memory
-    mem = context!(ctx) do
+    host_mem = context!(ctx) do
       register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
     end
-    DataRef(Managed(mem)) do args...
+    DataRef(Managed(host_mem)) do args...
       context!(ctx) do
-        unregister(mem)
+        unregister(host_mem)
       end
     end
   else
