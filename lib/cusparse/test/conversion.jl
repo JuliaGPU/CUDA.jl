@@ -33,7 +33,9 @@
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CuSparseMatrixCOO(d_x)
-            @test collect(d_x) == collect(x)
+            if dense_conversion(elty, :coo)
+                @test collect(d_x) == collect(x)
+            end
         end
         # CSR(::COO) already covered by the non-direct collect
 
@@ -110,20 +112,22 @@ if capability(device()) >= v"5.3"
             @test h_x ≈ Array(x)
         end
 
-        @testset "CSC(::Dense)" begin
-            x = rand(elty,m,n)
-            d_x = CuArray(x)
-            d_x = CuSparseMatrixCSC(d_x)
-            h_x = collect(d_x)
-            @test h_x ≈ sparse(x)
-        end
+        if dense_conversion(elty, :csc)
+            @testset "CSC(::Dense)" begin
+                x = rand(elty,m,n)
+                d_x = CuArray(x)
+                d_x = CuSparseMatrixCSC(d_x)
+                h_x = collect(d_x)
+                @test h_x ≈ sparse(x)
+            end
 
-        @testset "CSR(::Dense)" begin
-            x = rand(elty,m,n)
-            d_x = CuArray(x)
-            d_x = CuSparseMatrixCSR(d_x)
-            h_x = collect(d_x)
-            @test h_x ≈ sparse(x)
+            @testset "CSR(::Dense)" begin
+                x = rand(elty,m,n)
+                d_x = CuArray(x)
+                d_x = CuSparseMatrixCSR(d_x)
+                h_x = collect(d_x)
+                @test h_x ≈ sparse(x)
+            end
         end
     end
 end
@@ -157,9 +161,11 @@ end
                 @test  size(x) == (4, 4)
             end
 
-            x = sparse(dense; fmt=fmt)
-            @test x isa T{Float32}
-            @test collect(x) == collect(dense)
+            if dense_conversion(Float32, fmt)
+                x = sparse(dense; fmt=fmt)
+                @test x isa T{Float32}
+                @test collect(x) == collect(dense)
+            end
         end
     end
     @test_throws ArgumentError("Format :bad not available, use :csc, :csr, :bsr or :coo.") sparse(dense; fmt=:bad)
@@ -186,11 +192,13 @@ end
                 fmt == :csr && @test collect(x.rowPtr) == [1]
             end
 
-            x = sparse(dense; fmt=fmt)
-            @test x isa T{Float32}
-            @test size(x) == (m, n)
-            fmt == :csc && @test collect(x.colPtr) == [1]
-            fmt == :csr && @test collect(x.rowPtr) == [1]
+            if dense_conversion(Float32, fmt)
+                x = sparse(dense; fmt=fmt)
+                @test x isa T{Float32}
+                @test size(x) == (m, n)
+                fmt == :csc && @test collect(x.colPtr) == [1]
+                fmt == :csr && @test collect(x.rowPtr) == [1]
+            end
         end
     end
 end
@@ -204,6 +212,7 @@ end
         A = sparse(I, J, V, 6, 6)
         for format ∈ (:coo, :csr, :csc)
             Agpu = sparse(I |> cu, J |> cu, V |> cu, 6, 6, fmt=format)
+            dense_conversion(typ, format) || continue
             @test Array(Agpu) == A
         end
     end
@@ -214,6 +223,7 @@ end
         A = sprand(typ, 5, 5, 0.2)
         for T in (CuSparseMatrixCSC{typ}, CuSparseMatrixCSR{typ}, CuSparseMatrixCOO{typ}), f in (transpose, adjoint)
             dA = T(f(A))
+            dense_conversion(typ, T) || continue
             @test Array(dA) == f(A)
         end
     end
@@ -240,6 +250,7 @@ end
             dA = T(A)
             dS = sparse(wrap(dA, uplo))
             @test dS isa T
+            dense_conversion(typ, T) || continue
             @test Array(dS) ≈ Array(sparse(wrap(A, uplo)))
         end
     end
@@ -273,6 +284,7 @@ if !(v"12.0" <= cuSPARSE.version() < v"12.1")
         A[:, 1] .= [0.0; 1.0; 2.0; 0.0; 3.0]
         A = SparseMatrixCSC(A)
         for CuSparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+            dense_conversion(Float64, CuSparseMatrixType) || continue
             @testset "CuSparseVector --> $CuSparseMatrixType" begin
                 B = CuSparseMatrixType(x)
                 @test collect(B)[:] ≈ collect(x)
@@ -319,7 +331,10 @@ for (n_loc, bd, p_loc) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)
                 dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, bd_loc) : CuSparseMatrixType2(dA1)
                 @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
                     valid_ptr(dA2)
-                    @test collect(dA1) ≈ collect(dA2)
+                    if dense_conversion(Float64, CuSparseMatrixType1) &&
+                       dense_conversion(Float64, CuSparseMatrixType2)
+                        @test collect(dA1) ≈ collect(dA2)
+                    end
                 end
             end
         end

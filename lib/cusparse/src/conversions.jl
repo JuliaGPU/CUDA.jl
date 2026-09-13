@@ -379,11 +379,19 @@ end
 #   affected versions we shift the index arrays to zero-based around the call;
 #   zero-based indexing returns correct results.
 # - cuSPARSE <= 12.6 (NVBUG 5384319, JuliaGPU/CUDA.jl#2806): the routine does
-#   not initialize `cscColPtr` for matrices with `n == 0`. We pre-fill it with
-#   the empty-matrix sentinel before the call.
+#   not initialize `cscColPtr` for matrices with `n == 0`.
+# - cuSPARSE 10.x: the routine rejects matrices without stored elements with
+#   CUSPARSE_STATUS_INVALID_VALUE.
+# Both empty cases are handled here instead of by the library: the result is an
+# empty matrix, whose `cscColPtr` consists of the index base alone.
 function _csr2cscEx2!(m, n, nnz_, csrVal::CuVector{T}, csrRowPtr, csrColInd,
                       cscVal::CuVector{T}, cscColPtr, cscRowInd,
                       action, index, algo) where T
+    if iszero(nnz_) || iszero(m) || iszero(n)
+        cscColPtr .= (index == 'O' ? one(Cint) : zero(Cint))
+        return
+    end
+
     buggy = index == 'O' && v"12.0" <= version() < v"12.1"
     if buggy
         csrRowPtr = csrRowPtr .- one(Cint)
@@ -391,9 +399,6 @@ function _csr2cscEx2!(m, n, nnz_, csrVal::CuVector{T}, csrRowPtr, csrColInd,
         effidx = 'Z'
     else
         effidx = index
-    end
-    if iszero(n) && version() <= v"12.6-"
-        cscColPtr .= (effidx == 'O' ? one(Cint) : zero(Cint))
     end
     function bufferSize()
         out = Ref{Csize_t}(1)
