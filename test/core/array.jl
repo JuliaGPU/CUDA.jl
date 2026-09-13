@@ -110,30 +110,38 @@ end
     # unmanaged memory -> CuArray
     # note that the device-side pointer may differ from the host one (i.e., on Tegra)
     let
-        # automatic memory selection
-        for AT in [CuArray, CuArray{Int}, CuArray{Int,1}],
-            f in [a->unsafe_wrap(AT, pointer(a), 1),
-                  a->unsafe_wrap(AT, pointer(a), (1,)),
-                  a->unsafe_wrap(AT, a)]
-            a = [1]
-            b = f(a)
+        # wrapping system memory as host memory registers it with the driver, which
+        # not every device supports (e.g. the Jetson Nano)
+        can_register = attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
 
-            @test typeof(b) <: CuArray{Int,1}
-            @test size(b) == (1,)
-            @test Array(b) == a
+        # automatic memory selection
+        if CUDA.supports_hmm(device()) || can_register
+            for AT in [CuArray, CuArray{Int}, CuArray{Int,1}],
+                f in [a->unsafe_wrap(AT, pointer(a), 1),
+                      a->unsafe_wrap(AT, pointer(a), (1,)),
+                      a->unsafe_wrap(AT, a)]
+                a = [1]
+                b = f(a)
+
+                @test typeof(b) <: CuArray{Int,1}
+                @test size(b) == (1,)
+                @test Array(b) == a
+            end
         end
 
         # host memory
-        for AT in [CuArray{Int,1,CUDA.HostMemory}],
-            f in [a->unsafe_wrap(AT, pointer(a), 1),
-                  a->unsafe_wrap(AT, pointer(a), (1,)),
-                  a->unsafe_wrap(AT, a)]
-            a = [1]
-            b = f(a)
+        if can_register
+            for AT in [CuArray{Int,1,CUDA.HostMemory}],
+                f in [a->unsafe_wrap(AT, pointer(a), 1),
+                      a->unsafe_wrap(AT, pointer(a), (1,)),
+                      a->unsafe_wrap(AT, a)]
+                a = [1]
+                b = f(a)
 
-            @test typeof(b) <: CuArray{Int,1,CUDA.HostMemory}
-            @test size(b) == (1,)
-            @test Array(b) == a
+                @test typeof(b) <: CuArray{Int,1,CUDA.HostMemory}
+                @test size(b) == (1,)
+                @test Array(b) == a
+            end
         end
 
         # unified memory (requires HMM)
@@ -904,6 +912,7 @@ end
   end
 end
 
+if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
 @testset "issue: invalid handling of device pointers" begin
   # failed when DEVICE_ATTRIBUTE_CAN_USE_HOST_POINTER_FOR_REGISTERED_MEM == 0
   cpu = rand(2,2)
@@ -911,6 +920,7 @@ end
   gpu_ptr = convert(CuPtr{eltype(cpu)}, buf)
   gpu = unsafe_wrap(CuArray, gpu_ptr, size(cpu))
   @test Array(gpu) == cpu
+end
 end
 
 if length(devices()) > 1

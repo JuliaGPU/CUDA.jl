@@ -88,16 +88,6 @@ end
         return
     end
 
-    function invalid_atomic_address_space_kernel(ptr)
-        CUDA.atomic_cas!(ptr, UInt32(0), UInt32(1))
-        return
-    end
-    local_ptr_t = Core.LLVMPtr{UInt32,AS.Local}
-    @test_throws "atomics require a generic, global, or shared address space" begin
-        compile_kernel(invalid_atomic_address_space_kernel, Tuple{local_ptr_t};
-                      arch=sm"80")
-    end
-
     outf16 = CUDA.zeros(Float16, 16 * 16)
     function wmma_kernel(out)
         CUDA.WMMA.llvm_wmma_load_a_col_m16n16k16_global_stride_f16(
@@ -128,52 +118,66 @@ end
         wmma_bf16_kernel, Tuple{typeof(CUDA.cudaconvert(outbf16))};
         arch=sm"72")
 
-    cluster_kernel() = cluster_arrive()
-    @test_throws "requires compute capability 9.0" compile_kernel(
-        cluster_kernel, Tuple{};
-        arch=sm"80")
+    # the remaining checks compile for sm_80, which requires a toolchain that can target
+    # it (CUDA 11.0+); older toolkits reject the architecture before the check fires.
+    if v"8.0" in CUDACore.ptxas_compat().cap
+        function invalid_atomic_address_space_kernel(ptr)
+            CUDA.atomic_cas!(ptr, UInt32(0), UInt32(1))
+            return
+        end
+        local_ptr_t = Core.LLVMPtr{UInt32,AS.Local}
+        @test_throws "atomics require a generic, global, or shared address space" begin
+            compile_kernel(invalid_atomic_address_space_kernel, Tuple{local_ptr_t};
+                           arch=sm"80")
+        end
 
-    dependent_launch_kernel() = trigger_programmatic_launch_completion()
-    @test_throws "requires compute capability 9.0" begin
-        compile_kernel(dependent_launch_kernel, Tuple{}; arch=sm"80")
-    end
+        cluster_kernel() = cluster_arrive()
+        @test_throws "requires compute capability 9.0" compile_kernel(
+            cluster_kernel, Tuple{};
+            arch=sm"80")
 
-    function distributed_shared_kernel()
-        CuDistributedSharedArray(CuStaticSharedArray(UInt32, 1), 1)
-        return
-    end
-    @test_throws "requires compute capability 9.0" compile_kernel(
-        distributed_shared_kernel, Tuple{};
-        arch=sm"80")
+        dependent_launch_kernel() = trigger_programmatic_launch_completion()
+        @test_throws "requires compute capability 9.0" begin
+            compile_kernel(dependent_launch_kernel, Tuple{}; arch=sm"80")
+        end
 
-    # `cp.async.wait_group` takes an immediate operand, so the number of stages needs to
-    # be materialized as a constant, capping it at 8 like CUDA's `__pipeline_wait_prior`
-    @test @filecheck CUDA.code_ptx(Tuple{}; arch=sm"80", kernel=true) do
-        @check "cp.async.wait_group {{0;}}"
-        CG.wait_prior(CG.this_thread_block(), 0)
-        return
-    end
-    @test @filecheck CUDA.code_ptx(Tuple{}; arch=sm"80", kernel=true) do
-        @check "cp.async.wait_group {{8;}}"
-        CG.wait_prior(CG.this_thread_block(), 20)
-        return
-    end
-    # a run-time number of stages is dispatched to those constants
-    @test @filecheck CUDA.code_ptx((Int32,); arch=sm"80", kernel=true) do stage
-        @check "cp.async.wait_group"
-        CG.wait_prior(CG.this_thread_block(), stage)
-        return
-    end
+        function distributed_shared_kernel()
+            CuDistributedSharedArray(CuStaticSharedArray(UInt32, 1), 1)
+            return
+        end
+        @test_throws "requires compute capability 9.0" compile_kernel(
+            distributed_shared_kernel, Tuple{};
+            arch=sm"80")
 
-    function invalid_memcpy_alignment_kernel(dst, src)
-        CG.memcpy_async(CG.this_thread_block(), dst, src, 4)
-        return
-    end
-    dst_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Shared},3}
-    src_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Global},3}
-    @test_throws "memcpy_async alignment must be a power of 2" begin
-        compile_kernel(invalid_memcpy_alignment_kernel, Tuple{dst_t,src_t};
-                      arch=sm"80")
+        # `cp.async.wait_group` takes an immediate operand, so the number of stages needs
+        # to be materialized as a constant, capping it at 8 like `__pipeline_wait_prior`
+        @test @filecheck CUDA.code_ptx(Tuple{}; arch=sm"80", kernel=true) do
+            @check "cp.async.wait_group {{0;}}"
+            CG.wait_prior(CG.this_thread_block(), 0)
+            return
+        end
+        @test @filecheck CUDA.code_ptx(Tuple{}; arch=sm"80", kernel=true) do
+            @check "cp.async.wait_group {{8;}}"
+            CG.wait_prior(CG.this_thread_block(), 20)
+            return
+        end
+        # a run-time number of stages is dispatched to those constants
+        @test @filecheck CUDA.code_ptx((Int32,); arch=sm"80", kernel=true) do stage
+            @check "cp.async.wait_group"
+            CG.wait_prior(CG.this_thread_block(), stage)
+            return
+        end
+
+        function invalid_memcpy_alignment_kernel(dst, src)
+            CG.memcpy_async(CG.this_thread_block(), dst, src, 4)
+            return
+        end
+        dst_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Shared},3}
+        src_t = CUDACore.Aligned{Core.LLVMPtr{UInt32,AS.Global},3}
+        @test_throws "memcpy_async alignment must be a power of 2" begin
+            compile_kernel(invalid_memcpy_alignment_kernel, Tuple{dst_t,src_t};
+                           arch=sm"80")
+        end
     end
 end
 
