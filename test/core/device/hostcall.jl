@@ -363,8 +363,12 @@ end
     @test occursin("membar.sys", legacy)
     @test !occursin("nanosleep", legacy)
 
+    # Check the device-local port locks in LLVM IR: PTX spelling of the ordering
+    # and scope qualifiers varies between backends.
+    llvm = sprint(io -> CUDA.code_llvm(io, probe, tt))
+    @test occursin(r"atomicrmw or .*syncscope\(\"device\"\)", llvm)
+
     for ptx in (modern, legacy)
-        @test occursin(r"atom\.(global\.)?or\.b32", ptx)
         @test occursin("activemask", ptx)
         @test occursin("bar.warp.sync", ptx)
     end
