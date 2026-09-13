@@ -1,8 +1,8 @@
-@testset "permutations" begin
-
 using cuTENSOR: permute!
 
 using LinearAlgebra, Random
+
+@testset "permutations" begin
 
 eltypes = [(Float16, Float16),
            (Float16, Float32),

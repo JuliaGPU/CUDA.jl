@@ -1,8 +1,8 @@
-@testset "reductions" begin
-
 using cuTENSOR: reduce!
 
 using LinearAlgebra, Random
+
+@testset "reductions" begin
 
 eltypes = [(Float16, Float16),
            (Float32, Float32),

@@ -1,5 +1,5 @@
 # TODO: unify with Base.@atomic
-using CUDA: @atomic
+using CUDA: @atomic, AtomicError
 using BFloat16s: BFloat16
 
 @testset "atomics (low-level)" begin
@@ -416,8 +416,6 @@ end
         @cuda kernel(a)
         @test isnan(Array(a)[1])
     end
-
-    using CUDA: AtomicError
 
     @test_throws AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = 1

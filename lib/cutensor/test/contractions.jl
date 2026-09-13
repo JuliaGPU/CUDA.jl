@@ -1,8 +1,8 @@
-@testset "contractions" begin
-
 using cuTENSOR: contract!, plan_contraction
 
 using LinearAlgebra
+
+@testset "contractions" begin
 
 eltypes = [(Float32, Float32, Float32, Float32),
            (Float32, Float32, Float32, Float16),
