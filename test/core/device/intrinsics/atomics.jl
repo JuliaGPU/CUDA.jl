@@ -621,12 +621,16 @@ if system_scope_supported
     @test Array(a) == [1024, 2048 - 1024]
 
     # Smoke-test host-pinned memory. Synchronization precedes the host read; this
-    # does not test concurrent CPU/GPU atomicity.
-    counter = Int32[0]
-    a = unsafe_wrap(CuArray{Int32,1,CUDA.HostMemory}, counter)
-    @cuda threads=1024 add_kernel(a, Val(:system))
-    synchronize()
-    @test counter[1] == 1024
+    # does not test concurrent CPU/GPU atomicity. System-scope atomics on pinned
+    # memory are only atomic at system scope when the host supports native atomics
+    # (e.g., NVLink C2C); compute-sanitizer flags them as invalid otherwise.
+    if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_NATIVE_ATOMIC_SUPPORTED) == 1
+        counter = Int32[0]
+        a = unsafe_wrap(CuArray{Int32,1,CUDA.HostMemory}, counter)
+        @cuda threads=1024 add_kernel(a, Val(:system))
+        synchronize()
+        @test counter[1] == 1024
+    end
 end
 end
 
