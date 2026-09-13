@@ -166,7 +166,8 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
                 i, j = Tuple(I)
                 LinearAlgebra.dot(x[i], a * y[j])
             end
-            return sum(bc)
+            # Unlike sum, dot must not widen small-integer results.
+            return mapreduce(identity, +, bc)
         end
 
         res = CUDACore.zeros(T, 1)
