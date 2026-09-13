@@ -311,6 +311,10 @@ function flush_log_buffers()
     return
 end
 
+# cuBLASLt only gained its logging callback API in CUDA 11; on older libraries the
+# symbols are absent, so cuBLAS-only logging is all we can offer.
+has_lt_logging_api() = version() >= v"11"
+
 # cuBLASLt uses the logging design shared by other libraries
 function lt_log_message(level::Int32, function_name::Cstring, message::Cstring)
     CUDACore.library_log_callback(cuBLAS, level, function_name, message)
@@ -324,6 +328,9 @@ Forward log messages from cuBLAS and cuBLASLt to Julia's logging system. API tra
 reported at `Debug` level, performance hints at `Info` level, and problems at `Warn` or
 `Error` level. Starting Julia with `JULIA_DEBUG=cuBLAS` enables this automatically, and also
 shows the `Debug`-level messages.
+
+cuBLASLt messages are only forwarded on CUDA 11 or later; older libraries do not export
+the cuBLASLt logging API.
 """
 function enable_logging(enable::Bool=true)
     if enable
@@ -337,13 +344,15 @@ function enable_logging(enable::Bool=true)
                 log_atexit[] = true
             end
         end
-        callback = @cfunction(lt_log_message, Nothing, (Int32, Cstring, Cstring))
-        cublasLtLoggerSetCallback(callback)
-        cublasLtLoggerOpenFile(CUDACore.devnull_path)
-        cublasLtLoggerSetLevel(5)
+        if has_lt_logging_api()
+            callback = @cfunction(lt_log_message, Nothing, (Int32, Cstring, Cstring))
+            cublasLtLoggerSetCallback(callback)
+            cublasLtLoggerOpenFile(CUDACore.devnull_path)
+            cublasLtLoggerSetLevel(5)
+        end
     else
         Sys.iswindows() || cublasLoggerConfigure(0, 0, 0, C_NULL)
-        cublasLtLoggerSetLevel(0)
+        has_lt_logging_api() && cublasLtLoggerSetLevel(0)
     end
     return
 end

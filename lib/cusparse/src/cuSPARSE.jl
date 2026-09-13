@@ -124,6 +124,10 @@ end
 
 ## logging
 
+# the logging callback API was only introduced in CUDA 11; older libraries do not
+# export it at all
+has_logging_api() = version() >= v"11"
+
 function log_message(level::Int32, function_name::Cstring, message::Cstring)
     CUDACore.library_log_callback(cuSPARSE, level, function_name, message)
     return
@@ -136,8 +140,14 @@ Forward log messages from cuSPARSE to Julia's logging system. API and kernel tra
 reported at `Debug` level, performance hints at `Info` level, and problems at `Error`
 level. Starting Julia with `JULIA_DEBUG=cuSPARSE` enables this automatically, and also shows
 the `Debug`-level messages.
+
+The logging API requires CUDA 11 or later; enabling on an older toolkit emits a warning.
 """
 function enable_logging(enable::Bool=true)
+    if !has_logging_api()
+        enable && @warn "cuSPARSE $(version()) does not provide the logging callback API, which requires CUDA 11 or later" maxlog=1
+        return
+    end
     if enable
         CUDACore.init_logging()
         callback = @cfunction(log_message, Nothing, (Int32, Cstring, Cstring))
@@ -170,8 +180,10 @@ function __init__()
         libcusparse = CUDA_Runtime_jll.libcusparse
     end
 
-    # forward the library's log messages when debugging
-    if !precompiling && isdebug(cuSPARSE)
+    # forward the library's log messages when debugging. only complain about the missing
+    # API when cuSPARSE was named explicitly, not when implied by `JULIA_DEBUG=CUDA`.
+    if !precompiling && isdebug(cuSPARSE) &&
+       (has_logging_api() || isdebug(cuSPARSE; group=:init))
         enable_logging(true)
     end
 
