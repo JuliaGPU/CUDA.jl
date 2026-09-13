@@ -43,7 +43,11 @@ end
 
 ############################################################################################
 
-@static if can_use_cupti()
+if CUPTI.version() < v"11"
+    @test_throws "Integrated profiling requires CUPTI 11" CUDA.@profile error("must not execute")
+end
+
+@static if can_use_cupti() && CUPTI.version() >= v"11"
 @testset "integrated" begin
 
 @testset "activity cleanup" begin

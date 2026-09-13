@@ -132,6 +132,9 @@ Here, every call is prefixed with an ID, which can be used to correlate host and
 events. For example, here we can see that the host-side `cuLaunchKernel` call with ID 6
 corresponds to the device-side `broadcast` kernel.
 
+Integrated profiling requires CUPTI 11 or later. CUPTI 10 can crash when profiling
+kernels that use dynamic parallelism; use an external profiler with older toolkits.
+
 #### Profiling on Tegra
 
 The integrated profiler relies on CUPTI, which needs additional permissions on Tegra
