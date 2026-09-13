@@ -140,13 +140,13 @@ function __init__()
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "custatevec"; optional=true)
         if path === nothing
-            precompiling || @error "cuQuantum is not available on your system (looked for custatevec in $(join(dirs, ", ")))"
+            precompiling || @warn "cuQuantum is not available on your system (looked for custatevec in $(join(dirs, ", "))). cuStateVec.functional() will return false."
             return
         end
         libcustatevec = path
     else
         if !cuQuantum_jll.is_available()
-            precompiling || @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+            precompiling || @warn "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform))). cuStateVec.functional() will return false."
             return
         end
         libcustatevec = cuQuantum_jll.libcustatevec

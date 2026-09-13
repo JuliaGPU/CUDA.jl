@@ -136,13 +136,13 @@ function __init__()
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cutensor"; optional=true)
         if path === nothing
-            precompiling || @error "cuTENSOR is not available on your system (looked in $(join(dirs, ", ")))"
+            precompiling || @warn "cuTENSOR is not available on your system (looked in $(join(dirs, ", "))). cuTENSOR.functional() will return false."
             return
         end
         libcutensor = path
     else
         if !CUTENSOR_jll.is_available()
-            precompiling || @error "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform)))"
+            precompiling || @warn "cuTENSOR is not available for your platform ($(Base.BinaryPlatforms.triplet(CUTENSOR_jll.host_platform))). cuTENSOR.functional() will return false."
             return
         end
         libcutensor = CUTENSOR_jll.libcutensor

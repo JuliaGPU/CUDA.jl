@@ -58,11 +58,17 @@ if !BFloat16s.llvm_arithmetic ||
 end
 
 # subpackage tests under lib/*/test/
-const subpackages = ["cublas", "cusparse", "cusolver", "cufft", "curand",
-                     "cudnn", "cutensor", "cutensornet", "custatevec"]
-for pkg in subpackages
+const subpackages = ["cublas" => cuBLAS, "cusparse" => cuSPARSE, "cusolver" => cuSOLVER,
+                     "cufft" => cuFFT, "curand" => cuRAND, "cudnn" => cuDNN,
+                     "cutensor" => cuTENSOR, "cutensornet" => cuTensorNet,
+                     "custatevec" => cuStateVec]
+for (pkg, mod) in subpackages
     testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
     isdir(testdir) || continue
+    if mod in (cuDNN, cuTENSOR, cuTensorNet, cuStateVec) && !mod.functional()
+        @warn "Skipping $(nameof(mod)) tests: the library is not functional here"
+        continue
+    end
     sub_tests = find_tests(testdir)
     delete!(sub_tests, "setup")
     delete!(sub_tests, "runtests")
