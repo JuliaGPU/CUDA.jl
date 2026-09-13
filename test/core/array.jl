@@ -621,6 +621,24 @@ end
   @test vec(Array(sum!(view(CUDA.zeros(1,1,1), 1, :, :), CUDA.ones(1,4096)))) == [4096f0]
 end
 
+struct ReductionWrapper
+  x::Int32
+end
+Base.:+(a::ReductionWrapper, b::ReductionWrapper) = ReductionWrapper(a.x + b.x)
+Base.zero(::Type{ReductionWrapper}) = ReductionWrapper(zero(Int32))
+@testset "mapreduce without warp shuffles" begin
+  # element types that aren't on the shuffle whitelist reduce through shared memory;
+  # cover the shapes that make that path use several thread blocks
+  for dims in ((1000,), (10, 10, 10), (100, 100), (64, 1024))
+    a = rand(Int32(1):Int32(10), dims)
+    da = CuArray(ReductionWrapper.(a))
+    @test sum(da).x == sum(a)
+    for d in 1:length(dims)
+      @test Array(sum(da; dims=d)) == ReductionWrapper.(sum(a; dims=d))
+    end
+  end
+end
+
 @testset "mapreduce inference" begin
   input = CUDA.ones(512)
   output = similar(input, 1)

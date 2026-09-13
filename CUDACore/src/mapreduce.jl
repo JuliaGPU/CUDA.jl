@@ -52,8 +52,8 @@ end
     threads = blockDim().x
     thread = threadIdx().x
 
-    # shared mem for a complete reduction
-    shared = CuDynamicSharedArray(T, (threads,))
+    # The caller reserves blockDim().x * sizeof(T) bytes of shared memory.
+    shared = @inbounds CuDynamicSharedArray(T, (threads,))
     @inbounds shared[thread] = val
 
     # perform a reduction
