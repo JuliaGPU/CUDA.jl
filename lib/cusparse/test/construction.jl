@@ -36,7 +36,9 @@
             @testset "COO" begin
                 x = sprand(elty,m,n, 0.2)
                 d_x  = CuSparseMatrixCOO(x)
-                @test collect(d_x) == collect(x)
+                if dense_conversion(elty, :coo)
+                    @test collect(d_x) == collect(x)
+                end
                 @test similar(d_x) isa CuSparseMatrixCOO{elty}
                 @test similar(d_x, (3, 4)) isa CuSparseMatrixCOO{elty}
                 @test size(similar(d_x, (3, 4))) == (3, 4)
@@ -49,7 +51,9 @@
         @testset "BSR" begin
             x   = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixBSR(x, blockdim)
-            @test collect(d_x) == collect(x)
+            if dense_conversion(elty, :bsr)
+                @test collect(d_x) == collect(x)
+            end
             @test similar(d_x) isa CuSparseMatrixBSR{elty}
             @test similar(d_x, Float32) isa CuSparseMatrixBSR{Float32}
             @test similar(d_x, (3, 4)) isa CuSparseMatrixBSR{elty}
@@ -63,7 +67,9 @@
         @testset "COO" begin
             x   = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCOO(x)
-            @test collect(d_x) == collect(x)
+            if dense_conversion(elty, :coo)
+                @test collect(d_x) == collect(x)
+            end
             @test similar(d_x) isa CuSparseMatrixCOO{elty}
             @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
             @test similar(d_x, Float32, n, m) isa CuSparseMatrixCOO{Float32}

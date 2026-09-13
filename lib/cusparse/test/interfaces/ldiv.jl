@@ -17,6 +17,12 @@ using LinearAlgebra, SparseArrays
         @testset "opa = $opa" for opa in (identity, transpose, adjoint)
             @testset "type = $SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCOO, CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR)
                 SparseMatrixType == CuSparseMatrixCSC && elty <: Complex && opa == adjoint && continue
+                # only the BSR path uses the legacy bsrsv2/bsrsm2 routines; every other
+                # format goes through the generic SpSV (cuSPARSE 11.5) and SpSM (11.6)
+                legacy = SparseMatrixType == CuSparseMatrixBSR
+                spsv = legacy || cuSPARSE.version() >= v"11.5"
+                spsm = legacy || cuSPARSE.version() >= v"11.6"
+                spsv || continue
                 dA = SparseMatrixType == CuSparseMatrixBSR ? CuSparseMatrixBSR(A, 1) : SparseMatrixType(A)
                 @testset "ldiv! -- CuVector" begin
                     z  = rand(elty, m)
@@ -42,6 +48,7 @@ using LinearAlgebra, SparseArrays
                 end
                 @testset "opb = $opb" for opb in [identity, transpose, adjoint]
                     elty <: Complex && opb == adjoint && continue
+                    spsm || continue
                     B  = opb == identity ? rand(elty, m, nB) : rand(elty, nB, m)
                     dB = CuArray(B)
                     B_bad = opb == identity ? rand(elty, m+1, nB) : rand(elty, nB, m+1)
