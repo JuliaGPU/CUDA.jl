@@ -104,24 +104,27 @@ end
     end
 end
 
-@testset "syevdx! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    R = real(elty)
-    Σ = [i*one(R) for i = 1:10]
-    B = rand(elty, 10, 10)
-    F = qr(B)
-    A = F.Q * Diagonal(Σ) * F.Q'
-    for uplo in ('L', 'U')
-        h_A = uplo == 'L' ? tril(A) : triu(A)
-        d_A = CuMatrix{elty}(h_A)
+# the 64-bit generic API requires cuSOLVER 11 or later
+if cuSOLVER.version() >= v"11"
+    @testset "syevdx! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        R = real(elty)
+        Σ = [i*one(R) for i = 1:10]
+        B = rand(elty, 10, 10)
+        F = qr(B)
+        A = F.Q * Diagonal(Σ) * F.Q'
+        for uplo in ('L', 'U')
+            h_A = uplo == 'L' ? tril(A) : triu(A)
+            d_A = CuMatrix{elty}(h_A)
 
-        d_W, d_V, neig = cuSOLVER.Xsyevdx!('V', 'A', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
-        @test neig == 10
-        @test collect(d_W) ≈ Σ
-        @test A ≈ collect(d_V * Diagonal(d_W) * d_V')
+            d_W, d_V, neig = cuSOLVER.Xsyevdx!('V', 'A', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
+            @test neig == 10
+            @test collect(d_W) ≈ Σ
+            @test A ≈ collect(d_V * Diagonal(d_W) * d_V')
 
-        d_W, neig = cuSOLVER.Xsyevdx!('N', 'I', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
-        @test neig == 3
+            d_W, neig = cuSOLVER.Xsyevdx!('N', 'I', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
+            @test neig == 3
 
-        d_W, neig = cuSOLVER.Xsyevdx!('N', 'V', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
+            d_W, neig = cuSOLVER.Xsyevdx!('N', 'V', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
+        end
     end
 end

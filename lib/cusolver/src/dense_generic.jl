@@ -123,6 +123,7 @@ end
 
 # Xsytrs
 function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+    version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
     chkuplo(uplo)
     n = checksquare(A)
     nrhs = size(B, 2)
@@ -150,6 +151,7 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::Stride
 end
 
 function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+    version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
     chkuplo(uplo)
     n = checksquare(A)
     nrhs = size(B, 2)
@@ -178,6 +180,7 @@ end
 
 # Xtrtri
 function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
     chkuplo(uplo)
     chkdiag(diag)
     n = checksquare(A)
