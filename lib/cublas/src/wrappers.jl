@@ -544,6 +544,13 @@ function gemv(trans::Char, A::StridedCuMatrix{T}, x::StridedCuVector{T}) where T
     gemv!(trans, one(T), A, x, zero(T), similar(x, T, size(A, (trans == 'N' ? 1 : 2))))
 end
 
+# Batched gemv was introduced in cuBLAS 11.9.2 (CUDA 11.6 Update 2).
+function check_gemv_batched()
+    version() < v"11.9.2" &&
+        error("Batched gemv requires cuBLAS 11.9.2 or later.")
+    return
+end
+
 for (fname, fname_64, eltyin, eltyout) in (
         (:cublasDgemvBatched, :cublasDgemvBatched_64, :Float64, :Float64),
         (:cublasSgemvBatched, :cublasSgemvBatched_64, :Float32, :Float32),
@@ -560,6 +567,7 @@ for (fname, fname_64, eltyin, eltyout) in (
                                beta,
                                y::Vector{<:StridedCuVector{$eltyout}}
                               )
+            check_gemv_batched()
             if length(A) != length(x) || length(A) != length(y)
                 throw(DimensionMismatch("Lengths of inputs must be the same"))
             end
@@ -609,6 +617,7 @@ for (fname, fname_64, eltyin, eltyout) in (
                                        beta,
                                        y::AbstractArray{$eltyout, 2}
                                       )
+            check_gemv_batched()
             if size(A, 3) != size(x, 2) || size(A, 3) != size(y, 2)
                 throw(DimensionMismatch("Batch sizes must be equal for all inputs"))
             end
@@ -1187,8 +1196,10 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
         return math_mode==CUDACore.PEDANTIC_MATH ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
     end
 
-    if sig === (Int8, Int32)
-        # Int32=Int8*Int8 requires m,n,k to be multiples of 4
+    if sig === (Int8, Int32) && cap >= v"6.1"
+        # Int32=Int8*Int8 is implemented on top of the dp4a/IMMA instructions, which were
+        # introduced with sm_61; older devices report CUBLAS_STATUS_ARCH_MISMATCH.
+        # It also requires m,n,k to be multiples of 4:
         # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
         all_mod_4 = (m%4 == 0 && n%4 == 0 && k%4 == 0)
         all_mod_4 && return math_mode==CUDACore.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I

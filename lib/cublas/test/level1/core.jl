@@ -55,7 +55,8 @@ using LinearAlgebra
         ca = CuArray(a)
         @test BLAS.iamax(a) == cuBLAS.iamax(ca)
         @test cuBLAS.iamin(ca) == 3
-        result = CuRef{Int64}(0)
+        result_type = cuBLAS.version() >= v"12" ? Int64 : Cint
+        result = CuRef{result_type}(0)
         cuBLAS.iamax(ca, result)
         @test BLAS.iamax(a) == result[]
     end
