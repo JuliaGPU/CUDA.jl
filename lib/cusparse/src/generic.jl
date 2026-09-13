@@ -349,6 +349,13 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         chkmmdims(B,C,n,m,k,n)
     end
 
+    # cuSPARSE 10 rejects row-major operands and can silently miscompute CSR
+    # SpMM with transposed B. CSC is represented as transposed CSR here.
+    if version() < v"11" && (B isa Transpose || C isa Transpose ||
+                            (transb != 'N' && !(A isa CuSparseMatrixCOO)))
+        error("These SpMM operand layouts require cuSPARSE 11 or later.")
+    end
+
     descB = CuDenseMatrixDescriptor(B)
     descC = CuDenseMatrixDescriptor(C)
 
