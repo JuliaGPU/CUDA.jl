@@ -17,7 +17,8 @@ using LLVM
 using LLVM.Interop
 using Core: LLVMPtr
 
-import KernelAbstractions
+import KernelInterface
+import KernelInterface as KI
 
 using Adapt: Adapt, adapt, WrappedArray
 
@@ -123,7 +124,7 @@ include("sorting.jl")
 include("complex.jl")
 include("library_types.jl")
 
-# KernelAbstractions
+# KernelInterface
 include("CUDAKernels.jl")
 import .CUDAKernels: CUDABackend
 export CUDABackend
