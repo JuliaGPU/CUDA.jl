@@ -49,11 +49,35 @@ This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
 function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
                 clustersize::CuDim=1, cooperative::Bool=false, dependent::Bool=false,
-                shmem::Integer=0, stream::CuStream=stream()) where {N}
-    blockdim = CuDim3(blocks)
-    threaddim = CuDim3(threads)
-    clusterdim = CuDim3(clustersize)
+                shmem::Integer=0, stream::CuStream=stream(), hostcall::Bool=false) where {N}
+    pack_arguments(args...) do kernelParams
+        GC.@preserve kernelParams begin
+            params = Ptr{Ptr{Cvoid}}(Base.unsafe_convert(Ptr{Cvoid}, kernelParams))
+            launch_packed(f, params, CuDim3(blocks), CuDim3(threads), CuDim3(clustersize),
+                          cooperative, dependent, shmem, stream, hostcall)
+        end
+    end
+end
 
+# Keep launch setup and hostcall bookkeeping out of the code specialized on each
+# kernel signature: after packing, only the argument buffer pointer is needed.
+@noinline function launch_packed(f::CuFunction, params::Ptr{Ptr{Cvoid}}, blockdim::CuDim3,
+                       threaddim::CuDim3, clusterdim::CuDim3, cooperative::Bool,
+                       dependent::Bool, shmem::Integer, stream::CuStream, hostcall::Bool)
+    if hostcall
+        hostcall_launch(stream) do
+            launch_packed(f, params, blockdim, threaddim, clusterdim,
+                          cooperative, dependent, shmem, stream)
+        end
+    else
+        launch_packed(f, params, blockdim, threaddim, clusterdim,
+                      cooperative, dependent, shmem, stream)
+    end
+end
+
+function launch_packed(f::CuFunction, kernelParams::Ptr{Ptr{Cvoid}}, blockdim::CuDim3,
+                       threaddim::CuDim3, clusterdim::CuDim3, cooperative::Bool,
+                       dependent::Bool, shmem::Integer, stream::CuStream)
     if dependent
         driver_version() >= v"11.8" ||
             error("Programmatic dependent launch requires CUDA 11.8 or higher")
@@ -67,18 +91,16 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
             error("Thread block clusters require CUDA 11.8 or higher")
         end
         try
-            pack_arguments(args...) do kernelParams
-                if cooperative
-                    cuLaunchCooperativeKernel(f,
-                                              blockdim.x, blockdim.y, blockdim.z,
-                                              threaddim.x, threaddim.y, threaddim.z,
-                                              shmem, stream, kernelParams)
-                else
-                    cuLaunchKernel(f,
-                                   blockdim.x, blockdim.y, blockdim.z,
-                                   threaddim.x, threaddim.y, threaddim.z,
-                                   shmem, stream, kernelParams, C_NULL)
-                end
+            if cooperative
+                cuLaunchCooperativeKernel(f,
+                                          blockdim.x, blockdim.y, blockdim.z,
+                                          threaddim.x, threaddim.y, threaddim.z,
+                                          shmem, stream, kernelParams)
+            else
+                cuLaunchKernel(f,
+                               blockdim.x, blockdim.y, blockdim.z,
+                               threaddim.x, threaddim.y, threaddim.z,
+                               shmem, stream, kernelParams, C_NULL)
             end
         catch err
             diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
@@ -116,9 +138,7 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
                                 threaddim.x, threaddim.y, threaddim.z,
                                 shmem, stream.handle, config_attrs, num_attributes)
         try
-            pack_arguments(args...) do kernelParams
-                cuLaunchKernelEx(config, f, kernelParams, C_NULL)
-            end
+            cuLaunchKernelEx(config, f, kernelParams, C_NULL)
         catch err
             diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
         end

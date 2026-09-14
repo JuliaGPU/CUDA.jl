@@ -567,11 +567,8 @@ end
 
     if kernel <: HostKernel
         quote
-            if kernel.hostcall
-                hostcall_launch(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
-            else
-                cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
-            end
+            cudacall(kernel.fun, $call_tt, $(call_args...);
+                     call_kwargs..., hostcall=kernel.hostcall)
         end
     else
         quote
@@ -582,15 +579,15 @@ end
 
 # launch a kernel that may call host functions: the hostcall server is armed for the
 # duration of the kernel, and disarmed by a host function enqueued after it.
-@inline function hostcall_launch(fun, tt, args...; stream::CuStream=stream(), kwargs...)
+function hostcall_launch(f::F, stream::CuStream) where {F}
     if is_capturing(stream)
         # graph replays are not visible to us; such kernels are serviced by the heartbeat
         hostcall_enable_heartbeat!()
-        return cudacall(fun, tt, args...; stream, kwargs...)
+        return f()
     end
     hostcall_arm!()
     try
-        cudacall(fun, tt, args...; stream, kwargs...)
+        f()
         @static if Sys.iswindows()
             # WDDM may batch command submission (observed to be eager with hardware GPU
             # scheduling, but not guaranteed without it); a stream query is a cheap way to
