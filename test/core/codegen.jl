@@ -177,6 +177,25 @@ end
     end
 end
 
+@testset "non-ASCII debug strings" begin
+    # JuliaGPU/CUDA.jl#3274: LLVM 23 echoes `.debug_str` entries, like the names of
+    # inlined functions, into PTX comments, which ptxas before CUDA 13.1 rejects when
+    # they contain non-ASCII characters.
+    @inline Δx(i) = 2i
+    function kernel(a)
+        i = threadIdx().x
+        @inbounds a[i] = Δx(i)
+        return
+    end
+
+    ptx = sprint(io->CUDA.code_ptx(io, kernel, Tuple{CuDeviceVector{Int,1}}; raw=true))
+    @test isascii(ptx)
+
+    a = CuArray(zeros(Int, 8))
+    @cuda threads=8 kernel(a)
+    @test Array(a) == 2:2:16
+end
+
 @testset "header rewrite (.target/.version bump)" begin
     # When the LLVM back-end can't reach the device cap (e.g., a device newer
     # than what NVPTX_LLVM_Backend_jll supports), `_compiler_config` produces a
