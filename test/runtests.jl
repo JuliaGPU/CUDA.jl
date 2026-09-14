@@ -58,11 +58,17 @@ if !BFloat16s.llvm_arithmetic ||
 end
 
 # subpackage tests under lib/*/test/
-const subpackages = ["cublas", "cusparse", "cusolver", "cufft", "curand",
-                     "cudnn", "cutensor", "cutensornet", "custatevec"]
-for pkg in subpackages
+const subpackages = ["cublas" => cuBLAS, "cusparse" => cuSPARSE, "cusolver" => cuSOLVER,
+                     "cufft" => cuFFT, "curand" => cuRAND, "cudnn" => cuDNN,
+                     "cutensor" => cuTENSOR, "cutensornet" => cuTensorNet,
+                     "custatevec" => cuStateVec]
+for (pkg, mod) in subpackages
     testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
     isdir(testdir) || continue
+    if mod in (cuDNN, cuTENSOR, cuTensorNet, cuStateVec) && !mod.functional()
+        @warn "Skipping $(nameof(mod)) tests: the library is not functional here"
+        continue
+    end
     sub_tests = find_tests(testdir)
     delete!(sub_tests, "setup")
     delete!(sub_tests, "runtests")
@@ -102,7 +108,7 @@ if isempty(args.positionals)
 end
 
 
-## GPU-memory-based parallelism
+## memory-based parallelism
 
 # Cap worker count by how much of the primary device's free memory each worker
 # claims. A CUDA worker needs its own context + libraries (~0.5–1 GiB baseline)
@@ -110,6 +116,10 @@ end
 # `test/setup.jl`, 1 GiB is enough.
 # (Set `CUDA_VISIBLE_DEVICES` to choose which device is used.)
 const gpu_memory_per_worker = 1 * 2^30
+
+# Integrated GPUs share system RAM with Julia; budget for the worker process too.
+const host_memory_per_worker = 3 * 2^30
+
 first_gpu = first(devices())
 # Query free memory without creating a CUDA context on this coordinator process.
 # NVML reads it straight from the driver (no context), whereas `CUDA.free_memory()`
@@ -123,12 +133,19 @@ else
         Int(CUDA.free_memory())
     end
 end
-gpu_jobs = max(1, gpu_free ÷ gpu_memory_per_worker)
+integrated = attribute(first_gpu, CUDA.DEVICE_ATTRIBUTE_INTEGRATED) == 1
+memory_free, memory_per_worker = if integrated
+    min(gpu_free, Int(Sys.free_memory())),
+    gpu_memory_per_worker + host_memory_per_worker
+else
+    gpu_free, gpu_memory_per_worker
+end
+memory_jobs = max(1, memory_free ÷ memory_per_worker)
 
-@info "Parallelism budget" device = "$(CUDA.name(first_gpu)) ($(deviceid(first_gpu)))" gpu_free = Base.format_bytes(gpu_free) gpu_jobs cpu_threads = Sys.CPU_THREADS cpu_free = Base.format_bytes(Sys.free_memory())
+@info "Parallelism budget" device = "$(CUDA.name(first_gpu)) ($(deviceid(first_gpu)))" integrated gpu_free = Base.format_bytes(gpu_free) memory_jobs cpu_threads = Sys.CPU_THREADS cpu_free = Base.format_bytes(Sys.free_memory())
 
 if args.jobs === nothing
-    default_jobs = min(ParallelTestRunner.default_njobs(), gpu_jobs)
+    default_jobs = min(ParallelTestRunner.default_njobs(), memory_jobs)
     args = ParallelTestRunner.ParsedArgs(
         Some(default_jobs), args.verbose, args.quickfail, args.list,
         args.custom, args.positionals,

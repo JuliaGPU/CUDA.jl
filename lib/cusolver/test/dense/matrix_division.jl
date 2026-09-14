@@ -22,9 +22,12 @@ n = 10
         Bf = cublasfloat.(B)
         bf = cublasfloat.(b)
         @test Array(d_A \ d_B) ≈ (Af \ Bf)
-        @test Array(Symmetric(d_A) \ d_B) ≈ (Af \ Bf)
         @test Array(d_A \ d_b) ≈ (Af \ bf)
-        @test Array(Symmetric(d_A) \ d_b) ≈ (Af \ bf)
+        # the symmetric solve goes through cuSOLVER's 64-bit generic sytrs
+        if cuSOLVER.version() >= v"11"
+            @test Array(Symmetric(d_A) \ d_B) ≈ (Af \ Bf)
+            @test Array(Symmetric(d_A) \ d_b) ≈ (Af \ bf)
+        end
         @inferred d_A \ d_B
         @inferred d_A \ d_b
     end

@@ -20,6 +20,8 @@ using Test
                 for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
                     CuSparseMatrixType1 == CuSparseMatrixType2 && continue
                     dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
+                    dense_conversion(Float64, CuSparseMatrixType1) &&
+                        dense_conversion(Float64, CuSparseMatrixType2) || continue
                     @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
                         @test collect(dA1) ≈ collect(dA2)
                     end

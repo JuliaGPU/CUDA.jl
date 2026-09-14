@@ -17,8 +17,10 @@ using Test: TestLogger, collect_test_logs
             @test !isempty(gemm)
             @test occursin("transa", first(gemm).message)
         end
-        # cuBLASLt messages are forwarded too
-        @test any(log -> occursin("cublasLt", log.message), logs)
+        # cuBLASLt messages are forwarded too, where the library provides the API
+        if cuBLAS.has_lt_logging_api()
+            @test any(log -> occursin("cublasLt", log.message), logs)
+        end
 
         # Check severity mapping without depending on toolkit-specific performance hints.
         @test_logs (:info, "matmul: consider padding") begin

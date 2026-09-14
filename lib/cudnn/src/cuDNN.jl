@@ -23,7 +23,17 @@ end
 @public functional, enable_logging
 
 const _initialized = Ref{Bool}(false)
-functional() = _initialized[]
+
+"""
+    functional()
+
+Whether cuDNN is initialized and supports the current device.
+"""
+function functional()
+    _initialized[] || return false
+    # cuDNN 9.11 dropped Maxwell, Pascal, and Volta support.
+    return version() < v"9.11" || capability(device()) >= v"7.5"
+end
 
 # core library
 include("libcudnn.jl")
@@ -216,13 +226,13 @@ function __init__()
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cudnn"; optional=true)
         if path === nothing
-            precompiling || @error "cuDNN is not available on your system (looked in $(join(dirs, ", ")))"
+            precompiling || @warn "cuDNN is not available on your system (looked in $(join(dirs, ", "))). cuDNN.functional() will return false."
             return
         end
         libcudnn = path
     else
         if !CUDNN_jll.is_available()
-            precompiling || @error "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform)))"
+            precompiling || @warn "cuDNN is not available for your platform ($(Base.BinaryPlatforms.triplet(CUDNN_jll.host_platform))). cuDNN.functional() will return false."
             return
         end
         libcudnn = CUDNN_jll.libcudnn

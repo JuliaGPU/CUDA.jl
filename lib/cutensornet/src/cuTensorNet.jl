@@ -128,13 +128,13 @@ function __init__()
         dirs = CUDA_Runtime_Discovery.find_toolkit()
         path = CUDA_Runtime_Discovery.get_library(dirs, "cutensornet"; optional=true)
         if path === nothing
-            precompiling || @error "cuQuantum is not available on your system (looked for cutensornet in $(join(dirs, ", ")))"
+            precompiling || @warn "cuQuantum is not available on your system (looked for cutensornet in $(join(dirs, ", "))). cuTensorNet.functional() will return false."
             return
         end
         libcutensornet = path
     else
         if !cuQuantum_jll.is_available()
-            precompiling || @error "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform)))"
+            precompiling || @warn "cuQuantum is not available for your platform ($(Base.BinaryPlatforms.triplet(cuQuantum_jll.host_platform))). cuTensorNet.functional() will return false."
             return
         end
         libcutensornet = cuQuantum_jll.libcutensornet

@@ -4,6 +4,7 @@ using LinearAlgebra
 m = 15
 n = 10
 
+if cuSOLVER.version() >= v"11"
 @testset "gesvd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     A = rand(elty, m, n)
     d_A = CuMatrix(A)
@@ -80,4 +81,6 @@ end
 
     d_U, d_Σ, d_V = cuSOLVER.Xgesvdr!('S', 'S', d_A, ℓ)
     @test norm(diag(Σ) - collect(d_Σ)) ≤ tol
+end
+
 end

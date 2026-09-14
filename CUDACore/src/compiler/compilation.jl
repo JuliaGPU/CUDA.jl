@@ -562,7 +562,13 @@ function link_kernel(image::Vector{UInt8}, entry::String,
     # load as an executable kernel object on the current context
     mod = try
         CuModule(image)
-    catch
+    catch err
+        # Module loading during capture is unsupported by older drivers. Let the
+        # capture caller handle the original error without reporting a bad image.
+        if err isa CuError && ERROR_STREAM_CAPTURE_UNSUPPORTED <= err.code <= ERROR_STREAM_CAPTURE_IMPLICIT
+            rethrow()
+        end
+
         # the driver rejected our compiled image (e.g. ERROR_NOT_SUPPORTED). dump the cubin
         # so the failure can be reported with a reproducer, mirroring how we keep the PTX
         # around when `ptxas` fails above.

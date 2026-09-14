@@ -24,8 +24,13 @@ using LinearAlgebra, SparseArrays
         U2 = 2*I(mU)
         U3 = Diagonal(rand(elty, mU))
         for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+            # comparing against the CPU result requires densifying the GPU one
+            dense_conversion(elty, SparseMatrixType) || continue
             BU = SparseMatrixType(AU)
             for op in (+, -, *)
+                # multiplying by a UniformScaling or Diagonal goes through SpGEMM,
+                # part of the generic API introduced in cuSPARSE 11.0
+                op === (*) && cuSPARSE.version() < v"11" && continue
                 @testset "UniformScaling basic operations $op" begin
                     @test Array(op(BU, U1)) ≈ op(AU, U1) && Array(op(U1, BU)) ≈ op(U1, AU)
                 end

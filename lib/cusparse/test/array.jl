@@ -9,7 +9,6 @@ using Adapt
     @test size(d_x,2) == 1
     @test ndims(d_x)  == 1
     dense_d_x = CuVector(x)
-    dense_d_x2 = CuVector(d_x)
     ctx = :module => @__MODULE__
     CUDACore.@allowscalar begin
         @test sprint(show, d_x; context=ctx) == replace(sprint(show, x; context=ctx), "SparseVector{Float64, Int64}"=>"cuSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
@@ -20,7 +19,12 @@ using Adapt
         @test d_x[end]             == x[end]
         @test Array(d_x[firstindex(d_x):end]) == x[firstindex(x):end]
         @test Array(dense_d_x[firstindex(d_x):end]) == x[firstindex(x):end]
-        @test Array(dense_d_x2[firstindex(d_x):end]) == x[firstindex(x):end]
+        # densifying a sparse vector goes through `cusparseScatter`, which is part of
+        # the generic API introduced in cuSPARSE 11.0
+        if cuSPARSE.version() >= v"11"
+            dense_d_x2 = CuVector(d_x)
+            @test Array(dense_d_x2[firstindex(d_x):end]) == x[firstindex(x):end]
+        end
     end
     @test_throws BoundsError d_x[firstindex(d_x) - 1]
     @test_throws BoundsError d_x[end + 1]

@@ -130,6 +130,8 @@ function sparsetodense(A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSpar
 end
 
 function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cusparseDenseToSparseAlg_t=CUSPARSE_DENSETOSPARSE_ALG_DEFAULT) where {T}
+    fmt in (:coo, :csr, :csc) ||
+        throw(ArgumentError("Format :$fmt not available, use :csc, :csr or :coo."))
     if version() < v"11.3"
         # These generic conversions were introduced in cuSPARSE 11.3. Fall back to
         # legacy per-type routines, which only handle BLAS types.
@@ -147,8 +149,6 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
     elseif fmt == :csc
         colPtr = CuVector{Cint}(undef, n+1)
         desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCSC, colPtr, T, Cint, m, n, index)
-    else
-        throw(ArgumentError("Format :$fmt not available, use :csc, :csr or :coo."))
     end
     desc_dense = CuDenseMatrixDescriptor(A)
 
@@ -347,6 +347,13 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
         chkmmdims(B,C,m,n,k,n)
     elseif transa != 'N' && transb != 'N'
         chkmmdims(B,C,n,m,k,n)
+    end
+
+    # cuSPARSE 10 rejects row-major operands and can silently miscompute CSR
+    # SpMM with transposed B. CSC is represented as transposed CSR here.
+    if version() < v"11" && (B isa Transpose || C isa Transpose ||
+                            (transb != 'N' && !(A isa CuSparseMatrixCOO)))
+        error("These SpMM operand layouts require cuSPARSE 11 or later.")
     end
 
     descB = CuDenseMatrixDescriptor(B)
@@ -970,6 +977,16 @@ for (nname, d2rname, d2cname, r2dname, c2dname, elty) in
         end
         function densetosparse_old(A::CuMatrix{$elty}, fmt::Symbol, index::SparseChar)
             m,n = size(A)
+            if iszero(m) || iszero(n)
+                # the legacy nnz routine leaves its output untouched for empty
+                # matrices, so don't ask it; the result is an empty matrix.
+                ptr = CuVector{Cint}(undef, (fmt == :csr ? m : n) + 1)
+                fill!(ptr, index == 'O' ? one(Cint) : zero(Cint))
+                ind = CuVector{Cint}(undef, 0)
+                nzVal = CuVector{$elty}(undef, 0)
+                return fmt == :csr ? CuSparseMatrixCSR{$elty, Cint}(ptr, ind, nzVal, (m, n)) :
+                                     CuSparseMatrixCSC{$elty, Cint}(ptr, ind, nzVal, (m, n))
+            end
             lda = max(1, stride(A, 2))
             descr = CuMatrixDescriptor('G', 'L', 'N', index)
             nnzTotal = Ref{Cint}()

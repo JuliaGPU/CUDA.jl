@@ -374,6 +374,10 @@ Base.@kwdef struct ProfileResults
 end
 
 function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
+    # CUPTI 10 can crash when profiling a context that uses dynamic parallelism.
+    CUPTI.version() < v"11" &&
+        error("Integrated profiling requires CUPTI 11 or later; use an external profiler with older toolkits.")
+
     if !CUPTI.can_profile()
         error("""The integrated profiler relies on CUPTI, which requires additional permissions on Tegra devices.
                  With CUDA 13 and later, grant read/write access to `/dev/nvgpu/*/prof`

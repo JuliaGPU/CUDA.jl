@@ -644,13 +644,17 @@ using SpecialFunctions
         # semantics: NaN-propagating, -0.0 < +0.0). The back-end uses the
         # native `min.NaN`/`max.NaN` instructions for f32 on sm_80+, and
         # expands to plain min/max plus NaN/signed-zero fix-ups elsewhere.
-        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
-            @check "min.NaN.f32"
-            min(x, y)
-        end
-        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
-            @check "max.NaN.f32"
-            max(x, y)
+        # sm_80 needs a toolchain that can target it (CUDA 11.0+)
+        sm80 = v"8.0" in CUDACore.ptxas_compat().cap
+        if sm80
+            @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
+                @check "min.NaN.f32"
+                min(x, y)
+            end
+            @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"80") do x, y
+                @check "max.NaN.f32"
+                max(x, y)
+            end
         end
         @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"60") do x, y
             @check "min.f32"
@@ -668,14 +672,16 @@ using SpecialFunctions
         # single min/max instruction. With fast math NaN inputs are excluded,
         # so it doesn't matter whether the NaN-propagating variant gets picked
         # (fast `minimum` on f32 + sm_80; pin the arch for determinism).
-        for (T, s) in ((Float32, "f32"), (Float64, "f64"))
-            @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
-                @check "{{min.(NaN.)?$s}}"
-                @fastmath min(x, y)
-            end
-            @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
-                @check "{{max.(NaN.)?$s}}"
-                @fastmath max(x, y)
+        if sm80
+            for (T, s) in ((Float32, "f32"), (Float64, "f64"))
+                @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
+                    @check "{{min.(NaN.)?$s}}"
+                    @fastmath min(x, y)
+                end
+                @test @filecheck CUDA.code_ptx(Tuple{T, T}; arch=sm"80") do x, y
+                    @check "{{max.(NaN.)?$s}}"
+                    @fastmath max(x, y)
+                end
             end
         end
     end

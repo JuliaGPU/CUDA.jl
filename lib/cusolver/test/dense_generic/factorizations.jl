@@ -5,6 +5,7 @@ m = 15
 n = 10
 p = 5
 
+if cuSOLVER.version() >= v"11"
 @testset "trtri! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     for uplo in ('L', 'U')
         for diag in ('N', 'U')
@@ -123,4 +124,6 @@ end
             end
         end
     end
+end
+
 end

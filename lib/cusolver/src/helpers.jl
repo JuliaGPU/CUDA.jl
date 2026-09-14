@@ -40,6 +40,7 @@ mutable struct CuSolverParameters
     parameters::cusolverDnParams_t
 
     function CuSolverParameters()
+        version() < v"11" && error("The generic solver API requires cuSOLVER 11 or later.")
         parameters_ref = Ref{cusolverDnParams_t}()
         cusolverDnCreateParams(parameters_ref)
         obj = new(parameters_ref[])
@@ -57,6 +58,7 @@ mutable struct CuSolverIRSParameters
     parameters::cusolverDnIRSParams_t
 
     function CuSolverIRSParameters()
+        version() < v"11" && error("Iterative refinement requires cuSOLVER 11 or later.")
         parameters_ref = Ref{cusolverDnIRSParams_t}()
         cusolverDnIRSParamsCreate(parameters_ref)
         obj = new(parameters_ref[])
@@ -84,6 +86,8 @@ mutable struct CuSolverIRSInformation
     information::cusolverDnIRSInfos_t
 
     function CuSolverIRSInformation()
+        # cuSOLVER 10 has an incompatible IRSInfosCreate signature.
+        version() < v"11" && error("Iterative refinement requires cuSOLVER 11 or later.")
         info_ref = Ref{cusolverDnIRSInfos_t}()
         cusolverDnIRSInfosCreate(info_ref)
         obj = new(info_ref[])

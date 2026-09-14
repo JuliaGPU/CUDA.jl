@@ -3,6 +3,9 @@ using CUDACore, cuSPARSE
 using LinearAlgebra
 using SparseArrays
 
+# batched SpMM (`bmm!`) requires cuSPARSE 11.7.2
+if cuSPARSE.version() >= v"11.7.2"
+
 @testset "Sparse-Dense $elty bmm!" for elty in (Float64, Float32, ComplexF64, ComplexF32)
     m = 5
     n = 15
@@ -279,4 +282,6 @@ if !(v"12.7" <= cuSPARSE.version() < v"12.8")
         @test collect(C) ≈ D rtol=2e-3
     end
 end
+end
+
 end
