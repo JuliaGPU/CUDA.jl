@@ -50,6 +50,13 @@ kernel_convert
 kernel_compile
 ```
 
+Packages that need to intercept a launch as a whole, such as automatic-differentiation
+rules, hook the function that `@cuda` expands to:
+
+```@docs
+kernel_pipeline
+```
+
 
 ## Reflection
 
