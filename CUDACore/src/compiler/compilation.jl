@@ -602,7 +602,9 @@ end
 # `image === nothing` identifies a freshly-created `CUDACompilerResults` that hasn't been
 # compiled yet; the `compile_hook` check additionally forces the compile path so that
 # reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
-function compile_or_lookup(@nospecialize(job::CompilerJob))::CUDACompilerResults
+# Specialize on the target/parameter types so callers can avoid boxing CompilerJob.
+# Keep the body out of callers that specialize per kernel.
+@noinline function compile_or_lookup(job::CompilerJob)::CUDACompilerResults
     res = GPUCompiler.cached_results(CUDACompilerResults, job)
     if res === nothing || res.image === nothing || GPUCompiler.compile_hook[] !== nothing
         compiled = compile(job)
