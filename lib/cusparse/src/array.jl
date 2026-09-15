@@ -859,6 +859,14 @@ CuSparseMatrixCSR(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuS
 CuSparseMatrixCSC(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCSC(GPUArrays._spadjoint(parent(x)))
 CuSparseMatrixCOO(x::Adjoint{T,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {T} = CuSparseMatrixCOO(GPUArrays._spadjoint(parent(x)))
 
+# fully parameterized versions, needed by e.g. `Base.to_power_type` for `A'^p` (#2255)
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
+    @eval begin
+        $SparseMatrixType{Tv, Ti}(x::Transpose{Tv,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {Tv, Ti} = $SparseMatrixType{Tv, Ti}($SparseMatrixType(x))
+        $SparseMatrixType{Tv, Ti}(x::Adjoint{Tv,<:Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}}) where {Tv, Ti} = $SparseMatrixType{Tv, Ti}($SparseMatrixType(x))
+    end
+end
+
 # gpu to cpu
 SparseArrays.SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(SparseArrays.nonzeroinds(x)), Array(SparseArrays.nonzeros(x)))
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(SparseArrays.rowvals(x)), Array(SparseArrays.nonzeros(x)))
