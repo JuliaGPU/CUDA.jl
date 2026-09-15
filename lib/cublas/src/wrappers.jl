@@ -2133,7 +2133,7 @@ for (fname, fname_64, elty) in ((:cublasDgeam, :cublasDgeam_64, :Float64),
             mA, nA = size(A)
             mB, nB = size(B)
             m, n = size(C)
-            if ((transa == 'N') && ((mA != m) && (nA != n ))) throw(DimensionMismatch("")) end
+            if ((transa == 'N') && ((mA != m) || (nA != n ))) throw(DimensionMismatch("")) end
             if ((transa == 'C' || transa == 'T') && ((nA != m) || (mA != n))) throw(DimensionMismatch("")) end
             if ((transb == 'N') && ((mB != m) || (nB != n ))) throw(DimensionMismatch("")) end
             if ((transb == 'C' || transb == 'T') && ((nB != m) || (mB != n))) throw(DimensionMismatch("")) end
