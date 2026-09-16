@@ -248,6 +248,16 @@ end
             @test Array(dA) == f(A)
         end
     end
+
+    # fully parameterized constructors, hit by `to_power_type` in `A'^2` (CUDA.jl#2255)
+    for typ in (Float32, ComplexF32, Float64, ComplexF64), T in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+        A = sprand(typ, 5, 5, 0.2)
+        d_A = T(A)
+        for f in (transpose, adjoint)
+            @test Array(T{typ, Cint}(f(d_A))) == f(A)
+            @test Array(f(d_A)^2) ≈ f(A)^2
+        end
+    end
 end
 
 @testset "sparse(::Symmetric/::Hermitian) (CUDA.jl#3042)" begin
