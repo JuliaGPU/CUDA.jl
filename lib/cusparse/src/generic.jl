@@ -102,6 +102,15 @@ for (elty, felty) in ((:Int16, :Float16),
             end
             return reinterpret($elty, B)
         end
+        function sparsetodense(csc::CuSparseMatrixCSC{$elty}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+            csc_compat = CuSparseMatrixCSC(
+                csc.colPtr,
+                csc.rowVal,
+                reinterpret($felty, csc.nzVal),
+                size(csc)
+            )
+            return reinterpret($elty, sparsetodense(csc_compat, index, algo))
+        end
     end
 end
 
