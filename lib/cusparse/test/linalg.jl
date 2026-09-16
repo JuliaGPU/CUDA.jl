@@ -74,6 +74,31 @@ end
     @test tr(A) ≈ tr(Matrix(a))
     @test_throws DimensionMismatch tr(typ(sprand(elty, 6, 13, 0.3)))
     @test Array(Diagonal(A) * CuVector(ones(elty, 10))) ≈ Diagonal(Matrix(a)) * ones(elty, 10)
+
+    # duplicate entries are permitted and sum (see `sum_duplicate`); the CPU
+    # `sparse` constructor sums them too, so it provides the reference
+    rows = [1, 1, 2, 3, 3, 1, 1]
+    cols = [1, 1, 2, 1, 1, 3, 3]
+    vals = elty <: Complex ? elty[1 + 1im, 2 - 3im, 5 + 2im, 3, 4im, 1 - 1im, 2im] :
+                             elty[1, 2, 5, 3, 4, 1, 2]
+    a = sparse(rows, cols, vals, 4, 4)
+    coo = CuSparseMatrixCOO(CuVector{Cint}(rows), CuVector{Cint}(cols), CuVector(vals), (4, 4))
+    A = typ === CuSparseMatrixCOO ? coo : typ(coo)
+    for k in (0, -2, 2)
+        @test Array(diag(A, k)) == diag(Matrix(a), k)
+        @test Array(diag(adjoint(A), k)) == diag(Matrix(adjoint(a)), k)
+    end
+    @test tr(A) == tr(Matrix(a))
+end
+
+@testset "diag combines duplicate Bool entries with | for $typ" for
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO]
+
+    # true/false duplicates in both orders, so that overwriting gives a different result
+    coo = CuSparseMatrixCOO(CuVector(Cint[1, 1, 2, 2, 3]), CuVector(Cint[1, 1, 2, 2, 3]),
+                            CuVector([true, false, false, true, false]), (3, 3))
+    A = typ === CuSparseMatrixCOO ? coo : typ(coo)
+    @test Array(diag(A)) == [true, true, false]
 end
 
 @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for

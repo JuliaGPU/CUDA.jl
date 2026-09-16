@@ -22,10 +22,16 @@ function LinearAlgebra.diag(A::CuSparseMatrixCOO{Tv}, k::Integer=0) where {Tv}
     len = max(k >= 0 ? min(m, n - k) : min(m + k, n), 0)
     d = fill!(similar(A.nzVal, len), zero(Tv))
     len == 0 && return d
-    mask = A.colInd .- A.rowInd .== k
+    idx = findall(A.colInd .- A.rowInd .== k)
+    isempty(idx) && return d
     # entry (i, i+k) is the i-th element of the k-th diagonal for k >= 0,
     # and entry (i-k, i) is the i-th element for k < 0
-    d[k >= 0 ? A.rowInd[mask] : A.colInd[mask]] = A.nzVal[mask]
+    pos = k >= 0 ? A.rowInd[idx] : A.colInd[idx]
+    vals = A.nzVal[idx]
+    # duplicate entries are permitted and combine (see `sum_duplicate`), so coalesce
+    # them the way the `sparse` constructor does before scattering into the result
+    coalesced = sparse(pos, CUDACore.ones(Cint, length(pos)), vals, len, 1; fmt = :coo)
+    d[coalesced.rowInd] = coalesced.nzVal
     d
 end
 
