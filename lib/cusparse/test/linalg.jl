@@ -75,6 +75,30 @@ end
     @test_throws DimensionMismatch tr(typ(sprand(elty, 6, 13, 0.3)))
     @test Array(Diagonal(A) * CuVector(ones(elty, 10))) ≈ Diagonal(Matrix(a)) * ones(elty, 10)
 
+    # offsets at and beyond the edges of the matrix, like dense `diag`
+    a = sprand(elty, 6, 13, 0.3)
+    A = typ(a)
+    @test diag(A, 13) isa CuVector{elty}
+    @test isempty(diag(A, 13)) && isempty(diag(A, -6))
+    @test isempty(diag(A, 20)) && isempty(diag(A, -20))
+    @test Array(diag(A, 12)) ≈ diag(Matrix(a), 12)
+    @test Array(diag(A, -5)) ≈ diag(Matrix(a), -5)
+
+    # offsets of any Integer type behave like the equivalent Int
+    @test Array(diag(A, UInt(2))) ≈ diag(Matrix(a), 2)
+    @test Array(diag(A, Int8(-2))) ≈ diag(Matrix(a), -2)
+    @test Array(diag(A, big(1))) ≈ diag(Matrix(a), 1)
+    @test isempty(diag(A, UInt(13))) && isempty(diag(A, UInt(14)))
+    @test isempty(diag(A, typemin(Int))) && isempty(diag(A, typemax(Int)))
+    @test Array(diag(A, true)) ≈ diag(Matrix(a), 1)
+    @test_throws InexactError diag(A, typemax(UInt))
+    @test Array(diag(transpose(A), UInt(1))) ≈ diag(Matrix(transpose(a)), 1)
+    @test Array(diag(adjoint(A), UInt(1))) ≈ diag(Matrix(adjoint(a)), 1)
+    b = sparse([1, 129], [129, 1], elty[7, 9], 130, 130)
+    B = typ(b)
+    @test Array(diag(transpose(B), Int8(-128))) ≈ diag(Matrix(transpose(b)), -128)
+    @test Array(diag(adjoint(B), Int8(-128))) ≈ diag(Matrix(adjoint(b)), -128)
+
     # duplicate entries are permitted and sum (see `sum_duplicate`); the CPU
     # `sparse` constructor sums them too, so it provides the reference
     rows = [1, 1, 2, 3, 3, 1, 1]
