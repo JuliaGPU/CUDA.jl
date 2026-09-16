@@ -112,19 +112,26 @@ end
 
 ## plan methods
 
+# AbstractFFTs.jl passes planner keyword arguments, such as FFTW's `flags` and `timelimit`,
+# on to `plan_*` methods. cuFFT has no such options, so they are accepted and ignored. That
+# includes FFTW.PRESERVE_INPUT, which holds anyway: out-of-place complex-to-real transforms
+# operate on a copy of the input. Every method needs the `kwargs...`: a method without
+# keyword arguments is not considered for a call that passes some, which then ends up in a
+# less specific method that does, e.g., FFTW's or the generic ones from AbstractFFTs.jl.
+
 # promote to a complex floating-point type (out-of-place only),
 # so implementations only need Complex{Float} methods
 for f in (:fft, :bfft, :ifft)
     pf = Symbol("plan_", f)
     @eval begin
         $f(x::DenseCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Real}, region) = $pf(complexfloat(x), region)
+        $pf(x::DenseCuArray{<:Real}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
         $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region) = $pf(complexfloat(x), region)
+        $pf(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
     end
 end
 rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::DenseCuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
+plan_rfft(x::DenseCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
 
 function irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x))
     irfft(complexfloat(x), d, region)
@@ -212,16 +219,16 @@ end
 # plan_fft(X, 1:ndims(X)).
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
-        Base.@constprop :aggressive function $f(X::DenseCuArray{T,N}, region) where {T<:cufftComplexes,N}
+        Base.@constprop :aggressive function $f(X::DenseCuArray{T,N}, region; kwargs...) where {T<:cufftComplexes,N}
             R = length(region)
             region = NTuple{R,Int}(region)
-            $f(X, region)
+            $f(X, region; kwargs...)
         end
     end
 end
 
 # inplace complex
-function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
+function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = true
     region = ensure_increasing(ensure_unique(region))
@@ -231,7 +238,7 @@ function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftC
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
-function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
+function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = true
     region = ensure_increasing(ensure_unique(region))
@@ -242,7 +249,7 @@ function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufft
 end
 
 # out-of-place complex
-function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
+function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = false
     region = ensure_increasing(ensure_unique(region))
@@ -252,7 +259,7 @@ function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftCo
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
-function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
+function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
     region = ensure_increasing(ensure_unique(region))
@@ -263,13 +270,13 @@ function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftC
 end
 
 # out-of-place real-to-complex
-Base.@constprop :aggressive function plan_rfft(X::DenseCuArray{T,N}, region) where {T<:cufftReals,N}
+Base.@constprop :aggressive function plan_rfft(X::DenseCuArray{T,N}, region; kwargs...) where {T<:cufftReals,N}
     R = length(region)
     region = NTuple{R,Int}(region)
-    plan_rfft(X, region)
+    plan_rfft(X, region; kwargs...)
 end
 
-function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftReals,N,R}
+function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftReals,N,R}
     K = CUFFT_FORWARD
     inplace = false
     region = ensure_strictly_increasing(region)
@@ -288,13 +295,13 @@ function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}) where {T<:cufftR
 end
 
 # out-of-place complex-to-real
-Base.@constprop :aggressive function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region) where {T<:cufftComplexes,N}
+Base.@constprop :aggressive function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region; kwargs...) where {T<:cufftComplexes,N}
     R = length(region)
     region = NTuple{R,Int}(region)
-    plan_brfft(X, d, region)
+    plan_brfft(X, d, region; kwargs...)
 end
 
-function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::NTuple{R,Int}) where {T<:cufftComplexes,N,R}
+function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
     region = ensure_strictly_increasing(region)

@@ -150,6 +150,11 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   workspace the library can ask for. cuSOLVER's `gesvd` needs one since CUDA
   13.4 Update 1, so `svd!` and `gateSplit!` failed there with
   `CUTENSORNET_STATUS_INTERNAL_ERROR`.
+- cuFFT's `plan_*` functions accept and ignore planner keyword arguments like
+  FFTW's `flags` and `timelimit`, so generic AbstractFFTs.jl code that passes
+  them works with `CuArray`s. Such calls used to end up in FFTW.jl or in the
+  generic AbstractFFTs.jl methods, failing with a `MethodError`, an
+  `ArgumentError`, or a `StackOverflowError` for `plan_rfft` (#1559).
 
 
 ## v6.3 (August 2026)
