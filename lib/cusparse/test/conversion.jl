@@ -218,6 +218,16 @@ end
     end
 end
 
+@testset "Dense(::Int sparse) (CUDA.jl#1664)" begin
+    for typ in (Int16, Int32, Int64)
+        A = sparse([1, 2, 3], [1, 2, 1], typ[10, 20, 30], 3, 3)
+        for T in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+            dense_conversion(typ, T) || continue
+            @test Array(CuMatrix(T(A))) == Array(A)
+        end
+    end
+end
+
 @testset "CuSparseMatrix(::Adjoint/::Transpose) from CPU" begin
     for typ in (Float32, ComplexF32, Float64, ComplexF64)
         A = sprand(typ, 5, 5, 0.2)
