@@ -17,6 +17,28 @@ function LinearAlgebra.tril(A::CuSparseMatrixCOO, k::Integer=0)
     sparse(rows, cols, vals, size(A)..., fmt = :coo)
 end
 
+function LinearAlgebra.diag(A::CuSparseMatrixCOO{Tv}, k::Integer=0) where {Tv}
+    m, n = size(A)
+    len = max(k >= 0 ? min(m, n - k) : min(m + k, n), 0)
+    d = fill!(similar(A.nzVal, len), zero(Tv))
+    len == 0 && return d
+    mask = A.colInd .- A.rowInd .== k
+    # entry (i, i+k) is the i-th element of the k-th diagonal for k >= 0,
+    # and entry (i-k, i) is the i-th element for k < 0
+    d[k >= 0 ? A.rowInd[mask] : A.colInd[mask]] = A.nzVal[mask]
+    d
+end
+
+LinearAlgebra.diag(A::Union{CuSparseMatrixCSC, CuSparseMatrixCSR}, k::Integer=0) =
+    diag(CuSparseMatrixCOO(A), k)
+
+# transposing turns the k-th diagonal into the -k-th one
+const CuSparseMatrixCSCRCOO = Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}
+LinearAlgebra.diag(A::Transpose{<:Any, <:CuSparseMatrixCSCRCOO}, k::Integer=0) =
+    diag(parent(A), -k)
+LinearAlgebra.diag(A::Adjoint{<:Any, <:CuSparseMatrixCSCRCOO}, k::Integer=0) =
+    conj.(diag(parent(A), -k))
+
 function SparseArrays.droptol!(A::CuSparseMatrixCOO, tol::Real)
     mask = abs.(A.nzVal) .> tol
     rows = A.rowInd[mask]
