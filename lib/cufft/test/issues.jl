@@ -98,3 +98,18 @@ end
     z = irfft(y, size(x, 1), (1, 3))
     @test maximum(abs.(Array(z) .- Array(xref))) < 1e-3
 end
+
+@testset "CUDA.jl#1559" begin
+    # AbstractFFTs planner keyword arguments must be accepted (and ignored)
+    x = CuArray(rand(ComplexF32, 8, 4))
+    r = CuArray(rand(Float32, 8, 4))
+    @test plan_fft(x; flags=FFTW.MEASURE) * x ≈ plan_fft(x) * x
+    @test plan_fft(x, 2; timelimit=1.0) * x ≈ plan_fft(x, 2) * x
+    @test plan_bfft(x; flags=0) * x ≈ plan_bfft(x) * x
+    @test plan_ifft(x; flags=0) * x ≈ plan_ifft(x) * x
+    @test plan_rfft(r; flags=0) * r ≈ plan_rfft(r) * r
+    @test plan_brfft(x, 14; flags=0) * x ≈ plan_brfft(x, 14) * x
+    @test plan_irfft(x, 14; flags=0) * x ≈ plan_irfft(x, 14) * x
+    @test plan_fft!(copy(x); flags=0) * copy(x) ≈ plan_fft!(copy(x)) * copy(x)
+    @test plan_bfft!(copy(x); flags=0) * copy(x) ≈ plan_bfft!(copy(x)) * copy(x)
+end
