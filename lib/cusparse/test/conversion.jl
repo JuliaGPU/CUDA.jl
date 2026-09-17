@@ -133,6 +133,29 @@ if capability(device()) >= v"5.3"
 end
 end
 
+@testset "conversion Bool" begin
+    @testset "CSC(::CSR) and CSR(::CSC)" begin
+        x = sprand(Bool, m, n, 0.2)
+        @test collect(CuSparseMatrixCSC(CuSparseMatrixCSR(x))) == collect(x)
+        @test collect(CuSparseMatrixCSR(CuSparseMatrixCSC(x))) == collect(x)
+    end
+
+    @testset "stored false values survive the round trip" begin
+        # a stored `false` is dropped if the conversion goes through the sparsity
+        # pattern rather than carrying the values across
+        x = SparseMatrixCSC(4, 4, Cint[1, 2, 3, 4, 4], Cint[1, 3, 4], [true, false, true])
+        d_x = CuSparseMatrixCSR(CuSparseMatrixCSC(x))
+        @test nnz(d_x) == nnz(x)
+        h_x = SparseMatrixCSC(CuSparseMatrixCSC(d_x))
+        @test (h_x.colptr, h_x.rowval, h_x.nzval) == (x.colptr, x.rowval, x.nzval)
+    end
+
+    @testset "empty" begin
+        x = spzeros(Bool, m, n)
+        @test collect(CuSparseMatrixCSR(CuSparseMatrixCSC(x))) == collect(x)
+    end
+end
+
 @testset "sparse" begin
     n_loc, m_loc = 4, 4
     I = [1,2,3] |> cu
