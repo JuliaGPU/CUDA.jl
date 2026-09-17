@@ -43,6 +43,88 @@ using LinearAlgebra, SparseArrays
     end
 end
 
+@testset "diag, Diagonal and tr for $typ and $elty" for
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO],
+    elty in [Float32, Float64, ComplexF32, ComplexF64]
+
+    for (m, n) in [(10, 10), (6, 13), (13, 6)]
+        a = sprand(elty, m, n, 0.3)
+        A = typ(a)
+        for k in -4:4
+            @test Array(diag(A, k)) ≈ diag(Matrix(a), k)
+        end
+        @test Array(diag(A)) ≈ diag(Matrix(a))
+    end
+
+    # a matrix with no stored entry on the diagonal
+    a = sparse([1, 3], [2, 1], elty[1, 2], 4, 4)
+    @test Array(diag(typ(a))) ≈ diag(Matrix(a))
+
+    # transposing turns the k-th diagonal into the -k-th one
+    a = sprand(elty, 6, 13, 0.3)
+    A = typ(a)
+    for k in -4:4
+        @test Array(diag(transpose(A), k)) ≈ diag(Matrix(transpose(a)), k)
+        @test Array(diag(adjoint(A), k)) ≈ diag(Matrix(adjoint(a)), k)
+    end
+
+    a = sprand(elty, 10, 10, 0.3)
+    A = typ(a)
+    @test Array(Diagonal(A)) ≈ Diagonal(Matrix(a))
+    @test tr(A) ≈ tr(Matrix(a))
+    @test_throws DimensionMismatch tr(typ(sprand(elty, 6, 13, 0.3)))
+    @test Array(Diagonal(A) * CuVector(ones(elty, 10))) ≈ Diagonal(Matrix(a)) * ones(elty, 10)
+
+    # offsets at and beyond the edges of the matrix, like dense `diag`
+    a = sprand(elty, 6, 13, 0.3)
+    A = typ(a)
+    @test diag(A, 13) isa CuVector{elty}
+    @test isempty(diag(A, 13)) && isempty(diag(A, -6))
+    @test isempty(diag(A, 20)) && isempty(diag(A, -20))
+    @test Array(diag(A, 12)) ≈ diag(Matrix(a), 12)
+    @test Array(diag(A, -5)) ≈ diag(Matrix(a), -5)
+
+    # offsets of any Integer type behave like the equivalent Int
+    @test Array(diag(A, UInt(2))) ≈ diag(Matrix(a), 2)
+    @test Array(diag(A, Int8(-2))) ≈ diag(Matrix(a), -2)
+    @test Array(diag(A, big(1))) ≈ diag(Matrix(a), 1)
+    @test isempty(diag(A, UInt(13))) && isempty(diag(A, UInt(14)))
+    @test isempty(diag(A, typemin(Int))) && isempty(diag(A, typemax(Int)))
+    @test Array(diag(A, true)) ≈ diag(Matrix(a), 1)
+    @test_throws InexactError diag(A, typemax(UInt))
+    @test Array(diag(transpose(A), UInt(1))) ≈ diag(Matrix(transpose(a)), 1)
+    @test Array(diag(adjoint(A), UInt(1))) ≈ diag(Matrix(adjoint(a)), 1)
+    b = sparse([1, 129], [129, 1], elty[7, 9], 130, 130)
+    B = typ(b)
+    @test Array(diag(transpose(B), Int8(-128))) ≈ diag(Matrix(transpose(b)), -128)
+    @test Array(diag(adjoint(B), Int8(-128))) ≈ diag(Matrix(adjoint(b)), -128)
+
+    # duplicate entries are permitted and sum (see `sum_duplicate`); the CPU
+    # `sparse` constructor sums them too, so it provides the reference
+    rows = [1, 1, 2, 3, 3, 1, 1]
+    cols = [1, 1, 2, 1, 1, 3, 3]
+    vals = elty <: Complex ? elty[1 + 1im, 2 - 3im, 5 + 2im, 3, 4im, 1 - 1im, 2im] :
+                             elty[1, 2, 5, 3, 4, 1, 2]
+    a = sparse(rows, cols, vals, 4, 4)
+    coo = CuSparseMatrixCOO(CuVector{Cint}(rows), CuVector{Cint}(cols), CuVector(vals), (4, 4))
+    A = typ === CuSparseMatrixCOO ? coo : typ(coo)
+    for k in (0, -2, 2)
+        @test Array(diag(A, k)) == diag(Matrix(a), k)
+        @test Array(diag(adjoint(A), k)) == diag(Matrix(adjoint(a)), k)
+    end
+    @test tr(A) == tr(Matrix(a))
+end
+
+@testset "diag combines duplicate Bool entries with | for $typ" for
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO]
+
+    # true/false duplicates in both orders, so that overwriting gives a different result
+    coo = CuSparseMatrixCOO(CuVector(Cint[1, 1, 2, 2, 3]), CuVector(Cint[1, 1, 2, 2, 3]),
+                            CuVector([true, false, false, true, false]), (3, 3))
+    A = typ === CuSparseMatrixCOO ? coo : typ(coo)
+    @test Array(diag(A)) == [true, true, false]
+end
+
 @testset "Reshape $typ (100,100) -> (20, 500) and droptol" for
     typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
 

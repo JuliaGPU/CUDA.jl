@@ -17,6 +17,38 @@ function LinearAlgebra.tril(A::CuSparseMatrixCOO, k::Integer=0)
     sparse(rows, cols, vals, size(A)..., fmt = :coo)
 end
 
+function LinearAlgebra.diag(A::CuSparseMatrixCOO{Tv}, k::Integer=0) where {Tv}
+    m, n = size(A)
+    # compute in Int, like SparseArrays: unsigned offsets would wrap in the length
+    # formula, and non-isbits offsets like BigInt cannot be passed to the kernel
+    k = Int(k)
+    len = max(k >= 0 ? min(m, n - k) : min(m + k, n), 0)
+    d = fill!(similar(A.nzVal, len), zero(Tv))
+    len == 0 && return d
+    idx = findall(A.colInd .- A.rowInd .== k)
+    isempty(idx) && return d
+    # entry (i, i+k) is the i-th element of the k-th diagonal for k >= 0,
+    # and entry (i-k, i) is the i-th element for k < 0
+    pos = k >= 0 ? A.rowInd[idx] : A.colInd[idx]
+    vals = A.nzVal[idx]
+    # duplicate entries are permitted and combine (see `sum_duplicate`), so coalesce
+    # them the way the `sparse` constructor does before scattering into the result
+    coalesced = sparse(pos, CUDACore.ones(Cint, length(pos)), vals, len, 1; fmt = :coo)
+    d[coalesced.rowInd] = coalesced.nzVal
+    d
+end
+
+LinearAlgebra.diag(A::Union{CuSparseMatrixCSC, CuSparseMatrixCSR}, k::Integer=0) =
+    diag(CuSparseMatrixCOO(A), k)
+
+# transposing turns the k-th diagonal into the -k-th one (negate in Int, since
+# negation wraps for narrow and unsigned types: -Int8(-128) == Int8(-128))
+const CuSparseMatrixCSCRCOO = Union{CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO}
+LinearAlgebra.diag(A::Transpose{<:Any, <:CuSparseMatrixCSCRCOO}, k::Integer=0) =
+    diag(parent(A), -Int(k))
+LinearAlgebra.diag(A::Adjoint{<:Any, <:CuSparseMatrixCSCRCOO}, k::Integer=0) =
+    conj.(diag(parent(A), -Int(k)))
+
 function SparseArrays.droptol!(A::CuSparseMatrixCOO, tol::Real)
     mask = abs.(A.nzVal) .> tol
     rows = A.rowInd[mask]
