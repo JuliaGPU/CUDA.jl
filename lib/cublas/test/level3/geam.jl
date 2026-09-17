@@ -35,6 +35,9 @@ using LinearAlgebra
         @test_throws DimensionMismatch cuBLAS.geam!('N', 'T', alpha, d_A, beta, d_B, d_C)
         @test_throws DimensionMismatch cuBLAS.geam!('T', 'T', alpha, d_A, beta, d_B, d_C)
         @test_throws DimensionMismatch cuBLAS.geam!('T', 'N', alpha, d_A, beta, d_B, d_C)
+        # only one dimension of A differs from C (#2812)
+        d_A2 = CuArray(rand(elty, m + 1, n))
+        @test_throws DimensionMismatch cuBLAS.geam!('N', 'N', alpha, d_A2, beta, d_B, d_C)
     end
 
     @testset "geam" begin
@@ -65,6 +68,11 @@ using LinearAlgebra
             @test opa(A) + opb(B) ≈ collect(opa(dA) + opb(dB))
             @test opa(A) - opb(B) ≈ collect(opa(dA) - opb(dB))
         end
+
+        # mismatched sizes must error rather than silently calling geam (#2812)
+        @test_throws DimensionMismatch CuMatrix(rand(elty, 10, 1)) + CuMatrix(rand(elty, 3, 1))
+        @test_throws DimensionMismatch CuMatrix(rand(elty, 3, 1)) + CuMatrix(rand(elty, 10, 1))
+        @test_throws DimensionMismatch CuMatrix(rand(elty, 10, 1)) - CuMatrix(rand(elty, 3, 1))
     end
 
     @testset "diagm" begin

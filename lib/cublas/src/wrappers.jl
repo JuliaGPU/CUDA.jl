@@ -2133,10 +2133,18 @@ for (fname, fname_64, elty) in ((:cublasDgeam, :cublasDgeam_64, :Float64),
             mA, nA = size(A)
             mB, nB = size(B)
             m, n = size(C)
-            if ((transa == 'N') && ((mA != m) && (nA != n ))) throw(DimensionMismatch("")) end
-            if ((transa == 'C' || transa == 'T') && ((nA != m) || (mA != n))) throw(DimensionMismatch("")) end
-            if ((transb == 'N') && ((mB != m) || (nB != n ))) throw(DimensionMismatch("")) end
-            if ((transb == 'C' || transb == 'T') && ((nB != m) || (mB != n))) throw(DimensionMismatch("")) end
+            if ((transa == 'N') && ((mA != m) || (nA != n )))
+                throw(DimensionMismatch("A has dimension $(size(A)) but C has dimension $(size(C))"))
+            end
+            if ((transa == 'C' || transa == 'T') && ((nA != m) || (mA != n)))
+                throw(DimensionMismatch("transposed A has dimension $((nA, mA)) but C has dimension $(size(C))"))
+            end
+            if ((transb == 'N') && ((mB != m) || (nB != n )))
+                throw(DimensionMismatch("B has dimension $(size(B)) but C has dimension $(size(C))"))
+            end
+            if ((transb == 'C' || transb == 'T') && ((nB != m) || (mB != n)))
+                throw(DimensionMismatch("transposed B has dimension $((nB, mB)) but C has dimension $(size(C))"))
+            end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
