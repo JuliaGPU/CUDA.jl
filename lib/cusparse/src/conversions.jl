@@ -454,7 +454,9 @@ end
 # implement Float16 conversions using wider types
 # TODO: Float16 is sometimes natively supported
 for (elty, welty) in ((:Float16, :Float32),
-                      (:ComplexF16, :ComplexF32))
+                      (:ComplexF16, :ComplexF32),
+                      # Bool has no cuSPARSE data type; widen, convert, narrow back
+                      (:Bool, :Float32))
     @eval begin
         function CuSparseMatrixCSC{$elty, Ti}(csr::CuSparseMatrixCSR{$elty, Ti}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1) where {Ti}
             m,n = size(csr)
