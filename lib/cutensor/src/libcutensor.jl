@@ -561,12 +561,12 @@ function cutensorGetErrorString(error)
     @gcsafe_ccall libcutensor.cutensorGetErrorString(error::cutensorStatus_t)::Cstring
 end
 
-# no prototype is found for this function at cutensor.h:1456:8, please use with caution
+# no prototype is found for this function at cutensor.h:1451:8, please use with caution
 function cutensorGetVersion()
     @gcsafe_ccall libcutensor.cutensorGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensor.h:1462:8, please use with caution
+# no prototype is found for this function at cutensor.h:1457:8, please use with caution
 function cutensorGetCudartVersion()
     @gcsafe_ccall libcutensor.cutensorGetCudartVersion()::Csize_t
 end
@@ -591,7 +591,7 @@ end
     @gcsafe_ccall libcutensor.cutensorLoggerSetMask(mask::Int32)::cutensorStatus_t
 end
 
-# no prototype is found for this function at cutensor.h:1513:18, please use with caution
+# no prototype is found for this function at cutensor.h:1508:18, please use with caution
 @checked function cutensorLoggerForceDisable()
     @gcsafe_ccall libcutensor.cutensorLoggerForceDisable()::cutensorStatus_t
 end
