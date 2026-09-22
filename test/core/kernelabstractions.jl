@@ -64,3 +64,19 @@ end
     @test counter[] == 1
     @test Array(broadcast_output) == fill(3f0, 257)
 end
+
+KA.@kernel function atomic_denormals!(a, b)
+    i = KA.@index(Global)
+    KA.@atomic a[i] += b[i]
+end
+
+@testset "fastmath" begin
+    # Switch back to IEEE mode too, to check that compilation caches the option.
+    for fastmath in (false, true, false), workgroupsize in (nothing, 32)
+        a = CUDA.zeros(Float32, 2)
+        b = CuArray([nextfloat(0.0f0), -nextfloat(0.0f0)])
+        kernel = atomic_denormals!(CUDABackend(; fastmath))
+        kernel(a, b; ndrange=2, workgroupsize)
+        @test Array(a) == (fastmath ? zeros(Float32, 2) : Array(b))
+    end
+end

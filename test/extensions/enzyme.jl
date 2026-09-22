@@ -6,6 +6,11 @@ using CUDA
 
 @testset "compiler_job_from_backend" begin
     @test EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(()->nothing), Tuple{}) isa GPUCompiler.CompilerJob
+    for fastmath in (false, true)
+        job = EnzymeCore.compiler_job_from_backend(CUDABackend(; fastmath),
+                                                  typeof(identity), Tuple{Float32})
+        @test job.config.target.fastmath == fastmath
+    end
 end
 
 @testset "Make_zero" begin

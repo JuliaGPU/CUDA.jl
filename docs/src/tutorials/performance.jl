@@ -46,8 +46,21 @@
 
 # ### FastMath
 
-# Use `@fastmath` to use faster versions of common mathematical functions and use `@cuda
-# fastmath=true` for even faster square roots.
+# Use `@fastmath` to allow faster, less precise arithmetic in an expression. The kernel-wide
+# option `@cuda fastmath=true` also flushes `Float32` subnormals to sign-preserving zero.
+# These options relax floating-point semantics; check numerical accuracy for your workload.
+#
+# Global-memory `Float32` atomic addition is particularly sensitive to this setting. Starting
+# with the LLVM 23 backend in CUDA.jl 6.4, default compilation preserves subnormals by using
+# a compare-and-swap loop. This can slow down contended updates, such as histogram
+# accumulation. `@cuda fastmath=true` allows native atomic addition, which flushes subnormal
+# inputs and results in global memory. Wrapping an atomic operation in `@fastmath` alone
+# does not set the kernel's denormal mode and does not enable this lowering.
+#
+# For KernelAbstractions kernels, select `CUDABackend(fastmath=true)` when constructing the
+# kernel, for example `histogram!(CUDABackend(fastmath=true), 256)`. This also applies to
+# `Atomix.@atomic` updates in the kernel. Shared-memory `Float32` atomic addition preserves
+# subnormals natively; enabling fast math need not improve it.
 
 # ## Resources
 
