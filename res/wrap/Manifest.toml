@@ -354,10 +354,10 @@ version = "1.5.7+1"
 
 [[deps.cuQuantum_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CUTENSOR_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "8e4e23e5e7124dfff8ab6cce7814148ca52e4ee3"
+git-tree-sha1 = "7d6415dd66ecbf5fbfb2e7018823a783ca35f65f"
 registries = "General"
 uuid = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
-version = "26.3.0+1"
+version = "26.9.0+0"
 
 [[deps.libLLVM_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl", "Zlib_jll", "Zstd_jll"]
