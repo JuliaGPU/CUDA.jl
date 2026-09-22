@@ -696,3 +696,50 @@ needs_context = false
 9 = "CuPtr{Cvoid}"
 10 = "CuPtr{Cvoid}"
 11 = "CuPtr{Cvoid}"
+
+
+[api.cudnnFFTCausalConv1dForward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+
+[api.cudnnFFTCausalConv1dBackward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+
+[api.cudnnLongFFTCausalConv1dGetBufferSizes.argtypes]
+6 = "Ref{Csize_t}"
+7 = "Ref{Csize_t}"
+
+[api.cudnnLongFFTCausalConv1dForward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnLongFFTCausalConv1dBackward.argtypes]
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+
+[api.cudnnGnnAggSimpleForward.argtypes]
+2 = "Ref{cudnnGnnCscGraph_t}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cudnnGnnAggSimpleBackward.argtypes]
+2 = "Ref{cudnnGnnCscGraph_t}"
+3 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"

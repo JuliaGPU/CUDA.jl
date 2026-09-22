@@ -176,6 +176,8 @@ end
     CUDNN_DATA_UINT32 = 19
     CUDNN_DATA_COMPLEX_FP32 = 20
     CUDNN_DATA_COMPLEX_FP64 = 21
+    CUDNN_DATA_BYTE_BOOLEAN = 22
+    CUDNN_DATA_FP8_E5M3 = 23
 end
 
 @cenum cudnnMathType_t::UInt32 begin
@@ -680,6 +682,14 @@ end
     CUDNN_ATTR_OPERATION_SDPA_FWD_UNFUSE_FMA = 2819
     CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_QDESC = 2820
     CUDNN_ATTR_OPERATION_SDPA_FWD_CU_SEQ_LEN_KVDESC = 2821
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_QDESC = 2822
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_KDESC = 2823
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_VDESC = 2824
+    CUDNN_ATTR_OPERATION_SDPA_FWD_DESCALE_SDESC = 2825
+    CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_SDESC = 2826
+    CUDNN_ATTR_OPERATION_SDPA_FWD_SCALE_ODESC = 2827
+    CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_SDESC = 2828
+    CUDNN_ATTR_OPERATION_SDPA_FWD_AMAX_ODESC = 2829
     CUDNN_ATTR_OPERATION_SDPA_BWD_QDESC = 2851
     CUDNN_ATTR_OPERATION_SDPA_BWD_KDESC = 2852
     CUDNN_ATTR_OPERATION_SDPA_BWD_VDESC = 2853
@@ -3882,6 +3892,133 @@ end
                                                         kernelSizeMixer::Cint,
                                                         dataType::cudnnDataType_t,
                                                         dwDataType::cudnnDataType_t)::cudnnStatus_t
+end
+
+@checked function cudnnFFTCausalConv1dForward(stream, x, weight, y, batch, dim, seqLen,
+                                              kernelSize, dataType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnFFTCausalConv1dForward(stream::cudaStream_t,
+                                                       x::CuPtr{Cvoid},
+                                                       weight::CuPtr{Cvoid},
+                                                       y::CuPtr{Cvoid}, batch::Cint,
+                                                       dim::Cint, seqLen::Cint,
+                                                       kernelSize::Cint,
+                                                       dataType::cudnnDataType_t)::cudnnStatus_t
+end
+
+@checked function cudnnFFTCausalConv1dBackward(stream, x, weight, dy, dx, dweight, batch,
+                                               dim, seqLen, kernelSize, dataType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnFFTCausalConv1dBackward(stream::cudaStream_t,
+                                                        x::CuPtr{Cvoid},
+                                                        weight::CuPtr{Cvoid},
+                                                        dy::CuPtr{Cvoid}, dx::CuPtr{Cvoid},
+                                                        dweight::CuPtr{Cvoid}, batch::Cint,
+                                                        dim::Cint, seqLen::Cint,
+                                                        kernelSize::Cint,
+                                                        dataType::cudnnDataType_t)::cudnnStatus_t
+end
+
+@checked function cudnnLongFFTCausalConv1dGetBufferSizes(batch, dim, seqLen, kernelSize,
+                                                         dataType, workspaceSizeInBytes,
+                                                         reserveSpaceSizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnLongFFTCausalConv1dGetBufferSizes(batch::Cint, dim::Cint,
+                                                                  seqLen::Cint,
+                                                                  kernelSize::Cint,
+                                                                  dataType::cudnnDataType_t,
+                                                                  workspaceSizeInBytes::Ref{Csize_t},
+                                                                  reserveSpaceSizeInBytes::Ref{Csize_t})::cudnnStatus_t
+end
+
+@checked function cudnnLongFFTCausalConv1dForward(stream, x, weight, y, batch, dim, seqLen,
+                                                  kernelSize, dataType, workspace,
+                                                  workspaceSizeInBytes, reserveSpace,
+                                                  reserveSpaceSizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnLongFFTCausalConv1dForward(stream::cudaStream_t,
+                                                           x::CuPtr{Cvoid},
+                                                           weight::CuPtr{Cvoid},
+                                                           y::CuPtr{Cvoid}, batch::Cint,
+                                                           dim::Cint, seqLen::Cint,
+                                                           kernelSize::Cint,
+                                                           dataType::cudnnDataType_t,
+                                                           workspace::CuPtr{Cvoid},
+                                                           workspaceSizeInBytes::Csize_t,
+                                                           reserveSpace::CuPtr{Cvoid},
+                                                           reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
+end
+
+@checked function cudnnLongFFTCausalConv1dBackward(stream, dy, dx, dweight, batch, dim,
+                                                   seqLen, kernelSize, dataType, workspace,
+                                                   workspaceSizeInBytes, reserveSpace,
+                                                   reserveSpaceSizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnLongFFTCausalConv1dBackward(stream::cudaStream_t,
+                                                            dy::CuPtr{Cvoid},
+                                                            dx::CuPtr{Cvoid},
+                                                            dweight::CuPtr{Cvoid},
+                                                            batch::Cint, dim::Cint,
+                                                            seqLen::Cint, kernelSize::Cint,
+                                                            dataType::cudnnDataType_t,
+                                                            workspace::CuPtr{Cvoid},
+                                                            workspaceSizeInBytes::Csize_t,
+                                                            reserveSpace::CuPtr{Cvoid},
+                                                            reserveSpaceSizeInBytes::Csize_t)::cudnnStatus_t
+end
+
+@cenum cudnnGnnAggOp_t::UInt32 begin
+    CUDNN_GNN_AGG_SUM = 0
+    CUDNN_GNN_AGG_MEAN = 1
+    CUDNN_GNN_AGG_MAX = 2
+    CUDNN_GNN_AGG_MIN = 3
+end
+
+struct cudnnGnnCscGraph_t
+    cscOffsets::Ptr{Cvoid}
+    cscIndices::Ptr{Cvoid}
+    mapCscToCoo::Ptr{Cvoid}
+    mapRevToCoo::Ptr{Cvoid}
+    nSrcNodes::Int64
+    nDstNodes::Int64
+    nIndices::Int64
+    idxType::cudnnDataType_t
+end
+
+@checked function cudnnGnnAggSimpleForward(stream, graph, nodeFeatures, edgeFeatures,
+                                           concatFeatures, output, outPositions,
+                                           nodeFeatDim, edgeFeatDim, concatFeatDim,
+                                           dataType, aggOp)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGnnAggSimpleForward(stream::cudaStream_t,
+                                                    graph::Ref{cudnnGnnCscGraph_t},
+                                                    nodeFeatures::CuPtr{Cvoid},
+                                                    edgeFeatures::CuPtr{Cvoid},
+                                                    concatFeatures::CuPtr{Cvoid},
+                                                    output::CuPtr{Cvoid},
+                                                    outPositions::CuPtr{Cvoid},
+                                                    nodeFeatDim::Cint, edgeFeatDim::Cint,
+                                                    concatFeatDim::Cint,
+                                                    dataType::cudnnDataType_t,
+                                                    aggOp::cudnnGnnAggOp_t)::cudnnStatus_t
+end
+
+@checked function cudnnGnnAggSimpleBackward(stream, graph, gradOutput, outPositions,
+                                            gradNodeFeatures, gradEdgeFeatures,
+                                            gradConcatFeatures, nodeFeatDim, edgeFeatDim,
+                                            concatFeatDim, dataType, aggOp)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGnnAggSimpleBackward(stream::cudaStream_t,
+                                                     graph::Ref{cudnnGnnCscGraph_t},
+                                                     gradOutput::CuPtr{Cvoid},
+                                                     outPositions::CuPtr{Cvoid},
+                                                     gradNodeFeatures::CuPtr{Cvoid},
+                                                     gradEdgeFeatures::CuPtr{Cvoid},
+                                                     gradConcatFeatures::CuPtr{Cvoid},
+                                                     nodeFeatDim::Cint, edgeFeatDim::Cint,
+                                                     concatFeatDim::Cint,
+                                                     dataType::cudnnDataType_t,
+                                                     aggOp::cudnnGnnAggOp_t)::cudnnStatus_t
 end
 
 const CUDNN_MAX_SM_MAJOR_NUMBER = 12
