@@ -56,6 +56,8 @@ function description(err::CUTENSORNETError)
         return "a distributed failure occurred."
     elseif err.code == CUTENSORNET_STATUS_INTERRUPTED
         return "the operation was interrupted."
+    elseif err.code == CUTENSORNET_STATUS_CUTENSOR_ERROR
+        return "a call to CUTENSOR did not succeed."
     else
         return "no description for this error"
     end
