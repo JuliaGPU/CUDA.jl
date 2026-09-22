@@ -127,6 +127,31 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   Xavier sees from cuDNN, whose Jetson build stops at sm_75.
 
 
+### v6.4.1 (unreleased)
+
+- Added support for CUDA 13.4 Update 1: the cuBLASLt and cuSOLVER wrappers
+  were regenerated (batch-invariance flags, the two-stage `Xsyevd` selector).
+  CUDA_Runtime_jll 0.25.0+1 and CUDA_Driver_jll 13.3.5, which ships the newer
+  610.57.04 forward-compatibility driver, are picked up without a compat
+  change.
+- Added support for cuDNN 9.26 (requires CUDNN_jll 9.26), including the
+  fix for the runtime-compiled kernel cache corruption present since
+  cuDNN 9.22. The low-level wrappers cover the new FFT causal convolutions
+  and GNN aggregation operations.
+- Added support for cuTENSOR 2.8 (requires CUTENSOR_jll 2.8) and cuQuantum
+  26.09 for cuStateVec 1.15 and cuTensorNet 2.14 (requires cuQuantum_jll
+  26.9, which in turn needs cuTENSOR 2.8). cuTensorNet errors describe the new
+  `CUTENSORNET_STATUS_CUTENSOR_ERROR`.
+- cuTENSOR's `contract!` and `plan_contraction` (dense and block-sparse) throw
+  an `ArgumentError` for an operator other than `OP_IDENTITY` on the `C`
+  operand, instead of a library error. cuTENSOR never supported one there, and
+  since 2.8 rejects it when the plan is created.
+- cuTensorNet's `qr!`, `svd!` and `gateSplit!` now also provide the host
+  workspace the library can ask for. cuSOLVER's `gesvd` needs one since CUDA
+  13.4 Update 1, so `svd!` and `gateSplit!` failed there with
+  `CUTENSORNET_STATUS_INTERNAL_ERROR`.
+
+
 ## v6.3 (August 2026)
 
 Compiled kernels are now cached by Julia's compiler. Adapting to GPUCompiler 2,
