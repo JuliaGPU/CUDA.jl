@@ -13,7 +13,7 @@ changes to support floors; those are labeled separately below. Patch releases
 are listed as subsections of the minor release they belong to.
 
 
-## v6.4 (unreleased)
+## v6.4 (September 2026)
 
 NVIDIA's Jetson boards are now a supported platform, across every JetPack
 generation still in the field, and the binary stack that picks the driver and
