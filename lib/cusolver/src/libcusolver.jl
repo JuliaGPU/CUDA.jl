@@ -55,6 +55,7 @@ const cusolverDnParams_t = Ptr{cusolverDnParams}
     CUSOLVERDN_POTRF = 1
     CUSOLVERDN_SYEVBATCHED = 2
     CUSOLVERDN_GEQRF = 3
+    CUSOLVERDN_SYEVD = 4
 end
 
 const cusolver_int_t = Cint
@@ -5113,7 +5114,7 @@ end
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
 end
 
-# no prototype is found for this function at cusolverDn.h:5036:32, please use with caution
+# no prototype is found for this function at cusolverDn.h:5037:32, please use with caution
 @checked function cusolverDnLoggerForceDisable()
     @gcsafe_ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t
 end

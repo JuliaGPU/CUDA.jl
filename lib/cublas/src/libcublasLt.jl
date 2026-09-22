@@ -1068,6 +1068,17 @@ end
     CUBLASLT_MATMUL_DESC_EMULATION_DESCRIPTOR = 38
     CUBLASLT_MATMUL_DESC_ALPHA_BATCH_STRIDE = 39
     CUBLASLT_MATMUL_DESC_BETA_BATCH_STRIDE = 40
+    CUBLASLT_MATMUL_DESC_BATCH_INVARIANCE_FLAGS = 41
+end
+
+@cenum cublasLtMatmulBatchInvarianceFlags_t::UInt32 begin
+    CUBLASLT_BATCH_INVARIANCE_DISABLED = 0
+    CUBLASLT_BATCH_INVARIANCE_ALIGN_2B = 1
+    CUBLASLT_BATCH_INVARIANCE_ALIGN_4B = 2
+    CUBLASLT_BATCH_INVARIANCE_ALIGN_8B = 3
+    CUBLASLT_BATCH_INVARIANCE_ALIGN_16B = 4
+    CUBLASLT_BATCH_INVARIANCE_AUTO = 8
+    CUBLASLT_BATCH_INVARIANCE_UNSET = 32768
 end
 
 @checked function cublasLtMatmulDescInit_internal(matmulDesc, size, computeType, scaleType)
@@ -1494,7 +1505,7 @@ end
     @gcsafe_ccall libcublasLt.cublasLtLoggerSetMask(mask::Cint)::cublasStatus_t
 end
 
-# no prototype is found for this function at cublasLt.h:2891:29, please use with caution
+# no prototype is found for this function at cublasLt.h:2918:29, please use with caution
 @checked function cublasLtLoggerForceDisable()
     @gcsafe_ccall libcublasLt.cublasLtLoggerForceDisable()::cublasStatus_t
 end
