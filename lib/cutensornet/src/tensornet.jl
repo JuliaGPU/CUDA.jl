@@ -71,6 +71,24 @@ function perform_contraction!(tn::CuTensorNetwork, info, ::AutoTune; prefs::Auto
 end
 
 
+# cuTensorNet's decompositions can require host scratch memory in addition to the device
+# workspace (cuSOLVER's gesvd does since CUDA 13.4 Update 1), and fail with an internal error
+# when it is not provided. Unlike the deprecated `cutensornetWorkspaceGetSize`, this query
+# includes the slack for cuTensorNet aligning the buffer to 256 bytes, which a `Vector` isn't.
+function with_host_workspace(f, workspace_desc, workspace_preference)
+    size = Ref{Int64}(0)
+    cutensornetWorkspaceGetMemorySize(handle(), workspace_desc, workspace_preference,
+                                      CUTENSORNET_MEMSPACE_HOST, CUTENSORNET_WORKSPACE_SCRATCH, size)
+    workspace = Vector{UInt8}(undef, size[])
+    GC.@preserve workspace begin
+        if size[] > 0
+            cutensornetWorkspaceSetMemory(handle(), workspace_desc, CUTENSORNET_MEMSPACE_HOST,
+                                          CUTENSORNET_WORKSPACE_SCRATCH, pointer(workspace), size[])
+        end
+        f()
+    end
+end
+
 function LinearAlgebra.qr!(tensor_in::CuArray{T,N}, modes_in, tensor_q::CuArray{T, Q}, modes_q, tensor_r::CuArray{T, R}, modes_r; stream::CuStream=stream(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T<:Number, N, Q, R}
     in_desc = CuTensorDescriptor(tensor_in, modes_in)
     q_desc  = CuTensorDescriptor(tensor_q, modes_q)
@@ -81,7 +99,9 @@ function LinearAlgebra.qr!(tensor_in::CuArray{T,N}, modes_in, tensor_q::CuArray{
     cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
-        cutensornetTensorQR(handle(), in_desc, tensor_in, q_desc, tensor_q, r_desc, tensor_r, workspace_desc, stream)
+        with_host_workspace(workspace_desc, workspace_preference) do
+            cutensornetTensorQR(handle(), in_desc, tensor_in, q_desc, tensor_q, r_desc, tensor_r, workspace_desc, stream)
+        end
     end
     return tensor_q, tensor_r
 end
@@ -101,7 +121,9 @@ function LinearAlgebra.svd!(tensor_in::CuArray{T,N}, modes_in, tensor_u::CuArray
     cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
-        cutensornetTensorSVD(handle(), in_desc, tensor_in, u_desc, tensor_u, s, v_desc, tensor_v, cu_svd_config, svd_info, workspace_desc, stream)
+        with_host_workspace(workspace_desc, workspace_preference) do
+            cutensornetTensorSVD(handle(), in_desc, tensor_in, u_desc, tensor_u, s, v_desc, tensor_v, cu_svd_config, svd_info, workspace_desc, stream)
+        end
     end
     return tensor_u, s, tensor_v, svd_info
 end
@@ -122,7 +144,9 @@ function gateSplit!(A::CuArray{T, NA}, modes_a, B::CuArray{T, NB}, modes_b, G::C
     cutensornetWorkspaceGetSize(handle(), workspace_desc, workspace_preference, memspace, actual_ws_size)
     with_workspace(actual_ws_size[]) do workspace
         cutensornetWorkspaceSet(handle(), workspace_desc, memspace, pointer(workspace), actual_ws_size[])
-        cutensornetGateSplit(handle(), a_desc, A, b_desc, B, g_desc, G, u_desc, tensor_u, s, v_desc, tensor_v, gateAlgo, cu_svd_config, compute_type, svd_info, workspace_desc, stream)
+        with_host_workspace(workspace_desc, workspace_preference) do
+            cutensornetGateSplit(handle(), a_desc, A, b_desc, B, g_desc, G, u_desc, tensor_u, s, v_desc, tensor_v, gateAlgo, cu_svd_config, compute_type, svd_info, workspace_desc, stream)
+        end
     end
     return tensor_u, s, tensor_v, svd_info
 end
