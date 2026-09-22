@@ -68,7 +68,7 @@ function plan_contraction(
 
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
-    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
+    opC != CUTENSOR_OP_IDENTITY && throw(ArgumentError("opC must be the identity op!"))
     !is_unary(opOut)  && throw(ArgumentError("opOut must be a unary op!"))
     
     descA = CuTensorBSDescriptor(A)
