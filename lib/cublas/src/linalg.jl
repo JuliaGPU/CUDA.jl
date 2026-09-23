@@ -48,7 +48,6 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     n == 0 && return zero(promote_type(T1, T2))
     # custom kernel using simple linear indexing and atomic additions,
     # resulting in about 10% speed-up compared to a simple mapreduce.
-    # COV_EXCL_START
     function kernel(x, y, res::AbstractArray{T}, shuffle) where {T}
         local_val = zero(T)
 
@@ -67,7 +66,6 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
 
         return
     end
-    # COV_EXCL_STOP
 
     dev = device()
     let T = promote_type(T1, T2)
@@ -126,7 +124,6 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
     ny == nA || throw(DimensionMismatch("length of y, $ny, does not match second dimension of A, $nA"))
 
     # custom kernel using simple linear indexing and atomic additions
-    # COV_EXCL_START
     function kernel(x, A, y, res::AbstractArray{T}, shuffle) where {T}
         local_val = zero(T)
 
@@ -150,7 +147,6 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
 
         return
     end
-    # COV_EXCL_STOP
 
     dev = device()
     let T = promote_type(T1, T2, T3)
@@ -477,7 +473,6 @@ function CUDACore.CuMatrix{T}(D::Diagonal) where {T}
     n == 0 && return B
 
     gpu_diag = adapt(CuArray, D.diag)
-    ## COV_EXCL_START
     function fill_diagonal()
         i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
         grid_stride = gridDim().x * blockDim().x
@@ -487,7 +482,6 @@ function CUDACore.CuMatrix{T}(D::Diagonal) where {T}
         end
         return
     end
-    ## COV_EXCL_STOP
     kernel = @cuda launch = false fill_diagonal()
     config = launch_configuration(kernel.fun)
     threads = min(config.threads, n)

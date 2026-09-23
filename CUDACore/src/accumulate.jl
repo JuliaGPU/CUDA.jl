@@ -1,7 +1,5 @@
 # scan and accumulate
 
-## COV_EXCL_START
-
 # partial scan of individual thread blocks within a grid
 # work-efficient implementation after Blelloch (1990)
 #
@@ -129,8 +127,6 @@ function aggregate_partial_scan(op::Function, output::AbstractArray,
 
     return
 end
-
-## COV_EXCL_STOP
 
 function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
                dims::Integer, init=nothing, neutral=GPUArrays.neutral_element(f, T)) where {T}

@@ -1,5 +1,3 @@
-## COV_EXCL_START
-
 # TODO
 # - block-stride loop to delay need for second kernel launch
 
@@ -155,8 +153,6 @@ function serial_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
     end
     return
 end
-
-## COV_EXCL_STOP
 
 # factored out for use in tests
 function serial_mapreduce_threshold(dev)
