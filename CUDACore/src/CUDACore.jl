@@ -17,6 +17,7 @@ using LLVM
 using LLVM.Interop
 using Core: LLVMPtr
 
+using KernelInterface
 import KernelInterface as KI
 
 using Adapt: Adapt, adapt, WrappedArray
