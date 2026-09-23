@@ -35,8 +35,6 @@ end
 # checked.jl
 @device_override @noinline Base.Checked.throw_overflowerr_binaryop(op, x, y) =
     @gputhrow "OverflowError" "Binary operation overflowed"
-@device_override @noinline Base.Checked.throw_overflowerr_negation(op, x, y) =
-    @gputhrow "OverflowError" "Negation overflowed"
 @device_override function Base.Checked.checked_abs(x::Base.Checked.SignedInt)
     r = ifelse(x<0, -x, x)
     r<0 && @gputhrow("OverflowError", "checked arithmetic: cannot compute |x|")
