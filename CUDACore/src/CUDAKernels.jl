@@ -192,6 +192,19 @@ function KI.wait_event(::CUDABackend, ev::CuEvent)
     return
 end
 
+## events
+
+function KI.record_event(::CUDABackend)
+    ev = CuEvent(CUDACore.EVENT_DISABLE_TIMING)
+    record(ev, stream())
+    return ev
+end
+
+function KI.wait_event(::CUDABackend, ev::CuEvent)
+    CUDACore.wait(ev, stream())
+    return
+end
+
 ## other
 
 function KI.priority!(::CUDABackend, prio::Symbol)
