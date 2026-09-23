@@ -49,6 +49,7 @@ end
     CUTENSORNET_STATUS_DEVICE_ALLOCATOR_ERROR = 26
     CUTENSORNET_STATUS_DISTRIBUTED_FAILURE = 27
     CUTENSORNET_STATUS_INTERRUPTED = 28
+    CUTENSORNET_STATUS_CUTENSOR_ERROR = 29
 end
 
 @cenum cutensornetComputeType_t::UInt32 begin
@@ -236,6 +237,16 @@ end
 
 const cutensornetTensorDescriptor_t = Ptr{Cvoid}
 
+@cenum cutensornetTensorDescriptorAttributes_t::UInt32 begin
+    CUTENSORNET_TENSOR_DESCRIPTOR_IS_DISTRIBUTED = 0
+    CUTENSORNET_TENSOR_DESCRIPTOR_ELEMENT_STRIDES = 1
+    CUTENSORNET_TENSOR_DESCRIPTOR_BLOCK_SIZES = 2
+    CUTENSORNET_TENSOR_DESCRIPTOR_BLOCK_STRIDES = 3
+    CUTENSORNET_TENSOR_DESCRIPTOR_NRANKS_PER_MODE = 4
+    CUTENSORNET_TENSOR_DESCRIPTOR_LOCAL_DATA_SIZE = 5
+    CUTENSORNET_TENSOR_DESCRIPTOR_LOCAL_EXTENTS = 6
+end
+
 const cutensornetTensorSVDConfig_t = Ptr{Cvoid}
 
 @cenum cutensornetTensorSVDConfigAttributes_t::UInt32 begin
@@ -314,6 +325,7 @@ const cutensornetState_t = Ptr{Cvoid}
 
 @cenum cutensornetStatePurity_t::UInt32 begin
     CUTENSORNET_STATE_PURITY_PURE = 0
+    CUTENSORNET_STATE_PURITY_MIXED = 1
 end
 
 const cutensornetStateAccessor_t = Ptr{Cvoid}
@@ -334,10 +346,16 @@ end
 
 const cutensornetStateMarginal_t = Ptr{Cvoid}
 
+@cenum cutensornetMarginalKind_t::UInt32 begin
+    CUTENSORNET_MARGINAL_KIND_FULL = 0
+    CUTENSORNET_MARGINAL_KIND_DIAGONAL = 1
+end
+
 @cenum cutensornetMarginalAttributes_t::UInt32 begin
     CUTENSORNET_MARGINAL_OPT_NUM_HYPER_SAMPLES = 0
     CUTENSORNET_MARGINAL_CONFIG_NUM_HYPER_SAMPLES = 1
     CUTENSORNET_MARGINAL_INFO_FLOPS = 64
+    CUTENSORNET_MARGINAL_INFO_KIND = 65
 end
 
 const cutensornetStateSampler_t = Ptr{Cvoid}
@@ -404,8 +422,22 @@ end
     CUTENSORNET_STATE_PROJECTION_MPS_ORTHO_AUTO = 0
 end
 
+@cenum cutensornetStateProjectionMPSMaxExtentPreparePolicy_t::UInt32 begin
+    CUTENSORNET_STATE_PROJECTION_MPS_MAX_EXTENT_PREPARE_POLICY_BUFFER = 0
+    CUTENSORNET_STATE_PROJECTION_MPS_MAX_EXTENT_PREPARE_POLICY_CONFIG = 1
+end
+
 @cenum cutensornetStateProjectionMPSAttributes_t::UInt32 begin
     CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_ORTHO_OPTION = 0
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_SVD_ABS_CUTOFF = 1
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_SVD_REL_CUTOFF = 2
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_SVD_S_NORMALIZATION = 3
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_SVD_ALGO = 4
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_SVD_ALGO_PARAMS = 5
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_SVD_DISCARDED_WEIGHT_CUTOFF = 6
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_MAX_EXTENT = 7
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_MAX_EXTENT_PREPARE_POLICY = 8
+    CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_SVD_MAX_EXTENT = 9
     CUTENSORNET_STATE_PROJECTION_MPS_CONFIG_NUM_HYPER_SAMPLES = 10
 end
 
@@ -996,6 +1028,34 @@ end
                                                                    tensorDesc::Ptr{cutensornetTensorDescriptor_t})::cutensornetStatus_t
 end
 
+@checked function cutensornetCreateDistributedTensorDescriptor(handle, numModes, extents,
+                                                               elementStrides, blockSizes,
+                                                               blockStrides, nranksPerMode,
+                                                               modeLabels, dataType,
+                                                               tensorDesc)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetCreateDistributedTensorDescriptor(handle::cutensornetHandle_t,
+                                                                              numModes::Int32,
+                                                                              extents::Ptr{Int64},
+                                                                              elementStrides::Ptr{Int64},
+                                                                              blockSizes::Ptr{Int64},
+                                                                              blockStrides::Ptr{Int64},
+                                                                              nranksPerMode::Ptr{Int64},
+                                                                              modeLabels::Ptr{Int32},
+                                                                              dataType::cudaDataType_t,
+                                                                              tensorDesc::Ptr{cutensornetTensorDescriptor_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetTensorDescriptorGetAttribute(handle, tensorDesc, attr, buffer,
+                                                          sizeInBytes)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetTensorDescriptorGetAttribute(handle::cutensornetHandle_t,
+                                                                         tensorDesc::cutensornetTensorDescriptor_t,
+                                                                         attr::cutensornetTensorDescriptorAttributes_t,
+                                                                         buffer::Ptr{Cvoid},
+                                                                         sizeInBytes::Csize_t)::cutensornetStatus_t
+end
+
 @checked function cutensornetDestroyTensorDescriptor(tensorDesc)
     initialize_context()
     @gcsafe_ccall libcutensornet.cutensornetDestroyTensorDescriptor(tensorDesc::cutensornetTensorDescriptor_t)::cutensornetStatus_t
@@ -1183,23 +1243,29 @@ end
     @gcsafe_ccall libcutensornet.cutensornetLoggerSetMask(mask::Int32)::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1706:21, please use with caution
+# no prototype is found for this function at cutensornet.h:1941:21, please use with caution
 @checked function cutensornetLoggerForceDisable()
     @gcsafe_ccall libcutensornet.cutensornetLoggerForceDisable()::cutensornetStatus_t
 end
 
-# no prototype is found for this function at cutensornet.h:1711:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1946:8, please use with caution
 function cutensornetGetVersion()
     @gcsafe_ccall libcutensornet.cutensornetGetVersion()::Csize_t
 end
 
-# no prototype is found for this function at cutensornet.h:1717:8, please use with caution
+# no prototype is found for this function at cutensornet.h:1952:8, please use with caution
 function cutensornetGetCudartVersion()
     @gcsafe_ccall libcutensornet.cutensornetGetCudartVersion()::Csize_t
 end
 
 function cutensornetGetErrorString(error)
     @gcsafe_ccall libcutensornet.cutensornetGetErrorString(error::cutensornetStatus_t)::Cstring
+end
+
+# no prototype is found for this function at cutensornet.h:1983:13, please use with caution
+function cutensornetGetLastError()
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetGetLastError()::Cstring
 end
 
 @checked function cutensornetDistributedResetConfiguration(handle, commPtr, commSize)
@@ -1697,6 +1763,22 @@ end
                                                            projectedModes::Ptr{Int32},
                                                            marginalTensorStrides::Ptr{Int64},
                                                            tensorNetworkMarginal::Ptr{cutensornetStateMarginal_t})::cutensornetStatus_t
+end
+
+@checked function cutensornetCreateMarginalDiagonal(handle, tensorNetworkState,
+                                                    numMarginalModes, marginalModes,
+                                                    numProjectedModes, projectedModes,
+                                                    marginalDiagonalTensorStrides,
+                                                    tensorNetworkMarginal)
+    initialize_context()
+    @gcsafe_ccall libcutensornet.cutensornetCreateMarginalDiagonal(handle::cutensornetHandle_t,
+                                                                   tensorNetworkState::cutensornetState_t,
+                                                                   numMarginalModes::Int32,
+                                                                   marginalModes::Ptr{Int32},
+                                                                   numProjectedModes::Int32,
+                                                                   projectedModes::Ptr{Int32},
+                                                                   marginalDiagonalTensorStrides::Ptr{Int64},
+                                                                   tensorNetworkMarginal::Ptr{cutensornetStateMarginal_t})::cutensornetStatus_t
 end
 
 @checked function cutensornetMarginalConfigure(handle, tensorNetworkMarginal, attribute,

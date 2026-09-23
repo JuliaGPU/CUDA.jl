@@ -52,24 +52,24 @@ version = "0.25.0+0"
 
 [[deps.CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6adbe7f5ddc64320129c8fdd483a66008e962fe3"
+git-tree-sha1 = "3f1d93be997a577677549616e2db22136dfe43e7"
 registries = "General"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "13.4.1+0"
+version = "13.4.2+0"
 
 [[deps.CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "11dcddf99fccdad32a655e7f324fbca9370691e7"
+git-tree-sha1 = "a98b6d326aab729353d707507162804b6d256a3e"
 registries = "General"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "9.24.0+2"
+version = "9.26.0+0"
 
 [[deps.CUTENSOR_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "b26de823e90bd7fe097134c90e6e5862993b7c03"
+git-tree-sha1 = "a43565fde843ebe4a6408f3e690adf8409b10241"
 registries = "General"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
-version = "2.7.0+1"
+version = "2.8.1+0"
 
 [[deps.Clang]]
 deps = ["CEnum", "Clang_unified_jll", "Downloads", "Pkg", "TOML"]
@@ -354,10 +354,10 @@ version = "1.5.7+1"
 
 [[deps.cuQuantum_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "CUTENSOR_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "8e4e23e5e7124dfff8ab6cce7814148ca52e4ee3"
+git-tree-sha1 = "7d6415dd66ecbf5fbfb2e7018823a783ca35f65f"
 registries = "General"
 uuid = "b75408ef-6fdf-5d74-b65a-7df000ad18e6"
-version = "26.3.0+1"
+version = "26.9.0+0"
 
 [[deps.libLLVM_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl", "Zlib_jll", "Zstd_jll"]

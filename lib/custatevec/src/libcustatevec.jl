@@ -721,6 +721,7 @@ const custatevecCommunicatorDescriptor_t = Ptr{custatevecCommunicator_t}
     CUSTATEVEC_COMMUNICATOR_TYPE_EXTERNAL = 0
     CUSTATEVEC_COMMUNICATOR_TYPE_OPENMPI = 1
     CUSTATEVEC_COMMUNICATOR_TYPE_MPICH = 2
+    CUSTATEVEC_COMMUNICATOR_TYPE_MPI_ABI = 3
 end
 
 @cenum custatevecDataTransferType_t::UInt32 begin
@@ -1094,15 +1095,15 @@ mutable struct custatevecSubSVMigratorDescriptor end
 
 const custatevecSubSVMigratorDescriptor_t = Ptr{custatevecSubSVMigratorDescriptor}
 
-@checked function custatevecSubSVMigratorCreate(handle, migrator, deviceSlots, svDataType,
-                                                nDeviceSlots, nLocalIndexBits)
+@checked function custatevecSubSVMigratorCreate(handle, migrator, deviceSlices, svDataType,
+                                                nDeviceSlices, nSliceLocalIndexBits)
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecSubSVMigratorCreate(handle::custatevecHandle_t,
                                                               migrator::Ptr{custatevecSubSVMigratorDescriptor_t},
-                                                              deviceSlots::Ptr{Cvoid},
+                                                              deviceSlices::Ptr{Cvoid},
                                                               svDataType::cudaDataType_t,
-                                                              nDeviceSlots::Cint,
-                                                              nLocalIndexBits::Cint)::custatevecStatus_t
+                                                              nDeviceSlices::Cint,
+                                                              nSliceLocalIndexBits::Cint)::custatevecStatus_t
 end
 
 @checked function custatevecSubSVMigratorDestroy(handle, migrator)
@@ -1111,14 +1112,14 @@ end
                                                                migrator::custatevecSubSVMigratorDescriptor_t)::custatevecStatus_t
 end
 
-@checked function custatevecSubSVMigratorMigrate(handle, migrator, deviceSlotIndex,
-                                                 srcSubSV, dstSubSV, _begin, _end)
+@checked function custatevecSubSVMigratorMigrate(handle, migrator, deviceSliceIndex,
+                                                 srcSubSVSlice, dstSubSVSlice, _begin, _end)
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecSubSVMigratorMigrate(handle::custatevecHandle_t,
                                                                migrator::custatevecSubSVMigratorDescriptor_t,
-                                                               deviceSlotIndex::Cint,
-                                                               srcSubSV::Ptr{Cvoid},
-                                                               dstSubSV::Ptr{Cvoid},
+                                                               deviceSliceIndex::Cint,
+                                                               srcSubSVSlice::Ptr{Cvoid},
+                                                               dstSubSVSlice::Ptr{Cvoid},
                                                                _begin::custatevecIndex_t,
                                                                _end::custatevecIndex_t)::custatevecStatus_t
 end

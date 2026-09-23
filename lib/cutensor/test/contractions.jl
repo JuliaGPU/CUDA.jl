@@ -69,6 +69,9 @@ eltypes = [(Float32, Float32, Float32, Float32),
         C = collect(dC)
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB
+        # cuTENSOR only supports the identity operator on C
+        @test_throws ArgumentError cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB,
+                                                             dC, indsC, cuTENSOR.OP_CONJ, opOut)
 
         # simple case with plan storage and compute type
         opA = cuTENSOR.OP_IDENTITY
