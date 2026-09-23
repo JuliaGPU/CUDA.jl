@@ -81,8 +81,8 @@ end
 
 KI.argconvert(::CUDABackend, arg) = cudaconvert(arg)
 
-function KI.kernel_function(::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
-    kern = cufunction(f, tt; name, kwargs...)
+function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+    kern = cufunction(f, tt; name, fastmath=backend.fastmath, kwargs...)
     KI.Kernel{CUDABackend, typeof(kern)}(CUDABackend(), kern)
 end
 
@@ -177,6 +177,19 @@ end
 
 @device_override @inline function KI._print(args...)
     CUDACore._cuprint(args...)
+end
+
+## events
+
+function KI.record_event(::CUDABackend)
+    ev = CuEvent(CUDACore.EVENT_DISABLE_TIMING)
+    record(ev, stream())
+    return ev
+end
+
+function KI.wait_event(::CUDABackend, ev::CuEvent)
+    CUDACore.wait(ev, stream())
+    return
 end
 
 ## other
