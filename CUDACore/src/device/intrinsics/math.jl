@@ -405,7 +405,10 @@ end
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    FastMath.pow_fast(x, Float32(y))  # uses __nv_fast_powf
+    # __nv_fast_powf computes exp2(y * log2(x)), which is NaN for any x < 0; an integer power
+    # is defined there, with the sign of x for odd y (from y itself: Float32(y) may be even)
+    magnitude = FastMath.pow_fast(abs(x), Float32(y))  # uses __nv_fast_powf
+    ifelse(signbit(x) & isodd(y), -magnitude, magnitude)
 end
 @device_override @assume_effects :foldable @inline function FastMath.pow_fast(x::Float16, y::Integer)
     y == -1 && return inv(x)
@@ -413,7 +416,7 @@ end
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    Float16(FastMath.pow_fast(Float32(x), Float32(y)))
+    Float16(FastMath.pow_fast(Float32(x), y))  # the Float32 method above
 end
 
 # stay with Base's semantics and avoid the drift of libdevice's integer powers,

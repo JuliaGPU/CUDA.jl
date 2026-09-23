@@ -324,6 +324,18 @@ using SpecialFunctions
             @cuda threads=4 fastpow_kernel(A, 3)
             @test Array(A) == ones(T, 4)
         end
+        # the exponents above take the hand-written cases (y <= 3); larger ones go through
+        # the general path, which for Float32 is `__nv_fast_powf` and must handle x < 0
+        for T in (Float16, Float32, Float64), y in (4, 5, 7, -2, -3, Int32(5), Int32(-5))
+            x = T[1.5, -0.5, 3, -2]
+            A = CuArray(x)
+            @cuda threads=4 fastpow_kernel(A, y)
+            @test Array(A) ≈ x .^ y rtol = T == Float64 ? 1e-12 : 1e-3
+        end
+        # the sign comes from the integer exponent: Float32(16_777_217) is even
+        A = CuArray(Float32[-1])
+        @cuda threads=1 fastpow_kernel(A, 16_777_217)
+        @test Array(A) == Float32[-1]
 
         # Float16 hardware approximations: tanh.approx.f16 / ex2.approx.f16 on sm_75+
         if capability(device()) >= v"7.5"
