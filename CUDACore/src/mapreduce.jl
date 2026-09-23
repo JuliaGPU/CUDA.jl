@@ -17,9 +17,9 @@ end
 @inline function reduce_block(op, val::T, neutral, shuffle::Val{true}) where T
     # shared mem for partial sums
     assume(warpsize() == 32)
-    shared = CuStaticSharedArray(T, 32)
+    shared = KI.localmemory(T, 32)
 
-    wid, lane = fldmod1(threadIdx().x, warpsize())
+    wid, lane = fldmod1(KI.get_local_id(Int32).x, warpsize())
 
     # each warp performs partial reduction
     val = reduce_warp(op, val)
@@ -30,10 +30,10 @@ end
     end
 
     # wait for all partial reductions
-    sync_threads()
+    KI.barrier()
 
     # read from shared memory only if that warp existed
-    val = if threadIdx().x <= fld1(blockDim().x, warpsize())
+    val = if KI.get_local_id(Int32).x <= fld1(KI.get_local_size(Int32).x, warpsize())
          @inbounds shared[lane]
     else
         neutral
@@ -47,8 +47,8 @@ end
     return val
 end
 @inline function reduce_block(op, val::T, neutral, shuffle::Val{false}) where T
-    threads = blockDim().x
-    thread = threadIdx().x
+    threads = KI.get_local_size(Int32).x
+    thread = KI.get_local_id(Int32).x
 
     # The caller reserves blockDim().x * sizeof(T) bytes of shared memory.
     shared = @inbounds CuDynamicSharedArray(T, (threads,))
@@ -57,7 +57,7 @@ end
     # perform a reduction
     d = 1
     while d < threads
-        sync_threads()
+        KI.barrier()
         index = 2 * d * (thread-1) + 1
         @inbounds if index <= threads
             other_val = if index + d <= threads
@@ -90,10 +90,10 @@ function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R::Abs
 
     # decompose the 1D hardware indices into separate ones for reduction (across threads
     # and possibly blocks if it doesn't fit) and other elements (remaining blocks)
-    threadIdx_reduce = threadIdx().x
-    blockDim_reduce = blockDim().x
-    blockIdx_reduce, blockIdx_other = fldmod1(blockIdx().x, length(Rother))
-    gridDim_reduce = gridDim().x ÷ length(Rother)
+    threadIdx_reduce = KI.get_local_id(Int32).x
+    blockDim_reduce = KI.get_local_size(Int32).x
+    blockIdx_reduce, blockIdx_other = fldmod1(KI.get_group_id(Int32).x, length(Rother))
+    gridDim_reduce = KI.get_num_groups(Int32).x ÷ length(Rother)
 
     # block-based indexing into the values outside of the reduction dimension
     # (that means we can safely synchronize threads within this block)
@@ -132,7 +132,8 @@ function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R::Abs
 end
 
 function serial_mapreduce_kernel(f, op, neutral, Rreduce, Rother, R, As)
-    grid_idx = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+    grid_idx = KI.get_local_id(Int32).x +
+               (KI.get_group_id(Int32).x - 1i32) * KI.get_local_size(Int32).x
     @inbounds if grid_idx <= length(Rother)
         Iother = Rother[grid_idx]
 

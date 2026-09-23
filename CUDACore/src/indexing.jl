@@ -32,7 +32,8 @@ function Base.findall(bools::AnyCuArray{Bool})
 
     if n > 0
         function kernel(ys::CuDeviceArray, bools, indices)
-            i = threadIdx().x + (blockIdx().x - 1i32) * blockDim().x
+            i = KI.get_local_id(Int32).x +
+                (KI.get_group_id(Int32).x - 1i32) * KI.get_local_size(Int32).x
 
             @inbounds if i <= length(bools) && bools[i]
                 i′ = CartesianIndices(bools)[i]
