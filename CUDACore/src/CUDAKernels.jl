@@ -11,7 +11,7 @@ import Adapt
 
 ## back-end
 
-export CUDABackend
+# export CUDABackend
 
 """
     CUDABackend(; prefer_blocks=false, always_inline=false, fastmath=false)
