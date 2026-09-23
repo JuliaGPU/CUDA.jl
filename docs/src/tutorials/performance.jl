@@ -46,8 +46,12 @@
 
 # ### FastMath
 
-# Use `@fastmath` to use faster versions of common mathematical functions and use `@cuda
-# fastmath=true` for even faster square roots.
+# Use `@fastmath` to allow faster, less precise arithmetic in an expression. The kernel-wide
+# option `@cuda fastmath=true` applies this to the entire kernel, and additionally uses
+# faster square roots and flushes `Float32` subnormals to sign-preserving zero. For
+# KernelAbstractions kernels, select `CUDABackend(fastmath=true)` when constructing the
+# kernel. These options relax floating-point semantics; check numerical accuracy for your
+# workload.
 
 # ## Resources
 

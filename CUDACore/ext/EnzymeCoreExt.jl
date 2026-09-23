@@ -26,9 +26,10 @@ function EnzymeCore.EnzymeRules.inactive(::typeof(CUDACore.launch_configuration)
     return nothing
 end
 
-function EnzymeCore.compiler_job_from_backend(::CUDABackend, @nospecialize(F::Type), @nospecialize(TT::Type))
+function EnzymeCore.compiler_job_from_backend(backend::CUDABackend, @nospecialize(F::Type), @nospecialize(TT::Type))
     mi = GPUCompiler.methodinstance(F, TT)
-    return GPUCompiler.CompilerJob(mi, CUDACore.compiler_config(CUDACore.device()))
+    return GPUCompiler.CompilerJob(mi, CUDACore.compiler_config(CUDACore.device();
+                                                               fastmath=backend.fastmath))
 end
 
 function metaf(config, fn, args::Vararg{Any, N}) where N
