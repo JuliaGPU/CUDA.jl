@@ -572,6 +572,40 @@ end
 dims = (16, 16)
 len = prod(dims)
 
+@testset "index types" begin
+    # launching with arrays that fit 32-bit indices
+    kernel(out, a) = (@inbounds out[1] = size(a, 2); return)
+    out = CuArray([0])
+    a = CuArray{Float32}(undef, 2, 3)
+    k = @cuda kernel(out, a)
+    @test k isa CUDA.HostKernel{typeof(kernel),
+                                Tuple{CuDeviceVector{Int,AS.Global,Int32},
+                                      CuDeviceMatrix{Float32,AS.Global,Int32}}}
+    @test Array(out) == [3]
+
+    # if an array doesn't fit, all arrays of the launch use 64-bit indices
+    GC.@preserve a begin
+        big = unsafe_wrap(CuArray, pointer(a), (2, 2^30))   # never accessed
+        k = @cuda kernel(out, big)
+        @test k isa CUDA.HostKernel{typeof(kernel),
+                                    Tuple{CuDeviceVector{Int,AS.Global,Int64},
+                                          CuDeviceMatrix{Float32,AS.Global,Int64}}}
+        @test Array(out) == [2^30]
+
+        # kernel objects can be called with arrays of a different index type, as long as
+        # they fit the index type the kernel was compiled for
+        k(out, a)
+        @test Array(out) == [3]
+        k = @cuda launch=false kernel(out, a)
+        @test_throws ArgumentError k(out, big)
+    end
+
+    # the index type is chosen per launch, so converting a call infers as a small union
+    call(out, a) = CUDA.KernelCall(kernel, out, a)
+    T = only(Base.return_types(call, Tuple{typeof(out), typeof(a)}))
+    @test T isa Union && length(Base.uniontypes(T)) == 2
+end
+
 @testset "manually allocated" begin
     function kernel(input, output)
         i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
@@ -971,15 +1005,16 @@ end
 
     # launching should not be much more expensive than with few arguments
     # (Julia 1.11 and older allocate a little per argument)
-    # TODO: converting arrays to device arrays with a per-array index type is type-unstable,
-    #       which boxes the arguments
     Base.invokelatest() do
+        # the index type is chosen per launch, so the kernel infers as a small union
+        T = only(Base.return_types(many_args_launch, Tuple{typeof(out)}))
+        @test T isa Union && length(Base.uniontypes(T)) == 2
         many_args_launch(out)
         few_kernel = few_args_launch(out)
         few_args_call(few_kernel, out)
-        @test_broken @allocated(many_args_launch(out)) <= @allocated(few_args_launch(out)) + 40*32
-        @test_broken @allocated(many_args_call(kernel, out)) <=
-                     @allocated(few_args_call(few_kernel, out)) + 40*32
+        @test @allocated(many_args_launch(out)) <= @allocated(few_args_launch(out)) + 40*32
+        @test @allocated(many_args_call(kernel, out)) <=
+              @allocated(few_args_call(few_kernel, out)) + 40*32
     end
 end
 

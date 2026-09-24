@@ -129,8 +129,6 @@ Core.kwcall(kwargs::NamedTuple, obj::KA.Kernel{CUDABackend}, args::Vararg{Any,N}
 
 function launch_tuple(obj::KA.Kernel{CUDABackend}, args::Tuple;
                       ndrange=nothing, workgroupsize=nothing)
-    backend = KA.backend(obj)
-
     ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
     # this might not be the final context, since we may tune the workgroupsize
     ctx = KA.mkcontext(obj, ndrange, iterspace)
@@ -142,7 +140,22 @@ function launch_tuple(obj::KA.Kernel{CUDABackend}, args::Tuple;
         maxthreads = nothing
     end
 
-    call = CUDACore.kernel_call(obj.f, prepend(ctx, args))
+    # convert assuming 32-bit indices, which is type stable (see `with_kernel_call`)
+    to = CUDACore.KernelAdaptor{Int32}()
+    call = CUDACore.kernel_call(CUDACore.LLVMBackend(), obj.f, prepend(ctx, args), to)
+    if to.fits[]
+        launch(obj, call, ndrange, workgroupsize, iterspace, maxthreads)
+    else
+        to = CUDACore.KernelAdaptor{Int64}()
+        call = CUDACore.kernel_call(CUDACore.LLVMBackend(), obj.f, prepend(ctx, args), to)
+        launch(obj, call, ndrange, workgroupsize, iterspace, maxthreads)
+    end
+    return nothing
+end
+
+@inline function launch(obj::KA.Kernel{CUDABackend}, call, ndrange, workgroupsize, iterspace,
+                maxthreads)
+    backend = KA.backend(obj)
     kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline,
                                      fastmath=backend.fastmath, maxthreads)
 
