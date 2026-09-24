@@ -358,6 +358,33 @@ function _sparse_identity(::Type{<:CuSparseMatrixCOO{Tv,Ti}},
     CuSparseMatrixCOO{Tv,Ti}(rowInd, colInd, nzVal, dims)
 end
 
+# `one` and `oneunit`, like SparseArrays does for SparseMatrixCSC
+function Base._one(unit, A::Union{CuSparseMatrixCSC,CuSparseMatrixCSR,CuSparseMatrixCOO})
+    size(A, 1) == size(A, 2) || throw(DimensionMismatch("multiplicative identity only defined for square matrices"))
+    return _sparse_identity(typeof(A), UniformScaling(unit), size(A))
+end
+
+function Base._one(unit::Tv, A::CuSparseMatrixBSR{<:Any,Ti}) where {Tv,Ti}
+    size(A, 1) == size(A, 2) || throw(DimensionMismatch("multiplicative identity only defined for square matrices"))
+    n = size(A, 1)
+    b = A.blockDim
+    mb = cld(n, b)
+
+    # a diagonal block for every block row
+    rowPtr = CuVector{Ti}(1:mb+1)
+    colVal = CuVector{Ti}(1:mb)
+
+    # the blocks themselves are diagonal, so their layout doesn't depend on `A.dir`
+    nzVal = CUDACore.zeros(Tv, b*b*mb)
+    diag = view(reshape(nzVal, b*b, mb), 1:b+1:b*b, :)
+    diag .= unit
+    # when `n` isn't a multiple of the block size, the last block extends past the matrix
+    pad = mb*b - n
+    pad > 0 && (diag[end-pad+1:end, end] .= zero(Tv))
+
+    CuSparseMatrixBSR{Tv,Ti}(rowPtr, colVal, nzVal, size(A), b, A.dir, mb)
+end
+
 for (wrapa, unwrapa) in adjtrans_wrappers
     for SparseMatrixType in (:(CuSparseMatrixCSC{T}), :(CuSparseMatrixCSR{T}), :(CuSparseMatrixCOO{T}))
         TypeA = wrapa(SparseMatrixType)
