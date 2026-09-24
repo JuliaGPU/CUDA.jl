@@ -28,7 +28,7 @@ if :NVPTX in LLVM.backends() && CUDA_Compiler.is_available()
             params = CUDACompilerParams(; sm=llvm_sm, ptx=ptxas_ptx)
             config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
 
-            tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}
+            tt = Tuple{CuDeviceArray{Float32,1,AS.Global,Int32}}
             source = methodinstance(typeof(_precompile_vadd), tt)
             job = CompilerJob(source, config)
 

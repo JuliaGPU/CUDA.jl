@@ -440,13 +440,14 @@ end
 Adapt.adapt_storage(to::KernelAdaptor, p::CuPtr{T}) where {T} =
     reinterpret(LLVMPtr{T,AS.Generic}, p)
 
-# convert CUDA host arrays to device arrays
+# convert CUDA host arrays to device arrays, using 32-bit indices when possible
 function Adapt.adapt_storage(to::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
   managed = xs.data[]
   push!(to.managed, managed)
   ptr = convert(CuPtr{T}, managed.mem) + xs.offset
-  CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, ptr), size(xs),
-                               xs.maxsize - xs.offset)
+  I = index_type(size(xs))
+  CuDeviceArray{T,N,AS.Global,I}(Unchecked(), reinterpret(LLVMPtr{T,AS.Global}, ptr),
+                                 size(xs), xs.maxsize - xs.offset)
 end
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative.

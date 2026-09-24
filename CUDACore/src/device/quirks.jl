@@ -105,3 +105,7 @@ end
 # reshape.jl
 @device_override Base._throw_dmrs(n, str, dims) =
     @gputhrow "DimensionMismatch" "Dimensions mismatch when reshaping. New dimensions must be consistent with array size"
+
+# CUDACore: device/array.jl
+@device_override @noinline throw_index_type_error(::Type{I}, dims) where {I} =
+    @gputhrow "ArgumentError" "Array dimensions do not fit the index type"

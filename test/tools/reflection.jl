@@ -48,7 +48,7 @@
                 return
             end
             sass = sprint(io->CUDA.code_sass(io, reflection_kernel,
-                                             Tuple{CuDeviceVector{Float32,1}}))
+                                             Tuple{CuDeviceVector{Float32,1,Int32}}))
             @test occursin(Regex("; ┌ @ .*reflection\\.jl:$helper_line\\n"), sass)
         end
     end
@@ -89,6 +89,6 @@
 
     @test CUDA.return_type(identity, Tuple{Int}) === Int
     @test CUDA.return_type(sin, Tuple{Float32}) === Float32
-    @test CUDA.return_type(getindex, Tuple{CuDeviceArray{Float32,1,1},Int32}) === Float32
+    @test CUDA.return_type(getindex, Tuple{CuDeviceArray{Float32,1,1,Int32},Int32}) === Float32
     @test CUDA.return_type(getindex, Tuple{Base.RefValue{Integer}}) === Integer
 end

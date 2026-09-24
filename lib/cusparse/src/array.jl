@@ -1026,7 +1026,7 @@ function GPUArrays.GPUSparseDeviceVector(iPtr::CuDeviceVector{Ti, A},
                                          nzVal::CuDeviceVector{Tv, A},
                                          len::Int,
                                          nnz::Ti) where {Ti, Tv, A}
-    GPUArrays.GPUSparseDeviceVector{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(iPtr, nzVal, len, nnz)
+    GPUArrays.GPUSparseDeviceVector{Tv, Ti, typeof(iPtr), typeof(nzVal), A}(iPtr, nzVal, len, nnz)
 end
 
 function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseVector)
@@ -1042,7 +1042,9 @@ function GPUArrays.GPUSparseDeviceMatrixCSR(rowPtr::CuDeviceVector{Ti, A},
                                             nzVal::CuDeviceVector{Tv, A},
                                             dims::NTuple{2, Int},
                                             nnz::Ti) where {Ti, Tv, A}
-    GPUArrays.GPUSparseDeviceMatrixCSR{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowPtr, colVal, nzVal, dims, nnz)
+    # the index vectors share a type parameter, so need the same index type
+    rowPtr, colVal = CUDACore.unify_index_types(rowPtr, colVal)
+    GPUArrays.GPUSparseDeviceMatrixCSR{Tv, Ti, typeof(rowPtr), typeof(nzVal), A}(rowPtr, colVal, nzVal, dims, nnz)
 end
 
 function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixCSR)
@@ -1059,7 +1061,9 @@ function GPUArrays.GPUSparseDeviceMatrixCSC(colPtr::CuDeviceVector{Ti, A},
                                             nzVal::CuDeviceVector{Tv, A},
                                             dims::NTuple{2, Int},
                                             nnz::Ti) where {Ti, Tv, A}
-    GPUArrays.GPUSparseDeviceMatrixCSC{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(colPtr, rowVal, nzVal, dims, nnz)
+    # the index vectors share a type parameter, so need the same index type
+    colPtr, rowVal = CUDACore.unify_index_types(colPtr, rowVal)
+    GPUArrays.GPUSparseDeviceMatrixCSC{Tv, Ti, typeof(colPtr), typeof(nzVal), A}(colPtr, rowVal, nzVal, dims, nnz)
 end
 
 function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixCSC)
@@ -1078,7 +1082,9 @@ function GPUArrays.GPUSparseDeviceMatrixBSR(rowPtr::CuDeviceVector{Ti, A},
                                             blockDim::Ti,
                                             dir::Char,
                                             nnz::Ti) where {Ti, Tv, A}
-    GPUArrays.GPUSparseDeviceMatrixBSR{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
+    # the index vectors share a type parameter, so need the same index type
+    rowPtr, colVal = CUDACore.unify_index_types(rowPtr, colVal)
+    GPUArrays.GPUSparseDeviceMatrixBSR{Tv, Ti, typeof(rowPtr), typeof(nzVal), A}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 end
 
 function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixBSR)
@@ -1096,7 +1102,9 @@ function GPUArrays.GPUSparseDeviceMatrixCOO(rowInd::CuDeviceVector{Ti, A},
                                             nzVal::CuDeviceVector{Tv, A},
                                             dims::NTuple{2, Int},
                                             nnz::Ti) where {Ti, Tv, A}
-    GPUArrays.GPUSparseDeviceMatrixCOO{Tv, Ti, CuDeviceVector{Ti, A}, CuDeviceVector{Tv, A}, A}(rowInd, colInd, nzVal, dims, nnz)
+    # the index vectors share a type parameter, so need the same index type
+    rowInd, colInd = CUDACore.unify_index_types(rowInd, colInd)
+    GPUArrays.GPUSparseDeviceMatrixCOO{Tv, Ti, typeof(rowInd), typeof(nzVal), A}(rowInd, colInd, nzVal, dims, nnz)
 end
 
 function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixCOO)
@@ -1109,9 +1117,11 @@ function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseMatrixCOO)
 end
 
 function Adapt.adapt_structure(to::CUDACore.KernelAdaptor, x::CuSparseArrayCSR)
+    # the index arrays share a type parameter, so need the same index type
+    rowPtr, colVal = CUDACore.unify_index_types(adapt(to, x.rowPtr), adapt(to, x.colVal))
     return GPUArrays.GPUSparseDeviceArrayCSR(
-        adapt(to, x.rowPtr),
-        adapt(to, x.colVal),
+        rowPtr,
+        colVal,
         adapt(to, x.nzVal),
         size(x), x.nnz
     )
