@@ -458,3 +458,6 @@ julia> fft(a)
    2.6692+0.0im   0.65323+0.0im
  -1.11072+0.0im  0.749168+0.0im
 ```
+
+Planner keyword arguments like FFTW's `flags` and `timelimit` are accepted so that generic
+code can pass them, but they have no effect: cuFFT has no equivalent options.

@@ -98,3 +98,26 @@ end
     z = irfft(y, size(x, 1), (1, 3))
     @test maximum(abs.(Array(z) .- Array(xref))) < 1e-3
 end
+
+@testset "CUDA.jl#1559" begin
+    # generic code passing FFTW planner keywords should work with cuFFT too
+    kwargs = (; flags=FFTW.ESTIMATE | FFTW.UNALIGNED, timelimit=Inf, num_threads=1)
+    c = rand(ComplexF32, 8, 4)
+    r = rand(Float32, 8, 4)
+    i = rand(-9:9, 8, 4)
+    for (plan, x, args) in ((plan_fft, c, ()), (plan_fft, c, (2,)), (plan_fft, c, ((1, 2),)),
+                            (plan_bfft, c, ()), (plan_ifft, c, ()),
+                            (plan_fft!, c, ()), (plan_bfft!, c, ()), (plan_ifft!, c, ()),
+                            (plan_fft, r, ()), (plan_rfft, r, ()), (plan_rfft, i, ()),
+                            (plan_brfft, c, (14,)), (plan_irfft, c, (14, 1)))
+        d_x = CuArray(x)
+        @test Array(plan(d_x, args...; kwargs...) * d_x) ≈ plan(copy(x), args...; kwargs...) * copy(x)
+    end
+
+    # FFTW.PRESERVE_INPUT is ignored too, but cuFFT's complex-to-real plans preserve the input
+    d_c = CuArray(c)
+    p = plan_brfft(d_c, 14; flags=FFTW.PRESERVE_INPUT)
+    p * d_c
+    mul!(CuArray{Float32}(undef, 14, 4), p, d_c)
+    @test Array(d_c) == c
+end
