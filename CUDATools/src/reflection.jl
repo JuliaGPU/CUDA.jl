@@ -31,6 +31,11 @@ convenient to display the SASS code for functions whose source code is not avail
 - `raw`: dump the assembly like `nvdisasm` reports it, without post-processing;
 - in the case of specifying `f` and `types`: all keyword arguments from [`cufunction`](@ref)
 
+Instructions are annotated with their source location, including the frames of inlined
+functions (like `code_llvm` with `debuginfo=:source`). This requires line information,
+i.e., running Julia with a debug level of at least 1 (the default), and CUDA 11.2 or
+later for the inlined frames.
+
 See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types); kwargs...)
@@ -125,24 +130,90 @@ end
 
 # disassemble a cubin to SASS
 function disassemble_cubin(io::IO, cubin::Vector{Cchar}; raw::Bool)
+    # the line table records inlined frames since CUDA 11.2 (PTX ISA 7.2's `inlined_at`),
+    # which is also when nvdisasm gained the option to print them
+    lineinfo = if CUDACore.compiler_version() >= v"11.2"
+        "--print-line-info-inline"
+    else
+        "--print-line-info"
+    end
+
     mktemp() do cubin_path,cubin_io
         write(cubin_io, cubin)
         flush(cubin_io)
 
-        cmd = `$(CUDACore.CUDA_Compiler.nvdisasm()) --print-code --print-line-info $cubin_path`
-        for line in readlines(cmd)
-            if !raw
-                # nvdisasm output is pretty verbose;
-                # perform some clean-up and make it look like @code_native
-                line = replace(line, r"/\*[0-9a-f]{4,5}\*/" => " "^8)    # strip inst addr
-                line = replace(line, r"^[ ]{30}" => "   ")               # reduce leading spaces
-                line = replace(line, r"[\s+]//##" => ";")                # change line info tag
-                line = replace(line, r"^\." => "\n.")                    # break before new BBs
-                line = replace(line, r"; File \"(.+?)\", line (\d+)" => s"; Location \1:\2") # rename line info
+        cmd = `$(CUDACore.CUDA_Compiler.nvdisasm()) --print-code $lineinfo $cubin_path`
+        if raw
+            for line in readlines(cmd)
+                println(io, line)
             end
-            println(io, line)
+        else
+            print_sass(io, readlines(cmd))
         end
     end
+end
+
+# nvdisasm output is pretty verbose; perform some clean-up and make it look like @code_llvm
+function print_sass(io::IO, lines)
+    # nvdisasm prints the location of an instruction as a chain of frames, innermost first:
+    #   //## File "a.jl", line 1 inlined at "b.jl", line 2
+    #   //## File "b.jl", line 2
+    # render these as a tree of frames, printing only the ones that are entered or left.
+    stack = Tuple{String,String}[]  # (file, line) frames of the current location, outermost first
+    chain = Tuple{String,String}[]  # frames of the location being parsed, also outermost first
+    function frame((file, line))
+        file = replace(file, r"^\./" => "")     # Base files are recorded as `./file.jl`
+        line == "0" ? file : "$file:$line"
+    end
+    function leave(depth)
+        # frames beyond the outermost one are nested, and closed with a marker each
+        depth = max(depth, 1)
+        if length(stack) > depth
+            println(io, "; ", "│"^(depth-1), "└"^(length(stack)-depth))
+        end
+    end
+    for line in lines
+        m = match(r"//## File \"(.+?)\", line (\d+)(?: inlined at \"(.+?)\", line (\d+))?", line)
+        if m !== nothing
+            pushfirst!(chain, (m[1], m[2]))
+            m[3] === nothing || continue    # more frames follow
+
+            # the location is complete; compare it with the current one
+            common = 0
+            while common < min(length(stack), length(chain)) &&
+                  stack[common+1] == chain[common+1]
+                common += 1
+            end
+            if common != length(stack) || common != length(chain)
+                # code_llvm keeps a frame open when only its line changes, but that requires
+                # knowing the function, which nvdisasm doesn't print. only do so for the
+                # outermost frame, which always belongs to the function being disassembled.
+                leave(common)
+                if common == 0
+                    println(io, ";  @ ", frame(chain[1]))
+                    common = 1
+                end
+                for i in common+1:length(chain)
+                    println(io, "; ", "│"^(i-2), "┌ @ ", frame(chain[i]))
+                end
+                stack = chain
+            end
+            chain = Tuple{String,String}[]
+            continue
+        end
+
+        # a new function; locations don't carry over
+        if startswith(line, "//---") || occursin(r"^\s*\.type\s+\S+,\s*@function", line)
+            leave(0)
+            empty!(stack)
+        end
+
+        line = replace(line, r"/\*[0-9a-f]{4,5}\*/" => " "^8)    # strip inst addr
+        line = replace(line, r"^[ ]{30}" => "   ")               # reduce leading spaces
+        line = replace(line, r"^\." => "\n.")                    # break before new BBs
+        println(io, line)
+    end
+    leave(0)
 end
 
 

@@ -37,6 +37,20 @@
             end
         end)
         @test occursin("copy_kernel", sass)
+
+        # inlined frames are shown as a tree, like `@device_code_llvm debuginfo=:source`.
+        # this needs line tables with inlining information (-g1, CUDA 11.2+).
+        if Base.JLOptions().debug_level == 1 && CUDA.compiler_version() >= v"11.2"
+            helper_line = @__LINE__() + 1
+            @inline reflection_helper(x) = x * x
+            function reflection_kernel(a)
+                @inbounds a[1] = reflection_helper(a[1])
+                return
+            end
+            sass = sprint(io->CUDA.code_sass(io, reflection_kernel,
+                                             Tuple{CuDeviceVector{Float32,1}}))
+            @test occursin(Regex("; ┌ @ .*reflection\\.jl:$helper_line\\n"), sass)
+        end
     end
 
     mktempdir() do dir
