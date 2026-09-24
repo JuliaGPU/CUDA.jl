@@ -1395,7 +1395,6 @@ end
     # fill the array on the GPU to avoid synchronous copies and support larger batch sizes
     ptrs = CuArray{CuPtr{T}}(undef, batch_size)
     # device-side code
-    ## COV_EXCL_START
     function compute_pointers()
         i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
         grid_stride = gridDim().x * blockDim().x
@@ -1406,7 +1405,6 @@ end
         end
         return
     end
-    ## COV_EXCL_STOP
     kernel = @cuda launch = false compute_pointers()
     config = launch_configuration(kernel.fun)
     threads = min(config.threads, batch_size)

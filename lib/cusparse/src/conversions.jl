@@ -56,7 +56,6 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     # otherwise, it will contain gaps of zeros that indicates duplicate values.
     coo = sort_coo(coo, 'R')
     groups = similar(I, Int)
-    # COV_EXCL_START
     function find_groups(groups, I, J)
         i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
         if i > length(groups)
@@ -69,7 +68,6 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
         return
     end
-    # COV_EXCL_STOP
     call = CUDACore.KernelCall(find_groups, groups, coo.rowInd, coo.colInd)
     kernel = CUDACore.kernel_compile(call)
     config = launch_configuration(kernel.fun)
@@ -100,7 +98,6 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
         # use one thread per (old) value, and if it's at the start of a group,
         # combine (if needed) all values and update the output vectors.
-        # COV_EXCL_START
         function combine_groups(groups, indices, oldI, oldJ, oldV, newI, newJ, newV, combine)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
             if i > length(groups)
@@ -125,7 +122,6 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
 
             return
         end
-        # COV_EXCL_STOP
         call = CUDACore.KernelCall(combine_groups, groups, indices, coo.rowInd, coo.colInd,
                                    coo.nzVal, I, J, V, combine)
         kernel = CUDACore.kernel_compile(call)

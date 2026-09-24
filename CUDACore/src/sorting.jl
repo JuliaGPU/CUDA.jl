@@ -38,7 +38,6 @@ using ..CUDACore: i32
 end
 
 
-## COV_EXCL_START
 # Batch partitioning
 """
 Performs in-place cumsum using shared memory. Intended for use with indexes
@@ -119,8 +118,6 @@ function partition_batches_kernel(values::AbstractArray{T}, pivot, lo, hi, parit
     return
 end
 
-## COV_EXCL_STOP
-
 
 # Batch consolidation
 
@@ -143,7 +140,6 @@ function find_partition(array, pivot, lo, hi, parity, lt::F1, by::F2) where {F1,
     return low - 1
 end
 
-## COV_EXCL_START
 """
 This assumes the region of `vals` of length `L` starting after `lo`
 has been batch partitioned with respect to `pivot`. Further, it assumes that
@@ -458,7 +454,6 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
 
     return
 end
-## COV_EXCL_STOP
 
 function sort_args(args, partial_k::Nothing)
     return args
@@ -530,7 +525,6 @@ using ..CUDACore
 using ..CUDACore: i32
 
 
-## COV_EXCL_START
 # General functions
 
 @inline two(::Type{Int}) = 2
@@ -894,7 +888,6 @@ function comparator_small_kernel(vals, length_vals::I, k::I, j_0::I, j_f::I,
     finalize_shmem!(slice, swap, index, in_range)
     return
 end
-## COV_EXCL_STOP
 
 # Host side code
 function bitonic_shmem(c::AbstractArray{T}, threads) where {T}
