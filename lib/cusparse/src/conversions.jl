@@ -416,7 +416,7 @@ function _csr2cscEx2!(m, n, nnz_, csrVal::CuVector{T}, csrRowPtr, csrColInd,
 end
 
 # by flipping rows and columns, we can use that to get CSC to CSR too
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
+for elty in (:Float16, :Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         function CuSparseMatrixCSC{$elty, Ti}(csr::CuSparseMatrixCSR{$elty, Ti}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1) where {Ti}
             m,n = size(csr)
@@ -447,44 +447,25 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     end
 end
 
-# implement Float16 conversions using wider types
-# TODO: Float16 is sometimes natively supported
-for (elty, welty) in ((:Float16, :Float32),
-                      (:ComplexF16, :ComplexF32))
+# implement conversions for types cuSPARSE has no data type for by widening to one it
+# supports. the conversion only moves values around, so narrowing back is exact.
+# TODO: cuSPARSE 12 supports CUDA_R_8I, which could carry Bool without widening.
+for (elty, welty) in ((:ComplexF16, :ComplexF32),
+                      (:Bool, :Float32))
     @eval begin
         function CuSparseMatrixCSC{$elty, Ti}(csr::CuSparseMatrixCSR{$elty, Ti}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1) where {Ti}
-            m,n = size(csr)
-            colPtr = CUDACore.zeros(Cint, n+1)
-            rowVal = CUDACore.zeros(Cint, nnz(csr))
-            nzVal = CUDACore.zeros($elty, nnz(csr))
-            if $elty == Float16 #broken for ComplexF16?
-                _csr2cscEx2!(m, n, nnz(csr), nonzeros(csr), csr.rowPtr, csr.colVal,
-                             nzVal, colPtr, rowVal, action, index, algo)
-                return CuSparseMatrixCSC(colPtr,rowVal,nzVal,size(csr))
-            else
-                wide_csr = CuSparseMatrixCSR(csr.rowPtr, csr.colVal, convert(CuVector{$welty}, nonzeros(csr)), size(csr))
-                wide_csc = CuSparseMatrixCSC(wide_csr)
-                return CuSparseMatrixCSC(wide_csc.colPtr, wide_csc.rowVal, convert(CuVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
-            end
+            wide_csr = CuSparseMatrixCSR(csr.rowPtr, csr.colVal, convert(CuVector{$welty}, nonzeros(csr)), size(csr))
+            wide_csc = CuSparseMatrixCSC(wide_csr; index=index, action=action, algo=algo)
+            return CuSparseMatrixCSC(wide_csc.colPtr, wide_csc.rowVal, convert(CuVector{$elty}, nonzeros(wide_csc)), size(wide_csc))
         end
         CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty, Ti}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1) where {Ti} =
             CuSparseMatrixCSC{$elty, Ti}(csr; index=index, action=action, algo=algo)
         CuSparseMatrixCSC(csr::CuSparseMatrixCSR{$elty, Ti}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1) where {Ti} =
             CuSparseMatrixCSC{$elty, Ti}(csr; index=index, action=action, algo=algo)
         function CuSparseMatrixCSR{$elty, Ti}(csc::CuSparseMatrixCSC{$elty, Ti}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1) where {Ti}
-            m,n    = size(csc)
-            rowPtr = CUDACore.zeros(Cint,m+1)
-            colVal = CUDACore.zeros(Cint,nnz(csc))
-            nzVal  = CUDACore.zeros($elty,nnz(csc))
-            if $elty == Float16 #broken for ComplexF16?
-                _csr2cscEx2!(n, m, nnz(csc), nonzeros(csc), csc.colPtr, rowvals(csc),
-                             nzVal, rowPtr, colVal, action, index, algo)
-                return CuSparseMatrixCSR(rowPtr,colVal,nzVal,size(csc))
-            else
-                wide_csc = CuSparseMatrixCSC(csc.colPtr, csc.rowVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
-                wide_csr = CuSparseMatrixCSR(wide_csc)
-                return CuSparseMatrixCSR(wide_csr.rowPtr, wide_csr.colVal, convert(CuVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
-            end
+            wide_csc = CuSparseMatrixCSC(csc.colPtr, csc.rowVal, convert(CuVector{$welty}, nonzeros(csc)), size(csc))
+            wide_csr = CuSparseMatrixCSR(wide_csc; index=index, action=action, algo=algo)
+            return CuSparseMatrixCSR(wide_csr.rowPtr, wide_csr.colVal, convert(CuVector{$elty}, nonzeros(wide_csr)), size(wide_csr))
         end
         CuSparseMatrixCSR(csc::CuSparseMatrixCSC{$elty, Ti}; index::SparseChar='O', action::cusparseAction_t=CUSPARSE_ACTION_NUMERIC, algo::cusparseCsr2CscAlg_t=CUSPARSE_CSR2CSC_ALG1) where {Ti} =
             CuSparseMatrixCSR{$elty, Ti}(csc; index=index, action=action, algo=algo)
