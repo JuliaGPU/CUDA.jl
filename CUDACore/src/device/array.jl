@@ -78,11 +78,15 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
     end
 end
 
+# check that `i` indexes into `1:n`. the explicit check avoids the OneTo construction of
+# `checkbounds`, which calls `max` and breaks elimination of redundant bounds checks in the
+# generated code. the two bounds are checked with separate signed comparisons: folding them
+# into a single unsigned one (`(i-1) % UInt < n % UInt`) keeps LLVM from recognizing the
+# check as redundant after the kernel's own `i <= length(A)`.
+@inline in_bounds(i::Integer, n::Int) = (one(i) <= i) & (i <= n)
+
 @device_function @inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
-    # simplified bounds check to avoid the OneTo construction, which calls `max`
-    # and breaks elimination of redundant bounds checks in the generated code.
-    #@boundscheck checkbounds(A, index)
-    @boundscheck index <= length(A) || Base.throw_boundserror(A, index)
+    @boundscheck in_bounds(index, length(A)) || Base.throw_boundserror(A, index)
 
     if Base.isbitsunion(T)
         arrayref_union(A, index)
@@ -125,9 +129,7 @@ end
 end
 
 @device_function @inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
-    # simplified bounds check (see `arrayref`)
-    #@boundscheck checkbounds(A, index)
-    @boundscheck index <= length(A) || Base.throw_boundserror(A, index)
+    @boundscheck in_bounds(index, length(A)) || Base.throw_boundserror(A, index)
 
     if Base.isbitsunion(T)
         arrayset_union(A, x, index)
@@ -159,9 +161,7 @@ end
 end
 
 @device_function @inline function const_arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
-    # simplified bounds check (see `arrayset`)
-    #@boundscheck checkbounds(A, index)
-    @boundscheck index <= length(A) || Base.throw_boundserror(A, index)
+    @boundscheck in_bounds(index, length(A)) || Base.throw_boundserror(A, index)
 
     align = alignment(A)
     unsafe_cached_load(pointer(A), index, Val(align))
@@ -183,12 +183,32 @@ Base.to_index(::CuDeviceArray, i::Integer) = i
 
 # Base doesn't like Integer indices, so we need our own ND get and setindex! routines.
 # See also: https://github.com/JuliaLang/julia/pull/42289
-Base.@propagate_inbounds Base.getindex(A::CuDeviceArray,
-                                       I::Union{Integer, CartesianIndex}...) =
-    A[Base._to_linear_index(A, to_indices(A, I)...)]
-Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray, x,
-                                        I::Union{Integer, CartesianIndex}...) =
-    A[Base._to_linear_index(A, to_indices(A, I)...)] = x
+#
+# Like Base, every index is checked against its dimension. Checking only the linear index
+# would accept out-of-bounds indices that happen to linearize into the array.
+Base.@propagate_inbounds function Base.getindex(A::CuDeviceArray,
+                                                I::Union{Integer, CartesianIndex}...)
+    J = to_indices(A, I)
+    @boundscheck checkbounds_nd(A, J)
+    @inbounds A[Base._to_linear_index(A, J...)]
+end
+Base.@propagate_inbounds function Base.setindex!(A::CuDeviceArray, x,
+                                                 I::Union{Integer, CartesianIndex}...)
+    J = to_indices(A, I)
+    @boundscheck checkbounds_nd(A, J)
+    @inbounds A[Base._to_linear_index(A, J...)] = x
+end
+
+@inline function checkbounds_nd(A::CuDeviceArray{<:Any,N}, I::Tuple) where {N}
+    if length(I) == N
+        inbounds = reduce(&, map(in_bounds, I, size(A)); init=true)
+        inbounds || Base.throw_boundserror(A, I)
+    else
+        # fewer or more indices than dimensions
+        checkbounds(A, I...)
+    end
+    return
+end
 
 
 ## const indexing

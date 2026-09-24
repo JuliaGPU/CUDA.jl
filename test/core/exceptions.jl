@@ -57,6 +57,37 @@ end
 
 end
 
+@testset "out-of-bounds indices" begin
+
+# indices that main used to accept: a multidimensional index that linearizes into the
+# array, and a non-positive linear index.
+for index in ("3, 1", "0")
+    script = """
+        using CUDA
+
+        function kernel(arr)
+            arr[$index] = 1
+            return
+        end
+
+        gpu = CuArray(zeros(Int, 2, 2))
+        @cuda kernel(gpu)
+        synchronize()
+
+        # see "stack traces at different debug levels"
+        sleep(1)
+        synchronize()
+    """
+
+    let (proc, out, err) = julia_exec(`-g1 -e $script`)
+        @test !success(proc)
+        @test occursin(host_error_re, err)
+        @test count("BoundsError", out) == 1
+    end
+end
+
+end
+
 @testset "#329" begin
 
 script = """

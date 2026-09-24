@@ -38,7 +38,8 @@ end
     output_dev = CuArray(input)
 
     @test cudaconvert(input_dev) isa CuDeviceArray
-    @test_throws ErrorException cudaconvert(input_dev)[]
+    @test_throws ErrorException cudaconvert(input_dev)[1]
+    @test_throws ErrorException cudaconvert(input_dev)[1, 1]
 
     @cuda threads=len kernel(input_dev, output_dev)
     output = Array(output_dev)
@@ -67,6 +68,21 @@ end
 end
 
 @testset "bounds checking" begin
+    @testset "multidimensional indices" begin
+        # every index is checked against its dimension, not only the linearized index.
+        # these checks happen before the (device-only) memory access, so work on the host.
+        A = cudaconvert(CuArray{Float32}(undef, 2, 3))
+        @test_throws BoundsError A[3, 1]    # linearizes to 3, which is in bounds
+        @test_throws BoundsError A[0, 2]    # linearizes to 2
+        @test_throws BoundsError A[CartesianIndex(3, 1)]
+        @test_throws BoundsError A[1, 0x4]
+        @test_throws BoundsError A[1, 1, 2]
+        @test_throws BoundsError (A[3, 1] = 1)
+        @test_throws ErrorException A[2, 3]
+        @test_throws ErrorException A[2, 3, 1]
+        @test_throws ErrorException A[CartesianIndex(2, 3)]
+    end
+
     @testset "#313" begin
         kernel = dest -> (dest[1] = 1; nothing)
         tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
@@ -92,6 +108,15 @@ end
             end
             return
         end
+    end
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceArray{Int,2,AS.Global}}) do A
+        @check_not "boundserror"
+        i = threadIdx().x
+        j = blockIdx().x
+        if i <= size(A, 1) && j <= size(A, 2)
+            A[i, j] = 1
+        end
+        return
     end
 end
 

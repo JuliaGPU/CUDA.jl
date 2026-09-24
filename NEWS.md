@@ -13,6 +13,17 @@ changes to support floors; those are labeled separately below. Patch releases
 are listed as subsections of the minor release they belong to.
 
 
+## v6.5 (unreleased)
+
+*Bug fixes*:
+
+- Indexing a `CuDeviceArray` with multiple indices checks every index against
+  its dimension, like `Base` does. Previously only the linearized index was
+  checked, so out-of-bounds indices that happened to linearize into the array
+  (e.g. `A[3, 1]` on a 2×2 array) were accepted. Linear indexing now also
+  rejects indices below 1.
+
+
 ## v6.4 (September 2026)
 
 NVIDIA's Jetson boards are now a supported platform, across every JetPack
