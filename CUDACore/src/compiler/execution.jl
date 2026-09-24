@@ -93,23 +93,38 @@ end
                     managed::Vector{Managed}) where {B,F,A,S} =
     KernelCall{B,F,A,S}(backend, f, arguments, source, managed)
 
-@inline @generated function kernel_call(backend::B, f::F, args::A) where {B,F,A<:Tuple}
+@inline kernel_call(backend::AbstractBackend, f::F, args::Tuple) where {F} =
+    kernel_call(backend, f, args, Managed[])
+
+# for the LLVM backend, all arrays of a call share one index type: `Int32` if every array
+# fits, `Int64` otherwise. that keeps the result a small union that Julia can split.
+@inline function kernel_call(backend::LLVMBackend, f::F, args::Tuple) where {F}
+    to = KernelAdaptor{Int32}(Managed[])
+    call = kernel_call(backend, f, args, to)
+    to.fits[] && return call
+    return kernel_call(backend, f, args, KernelAdaptor{Int64}(Managed[]))
+end
+
+# `sink` is where conversions record the managed memory they encounter: either a vector,
+# or (for the LLVM backend) a `KernelAdaptor` that also determines the index type.
+@inline @generated function kernel_call(backend::B, f::F, args::A, sink::S) where {B,F,A<:Tuple,S}
+    managed_expr = S <: KernelAdaptor ? :(sink.managed) : :sink
     converted = [gensym(:converted) for _ in 1:fieldcount(A)]
     ranges = [gensym(:managed_range) for _ in 1:fieldcount(A)+1]
     conversions = Any[]
     for i in 1:fieldcount(A)
         push!(conversions, quote
             start = length(managed) + 1
-            $(converted[i]) = kernel_convert(backend, args[$i], managed)
+            $(converted[i]) = kernel_convert(backend, args[$i], sink)
             $(ranges[i+1]) = start:length(managed)
         end)
     end
     quote
         roots = (f=f, arguments=args)
         GC.@preserve roots begin
-            managed = Managed[]
+            managed = $managed_expr
             start = 1
-            kernel_f = kernel_convert(backend, f, managed)
+            kernel_f = kernel_convert(backend, f, sink)
             $(ranges[1]) = start:length(managed)
             $(conversions...)
             arguments = ($(converted...),)
@@ -199,6 +214,29 @@ to the compiled kernel signature.
 end
 
 
+"""
+    with_kernel_call(g, backend, f, args::Tuple)
+
+Convert `f` and `args` for a launch with `backend`, and call `g` with the resulting
+[`KernelCall`](@ref).
+
+For the LLVM backend, arrays are converted to device arrays that use 32-bit indices if every
+array of the call fits, and 64-bit indices otherwise, which makes the converted arguments
+type-unstable. Calling `g` with the call in either branch avoids the cost of that
+instability, so launches should prefer this over [`KernelCall`](@ref).
+"""
+@inline function with_kernel_call(g::G, backend::LLVMBackend, f::F, args::Tuple) where {G,F}
+    to = KernelAdaptor{Int32}(Managed[])
+    call = kernel_call(backend, f, args, to)
+    if to.fits[]
+        g(call)
+    else
+        g(kernel_call(backend, f, args, KernelAdaptor{Int64}(Managed[])))
+    end
+end
+@inline with_kernel_call(g::G, backend::AbstractBackend, f::F, args::Tuple) where {G,F} =
+    g(kernel_call(backend, f, args))
+
 # Keep the pipeline behind one function barrier for type-unstable argument tuples.
 @inline function compile_and_launch(backend, f::F, args::Tuple, ::Val{launch};
                                     launch_kwargs::NamedTuple=(;),
@@ -221,12 +259,13 @@ should hook this function rather than the conversion or launch steps below it.
 @inline function kernel_pipeline(backend, f::F, ::Val{launch}, args::Vararg{Any,N};
                                  launch_kwargs::NamedTuple=(;),
                                  compiler_kwargs...) where {F,launch,N}
-    call = kernel_call(backend, f, args)
-    kernel = kernel_compile(call; compiler_kwargs...)
-    if launch
-        kernel_launch(kernel, call; launch_kwargs...)
+    with_kernel_call(backend, f, args) do call
+        kernel = kernel_compile(call; compiler_kwargs...)
+        if launch
+            kernel_launch(kernel, call; launch_kwargs...)
+        end
+        return kernel
     end
-    return kernel
 end
 
 
@@ -367,10 +406,17 @@ end
 
 ## host to device value conversion
 
-struct KernelAdaptor
+# The index type of the device arrays is `I`, or chosen per array when `I === Nothing` (as
+# `cudaconvert` does). With a fixed index type, `fits` records whether every array could be
+# represented; when it's false, the conversion result is invalid and should be discarded.
+struct KernelAdaptor{I}
     managed::Vector{Managed}
+    fits::Base.RefValue{Bool}
+    KernelAdaptor{I}(managed::Vector{Managed}=Managed[]) where {I} = new{I}(managed, Ref(true))
 end
-KernelAdaptor() = KernelAdaptor(Managed[])
+KernelAdaptor(managed::Vector{Managed}=Managed[]) = KernelAdaptor{Nothing}(managed)
+
+kernel_convert(::LLVMBackend, x, to::KernelAdaptor) = adapt(to, x)
 
 function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
     push!(to.managed, managed)
@@ -441,13 +487,21 @@ Adapt.adapt_storage(to::KernelAdaptor, p::CuPtr{T}) where {T} =
     reinterpret(LLVMPtr{T,AS.Generic}, p)
 
 # convert CUDA host arrays to device arrays, using 32-bit indices when possible
-function Adapt.adapt_storage(to::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
+function Adapt.adapt_storage(to::KernelAdaptor{I}, xs::DenseCuArray{T,N}) where {T,N,I}
   managed = xs.data[]
   push!(to.managed, managed)
-  ptr = convert(CuPtr{T}, managed.mem) + xs.offset
-  I = index_type(size(xs))
-  CuDeviceArray{T,N,AS.Global,I}(Unchecked(), reinterpret(LLVMPtr{T,AS.Global}, ptr),
-                                 size(xs), xs.maxsize - xs.offset)
+  ptr = reinterpret(LLVMPtr{T,AS.Global}, convert(CuPtr{T}, managed.mem) + xs.offset)
+  maxsize = xs.maxsize - xs.offset
+  if I === Nothing
+    J = index_type(size(xs))
+    CuDeviceArray{T,N,AS.Global,J}(Unchecked(), ptr, size(xs), maxsize)
+  else
+    # the caller will discard the result if the array doesn't fit
+    fits = fits_index_type(I, size(xs))
+    fits || (to.fits[] = false)
+    dims = fits ? size(xs) : ntuple(_ -> 0, Val(N))
+    CuDeviceArray{T,N,AS.Global,I}(Unchecked(), ptr, dims, maxsize)
+  end
 end
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative.
@@ -606,8 +660,9 @@ end
 @doc (@doc AbstractKernel) HostKernel
 
 @inline function (kernel::HostKernel)(args...; kwargs...)
-    call = KernelCall(kernel.f, args...; backend=LLVMBackend())
-    kernel_launch(kernel, call; kwargs...)
+    with_kernel_call(LLVMBackend(), kernel.f, args) do call
+        kernel_launch(kernel, call; kwargs...)
+    end
 end
 
 @inline kernel_launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
