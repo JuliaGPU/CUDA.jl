@@ -16,9 +16,14 @@ generator function will be called dynamically.
     # NOTE: this relies on const-prop to forward the literal length to the generator.
     #       maybe we should include the size in the type, like StaticArrays does?
     ptr = emit_shmem(T, Val(len))
-    CuDeviceArray{T,N,AS.Shared}(ptr, dims)
+    CuDeviceArray{T,N,AS.Shared,shmem_index_type(T)}(ptr, dims)
 end
 CuStaticSharedArray(::Type{T}, len::Integer) where {T} = CuStaticSharedArray(T, (len,))
+
+# shared memory is small enough for its length to fit a 32-bit index, except when the
+# elements take no space. the dimensions of empty arrays still need to be checked; for the
+# usual constant dimensions, that check is folded away.
+shmem_index_type(::Type{T}) where {T} = aligned_sizeof(T) > 0 ? Int32 : Int
 
 macro cuStaticSharedMem(T, dims)
     Base.depwarn("@cuStaticSharedMem is deprecated, please use the CuStaticSharedArray function", :CuStaticSharedArray)
@@ -53,7 +58,7 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
         end
     end
     ptr = emit_shmem(T) + offset
-    CuDeviceArray{T,N,AS.Shared}(ptr, dims)
+    CuDeviceArray{T,N,AS.Shared,shmem_index_type(T)}(ptr, dims)
 end
 Base.@propagate_inbounds CuDynamicSharedArray(::Type{T}, len::Integer, offset) where {T} =
     CuDynamicSharedArray(T, (len,), offset)
@@ -71,7 +76,7 @@ end
 @device_function dynamic_smem_size() =
     @asmcall("mov.u32 \$0, %dynamic_smem_size;", "=r", true, UInt32, Tuple{})
 
-@inline function CuDistributedSharedArray(shared_array::CuDeviceArray{T,N,AS.Shared}, blockidx::Integer) where {T,N}
+@inline function CuDistributedSharedArray(shared_array::CuDeviceArray{T,N,AS.Shared,I}, blockidx::Integer) where {T,N,I}
     # Distributed shared memory has address space 7 (SharedCluster).
     # This is only supported in LLVM >= 21 which we can't yet use with
     # Julia. We therefore need to map it to address space 0 (Generic).
@@ -80,7 +85,7 @@ end
     # we're using LLVM >=21.
 
     ptr = map_shared_rank(shared_array.ptr, blockidx)
-    CuDeviceArray{T,N,AS.Generic}(ptr, shared_array.dims, shared_array.maxsize)
+    CuDeviceArray{T,N,AS.Generic,I}(Unchecked(), ptr, shared_array.dims, shared_array.maxsize)
 end
 
 @device_function @inline function map_shared_rank(ptr_shared::LLVMPtr{T,AS.Shared}, rank::Integer) where {T}

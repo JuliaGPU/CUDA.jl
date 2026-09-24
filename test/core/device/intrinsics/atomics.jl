@@ -501,17 +501,17 @@ system_scope_supported = dev_cap >= v"6.0" &&
 
     # atomicrmw carries the scope in the IR; whether the back-end spells it out in PTX
     # depends on the LLVM version, so check the IR rather than the PTX.
-    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1}}) do a
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1,Int32}}) do a
         @check "atomicrmw add {{.*}} syncscope(\"device\")"
         CUDA.atomic_add!(pointer(a), Int32(1))
         return
     end
-    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1}}) do a
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1,Int32}}) do a
         @check "atomicrmw add {{.*}} syncscope(\"block\")"
         CUDA.atomic_add!(pointer(a), Int32(1), Val(:block))
         return
     end
-    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1}}) do a
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int32,1,Int32}}) do a
         @check "atomicrmw add"
         @check_not "syncscope"
         CUDA.atomic_add!(pointer(a), Int32(1), Val(:system))
@@ -520,18 +520,18 @@ system_scope_supported = dev_cap >= v"6.0" &&
 
     for (arch, cap) in ((nothing, dev_cap), (sm"61", v"6.1"), (sm"50", v"5.0"))
         kwargs = arch === nothing ? (;) : (; arch)
-        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1}}; kwargs...) do a
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1,Int32}}; kwargs...) do a
             @check cas_pattern(cap, "gpu")
             CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1))
             return
         end
-        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1}}; kwargs...) do a
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1,Int32}}; kwargs...) do a
             @check cas_pattern(cap, "cta")
             CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1), Val(:block))
             return
         end
         if cap >= v"6.0"
-            @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1}}; kwargs...) do a
+            @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1,Int32}}; kwargs...) do a
                 @check cas_pattern(cap, "sys")
                 CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1), Val(:system))
                 return
@@ -544,19 +544,19 @@ system_scope_supported = dev_cap >= v"6.0" &&
         a[1] = Int32(42)
         return
     end
-    ptx = sprint(io -> CUDA.code_ptx(io, checked_store, Tuple{CuDeviceVector{Int32,1}};
+    ptx = sprint(io -> CUDA.code_ptx(io, checked_store, Tuple{CuDeviceVector{Int32,1,Int32}};
                                     arch=sm"61", ptx=v"8.8", kernel=true, dump_module=true))
     @test occursin("atom.gpu", ptx)
     @test !occursin(r"(?:atom|red)\.sys", ptx)
 
     if dev_cap >= v"7.0"
         # 16-bit CAS uses inline assembly, which spells out the scope too
-        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1,Int32}}) do a
             @check "atom.acq_rel.gpu.global.cas.b16"
             CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1))
             return
         end
-        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1,Int32}}) do a
             @check "atom.acq_rel.cta.global.cas.b16"
             CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1), Val(:block))
             return
@@ -706,7 +706,7 @@ end
         a[] = b[]
         return
     end
-    T = Tuple{CuDeviceVector{Int32,1}}
+    T = Tuple{CuDeviceVector{Int32,1,Int32}}
 
     # system scope requires sm_60; LLVM would silently emit device scope on sm_5x
     err = try
@@ -738,7 +738,7 @@ end
         CUDA.atomic_dec!(pointer(a), Int32(7), Val(:system))
         return
     end
-    for (f, tt) in ((rmw_kernel, T), (cas16_kernel, Tuple{CuDeviceVector{Int16,1}}),
+    for (f, tt) in ((rmw_kernel, T), (cas16_kernel, Tuple{CuDeviceVector{Int16,1,Int32}}),
                     (inc_kernel, T), (dec_kernel, T))
         @test_throws CUDA.InvalidIRError validate_kernel(f, tt; arch=sm"50")
         validate_kernel(f, tt; arch=sm"70")
