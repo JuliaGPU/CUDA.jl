@@ -1,9 +1,13 @@
 coverage:
   ignore:
-    - "lib/*/lib*.jl"
+    # generated wrappers
+    - "CUDACore/lib/*/lib*.jl"
     - "lib/*/src/lib*.jl"
+    # not package code
+    - "test/"
+    - "lib/*/test/**"
     - "res/"
-    - "doc/"
+    - "docs/"
     - "perf/"
   status:
     patch: false

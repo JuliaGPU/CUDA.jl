@@ -10,10 +10,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.10"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
         commands: |
@@ -42,10 +39,7 @@ steps:
               test_args: "--quickfail"
               allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
         commands: |
@@ -81,10 +75,7 @@ steps:
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core libraries"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
         if: |
@@ -128,10 +119,7 @@ steps:
       #    - JuliaCI/julia#v1:
       #        version: "1.11"
       #    - JuliaCI/julia-coverage#v1:
-      #        dirs:
-      #          - src
-      #          - lib
-      #          - examples
+      #        dirs: ["."]
       #  command: |
       #    julia --project -e '
       #      using Pkg
@@ -184,10 +172,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.11"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         commands: |
           julia -e '
             using Pkg
@@ -235,10 +220,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "1.11"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
           - JuliaCI/julia-test#v1:
               run_tests: false
         command: |
@@ -272,10 +254,7 @@ steps:
           - JuliaCI/julia-test#v1:
               test_args: "--sanitize core"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
         if: |
@@ -293,10 +272,7 @@ steps:
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
         env:
@@ -316,10 +292,7 @@ steps:
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
         if: |
@@ -344,10 +317,7 @@ steps:
           - JuliaCI/julia-test#v1:
               test_args: "--quickfail core libraries/cublas/xt"
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
           multigpu: "*"
@@ -370,10 +340,7 @@ steps:
               test_args: "--quickfail core base"
               allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
-              dirs:
-                - src
-                - lib
-                - examples
+              dirs: ["."]
         agents:
           queue: "cuda"
         commands: |
