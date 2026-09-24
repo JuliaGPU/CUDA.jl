@@ -110,13 +110,13 @@ function KA.launch_config(kernel::KA.Kernel{CUDABackend}, ndrange, workgroupsize
     return ndrange, workgroupsize, iterspace, dynamic
 end
 
-function threads_to_workgroupsize(threads, ndrange)
-    total = 1
-    return map(ndrange) do n
-        x = min(div(threads, total), n)
-        total *= x
-        return x
-    end
+# distribute `threads` over the dimensions of `ndrange`, filling the first ones first.
+# written recursively, because a closure that updates the running total would box it.
+threads_to_workgroupsize(threads, ndrange::Tuple) = _threads_to_workgroupsize(threads, 1, ndrange)
+_threads_to_workgroupsize(threads, total, ::Tuple{}) = ()
+function _threads_to_workgroupsize(threads, total, ndrange::Tuple)
+    x = min(div(threads, total), first(ndrange))
+    return (x, _threads_to_workgroupsize(threads, total * x, Base.tail(ndrange))...)
 end
 
 function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
