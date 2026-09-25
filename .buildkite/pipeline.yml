@@ -1,3 +1,9 @@
+# Commit message tags select what to run: `[only X]` runs only the listed steps, `[skip X]`
+# skips them, where X is a comma-separated list of: `tests` (everything but docs and
+# benchmarks), `julia` (released Julia versions), `nightly`, `cuda` (CUDA toolkits),
+# `downstream`, `special`, `docs`, `benchmarks`. Draft pull requests only test the newest
+# Julia release and nightly, unless steps are selected explicitly. See also GPUCompiler.jl's
+# CI, which uses the same tags.
 steps:
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
@@ -24,14 +30,14 @@ steps:
             )])
             Pkg.test(; test_args=["--quickfail"])'
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only julia\]/ ||
-          build.message !~ /\[only/ &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip julia\]/
+          build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+          (build.message =~ /\[only [^\]]*(tests|julia)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 90
 
-      - label: "Julia {{matrix.julia}}"
+      # the newest release, also tested on draft pull requests
+      - &julia
+        label: "Julia {{matrix.julia}}"
         plugins:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
@@ -45,23 +51,35 @@ steps:
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only julia\]/ ||
-          build.message !~ /\[only/ &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip julia\]/
+          build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+          (build.message =~ /\[only [^\]]*(tests|julia)/ || build.message !~ /\[only /)
         timeout_in_minutes: 90
+        matrix:
+          setup:
+            julia:
+              - "1.13"
+
+      # older releases
+      - <<: *julia
+        if: |
+          build.message !~ /\[skip [^\]]*(tests|julia)/ &&
+          (build.message =~ /\[only [^\]]*(tests|julia)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         matrix:
           setup:
             julia:
               - "1.11"
               - "1.12"
-              - "1.13"
+
+      - <<: *julia
+        if: |
+          build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
+          (build.message =~ /\[only [^\]]*(tests|nightly)/ || build.message !~ /\[only /)
+        soft_fail: true
+        matrix:
+          setup:
+            julia:
               - "nightly"
-          adjustments:
-            - with:
-                julia: "nightly"
-              soft_fail: true
 
   # then, test supported CUDA toolkits (installed through the artifact system)
   - group: "CUDA"
@@ -79,11 +97,9 @@ steps:
         agents:
           queue: "cuda"
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only cuda\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip cuda\]/
+          build.message !~ /\[skip [^\]]*(tests|cuda)/ &&
+          (build.message =~ /\[only [^\]]*(tests|cuda)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 120
         matrix:
           setup:
@@ -204,11 +220,9 @@ steps:
         agents:
           queue: "cuda"
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only downstream\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip downstream\]/
+          build.message !~ /\[skip [^\]]*(tests|downstream)/ &&
+          (build.message =~ /\[only [^\]]*(tests|downstream)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 60
         soft_fail: true
 
@@ -240,11 +254,9 @@ steps:
         agents:
           queue: "oneapi"
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only special\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip special\]/
+          build.message !~ /\[skip [^\]]*(tests|special)/ &&
+          (build.message =~ /\[only [^\]]*(tests|special)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 5
 
       - label: "Compute sanitizer"
@@ -258,11 +270,9 @@ steps:
         agents:
           queue: "cuda"
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only special\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip special\]/
+          build.message !~ /\[skip [^\]]*(tests|special)/ &&
+          (build.message =~ /\[only [^\]]*(tests|special)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 60
 
       - label: "Legacy memory allocator"
@@ -278,11 +288,9 @@ steps:
         env:
           JULIA_CUDA_MEMORY_POOL: 'none'
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only special\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip special\]/
+          build.message !~ /\[skip [^\]]*(tests|special)/ &&
+          (build.message =~ /\[only [^\]]*(tests|special)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 30
 
       - label: "CuArray with {{matrix.memory}} memory"
@@ -296,11 +304,9 @@ steps:
         agents:
           queue: "cuda"
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only special\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip special\]/
+          build.message !~ /\[skip [^\]]*(tests|special)/ &&
+          (build.message =~ /\[only [^\]]*(tests|special)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 45
         matrix:
           setup:
@@ -322,11 +328,9 @@ steps:
           queue: "cuda"
           multigpu: "*"
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only special\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip special\]/
+          build.message !~ /\[skip [^\]]*(tests|special)/ &&
+          (build.message =~ /\[only [^\]]*(tests|special)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 45
 
       - label: ":older_man: Old dependencies"
@@ -348,11 +352,9 @@ steps:
           julia -e 'using Pkg; Pkg.activate("/tmp/Resolver/bin"); Pkg.instantiate()'
           julia /tmp/Resolver/bin/resolve.jl . --min=@alldeps --julia="1.12"
         if: |
-          build.message =~ /\[only tests\]/ ||
-          build.message =~ /\[only special\]/ ||
-          build.message !~ /\[only/ && !build.pull_request.draft &&
-            build.message !~ /\[skip tests\]/ &&
-            build.message !~ /\[skip special\]/
+          build.message !~ /\[skip [^\]]*(tests|special)/ &&
+          (build.message =~ /\[only [^\]]*(tests|special)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 45
 
   - wait: ~
@@ -376,9 +378,9 @@ steps:
     agents:
       queue: "cuda"
     if: |
-      build.message =~ /\[only docs\]/ ||
-      build.message !~ /\[only/ && !build.pull_request.draft &&
-        build.message !~ /\[skip docs\]/
+      build.message !~ /\[skip [^\]]*(docs)/ &&
+      (build.message =~ /\[only [^\]]*(docs)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
     timeout_in_minutes: 15
 
   - label: ":racehorse: Benchmarks"
@@ -402,9 +404,9 @@ steps:
       benchmark: "*"
       gpu: "rtx2070"
     if: |
-      build.message =~ /\[only benchmarks\]/ ||
-      build.message !~ /\[only/ && !build.pull_request.draft &&
-        build.message !~ /\[skip benchmarks\]/
+      build.message !~ /\[skip [^\]]*(benchmarks)/ &&
+      (build.message =~ /\[only [^\]]*(benchmarks)/ ||
+       build.message !~ /\[only / && !build.pull_request.draft)
     timeout_in_minutes: 30
     soft_fail: true
 
