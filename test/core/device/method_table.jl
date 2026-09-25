@@ -44,9 +44,10 @@
                 push!(defs, (mod, name, line))
             end
         elseif Meta.isexpr(ex, :module)
-            # descend into submodules (e.g. `CUDACore.CG`)
-            submod = getfield(mod, ex.args[2]::Symbol)::Module
-            find_device_functions!(defs, ex.args[3], submod)
+            # descend into submodules (e.g. `CUDACore.CG`). the name and body are the last
+            # arguments; Julia 1.14 prepends the syntax version to them.
+            submod = getfield(mod, ex.args[end-1]::Symbol)::Module
+            find_device_functions!(defs, ex.args[end], submod)
         else
             foreach(arg -> find_device_functions!(defs, arg, mod), ex.args)
         end
