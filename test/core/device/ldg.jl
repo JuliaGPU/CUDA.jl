@@ -99,6 +99,34 @@ end
     @test Array(x) == Array(y)
 end
 
+@testset "Const bits union" begin
+    function copy_const(A, _B)
+        B = Base.Experimental.Const(_B)
+        i = threadIdx().x
+        if i <= length(A)
+            @inbounds A[i] = B[i]
+        end
+        return
+    end
+
+    buf = IOBuffer()
+
+    y = CuArray(Union{Missing,Int32}[1, missing, 3, missing])
+    x = CuArray{Union{Missing,Int32}}(undef, length(y))
+    @device_code_ptx io=buf @cuda threads=length(x) copy_const(x, y)
+    @test isequal(Array(x), Array(y))
+
+    # both the selector and the value are loaded through the read-only cache
+    asm = String(take!(copy(buf)))
+    @test occursin(r"ld\.global\.nc\.[bsu]8", asm)
+    @test occursin(r"ld\.global\.nc\.[bsu]32", asm)
+
+    y = CuArray(Union{Missing,Bool}[missing, true, false])
+    x = CuArray{Union{Missing,Bool}}(undef, length(y))
+    @cuda threads=length(x) copy_const(x, y)
+    @test isequal(Array(x), Array(y))
+end
+
 @testset "Const Vectorized" begin
     function kernel(a, b, i)
         ptr_a = reinterpret(Core.LLVMPtr{NTuple{4, Base.VecElement{Float32}},AS.Global}, pointer(a))
