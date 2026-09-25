@@ -85,9 +85,8 @@ end
 # check as redundant after the kernel's own `i <= length(A)`.
 @inline in_bounds(i::Integer, n::Int) = (one(i) <= i) & (i <= n)
 
+# unchecked element accessors; the bounds are checked by the callers (see `getindex`)
 @device_function @inline function arrayref(A::CuDeviceArray{T}, index::Integer) where {T}
-    @boundscheck in_bounds(index, length(A)) || Base.throw_boundserror(A, index)
-
     if Base.isbitsunion(T)
         arrayref_union(A, index)
     else
@@ -129,8 +128,6 @@ end
 end
 
 @device_function @inline function arrayset(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
-    @boundscheck in_bounds(index, length(A)) || Base.throw_boundserror(A, index)
-
     if Base.isbitsunion(T)
         arrayset_union(A, x, index)
     else
@@ -172,10 +169,14 @@ end
 
 Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
 
-Base.@propagate_inbounds Base.getindex(A::CuDeviceArray{T}, i1::Integer) where {T} =
+Base.@propagate_inbounds function Base.getindex(A::CuDeviceArray, i1::Integer)
+    @boundscheck in_bounds(i1, length(A)) || Base.throw_boundserror(A, i1)
     arrayref(A, i1)
-Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray{T}, x, i1::Integer) where {T} =
+end
+Base.@propagate_inbounds function Base.setindex!(A::CuDeviceArray{T}, x, i1::Integer) where {T}
+    @boundscheck in_bounds(i1, length(A)) || Base.throw_boundserror(A, i1)
     arrayset(A, convert(T,x)::T, i1)
+end
 
 # preserve the specific integer type when indexing device arrays,
 # to avoid extending 32-bit hardware indices to 64-bit.
@@ -185,18 +186,20 @@ Base.to_index(::CuDeviceArray, i::Integer) = i
 # See also: https://github.com/JuliaLang/julia/pull/42289
 #
 # Like Base, every index is checked against its dimension. Checking only the linear index
-# would accept out-of-bounds indices that happen to linearize into the array.
+# would accept out-of-bounds indices that happen to linearize into the array. The linear
+# index is then accessed without a check of its own, rather than relying on `@inbounds`,
+# which `--check-bounds=yes` ignores (and LLVM cannot prove the linear index in bounds).
 Base.@propagate_inbounds function Base.getindex(A::CuDeviceArray,
                                                 I::Union{Integer, CartesianIndex}...)
     J = to_indices(A, I)
     @boundscheck checkbounds_nd(A, J)
-    @inbounds A[Base._to_linear_index(A, J...)]
+    arrayref(A, Base._to_linear_index(A, J...))
 end
-Base.@propagate_inbounds function Base.setindex!(A::CuDeviceArray, x,
-                                                 I::Union{Integer, CartesianIndex}...)
+Base.@propagate_inbounds function Base.setindex!(A::CuDeviceArray{T}, x,
+                                                 I::Union{Integer, CartesianIndex}...) where {T}
     J = to_indices(A, I)
     @boundscheck checkbounds_nd(A, J)
-    @inbounds A[Base._to_linear_index(A, J...)] = x
+    arrayset(A, convert(T,x)::T, Base._to_linear_index(A, J...))
 end
 
 @inline function checkbounds_nd(A::CuDeviceArray{<:Any,N}, I::Tuple) where {N}
