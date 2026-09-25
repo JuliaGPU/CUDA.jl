@@ -206,8 +206,14 @@ end
     return Float16(muladd(f, 2f0^-24, f))
 end
 @device_override FastMath.exp2_fast(x::Float64) = exp2(x)
-@device_override FastMath.exp2_fast(x::Float32) =
-    ccall("llvm.nvvm.ex2.approx.f", llvmcall, Float32, (Float32,), x)
+@device_override function FastMath.exp2_fast(x::Float32)
+    # LLVM 21 made `ex2.approx` an overloaded intrinsic
+    @static if Base.libllvm_version >= v"21"
+        ccall("llvm.nvvm.ex2.approx.f32", llvmcall, Float32, (Float32,), x)
+    else
+        ccall("llvm.nvvm.ex2.approx.f", llvmcall, Float32, (Float32,), x)
+    end
+end
 @device_override function FastMath.exp2_fast(x::Float16)
     if compute_capability() >= sv"7.5"
         ccall("llvm.nvvm.ex2.approx.f16", llvmcall, Float16, (Float16,), x)
