@@ -236,10 +236,18 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     for T in (Int32,), op in (:inc, :dec)
         nb = sizeof(T)*8
         fn = Symbol("atomic_$(op)!")
-        intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
-        @eval @device_function @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T,
-                                           ::Val{:device}=Val(:device)) =
-            @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
+        @static if Base.libllvm_version >= v"21"
+            # LLVM 21 removed these intrinsics in favor of `atomicrmw uinc_wrap/udec_wrap`
+            binop = op == :inc ? LLVM.API.LLVMAtomicRMWBinOpUIncWrap :
+                                 LLVM.API.LLVMAtomicRMWBinOpUDecWrap
+            @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T, ::Val{:device}=Val(:device)) =
+                llvm_atomic_op($(Val(binop)), ptr, val, Val(:device))
+        else
+            intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
+            @eval @device_function @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T,
+                                               ::Val{:device}=Val(:device)) =
+                @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
+        end
     end
 end
 
