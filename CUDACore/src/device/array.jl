@@ -96,7 +96,10 @@ end
     unsafe_load(pointer(A), index, Val(align))
 end
 
-@inline @generated function arrayref_union(A::CuDeviceArray{T,<:Any,AS}, index::Integer) where {T,AS}
+# `load` is the function used to read the selector and the value (`unsafe_load` or
+# `unsafe_cached_load`)
+@inline @generated function arrayref_union(A::CuDeviceArray{T,<:Any,AS}, index::Integer,
+                                           load=unsafe_load) where {T,AS}
     typs = Base.uniontypes(T)
 
     # generate code that conditionally loads a value based on the selector value.
@@ -106,7 +109,7 @@ end
         ex = quote
             if selector == $(sel-1)
                 ptr = reinterpret(LLVMPtr{$typ,AS}, data_ptr)
-                unsafe_load(ptr, 1, Val(align))
+                load(ptr, 1, Val(align))
             else
                 $ex
             end
@@ -115,7 +118,7 @@ end
 
     quote
         selector_ptr = typetagdata(A, index)
-        selector = unsafe_load(selector_ptr)
+        selector = load(selector_ptr)
 
         align = alignment(A)
         data_ptr = pointer(A, index)
@@ -163,8 +166,12 @@ end
     #@boundscheck checkbounds(A, index)
     @boundscheck index <= length(A) || Base.throw_boundserror(A, index)
 
-    align = alignment(A)
-    unsafe_cached_load(pointer(A), index, Val(align))
+    if Base.isbitsunion(T)
+        arrayref_union(A, index, unsafe_cached_load)
+    else
+        align = alignment(A)
+        unsafe_cached_load(pointer(A), index, Val(align))
+    end
 end
 
 
