@@ -115,9 +115,20 @@ function ParallelTestRunner.execute(::Type{CUDATestRecord}, mod::Module, f, name
     data = @eval mod begin
         GC.gc(true)
         Random.seed!(1)
-        stats = CUDA.@timed @testset WorkerTestSet "placeholder" begin
-            @testset DefaultTestSet $name begin
-                $f
+        stats = let completed_testset = nothing
+            try
+                CUDA.@timed begin
+                    completed_testset = @testset WorkerTestSet "placeholder" begin
+                        @testset DefaultTestSet $name begin
+                            $f
+                        end
+                    end
+                end
+            catch
+                # A GPU fault can also make the timing wrapper's final synchronization fail.
+                # Print the recorded failures before that error replaces the test results.
+                completed_testset === nothing || Test.print_test_errors(completed_testset)
+                rethrow()
             end
         end
         (; testset = stats.value,

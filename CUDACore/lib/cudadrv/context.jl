@@ -95,6 +95,8 @@ respect any users of the context, and might make other objects unusable.
 """
 function unsafe_destroy!(ctx::CuContext)
     if isvalid(ctx)
+        hostcall_forget!(ctx)
+        forget_exceptions!(ctx)
         cuCtxDestroy_v2(ctx)
     end
 end
@@ -230,6 +232,8 @@ in the current process. Note that this forcibly invalidates all contexts derived
 primary context, and as a result outstanding resources might become invalid.
 """
 function unsafe_reset!(pctx::CuPrimaryContext)
+    hostcall_forget!(pctx.dev)
+    forget_exceptions!(pctx.dev)
     if driver_version() >= v"11"
         cuDevicePrimaryCtxReset_v2(pctx.dev)
     else
