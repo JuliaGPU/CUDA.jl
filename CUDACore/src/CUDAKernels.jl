@@ -1,4 +1,4 @@
-module CUDAInterface
+module CUDAKernels
 
 using ..CUDACore
 using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays
@@ -177,6 +177,19 @@ end
 
 @device_override @inline function KI._print(args...)
     CUDACore._cuprint(args...)
+end
+
+## events
+
+function KI.record_event(::CUDABackend)
+    ev = CuEvent(CUDACore.EVENT_DISABLE_TIMING)
+    record(ev, stream())
+    return ev
+end
+
+function KI.wait_event(::CUDABackend, ev::CuEvent)
+    CUDACore.wait(ev, stream())
+    return
 end
 
 ## events
