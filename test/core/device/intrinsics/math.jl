@@ -275,6 +275,12 @@ using SpecialFunctions
         @test testf(x->exp.(x), [1e7im])
     end
     
+    @testset "sincospi" begin
+        @testset "$T" for T in (Float32, Float64)
+            @test testf(x->sincospi.(x), rand(T, 1))
+        end
+    end
+    
     @testset "Real - $op" for op in (abs, abs2, exp, exp10, log, log10)
         @testset "$T" for T in (Float16, Float32, Float64)
             @test testf(x->op.(x), rand(T, 1))
@@ -311,7 +317,7 @@ using SpecialFunctions
             @inbounds @fastmath A[i] = A[i]^y
             return nothing
         end
-        for T in (Float32, Float64)
+        for T in (Float16, Float32, Float64)
             A = CUDA.ones(T, 4)
             @cuda threads=4 fastpow_kernel(A, Int32(3))
             @test Array(A) == ones(T, 4)
