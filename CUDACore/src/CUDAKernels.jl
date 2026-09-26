@@ -120,8 +120,6 @@ function _threads_to_workgroupsize(threads, total, ndrange::Tuple)
 end
 
 function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
-    backend = KA.backend(obj)
-
     ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
     # this might not be the final context, since we may tune the workgroupsize
     ctx = KA.mkcontext(obj, ndrange, iterspace)
@@ -133,7 +131,22 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    call = CUDACore.kernel_call(obj.f, (ctx, args...))
+    # convert assuming 32-bit indices, which is type stable (see `with_kernel_call`)
+    to = CUDACore.KernelAdaptor{Int32}()
+    call = CUDACore.kernel_call(CUDACore.LLVMBackend(), obj.f, (ctx, args...), to)
+    if to.fits[]
+        launch(obj, call, ndrange, workgroupsize, iterspace, maxthreads)
+    else
+        to = CUDACore.KernelAdaptor{Int64}()
+        call = CUDACore.kernel_call(CUDACore.LLVMBackend(), obj.f, (ctx, args...), to)
+        launch(obj, call, ndrange, workgroupsize, iterspace, maxthreads)
+    end
+    return nothing
+end
+
+@inline function launch(obj::KA.Kernel{CUDABackend}, call, ndrange, workgroupsize, iterspace,
+                maxthreads)
+    backend = KA.backend(obj)
     kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline,
                                      fastmath=backend.fastmath, maxthreads)
 
