@@ -18,6 +18,7 @@ using LLVM.Interop
 using Core: LLVMPtr
 
 import KernelAbstractions
+import KernelInterface
 
 using Adapt: Adapt, adapt, WrappedArray
 
@@ -124,9 +125,13 @@ include("complex.jl")
 include("library_types.jl")
 
 # KernelAbstractions
-include("CUDAKernels.jl")
+include("CUDAKernelsOld.jl")
 import .CUDAKernels: CUDABackend
 export CUDABackend
+
+# KernelInterface - NOT PUBLIC. Use KernelInterface.get_backend on an CLArray to get the backend
+include("CUDAKernels.jl")
+import .CUDAInterface
 
 # StaticArrays is still a direct dependency, so directly include the extension
 include("../ext/StaticArraysExt.jl")
