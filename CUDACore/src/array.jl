@@ -1,5 +1,6 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, is_device, is_unified, is_host
-@public supports_hmm, enable_synchronization!, unsafe_free!, fill, ones, zeros, resize!
+@public supports_hmm, enable_synchronization!, unsafe_free!, fill, ones, zeros, resize!,
+        unsafe_wrap!
 
 
 ## array type
@@ -348,6 +349,63 @@ Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
   unsafe_wrap(CuArray{T,N}, pointer(a), size(a))
 Base.unsafe_wrap(::Type{CuArray{T,N,M}}, a::Array{T,N}) where {T,N,M} =
   unsafe_wrap(CuArray{T,N,M}, pointer(a), size(a))
+
+"""
+    unsafe_wrap!(a::CuArray{T,N}, ptr::Union{Ptr{T},CuPtr{T}}, dims; ctx=context())
+    unsafe_wrap!(a::CuArray{T,N}, b::Array{T,N})
+
+Update the non-owning `a`, e.g. an array created by [`unsafe_wrap`](@ref), to wrap the
+memory at `ptr` with dimensions `dims`, re-using the existing array object instead of
+allocating a new one. Returns `a`.
+
+If `a` already wraps that exact memory with those dimensions, this is a no-op, making it
+cheap to call unconditionally, e.g., before every use of a wrapper around an
+externally-managed buffer that may have been reallocated or resized since.
+
+Only arrays that do not own their memory can be re-wrapped, and no derived arrays (such as
+`view`s or `reshape`s) may be alive that share it.
+"""
+function unsafe_wrap!(a::CuArray{T,N,M}, p::Union{Ptr{T},CuPtr{T}}, dims::NTuple{N,Int};
+                      ctx::CuContext=context()) where {T,N,M}
+  rc = a.data.rc
+  if a.data.freed
+    throw(ArgumentError("Cannot re-wrap a freed array."))
+  end
+  if rc.count[] != 1
+    throw(ArgumentError("Cannot re-wrap an array while derived arrays share its memory."))
+  end
+  if !(rc.finalizer === nothing || rc.finalizer === Returns(nothing))
+    throw(ArgumentError("Can only re-wrap arrays that do not own their memory."))
+  end
+
+  maxsize = prod(dims) * aligned_sizeof(T)
+  if UInt(pointer(rc.obj.mem)) != UInt(p)
+    ptr = reinterpret(CuPtr{Nothing}, p)
+    mem = if M == UnifiedMemory
+      UnifiedMemory(ctx, ptr, maxsize)
+    elseif M == DeviceMemory
+      p isa CuPtr || throw(ArgumentError("Cannot wrap system memory as $M"))
+      DeviceMemory(device(ctx), ctx, ptr, maxsize, false)
+    else
+      throw(ArgumentError("Cannot re-wrap $M arrays"))
+    end
+    rc.obj = Managed(mem)
+  end
+  if a.dims != dims || a.offset != 0
+    # NOTE: the memory object may keep a stale bytesize when only the dims change;
+    # like after `resize!`, `maxsize` is what governs the array's extent.
+    a.dims = dims
+    a.maxsize = maxsize
+    a.offset = 0
+  end
+  return a
+end
+# integer size input
+unsafe_wrap!(a::CuVector{T}, p::Union{Ptr{T},CuPtr{T}}, dim::Int; kwargs...) where {T} =
+  unsafe_wrap!(a, p, (dim,); kwargs...)
+# array input
+unsafe_wrap!(a::CuArray{T,N}, b::Array{T,N}; kwargs...) where {T,N} =
+  unsafe_wrap!(a, pointer(b), size(b); kwargs...)
 
 
 ## array interface
