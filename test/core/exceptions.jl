@@ -88,6 +88,31 @@ end
 
 end
 
+@testset "bounds errors through generic checkbounds" begin
+    # e.g. indexing a view uses Base's `checkbounds(::AbstractArray, I...)`
+    script = """
+        using CUDA
+
+        function kernel(arr)
+            view(arr, 1:1)[threadIdx().x] = 1
+            return
+        end
+
+        gpu = CuArray(zeros(Int, 2))
+        @cuda threads=2 kernel(gpu)
+        synchronize()
+        sleep(1)
+        synchronize()
+    """
+
+    let (proc, out, err) = julia_exec(`-g1 -e $script`)
+        @test !success(proc)
+        @test occursin(host_error_re, err)
+        @test count("BoundsError", out) == 1
+        @test count("Out-of-bounds array access", out) == 1
+    end
+end
+
 @testset "#329" begin
 
 script = """

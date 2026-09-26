@@ -14,7 +14,14 @@ Waits until all threads in the thread block have reached this point and all glob
 shared memory accesses made by these threads prior to `sync_threads()` are visible to all
 threads in the block.
 """
-@inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
+@inline function sync_threads()
+    # LLVM 21 replaced the `barrier0` family of intrinsics with `barrier.cta` ones
+    @static if Base.libllvm_version >= v"21"
+        ccall("llvm.nvvm.barrier.cta.sync.aligned.all", llvmcall, Cvoid, (Int32,), 0)
+    else
+        ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
+    end
+end
 
 """
     sync_threads_count(predicate)
@@ -23,8 +30,14 @@ Identical to `sync_threads()` with the additional feature that it evaluates pred
 all threads of the block and returns the number of threads for which `predicate` evaluates
 to true.
 """
-@inline sync_threads_count(predicate) =
-    ccall("llvm.nvvm.barrier0.popc", llvmcall, Int32, (Int32,), predicate)
+@inline function sync_threads_count(predicate)
+    @static if Base.libllvm_version >= v"21"
+        @typed_ccall("llvm.nvvm.barrier.cta.red.popc.aligned.all", llvmcall, Int32,
+                     (Int32, Bool), 0, !iszero(predicate))
+    else
+        ccall("llvm.nvvm.barrier0.popc", llvmcall, Int32, (Int32,), predicate)
+    end
+end
 
 """
     sync_threads_and(predicate)
@@ -33,8 +46,14 @@ Identical to `sync_threads()` with the additional feature that it evaluates pred
 all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
 for all of them.
 """
-@inline sync_threads_and(predicate) =
-    ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate) != Int32(0)
+@inline function sync_threads_and(predicate)
+    @static if Base.libllvm_version >= v"21"
+        @typed_ccall("llvm.nvvm.barrier.cta.red.and.aligned.all", llvmcall, Bool,
+                     (Int32, Bool), 0, !iszero(predicate))
+    else
+        ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate) != Int32(0)
+    end
+end
 
 """
     sync_threads_or(predicate)
@@ -43,8 +62,14 @@ Identical to `sync_threads()` with the additional feature that it evaluates pred
 all threads of the block and returns `true` if and only if `predicate` evaluates to `true`
 for any of them.
 """
-@inline sync_threads_or(predicate) =
-    ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate) != Int32(0)
+@inline function sync_threads_or(predicate)
+    @static if Base.libllvm_version >= v"21"
+        @typed_ccall("llvm.nvvm.barrier.cta.red.or.aligned.all", llvmcall, Bool,
+                     (Int32, Bool), 0, !iszero(predicate))
+    else
+        ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate) != Int32(0)
+    end
+end
 
 """
     sync_warp(mask::Integer=FULL_MASK)
@@ -108,8 +133,13 @@ end # @device_functions
 
 export barrier_sync
 
-@device_function barrier_sync(id=0) =
-    ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
+@device_function function barrier_sync(id=0)
+    @static if Base.libllvm_version >= v"21"
+        ccall("llvm.nvvm.barrier.cta.sync.all", llvmcall, Cvoid, (Int32,), id)
+    else
+        ccall("llvm.nvvm.barrier.sync", llvmcall, Cvoid, (Int32,), id)
+    end
+end
 
 export cluster_arrive, cluster_arrive_relaxed, cluster_wait
 
