@@ -17,6 +17,30 @@ using LinearAlgebra, SparseArrays
         @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
     end
 
+    @testset "$f" for f in [one, oneunit]
+        n = 10
+        A = sprand(elty, n, n, 0.1)
+        csr = CuSparseMatrixCSR(A)
+        for dA in (CuSparseMatrixCSC(A), csr, CuSparseMatrixCOO(A),
+                   CuSparseMatrixBSR{elty}(csr, 2; dir='R'),
+                   CuSparseMatrixBSR{elty}(csr, 2; dir='C'))
+            J = f(dA)
+            @test J isa typeof(dA)
+            @test Array(J) == Matrix{elty}(I, n, n)
+        end
+
+        # the last block extends past the matrix (BSR to CSR conversion keeps that padding)
+        J = f(CuSparseMatrixBSR(CuSparseMatrixCSR(sprand(elty, n-1, n-1, 0.1)), 2))
+        S = SparseMatrixCSC(CuSparseMatrixCSR(J))
+        @test S[1:n-1, 1:n-1] == Matrix{elty}(I, n-1, n-1)
+        @test sum(S) == n-1
+
+        csr = CuSparseMatrixCSR(sprand(elty, n, n+1, 0.1))
+        for dA in (CuSparseMatrixCSC(csr), csr, CuSparseMatrixCOO(csr), CuSparseMatrixBSR(csr, 1))
+            @test_throws DimensionMismatch f(dA)
+        end
+    end
+
     @testset "UniformScaling and Diagonal operations" begin
         mU = 100
         AU = sprand(elty, mU, mU, 0.1)
@@ -210,4 +234,15 @@ end
     @test S_zb_csc isa CuSparseMatrixCSC
     @test size(S_zb_csc) == (0, 0)
     @test nnz(S_zb_csc) == 0
+end
+
+@testset "one with integer elements" begin
+    n = 4
+    A = sparse(Int32[1, 3], Int32[2, 4], Int32[5, 6], n, n)
+    csr = CuSparseMatrixCSR(A)
+    for dA in (CuSparseMatrixCSC(A), csr, CuSparseMatrixCOO(A), CuSparseMatrixBSR(csr, 2))
+        J = one(dA)
+        @test J isa typeof(dA)
+        @test Array(J) == Matrix{Int32}(I, n, n)
+    end
 end
