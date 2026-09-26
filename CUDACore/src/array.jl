@@ -484,8 +484,12 @@ end
 ## interop with device arrays
 
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, pointer(a)), size(a),
-                               a.maxsize - a.offset)
+  I = index_type(size(a))
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global,I}, a)
+end
+function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global,I}}, a::DenseCuArray{T,N}) where {T,N,I}
+  CuDeviceArray{T,N,AS.Global,I}(reinterpret(LLVMPtr{T,AS.Global}, pointer(a)), size(a),
+                                 a.maxsize - a.offset)
 end
 
 

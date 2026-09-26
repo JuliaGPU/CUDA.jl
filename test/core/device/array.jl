@@ -46,6 +46,78 @@ end
     @test input ≈ output
 end
 
+@testset "index type" begin
+    a = CuArray{Float32}(undef, 2, 3)
+    da = cudaconvert(a)
+    @test da isa CuDeviceArray{Float32,2,AS.Global,Int32}
+    # the index type doesn't change the array interface
+    @test size(da) === (2, 3)
+    @test length(da) === 6
+
+    # arrays that are too large for 32-bit indices (only converted, never accessed)
+    GC.@preserve a begin
+        big = unsafe_wrap(CuArray, pointer(a), (2, 2^30))
+        @test cudaconvert(big) isa CuDeviceArray{Float32,2,AS.Global,Int64}
+        @test size(cudaconvert(big)) === (2, 2^30)
+
+        # every dimension needs to fit too, not only the length
+        empty = unsafe_wrap(CuArray, pointer(a), (0, 2^40))
+        @test cudaconvert(empty) isa CuDeviceArray{Float32,2,AS.Global,Int64}
+        @test size(cudaconvert(empty)) === (0, 2^40)
+
+        # empty arrays whose dimensions fit, but whose partial products don't
+        empty = unsafe_wrap(CuArray, pointer(a), (2^16, 2^16, 0))
+        @test cudaconvert(empty) isa CuDeviceArray{Float32,3,AS.Global,Int32}
+    end
+
+    ptr = reinterpret(Core.LLVMPtr{Float32,AS.Global}, C_NULL)
+    @test_throws ArgumentError CuDeviceArray{Float32,2,AS.Global,Int32}(ptr, (2, 2^30))
+    @test_throws ArgumentError CuDeviceArray{Float32,2,AS.Global,Int32}(ptr, (0, 2^40))
+    @test_throws ArgumentError CuDeviceArray{Float32,2,AS.Global,Int64}(ptr, (0, Int128(2)^64), 0)
+
+    # shared memory checks dimensions that don't fit, even if the array is empty
+    # (throwing on the device would break the context, so only check the code)
+    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceVector{Int,AS.Global,Int32},Int}) do out, n
+        @check "throw_index_type_error"
+        sh = CuDynamicSharedArray(UInt8, (0, n))
+        @inbounds out[1] = size(sh, 2)
+        return
+    end
+
+    # both index types compute the same thing
+    function kernel(B, A)
+        i = threadIdx().x
+        j = blockIdx().x
+        @inbounds B[i, j] = 2 * A[i, j] + A[CartesianIndex(i, j)] + A[i + (j - 1) * size(A, 1)]
+        return
+    end
+    A = CUDA.rand(Float32, 7, 5)
+    B = CUDA.zeros(Float32, 7, 5)
+    @cuda threads=7 blocks=5 kernel(B, A)
+    @test Array(B) ≈ 4 .* Array(A)
+    GC.@preserve A B begin
+        dA = Base.unsafe_convert(CuDeviceArray{Float32,2,AS.Global,Int64}, A)
+        dB = Base.unsafe_convert(CuDeviceArray{Float32,2,AS.Global,Int64}, B)
+        fill!(B, 0)
+        @cuda threads=7 blocks=5 kernel(dB, dA)
+        @test Array(B) ≈ 4 .* Array(A)
+
+        # kernels compiled for one index type can be called with arrays of another
+        k = @cuda launch=false kernel(B, A)
+        fill!(B, 0)
+        k(dB, dA; threads=7, blocks=5)
+        @test Array(B) ≈ 4 .* Array(A)
+    end
+
+    # multidimensional indexing of arrays with 32-bit indices uses 32-bit arithmetic
+    @test @filecheck CUDA.code_ptx(Tuple{CuDeviceArray{Float32,3,AS.Global,Int32},Int,Int,Int}) do A, i, j, k
+        @check_not "mul.lo.s64"
+        @check_not "mad.lo.s64"
+        @inbounds A[i, j, k] = 1
+        return
+    end
+end
+
 @testset "iteration" begin     # argument passing, get and setindex, length
     dims = (16, 16)
     function kernel(input::CuDeviceArray{T}, output::CuDeviceArray{T}) where {T}
@@ -85,7 +157,7 @@ end
 
     @testset "#313" begin
         kernel = dest -> (dest[1] = 1; nothing)
-        tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
+        tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global,Int32},
                             Tuple{UnitRange{Int64},UnitRange{Int64}},false}}
         @test @filecheck CUDA.code_llvm(tt) do dest
             @check_not "jl_invoke"
@@ -98,8 +170,8 @@ end
 
     # test that we don't do needless bounds checking when the kernel already does it
     # (enabled by the fact that we store `len` next to `dims`)
-    for N in 1:3
-        @test @filecheck CUDA.code_llvm(Tuple{CuDeviceArray{Int,N,AS.Global}}) do A
+    for N in 1:3, I in (Int32, Int64)
+        @test @filecheck CUDA.code_llvm(Tuple{CuDeviceArray{Int,N,AS.Global,I}}) do A
             @check_not "boundserror"
             idx = threadIdx().x
             if idx <= length(A)
@@ -109,14 +181,16 @@ end
             return
         end
     end
-    @test @filecheck CUDA.code_llvm(Tuple{CuDeviceArray{Int,2,AS.Global}}) do A
-        @check_not "boundserror"
-        i = threadIdx().x
-        j = blockIdx().x
-        if i <= size(A, 1) && j <= size(A, 2)
-            A[i, j] = 1
+    for I in (Int32, Int64)
+        @test @filecheck CUDA.code_llvm(Tuple{CuDeviceArray{Int,2,AS.Global,I}}) do A
+            @check_not "boundserror"
+            i = threadIdx().x
+            j = blockIdx().x
+            if i <= size(A, 1) && j <= size(A, 2)
+                A[i, j] = 1
+            end
+            return
         end
-        return
     end
 end
 

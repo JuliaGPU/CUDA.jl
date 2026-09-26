@@ -15,6 +15,24 @@ are listed as subsections of the minor release they belong to.
 
 ## v6.5 (unreleased)
 
+Kernels index arrays using 32-bit arithmetic when possible. Arrays whose
+dimensions and length fit in an `Int32` are passed to kernels as
+`CuDeviceArray`s that store their dimensions as `Int32`, and indexing them
+(including with multiple or Cartesian indices) is computed using 32-bit
+integers. This reduces the instruction count and register usage of kernels that
+index multidimensional arrays, without having to write `1i32` or convert
+indices: `size` and `length` still return `Int`, and indices can have any
+integer type. Larger arrays keep using 64-bit indices.
+
+**Breaking**: to support this, `CuDeviceArray` has a fourth type parameter for
+its index type, so `CuDeviceArray{T,N,A}` (and `CuDeviceVector{T,A}`,
+`CuDeviceMatrix{T,A}`) is no longer a concrete type. Code that spells it out
+as one needs to add the index type: in a signature passed to `cufunction` or
+`CUDA.code_ptx`, use `Int32` to match what small arrays are converted to; as a
+field type of a struct that is passed to kernels, use `Int64` (which fits any
+array) or, better, a type parameter. A kernel compiled for one index type can
+still be called with device arrays of the other, as long as they fit.
+
 *Bug fixes*:
 
 - Indexing a `CuDeviceArray` with multiple indices checks every index against

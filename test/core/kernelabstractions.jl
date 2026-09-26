@@ -26,10 +26,12 @@ end
 include(joinpath(dirname(pathof(KernelAbstractions)), "..", "test", "testsuite.jl"))
 
 ka_skip_tests = Set{String}(["sparse"])
-Testsuite.testsuite(()->CUDABackend(false, false), "CUDA", CUDA, CuArray, CuDeviceArray;
+# host arrays are converted to device arrays with 32-bit indices
+ka_device_array = CuDeviceArray{T,N,A,Int32} where {T,N,A}
+Testsuite.testsuite(()->CUDABackend(false, false), "CUDA", CUDA, CuArray, ka_device_array;
                     skip_tests=ka_skip_tests)
 for (PreferBlocks, AlwaysInline) in Iterators.product((true, false), (true, false))
-    Testsuite.unittest_testsuite(()->CUDABackend(PreferBlocks, AlwaysInline), "CUDA", CUDA, CuDeviceArray;
+    Testsuite.unittest_testsuite(()->CUDABackend(PreferBlocks, AlwaysInline), "CUDA", CUDA, ka_device_array;
                                  skip_tests=ka_skip_tests)
 end
 
