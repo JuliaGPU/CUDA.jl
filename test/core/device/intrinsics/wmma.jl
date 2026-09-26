@@ -249,6 +249,108 @@ end
             end
         end
     end
+
+    # m8n8k4 f64 WMMA requires sm_80+ (Ampere) and is the only WMMA shape/type
+    # that exposes hardware rounding-mode selection.
+    if capability(device()) >= v"8.0"
+    @testset "llvm_wmma_mma (Float64 rounding)" begin
+        m, n, k = 8, 8, 4
+        round_modes = ((RoundNearest, "rn"), (RoundToZero, "rz"),
+                       (RoundDown,    "rm"), (RoundUp,     "rp"))
+
+        @testset "$(a_layout)_$(b_layout)" for a_layout in ("col", "row"),
+                                                b_layout in ("col", "row")
+            lda = getfield(@__MODULE__, Symbol("llvm_wmma_load_a_$(a_layout)_m8n8k4_global_stride_f64"))
+            ldb = getfield(@__MODULE__, Symbol("llvm_wmma_load_b_$(b_layout)_m8n8k4_global_stride_f64"))
+            ldc = getfield(@__MODULE__, Symbol("llvm_wmma_load_c_col_m8n8k4_global_stride_f64"))
+            std = getfield(@__MODULE__, Symbol("llvm_wmma_store_d_col_m8n8k4_global_stride_f64"))
+            mma = getfield(@__MODULE__, Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_m8n8k4_f64"))
+
+            a_shape = a_layout == "col" ? (m, k) : (k, m)
+            b_shape = b_layout == "col" ? (k, n) : (n, k)
+            cd_shape = (m, n)
+
+            # Inputs chosen so that A*B + C has bits below Float64 precision,
+            # making the four rounding modes produce different results.
+            a = rand(Float64, a_shape) .+ Float64(π)
+            b = rand(Float64, b_shape) .+ Float64(ℯ)
+            c = rand(Float64, cd_shape) .* Float64(π)
+
+            a_dev = CuArray(a); b_dev = CuArray(b); c_dev = CuArray(c)
+
+            # One kernel that takes the rounding mode as a (compile-time) singleton.
+            @eval function kernel_rmode(a_dev, b_dev, c_dev, d_dev, rmode)
+                a_frag = $lda(pointer(a_dev), $(a_shape[1]))
+                b_frag = $ldb(pointer(b_dev), $(b_shape[1]))
+                c_frag = $ldc(pointer(c_dev), $(cd_shape[1]))
+                d_frag = $mma(a_frag, b_frag, c_frag, rmode)
+                $std(pointer(d_dev), d_frag, $(cd_shape[1]))
+                return
+            end
+
+            run_mode(rmode) = begin
+                d_dev = CuArray{Float64}(undef, cd_shape)
+                @cuda threads=32 kernel_rmode(a_dev, b_dev, c_dev, d_dev, rmode)
+                Array(d_dev)
+            end
+
+            d_rn = run_mode(RoundNearest)
+            d_rz = run_mode(RoundToZero)
+            d_rp = run_mode(RoundUp)
+            d_rm = run_mode(RoundDown)
+
+            new_a = a_layout == "col" ? a : transpose(a)
+            new_b = b_layout == "col" ? b : transpose(b)
+            expected = new_a * new_b + c
+
+            # All modes are close to the BLAS reference within Float64 precision.
+            @test d_rn ≈ expected rtol=Base.rtoldefault(Float64)
+            @test d_rz ≈ expected rtol=Base.rtoldefault(Float64)
+            @test d_rp ≈ expected rtol=Base.rtoldefault(Float64)
+            @test d_rm ≈ expected rtol=Base.rtoldefault(Float64)
+
+            # Rounding ordering: RoundDown ≤ RoundNearest ≤ RoundUp, elementwise.
+            @test all(d_rm .<= d_rn)
+            @test all(d_rn .<= d_rp)
+
+            # Inputs are positive, so RoundToZero matches RoundDown.
+            @test d_rz == d_rm
+
+            # Sanity: at least one element actually differs between Down and Up,
+            # i.e. we are genuinely exercising directed rounding.
+            @test any(d_rm .!= d_rp)
+
+            # The bare 3-arg form must equal the explicit RoundNearest form.
+            @eval function kernel_default(a_dev, b_dev, c_dev, d_dev)
+                a_frag = $lda(pointer(a_dev), $(a_shape[1]))
+                b_frag = $ldb(pointer(b_dev), $(b_shape[1]))
+                c_frag = $ldc(pointer(c_dev), $(cd_shape[1]))
+                d_frag = $mma(a_frag, b_frag, c_frag)
+                $std(pointer(d_dev), d_frag, $(cd_shape[1]))
+                return
+            end
+            d_default_dev = CuArray{Float64}(undef, cd_shape)
+            @cuda threads=32 kernel_default(a_dev, b_dev, c_dev, d_default_dev)
+            @test Array(d_default_dev) == d_rn
+
+            # Suffixed wrappers (..._rn/_rz/_rm/_rp) must equal the dispatched form.
+            @testset "suffixed wrapper $(suffix)" for (rmode, suffix) in round_modes
+                mma_sfx = getfield(@__MODULE__, Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_m8n8k4_f64_$(suffix)"))
+                @eval function kernel_sfx(a_dev, b_dev, c_dev, d_dev)
+                    a_frag = $lda(pointer(a_dev), $(a_shape[1]))
+                    b_frag = $ldb(pointer(b_dev), $(b_shape[1]))
+                    c_frag = $ldc(pointer(c_dev), $(cd_shape[1]))
+                    d_frag = $mma_sfx(a_frag, b_frag, c_frag)
+                    $std(pointer(d_dev), d_frag, $(cd_shape[1]))
+                    return
+                end
+                d_sfx_dev = CuArray{Float64}(undef, cd_shape)
+                @cuda threads=32 kernel_sfx(a_dev, b_dev, c_dev, d_sfx_dev)
+                @test Array(d_sfx_dev) == run_mode(rmode)
+            end
+        end
+    end
+    end
 end
 
 ################################################################################
@@ -470,6 +572,72 @@ if capability(device()) >= v"8.9"
         else
             @test Float32(alpha) * Float32.(new_a) * Float32.(new_b) ≈ new_d rtol=Base.rtoldefault(BFloat16)
         end
+    end
+end
+end
+
+################################################################################
+
+# m8n8k4 f64 WMMA requires sm_80+ (Ampere)
+if capability(device()) >= v"8.0"
+@testset "CUDA C-style API (Float64 rounding)" begin
+    @testset "$(do_mac ? "MAC" : "MUL"), A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout, rmode: $rmode" for
+        a_layout in [ColMajor, RowMajor],
+        b_layout in [ColMajor, RowMajor],
+        c_layout in [ColMajor, RowMajor],
+        d_layout in [ColMajor, RowMajor],
+        rmode    in [RoundNearest, RoundToZero, RoundDown, RoundUp],
+        do_mac   in [true, false]
+
+        a = rand(Float64, (8, 4)) .+ Float64(π)
+        b = rand(Float64, (4, 8)) .+ Float64(ℯ)
+        c = rand(Float64, (8, 8)) .* Float64(π)
+        d = Array{Float64}(undef, (8, 8))
+
+        a_dev = CuArray(a_layout == ColMajor ? a : collect(transpose(a)))
+        b_dev = CuArray(b_layout == ColMajor ? b : collect(transpose(b)))
+        c_dev = CuArray(c_layout == ColMajor ? c : collect(transpose(c)))
+        d_dev = CuArray(d)
+
+        @eval function kernel_f64(a_dev, b_dev, c_dev, d_dev)
+            conf = Config{8, 8, 4, Float64}
+
+            a_frag = load_a(pointer(a_dev), 8, $a_layout, conf)
+            b_frag = load_b(pointer(b_dev), 4, $b_layout, conf)
+
+            if $do_mac
+                c_frag = load_c(pointer(c_dev), 8, $c_layout, conf)
+            else
+                c_frag = fill_c(Float64(0), conf)
+            end
+
+            d_frag = mma(a_frag, b_frag, c_frag, conf, $rmode)
+
+            store_d(pointer(d_dev), d_frag, 8, $d_layout, conf)
+
+            return
+        end
+
+        @cuda threads=32 kernel_f64(a_dev, b_dev, c_dev, d_dev)
+        d = Array(d_dev)
+
+        new_d = (d_layout == ColMajor) ? d : transpose(d)
+
+        if do_mac
+            @test a * b + c ≈ new_d rtol=Base.rtoldefault(Float64)
+        else
+            @test a * b ≈ new_d rtol=Base.rtoldefault(Float64)
+        end
+    end
+
+    # Non-Float64 configurations must reject rounding modes other than RoundNearest.
+    # The check lives in the @generated body, so the error surfaces at method
+    # expansion time — we can exercise it directly from the host without @cuda.
+    @testset "rounding mode rejected for non-Float64" begin
+        a = Fragment{16, 16, 16, 16, Float16, ColMajor, MatrixA}(ntuple(_ -> Float16(0), 16))
+        b = Fragment{16, 16, 16, 16, Float16, ColMajor, MatrixB}(ntuple(_ -> Float16(0), 16))
+        c = Fragment{16, 16, 16, 8, Float32, Unspecified, Accumulator}(ntuple(_ -> Float32(0), 8))
+        @test_throws ErrorException mma(a, b, c, Config{16, 16, 16, Float32}, RoundDown)
     end
 end
 end
