@@ -3,6 +3,8 @@ using CUDACore: functional, runtime_version, driver_version, compiler_version,
                 devices, name, capability, device!, free_memory, total_memory,
                 uuid, parent_uuid, CuDevice, CUDA_Runtime_jll, CUDA_Driver_jll
 
+import KernelInterface as KI
+
 @public versioninfo
 
 function versioninfo(io::IO=stdout)
@@ -59,9 +61,9 @@ function versioninfo(io::IO=stdout)
 
     println(io, "Julia packages: ")
     println(io, "- CUDACore: $(Base.pkgversion(CUDACore))")
-    for name in [:GPUArrays, :GPUCompiler, :KernelAbstractions, :CUDA_Driver_jll,
-                 :CUDA_Compiler_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery,
-                 :NVPTX_LLVM_Backend_jll]
+    for name in [:GPUArrays, :GPUCompiler, :KernelAbstractions, :KernelInterface,
+                 :CUDA_Driver_jll, :CUDA_Compiler_jll, :CUDA_Runtime_jll,
+                 :CUDA_Runtime_Discovery, :NVPTX_LLVM_Backend_jll]
         isdefined(CUDACore, name) || continue
         mod = getfield(CUDACore, name)
         println(io, "- $(name): $(Base.pkgversion(mod))")
@@ -170,3 +172,5 @@ function versioninfo(io::IO=stdout)
         end
     end
 end
+
+KI.versioninfo(io::IO, ::CUDACore.CUDAInterface.CUDABackend) = versioninfo(io)
