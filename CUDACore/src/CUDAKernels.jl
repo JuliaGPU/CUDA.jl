@@ -105,9 +105,18 @@ function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3},
 end
 
 KI.max_work_group_size(kernel::KI.Kernel{CUDABackend})::Int = CUDACore.maxthreads(kernel.kern)
+# KernelAbstractions passes the number of work-items to launch as `max_work_group_size`
 function KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; max_work_group_size::Integer=typemax(Int))
-    config = launch_configuration(kernel.kern.fun; max_threads=min(max_work_group_size, typemax(Int32)))
-    return (; workgroupsize=Int(config.threads))
+    items = Int(max_work_group_size)
+    config = launch_configuration(kernel.kern.fun; max_threads=min(items, typemax(Int32)))
+    threads = Int(config.threads)
+    if kernel.backend.prefer_blocks
+        # prefer blocks over threads: at least as many blocks as the occupancy API suggests
+        # XXX: some kernels perform much better with all blocks active
+        blocks = max(cld(items, threads), Int(config.blocks))
+        threads = cld(items, blocks)
+    end
+    return (; workgroupsize=threads)
 end
 # these limits are the same for every supported device, so don't query them on every launch
 KI.max_work_group_size(::CUDABackend)::Int = 1024
