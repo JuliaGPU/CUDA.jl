@@ -46,34 +46,15 @@ const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 # >
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
-@generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T,
-                                   scope::Val{S}) where {binop, T, A, S}
-    @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T)
-        T_ptr = convert(LLVMType, ptr)
-
-        T_typed_ptr = LLVM.PointerType(T_val, A)
-
-        llvm_f, _ = create_function(T_val, [T_ptr, T_val])
-
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
-
-            rv = atomic_rmw!(builder, binop,
-                            typed_ptr, parameters(llvm_f)[2],
-                            atomic_acquire_release, llvm_syncscope(scope()))
-
-            ret!(builder, rv)
-        end
-
-        quote
-            check_atomic_scope(ptr, scope)
-            $(call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T}, :ptr, :val))
-        end
-    end
+@inline function llvm_atomic_op(binop::Val, ptr::LLVMPtr, val, scope::Val)
+    check_atomic_scope(ptr, scope)
+    _llvm_atomic_op(binop, ptr, val, scope)
+end
+@llvmgenerated builder function _llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T,
+                                                scope::Val{S})::T where {binop, T, A, S}
+    T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
+    typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
+    atomic_rmw!(builder, binop, typed_ptr, val, atomic_acquire_release, llvm_syncscope(scope))
 end
 
 const binops = Dict(
@@ -150,36 +131,17 @@ end
 end
 
 # cmpxchg is subject to the same address space restrictions as atomicrmw, above
-@generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T,
-                                    scope::Val{S}) where {T, A, S}
-    @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T)
-        T_ptr = convert(LLVMType, ptr)
-
-        T_typed_ptr = LLVM.PointerType(T_val, A)
-
-        llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
-
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
-
-            res = atomic_cmpxchg!(builder, typed_ptr, parameters(llvm_f)[2],
-                                parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
-                                llvm_syncscope(scope()))
-
-            rv = extract_value!(builder, res, 0)
-
-            ret!(builder, rv)
-        end
-
-        quote
-            check_atomic_scope(ptr, scope)
-            $(call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T, T}, :ptr, :cmp, :val))
-        end
-    end
+@inline function llvm_atomic_cas(ptr::LLVMPtr, cmp, val, scope::Val)
+    check_atomic_scope(ptr, scope)
+    _llvm_atomic_cas(ptr, cmp, val, scope)
+end
+@llvmgenerated builder function _llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T,
+                                                 scope::Val{S})::T where {T, A, S}
+    T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
+    typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
+    res = atomic_cmpxchg!(builder, typed_ptr, cmp, val, atomic_acquire_release,
+                          atomic_acquire, llvm_syncscope(scope))
+    extract_value!(builder, res, 0)
 end
 
 for T in (:Int32, :Int64, :UInt32, :UInt64)
