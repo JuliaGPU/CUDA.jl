@@ -427,13 +427,15 @@ end
 
 # Base's `^(::Float, ::Integer)` calls `power_by_squaring`, whose
 # `trailing_zeros` loop emits `cttz_int`, so convert and defer to `__nv_pow`.
+# the float exponent may round to an even number, so take the sign from y.
 @device_override @assume_effects :foldable @inline function Base.:(^)(x::Float32, y::Integer)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    x ^ Float32(y)
+    r = abs(x) ^ Float32(y)
+    ifelse(isodd(y), copysign(r, x), r)
 end
 @device_override @assume_effects :foldable @inline function Base.:(^)(x::Float64, y::Integer)
     y == -1 && return inv(x)
@@ -441,7 +443,8 @@ end
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    x ^ Float64(y)
+    r = abs(x) ^ Float64(y)
+    ifelse(isodd(y), copysign(r, x), r)
 end
 
 ## rounding and selection

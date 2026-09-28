@@ -19,9 +19,12 @@ using SpecialFunctions
         # ~1500 ulp on the cases below, while Int64 went via __nv_pow.
         @testset "integer exponent ($T, $I)" for T in (Float32, Float64),
                                                  I in (Int32, Int64)
-            x = T[1.001, 0.9, 1.1, 1.0001, 2, 0.5]
-            n = I[500, 200, 30, 5000, 7, -3]
+            x = T[1.001, 0.9, 1.1, 1.0001, 2, 0.5, -2]
+            n = I[500, 200, 30, 5000, 7, -3, 5]
             @test Array(CuArray(x) .^ CuArray(n)) ≈ x .^ n rtol=8*eps(T)
+            # the sign comes from the integer exponent: Float32(16_777_217) is even
+            # (not compared with the CPU, which gets this wrong on Julia 1.13.0)
+            @test Array(CuArray(T[-1]) .^ CuArray(I[16_777_217])) == T[-1]
         end
 
         # Both widths have to agree with each other, not just with the CPU
