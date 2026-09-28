@@ -21,9 +21,12 @@ steps:
           queue: "cuda"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          # XXX: KernelInterface 0.3 isn't registered yet
+          git clone --depth 1 --branch tb/ki-0.3 https://github.com/JuliaGPU/KernelAbstractions.jl ka
           julia --project=. -e '
             using Pkg
             Pkg.develop([PackageSpec(; path) for path in (
+              "ka/lib/KernelInterface",
               "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
               "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"

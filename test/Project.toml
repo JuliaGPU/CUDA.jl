@@ -44,6 +44,7 @@ cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 
 [sources]
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "tb/ki-0.3", subdir = "lib/KernelInterface"}
 CUDA = {path = ".."}
 CUDACore = {path = "../CUDACore"}
 CUDATools = {path = "../CUDATools"}

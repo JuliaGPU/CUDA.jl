@@ -42,6 +42,9 @@ ChainRulesCoreExt = "ChainRulesCore"
 EnzymeCoreExt = "EnzymeCore"
 SpecialFunctionsExt = "SpecialFunctions"
 
+[sources]
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "tb/ki-0.3", subdir = "lib/KernelInterface"}
+
 [compat]
 Adapt = "4.4"
 BFloat16s = "0.5, 0.6"
@@ -58,7 +61,7 @@ GPUArrays = "11.5.14"
 GPUCompiler = "2.9"
 GPUToolbox = "3"
 KernelAbstractions = "0.9.38"
-KernelInterface = "0.2.3"
+KernelInterface = "0.3"
 LLVM = "9.6"
 LLVMLoopInfo = "1"
 LazyArtifacts = "1"

@@ -16,7 +16,7 @@ KernelAbstractions backend for CUDA. `fastmath=true` enables the same floating-p
 optimizations as `@cuda fastmath=true`, including flushing `Float32` subnormals to zero.
 The default follows Julia's `--math-mode` setting.
 """
-struct CUDABackend <: KI.GPU
+struct CUDABackend <: KI.Backend
     prefer_blocks::Bool
     always_inline::Bool
     fastmath::Bool
@@ -28,8 +28,6 @@ CUDABackend(; prefer_blocks=false, always_inline=false,
 CUDABackend(prefer_blocks, always_inline) = CUDABackend(; prefer_blocks, always_inline)
 
 @inline KI.allocate(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims)
-@inline KI.zeros(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), zero(T))
-@inline KI.ones(::CUDABackend, ::Type{T}, dims::Tuple; unified::Bool = false) where T = fill!(CuArray{T, length(dims), unified ? UnifiedMemory : default_memory}(undef, dims), one(T))
 
 KI.get_backend(::CuArray) = CUDABackend()
 KI.synchronize(::CUDABackend) = synchronize()
@@ -37,21 +35,35 @@ KI.synchronize(::CUDABackend) = synchronize()
 KI.functional(::CUDABackend) = CUDACore.functional()
 
 KI.supports_unified(::CUDABackend) = true
+KI.supports_float64(::CUDABackend) = true
+KI.supports_atomics(::CUDABackend) = true
+KI.supports_subgroups(::CUDABackend) = true
+# `shfl_down_sync` decomposes other types into 32-bit shuffles
+KI.supports_shuffle(::CUDABackend, ::Type{T}) where {T} =
+    T <: Union{Bool, Base.BitInteger, Base.IEEEFloat, Complex{<:Union{Base.BitInteger, Base.IEEEFloat}}}
 
 Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}) = a
 
 ## memory operations
 
-function KI.copyto!(::CUDABackend, A, B)
-    GC.@preserve A B begin
-        destptr = pointer(A)
-        srcptr  = pointer(B)
-        N       = length(A)
-        unsafe_copyto!(destptr, srcptr, N, async=true)
+function KI.copyto!(::CUDABackend, A::DenseArray{T}, B::DenseArray{T}) where {T}
+    length(A) == length(B) ||
+        throw(ArgumentError("Arrays must have the same length, got $(length(A)) and $(length(B))"))
+    if isbitstype(T) && (A isa CuArray || B isa CuArray)
+        GC.@preserve A B begin
+            unsafe_copyto!(pointer(A), pointer(B), length(A), async=true)
+        end
+    else
+        # host-to-host copies, and bits unions, whose type tags are stored separately
+        copyto!(A, B)
     end
     return A
 end
+KI.copyto!(::CUDABackend, A, B) =
+    throw(ArgumentError("KernelInterface.copyto! only supports dense arrays of the same element type, got $(typeof(A)) and $(typeof(B))"))
+
+KI.unsafe_free!(A::CuArray) = CUDACore.unsafe_free!(A)
 
 function KI.pagelock!(::CUDABackend, A::Array)
     CUDACore.pin(A)
@@ -73,7 +85,10 @@ function KI.device!(backend::CUDABackend, id::Int)
         throw(ArgumentError("Device id $id out of bounds."))
     end
     device!(id - 1)
+    return
 end
+
+KI.device(::CUDABackend, A::CuArray) = deviceid(CUDACore.device(A)) + 1
 
 KI.argconvert(::CUDABackend, arg) = cudaconvert(arg)
 
@@ -82,20 +97,15 @@ function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=not
     KI.Kernel(backend, kern)
 end
 
-function (obj::KI.Kernel{CUDABackend})(args...; numworkgroups=(), workgroupsize=(), ndrange=(), max_work_group_size=typemax(Int))
-    KI.check_launch_args(numworkgroups, workgroupsize, ndrange)
-    prod(ndrange) == 0 && return nothing
-
-    blocks, threads = KI.auto_launch_sizes(obj, numworkgroups, workgroupsize, ndrange, max_work_group_size)
-
-    obj.kern(args...; threads, blocks)
-    return nothing
+function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3}, args...; kwargs...)
+    obj.kern(args...; threads=items, blocks=groups, kwargs...)
+    return
 end
 
-function KI.kernel_max_work_group_size(kernel::KI.Kernel{<:CUDABackend}; max_work_items::Int=typemax(Int))::Int
-    kernel_config = launch_configuration(kernel.kern.fun)
-
-    Int(min(kernel_config.threads, max_work_items))
+KI.max_work_group_size(kernel::KI.Kernel{CUDABackend})::Int = CUDACore.maxthreads(kernel.kern)
+function KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; max_work_group_size::Integer=typemax(Int))
+    config = launch_configuration(kernel.kern.fun; max_threads=min(max_work_group_size, typemax(Int32)))
+    return (; workgroupsize=Int(config.threads))
 end
 function KI.max_work_group_size(::CUDABackend)::Int
     Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
@@ -110,53 +120,48 @@ function KI.multiprocessor_count(::CUDABackend)::Int
     Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
 end
 
-KI.shfl_down_types(::CUDABackend) = DataType[Bool,
-                                             UInt8, UInt16, UInt32, UInt64, UInt128,
-                                             Int8, Int16, Int32, Int64, Int128,
-                                             Float16, Float32, Float64,
-                                             ComplexF16, ComplexF32, ComplexF64]
-
 ## indexing
 
+# computed with `% T`, which unlike `T(x)` has no error path
+
 @device_override @inline function KI.get_local_id(::Type{T}) where {T}
-    return (; x = T(threadIdx().x), y = T(threadIdx().y), z = T(threadIdx().z))
+    return (; x = threadIdx().x % T, y = threadIdx().y % T, z = threadIdx().z % T)
 end
 
 @device_override @inline function KI.get_group_id(::Type{T}) where {T}
-    return (; x = T(blockIdx().x), y = T(blockIdx().y), z = T(blockIdx().z))
-end
-
-@device_override @inline function KI.get_global_id(::Type{T}) where {T}
-    return (; x = T((blockIdx().x-1)*blockDim().x + threadIdx().x), y = T((blockIdx().y-1)*blockDim().y + threadIdx().y), z = T((blockIdx().z-1)*blockDim().z + threadIdx().z))
+    return (; x = blockIdx().x % T, y = blockIdx().y % T, z = blockIdx().z % T)
 end
 
 @device_override @inline function KI.get_local_size(::Type{T}) where {T}
-    return (; x = T(blockDim().x), y = T(blockDim().y), z = T(blockDim().z))
+    return (; x = blockDim().x % T, y = blockDim().y % T, z = blockDim().z % T)
 end
 
 @device_override @inline function KI.get_num_groups(::Type{T}) where {T}
-    return (; x = T(gridDim().x), y = T(gridDim().y), z = T(gridDim().z))
+    return (; x = gridDim().x % T, y = gridDim().y % T, z = gridDim().z % T)
 end
 
-@device_override @inline function KI.get_global_size(::Type{T}) where {T}
-    return (; x = T(blockDim().x * gridDim().x), y = T(blockDim().y * gridDim().y), z = T(blockDim().z * gridDim().z))
+@device_override KI.get_sub_group_size(::Type{T}) where {T} = active_sub_group_size() % T
+
+@device_override KI.get_max_sub_group_size(::Type{T}) where {T} = warpsize() % T
+
+@device_override KI.get_num_sub_groups(::Type{T}) where {T} = cld(prod(blockDim()), warpsize()) % T
+
+@device_override KI.get_sub_group_id(::Type{T}) where {T} = (linear_thread_id() ÷ warpsize() + 1i32) % T
+
+@device_override KI.get_sub_group_local_id(::Type{T}) where {T} = laneid() % T
+
+# warps are formed from consecutive linear thread indices
+@inline function linear_thread_id()
+    return (threadIdx().x - 1i32) +
+           (threadIdx().y - 1i32) * blockDim().x +
+           (threadIdx().z - 1i32) * blockDim().x * blockDim().y
 end
 
-@device_override KI.get_sub_group_size() = warpsize() % UInt32
-
-@device_override KI.get_max_sub_group_size() = warpsize() % UInt32
-
-@device_override KI.get_num_sub_groups() = cld(prod(blockDim()), warpsize()) % UInt32
-
-@device_override function KI.get_sub_group_id()
-    # warps are formed from consecutive linear thread indices
-    tid = (threadIdx().x - 1i32) +
-          (threadIdx().y - 1i32) * blockDim().x +
-          (threadIdx().z - 1i32) * blockDim().x * blockDim().y
-    return (tid % UInt32) ÷ (warpsize() % UInt32) + 0x1
+# the last warp of a block can be partial
+@inline function active_sub_group_size()
+    threads = blockDim().x * blockDim().y * blockDim().z
+    return min(warpsize(), threads - (linear_thread_id() ÷ warpsize()) * warpsize())
 end
-
-@device_override KI.get_sub_group_local_id() = laneid() % UInt32
 
 ## shared and scratch memory
 
