@@ -30,29 +30,18 @@ const LDGTypes = (UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64,
     # IR with the LLVM.jl IRBuilder, mirroring `LLVM.Interop.pointerref`. A single
     # method covers both scalar and vector element types, since `convert(LLVMType, T)`
     # already maps `NTuple{N, VecElement{T}}` to `<N x T>`.
-    @device_function @inline @generated function pointerref_ldg(ptr::LLVMPtr{T,AS.Global},
-                                                                i::Int, ::Val{align}) where {T, align}
-        @dispose ctx=Context() begin
-            eltyp = convert(LLVMType, T)
-            T_idx = convert(LLVMType, Int)
-            T_ptr = convert(LLVMType, ptr)
-
-            llvm_f, _ = create_function(eltyp, [T_ptr, T_idx])
-
-            @dispose builder=IRBuilder() begin
-                entry = BasicBlock(llvm_f, "entry")
-                position!(builder, entry)
-                gep = inbounds_gep!(builder, eltyp, parameters(llvm_f)[1],
-                                    [parameters(llvm_f)[2]])
-                ld = load!(builder, eltyp, gep)
-                metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global)
-                metadata(ld)[LLVM.MD_invariant_load] = MDNode(Metadata[])
-                alignment!(ld, align)
-                ret!(builder, ld)
-            end
-
-            call_function(llvm_f, T, Tuple{LLVMPtr{T,AS.Global}, Int}, :ptr, :(i - 1))
-        end
+    @device_function @inline pointerref_ldg(ptr::LLVMPtr{T,AS.Global}, i::Int,
+                                            align::Val) where {T} =
+        _pointerref_ldg(ptr, i - 1, align)
+    @device_function @llvmgenerated builder function _pointerref_ldg(ptr::LLVMPtr{T,AS.Global},
+                                                                     i::Int,
+                                                                     ::Val{align})::T where {T, align}
+        eltyp = convert(LLVMType, T)
+        ld = load!(builder, eltyp, inbounds_gep!(builder, eltyp, ptr, [i]))
+        metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global)
+        metadata(ld)[LLVM.MD_invariant_load] = MDNode(Metadata[])
+        alignment!(ld, align)
+        ld
     end
 
     for (N, T) in ((4, Float32), (2, Float64), (4, Int8), (4, Int16), (4, Int32), (2, Int64))

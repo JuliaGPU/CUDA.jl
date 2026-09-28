@@ -5,34 +5,21 @@ export
     linearBlockIdxInCluster, linearClusterSize,
     laneid, lanemask, warpsize, active_mask, FULL_MASK
 
-@device_function @generated function _index(::Val{name}, ::Val{range}) where {name, range}
-    @dispose ctx=Context() begin
-        T_int32 = LLVM.Int32Type()
+@device_function @llvmgenerated builder function _index(::Val{name},
+                                                        ::Val{range})::Int32 where {name, range}
+    T_int32 = LLVM.Int32Type()
 
-        # create function
-        llvm_f, _ = create_function(T_int32)
-        mod = LLVM.parent(llvm_f)
+    # call the indexing intrinsic
+    intr_typ = LLVM.FunctionType(T_int32)
+    intr = LLVM.Function(current_module(builder), "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
+    idx = call!(builder, intr_typ, intr)
 
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
+    # attach range metadata
+    range_metadata = MDNode([ConstantInt(range.start % Int32),
+                             ConstantInt((range.stop + 1) % Int32)])
+    metadata(idx)[LLVM.MD_range] = range_metadata
 
-            # call the indexing intrinsic
-            intr_typ = LLVM.FunctionType(T_int32)
-            intr = LLVM.Function(mod, "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
-            idx = call!(builder, intr_typ, intr)
-
-            # attach range metadata
-            range_metadata = MDNode([ConstantInt(range.start % Int32),
-                                     ConstantInt((range.stop + 1) % Int32)])
-            metadata(idx)[LLVM.MD_range] = range_metadata
-
-            ret!(builder, idx)
-        end
-
-        call_function(llvm_f, Int32)
-    end
+    idx
 end
 
 # XXX: these depend on the compute capability

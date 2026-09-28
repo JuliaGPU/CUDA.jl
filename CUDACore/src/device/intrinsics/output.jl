@@ -35,53 +35,32 @@ macro cuprintf(fmt::String, args...)
     return :(_cuprintf($fmt_val, $(map(arg -> :(promote_c_argument($arg)), esc.(args))...)))
 end
 
-@generated function _cuprintf(::Val{fmt}, argspec...) where {fmt}
-    @dispose ctx=Context() begin
-        arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
-        arg_types = [argspec...]
+@llvmgenerated builder function _cuprintf(::Val{fmt}, argspec...)::Int32 where {fmt}
+    T_int32 = LLVM.Int32Type()
+    T_pint8 = LLVM.PointerType(LLVM.Int8Type())
 
-        T_void = LLVM.VoidType()
-        T_int32 = LLVM.Int32Type()
-        T_pint8 = LLVM.PointerType(LLVM.Int8Type())
+    str = globalstring_ptr!(builder, String(fmt))
 
-        # create functions
-        param_types = LLVMType[convert(LLVMType, typ) for typ in arg_types]
-        llvm_f, llvm_ft = create_function(T_int32, param_types)
-        mod = LLVM.parent(llvm_f)
+    # construct and fill args buffer
+    if isempty(argspec)
+        buffer = LLVM.PointerNull(T_pint8)
+    else
+        argtypes = LLVM.StructType("printf_args")
+        elements!(argtypes, LLVMType[value_type(arg) for arg in argspec])
 
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            str = globalstring_ptr!(builder, String(fmt))
-
-            # construct and fill args buffer
-            if isempty(argspec)
-                buffer = LLVM.PointerNull(T_pint8)
-            else
-                argtypes = LLVM.StructType("printf_args")
-                elements!(argtypes, param_types)
-
-                args = alloca!(builder, argtypes)
-                for (i, param) in enumerate(parameters(llvm_f))
-                    p = struct_gep!(builder, argtypes, args, i-1)
-                    store!(builder, param, p)
-                end
-
-                buffer = bitcast!(builder, args, T_pint8)
-            end
-
-            # invoke vprintf and return
-            vprintf_typ = LLVM.FunctionType(T_int32, [T_pint8, T_pint8])
-            vprintf = LLVM.Function(mod, "vprintf", vprintf_typ)
-            chars = call!(builder, vprintf_typ, vprintf, [str, buffer])
-
-            ret!(builder, chars)
+        args = alloca!(builder, argtypes)
+        for (i, arg) in enumerate(argspec)
+            p = struct_gep!(builder, argtypes, args, i-1)
+            store!(builder, arg, p)
         end
 
-        call_function(llvm_f, Int32, Tuple{arg_types...}, arg_exprs...)
+        buffer = bitcast!(builder, args, T_pint8)
     end
+
+    # invoke vprintf and return
+    vprintf_typ = LLVM.FunctionType(T_int32, [T_pint8, T_pint8])
+    vprintf = LLVM.Function(current_module(builder), "vprintf", vprintf_typ)
+    call!(builder, vprintf_typ, vprintf, [str, buffer])
 end
 
 
