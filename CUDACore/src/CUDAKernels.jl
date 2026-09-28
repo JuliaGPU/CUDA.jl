@@ -97,10 +97,8 @@ function KI.kernel_max_work_group_size(kernel::KI.Kernel{<:CUDABackend}; max_wor
 
     Int(min(kernel_config.threads, max_work_items))
 end
-function KI.max_work_group_size(::CUDABackend)::Int
-    Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
-end
 # these limits are the same for every supported device, so don't query them on every launch
+KI.max_work_group_size(::CUDABackend)::Int = 1024
 KI.max_work_group_dims(::CUDABackend)::NTuple{3, Int} = (1024, 1024, 64)
 KI.max_num_groups(::CUDABackend)::NTuple{3, Int} = (Int(typemax(Int32)), 65535, 65535)
 function KI.sub_group_size(::CUDABackend)::Int
@@ -118,28 +116,34 @@ KI.shfl_down_types(::CUDABackend) = DataType[Bool,
 
 ## indexing
 
+# computed in `T`, without checked conversions
 @device_override @inline function KI.get_local_id(::Type{T}) where {T}
-    return (; x = T(threadIdx().x), y = T(threadIdx().y), z = T(threadIdx().z))
+    return (; x = threadIdx().x % T, y = threadIdx().y % T, z = threadIdx().z % T)
 end
 
 @device_override @inline function KI.get_group_id(::Type{T}) where {T}
-    return (; x = T(blockIdx().x), y = T(blockIdx().y), z = T(blockIdx().z))
+    return (; x = blockIdx().x % T, y = blockIdx().y % T, z = blockIdx().z % T)
 end
 
 @device_override @inline function KI.get_global_id(::Type{T}) where {T}
-    return (; x = T((blockIdx().x-1)*blockDim().x + threadIdx().x), y = T((blockIdx().y-1)*blockDim().y + threadIdx().y), z = T((blockIdx().z-1)*blockDim().z + threadIdx().z))
+    global_id(g, d, l) = (g % T - one(T)) * (d % T) + l % T
+    return (; x = global_id(blockIdx().x, blockDim().x, threadIdx().x),
+              y = global_id(blockIdx().y, blockDim().y, threadIdx().y),
+              z = global_id(blockIdx().z, blockDim().z, threadIdx().z))
 end
 
 @device_override @inline function KI.get_local_size(::Type{T}) where {T}
-    return (; x = T(blockDim().x), y = T(blockDim().y), z = T(blockDim().z))
+    return (; x = blockDim().x % T, y = blockDim().y % T, z = blockDim().z % T)
 end
 
 @device_override @inline function KI.get_num_groups(::Type{T}) where {T}
-    return (; x = T(gridDim().x), y = T(gridDim().y), z = T(gridDim().z))
+    return (; x = gridDim().x % T, y = gridDim().y % T, z = gridDim().z % T)
 end
 
 @device_override @inline function KI.get_global_size(::Type{T}) where {T}
-    return (; x = T(blockDim().x * gridDim().x), y = T(blockDim().y * gridDim().y), z = T(blockDim().z * gridDim().z))
+    return (; x = (blockDim().x % T) * (gridDim().x % T),
+              y = (blockDim().y % T) * (gridDim().y % T),
+              z = (blockDim().z % T) * (gridDim().z % T))
 end
 
 @device_override KI.get_sub_group_size() = warpsize() % UInt32

@@ -82,3 +82,50 @@ end
         @test Array(a) == (fastmath ? zeros(Float32, 2) : Array(b))
     end
 end
+
+KA.@kernel function store_global_linear!(A)
+    I = KA.@index(Global, Linear)
+    @inbounds A[I] = I
+end
+
+KA.@kernel function store_last_index!(A)
+    I = KA.@index(Global, Linear)
+    if I == prod(KA.@ndrange())
+        @inbounds A[1] = I
+        @inbounds A[2] = KA.@index(Global, Cartesian)[2]
+    end
+end
+
+@testset "launch configuration" begin
+    backend = CUDABackend()
+    function select(kernel, ndrange, workgroupsize=nothing)
+        ndrange, workgroupsize, iterspace, _ = KA.launch_config(kernel, ndrange, workgroupsize)
+        KA.select_launch(kernel, ndrange, workgroupsize, iterspace)
+    end
+
+    # kernels are launched on an N-d grid, computing indices in 32 bits
+    kernel = store_global_linear!(backend)
+    @test select(kernel, (64, 32, 16)) === KA.NDLaunch{Int32}()
+    @test select(kernel, (4, 4, 4, 4)) === KA.LinearLaunch{Int32}()
+    @test select(kernel, (8, 100_000)) === KA.LinearLaunch{Int32}()
+
+    # which doesn't need divisions to compute the index of a dynamic N-d range
+    A = CUDA.zeros(Int, 64, 32, 16)
+    ptx = sprint(io -> CUDA.@device_code_ptx io=io kernel(A; ndrange=size(A)))
+    @test !occursin("div.", ptx)
+    @test !occursin("rem.", ptx)
+    @test Array(A) == LinearIndices(A)
+
+    # tuning for more blocks (the testsuite above uses the default)
+    Testsuite.launch_testsuite(()->CUDABackend(; prefer_blocks=true), CuArray)
+
+    # iteration spaces that don't fit 32 bits use 64-bit indices
+    kernel = store_last_index!(backend)
+    A = CUDA.zeros(Int, 2)
+    for (dims, launch) in (((2^16 + 1, 2^15), KA.NDLaunch{Int}()),
+                           ((2^11 + 1, 2^10, 2^10, 1), KA.LinearLaunch{Int}()))
+        @test select(kernel, dims) === launch
+        kernel(A; ndrange=dims)
+        @test Array(A) == [prod(dims), dims[2]]
+    end
+end

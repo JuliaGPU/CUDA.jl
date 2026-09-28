@@ -17,6 +17,9 @@ Adapt.adapt_storage(::KA.CPU, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}
 function KA.mkcontext(kernel::KA.Kernel{CUDABackend}, _ndrange, iterspace)
     KA.CompilerMetadata{KA.ndrange(kernel), KA.DynamicCheck}(_ndrange, iterspace)
 end
+function KA.mkcontext(kernel::KA.Kernel{CUDABackend}, _ndrange, iterspace, launch)
+    KA.CompilerMetadata{KA.ndrange(kernel), KA.DynamicCheck}(_ndrange, iterspace; launch)
+end
 
 function KA.launch_config(kernel::KA.Kernel{CUDABackend}, ndrange, workgroupsize)
     if ndrange isa Integer
@@ -42,21 +45,29 @@ function KA.launch_config(kernel::KA.Kernel{CUDABackend}, ndrange, workgroupsize
     return ndrange, workgroupsize, iterspace, dynamic
 end
 
-# distribute `threads` over the dimensions of `ndrange`, filling the first ones first.
-# written recursively, because a closure that updates the running total would box it.
-threads_to_workgroupsize(threads, ndrange::Tuple) = _threads_to_workgroupsize(threads, 1, ndrange)
-_threads_to_workgroupsize(threads, total, ::Tuple{}) = ()
-function _threads_to_workgroupsize(threads, total, ndrange::Tuple)
-    x = min(div(threads, total), first(ndrange))
-    return (x, _threads_to_workgroupsize(threads, total * x, Base.tail(ndrange))...)
+function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
+    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
+    # nothing to launch (or compile) for an empty ndrange
+    any(iszero, size(KA.blocks(iterspace))) && return nothing
+
+    # launch on an N-d grid, computing indices in 32 bits, if possible. this doesn't depend
+    # on the tuned workgroup size, so the context (and thus the kernel) doesn't either.
+    launch = KA.select_launch(obj, ndrange, workgroupsize, iterspace)
+    if launch === KA.NDLaunch{Int32}()
+        # the common case, specialized statically
+        launch_kernel(obj, KA.NDLaunch{Int32}(), ndrange, workgroupsize, iterspace, args...)
+    else
+        launch_kernel(obj, launch, ndrange, workgroupsize, iterspace, args...)
+    end
+    return nothing
 end
 
-function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
+function launch_kernel(obj::KA.Kernel{CUDABackend}, launch, ndrange, workgroupsize,
+                       iterspace, args::Vararg{Any,N}) where {N}
     backend = KA.backend(obj)
 
-    ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
     # this might not be the final context, since we may tune the workgroupsize
-    ctx = KA.mkcontext(obj, ndrange, iterspace)
+    ctx = KA.mkcontext(obj, ndrange, iterspace, launch)
 
     # If the kernel is statically sized we can tell the compiler about that
     if KA.workgroupsize(obj) <: KA.StaticSize
@@ -71,46 +82,37 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
 
     # figure out the optimal workgroupsize automatically
     if KA.workgroupsize(obj) <: KA.DynamicSize && workgroupsize === nothing
-        config = CUDACore.launch_configuration(kernel.fun; max_threads=prod(ndrange))
+        items = prod(KA.NDIteration.extents(ndrange))
+        config = CUDACore.launch_configuration(kernel.fun; max_threads=items)
         if backend.prefer_blocks
             # Prefer blocks over threads
-            threads = min(prod(ndrange), config.threads)
+            threads = min(items, config.threads)
             # XXX: Some kernels performs much better with all blocks active
-            cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
-            threads = cld(prod(ndrange), cu_blocks)
+            cu_blocks = max(cld(items, threads), config.blocks)
+            threads = cld(items, cu_blocks)
         else
             threads = config.threads
         end
 
-        workgroupsize = threads_to_workgroupsize(threads, ndrange)
+        workgroupsize = KA.launch_workgroupsize(backend, launch, threads, ndrange)
         iterspace, dynamic = KA.partition(obj, ndrange, workgroupsize)
-        ctx = KA.mkcontext(obj, ndrange, iterspace)
+        ctx = KA.mkcontext(obj, ndrange, iterspace, launch)
         call = CUDACore.rebind(call, ctx, 1)
     end
 
-    blocks = length(KA.blocks(iterspace))
-    threads = length(KA.workitems(iterspace))
-
-    if blocks == 0
-        return nothing
+    if launch isa KA.NDLaunch
+        blocks = pad3(size(KA.blocks(iterspace)))
+        threads = pad3(size(KA.workitems(iterspace)))
+    else
+        blocks = length(KA.blocks(iterspace))
+        threads = length(KA.workitems(iterspace))
     end
-
-    # Launch kernel
     CUDACore.kernel_launch(kernel, call; threads, blocks)
 
     return nothing
 end
 
-## indexing
-
-@device_override @inline function KA.__validindex(ctx)
-    if KA.__dynamic_checkbounds(ctx)
-        I = @inbounds KA.expand(KA.__iterspace(ctx), blockIdx().x, threadIdx().x)
-        return I in KA.__ndrange(ctx)
-    else
-        return true
-    end
-end
+pad3(t::Tuple) = (t..., ntuple(_ -> 1, 3 - length(t))...)
 
 ## scratch memory
 
