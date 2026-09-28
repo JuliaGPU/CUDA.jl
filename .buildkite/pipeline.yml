@@ -11,8 +11,9 @@ steps:
     steps:
       # Julia 1.10 doesn't support [sources] in Project.toml,
       # so we need to manually dev workspace packages before instantiating.
-      # KernelAbstractions 0.10 isn't registered yet, so it needs to be added from git,
-      # in the same Pkg operation because CUDACore's compat excludes registered versions.
+      # KernelAbstractions 0.10 isn't registered yet, so it needs to be checked out from git
+      # and developed in the same Pkg operation, because CUDACore's compat excludes the
+      # registered versions.
       # Julia 1.11 doesn't support workspaces, so it doesn't pick up KernelAbstractions
       # from the test project's [sources] when instantiating, and needs the same treatment.
       - label: "Julia {{matrix.julia}}"
@@ -25,13 +26,16 @@ steps:
           queue: "cuda"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          export KA_PATH=$$(mktemp -d)
+          git clone --depth 1 --branch tb/ndlaunch https://github.com/JuliaGPU/KernelAbstractions.jl "$$KA_PATH"
           julia --project=. -e '
             using Pkg
-            Pkg.develop([[PackageSpec(; path) for path in (
+            Pkg.develop([PackageSpec(; path) for path in (
               "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
-              "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
-            )]; PackageSpec(url="https://github.com/JuliaGPU/KernelAbstractions.jl")])
+              "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec",
+              ENV["KA_PATH"]
+            )])
             Pkg.test(; test_args=["--quickfail"])'
         if: |
           build.message !~ /\[skip [^\]]*(tests|julia)/ &&
