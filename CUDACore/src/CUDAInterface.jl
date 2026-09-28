@@ -97,7 +97,9 @@ function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=not
     KI.Kernel(backend, kern)
 end
 
-function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3}, args...; kwargs...)
+# `Vararg{Any,N}` makes Julia specialize on the arguments, which are only passed through
+function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3},
+                   args::Vararg{Any,N}; kwargs...) where {N}
     obj.kern(args...; threads=items, blocks=groups, kwargs...)
     return
 end
