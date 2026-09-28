@@ -11,10 +11,14 @@ steps:
     steps:
       # Julia 1.10 doesn't support [sources] in Project.toml,
       # so we need to manually dev workspace packages before instantiating.
-      - label: "Julia 1.10"
+      # KernelAbstractions 0.10 isn't registered yet, so it needs to be added from git,
+      # in the same Pkg operation because CUDACore's compat excludes registered versions.
+      # Julia 1.11 doesn't support workspaces, so it doesn't pick up KernelAbstractions
+      # from the test project's [sources] when instantiating, and needs the same treatment.
+      - label: "Julia {{matrix.julia}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.10"
+              version: "{{matrix.julia}}"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -23,17 +27,22 @@ steps:
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
           julia --project=. -e '
             using Pkg
-            Pkg.develop([PackageSpec(; path) for path in (
+            Pkg.develop([[PackageSpec(; path) for path in (
               "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
               "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
-            )])
+            )]; PackageSpec(url="https://github.com/JuliaGPU/KernelAbstractions.jl")])
             Pkg.test(; test_args=["--quickfail"])'
         if: |
           build.message !~ /\[skip [^\]]*(tests|julia)/ &&
           (build.message =~ /\[only [^\]]*(tests|julia)/ ||
            build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 90
+        matrix:
+          setup:
+            julia:
+              - "1.10"
+              - "1.11"
 
       # the newest release, also tested on draft pull requests
       - &julia
@@ -68,7 +77,6 @@ steps:
         matrix:
           setup:
             julia:
-              - "1.11"
               - "1.12"
 
       - <<: *julia
@@ -232,7 +240,9 @@ steps:
       - label: "GPU-less environment"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.11"
+              # instantiating the workspace needs Julia 1.12+ to pick up
+              # KernelAbstractions 0.10 from the test project's [sources]
+              version: "1.12"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
           - JuliaCI/julia-test#v1:
