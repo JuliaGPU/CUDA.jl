@@ -109,10 +109,8 @@ function KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; max_work_group_
     config = launch_configuration(kernel.kern.fun; max_threads=min(max_work_group_size, typemax(Int32)))
     return (; workgroupsize=Int(config.threads))
 end
-function KI.max_work_group_size(::CUDABackend)::Int
-    Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
-end
 # these limits are the same for every supported device, so don't query them on every launch
+KI.max_work_group_size(::CUDABackend)::Int = 1024
 KI.max_work_group_dims(::CUDABackend)::NTuple{3, Int} = (1024, 1024, 64)
 KI.max_num_groups(::CUDABackend)::NTuple{3, Int} = (Int(typemax(Int32)), 65535, 65535)
 function KI.sub_group_size(::CUDABackend)::Int
