@@ -19,9 +19,12 @@ using SpecialFunctions
         # ~1500 ulp on the cases below, while Int64 went via __nv_pow.
         @testset "integer exponent ($T, $I)" for T in (Float32, Float64),
                                                  I in (Int32, Int64)
-            x = T[1.001, 0.9, 1.1, 1.0001, 2, 0.5]
-            n = I[500, 200, 30, 5000, 7, -3]
+            x = T[1.001, 0.9, 1.1, 1.0001, 2, 0.5, -2]
+            n = I[500, 200, 30, 5000, 7, -3, 5]
             @test Array(CuArray(x) .^ CuArray(n)) ≈ x .^ n rtol=8*eps(T)
+            # the sign comes from the integer exponent: Float32(16_777_217) is even
+            # (not compared with the CPU, which gets this wrong on Julia 1.13.0)
+            @test Array(CuArray(T[-1]) .^ CuArray(I[16_777_217])) == T[-1]
         end
 
         # Both widths have to agree with each other, not just with the CPU
@@ -324,6 +327,21 @@ using SpecialFunctions
             @cuda threads=4 fastpow_kernel(A, 3)
             @test Array(A) == ones(T, 4)
         end
+        # larger exponents use `__nv_fast_powf`, which is NaN for negative bases
+        for T in (Float16, Float32, Float64), y in (4, 5, 7, -2, -3, Int32(5), Int32(-5))
+            x = T[1.5, -0.5, 3, -2]
+            A = CuArray(x)
+            @cuda threads=4 fastpow_kernel(A, y)
+            @test all(isapprox.(Array(A), x .^ y; rtol=16*eps(T)))
+        end
+        # literal exponents take the same path, through `pow_fast(x, ::Val)`
+        fastpow7(x) = @fastmath x^7
+        x = Float32[-0.5, -2]
+        @test all(isapprox.(Array(map(fastpow7, cu(x))), x .^ 7; rtol=16*eps(Float32)))
+        # the sign comes from the integer exponent: Float32(16_777_217) is even
+        A = CuArray(Float32[-1])
+        @cuda threads=1 fastpow_kernel(A, 16_777_217)
+        @test Array(A) == Float32[-1]
 
         # Float16 hardware approximations: tanh.approx.f16 / ex2.approx.f16 on sm_75+
         if capability(device()) >= v"7.5"

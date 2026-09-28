@@ -405,7 +405,11 @@ end
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    FastMath.pow_fast(x, Float32(y))  # uses __nv_fast_powf
+    # __nv_fast_powf computes exp2(y * log2(x)), which is NaN for x < 0, so take the power of
+    # abs(x) and copy the sign of x for odd y, like LLVM's AMDGPU expansion of fast `pown`.
+    # the parity comes from the integer y, since Float32(y) may round to an even number.
+    r = FastMath.pow_fast(abs(x), Float32(y))  # uses __nv_fast_powf
+    ifelse(isodd(y), copysign(r, x), r)
 end
 @device_override @assume_effects :foldable @inline function FastMath.pow_fast(x::Float16, y::Integer)
     y == -1 && return inv(x)
@@ -413,7 +417,7 @@ end
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    Float16(FastMath.pow_fast(Float32(x), Float32(y)))
+    Float16(FastMath.pow_fast(Float32(x), y))
 end
 
 # stay with Base's semantics and avoid the drift of libdevice's integer powers,
@@ -423,13 +427,15 @@ end
 
 # Base's `^(::Float, ::Integer)` calls `power_by_squaring`, whose
 # `trailing_zeros` loop emits `cttz_int`, so convert and defer to `__nv_pow`.
+# the float exponent may round to an even number, so take the sign from y.
 @device_override @assume_effects :foldable @inline function Base.:(^)(x::Float32, y::Integer)
     y == -1 && return inv(x)
     y == 0 && return one(x)
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    x ^ Float32(y)
+    r = abs(x) ^ Float32(y)
+    ifelse(isodd(y), copysign(r, x), r)
 end
 @device_override @assume_effects :foldable @inline function Base.:(^)(x::Float64, y::Integer)
     y == -1 && return inv(x)
@@ -437,7 +443,8 @@ end
     y == 1 && return x
     y == 2 && return x*x
     y == 3 && return x*x*x
-    x ^ Float64(y)
+    r = abs(x) ^ Float64(y)
+    ifelse(isodd(y), copysign(r, x), r)
 end
 
 ## rounding and selection
