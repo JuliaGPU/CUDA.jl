@@ -80,6 +80,17 @@ end
   CUDA.enable_synchronization!(a)
 end
 
+function slow_sum(out, a, cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    acc = 0
+    for x in a
+        acc += x
+    end
+    out[] = acc
+    return
+end
+
 @testset "unsafe_wrap" begin
     # managed memory -> CuArray
     for a in [cu([1]; device=true), cu([1]; unified=true)]
@@ -157,6 +168,42 @@ end
               @test size(b) == (1,)
               @test Array(b) == a
           end
+        end
+
+        # wrapping an Array keeps it alive
+        memtypes = []
+        CUDA.supports_hmm(device()) && push!(memtypes, CUDA.UnifiedMemory)
+        can_register && push!(memtypes, CUDA.HostMemory)
+        for M in memtypes
+            b = unsafe_wrap(CuArray{Int,1,M}, collect(1:1024))
+            GC.gc(true)
+            @test Array(b) == 1:1024
+            b .+= 1
+            @test Array(b) == 2:1025
+        end
+
+        # releasing a wrapper waits for outstanding work before the Array can be freed
+        for M in memtypes
+            out = CuArray([0])
+            let b = unsafe_wrap(CuArray{Int,1,M}, collect(1:1024))
+                @cuda slow_sum(out, b, 500_000_000)
+            end
+            GC.gc(true)
+            @test CUDA.isdone(stream())
+            @test Array(out)[] == sum(1:1024)
+
+            # also when the stream the work was submitted to has been destroyed since.
+            # the result is read from the CPU directly, as synchronizing `out` would try to
+            # use that stream.
+            outh = [0]
+            out = unsafe_wrap(CuArray{Int,1,M}, outh)
+            s = CuStream()
+            let b = unsafe_wrap(CuArray{Int,1,M}, collect(1:1024))
+                @cuda stream=s slow_sum(out, b, 500_000_000)
+            end
+            finalize(s)
+            GC.gc(true)
+            @test outh[] == sum(1:1024)
         end
     end
 

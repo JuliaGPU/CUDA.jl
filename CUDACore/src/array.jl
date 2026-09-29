@@ -220,6 +220,20 @@ Wrap a `CuArray` object around the data at the address given by the CUDA-managed
 (for a 1d array) or a tuple of the array dimensions. `own` optionally specified whether
 Julia should take ownership of the memory, calling `cudaFree` when the array is no longer
 referenced. The `ctx` argument determines the CUDA context where the data is allocated in.
+
+When wrapping a CPU `Array`, the resulting `CuArray` keeps it alive. When wrapping a CPU
+pointer, the caller has to make sure the memory stays valid for as long as the `CuArray`
+is used. Either way, the memory must not be freed or reallocated (e.g., by `resize!`)
+while it is wrapped, and operations on the `CuArray` execute asynchronously, so
+synchronize before accessing the memory from the CPU. Like other CuArrays, a wrapped array
+is not kept alive by CUDA graphs that captured operations on it: replaying such a graph
+after the array has been freed accesses invalid memory.
+
+!!! warning
+
+    `unsafe_wrap(Array, a::CuArray)` does not keep `a` alive: the returned `Array` is only
+    valid for as long as the caller keeps a reference to `a` (or to the memory it wraps).
+    Using it after `a` has been freed results in undefined behavior.
 """
 unsafe_wrap
 
@@ -301,8 +315,69 @@ end
 # unmanaged pointer to CuArray
 supports_hmm(dev) = driver_version() >= v"12.2" &&
                     attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
-function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
-                          ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
+
+# wrapped memory whose outstanding work could not be waited for. rather than releasing it
+# while it may still be in use, we leak it by keeping its owner alive.
+const leaked_wrapped_memory = Any[]
+const leaked_wrapped_memory_lock = ReentrantLock()
+
+# wait for outstanding work on wrapped system memory, before it can be released. returns
+# whether that succeeded. this runs from a finalizer, so it must not switch tasks (hence the
+# driver's blocking synchronization instead of `synchronize`) and has to perform its own
+# error handling.
+function synchronize_wrapped(managed::Managed, wrap_ctx::CuContext)
+  Base.@lock managed.lock begin
+    (managed.dirty || managed.captured) || return true
+    try
+      stream = managed.stream
+      if stream.ctx !== nothing && isvalid(stream)
+        context!(stream.ctx) do
+          cuStreamSynchronize(stream)
+        end
+      else
+        # the stream has been destroyed, but its work may still be executing, or it is one
+        # of the special streams that aren't tied to a context. either way, we can't tell
+        # where the work was submitted, so wait for every device's primary context, as well
+        # as the context the memory was wrapped in (which may be a non-primary one).
+        synchronized = CuContext[]
+        for dev in devices()
+          pctx = CuPrimaryContext(dev)
+          isactive(pctx) || continue
+          CuContext(pctx) do ctx
+            context!(ctx) do
+              cuCtxSynchronize()
+            end
+            push!(synchronized, ctx)
+          end
+        end
+        # a destroyed context has no outstanding work
+        if !(wrap_ctx in synchronized) && isvalid(wrap_ctx)
+          context!(wrap_ctx) do
+            cuCtxSynchronize()
+          end
+        end
+      end
+      managed.dirty = false
+      return true
+    catch ex
+      Base.showerror_nostdio(ex,
+          "WARNING: Error while waiting for work on wrapped host memory; leaking that memory")
+      Base.show_backtrace(Core.stdout, catch_backtrace())
+      Core.println()
+      return false
+    end
+  end
+end
+
+function leak_wrapped_memory(owner)
+  owner === nothing && return
+  Base.@lock leaked_wrapped_memory_lock push!(leaked_wrapped_memory, owner)
+  return
+end
+
+# `owner` is kept alive for as long as the wrapper
+function wrap_system_memory(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int},
+                            owner=nothing; ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
   sz = prod(dims) * aligned_sizeof(T)
 
@@ -311,15 +386,23 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
     supports_hmm(device(ctx)) ||
       throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
     mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
-    DataRef(Returns(nothing), Managed(mem))
+    DataRef(Managed(mem)) do managed, args...
+      synchronize_wrapped(managed, ctx) || leak_wrapped_memory(owner)
+      GC.@preserve owner nothing
+    end
   elseif M == HostMemory
     # register as device-accessible host memory
     mem = context!(ctx) do
       register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
     end
-    DataRef(Managed(mem)) do args...
-      context!(ctx) do
-        unregister(mem)
+    DataRef(Managed(mem)) do managed, args...
+      if synchronize_wrapped(managed, ctx)
+        GC.@preserve owner context!(ctx) do
+          unregister(mem)
+        end
+      else
+        # keep the memory registered (and its owner alive), as it may still be in use
+        leak_wrapped_memory(owner)
       end
     end
   else
@@ -328,26 +411,29 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
 
   CuArray{T,N}(data, dims)
 end
-function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
-                          p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N}
-  if supports_hmm(device(ctx))
-    Base.unsafe_wrap(CuArray{T,N,UnifiedMemory}, p, dims; ctx)
-  else
-    Base.unsafe_wrap(CuArray{T,N,HostMemory}, p, dims; ctx)
-  end
+function wrap_system_memory(::Type{CuArray{T,N}}, p::Ptr{T}, dims::NTuple{N,Int},
+                            owner=nothing; ctx::CuContext=context()) where {T,N}
+  M = supports_hmm(device(ctx)) ? UnifiedMemory : HostMemory
+  wrap_system_memory(CuArray{T,N,M}, p, dims, owner; ctx)
 end
+Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
+                 ctx::CuContext=context()) where {T,N,M<:AbstractMemory} =
+  wrap_system_memory(CuArray{T,N,M}, p, dims; ctx)
+Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                 p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N} =
+  wrap_system_memory(CuArray{T,N}, p, dims; ctx)
 # integer size input
 Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
                  p::Ptr{T}, dim::Int) where {T} =
   unsafe_wrap(CuArray{T,1}, p, (dim,))
 Base.unsafe_wrap(::Type{CuArray{T,1,M}}, p::Ptr{T}, dim::Int) where {T,M} =
   unsafe_wrap(CuArray{T,1,M}, p, (dim,))
-# array input
+# array input: keep the array alive for as long as the wrapper
 Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                  a::Array{T,N}) where {T,N} =
-  unsafe_wrap(CuArray{T,N}, pointer(a), size(a))
+  wrap_system_memory(CuArray{T,N}, pointer(a), size(a), a)
 Base.unsafe_wrap(::Type{CuArray{T,N,M}}, a::Array{T,N}) where {T,N,M} =
-  unsafe_wrap(CuArray{T,N,M}, pointer(a), size(a))
+  wrap_system_memory(CuArray{T,N,M}, pointer(a), size(a), a)
 
 
 ## array interface
