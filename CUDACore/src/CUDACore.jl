@@ -105,6 +105,7 @@ include("refpointer.jl")
 include("compiler/compilation.jl")
 include("compiler/execution.jl")
 include("compiler/exceptions.jl")
+include("hostcall.jl")
 
 # array implementation
 include("utilities.jl")

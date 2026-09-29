@@ -9,7 +9,7 @@
 
 macro gputhrow(subtype, reason)
     quote
-        info = kernel_state().exception_info
+        info = exception_info()
         info.subtype = @strptr $subtype
         info.reason = @strptr $reason
         throw(nothing)
