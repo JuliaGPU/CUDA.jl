@@ -119,7 +119,16 @@ function _threads_to_workgroupsize(threads, total, ndrange::Tuple)
     return (x, _threads_to_workgroupsize(threads, total * x, Base.tail(ndrange))...)
 end
 
-function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=nothing)
+# forwards the arguments as a tuple, see `CUDACore.launch_tuple(::CuFunction, ...)`
+(obj::KA.Kernel{CUDABackend})(args::Vararg{Any,N}) where {N} = launch_tuple(obj, args)
+Core.kwcall(kwargs::NamedTuple, obj::KA.Kernel{CUDABackend}, args::Vararg{Any,N}) where {N} =
+    launch_tuple(obj, args; kwargs...)
+
+# `(x, t...)`, without splatting
+@inline @generated prepend(x, t::Tuple) = :((x, $((:(t[$i]) for i in 1:fieldcount(t))...)))
+
+function launch_tuple(obj::KA.Kernel{CUDABackend}, args::Tuple;
+                      ndrange=nothing, workgroupsize=nothing)
     backend = KA.backend(obj)
 
     ndrange, workgroupsize, iterspace, dynamic = KA.launch_config(obj, ndrange, workgroupsize)
@@ -133,7 +142,7 @@ function (obj::KA.Kernel{CUDABackend})(args...; ndrange=nothing, workgroupsize=n
         maxthreads = nothing
     end
 
-    call = CUDACore.kernel_call(obj.f, (ctx, args...))
+    call = CUDACore.kernel_call(obj.f, prepend(ctx, args))
     kernel = CUDACore.kernel_compile(call; always_inline=backend.always_inline,
                                      fastmath=backend.fastmath, maxthreads)
 
