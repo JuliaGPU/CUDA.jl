@@ -214,14 +214,18 @@ end
             @test wait_collected(collected)
 
             # also when collected while capturing a graph on the stream that used it,
-            # without breaking that capture
+            # without breaking that capture. `capture` disables the GC, but captures made
+            # by other means don't.
             x = CuArray([0])
             x .+= 1
             collected[] = false
+            GC.gc(true)     # other garbage may not be freeable during the capture
             launch_tracked(out, M, collected, 500_000_000)
             graph = CUDA.capture() do
                 x .+= 1
+                gc_state = GC.enable(true)
                 GC.gc(true)
+                GC.enable(gc_state)
             end
             @test graph isa CuGraph
             @test Array(out)[] == sum(1:1024)
