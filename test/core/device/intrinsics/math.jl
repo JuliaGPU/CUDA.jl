@@ -51,7 +51,7 @@ using SpecialFunctions
       end
     end
 
-    for op in (exp, angle, exp2, exp10,)
+    for op in (exp, angle, exp2, exp10, asinh, acosh, atanh, asin, atan, acos)
         @testset "$op" begin
             for T in (Float32, Float64)
                 @test testf(x->op.(x), rand(T, 1))
