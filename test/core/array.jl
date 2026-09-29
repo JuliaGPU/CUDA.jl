@@ -182,15 +182,50 @@ end
             @test Array(b) == 2:1025
         end
 
-        # releasing a wrapper waits for outstanding work before the Array can be freed
+        # the Array is only released once outstanding work on the wrapper has finished
+        function launch_tracked(out, M, collected, cycles)
+            a = collect(1:1024)
+            finalizer(_ -> collected[] = true, a)
+            b = unsafe_wrap(CuArray{Int,1,M}, a)
+            @cuda slow_sum(out, b, cycles)
+            return
+        end
+        function wait_collected(collected)
+            t = time()
+            while !collected[] && time() - t < 10
+                GC.gc(true)
+                sleep(0.01)
+            end
+            return collected[]
+        end
         for M in memtypes
             out = CuArray([0])
-            let b = unsafe_wrap(CuArray{Int,1,M}, collect(1:1024))
-                @cuda slow_sum(out, b, 500_000_000)
-            end
+            collected = Threads.Atomic{Bool}(false)
+            launch_tracked(out, M, collected, 1_000_000_000)
             GC.gc(true)
-            @test CUDA.isdone(stream())
+            if M == CUDA.HostMemory
+                # unregistering the memory waits for the outstanding work
+                @test CUDA.isdone(stream())
+            else
+                # the stream signals when the Array can be released
+                @test !collected[]
+            end
             @test Array(out)[] == sum(1:1024)
+            @test wait_collected(collected)
+
+            # also when collected while capturing a graph on the stream that used it,
+            # without breaking that capture
+            x = CuArray([0])
+            x .+= 1
+            collected[] = false
+            launch_tracked(out, M, collected, 500_000_000)
+            graph = CUDA.capture() do
+                x .+= 1
+                GC.gc(true)
+            end
+            @test graph isa CuGraph
+            @test Array(out)[] == sum(1:1024)
+            @test wait_collected(collected)
 
             # also when the stream the work was submitted to has been destroyed since.
             # the result is read from the CPU directly, as synchronizing `out` would try to
