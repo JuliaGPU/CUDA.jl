@@ -280,13 +280,25 @@ using SpecialFunctions
             @test testf(x->sincospi.(x), rand(T, 1))
         end
     end
-    
+
     @testset "Real - $op" for op in (abs, abs2, exp, exp10, log, log10)
         @testset "$T" for T in (Float16, Float32, Float64)
             @test testf(x->op.(x), rand(T, 1))
         end
     end
-    
+
+    @testset "ldexp" begin
+        @testset "$T" for T in (Float32, Float64)
+            @test testf(x->ldexp.(x, 4), rand(T, 1))
+        end
+    end
+
+    @testset "log2" begin
+        @testset "$T" for T in (Float32, Float64)
+            @test testf(x->log2.(x), rand(T, 1))
+        end
+    end
+
     @testset "Float16 - $op" for op in (exp,exp2,exp10,log,log2,log10)
         all_float_16 = collect(reinterpret(Float16, pattern) for pattern in  UInt16(0):UInt16(1):typemax(UInt16))
         all_float_16 = filter(!isnan, all_float_16)
@@ -323,6 +335,22 @@ using SpecialFunctions
             @test Array(A) == ones(T, 4)
             @cuda threads=4 fastpow_kernel(A, 3)
             @test Array(A) == ones(T, 4)
+        end
+
+        # Test fast tan on Float32
+        f(x) = tan(x)
+        g(x) = @fastmath tan(x)
+        @test Array(map(f, cu([0.1,0.2]))) ≈ Array(map(g, cu([0.1,0.2])))
+
+        # exp and exp2 for Float32 and Float64
+        for T in (Float32, Float64)
+            A = CUDA.rand(T, 4)
+            f(x) = exp(x)
+            g(x) = @fastmath exp(x)
+            @test Array(map(f, A)) ≈ Array(map(g, A))
+            f(x) = exp2(x)
+            g(x) = @fastmath exp2(x)
+            @test Array(map(f, A)) ≈ Array(map(g, A))
         end
 
         # Float16 hardware approximations: tanh.approx.f16 / ex2.approx.f16 on sm_75+
