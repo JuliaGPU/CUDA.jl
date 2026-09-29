@@ -66,6 +66,63 @@ end
 
 @testset "coalesced groups" begin
 
+@testset "voting" begin
+@testset "any" begin
+    warpsize = CUDA.warpsize(device())
+    h_a = falses(warpsize)
+    h_a[end] = true
+    d_a = CuArray(h_a)
+
+    function kernel(a)
+        cta = CG.this_thread_block()
+        I = CG.thread_rank(cta)
+        warp = CG.coalesced_threads()
+        vote = CG.vote_any(warp, a[I])
+        if I == 1
+            a[1] = vote
+        end
+        return
+    end
+
+    @cuda threads=warpsize kernel(d_a)
+    @test Array(d_a)[1]
+
+    @cuda threads=warpsize kernel(d_a)
+    @test Array(d_a)[1]
+
+    @cuda threads=warpsize kernel(d_a)
+    @test Array(d_a)[1]
+end
+
+@testset "all" begin
+    warpsize = CUDA.warpsize(device())
+    h_a = falses(warpsize)
+    h_a[end] = true
+    d_a = CuArray(h_a)
+
+    function kernel(a)
+        cta = CG.this_thread_block()
+        I = CG.thread_rank(cta)
+        warp = CG.coalesced_threads()
+        vote = CG.vote_all(warp, a[I])
+        if I == 1
+            a[1] = vote
+        end
+        return
+    end
+
+    @cuda threads=warpsize kernel(d_a)
+    @test !Array(d_a)[1]
+
+    @cuda threads=warpsize kernel(d_a)
+    @test !Array(d_a)[1]
+
+    @cuda threads=warpsize kernel(d_a)
+    @test !Array(d_a)[1]
+end
+
+end
+
 @testset "shuffle" begin
     function reverse_kernel(d, lower, upper)
         cta = CG.this_thread_block()

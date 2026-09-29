@@ -464,9 +464,9 @@ function shfl_up(cg::coalesced_group, elem, delta)
     shfl_sync(cg.mask, elem, lane)
 end
 
-vote_any(cg::coalesced_group, pred) = vote_ballot_sync(cg.mask, pred) != 0
+vote_any(cg::coalesced_group, pred) = vote_any_sync(cg.mask, pred)
 
-vote_all(cg::coalesced_group, pred) = vote_all_sync(cg.mask, pred) == cg.mask
+vote_all(cg::coalesced_group, pred) = vote_all_sync(cg.mask, pred)
 
 function pack_lanes(cg, laneMask)
     member_pack = UInt32(0)
@@ -490,7 +490,7 @@ function vote_ballot(cg::coalesced_group, pred)
         return vote_ballot_sync(FULL_MASK, pred)
     end
 
-    lane_ballot = vote_ballot_sync(cg.mask, predicate)
+    lane_ballot = vote_ballot_sync(cg.mask, pred)
     pack_lanes(cg, lane_ballot)
 end
 
