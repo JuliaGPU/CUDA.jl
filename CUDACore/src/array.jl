@@ -111,7 +111,15 @@ GPUArrays.storage(a::CuArray) = a.data
 
 ## alias detection
 
-Base.dataids(A::CuArray) = (UInt(pointer(A)),)
+# identify the underlying memory, not just where this array starts in it: derived arrays
+# (contiguous views, reshapes, reinterprets) have an offset into their parent's memory,
+# and Base compares `dataids` whenever one side is wrapped (e.g., a `SubArray`).
+# the start address is included too, to match memory that was `unsafe_wrap`ped from it.
+function Base.dataids(A::CuArray)
+  # not using `pointer(A)`, as converting managed memory takes ownership of it
+  base = UInt(convert(CuPtr{Nothing}, A.data[].mem))
+  return (base, base + A.offset)
+end
 
 Base.unaliascopy(A::CuArray) = copy(A)
 
