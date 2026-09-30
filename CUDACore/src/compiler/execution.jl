@@ -120,6 +120,7 @@ end
     end
 end
 
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 """
     KernelCall(f, args...; backend=LLVMBackend())
 
@@ -128,7 +129,6 @@ values. Use [`kernel_compile`](@ref) to compile the call and
 [`kernel_launch`](@ref) to launch the resulting kernel without converting the
 arguments again.
 """
-# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 @inline KernelCall(f, args::Vararg{Any,N}) where {N} = kernel_call(f, args)
 @inline Core.kwcall(kwargs::NamedTuple{(:backend,)}, ::Type{KernelCall}, f,
                     args::Vararg{Any,N}) where {N} =
@@ -218,6 +218,7 @@ end
     end
 end
 
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 """
     kernel_pipeline(backend, f, Val(launch), args...; launch_kwargs=(;), compiler_kwargs...)
 
@@ -230,7 +231,6 @@ arguments, before any conversion or managed-memory bookkeeping has happened. Pac
 that need to intercept a launch as a whole, such as automatic-differentiation rules,
 should hook this function rather than the conversion or launch steps below it.
 """
-# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 @inline kernel_pipeline(backend, f::F, launch::Val, args::Vararg{Any,N}) where {F,N} =
     kernel_pipeline_tuple(backend, f, launch, args)
 @inline Core.kwcall(kwargs::NamedTuple, ::typeof(kernel_pipeline), backend, f::F, launch::Val,
