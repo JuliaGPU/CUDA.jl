@@ -115,13 +115,18 @@ function ParallelTestRunner.execute(::Type{CUDATestRecord}, mod::Module, f, name
     data = @eval mod begin
         GC.gc(true)
         Random.seed!(1)
+        Base.cumulative_compile_timing(true)
+        compile_time0 = Base.cumulative_compile_time_ns()[1]
         stats = CUDA.@timed @testset WorkerTestSet "placeholder" begin
             @testset DefaultTestSet $name begin
                 $f
             end
         end
+        compile_time = (Base.cumulative_compile_time_ns()[1] - compile_time0) / 1e9
+        Base.cumulative_compile_timing(false)
         (; testset = stats.value,
            stats.time,
+           compile_time,
            cpu_bytes = UInt64(stats.cpu_bytes),
            cpu_gctime = Float64(stats.cpu_gctime),
            gpu_bytes = UInt64(stats.gpu_bytes),
@@ -130,7 +135,7 @@ function ParallelTestRunner.execute(::Type{CUDATestRecord}, mod::Module, f, name
 
     rss = Sys.maxrss()
     base = TestRecord(data.testset, data.time, data.cpu_bytes, data.cpu_gctime,
-                      0.0, rss, time() - start_time)
+                      data.compile_time, rss, time() - start_time)
     record = CUDATestRecord(base, data.gpu_bytes, data.gpu_time, gpu_rss_nvml())
     GC.gc(true)
     CUDA.reclaim()
