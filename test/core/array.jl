@@ -80,6 +80,17 @@ end
   CUDA.enable_synchronization!(a)
 end
 
+function slow_sum(out, a, cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    acc = 0
+    for x in a
+        acc += x
+    end
+    out[] = acc
+    return
+end
+
 @testset "unsafe_wrap" begin
     # managed memory -> CuArray
     for a in [cu([1]; device=true), cu([1]; unified=true)]
@@ -157,6 +168,71 @@ end
               @test size(b) == (1,)
               @test Array(b) == a
           end
+        end
+
+        # wrapping an Array keeps it alive
+        memtypes = []
+        CUDA.supports_hmm(device()) && push!(memtypes, CUDA.UnifiedMemory)
+        can_register && push!(memtypes, CUDA.HostMemory)
+        for M in memtypes
+            b = unsafe_wrap(CuArray{Int,1,M}, collect(1:1024))
+            GC.gc(true)
+            @test Array(b) == 1:1024
+            b .+= 1
+            @test Array(b) == 2:1025
+
+            # also by arrays derived from the wrapper
+            b = reshape(unsafe_wrap(CuArray{Int,1,M}, collect(1:1024)), 32, 32)
+            GC.gc(true)
+            @test vec(Array(b)) == 1:1024
+        end
+
+        # the Array is only released once outstanding work on the wrapper has finished
+        for M in memtypes
+            # the kernel's output is written to wrapped host memory, which can be checked
+            # from the CPU without synchronizing
+            outh = [0]
+            out = unsafe_wrap(CuArray{Int,1,M}, outh)
+            a = collect(1:1024)
+            b = unsafe_wrap(CuArray{Int,1,M}, a)
+            @cuda slow_sum(out, b, 500_000_000)
+            CUDA.unsafe_free!(b)
+            @test outh[] == sum(1:1024)
+
+            # the memory is released right away, so it can be wrapped again
+            b = unsafe_wrap(CuArray{Int,1,M}, a)
+            @test Array(b) == 1:1024
+
+            # also when the stream the work was submitted to has been destroyed since
+            outh[] = 0
+            s = CuStream()
+            @cuda stream=s slow_sum(out, b, 500_000_000)
+            finalize(s)
+            CUDA.unsafe_free!(b)
+            @test outh[] == sum(1:1024)
+        end
+
+        # when the GC frees the wrapper, a task releases the Array
+        function launch_tracked(outh, M, released)
+            a = collect(1:1024)
+            finalizer(a) do _
+                released[] = outh[] == sum(1:1024) ? 1 : -1
+            end
+            out = unsafe_wrap(CuArray{Int,1,M}, outh)
+            b = unsafe_wrap(CuArray{Int,1,M}, a)
+            @cuda slow_sum(out, b, 500_000_000)
+            return
+        end
+        for M in memtypes
+            outh = [0]
+            released = Threads.Atomic{Int}(0)
+            launch_tracked(outh, M, released)
+            t = time()
+            while released[] == 0 && time() - t < 10
+                GC.gc(true)
+                sleep(0.01)
+            end
+            @test released[] == 1
         end
     end
 
