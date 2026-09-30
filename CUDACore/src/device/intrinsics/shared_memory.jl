@@ -130,7 +130,7 @@ end
         # > 1. Is the global variable in shared address space?
         # > 2. Does it have internal linkage?
         # > 3. Is the global variable referenced only in one function?
-        gv.linkage = LLVM.API.LLVMInternalLinkage
+        gv.linkage = LLVM.Linkage.Internal
         gv.initializer = null(gv_typ)
     end
     # by requesting a larger-than-datatype alignment, we might be able to vectorize.

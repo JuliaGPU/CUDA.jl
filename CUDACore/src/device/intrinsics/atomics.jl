@@ -33,9 +33,9 @@ end
 
 # all atomic operations have acquire and/or release semantics,
 # depending on whether they load or store values (mimics Base)
-const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
-const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
-const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+const atomic_acquire = LLVM.AtomicOrdering.Acquire
+const atomic_release = LLVM.AtomicOrdering.Release
+const atomic_acquire_release = LLVM.AtomicOrdering.AcquireRelease
 
 # common arithmetic operations on integers using LLVM instructions
 #
@@ -57,21 +57,6 @@ end
     atomic_rmw!(builder, binop, typed_ptr, val, atomic_acquire_release, llvm_syncscope(scope))
 end
 
-const binops = Dict(
-    :xchg  => LLVM.API.LLVMAtomicRMWBinOpXchg,
-    :add   => LLVM.API.LLVMAtomicRMWBinOpAdd,
-    :sub   => LLVM.API.LLVMAtomicRMWBinOpSub,
-    :and   => LLVM.API.LLVMAtomicRMWBinOpAnd,
-    :or    => LLVM.API.LLVMAtomicRMWBinOpOr,
-    :xor   => LLVM.API.LLVMAtomicRMWBinOpXor,
-    :max   => LLVM.API.LLVMAtomicRMWBinOpMax,
-    :min   => LLVM.API.LLVMAtomicRMWBinOpMin,
-    :umax  => LLVM.API.LLVMAtomicRMWBinOpUMax,
-    :umin  => LLVM.API.LLVMAtomicRMWBinOpUMin,
-    :fadd  => LLVM.API.LLVMAtomicRMWBinOpFAdd,
-    :fsub  => LLVM.API.LLVMAtomicRMWBinOpFSub,
-)
-
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
 
@@ -88,7 +73,7 @@ for T in (Int32, Int64, UInt32, UInt64)
                                      LLVMPtr{$T,AS.Global},
                                      LLVMPtr{$T,AS.Shared}}, val::$T,
                           scope::AtomicScope=Val(:device)) =
-            llvm_atomic_op($(Val(binops[rmw])), ptr, val, scope)
+            llvm_atomic_op($(Val(parse(LLVM.AtomicRMWBinOp.T, String(rmw)))), ptr, val, scope)
     end
 end
 
@@ -104,7 +89,7 @@ for T in (:Float16, :Float32, :Float64)
                                      LLVMPtr{$T,AS.Global},
                                      LLVMPtr{$T,AS.Shared}}, val::$T,
                           scope::AtomicScope=Val(:device)) =
-           llvm_atomic_op($(Val(binops[rmw])), ptr, val, scope)
+           llvm_atomic_op($(Val(parse(LLVM.AtomicRMWBinOp.T, String(rmw)))), ptr, val, scope)
     end
 
     # there's no specific NNVM intrinsic for fsub, resulting in a selection error.
@@ -122,7 +107,7 @@ end
                                          LLVMPtr{BFloat16,AS.Global},
                                          LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16,
                               scope::AtomicScope=Val(:device)) =
-        llvm_atomic_op($(Val(binops[:fadd])), ptr, val, scope)
+        llvm_atomic_op($(Val(LLVM.AtomicRMWBinOp.FAdd)), ptr, val, scope)
     @eval @inline atomic_sub!(ptr::Union{LLVMPtr{BFloat16,AS.Generic},
                                          LLVMPtr{BFloat16,AS.Global},
                                          LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16,
@@ -200,10 +185,9 @@ for A in (AS.Generic, AS.Global, AS.Shared)
         fn = Symbol("atomic_$(op)!")
         @static if Base.libllvm_version >= v"21"
             # LLVM 21 removed these intrinsics in favor of `atomicrmw uinc_wrap/udec_wrap`
-            binop = op == :inc ? LLVM.API.LLVMAtomicRMWBinOpUIncWrap :
-                                 LLVM.API.LLVMAtomicRMWBinOpUDecWrap
+            rmw = op == :inc ? LLVM.AtomicRMWBinOp.UIncWrap : LLVM.AtomicRMWBinOp.UDecWrap
             @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T, ::Val{:device}=Val(:device)) =
-                llvm_atomic_op($(Val(binop)), ptr, val, Val(:device))
+                llvm_atomic_op($(Val(rmw)), ptr, val, Val(:device))
         else
             intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
             @eval @device_function @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T,

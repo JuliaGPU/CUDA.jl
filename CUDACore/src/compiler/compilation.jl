@@ -69,10 +69,10 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
                           "sm_features" => UInt32(feature_set),
                           "ptx_major"   => job.config.target.ptx.major,
                           "ptx_minor"   => job.config.target.ptx.minor]
-        if haskey(mod.globals, name)
-            gv = mod.globals[name]
+        gv = get(mod.globals, name, nothing)
+        if gv !== nothing
             gv.initializer = ConstantInt(LLVM.Int32Type(), value)
-            gv.linkage = LLVM.API.LLVMPrivateLinkage
+            gv.linkage = LLVM.Linkage.Private
         end
     end
 
@@ -117,9 +117,7 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
             end
             T_id = convert(LLVMType, Int)
             deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_id])
-            deferred_codegen = if haskey(mod.functions, "deferred_codegen")
-                mod.functions["deferred_codegen"]
-            else
+            deferred_codegen = get!(mod.functions, "deferred_codegen") do
                 LLVM.Function(mod, "deferred_codegen", deferred_codegen_ft)
             end
             fptr = call!(builder, deferred_codegen_ft, deferred_codegen, [ConstantInt(id)])
@@ -148,7 +146,7 @@ function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
 end
 
 function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, format)
-    @assert format == LLVM.API.LLVMAssemblyFile
+    @assert format == LLVM.CodeGenFileType.Assembly
     asm = invoke(GPUCompiler.mcgen,
                  Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
                  job, mod, format)
