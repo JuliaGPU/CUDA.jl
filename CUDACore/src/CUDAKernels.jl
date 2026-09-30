@@ -1,7 +1,7 @@
 module CUDAKernels
 
 using ..CUDACore
-using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays
+using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays, i32
 
 import KernelInterface as KI
 
@@ -37,6 +37,10 @@ KI.functional(::CUDABackend) = CUDACore.functional()
 KI.supports_unified(::CUDABackend) = true
 KI.supports_float64(::CUDABackend) = true
 KI.supports_atomics(::CUDABackend) = true
+KI.supports_subgroups(::CUDABackend) = true
+# `shfl_down_sync` decomposes other types into 32-bit shuffles
+KI.supports_shuffle(::CUDABackend, ::Type{T}) where {T} =
+    T <: Union{Bool, Base.BitInteger, Base.IEEEFloat, Complex{<:Union{Base.BitInteger, Base.IEEEFloat}}}
 
 Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}) = a
@@ -135,6 +139,9 @@ end
 KI.max_work_group_size(::CUDABackend)::Int = 1024
 KI.max_work_group_dims(::CUDABackend)::NTuple{3, Int} = (1024, 1024, 64)
 KI.max_num_groups(::CUDABackend)::NTuple{3, Int} = (Int(typemax(Int32)), 65535, 65535)
+function KI.sub_group_size(::CUDABackend)::Int
+    warpsize(device())
+end
 function KI.multiprocessor_count(::CUDABackend)::Int
     Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))
 end
@@ -159,6 +166,29 @@ end
     return (; x = gridDim().x % T, y = gridDim().y % T, z = gridDim().z % T)
 end
 
+@device_override KI.get_sub_group_size(::Type{T}) where {T} = active_sub_group_size() % T
+
+@device_override KI.get_max_sub_group_size(::Type{T}) where {T} = warpsize() % T
+
+@device_override KI.get_num_sub_groups(::Type{T}) where {T} = cld(prod(blockDim()), warpsize()) % T
+
+@device_override KI.get_sub_group_id(::Type{T}) where {T} = (linear_thread_id() ÷ warpsize() + 1i32) % T
+
+@device_override KI.get_sub_group_local_id(::Type{T}) where {T} = laneid() % T
+
+# warps are formed from consecutive linear thread indices
+@inline function linear_thread_id()
+    return (threadIdx().x - 1i32) +
+           (threadIdx().y - 1i32) * blockDim().x +
+           (threadIdx().z - 1i32) * blockDim().x * blockDim().y
+end
+
+# the last warp of a block can be partial
+@inline function active_sub_group_size()
+    threads = blockDim().x * blockDim().y * blockDim().z
+    return min(warpsize(), threads - (linear_thread_id() ÷ warpsize()) * warpsize())
+end
+
 ## shared and scratch memory
 
 @device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
@@ -169,6 +199,14 @@ end
 
 @device_override @inline function KI.barrier()
     sync_threads()
+end
+
+@device_override @inline function KI.sub_group_barrier()
+    sync_warp()
+end
+
+@device_override function KI.shfl_down(val::T, offset::Integer) where T
+    shfl_down_sync(0xffffffff, val, offset)
 end
 
 @device_override @inline function KI._print(args...)
