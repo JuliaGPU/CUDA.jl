@@ -3,6 +3,8 @@ using CUDACore: functional, runtime_version, driver_version, compiler_version,
                 devices, name, capability, device!, free_memory, total_memory,
                 uuid, parent_uuid, CuDevice, CUDA_Runtime_jll, CUDA_Driver_jll
 
+import KernelInterface as KI
+
 @public versioninfo
 
 function versioninfo(io::IO=stdout)
@@ -175,3 +177,5 @@ function versioninfo(io::IO=stdout)
         end
     end
 end
+
+KI.versioninfo(io::IO, ::CUDABackend) = versioninfo(io)
