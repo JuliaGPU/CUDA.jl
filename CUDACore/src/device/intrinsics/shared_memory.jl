@@ -178,5 +178,5 @@ export malloc
     #end
 
     ptr = call!(builder, intr_typ, intr, [sz])
-    ptrtoint!(builder, ptr, T_ptr)
+    pointercast!(builder, ptr, T_ptr)
 end

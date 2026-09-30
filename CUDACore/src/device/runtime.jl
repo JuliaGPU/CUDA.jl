@@ -101,7 +101,7 @@ macro strptr(str::String)
 end
 @llvmgenerated builder function _strptr(::Val{sym})::Ptr{UInt8} where {sym}
     ptr = globalstring_ptr!(builder, String(sym))
-    ptrtoint!(builder, ptr, convert(LLVMType, Ptr{UInt8}))
+    pointercast!(builder, ptr, convert(LLVMType, Ptr{UInt8}))
 end
 
 

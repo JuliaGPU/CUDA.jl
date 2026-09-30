@@ -27,7 +27,6 @@ using ..CUDACore
 using ..CUDACore: i32, Aligned, alignment, GPUCompiler, @device_function
 
 import ..LLVM
-using ..LLVM.Build: bitcast!, load!
 using ..LLVM.Interop
 using ..LLVMLoopInfo
 
@@ -374,12 +373,6 @@ end
     return oldArrive
 end
 
-@llvmgenerated builder function volatile_load(ptr::LLVMPtr{T,A})::T where {T,A}
-    T_val = convert(LLVM.LLVMType, T)
-    typed_ptr = bitcast!(builder, ptr, LLVM.PointerType(T_val, A))
-    load!(builder, T_val, typed_ptr; volatile=true)
-end
-
 @device_function @inline function barrier_wait(gg::grid_group, token)
     arrived = gg.details.barrier
 
@@ -388,7 +381,7 @@ end
             # volatile polling; fence
             while true
                 # volatile load
-                current_arrive = volatile_load(arrived)
+                current_arrive = volatile_load(arrived, 1, Val(4))
                 if bar_has_flipped(token, current_arrive)
                     break
                 end

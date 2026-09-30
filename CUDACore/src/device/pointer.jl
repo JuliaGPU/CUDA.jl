@@ -31,10 +31,9 @@ const LDGTypes = (UInt8, UInt16, UInt32, UInt64, Int8, Int16, Int32, Int64,
     if supports_typed_pointers(LLVM.context())
         ptr = bitcast!(builder, ptr, LLVM.PointerType(eltyp, AS.Global))
     end
-    ld = load!(builder, eltyp, inbounds_gep!(builder, eltyp, ptr, [i]))
-    ld.metadata[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global)
-    ld.metadata[LLVM.MD_invariant_load] = MDNode(Metadata[])
-    ld.alignment = align
+    ld = load!(builder, eltyp, inbounds_gep!(builder, eltyp, ptr, [i]); align)
+    ld.metadata[MD_tbaa] = tbaa_addrspace(AS.Global)
+    ld.metadata[MD_invariant_load] = MDNode(Metadata[])
     ld
 end
 

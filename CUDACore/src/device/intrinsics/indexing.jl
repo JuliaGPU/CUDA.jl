@@ -8,16 +8,21 @@ export
 @device_function @llvmgenerated builder function _index(::Val{name},
                                                         ::Val{range})::Int32 where {name, range}
     T_int32 = LLVM.Int32Type()
+    mod = current_module(builder)
 
-    # call the indexing intrinsic
+    # call the indexing intrinsic. the cluster registers are only known to LLVM 17+, so
+    # declare those by name on older versions (the NVPTX back-end still lowers them).
+    intr_name = "llvm.nvvm.read.ptx.sreg.$name"
     intr_typ = LLVM.FunctionType(T_int32)
-    intr = LLVM.Function(current_module(builder), "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
+    intr = let known = tryparse(Intrinsic, intr_name)
+        known === nothing ? LLVM.Function(mod, intr_name, intr_typ) : LLVM.Function(mod, known)
+    end
     idx = call!(builder, intr_typ, intr)
 
     # attach range metadata
     range_metadata = MDNode([ConstantInt(range.start % Int32),
                              ConstantInt((range.stop + 1) % Int32)])
-    idx.metadata[LLVM.MD_range] = range_metadata
+    idx.metadata[MD_range] = range_metadata
 
     idx
 end

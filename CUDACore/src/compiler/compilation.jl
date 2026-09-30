@@ -107,14 +107,8 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
             end
             first(top_bb.instructions).debug_location = builder.debug_location
 
-            # call the `deferred_codegen` marker function
-            T_ptr = if LLVM.version() >= v"17"
-                LLVM.PointerType()
-            elseif VERSION >= v"1.12.0-DEV.225"
-                LLVM.PointerType(LLVM.Int8Type())
-            else
-                LLVM.Int64Type()
-            end
+            # call the `deferred_codegen` marker function, which returns a `Ptr{Cvoid}`
+            T_ptr = convert(LLVMType, Ptr{Cvoid})
             T_id = convert(LLVMType, Int)
             deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_id])
             deferred_codegen = get!(mod.functions, "deferred_codegen") do
@@ -126,7 +120,12 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
             rt = Core.Compiler.return_type(f, tt)
             llvm_rt = convert(LLVMType, rt)
             llvm_ft = LLVM.FunctionType(llvm_rt)
-            fptr = inttoptr!(builder, fptr, LLVM.PointerType(llvm_ft))
+            T_fptr = LLVM.PointerType(llvm_ft)
+            fptr = if T_ptr isa LLVM.IntegerType     # Julia < 1.12 lowers `Ptr` to integers
+                inttoptr!(builder, fptr, T_fptr)
+            else
+                pointercast!(builder, fptr, T_fptr)
+            end
             call!(builder, llvm_ft, fptr)
             br!(builder, top_bb)
         end

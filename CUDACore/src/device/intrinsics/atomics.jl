@@ -9,7 +9,6 @@
 # system scope, which Pascal cannot provide under Windows (#3187).
 const atomic_scopes = (:block, :device, :system)
 const AtomicScope = Union{Val{:block}, Val{:device}, Val{:system}}
-llvm_syncscope(::Val{S}) where {S} = SyncScope(String(S))
 
 # the PTX spelling of a scope, for inline assembly
 ptx_scope(::Val{:block}) = ".cta"
@@ -54,7 +53,7 @@ end
                                                 scope::Val{S})::T where {binop, T, A, S}
     T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
     typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
-    atomic_rmw!(builder, binop, typed_ptr, val, atomic_acquire_release, llvm_syncscope(scope))
+    atomic_rmw!(builder, binop, typed_ptr, val, atomic_acquire_release; scope=S)
 end
 
 for T in (Int32, Int64, UInt32, UInt64)
@@ -125,7 +124,7 @@ end
     T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
     typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
     res = atomic_cmpxchg!(builder, typed_ptr, cmp, val, atomic_acquire_release,
-                          atomic_acquire, llvm_syncscope(scope))
+                          atomic_acquire; scope=S)
     extract_value!(builder, res, 0)
 end
 
