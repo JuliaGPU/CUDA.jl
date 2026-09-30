@@ -121,6 +121,24 @@ end
     @test !Array(d_a)[1]
 end
 
+@testset "ballot" begin
+    warpsize = CUDA.warpsize(device())
+    d_a = CuArray(zeros(UInt32, warpsize))
+
+    function kernel(a, i)
+        cta = CG.this_thread_block()
+        I = CG.thread_rank(cta)
+        warp = CG.coalesced_threads()
+        vote = CG.vote_ballot(warp, threadIdx().x == i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+        return
+    end
+    @cuda threads=warpsize kernel(d_a, 2)
+    @test !(Array(d_a)[1] == 1)
+end
+
 end
 
 @testset "shuffle" begin
@@ -141,7 +159,7 @@ end
     function shift_up_kernel(d, lower, upper, delta)
         cta = CG.this_thread_block()
         I = CG.thread_rank(cta)
-        if lower <= threadIdx().x <= upper
+        if lower <= CG.thread_index(cta).x <= upper
             warp = CG.coalesced_threads()
             d[I] = CG.shfl_up(warp, d[I], delta)
         end
@@ -151,7 +169,7 @@ end
     function shift_down_kernel(d, lower, upper, delta)
         cta = CG.this_thread_block()
         I = CG.thread_rank(cta)
-        if lower <= threadIdx().x <= upper
+        if lower <= CG.thread_index(cta).x <= upper
             warp = CG.coalesced_threads()
             d[I] = CG.shfl_down(warp, d[I], delta)
         end
