@@ -183,11 +183,11 @@ end
         end
 
         # the Array is only released once outstanding work on the wrapper has finished
-        function launch_tracked(out, M, collected, cycles)
+        function launch_tracked(out, M, collected, cycles; stream=stream())
             a = collect(1:1024)
             finalizer(_ -> collected[] = true, a)
             b = unsafe_wrap(CuArray{Int,1,M}, a)
-            @cuda slow_sum(out, b, cycles)
+            @cuda stream=stream slow_sum(out, b, cycles)
             return
         end
         function wait_collected(collected)
@@ -237,12 +237,12 @@ end
             outh = [0]
             out = unsafe_wrap(CuArray{Int,1,M}, outh)
             s = CuStream()
-            let b = unsafe_wrap(CuArray{Int,1,M}, collect(1:1024))
-                @cuda stream=s slow_sum(out, b, 500_000_000)
-            end
+            collected[] = false
+            launch_tracked(out, M, collected, 500_000_000; stream=s)
             finalize(s)
             GC.gc(true)
             @test outh[] == sum(1:1024)
+            @test wait_collected(collected)
         end
     end
 
