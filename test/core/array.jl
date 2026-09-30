@@ -698,6 +698,25 @@ end
   @test !Base.mightalias(x, b)
   b .= 3
   @test Array(y) == [2]
+
+  # contiguous views are CuArrays with an offset into the parent's memory,
+  # which should still alias wrapped arrays (like SubArrays) of that memory
+  x = CuArray(1:16)
+  @test Base.mightalias(view(x, 2:16), view(x, 15:-1:1))
+  @test Base.mightalias(view(x, 1:2:15), view(x, 2:9))
+  @test Base.mightalias(view(x, 2:16), view(reinterpret(Int32, x), 1:2:31))
+  @test !Base.mightalias(view(x, 2:16), view(CuArray(1:16), 15:-1:1))
+
+  # memory wrapped from a view's pointer
+  y = view(x, 2:16)
+  z = unsafe_wrap(CuArray, pointer(y), size(y); own=false)
+  @test Base.mightalias(y, view(z, 15:-1:1))
+
+  # so in-place broadcasts between them should make a copy first (issue #3286)
+  n = 2^24
+  x = CuArray{Float32}(1:n)
+  view(x, 2:n) .= view(x, n-1:-1:1)
+  @test Array(x) == [1; n-1:-1:1]
 end
 
 @testset "issue 919" begin
