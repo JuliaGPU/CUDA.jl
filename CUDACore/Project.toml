@@ -43,6 +43,9 @@ EnzymeCoreExt = "EnzymeCore"
 KernelAbstractionsExt = "KernelAbstractions"
 SpecialFunctionsExt = "SpecialFunctions"
 
+[sources]
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main", subdir = "lib/KernelInterface"}
+
 [compat]
 Adapt = "4.4"
 BFloat16s = "0.5, 0.6"

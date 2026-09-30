@@ -24,6 +24,9 @@ SparseMatricesCSR = "a0a7dd2c-ebf4-11e9-1f05-cf50bc540ca1"
 [extensions]
 SparseMatricesCSRExt = "SparseMatricesCSR"
 
+[sources]
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main", subdir = "lib/KernelInterface"}
+
 [compat]
 Adapt = "4.4"
 CEnum = "0.2, 0.3, 0.4, 0.5"
