@@ -87,3 +87,7 @@ end
     @test_throws ArgumentError kernel(A; ndrange=4, threads=8)
     @test_throws ArgumentError kernel(A; ndrange=4, blocks=2)
 end
+
+@testset "versioninfo" begin
+    @test occursin("CUDA toolchain", sprint(KI.versioninfo, CUDABackend()))
+end
