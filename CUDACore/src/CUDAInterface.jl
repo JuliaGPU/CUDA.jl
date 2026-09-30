@@ -105,8 +105,10 @@ function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3},
 end
 
 KI.max_work_group_size(kernel::KI.Kernel{CUDABackend})::Int = CUDACore.maxthreads(kernel.kern)
-function KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; max_work_group_size::Integer=typemax(Int))
-    config = launch_configuration(kernel.kern.fun; max_threads=min(max_work_group_size, typemax(Int32)))
+function KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; nitems::Union{Integer,Nothing}=nothing,
+                                 max_work_group_size::Integer=typemax(Int))
+    max_threads = min(max_work_group_size, something(nitems, typemax(Int)), typemax(Int32))
+    config = launch_configuration(kernel.kern.fun; max_threads)
     return (; workgroupsize=Int(config.threads))
 end
 function KI.max_work_group_size(::CUDABackend)::Int
