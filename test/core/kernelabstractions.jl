@@ -151,11 +151,13 @@ end
 
     # tuning receives the number of work-items; prefer_blocks launches more, smaller blocks
     kernel = KI.@launch CUDABackend() launch=false ki_store_index!(A)
-    threads = KI.launch_configuration(kernel; max_work_group_size=1024).workgroupsize
+    threads = KI.launch_configuration(kernel; nitems=1024).workgroupsize
     @test threads <= 1024
     kernel = KI.@launch CUDABackend(; prefer_blocks=true) launch=false ki_store_index!(A)
-    fewer = KI.launch_configuration(kernel; max_work_group_size=1024).workgroupsize
+    fewer = KI.launch_configuration(kernel; nitems=1024).workgroupsize
     @test fewer < threads
+    # ... but not for a bound on the workgroup size alone
+    @test KI.launch_configuration(kernel; max_work_group_size=1024).workgroupsize == threads
     KI.@launch CUDABackend(; prefer_blocks=true) ndrange=length(A) ki_store_index!(A)
     @test Array(A) == 1:1024
 end
