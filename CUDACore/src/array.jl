@@ -221,9 +221,9 @@ Wrap a `CuArray` object around the data at the address given by the CUDA-managed
 Julia should take ownership of the memory, calling `cudaFree` when the array is no longer
 referenced. The `ctx` argument determines the CUDA context where the data is allocated in.
 
-When wrapping a CPU `Array`, the resulting `CuArray` keeps it alive. When wrapping a CPU
-pointer, the caller has to make sure the memory stays valid for as long as the `CuArray`
-is used. Either way, the memory must not be freed or reallocated (e.g., by `resize!`)
+When wrapping a CPU `Array`, the resulting `CuArray` keeps it alive, until the GPU is done
+using it. When wrapping a CPU pointer, the caller has to make sure the memory stays valid
+for as long as the `CuArray` is used. Either way, the memory must not be freed or reallocated (e.g., by `resize!`)
 while it is wrapped, and operations on the `CuArray` execute asynchronously, so
 synchronize before accessing the memory from the CPU. Like other CuArrays, a wrapped array
 is not kept alive by CUDA graphs that captured operations on it: replaying such a graph
@@ -316,116 +316,104 @@ end
 supports_hmm(dev) = driver_version() >= v"12.2" &&
                     attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
 
-# returns an async condition that releases `owner` once signalled. until then, the task
-# waiting for the condition keeps it alive, so never signalling it leaks the memory. that
-# task is not affected by cancellation of the scope that wrapped the memory.
-function release_on_signal(owner)
-  Base.AsyncCondition() do cond
-    GC.@preserve owner close(cond)
-  end
+# whether the stream that last used wrapped memory is being captured
+function stream_capturing(managed::Managed)
+  stream = managed.stream
+  isvalid(stream) && stream.ctx !== nothing &&
+    context!(() -> is_capturing(stream), stream.ctx)
 end
 
-# signal `cond` once outstanding work on wrapped memory has finished, without waiting for
-# it. this runs from a finalizer, so it must not switch tasks and has to perform its own
-# error handling. if the work can't be waited for, `cond` is never signalled.
-function signal_when_done(managed::Managed, cond::Base.AsyncCondition, wrap_ctx::CuContext)
+# wait for outstanding work on wrapped memory, without blocking the thread. this doesn't
+# use `synchronize`, which would also report (and reset) unrelated kernel exceptions.
+function wait_for_work(managed::Managed, wrap_ctx::CuContext)
   Base.@lock managed.lock begin
-    try
-      stream = managed.stream
-      if !(managed.dirty || managed.captured)
-        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
-      elseif isvalid(stream)
-        # special streams aren't tied to a context, and resolve against the current one
-        ctx = something(stream.ctx, wrap_ctx)
-        capturing = context!(ctx) do
-          # a host function launched on a capturing stream would become part of the graph,
-          # and waiting for such a stream is not allowed, so retry after the capture.
-          is_capturing(stream) && return true
-          cuLaunchHostFunc(stream, cglobal(:uv_async_send), cond)
-          return false
-        end
-        if capturing
-          # finalizers can't switch tasks, but they can schedule them
-          @async begin
-            while context!(() -> is_capturing(stream), ctx)
-              sleep(0.01)
-            end
-            signal_when_done(managed, cond, wrap_ctx)
-          end
-        end
-      elseif isvalid(stream.ctx)
-        # the stream has been destroyed, but its work may still be executing
-        context!(stream.ctx) do
-          cuCtxSynchronize()
-        end
-        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
-      else
-        # a destroyed context has no outstanding work
-        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
+    (managed.dirty || managed.captured) || return
+    stream = managed.stream
+    if stream.ctx === nothing
+      # special streams aren't tied to a context or a thread, so wait for the whole context
+      isvalid(wrap_ctx) && nonblocking_synchronize(wrap_ctx)
+    elseif isvalid(stream)
+      # waiting for a stream that is being captured is not allowed
+      while stream_capturing(managed)
+        sleep(0.01)
       end
+      nonblocking_synchronize(stream)
+    elseif isvalid(stream.ctx)
+      # the stream has been destroyed, but its work may still be executing
+      nonblocking_synchronize(stream.ctx)
+    end
+    # a destroyed context has no outstanding work
+    managed.dirty = false
+  end
+end
+
+# release wrapped system memory, and its owner, once outstanding work using it has finished
+function release_after_work(managed::Managed, owner, ctx::CuContext)
+  GC.@preserve owner begin
+    try
+      wait_for_work(managed, ctx)
     catch ex
-      Base.showerror_nostdio(ex,
-          "WARNING: Error while releasing wrapped system memory; leaking that memory")
-      Base.show_backtrace(Core.stdout, catch_backtrace())
-      Core.println()
+      # waiting only fails if the work can't complete anymore, e.g., after a fatal error
+      @error "Error while waiting for GPU work on wrapped system memory" exception=(ex, catch_backtrace())
     end
-  end
-  return
-end
-
-# unregister wrapped host memory. that waits for outstanding work using it, so its owner
-# can be released afterwards. this runs from a finalizer, possibly while a graph is being
-# captured, in which case the default capture mode would reject unregistering memory (and
-# invalidate the capture), so temporarily relax this thread's capture mode.
-function unregister_wrapped(mem::HostMemory, ctx::CuContext)
-  mode = Ref(STREAM_CAPTURE_MODE_RELAXED)
-  try
-    cuThreadExchangeStreamCaptureMode(mode)
-    try
+    # a destroyed context has no registrations left
+    if managed.mem isa HostMemory && isvalid(ctx)
       context!(ctx) do
-        unregister(mem)
+        unregister(managed.mem)
       end
-    finally
-      cuThreadExchangeStreamCaptureMode(mode)
     end
-  catch ex
-    Base.showerror_nostdio(ex, "WARNING: Error while unregistering wrapped host memory")
-    Base.show_backtrace(Core.stdout, catch_backtrace())
-    Core.println()
   end
   return
 end
 
-# `owner` is kept alive for as long as the wrapper
+# `owner` is kept alive for as long as the wrapper, and until the GPU is done with it
 function wrap_system_memory(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int},
                             owner=nothing; ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
   sz = prod(dims) * aligned_sizeof(T)
 
-  data = if M == UnifiedMemory
+  mem = if M == UnifiedMemory
     # HMM extends unified memory to include system memory
     supports_hmm(device(ctx)) ||
       throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
-    mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
-    if owner === nothing
-      DataRef(Returns(nothing), Managed(mem))
-    else
-      # nothing tells us when the GPU is done with this memory, so have the stream do so
-      cond = release_on_signal(owner)
-      DataRef(Managed(mem)) do managed, args...
-        signal_when_done(managed, cond, ctx)
-      end
-    end
+    UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
   elseif M == HostMemory
     # register as device-accessible host memory
-    mem = context!(ctx) do
+    context!(ctx) do
       register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
-    end
-    DataRef(Managed(mem)) do managed, args...
-      GC.@preserve owner unregister_wrapped(mem, ctx)
     end
   else
     throw(ArgumentError("Cannot wrap system memory as $M"))
+  end
+  managed = Managed(mem)
+
+  # wrapped unified memory without an owner doesn't need to be released
+  if M == UnifiedMemory && owner === nothing
+    return CuArray{T,N}(DataRef(Returns(nothing), managed), dims)
+  end
+
+  # waiting for the GPU requires switching tasks, which isn't possible from a finalizer, so
+  # the memory is released by a task that's woken up when the wrapper is freed. it is
+  # created here, so it isn't affected by cancellation of the scope the wrapper is freed in.
+  released = Base.Event()
+  cond = Base.AsyncCondition() do cond
+    try
+      release_after_work(managed, owner, ctx)
+    catch ex
+      @error "Error while releasing wrapped system memory" exception=(ex, catch_backtrace())
+    finally
+      close(cond)
+      notify(released)
+    end
+  end
+  data = DataRef(managed) do managed, args...
+    ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
+    # when possible, wait for that, so that the memory can be wrapped again right away.
+    # that's not possible from a finalizer, or while a capture of the stream that last
+    # used the memory, which this task may have to end, is holding up the release.
+    if !GC.in_finalizer() && !stream_capturing(managed)
+      Base.wait(released)
+    end
   end
 
   CuArray{T,N}(data, dims)
