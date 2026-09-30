@@ -62,13 +62,18 @@ function versioninfo(io::IO=stdout)
 
     println(io, "Julia packages: ")
     println(io, "- CUDACore: $(Base.pkgversion(CUDACore))")
-    for name in [:GPUArrays, :GPUCompiler, :KernelAbstractions, :CUDA_Driver_jll,
-                 :CUDA_Compiler_jll, :CUDA_Runtime_jll, :CUDA_Runtime_Discovery,
-                 :NVPTX_LLVM_Backend_jll]
+    for name in [:GPUArrays, :GPUCompiler, :KernelInterface,
+                 :CUDA_Driver_jll, :CUDA_Compiler_jll, :CUDA_Runtime_jll,
+                 :CUDA_Runtime_Discovery, :NVPTX_LLVM_Backend_jll]
         isdefined(CUDACore, name) || continue
         mod = getfield(CUDACore, name)
         println(io, "- $(name): $(Base.pkgversion(mod))")
     end
+    # KernelAbstractions is an optional dependency
+    ka = get(Base.loaded_modules,
+             Base.PkgId(Base.UUID("63c18a36-062a-441e-b654-da1e3ab1ce7c"), "KernelAbstractions"),
+             nothing)
+    ka === nothing || println(io, "- KernelAbstractions: $(Base.pkgversion(ka))")
     println(io)
 
     println(io, "Toolchain:")

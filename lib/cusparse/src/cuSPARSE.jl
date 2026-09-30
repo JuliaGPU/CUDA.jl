@@ -193,11 +193,11 @@ function __init__()
     _initialized[] = true
 end
 
-# KernelAbstractions integration
-import KernelAbstractions as KA
-KA.get_backend(::CuSparseVector)    = CUDACore.CUDAKernels.CUDABackend()
-KA.get_backend(::CuSparseMatrixCSC) = CUDACore.CUDAKernels.CUDABackend()
-KA.get_backend(::CuSparseMatrixCSR) = CUDACore.CUDAKernels.CUDABackend()
+# KernelInterface integration
+import KernelInterface as KI
+KI.get_backend(::CuSparseVector)    = CUDABackend()
+KI.get_backend(::CuSparseMatrixCSC) = CUDABackend()
+KI.get_backend(::CuSparseMatrixCSR) = CUDABackend()
 
 include("precompile.jl")
 
