@@ -56,7 +56,7 @@ assert_counter = 0
     # NOTE: we don't mark noreturn since that control flow might confuse ptxas
     assertfail_typ =
         LLVM.FunctionType(T_void,
-                        [T_pint8, T_pint8, T_int32, T_pint8, value_type(charSize)])
+                        [T_pint8, T_pint8, T_int32, T_pint8, charSize.value_type])
     assertfail = LLVM.Function(current_module(builder), "__assertfail", assertfail_typ)
     call!(builder, assertfail_typ, assertfail, [message, file, line, func, charSize])
     nothing

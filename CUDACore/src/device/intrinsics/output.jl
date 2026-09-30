@@ -46,7 +46,7 @@ end
         buffer = LLVM.PointerNull(T_pint8)
     else
         argtypes = LLVM.StructType("printf_args")
-        elements!(argtypes, LLVMType[value_type(arg) for arg in argspec])
+        elements!(argtypes, LLVMType[arg.value_type for arg in argspec])
 
         args = alloca!(builder, argtypes)
         for (i, arg) in enumerate(argspec)

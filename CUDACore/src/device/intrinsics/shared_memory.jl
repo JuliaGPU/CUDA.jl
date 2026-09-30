@@ -130,8 +130,8 @@ end
         # > 1. Is the global variable in shared address space?
         # > 2. Does it have internal linkage?
         # > 3. Is the global variable referenced only in one function?
-        linkage!(gv, LLVM.API.LLVMInternalLinkage)
-        initializer!(gv, null(gv_typ))
+        gv.linkage = LLVM.API.LLVMInternalLinkage
+        gv.initializer = null(gv_typ)
     end
     # by requesting a larger-than-datatype alignment, we might be able to vectorize.
     # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
@@ -146,7 +146,7 @@ end
             end
         end
     end
-    alignment!(gv, align)
+    gv.alignment = align
 
     ptr = gep!(builder, gv_typ, gv, [ConstantInt(0), ConstantInt(0)])
     bitcast!(builder, ptr, T_ptr)
