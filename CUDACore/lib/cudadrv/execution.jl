@@ -15,12 +15,24 @@ end
 
 export cudacall
 
+# The launch path passes kernel arguments around as a tuple, and processes them with generated
+# functions. Julia does not optimize splatting more than 32 elements (the `max_tuple_splat`
+# inference parameter), or `map` over 32 or more elements (`Base.Any32`), which would make
+# launching kernels with many arguments slow, and impossible from the device.
+#
+# That includes methods with both a variable number of arguments and keyword arguments, whose
+# lowered keyword-argument wrappers splat the positional arguments. For those, we define the
+# positional and `Core.kwcall` methods explicitly, forwarding the arguments as a tuple.
+
 # pack arguments in a buffer that CUDA expects
-@inline function pack_arguments(f::F, args...) where {F}
-    boxes = map(ArgBox, args)
-    GC.@preserve args boxes begin
-        pointers = map(box -> Base.unsafe_convert(Ptr{Cvoid}, box), boxes)
-        f(Ref(pointers))
+@inline @generated function pack_arguments(f::F, args::Tuple) where {F}
+    n = fieldcount(args)
+    quote
+        boxes = ($((:(ArgBox(args[$i])) for i in 1:n)...),)
+        GC.@preserve args boxes begin
+            pointers = ($((:(Base.unsafe_convert(Ptr{Cvoid}, boxes[$i])) for i in 1:n)...),)
+            f(Ref(pointers))
+        end
     end
 end
 
@@ -47,9 +59,13 @@ internal kernel parameter buffer, or a pointer to device memory.
 
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
-function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
-                clustersize::CuDim=1, cooperative::Bool=false, dependent::Bool=false,
-                shmem::Integer=0, stream::CuStream=stream()) where {N}
+launch(f::CuFunction, args::Vararg{Any,N}) where {N} = launch_tuple(f, args)
+Core.kwcall(kwargs::NamedTuple, ::typeof(launch), f::CuFunction, args::Vararg{Any,N}) where {N} =
+    launch_tuple(f, args; kwargs...)
+
+function launch_tuple(f::CuFunction, args::Tuple; blocks::CuDim=1, threads::CuDim=1,
+                      clustersize::CuDim=1, cooperative::Bool=false, dependent::Bool=false,
+                      shmem::Integer=0, stream::CuStream=stream())
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
@@ -67,7 +83,7 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
             error("Thread block clusters require CUDA 11.8 or higher")
         end
         try
-            pack_arguments(args...) do kernelParams
+            pack_arguments(args) do kernelParams
                 if cooperative
                     cuLaunchCooperativeKernel(f,
                                               blockdim.x, blockdim.y, blockdim.z,
@@ -116,7 +132,7 @@ function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::Cu
                                 threaddim.x, threaddim.y, threaddim.z,
                                 shmem, stream.handle, config_attrs, num_attributes)
         try
-            pack_arguments(args...) do kernelParams
+            pack_arguments(args) do kernelParams
                 cuLaunchKernelEx(config, f, kernelParams, C_NULL)
             end
         catch err
@@ -210,14 +226,15 @@ end
 
 # convert the argument values to match the kernel's signature (specified by the user)
 # (this mimics `lower-ccall` in julia-syntax.scm)
-@inline @generated function convert_arguments(f::Function, ::Type{tt}, args...) where {tt}
+@inline @generated function convert_arguments(f::Function, ::Type{tt}, args::Tuple) where {tt}
     types = tt.parameters
+    n = fieldcount(args)
 
     ex = quote end
 
-    converted_args = Vector{Symbol}(undef, length(args))
-    arg_ptrs = Vector{Symbol}(undef, length(args))
-    for i in 1:length(args)
+    converted_args = Vector{Symbol}(undef, n)
+    arg_ptrs = Vector{Symbol}(undef, n)
+    for i in 1:n
         converted_args[i] = gensym()
         arg_ptrs[i] = gensym()
         push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
@@ -226,7 +243,7 @@ end
 
     append!(ex.args, (quote
         GC.@preserve $(converted_args...) begin
-            f($(arg_ptrs...))
+            f(($(arg_ptrs...),))
         end
     end).args)
 
@@ -261,14 +278,20 @@ being slightly faster.
 """
 cudacall
 
-cudacall(f::F, types::Tuple, args::Vararg{Any,N}; kwargs...) where {N,F} =
-    cudacall(f, _to_tuple_type(types), args...; kwargs...)
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
+cudacall(f::F, types::Union{Tuple,Type}, args::Vararg{Any,N}) where {F,N} =
+    cudacall_tuple(f, types, args)
+Core.kwcall(kwargs::NamedTuple, ::typeof(cudacall), f::F, types::Union{Tuple,Type},
+            args::Vararg{Any,N}) where {F,N} =
+    cudacall_tuple(f, types, args; kwargs...)
 
-function cudacall(f::F, types::Type{T}, args::Vararg{Any,N}; kwargs...) where {T,N,F}
-    launch_closure = function (pointers::Vararg{Any,N})
-        launch(f, pointers...; kwargs...)
+cudacall_tuple(f::F, types::Tuple, args::Tuple; kwargs...) where {F} =
+    cudacall_tuple(f, _to_tuple_type(types), args; kwargs...)
+
+function cudacall_tuple(f::F, types::Type{T}, args::Tuple; kwargs...) where {F,T}
+    convert_arguments(types, args) do pointers
+        launch_tuple(f, pointers; kwargs...)
     end
-    convert_arguments(launch_closure, types, args...)
 end
 
 # From `julia/base/reflection.jl`, adjusted to add specialization on `t`.

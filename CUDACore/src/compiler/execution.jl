@@ -120,6 +120,7 @@ end
     end
 end
 
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 """
     KernelCall(f, args...; backend=LLVMBackend())
 
@@ -128,9 +129,10 @@ values. Use [`kernel_compile`](@ref) to compile the call and
 [`kernel_launch`](@ref) to launch the resulting kernel without converting the
 arguments again.
 """
-@inline function KernelCall(f, args...; backend=LLVMBackend())
-    kernel_call(f, args, backend)
-end
+@inline KernelCall(f, args::Vararg{Any,N}) where {N} = kernel_call(f, args)
+@inline Core.kwcall(kwargs::NamedTuple{(:backend,)}, ::Type{KernelCall}, f,
+                    args::Vararg{Any,N}) where {N} =
+    kernel_call(f, args, kwargs.backend)
 
 @inline function kernel_call(f, args::Tuple, backend=LLVMBackend())
     backend = backend isa AbstractBackend ? backend : backend.DefaultBackend()
@@ -144,8 +146,13 @@ Compile a call for its backend. A call may be compiled more than once
 with different compiler options.
 """
 @inline function kernel_compile(call::KernelCall; kwargs...)
-    tt = Tuple{map(Core.Typeof, call.arguments)...}
+    tt = argument_types(call.arguments)
     kernel_compile(call.backend, call.f, tt; kwargs...)
+end
+
+# `Tuple{map(Core.Typeof, args)...}`, without mapping or splatting
+@inline @generated function argument_types(args::Tuple)
+    :(Tuple{$((:(Core.Typeof(args[$i])) for i in 1:fieldcount(args))...)})
 end
 
 """
@@ -200,12 +207,18 @@ end
 
 
 # Keep the pipeline behind one function barrier for type-unstable argument tuples.
-@inline function compile_and_launch(backend, f::F, args::Tuple, ::Val{launch};
-                                    launch_kwargs::NamedTuple=(;),
-                                    compiler_kwargs...) where {F,launch}
-    kernel_pipeline(backend, f, Val(launch), args...; launch_kwargs, compiler_kwargs...)
+# Generated, to pass the arguments to `kernel_pipeline` without splatting them.
+@inline @generated function compile_and_launch(backend, f::F, args::Tuple, ::Val{launch},
+                                               launch_kwargs::NamedTuple,
+                                               compiler_kwargs::NamedTuple) where {F,launch}
+    argexprs = [:(args[$i]) for i in 1:fieldcount(args)]
+    quote
+        kernel_pipeline(backend, f, Val(launch), $(argexprs...);
+                        launch_kwargs, compiler_kwargs...)
+    end
 end
 
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 """
     kernel_pipeline(backend, f, Val(launch), args...; launch_kwargs=(;), compiler_kwargs...)
 
@@ -218,9 +231,15 @@ arguments, before any conversion or managed-memory bookkeeping has happened. Pac
 that need to intercept a launch as a whole, such as automatic-differentiation rules,
 should hook this function rather than the conversion or launch steps below it.
 """
-@inline function kernel_pipeline(backend, f::F, ::Val{launch}, args::Vararg{Any,N};
-                                 launch_kwargs::NamedTuple=(;),
-                                 compiler_kwargs...) where {F,launch,N}
+@inline kernel_pipeline(backend, f::F, launch::Val, args::Vararg{Any,N}) where {F,N} =
+    kernel_pipeline_tuple(backend, f, launch, args)
+@inline Core.kwcall(kwargs::NamedTuple, ::typeof(kernel_pipeline), backend, f::F, launch::Val,
+                    args::Vararg{Any,N}) where {F,N} =
+    kernel_pipeline_tuple(backend, f, launch, args; kwargs...)
+
+@inline function kernel_pipeline_tuple(backend, f::F, ::Val{launch}, args::Tuple;
+                                       launch_kwargs::NamedTuple=(;),
+                                       compiler_kwargs...) where {F,launch}
     call = kernel_call(backend, f, args)
     kernel = kernel_compile(call; compiler_kwargs...)
     if launch
@@ -330,10 +349,10 @@ macro cuda(ex...)
             quote
                 # we're in kernel land already, so no need to cudaconvert arguments
                 $kernel_args = ($(var_exprs...),)
-                $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
+                $kernel_tt = $argument_types($kernel_args)
                 $kernel = $dynamic_cufunction($f, $kernel_tt)
                 if $should_launch
-                    $kernel($kernel_args...; $(call_kwargs...))
+                    $launch_converted($kernel, $kernel_args; $(call_kwargs...))
                 end
                 $kernel
              end)
@@ -349,9 +368,8 @@ macro cuda(ex...)
                 end
                 $f_var = $f
                 $kernel = $compile_and_launch($backend, $f_var, ($(var_exprs...),),
-                                              Val($should_launch);
-                                              launch_kwargs=(; $(call_kwargs...)),
-                                              $(compiler_kwargs...), $(other_kwargs...))
+                                              Val($should_launch), (; $(call_kwargs...)),
+                                              (; $(compiler_kwargs...), $(other_kwargs...)))
                 $kernel
              end)
     end
@@ -593,7 +611,7 @@ end
     call_tt = Base.to_tuple_type(call_t)
 
     quote
-        cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
+        cudacall_tuple(kernel.fun, $call_tt, ($(call_args...),); call_kwargs...)
     end
 end
 
@@ -612,10 +630,11 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
-@inline function (kernel::HostKernel)(args...; kwargs...)
-    call = KernelCall(kernel.f, args...; backend=LLVMBackend())
-    kernel_launch(kernel, call; kwargs...)
-end
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
+@inline (kernel::HostKernel)(args::Vararg{Any,N}) where {N} =
+    kernel_launch(kernel, kernel_call(LLVMBackend(), kernel.f, args))
+@inline Core.kwcall(kwargs::NamedTuple, kernel::HostKernel, args::Vararg{Any,N}) where {N} =
+    kernel_launch(kernel, kernel_call(LLVMBackend(), kernel.f, args); kwargs...)
 
 @inline kernel_launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
     launch_converted(kernel, arguments; kwargs...)
@@ -775,7 +794,10 @@ end
 
 @doc (@doc AbstractKernel) DeviceKernel
 
-@inline (kernel::DeviceKernel)(args...; kwargs...) =
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
+@inline (kernel::DeviceKernel)(args::Vararg{Any,N}) where {N} =
+    launch_converted(kernel, args)
+@inline Core.kwcall(kwargs::NamedTuple, kernel::DeviceKernel, args::Vararg{Any,N}) where {N} =
     launch_converted(kernel, args; kwargs...)
 
 

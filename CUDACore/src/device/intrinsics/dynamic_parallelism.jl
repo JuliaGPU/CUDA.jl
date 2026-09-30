@@ -62,18 +62,25 @@ end
 
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, fun::CuDeviceFunction) = fun.ptr
 
-function launch(f::CuDeviceFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
-                shmem::Integer=0, stream::CuDeviceStream=CuDefaultDeviceStream()) where {N}
+# forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
+launch(f::CuDeviceFunction, args::Vararg{Any,N}) where {N} = launch_tuple(f, args)
+Core.kwcall(kwargs::NamedTuple, ::typeof(launch), f::CuDeviceFunction,
+            args::Vararg{Any,N}) where {N} =
+    launch_tuple(f, args; kwargs...)
+
+function launch_tuple(f::CuDeviceFunction, args::Tuple; blocks::CuDim=1, threads::CuDim=1,
+                      shmem::Integer=0, stream::CuDeviceStream=CuDefaultDeviceStream())
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
 
-    buf = parameter_buffer(f, blockdim, threaddim, shmem, args...)
+    buf = parameter_buffer(f, blockdim, threaddim, shmem, args)
     @check_status cudaLaunchDeviceV2(buf, stream)
 
     return
 end
 
-@inline @generated function parameter_buffer(f::CuDeviceFunction, blocks, threads, shmem, args...)
+@inline @generated function parameter_buffer(f::CuDeviceFunction, blocks, threads, shmem,
+                                              args::Tuple)
     # allocate a buffer
     ex = quote
         buf = cudaGetParameterBufferV2(f, blocks, threads, shmem)
@@ -91,8 +98,8 @@ end
     #
     # NOTE: the above seems wrong, and we should use the parameter alignment, not its size.
     last_offset = 0
-    for i in 1:length(args)
-        T = args[i]
+    for i in 1:fieldcount(args)
+        T = fieldtype(args, i)
         align = Base.datatype_alignment(T)
         offset = cld(last_offset, align) * align
         push!(ex.args, :(

@@ -948,6 +948,38 @@ end
     end
 end
 
+@testset "many arguments" begin
+    # more arguments than Julia splats or maps over without falling back to dynamic calls
+    params = [Symbol(:x, i) for i in 1:40]
+    @eval function many_args_kernel(out, $(params...))
+        out[] = $(foldl((a, b) -> :($a + $b), params))
+        return
+    end
+    @eval many_args_launch(out) = @cuda many_args_kernel(out, $(1:40...))
+    @eval many_args_call(kernel, out) = kernel(out, $(1:40...); threads=1)
+
+    few_args_kernel(out, x) = (out[] = x; return)
+    few_args_launch(out) = @cuda few_args_kernel(out, 1)
+    few_args_call(kernel, out) = kernel(out, 1; threads=1)
+
+    out = CuArray([0])
+    kernel = Base.invokelatest(many_args_launch, out)
+    @test Array(out)[] == sum(1:40)
+    @test Base.invokelatest(many_args_call, kernel, out) === nothing
+    @test Array(out)[] == sum(1:40)
+
+    # launching should not be much more expensive than with few arguments
+    # (Julia 1.11 and older allocate a little per argument)
+    Base.invokelatest() do
+        @inferred many_args_launch(out)
+        few_kernel = few_args_launch(out)
+        few_args_call(few_kernel, out)
+        @test @allocated(many_args_launch(out)) <= @allocated(few_args_launch(out)) + 40*32
+        @test @allocated(many_args_call(kernel, out)) <=
+              @allocated(few_args_call(few_kernel, out)) + 40*32
+    end
+end
+
 @testset "keyword arguments" begin
     @eval inner_kwargf(foobar;foo=1, bar=2) = nothing
 
@@ -1527,6 +1559,21 @@ end
     @cuda threads=1 dp_6arg_kernel(1, 1, 1, 1, 1, 1)
     @cuda threads=1 main_5arg_kernel()
     @cuda threads=1 main_6arg_kernel()
+
+    # more arguments than Julia splats or maps over without falling back to dynamic calls
+    params = [Symbol(:x, i) for i in 1:40]
+    @eval function dp_40arg_kernel(out, $(params...))
+        out[] = $(foldl((a, b) -> :($a + $b), params))
+        return nothing
+    end
+    @eval function main_40arg_kernel(out)
+        @cuda threads=1 dynamic=true dp_40arg_kernel(out, $(1:40...))
+        return nothing
+    end
+
+    out = CuArray([0])
+    @cuda threads=1 main_40arg_kernel(out)
+    @test Array(out)[] == sum(1:40)
 end
 
 end
