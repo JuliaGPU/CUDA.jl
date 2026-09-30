@@ -103,7 +103,7 @@ end
     backend = CUDABackend()
     function select(kernel, ndrange, workgroupsize=nothing)
         ndrange, workgroupsize, iterspace, _ = KA.launch_config(kernel, ndrange, workgroupsize)
-        KA.select_launch(kernel, ndrange, workgroupsize, iterspace)
+        KA.select_launch(kernel, workgroupsize, iterspace)
     end
 
     # kernels are launched on an N-d grid, computing indices in 32 bits
