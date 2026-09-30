@@ -167,14 +167,14 @@ export malloc
     intr_typ = LLVM.FunctionType(T_pint8, [T_size])
     intr = LLVM.Function(current_module(builder), "malloc", intr_typ)
     # should we attach some metadata here? julia.gc_alloc_obj has the following:
-    #let attrs = function_attributes(intr)
+    #let attrs = intr.function_attributes
     #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
     #    packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
-    #    push!(attrs, EnumAttribute("allocsize", packed_allocsize))
+    #    push!(attrs, EnumAttribute(:allocsize, packed_allocsize))
     #end
-    #let attrs = return_attributes(intr)
-    #    push!(attrs, EnumAttribute("noalias", 0))
-    #    push!(attrs, EnumAttribute("nonnull", 0))
+    #let attrs = intr.return_attributes
+    #    push!(attrs, EnumAttribute(:noalias))
+    #    push!(attrs, EnumAttribute(:nonnull))
     #end
 
     ptr = call!(builder, intr_typ, intr, [sz])

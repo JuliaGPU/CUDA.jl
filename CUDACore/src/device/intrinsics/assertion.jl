@@ -35,21 +35,17 @@ macro cuassert(ex, msgs...)
                                         $(Val(__source__.line))))
 end
 
-assert_counter = 0
-
 @llvmgenerated builder function cuassert_fail(::Val{msg}, ::Val{file},
                                               ::Val{line})::Nothing where {msg, file, line}
     T_void = LLVM.VoidType()
     T_int32 = LLVM.Int32Type()
     T_pint8 = LLVM.PointerType(LLVM.Int8Type())
 
-    global assert_counter
-    assert_counter += 1
-
-    message = globalstring_ptr!(builder, String(msg), "assert_message_$(assert_counter)")
-    file = globalstring_ptr!(builder, String(file), "assert_file_$(assert_counter)")
+    # the strings are private globals, whose names LLVM keeps unique
+    message = globalstring_ptr!(builder, String(msg), "assert_message")
+    file = globalstring_ptr!(builder, String(file), "assert_file")
     line = ConstantInt(T_int32, line)
-    func = globalstring_ptr!(builder, "unknown", "assert_function_$(assert_counter)")
+    func = globalstring_ptr!(builder, "unknown", "assert_function")
     charSize = ConstantInt(Csize_t(1))
 
     # invoke __assertfail and return

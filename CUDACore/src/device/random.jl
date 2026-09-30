@@ -11,33 +11,25 @@ import RandomNumbers
 #
 # XXX: this implies that state is shared between `rng` objects, which can be surprising.
 
-# array with seeds, per warp, initialized on kernel start or by calling `seed!`
-@eval @device_function @inline function global_random_keys()
-    ptr = Base.llvmcall(
-        $("""@global_random_keys = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
-             define i8 addrspace($(AS.Shared))* @entry() #0 {
-                 %ptr = getelementptr inbounds [32 x i32], [32 x i32] addrspace($(AS.Shared))* @global_random_keys, i64 0, i64 0
-                 %untyped_ptr = bitcast i32 addrspace($(AS.Shared))* %ptr to i8 addrspace($(AS.Shared))*
-                 ret i8 addrspace($(AS.Shared))* %untyped_ptr
-             }
-             attributes #0 = { alwaysinline }
-          """, "entry"), LLVMPtr{UInt32, AS.Shared}, Tuple{})
-    CuDeviceArray{UInt32,1,AS.Shared}(ptr, (32,))
+# the shared-memory state is kept in weak globals with fixed names, so that every use in
+# a kernel refers to the same array, and so that `finish_module!` can detect its use.
+@llvmgenerated builder function global_random_state(::Val{name})::LLVMPtr{UInt32,AS.Shared} where {name}
+    T_state = LLVM.ArrayType(LLVM.Int32Type(), 32)
+    gv = GlobalVariable(current_module(builder), T_state, String(name), AS.Shared)
+    gv.linkage = LLVM.Linkage.WeakAny
+    gv.initializer = null(T_state)
+    gv.alignment = 32
+    ptr = inbounds_gep!(builder, T_state, gv, [ConstantInt(0), ConstantInt(0)])
+    pointercast!(builder, ptr, convert(LLVMType, LLVMPtr{UInt32,AS.Shared}))
 end
 
+# array with seeds, per warp, initialized on kernel start or by calling `seed!`
+@device_function @inline global_random_keys() =
+    CuDeviceArray{UInt32,1,AS.Shared}(global_random_state(Val(:global_random_keys)), (32,))
+
 # array with per-warp counters, incremented when generating numbers
-@eval @device_function @inline function global_random_counters()
-    ptr = Base.llvmcall(
-        $("""@global_random_counters = weak addrspace($(AS.Shared)) global [32 x i32] zeroinitializer, align 32
-             define i8 addrspace($(AS.Shared))* @entry() #0 {
-                 %ptr = getelementptr inbounds [32 x i32], [32 x i32] addrspace($(AS.Shared))* @global_random_counters, i64 0, i64 0
-                 %untyped_ptr = bitcast i32 addrspace($(AS.Shared))* %ptr to i8 addrspace($(AS.Shared))*
-                 ret i8 addrspace($(AS.Shared))* %untyped_ptr
-             }
-             attributes #0 = { alwaysinline }
-          """, "entry"), LLVMPtr{UInt32, AS.Shared}, Tuple{})
-    CuDeviceArray{UInt32,1,AS.Shared}(ptr, (32,))
-end
+@device_function @inline global_random_counters() =
+    CuDeviceArray{UInt32,1,AS.Shared}(global_random_state(Val(:global_random_counters)), (32,))
 
 # initialization function, called automatically at the start of each kernel because
 # there's no reliable way to detect uninitialized shared memory (see JuliaGPU/CUDA.jl#2008)
@@ -175,31 +167,38 @@ end
 # copied from Base because we don't support its global tables
 
 # a hacky method of exposing constant tables as constant GPU memory
-function emit_constant_array(name::Symbol, data::AbstractArray{T}) where {T}
-    generate_llvmcall(LLVMPtr{T,AS.Constant}, Tuple{}) do builder
-        T_val = convert(LLVMType, T)
-        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant})
+#
+# the table is identified by its name in Random, and not captured, so that this generator
+# is compiled only once (see `generate_llvmcall`)
+function emit_constant_array(builder, table::Val, T::Type)
+    @nospecialize
+    name = typeof(table).parameters[1]::Symbol
+    data = getfield(Random, name)::AbstractArray
+    T_val = convert(LLVMType, T)
+    T_ptr = convert(LLVMType, LLVMPtr{T,AS.Constant})
 
-        # create a global memory global variable
-        # TODO: global_var alignment?
-        T_global = LLVM.ArrayType(T_val, length(data))
-        # XXX: why can't we use a single name like emit_shmem
-        gv = GlobalVariable(current_module(builder), T_global, "gpu_$(name)_data", AS.Constant)
-        gv.alignment = 16
-        gv.linkage = LLVM.Linkage.Internal
-        gv.initializer = ConstantArray(data)
+    # create a global memory global variable
+    # TODO: global_var alignment?
+    T_global = LLVM.ArrayType(T_val, length(data))
+    # XXX: why can't we use a single name like emit_shmem
+    gv = GlobalVariable(current_module(builder), T_global, "gpu_$(name)_data", AS.Constant)
+    gv.alignment = 16
+    gv.linkage = LLVM.Linkage.Internal
+    gv.initializer = ConstantArray(data)
 
-        ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
-        bitcast!(builder, ptr, T_ptr)
-    end
+    ptr = gep!(builder, T_global, gv, [ConstantInt(0), ConstantInt(0)])
+    bitcast!(builder, ptr, T_ptr)
 end
 
 for var in [:ke, :we, :fe]
     val = getfield(Random, var)
+    T = eltype(val)
     gpu_var = Symbol("gpu_$var")
-    arr_typ = :(CuDeviceArray{$(eltype(val)),$(ndims(val)),AS.Constant})
+    arr_typ = :(CuDeviceArray{$T,$(ndims(val)),AS.Constant})
     @eval @inline @generated function $gpu_var()
-        ptr = emit_constant_array($(QuoteNode(var)), $val)
+        ptr = generate_llvmcall(emit_constant_array, LLVMPtr{$T,AS.Constant},
+                                Tuple{Val{$(QuoteNode(var))}, Type{$T}},
+                                Val($(QuoteNode(var))), $T)
         Expr(:call, $arr_typ, ptr, $(size(val)))
     end
 end
