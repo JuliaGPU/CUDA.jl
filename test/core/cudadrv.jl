@@ -954,6 +954,77 @@ end
 
 ############################################################################################
 
+# compute-sanitizer serializes kernels, which the tests below rely on not happening
+sanitize || @testset "cooperative synchronization" begin
+
+# keep the GPU busy for (roughly) `ms` milliseconds
+function spin_kernel(cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    return
+end
+clock_khz = attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE)
+spin(ms; stream) = @cuda stream=stream spin_kernel(UInt64(ms * clock_khz))
+spin(0; stream=stream())    # compile the kernel before timing anything
+synchronize()
+
+# run `f` while counting how often another task on the same thread gets to run
+function progress_during(f)
+    progress = Ref(0)
+    done = Ref(false)
+    t = @async while !done[]
+        progress[] += 1
+        yield()
+    end
+    try
+        f()
+    finally
+        done[] = true
+        wait(t)
+    end
+    return progress[]
+end
+
+let s = CuStream()
+    spin(200; stream=s)
+    @test progress_during(() -> synchronize(s)) > 0
+end
+
+let s = CuStream(), e = CuEvent()
+    spin(200; stream=s)
+    record(e, s)
+    @test progress_during(() -> synchronize(e)) > 0
+end
+
+# the entire context, including streams that do not synchronize with the legacy stream
+let s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    spin(200; stream=s)
+    @test progress_during(device_synchronize) > 0
+end
+
+# a long wait does not delay other ones
+let long = CuStream()
+    spin(2000; stream=long)
+    waiter = Threads.@spawn synchronize(long)
+    sleep(0.1)
+
+    @sync for _ in 1:8
+        Threads.@spawn begin
+            s = CuStream()
+            for _ in 1:10
+                spin(1; stream=s)
+                synchronize(s)
+            end
+        end
+    end
+    @test !CUDA.isdone(long)
+    wait(waiter)
+end
+
+end
+
+############################################################################################
+
 @testset "version" begin
 
 @test isa(CUDA.driver_version(), VersionNumber)
