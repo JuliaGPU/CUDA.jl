@@ -67,7 +67,13 @@ function task_local_state!(args...)
         # that's likely executed when using CUDA.jl
         @assert functional(true)
 
-        tls[:CUDA] = TaskLocalState(args...)
+        state = tls[:CUDA] = TaskLocalState(args...)
+
+        # releasing memory may need a stream, which shouldn't be created only then (as
+        # creating a stream can block), so make sure it exists before using the context
+        disposal_stream(state.context)
+
+        state
     end::TaskLocalState
 end
 

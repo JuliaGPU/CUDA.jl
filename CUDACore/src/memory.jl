@@ -875,12 +875,14 @@ function after_on_disposal_stream(stream::CUstream, ctx::CuContext)
 end
 
 # the per-thread default stream is specific to the thread that used it, which isn't known
-# when releasing memory, so memory last used on it is only released when memory is
-# reclaimed, after synchronizing the device.
+# when releasing memory (nor is the context it was used in), so memory last used on it is
+# only released when memory is reclaimed, after synchronizing all devices.
 on_per_thread_stream(stream::CuStream) = stream.handle == CU_STREAM_PER_THREAD
-function synchronize_and(f, ctx::CuContext)
+function synchronize_and(f)
   return x -> begin
-    context!(device_synchronize, ctx)
+    for dev in devices()
+      device!(device_synchronize, dev)
+    end
     f(x)
   end
 end
@@ -906,16 +908,22 @@ function dispose(retired::RetiredOwner)
   stream = retired.managed.stream
   ctx = retired.managed.mem.ctx
   if on_per_thread_stream(stream)
-    destroy_later(synchronize_and(identity, ctx), retired.owner)
+    destroy_later(synchronize_and(identity), retired.owner)
     return
   end
-  event = @lock stream_disposal_lock begin
-    handle, ctx = release_stream(stream, ctx)
-    context!(ctx) do
-      event = CuEvent(EVENT_DISABLE_TIMING)
-      cuEventRecord(event, handle)
-      event
+  event = try
+    @lock stream_disposal_lock begin
+      handle, ctx = release_stream(stream, ctx)
+      context!(ctx) do
+        event = CuEvent(EVENT_DISABLE_TIMING)
+        cuEventRecord(event, handle)
+        event
+      end
     end
+  catch
+    # the memory may still be in use, so keep the owner alive until reclaiming memory
+    destroy_later(synchronize_and(identity), retired.owner)
+    rethrow()
   end
   @lock pending_owners_lock begin
     push!(pending_owners, (event, retired.owner))
@@ -1039,7 +1047,7 @@ end
 
 function dispose(managed::Managed)
   if on_per_thread_stream(managed.stream)
-    destroy_later(synchronize_and(dispose_now, managed.mem.ctx), managed)
+    destroy_later(synchronize_and(dispose_now), managed)
     return
   end
   dispose_now(managed)
@@ -1406,8 +1414,11 @@ end
 mutable struct PendingDestructions <: Reclaimable
   const lock::ReentrantLock
   const items::Vector{DeferredDestruction}
+  # destructions that failed, whose objects are kept alive as they may still be in use
+  const failed::Vector{DeferredDestruction}
 end
-const pending_destructions = PendingDestructions(ReentrantLock(), DeferredDestruction[])
+const pending_destructions =
+  PendingDestructions(ReentrantLock(), DeferredDestruction[], DeferredDestruction[])
 
 """
     CUDACore.destroy_later(f, obj)
@@ -1440,6 +1451,7 @@ function purge!(pending::PendingDestructions)
       Base.invokelatest(destruction.f, destruction.obj)
     catch err
       @error "Failed to destroy $(typeof(destruction.obj))" exception=(err, catch_backtrace())
+      @lock pending.lock push!(pending.failed, destruction)
     end
   end
   return

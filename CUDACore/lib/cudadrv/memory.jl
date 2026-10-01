@@ -804,8 +804,14 @@ function __unpin(ptr::Ptr, ctx::CuContext)
 
         if pin_count == 0
             mem = @inbounds __pinned_memory[key]
-            context!(ctx) do
-                unregister(mem)
+            try
+                context!(ctx) do
+                    unregister(mem)
+                end
+            catch
+                # still registered
+                __pin_count[key] += 1
+                rethrow()
             end
             delete!(__pinned_memory, key)
         end
