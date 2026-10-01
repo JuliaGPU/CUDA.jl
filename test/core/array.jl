@@ -1074,6 +1074,27 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
 end
 end
 
+function slow_fill(a, val, cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    for i in eachindex(a)
+        a[i] = val
+    end
+    return
+end
+
+@testset "stream-ordered copies from host memory" begin
+  # copies from host memory need to wait for the kernels that write that memory
+  for M in (CUDA.HostMemory, CUDA.UnifiedMemory)
+    h = CuArray{Int,1,M}([1, 2, 3, 4])
+    d = CUDA.zeros(Int, 4)
+    copyto!(d, h)   # so that compiling doesn't delay the copy below
+    @cuda slow_fill(h, 42, 100_000_000)
+    copyto!(d, h)
+    @test Array(d) == fill(42, 4)
+  end
+end
+
 if length(devices()) > 1
 @testset "multigpu" begin
   dev = device()

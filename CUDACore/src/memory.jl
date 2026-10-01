@@ -260,8 +260,7 @@ end
 
 function stream_ordered(dev::CuDevice)
   @memoize index=deviceid(dev)+1 begin
-    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
-    get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) && pools_enabled()
   end::Bool
 end
 
@@ -860,13 +859,13 @@ end
   # exhausted, the OS kills the process on the page fault before the driver
   # call can fail. The only thing that can prevent OOM is the proactive
   # `maybe_collect` call in `pool_alloc`, which uses `_host_stats`.
-  mem = alloc(UnifiedMemory, sz)
-  account!(_host_stats, sz)
+  mem = alloc_unified(sz)
+  account!(_host_stats, sizeof(mem))
   mem
 end
 @inline function _pool_alloc(::Type{HostMemory}, sz)
-  mem = alloc(HostMemory, sz)
-  account!(_host_stats, sz)
+  mem = alloc_host(sz)
+  account!(_host_stats, sizeof(mem))
   mem
 end
 
@@ -941,13 +940,207 @@ end
     end
     account!(memory_stats(mem.dev), -sizeof(mem))
 end
-@inline function _pool_free(mem::UnifiedMemory, stream::CuStream)
-  free(mem)
+@inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream)
+  if mem.pooled
+    context!(mem.ctx) do
+      cuMemFreeAsync(convert(CuPtr{Cvoid}, mem), isvalid(stream) ? stream : default_stream())
+    end
+  else
+    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream)
+  end
   account!(_host_stats, -sizeof(mem))
 end
-@inline function _pool_free(mem::HostMemory, stream::CuStream)
-  free(mem)
-  account!(_host_stats, -sizeof(mem))
+
+
+## pinned host and unified memory
+#
+# freeing such memory with `cuMemFreeHost` or `cuMemFree` waits for all running kernels to
+# finish, also blocking kernel launches from other threads in the meantime. where supported,
+# it is allocated from memory pools instead, which can be freed in stream order without
+# waiting. otherwise, freed allocations are cached for reuse, and only released when
+# reclaiming memory, or when the cache grows too large.
+
+function try_create_pool(f)
+  try
+    f()
+  catch err
+    isa(err, CuError) || rethrow()
+    @debug "Could not create a memory pool" exception=(err, catch_backtrace())
+    nothing
+  end
+end
+
+pools_enabled() = get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+
+# a pool of pinned host memory, accessible from all devices
+function host_pool()
+  @memoize begin
+    supported = driver_version() >= v"13.0" && pools_enabled() &&
+                all(devices()) do dev
+                  attribute(dev, DEVICE_ATTRIBUTE_HOST_MEMORY_POOLS_SUPPORTED) == 1
+                end
+    supported ? try_create_pool() do
+      pool = CuMemoryPool(device(); location_type=CU_MEM_LOCATION_TYPE_HOST, location_id=0)
+      access!(pool, collect(devices()), ACCESS_FLAGS_PROT_READWRITE)
+      pool
+    end : nothing
+  end::Union{Nothing,CuMemoryPool}
+end
+
+# a pool of unified memory, without a preferred location
+function unified_pool()
+  @memoize begin
+    supported = driver_version() >= v"13.0" && pools_enabled() &&
+                all(devices()) do dev
+                  memory_pools_supported(dev) &&
+                    attribute(dev, DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+                end
+    supported ? try_create_pool() do
+      CuMemoryPool(device(); alloc_type=CU_MEM_ALLOCATION_TYPE_MANAGED,
+                   location_type=CU_MEM_LOCATION_TYPE_NONE, location_id=0)
+    end : nothing
+  end::Union{Nothing,CuMemoryPool}
+end
+
+function alloc_from_pool(pool::CuMemoryPool, sz, stream::CuStream)
+  ptr = Ref{CUdeviceptr}()
+  cuMemAllocFromPoolAsync(ptr, sz, pool, stream)
+  return ptr[]
+end
+
+# allocations that cannot be freed without blocking, kept for reuse by later allocations
+struct CachedBlock{M}
+  mem::M
+  # recorded after the last use of the memory
+  idle::CuEvent
+end
+
+mutable struct BlockCache{M} <: Reclaimable
+  const lock::ReentrantLock
+  const blocks::Dict{Tuple{CuContext,Int},Vector{CachedBlock{M}}}
+  Base.@atomic bytes::Int
+end
+BlockCache{M}() where {M} =
+  BlockCache{M}(ReentrantLock(), Dict{Tuple{CuContext,Int},Vector{CachedBlock{M}}}(), 0)
+
+const host_cache = BlockCache{HostMemory}()
+const unified_cache = BlockCache{UnifiedMemory}()
+
+# allocations are rounded up, so that cached ones can be reused for similar sizes
+cached_size(sz) = sz <= 1<<20 ? nextpow(2, max(sz, 512)) : cld(sz, 1<<20) << 20
+
+# how many bytes a cache may hold before allocating releases cached memory
+cache_limit() = Sys.total_memory() ÷ 10
+
+function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream) where {M}
+  idle = context!(mem.ctx) do
+    event = CuEvent(EVENT_DISABLE_TIMING)
+    record(event, isvalid(stream) ? stream : default_stream())
+    event
+  end
+  @lock cache.lock begin
+    blocks = get!(Vector{CachedBlock{M}}, cache.blocks, (mem.ctx, sizeof(mem)))
+    push!(blocks, CachedBlock(mem, idle))
+    Base.@atomic cache.bytes += sizeof(mem)
+  end
+  return
+end
+
+# take a cached allocation that is not in use anymore
+function cache_take!(cache::BlockCache{M}, ctx::CuContext, sz::Int) where {M}
+  block = @lock cache.lock begin
+    blocks = get(cache.blocks, (ctx, sz), nothing)
+    blocks === nothing && return nothing
+    i = findlast(block -> isdone(block.idle), blocks)
+    i === nothing && return nothing
+    Base.@atomic cache.bytes -= sz
+    popat!(blocks, i)
+  end
+  block === nothing && return nothing
+  finalize(block.idle)
+  return block.mem
+end
+
+# release cached allocations. this blocks, also kernel launches from other threads, until
+# all running kernels have finished, so only do so when reclaiming memory.
+function cache_release!(cache::BlockCache, bytes::Int=typemax(Int))
+  released = 0
+  while released < bytes
+    block = @lock cache.lock begin
+      key = findfirst(!isempty, cache.blocks)
+      if key === nothing
+        nothing
+      else
+        block = pop!(cache.blocks[key])
+        Base.@atomic cache.bytes -= sizeof(block.mem)
+        block
+      end
+    end
+    block === nothing && break
+    context!(block.mem.ctx) do
+      synchronize(block.idle)
+      free(block.mem)
+    end
+    finalize(block.idle)
+    released += sizeof(block.mem)
+  end
+  return released
+end
+purge!(cache::BlockCache) = (cache_release!(cache); nothing)
+
+# before allocating more memory, release cached memory if the cache has grown too large
+function maybe_release!(cache::BlockCache)
+  limit = cache_limit()
+  bytes = Base.@atomic cache.bytes
+  bytes > limit && cache_release!(cache, bytes - limit ÷ 2)
+  return
+end
+
+function alloc_host(sz)
+  state = active_state()
+  pool = host_pool()
+  if pool !== nothing
+    ptr = alloc_from_pool(pool, sz, state.stream)
+    return HostMemory(state.context, reinterpret(Ptr{Cvoid}, ptr), sz, true)
+  end
+
+  sz = cached_size(sz)
+  mem = cache_take!(host_cache, state.context, sz)
+  mem === nothing || return mem
+  maybe_release!(host_cache)
+  return alloc(HostMemory, sz)
+end
+
+function alloc_unified(sz)
+  state = active_state()
+  pool = unified_pool()
+  if pool !== nothing
+    ptr = alloc_from_pool(pool, sz, state.stream)
+    return UnifiedMemory(state.context, reinterpret(CuPtr{Cvoid}, ptr), sz, true)
+  end
+
+  sz = cached_size(sz)
+  mem = cache_take!(unified_cache, state.context, sz)
+  if mem !== nothing
+    reset_advice!(mem)
+    return mem
+  end
+  maybe_release!(unified_cache)
+  return alloc(UnifiedMemory, sz)
+end
+
+# a reused allocation shouldn't keep advice given for its previous use
+function reset_advice!(mem::UnifiedMemory)
+  dev = device()
+  for advice in (MEM_ADVISE_UNSET_READ_MOSTLY, MEM_ADVISE_UNSET_PREFERRED_LOCATION,
+                 MEM_ADVISE_UNSET_ACCESSED_BY)
+    try
+      advise(mem, advice; device=dev)
+    catch err
+      # not all advice is supported everywhere
+      isa(err, CuError) || rethrow()
+    end
+  end
 end
 
 """

@@ -1054,10 +1054,17 @@ end
 
 # finalizers do not wait for the GPU, which they could when freeing memory, so collecting
 # garbage while the GPU is busy doesn't block the thread
-@noinline make_garbage() = (foreach(_ -> CuArray{Float32}(undef, 1024), 1:100); nothing)
-let s = CuStream()
+@noinline function make_garbage!(garbage)
+    # (in a function, as top-level code may keep temporaries alive)
+    garbage[] = [CuArray{Float32,1,M}(undef, 1024)
+                 for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory)
+                 for _ in 1:10]
+    return
+end
+let s = CuStream(), garbage = Ref{Any}()
+    make_garbage!(garbage)
     @test gated(s) do
-        make_garbage()
+        garbage[] = nothing
         GC.enable(true)
         GC.gc()
         GC.enable(false)
