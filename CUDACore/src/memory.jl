@@ -605,7 +605,10 @@ Base.sizeof(managed::Managed) = sizeof(managed.mem)
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
   Base.@lock managed.lock begin
-    synchronize(managed.stream)
+    # the default streams need to be synchronized in the context they were used in
+    context!(managed.stream_ctx) do
+      synchronize(managed.stream)
+    end
     managed.dirty = false
   end
 end
@@ -653,12 +656,13 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     #end
   end
 
-  # accessing memory on another stream: ensure the data is ready and take ownership
-  if managed.stream != stream
+  # accessing memory on another stream: ensure the data is ready and take ownership.
+  # (the default streams are specific to a context, so also check that.)
+  if managed.stream != stream || managed.stream_ctx != state.context
     maybe_synchronize(managed)
     managed.stream = stream
+    managed.stream_ctx = state.context
   end
-  managed.stream_ctx = state.context
 
   # prefetch unified memory as we're likely to use it on the GPU
   if M == UnifiedMemory
@@ -907,7 +911,7 @@ release_owner(owner, managed::Managed) =
 
 function dispose(retired::RetiredOwner)
   stream = retired.managed.stream
-  ctx = retired.managed.mem.ctx
+  ctx = retired.managed.stream_ctx
   if on_per_thread_stream(stream)
     destroy_later(synchronize_and(identity, retired.managed.stream_ctx), retired.owner)
     return
@@ -1062,7 +1066,7 @@ function dispose_now(managed::Managed)
     # this function is called when draining retired memory, e.g. before allocating, where a
     # failure to free memory shouldn't be fatal, so perform our own error handling.
     try
-      time = Base.@elapsed _pool_free(mem, managed.stream)
+      time = Base.@elapsed _pool_free(mem, managed.stream, managed.stream_ctx)
 
       Base.@atomic alloc_stats.free_count += 1
       Base.@atomic alloc_stats.free_bytes += sz
@@ -1079,13 +1083,13 @@ function dispose_now(managed::Managed)
 
   return
 end
-@inline function _pool_free(mem::DeviceMemory, stream::CuStream)
+@inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext)
     if mem.async || async_free_supported(mem.dev)
       # free in stream order. `cuMemFree` would wait for all work on the device to finish,
       # blocking kernel launches from other threads in the meantime. that also works for
       # memory that wasn't allocated from a pool.
       @lock stream_disposal_lock begin
-        stream, ctx = release_stream(stream, mem.ctx)
+        stream, ctx = release_stream(stream, stream_ctx)
         context!(ctx) do
           if !mem.async
             # when memory that wasn't allocated from a pool is freed in stream order,
@@ -1107,16 +1111,17 @@ end
     end
     account!(memory_stats(mem.dev), -sizeof(mem))
 end
-@inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream)
+@inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
+                            stream_ctx::CuContext)
   if mem.pooled
     @lock stream_disposal_lock begin
-      stream, ctx = release_stream(stream, mem.ctx)
+      stream, ctx = release_stream(stream, stream_ctx)
       context!(ctx) do
         cuMemFreeAsync(convert(CuPtr{Cvoid}, mem), stream)
       end
     end
   else
-    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream)
+    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx)
   end
   account!(_host_stats, -sizeof(mem))
 end
@@ -1209,9 +1214,10 @@ cached_size(sz) = sz <= 1<<20 ? nextpow(2, max(sz, 512)) : cld(sz, 1<<20) << 20
 # share memory with the CPU, cached memory competes with everything else.
 cache_limit() = Sys.total_memory() ÷ 20
 
-function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream) where {M}
+function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream,
+                    stream_ctx::CuContext) where {M}
   idle = @lock stream_disposal_lock begin
-    stream, ctx = release_stream(stream, mem.ctx)
+    stream, ctx = release_stream(stream, stream_ctx)
     # (the event needs to be created in the context of the stream it is recorded on)
     context!(ctx) do
       event = CuEvent(EVENT_DISABLE_TIMING)
