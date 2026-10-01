@@ -1062,7 +1062,11 @@ end
          for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory) for _ in 1:10],
         # registered host memory
         [CUDA.pin(zeros(UInt8, 1 << 20)) for _ in 1:10],
-        [unsafe_wrap(CuArray{Float32,1,CUDA.HostMemory}, zeros(Float32, 1024)) for _ in 1:10])
+        [unsafe_wrap(CuArray{Float32,1,CUDA.HostMemory}, zeros(Float32, 1024)) for _ in 1:10],
+        # objects whose destruction waits for running kernels
+        [CuTextureArray{Float32,2}(undef, (64, 64)) for _ in 1:10],
+        [CuModule(".version 6.0\n.target sm_50\n.address_size 64\n.visible .entry k() { ret; }\n")
+         for _ in 1:10])
     return
 end
 let s = CuStream(), garbage = Ref{Any}()

@@ -321,7 +321,8 @@ mutable struct IC0Info
         info_ref = Ref{csric02Info_t}()
         cusparseCreateCsric02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyCsric02Info, obj)
+        # destroying this information waits for running kernels to finish
+        finalizer(obj -> CUDACore.destroy_later(cusparseDestroyCsric02Info, obj), obj)
         obj
     end
 end
@@ -335,7 +336,8 @@ mutable struct IC0InfoBSR
         info_ref = Ref{bsric02Info_t}()
         cusparseCreateBsric02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyBsric02Info, obj)
+        # destroying this information waits for running kernels to finish
+        finalizer(obj -> CUDACore.destroy_later(cusparseDestroyBsric02Info, obj), obj)
         obj
     end
 end
@@ -349,7 +351,8 @@ mutable struct ILU0Info
         info_ref = Ref{csrilu02Info_t}()
         cusparseCreateCsrilu02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyCsrilu02Info, obj)
+        # destroying this information waits for running kernels to finish
+        finalizer(obj -> CUDACore.destroy_later(cusparseDestroyCsrilu02Info, obj), obj)
         obj
     end
 end
@@ -363,7 +366,8 @@ mutable struct ILU0InfoBSR
         info_ref = Ref{bsrilu02Info_t}()
         cusparseCreateBsrilu02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyBsrilu02Info, obj)
+        # destroying this information waits for running kernels to finish
+        finalizer(obj -> CUDACore.destroy_later(cusparseDestroyBsrilu02Info, obj), obj)
         obj
     end
 end

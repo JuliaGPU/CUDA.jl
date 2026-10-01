@@ -39,7 +39,9 @@ mutable struct CuTextureArray{T,N}
     function CuTextureArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
         mem = alloc(ArrayMemory{T}, dims)
         t = new{T,N}(mem, dims, context())
-        finalizer(unsafe_destroy!, t)
+        # destroying an array waits for running kernels to finish, also blocking kernel
+        # launches from other threads
+        finalizer(t -> destroy_later(unsafe_destroy!, t), t)
         return t
     end
 end

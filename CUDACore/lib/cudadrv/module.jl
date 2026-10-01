@@ -90,7 +90,8 @@ mutable struct CuModule
 
         ctx = current_context()
         obj = new(handle_ref[], ctx)
-        finalizer(unsafe_unload!, obj)
+        # unloading a module waits for running kernels to finish
+        finalizer(obj -> destroy_later(unsafe_unload!, obj), obj)
         return obj
     end
 end

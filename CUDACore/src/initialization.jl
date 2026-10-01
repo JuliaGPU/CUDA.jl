@@ -57,6 +57,7 @@ function __init__()
     register_reclaimable!(host_cache)
     register_reclaimable!(unified_cache)
     register_reclaimable!(pending_registrations)
+    register_reclaimable!(pending_destructions)
 
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,
     #       and remove functional(), once people sufficiently use weak dependencies.

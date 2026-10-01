@@ -1267,6 +1267,61 @@ function register_host_memory(ptr::Ptr, sz::Integer, flags=0)
 end
 
 
+## deferred destruction
+#
+# some objects (e.g., modules, texture arrays, and library handles or plans) can only be
+# destroyed with calls that wait for all running kernels to finish, sometimes also blocking
+# kernel launches from other threads. their destruction is deferred until memory is
+# reclaimed, e.g., when running out of memory or when calling `reclaim()`.
+
+struct DeferredDestruction
+  f::Any
+  obj::Any
+end
+
+mutable struct PendingDestructions <: Reclaimable
+  const lock::ReentrantLock
+  const items::Vector{DeferredDestruction}
+end
+const pending_destructions = PendingDestructions(ReentrantLock(), DeferredDestruction[])
+
+"""
+    CUDACore.destroy_later(f, obj)
+
+Destroy `obj` by calling `f(obj)` when memory is reclaimed, instead of right away. This is
+meant for objects whose destruction may wait for running kernels to finish, and can be used
+from a finalizer, e.g., `finalizer(obj -> destroy_later(unsafe_destroy!, obj), obj)`.
+"""
+function destroy_later(f, obj)
+  destruction = DeferredDestruction(f, obj)
+  GC.in_finalizer() ? retire!(destruction) : dispose(destruction)
+  return
+end
+
+function dispose(destruction::DeferredDestruction)
+  @lock pending_destructions.lock push!(pending_destructions.items, destruction)
+  return
+end
+
+function purge!(pending::PendingDestructions)
+  drain_retired()
+  items = @lock pending.lock begin
+    items = copy(pending.items)
+    empty!(pending.items)
+    items
+  end
+  for destruction in items
+    try
+      # the destructor may have been defined after this code was compiled
+      Base.invokelatest(destruction.f, destruction.obj)
+    catch err
+      @error "Failed to destroy $(typeof(destruction.obj))" exception=(err, catch_backtrace())
+    end
+  end
+  return
+end
+
+
 """
     reclaim([level::ReclaimLevel = RECLAIM_DROP])
 

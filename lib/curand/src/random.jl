@@ -20,7 +20,9 @@ mutable struct LibraryRNG <: Random.AbstractRNG
             curandSetStream(handle, stream)
         end
         obj = new(handle, context(), stream, typ)
-        finalizer(unsafe_destroy!, obj)
+        # destroying a generator that was used waits for running kernels to finish, also
+        # blocking kernel launches from other threads
+        finalizer(obj -> CUDACore.destroy_later(unsafe_destroy!, obj), obj)
         return obj
     end
 end
