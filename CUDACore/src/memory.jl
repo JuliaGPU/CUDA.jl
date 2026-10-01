@@ -607,7 +607,12 @@ function synchronize(managed::Managed)
   Base.@lock managed.lock begin
     # the default streams need to be synchronized in the context they were used in
     context!(managed.stream_ctx) do
-      synchronize(managed.stream)
+      if on_per_thread_stream(managed.stream)
+        # that one is specific to the thread that used it, which isn't known
+        device_synchronize()
+      else
+        synchronize(managed.stream)
+      end
     end
     managed.dirty = false
   end
@@ -716,7 +721,7 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
 end
 
 
-## retirement of memory freed by finalizers
+## retirement of resources freed by finalizers
 #
 # finalizers run on whatever thread triggers a collection, or releases a lock while
 # finalizers are pending, and cannot switch tasks. releasing memory there could block that
@@ -814,7 +819,7 @@ function start_retired_drainer()
   return
 end
 
-# how many retired blocks to release when allocating, to bound the latency of an allocation
+# how many retired resources to dispose of when allocating, to bound allocation latency
 const ALLOC_DRAIN_LIMIT = 256
 
 dispose(event::CuEvent) = unsafe_destroy!(event)
@@ -839,8 +844,8 @@ end
 
 # memory released after its stream was destroyed is released on a non-blocking stream that
 # waits for the final event of that stream. (the legacy default stream would make other
-# streams wait as well, which could deadlock.) it is created along with the first stream of
-# each context, so that releasing memory doesn't create streams (which can block).
+# streams wait as well, which could deadlock.) it is created when a task starts using a
+# context, so that releasing memory doesn't create streams (which can block).
 const disposal_streams = Dict{CuContext,CUstream}()
 const disposal_streams_lock = ReentrantLock()
 function disposal_stream(ctx::CuContext)
