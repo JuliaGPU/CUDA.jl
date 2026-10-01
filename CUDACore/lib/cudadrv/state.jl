@@ -152,6 +152,7 @@ function context!(ctx::CuContext)
             dev = current_device()
             state.device = dev
             state.context = ctx
+            disposal_stream(ctx)    # see `task_local_state!`
         end
     end
 
@@ -248,6 +249,7 @@ function device!(dev::CuDevice, flags=nothing)
     else
         state.device = dev
         state.context = ctx
+        disposal_stream(ctx)        # see `task_local_state!`
     end
     activate(ctx)
 

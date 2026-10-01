@@ -578,8 +578,10 @@ mutable struct Managed{M}
   const mem::M
   const lock::ReentrantLock
 
-  # which stream is currently using the memory.
+  # which stream is currently using the memory, and in which context (which isn't known for
+  # the default streams).
   stream::CuStream
+  stream_ctx::CuContext
 
   # whether accessing this memory can cause implicit synchronization
   synchronizing::Bool
@@ -594,7 +596,7 @@ mutable struct Managed{M}
                    dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, ReentrantLock(), stream, synchronizing, dirty, captured)
+    new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, synchronizing, dirty, captured)
   end
 end
 
@@ -656,6 +658,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     maybe_synchronize(managed)
     managed.stream = stream
   end
+  managed.stream_ctx = state.context
 
   # prefetch unified memory as we're likely to use it on the GPU
   if M == UnifiedMemory
@@ -875,14 +878,12 @@ function after_on_disposal_stream(stream::CUstream, ctx::CuContext)
 end
 
 # the per-thread default stream is specific to the thread that used it, which isn't known
-# when releasing memory (nor is the context it was used in), so memory last used on it is
-# only released when memory is reclaimed, after synchronizing all devices.
+# when releasing memory, so memory last used on it is only released when memory is
+# reclaimed, after synchronizing the context it was used in.
 on_per_thread_stream(stream::CuStream) = stream.handle == CU_STREAM_PER_THREAD
-function synchronize_and(f)
+function synchronize_and(f, ctx::CuContext)
   return x -> begin
-    for dev in devices()
-      device!(device_synchronize, dev)
-    end
+    context!(device_synchronize, ctx)
     f(x)
   end
 end
@@ -908,7 +909,7 @@ function dispose(retired::RetiredOwner)
   stream = retired.managed.stream
   ctx = retired.managed.mem.ctx
   if on_per_thread_stream(stream)
-    destroy_later(synchronize_and(identity), retired.owner)
+    destroy_later(synchronize_and(identity, retired.managed.stream_ctx), retired.owner)
     return
   end
   event = try
@@ -922,7 +923,7 @@ function dispose(retired::RetiredOwner)
     end
   catch
     # the memory may still be in use, so keep the owner alive until reclaiming memory
-    destroy_later(synchronize_and(identity), retired.owner)
+    destroy_later(synchronize_and(identity, retired.managed.stream_ctx), retired.owner)
     rethrow()
   end
   @lock pending_owners_lock begin
@@ -1047,7 +1048,7 @@ end
 
 function dispose(managed::Managed)
   if on_per_thread_stream(managed.stream)
-    destroy_later(synchronize_and(dispose_now), managed)
+    destroy_later(synchronize_and(dispose_now, managed.stream_ctx), managed)
     return
   end
   dispose_now(managed)
