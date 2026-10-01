@@ -1056,9 +1056,13 @@ end
 # garbage while the GPU is busy doesn't block the thread
 @noinline function make_garbage!(garbage)
     # (in a function, as top-level code may keep temporaries alive)
-    garbage[] = [CuArray{Float32,1,M}(undef, 1024)
-                 for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory)
-                 for _ in 1:10]
+    garbage[] = vcat(
+        # memory allocated by CUDA.jl
+        [CuArray{Float32,1,M}(undef, 1024)
+         for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory) for _ in 1:10],
+        # registered host memory
+        [CUDA.pin(zeros(UInt8, 1 << 20)) for _ in 1:10],
+        [unsafe_wrap(CuArray{Float32,1,CUDA.HostMemory}, zeros(Float32, 1024)) for _ in 1:10])
     return
 end
 let s = CuStream(), garbage = Ref{Any}()
@@ -1070,6 +1074,34 @@ let s = CuStream(), garbage = Ref{Any}()
         GC.enable(false)
         open_gate_during(() -> synchronize(s))
     end
+end
+
+# memory that is collected along with the stream it was last used on is not reused before
+# the work on that stream has finished
+touch_kernel(a) = (@inbounds a[1] = 1; return)
+@cuda launch=false touch_kernel(CuArray{UInt8,1,CUDA.HostMemory}(undef, 1))
+@noinline function use_on_dropped_stream()
+    s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    a = CuArray{UInt8,1,CUDA.HostMemory}(undef, 4096)
+    ptr = UInt(pointer(a))
+    gate .= 0
+    @cuda stream=s gate_kernel(gate_ptr, timeout)
+    @cuda stream=s touch_kernel(a)
+    return ptr
+end
+let
+    GC.gc(true)
+    ptr = use_on_dropped_stream()
+    try
+        GC.gc(true)
+        b = CuArray{UInt8,1,CUDA.HostMemory}(undef, 4096)
+        # if the memory is reused, using it waits for the pending work
+        @test UInt(pointer(b)) != ptr || !CUDA.isdone(stream())
+    finally
+        open_gate()
+        device_synchronize()
+    end
+    @test gate[2] == 0
 end
 
 # a long wait does not delay other ones

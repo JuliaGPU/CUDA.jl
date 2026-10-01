@@ -21,7 +21,8 @@ mutable struct CuEvent
 
         ctx = current_context()
         obj = new(handle_ref[], ctx)
-        finalizer(unsafe_destroy!, obj)
+        # destroying an event from a finalizer is deferred, as with all resources
+        finalizer(retire!, obj)
         return obj
     end
 end

@@ -719,9 +719,11 @@ function pin(a::AbstractArray)
         __pinned_objects[key] = PinnedObject(WeakRef(a), sizeof(a))
     end
 
-     __pin(ptr, sizeof(a))
-    finalizer(a) do _
-        __unpin(ptr, ctx)
+    __pin(ptr, sizeof(a))
+    sz = sizeof(a)
+    finalizer(a) do a
+        # unregistering can block, so it is deferred, keeping `a` alive in the meantime
+        retire!(RetiredRegistration(HostMemory(ctx, ptr, sz), true, a))
     end
 
     a
@@ -731,9 +733,11 @@ function pin(ref::Base.RefValue{T}) where T
     ctx = context()
     ptr = Base.unsafe_convert(Ptr{T}, ref)
 
-    __pin(ptr, aligned_sizeof(T))
-    finalizer(ref) do _
-        __unpin(ptr, ctx)
+    sz = aligned_sizeof(T)
+    __pin(ptr, sz)
+    finalizer(ref) do ref
+        # unregistering can block, so it is deferred, keeping `ref` alive in the meantime
+        retire!(RetiredRegistration(HostMemory(ctx, ptr, sz), true, ref))
     end
 
     ref
@@ -764,7 +768,7 @@ function __pin(ptr::Ptr, sz::Int)
         end
 
         if pin_count == 1
-            mem = register(HostMemory, ptr, sz)
+            mem = register_host_memory(ptr, sz)
             __pinned_memory[key] = mem
         elseif Base.JLOptions().debug_level >= 2
             # make sure we're pinning the exact same range
