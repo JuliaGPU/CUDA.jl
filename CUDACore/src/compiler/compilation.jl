@@ -385,19 +385,24 @@ device_compatible_layout(@nospecialize(T)) =
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
     # TODO: on 1.9, this actually creates a context. cache those.
-    asm, meta = JuliaContext() do ctx
-        invoke_frozen(GPUCompiler.compile, :asm, job)
-    end
+    # the IR is ours: inspect it in here, and dispose of it so that it does not leak
+    asm, entry, relocations, needs_cudadevrt = JuliaContext() do ctx
+        asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
 
-    # check if we'll need the device runtime
-    undefined_fs = filter(collect(meta.ir.functions)) do f
-        isdeclaration(f) && !LLVM.isintrinsic(f) &&
-        # intrinsics unknown to the in-process LLVM are still lowered by the back-end
-        !startswith(f.name, "llvm.")
+        # check if we'll need the device runtime
+        undefined_fs = filter(collect(meta.ir.functions)) do f
+            isdeclaration(f) && !LLVM.isintrinsic(f) &&
+            # intrinsics unknown to the in-process LLVM are still lowered by the back-end
+            !startswith(f.name, "llvm.")
+        end
+        intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
+                         "__nvvm_reflect" #= TODO: should have been optimized away =#]
+        needs_cudadevrt = !isempty(setdiff(map(f -> f.name, undefined_fs), intrinsic_fns))
+
+        entry = meta.entry.name
+        dispose(meta.ir)
+        asm, entry, meta.relocations, needs_cudadevrt
     end
-    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
-                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
-    needs_cudadevrt = !isempty(setdiff(map(f -> f.name, undefined_fs), intrinsic_fns))
 
     # prepare invocations of CUDA compiler tools
     ptxas_opts = String[]
@@ -546,7 +551,7 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=meta.entry.name, relocations=meta.relocations)
+    return (; image, entry, relocations)
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context
