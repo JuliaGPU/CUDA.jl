@@ -63,3 +63,26 @@ end
         @test Array(kron(B, A)) ≈ kron(Array(B), Array(A))
     end
 end
+
+@testset "storage-level mul! falls back where cuBLAS can't go" begin
+    A = rand(Float32, 8, 6); B = rand(Float32, 6, 5); x = rand(Float32, 6)
+    dA, dB, dx = CuArray(A), CuArray(B), CuArray(x)
+
+    # columns that aren't contiguous (row step 2)
+    C = CuArray(zeros(Float32, 4, 5))
+    mul!(C, 'N', 'N', view(dA, 1:2:8, :), dB, true, false)
+    @test Array(C) ≈ A[1:2:8, :] * B
+    y = CuArray(zeros(Float32, 4))
+    mul!(y, 'N', view(dA, 1:2:8, :), dx, true, false)
+    @test Array(y) ≈ A[1:2:8, :] * x
+
+    # element types cuBLAS has no symm/hemm for
+    S = rand(Float16, 4, 4); B16 = rand(Float16, 2, 3)
+    C16 = CuArray(zeros(Float16, 2, 3))
+    mul!(C16, 'S', 'N', view(CuArray(S), 1:2, 1:2), CuArray(B16), true, false)
+    @test Array(C16) ≈ Symmetric(S[1:2, 1:2]) * B16
+    S32 = rand(Float32, 4, 4); B64 = rand(Float64, 4, 3)
+    C64 = CuArray(zeros(Float64, 4, 3))
+    mul!(C64, 'S', 'N', CuArray(S32), CuArray(B64), true, false)
+    @test Array(C64) ≈ Symmetric(S32) * B64
+end

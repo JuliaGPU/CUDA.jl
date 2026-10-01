@@ -275,7 +275,7 @@ function LinearAlgebra.mul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMa
 
     T = eltype(Y)
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        if T <: CublasFloat && eltype(A) == eltype(B) == T
+        if T <: CublasFloat && eltype(A) == eltype(B) == T && stride(A, 1) == 1
             if tA in ('N', 'T', 'C')
                 return gemv!(tA, alpha, A, B, beta, Y)
             elseif tA in ('S', 's')
@@ -360,7 +360,8 @@ function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, 
         return LinearAlgebra.rmul!(C, beta)
     end
 
-    if all(in(('N', 'T', 'C')), (tA, tB))
+    unit_stride = stride(A, 1) == stride(B, 1) == stride(C, 1) == 1
+    if unit_stride && all(in(('N', 'T', 'C')), (tA, tB))
         if A isa StridedCuArray && B isa StridedCuArray &&
         gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
             return gemmEx!(tA, tB, alpha, A, B, beta, C)
@@ -368,7 +369,8 @@ function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, 
             return gemm!(tA, tB, alpha, A, B, beta, C)
         end
     end
-    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
+    if unit_stride && T <: CublasFloat && eltype(A) == eltype(B) == T &&
+       alpha isa Union{Bool,T} && beta isa Union{Bool,T}
         # TODO: should the gemm part above be included in this branch?
         if (tA == 'S' || tA == 's') && tB == 'N'
             return symm!('L', tA == 'S' ? 'U' : 'L', alpha, A, B, beta, C)
