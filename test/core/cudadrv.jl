@@ -1052,6 +1052,19 @@ for s in (default_stream(), legacy_stream(), per_thread_stream())
     end)
 end
 
+# finalizers do not wait for the GPU, which they could when freeing memory, so collecting
+# garbage while the GPU is busy doesn't block the thread
+@noinline make_garbage() = (foreach(_ -> CuArray{Float32}(undef, 1024), 1:100); nothing)
+let s = CuStream()
+    @test gated(s) do
+        make_garbage()
+        GC.enable(true)
+        GC.gc()
+        GC.enable(false)
+        open_gate_during(() -> synchronize(s))
+    end
+end
+
 # a long wait does not delay other ones
 let long = CuStream()
     # set up the other tasks before closing the gate, as creating a stream (including a

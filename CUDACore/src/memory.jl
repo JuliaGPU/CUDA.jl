@@ -171,7 +171,11 @@ function maybe_collect(will_block::Bool=false)
   # finalizers running during GC may free memory in either.
   pre_device_live = stats.live
   pre_host_live = _host_stats.live
-  gc_time = Base.@elapsed GC.gc(false)
+  gc_time = Base.@elapsed begin
+    GC.gc(false)
+    # finalizers only retire memory, so release it before measuring what was freed
+    drain_retired()
+  end
   Base.@atomic stats.last_freed = pre_device_live - stats.live
   Base.@atomic _host_stats.last_freed = pre_host_live - _host_stats.live
   ## GC times can vary, so smooth them out
@@ -258,6 +262,14 @@ function stream_ordered(dev::CuDevice)
   @memoize index=deviceid(dev)+1 begin
     CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
     get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+  end::Bool
+end
+
+# whether memory can be freed in stream order, which is also supported for memory that wasn't
+# allocated from a pool
+function async_free_supported(dev::CuDevice)
+  @memoize index=deviceid(dev)+1 begin
+    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev)
   end::Bool
 end
 
@@ -524,18 +536,21 @@ end
 # bisect on alloc failure. GC.gc(true) drains pending finalizers before
 # returning, so the post-GC purge sees caches populated by wrapper finalizers.
 function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
+    drain_retired()
     if level == RECLAIM_PURGE
         foreach_reclaimable(purge!)
     elseif level == RECLAIM_SYNC
         stream_ordered && device_synchronize()
     elseif level == RECLAIM_GC
         GC.gc(true)
+        drain_retired()
         stream_ordered && device_synchronize()
         foreach_reclaimable(purge!)
         stream_ordered && trim(pool_create(dev))
     elseif level == RECLAIM_DROP
         foreach_reclaimable(drop!)
         GC.gc(true)
+        drain_retired()
         stream_ordered && device_synchronize()
         foreach_reclaimable(purge!)
         stream_ordered && trim(pool_create(dev))
@@ -685,6 +700,94 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
 end
 
 
+## retirement of memory freed by finalizers
+#
+# finalizers run on whatever thread triggers a collection, or releases a lock while
+# finalizers are pending, and cannot switch tasks. releasing memory there could block that
+# thread, as some driver calls wait for unrelated GPU work to finish (also blocking kernel
+# launches from other threads in the meantime). if that work depends on a task on this
+# thread, that would deadlock. so finalizers only retire memory, pushing it onto a lock-free
+# list, and regular tasks release it.
+
+mutable struct RetiredMemory
+  const managed::Managed
+  next::Union{Nothing,RetiredMemory}
+end
+
+mutable struct RetiredList
+  Base.@atomic head::Union{Nothing,RetiredMemory}
+end
+const retired_memory = RetiredList(nothing)
+
+function push_retired!(first::RetiredMemory, last::RetiredMemory)
+  head = Base.@atomic :monotonic retired_memory.head
+  while true
+    last.next = head
+    head, ok = Base.@atomicreplace :release :monotonic retired_memory.head head => first
+    ok && return
+  end
+end
+
+# can be called from a finalizer: doesn't switch tasks, take locks or call into CUDA
+function retire!(managed::Managed)
+  node = RetiredMemory(managed, nothing)
+  push_retired!(node, node)
+  return
+end
+
+"""
+    drain_retired([limit])
+
+Release (at most `limit` blocks of) memory that has been retired by finalizers, making it
+available to future allocations. Returns the number of blocks released.
+"""
+function drain_retired(limit::Int=typemax(Int))
+  (Base.@atomic :monotonic retired_memory.head) === nothing && return 0
+  GC.in_finalizer() && return 0
+  ensure_retired_drainer()
+
+  # detach the entire list, so that concurrent drains process disjoint batches
+  node = Base.@atomicswap :acquire retired_memory.head = nothing
+  n = 0
+  while node !== nothing
+    if n == limit
+      # put back what we didn't get to
+      last = node
+      while last.next !== nothing
+        last = last.next
+      end
+      push_retired!(node, last)
+      break
+    end
+    next = node.next
+    dispose(node.managed)
+    node = next
+    n += 1
+  end
+  return n
+end
+
+# drain periodically, so that memory gets released when the application stops allocating
+const retired_drainer = Threads.Atomic{Bool}(false)
+function ensure_retired_drainer()
+  retired_drainer[] && return
+  # don't keep precompilation from finishing
+  ccall(:jl_generating_output, Cint, ()) != 0 && return
+  Threads.atomic_cas!(retired_drainer, false, true) && return
+  Timer(1; interval=1) do _
+    try
+      drain_retired()
+    catch err
+      @error "Failed to release retired GPU memory" exception=(err, catch_backtrace())
+    end
+  end
+  return
+end
+
+# how many retired blocks to release when allocating, to bound the latency of an allocation
+const ALLOC_DRAIN_LIMIT = 256
+
+
 ## public interface
 
 """
@@ -699,6 +802,7 @@ cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return Managed(B())
 
+  drain_retired(ALLOC_DRAIN_LIMIT)
   maybe_collect()
   time = Base.@elapsed begin
     mem = _pool_alloc(B, sz)
@@ -771,17 +875,29 @@ end
 
 Releases memory to the pool. If possible, this operation will not block but will be ordered
 against the stream that last used the memory.
+
+When called from a finalizer, the memory is only retired, and released later by a regular
+task (see [`drain_retired`](@ref)).
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
+  # 0-byte allocations shouldn't hit the pool
+  sizeof(managed.mem) == 0 && return
+
+  if GC.in_finalizer()
+    retire!(managed)
+  else
+    dispose(managed)
+  end
+  return
+end
+
+function dispose(managed::Managed)
   Base.@lock managed.lock begin
     mem = managed.mem
-
-    # 0-byte allocations shouldn't hit the pool
     sz = sizeof(mem)
-    sz == 0 && return
 
-    # this function is typically called from a finalizer, where we can't switch tasks,
-    # so perform our own error handling.
+    # this function is called when draining retired memory, e.g. before allocating, where a
+    # failure to free memory shouldn't be fatal, so perform our own error handling.
     try
       time = Base.@elapsed _pool_free(mem, managed.stream)
 
@@ -814,7 +930,13 @@ end
     else
       # regular allocations are tied to a context, so free them in their owning context.
       context!(mem.ctx) do
-        free(mem)
+        if async_free_supported(mem.dev)
+          # `cuMemFree` waits for all work on the device to finish, blocking kernel launches
+          # from other threads in the meantime. freeing the memory in stream order doesn't.
+          cuMemFreeAsync(mem, isvalid(stream) ? stream : default_stream())
+        else
+          free(mem)
+        end
       end
     end
     account!(memory_stats(mem.dev), -sizeof(mem))

@@ -400,7 +400,7 @@ function compile(@nospecialize(job::CompilerJob))
         needs_cudadevrt = !isempty(setdiff(map(f -> f.name, undefined_fs), intrinsic_fns))
 
         entry = meta.entry.name
-        dispose(meta.ir)
+        LLVM.dispose(meta.ir)
         asm, entry, meta.relocations, needs_cudadevrt
     end
 
