@@ -981,18 +981,12 @@ gate_is_open() = unsafe_load(pointer(gate), :acquire) != 0
 # run `f` while a kernel on `stream` keeps the GPU busy until the gate is opened, returning
 # whether `f` succeeded and the gate was opened in time.
 function gated(f, stream)
-    # while the gate is closed, nothing on the host may wait for the GPU to become idle,
-    # as e.g. freeing memory does. so avoid running finalizers, by collecting beforehand
-    # and not collecting while the gate is closed.
-    GC.gc(true)
-    gc_enabled = GC.enable(false)
     ret = GC.@preserve gpu_gate try
         gate .= 0
         @cuda stream=stream gate_kernel(gate_ptr, timeout)
         f()
     finally
         open_gate()
-        GC.enable(gc_enabled)
         # also when `f` failed, as the gate is reused
         synchronize(stream)
     end
@@ -1067,40 +1061,51 @@ end
         [CuTextureArray{Float32,2}(undef, (64, 64)) for _ in 1:10],
         [CuModule(".version 6.0\n.target sm_50\n.address_size 64\n.visible .entry k() { ret; }\n")
          for _ in 1:10])
-    return
+    return map(WeakRef, garbage[])
 end
 let s = CuStream(), garbage = Ref{Any}()
-    make_garbage!(garbage)
+    weak = make_garbage!(garbage)
     @test gated(s) do
         garbage[] = nothing
-        GC.enable(true)
         GC.gc()
-        GC.enable(false)
         open_gate_during(() -> synchronize(s))
     end
+    @test all(ref -> ref.value === nothing, weak)
 end
 
-# memory that is collected along with the stream it was last used on is not reused before
-# the work on that stream has finished
+# memory released after the stream it was last used on has been destroyed (as happens when
+# both are collected) is not reused before the work on that stream has finished, without
+# making work on other streams wait as well
 touch_kernel(a) = (@inbounds a[1] = 1; return)
 @cuda launch=false touch_kernel(CuArray{UInt8,1,CUDA.HostMemory}(undef, 1))
-@noinline function use_on_dropped_stream()
+for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory), stream_first in (true, false)
+    GC.gc(true)
     s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
-    a = CuArray{UInt8,1,CUDA.HostMemory}(undef, 4096)
+    other = CuStream()
+    a = CuArray{UInt8,1,M}(undef, 4096)
     ptr = UInt(pointer(a))
     gate .= 0
     @cuda stream=s gate_kernel(gate_ptr, timeout)
     @cuda stream=s touch_kernel(a)
-    return ptr
-end
-let
-    GC.gc(true)
-    ptr = use_on_dropped_stream()
     try
-        GC.gc(true)
-        b = CuArray{UInt8,1,CUDA.HostMemory}(undef, 4096)
+        # finalizing the stream retires it, and querying the pool status disposes of it
+        if stream_first
+            finalize(s)
+            CUDA.pool_status(devnull)
+            CUDA.unsafe_free!(a)
+        else
+            CUDA.unsafe_free!(a)
+            finalize(s)
+            CUDA.pool_status(devnull)
+        end
+
         # if the memory is reused, using it waits for the pending work
+        b = CuArray{UInt8,1,M}(undef, 4096)
         @test UInt(pointer(b)) != ptr || !CUDA.isdone(stream())
+
+        # unrelated work doesn't
+        @cuda stream=other noop_kernel()
+        synchronize(other)
     finally
         open_gate()
         device_synchronize()

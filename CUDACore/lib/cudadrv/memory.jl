@@ -360,7 +360,10 @@ function alloc(::Type{<:ArrayMemory{T}}, dims::Dims{N}) where {T,N}
         0))
 
     handle_ref = Ref{CUarray}()
-    cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    res = retry_reclaim(isequal(ERROR_OUT_OF_MEMORY)) do
+        unchecked_cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    end
+    res == SUCCESS || throw_api_error(res)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
     return ArrayMemory{T,N}(context(), ptr, dims)
@@ -819,6 +822,14 @@ end
 
 
 ## pointer attributes
+
+# whether memory was allocated from a memory pool
+function from_pool(ptr::Union{Ptr,CuPtr})
+    pool = Ref{Ptr{Cvoid}}(C_NULL)
+    res = unchecked_cuPointerGetAttribute(pool, CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE,
+                                          reinterpret(CuPtr{Cvoid}, ptr))
+    return res == SUCCESS && pool[] != C_NULL
+end
 
 export attribute, attribute!, memory_type, is_managed
 @public host_pointer, device_pointer, is_pinned

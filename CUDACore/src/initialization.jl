@@ -58,6 +58,7 @@ function __init__()
     register_reclaimable!(unified_cache)
     register_reclaimable!(pending_registrations)
     register_reclaimable!(pending_destructions)
+    precompiling || start_retired_drainer()
 
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,
     #       and remove functional(), once people sufficiently use weak dependencies.

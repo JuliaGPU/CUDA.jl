@@ -29,6 +29,8 @@ mutable struct CuStream
         end
 
         ctx = current_context()
+        # make sure memory last used on this stream can be released after destroying it
+        disposal_stream(ctx)
         obj = new(handle_ref[], true, ctx, nothing)
         # destroying a stream from a finalizer is deferred, as with all resources
         # (see `retire!`), also so that memory that was last used on it can be freed first
