@@ -100,12 +100,11 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
         bb = BasicBlock(LLVM.before(top_bb), "initialize_rng")
         @dispose builder=IRBuilder() begin
             position!(builder, LLVM.at_end(bb))
+            # give the instructions we generate a line-zero location in the kernel
             subprogram = entry.subprogram
             if subprogram !== nothing
-                loc = DILocation(0, 0, subprogram)
-                builder.debug_location = loc
+                builder.debug_location = DILocation(0, 0, subprogram)
             end
-            first(top_bb.instructions).debug_location = builder.debug_location
 
             # call the `deferred_codegen` marker function, which returns a `Ptr{Cvoid}`
             T_ptr = convert(LLVMType, Ptr{Cvoid})
