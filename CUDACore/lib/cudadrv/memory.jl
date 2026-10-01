@@ -701,6 +701,18 @@ end
 # - WeakRef dict does not unique the key by objectid
 const __pinned_objects = Dict{Tuple{CuContext,Ptr{Cvoid}}, PinnedObject}()
 
+"""
+    pin(a::AbstractArray)
+    pin(ref::Base.RefValue)
+
+Page-lock (pin) the host memory backing `a`, which makes copies between it and the GPU
+faster, and makes it possible to perform them asynchronously.
+
+The memory stays pinned for the lifetime of `a`. Unpinning memory waits for all running
+kernels to finish, so once `a` has been garbage collected, its memory is only unpinned (and
+freed) when memory is reclaimed, e.g., when calling `CUDA.reclaim()`, or when a lot of
+memory is waiting to be unpinned.
+"""
 function pin(a::AbstractArray)
     ctx = context()
     ptr = pointer(a)

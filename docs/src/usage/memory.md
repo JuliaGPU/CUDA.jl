@@ -137,6 +137,13 @@ they will be collected once they are unreachable, and the memory hold by it will
 repurposed or freed. There is no need for manual memory management, just make sure your
 objects are not reachable (i.e., there are no instances or references).
 
+The garbage collector itself does not release memory: it can run on any thread, and some
+CUDA operations to release memory wait for all running kernels to finish, which would block
+that thread. Instead, collected memory is released the next time CUDA.jl allocates memory or
+synchronizes, or within a second. Resources whose release always waits for the GPU, such as
+pinned host memory, are only released when memory is reclaimed, e.g., when running out of
+memory or when calling `CUDA.reclaim()`.
+
 ### Memory pool
 
 Behind the scenes, a memory pool will hold on to your objects and cache the underlying

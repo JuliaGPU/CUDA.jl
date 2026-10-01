@@ -380,7 +380,8 @@ end
 
 Report to `io` on the memory status of the current GPU and the active memory pool.
 """
-function pool_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
+# (release memory that has been garbage collected, so that it isn't reported as being used)
+function pool_status(io::IO=stdout, info::MemoryInfo=(drain_retired(); MemoryInfo()))
   state = active_state()
   ctx = context()
 
