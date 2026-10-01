@@ -578,10 +578,11 @@ mutable struct Managed{M}
   const mem::M
   const lock::ReentrantLock
 
-  # which stream is currently using the memory, and in which context (which isn't known for
-  # the default streams).
+  # which stream is currently using the memory, in which context (which isn't known for
+  # the default streams), and the generation of that stream (see `recycled`).
   stream::CuStream
   stream_ctx::CuContext
+  generation::Int
 
   # whether accessing this memory can cause implicit synchronization
   synchronizing::Bool
@@ -596,9 +597,14 @@ mutable struct Managed{M}
                    dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, synchronizing, dirty, captured)
+    new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
+                     synchronizing, dirty, captured)
   end
 end
+
+# if the stream has been handed to another task since it last used the memory, that work
+# has finished, and waiting for the stream would only wait for the new task's work.
+recycled(managed::Managed) = managed.generation != generation(managed.stream)
 
 Base.sizeof(managed::Managed) = sizeof(managed.mem)
 
@@ -611,10 +617,25 @@ function synchronize(managed::Managed)
         # that one is specific to the thread that used it, which isn't known
         device_synchronize()
       else
-        synchronize(managed.stream)
+        event = pending_work(managed)
+        event === nothing || synchronize(event)
+        # (the work may have raised an exception)
+        check_exceptions()
       end
     end
     managed.dirty = false
+  end
+end
+
+# an event to wait for the work on the stream that last used memory, or `nothing` if that
+# work has finished. once the stream has been handed to another task (see `recycled`), it
+# may be capturing the stream, so check that while holding the lock that recycling takes.
+function pending_work(managed::Managed)
+  @lock stream_disposal_lock begin
+    (recycled(managed) || isdone(managed.stream)) && return nothing
+    event = CuEvent(EVENT_DISABLE_TIMING)
+    record(event, managed.stream)
+    return event
   end
 end
 function maybe_synchronize(managed::Managed)
@@ -668,6 +689,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     managed.stream = stream
     managed.stream_ctx = state.context
   end
+  managed.generation = generation(managed.stream)
 
   # prefetch unified memory as we're likely to use it on the GPU
   if M == UnifiedMemory
@@ -882,9 +904,15 @@ function disposal_stream(ctx::CuContext)
   end
 end
 
-# a stream to release memory on that was last used on `stream`, along with its context.
-# needs to be called with `stream_disposal_lock` held.
-function release_stream(stream::CuStream, ctx::CuContext)
+# a stream to release memory on that was last used on `stream` (during `generation`), along
+# with its context. needs to be called with `stream_disposal_lock` held, which also keeps
+# the stream from being handed to another task (see `claim_stream!`).
+function release_stream(stream::CuStream, ctx::CuContext, generation::Int)
+  if generation != CUDACore.generation(stream)
+    # the stream has been handed to another task, so the work has finished. don't use the
+    # stream, which would wait for the new owner's work, or end up in its capture.
+    return disposal_stream(something(stream.ctx, ctx)), something(stream.ctx, ctx)
+  end
   if isvalid(stream)
     return stream.handle, something(stream.ctx, ctx)
   end
@@ -948,7 +976,7 @@ function dispose(retired::RetiredOwner)
   end
   event = try
     @lock stream_disposal_lock begin
-      handle, ctx = release_stream(stream, ctx)
+      handle, ctx = release_stream(stream, ctx, retired.managed.generation)
       context!(ctx) do
         event = CuEvent(EVENT_DISABLE_TIMING)
         cuEventRecord(event, handle)
@@ -1096,7 +1124,8 @@ function dispose_now(managed::Managed)
     # this function is called when draining retired memory, e.g. before allocating, where a
     # failure to free memory shouldn't be fatal, so perform our own error handling.
     try
-      time = Base.@elapsed _pool_free(mem, managed.stream, managed.stream_ctx)
+      time = Base.@elapsed _pool_free(mem, managed.stream, managed.stream_ctx,
+                                      managed.generation)
 
       Base.@atomic alloc_stats.free_count += 1
       Base.@atomic alloc_stats.free_bytes += sz
@@ -1113,13 +1142,14 @@ function dispose_now(managed::Managed)
 
   return
 end
-@inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext)
+@inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
+                            generation::Int)
     if mem.async || async_free_supported(mem.dev)
       # free in stream order. `cuMemFree` would wait for all work on the device to finish,
       # blocking kernel launches from other threads in the meantime. that also works for
       # memory that wasn't allocated from a pool.
       @lock stream_disposal_lock begin
-        stream, ctx = release_stream(stream, stream_ctx)
+        stream, ctx = release_stream(stream, stream_ctx, generation)
         context!(ctx) do
           if !mem.async
             # when memory that wasn't allocated from a pool is freed in stream order,
@@ -1142,16 +1172,17 @@ end
     account!(memory_stats(mem.dev), -sizeof(mem))
 end
 @inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
-                            stream_ctx::CuContext)
+                            stream_ctx::CuContext, generation::Int)
   if mem.pooled
     @lock stream_disposal_lock begin
-      stream, ctx = release_stream(stream, stream_ctx)
+      stream, ctx = release_stream(stream, stream_ctx, generation)
       context!(ctx) do
         cuMemFreeAsync(convert(CuPtr{Cvoid}, mem), stream)
       end
     end
   else
-    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx)
+    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx,
+               generation)
   end
   account!(_host_stats, -sizeof(mem))
 end
@@ -1245,9 +1276,9 @@ cached_size(sz) = sz <= 1<<20 ? nextpow(2, max(sz, 512)) : cld(sz, 1<<20) << 20
 cache_limit() = Sys.total_memory() ÷ 20
 
 function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream,
-                    stream_ctx::CuContext) where {M}
+                    stream_ctx::CuContext, generation::Int) where {M}
   idle = @lock stream_disposal_lock begin
-    stream, ctx = release_stream(stream, stream_ctx)
+    stream, ctx = release_stream(stream, stream_ctx, generation)
     # (the event needs to be created in the context of the stream it is recorded on)
     context!(ctx) do
       event = CuEvent(EVENT_DISABLE_TIMING)

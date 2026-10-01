@@ -145,6 +145,110 @@ end
 @test fetch(task) == s
 @test stream() == default_s
 
+function spin(cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    return
+end
+
+@testset "stream recycling" begin
+    idle_limit = CUDACore.STREAM_POOL_IDLE
+    pool() = CUDACore.stream_pools[context()]
+    function finished(entry)
+        owner = entry.owner.value
+        return owner === nothing || istaskdone(owner)
+    end
+
+    # call `f` with the streams of `n` tasks that are alive at the same time
+    function with_concurrent_streams(f, n)
+        ready = Channel{CuStream}(Inf)
+        release = Base.Event()
+        tasks = [Threads.@spawn begin
+                     try
+                         put!(ready, stream())
+                     catch err
+                         # don't leave the caller waiting for our stream
+                         close(ready, err)
+                         rethrow()
+                     end
+                     wait(release)
+                 end for _ in 1:n]
+        try
+            f([take!(ready) for _ in tasks])
+        finally
+            notify(release)
+            foreach(wait, tasks)
+        end
+    end
+
+    # finished tasks hand their stream to new ones, without having to wait for the GC
+    tasks = Task[]
+    streams = map(1:2idle_limit) do _
+        task = Threads.@spawn stream()
+        push!(tasks, task)
+        fetch(task)
+    end
+    @test length(unique(streams)) <= idle_limit
+    @test all(s -> any(entry -> entry.stream == s, pool()), streams)
+
+    # tasks running at the same time never share a stream, even beyond the pool's size,
+    # but only a limited number of idle streams is kept around afterwards
+    streams = with_concurrent_streams(identity, idle_limit+8)
+    @test allunique(streams)
+    foreach(synchronize, streams)
+    @test fetch(Threads.@spawn stream()) in streams
+    @test count(finished, pool()) <= idle_limit+1
+
+    # tasks that keep their stream don't prevent others from being recycled
+    with_concurrent_streams(idle_limit) do _
+        streams = [fetch(Threads.@spawn stream()) for _ in 1:8]
+        @test length(unique(streams)) <= 2
+    end
+
+    # a stream that still has work queued isn't handed to another task
+    busy = fetch(Threads.@spawn begin
+        @cuda spin(1_000_000_000)
+        stream()
+    end)
+    with_concurrent_streams(idle_limit) do streams
+        if !CUDA.isdone(busy)
+            @test !(busy in streams)
+        end
+    end
+    synchronize(busy)
+
+    # streams that can't be used anymore are removed from the pool
+    s = fetch(Threads.@spawn stream())
+    CUDA.unsafe_destroy!(s)
+    @test fetch(Threads.@spawn stream()) !== s
+    @test !any(entry -> entry.stream === s, pool())
+
+    # memory knows that the work of a stream's previous owner has finished, so it doesn't
+    # wait for the new owner, nor gets released on its stream (which the new owner may be
+    # capturing)
+    a = fetch(Threads.@spawn begin
+        a = CuArray([42])
+        synchronize()
+        a
+    end)
+    with_concurrent_streams(idle_limit) do streams
+        @test a.data[].stream in streams
+        @test CUDACore.recycled(a.data[])
+        managed = a.data[]
+        @lock CUDACore.stream_disposal_lock begin
+            handle, _ = CUDACore.release_stream(managed.stream, managed.stream_ctx,
+                                                managed.generation)
+            @test handle == CUDACore.disposal_stream(context())
+        end
+        @test Array(a) == [42]
+    end
+
+    # looking for a stream to recycle doesn't break graph capture
+    capture() do
+        @test fetch(Threads.@spawn stream()) != stream()
+    end
+end
+
 @testset "issue 1331: repeated initialization failure should stick" begin
     script = """
         using CUDA, Test
