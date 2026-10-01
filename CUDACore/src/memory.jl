@@ -952,9 +952,11 @@ Returns the amount of memory from the CUDA memory pool that is currently in use 
 application.
 """
 function used_memory()
-  state = active_state()
-  if stream_ordered(state.device)
-    pool = pool_create(state.device)
+  # not using `active_state()`, which creates the task's stream. that can block until the
+  # GPU is idle, while this is called right before synchronizing (by `maybe_collect`).
+  dev = device()
+  if stream_ordered(dev)
+    pool = pool_create(dev)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
   else
     missing
@@ -967,9 +969,11 @@ end
 Returns the amount of backing memory currently allocated for the CUDA memory pool.
 """
 function cached_memory()
-  state = active_state()
-  if stream_ordered(state.device)
-    pool = pool_create(state.device)
+  # not using `active_state()`, which creates the task's stream. that can block until the
+  # GPU is idle, while this is called right before synchronizing (by `maybe_collect`).
+  dev = device()
+  if stream_ordered(dev)
+    pool = pool_create(dev)
     Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
   else
     missing
