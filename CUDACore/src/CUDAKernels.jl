@@ -246,29 +246,7 @@ function KA.priority!(::CUDABackend, prio::Symbol)
     if !(prio in (:high, :normal, :low))
         error("priority must be one of :high, :normal, :low")
     end
-
-    range = priority_range()
-    # 0:-1:-5
-    # lower number is higher priority, default is 0
-    # there is no "low"
-    if prio === :high
-        priority = last(range)
-    elseif prio === :normal || prio === :low
-        priority = first(range)
-    end
-
-    old_stream = stream()
-    r_flags = Ref{Cuint}()
-    CUDACore.cuStreamGetFlags(old_stream, r_flags)
-    flags = CUDACore.CUstream_flags_enum(r_flags[])
-
-    event = CuEvent(CUDACore.EVENT_DISABLE_TIMING)
-    record(event, old_stream)
-
-    @debug "Switching default stream" flags priority _group=:CUDA
-    new_stream = CuStream(; flags, priority)
-    CUDACore.wait(event, new_stream)
-    stream!(new_stream)
+    CUDACore.priority!(prio)
     return nothing
 end
 

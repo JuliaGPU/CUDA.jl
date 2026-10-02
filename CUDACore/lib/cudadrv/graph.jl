@@ -35,27 +35,38 @@ mutable struct CuGraph
                             throw_error::Bool=true)
         # graph capture does not support asynchronous memory operations, so disable the GC
         gc_state = GC.enable(false)
-        ctx = current_context()
-        obj = nothing
-        Threads.atomic_add!(active_captures, 1)
         try
-            cuStreamBeginCapture_v2(stream(), flags)
-            f()
-        finally
+            ctx = current_context()
+            capturing_stream = stream()
             handle_ref = Ref{CUgraph}()
-            err = unchecked_cuStreamEndCapture(stream(), handle_ref)
-            Threads.atomic_sub!(active_captures, 1)
-            GC.enable(gc_state)
-            if err == ERROR_STREAM_CAPTURE_INVALIDATED && !throw_error
-                return nothing
-            elseif err != CUDA_SUCCESS
-                throw_api_error(err)
+            began = false
+            obj = nothing
+            Threads.atomic_add!(active_captures, 1)
+            try
+                cuStreamBeginCapture_v2(capturing_stream, flags)
+                began = true
+                task_local_storage(:CUDA_capture_stream, capturing_stream) do
+                    f()
+                end
+            finally
+                if began
+                    err = unchecked_cuStreamEndCapture(capturing_stream, handle_ref)
+                end
+                Threads.atomic_sub!(active_captures, 1)
+                if began
+                    if err == ERROR_STREAM_CAPTURE_INVALIDATED && !throw_error
+                        return nothing
+                    elseif err != CUDA_SUCCESS
+                        throw_api_error(err)
+                    end
+                    obj = new(handle_ref[], ctx)
+                    finalizer(unsafe_destroy!, obj)
+                end
             end
-
-            obj = new(handle_ref[], ctx)
-            finalizer(unsafe_destroy!, obj)
+            return obj::CuGraph
+        finally
+            GC.enable(gc_state)
         end
-        return obj::CuGraph
     end
 end
 

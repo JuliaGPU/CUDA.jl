@@ -187,7 +187,7 @@ total_memory
 CuStream
 isdone(::CuStream)
 priority_range
-priority
+priority(::CuStream)
 synchronize(::CuStream)
 @sync
 ```
