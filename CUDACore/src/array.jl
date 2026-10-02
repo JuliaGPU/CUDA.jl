@@ -324,11 +324,17 @@ end
 supports_hmm(dev) = driver_version() >= v"12.2" &&
                     attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
 
-# whether the stream that last used wrapped memory is being captured
+# whether waiting for the stream that last used wrapped memory would interfere with a capture
 function stream_capturing(managed::Managed)
   stream = managed.stream
-  isvalid(stream) && stream.ctx !== nothing &&
+  if stream.ctx === nothing || !isvalid(stream)
+    # waiting for these involves synchronizing the whole context, which isn't allowed while
+    # any of its streams is being captured. we can only know about our own captures, and
+    # one could still start between this check and the wait.
+    active_captures[] > 0
+  else
     context!(() -> is_capturing(stream), stream.ctx)
+  end
 end
 
 # wait for outstanding work on wrapped memory, without blocking the thread. this doesn't
@@ -336,15 +342,14 @@ end
 function wait_for_work(managed::Managed, wrap_ctx::CuContext)
   Base.@lock managed.lock begin
     (managed.dirty || managed.captured) || return
+    while stream_capturing(managed)
+      sleep(0.01)
+    end
     stream = managed.stream
     if stream.ctx === nothing
       # special streams aren't tied to a context or a thread, so wait for the whole context
       isvalid(wrap_ctx) && wait_relaxed(wrap_ctx, wrap_ctx)
     elseif isvalid(stream)
-      # waiting for a stream that is being captured is not allowed
-      while stream_capturing(managed)
-        sleep(0.01)
-      end
       wait_relaxed(stream, stream.ctx)
     elseif isvalid(stream.ctx)
       # the stream has been destroyed, but its work may still be executing

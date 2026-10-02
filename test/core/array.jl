@@ -216,15 +216,18 @@ end
         end
 
         # freeing a wrapper while another stream is being captured, here by the task that
-        # frees it, doesn't affect that capture
+        # frees it, doesn't affect that capture, and the memory is released once the work
+        # on it has finished
         for M in memtypes
             @test_logs min_level=Base.CoreLogging.Error begin
+                outh = [0]
+                out = unsafe_wrap(CuArray{Int,1,M}, outh)
                 a = collect(1:1024)
                 wrapped = Channel(1)
                 finish = Channel(1)
                 t = @async begin
                     b = unsafe_wrap(CuArray{Int,1,M}, a)
-                    b .+= 1
+                    @cuda slow_sum(out, b, 500_000_000)
                     put!(wrapped, b)
                     take!(finish)
                 end
@@ -234,15 +237,34 @@ end
                     CUDA.unsafe_free!(b)
                     c .+= 1
                 end
+                @test outh[] == sum(1:1024)
                 put!(finish, nothing)
                 wait(t)
-                @test a == 2:1025
                 CUDA.launch(CUDA.instantiate(graph))
                 @test Array(c) == [1]
 
                 # the memory has been released, so it can be wrapped again
                 b = unsafe_wrap(CuArray{Int,1,M}, a)
-                @test Array(b) == 2:1025
+                @test Array(b) == 1:1024
+
+                # if the stream has been destroyed, the whole context needs to be waited
+                # for, which can only happen after the capture
+                outh[] = 0
+                s = CuStream()
+                @cuda stream=s slow_sum(out, b, 500_000_000)
+                finalize(s)
+                graph = CUDA.capture() do
+                    CUDA.unsafe_free!(b)
+                    c .+= 1
+                end
+                @test graph !== nothing
+                t0 = time()
+                while (outh[] == 0 || (M == CUDA.HostMemory && CUDA.is_pinned(pointer(a)))) &&
+                      time() - t0 < 10
+                    sleep(0.01)
+                end
+                @test outh[] == sum(1:1024)
+                @test Array(unsafe_wrap(CuArray{Int,1,M}, a)) == 1:1024
             end
         end
 
