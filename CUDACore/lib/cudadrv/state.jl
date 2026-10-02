@@ -420,6 +420,7 @@ function task_priority(p::Integer)
     p in priority_range() || throw(ArgumentError("Priority is out of range"))
     Cint(p)
 end
+task_priority(::Bool) = throw(ArgumentError("Priority must not be a Bool"))
 function task_priority(p::Symbol)
     p === :normal && return Cint(0)
     p in (:low, :high) ||
@@ -463,7 +464,10 @@ Repeated switches reuse the task's streams.
 Use an integer from [`priority_range`](@ref), or `:normal`, `:low`, or `:high`. The symbolic
 values map to `0`, the least priority, and the greatest priority, respectively. Stream
 priority is a scheduling hint for pending GPU work, not a guarantee of execution order.
-Changing priority during graph capture is unsupported.
+The `:low` and `:normal` values may coincide. A different priority replaces an explicit
+stream selected with [`stream!`](@ref); use the do-block form to restore that stream.
+New tasks start at normal priority. Changing priority during graph capture is unsupported.
+Using an array from the previous stream may wait on the CPU for that stream's pending work.
 """
 function priority!(p::Union{Integer,Symbol})
     state = task_local_state!()
@@ -488,16 +492,11 @@ function priority!(p::Union{Integer,Symbol})
     return nothing
 end
 
-function priority!(f::Function, p::Union{Integer,Symbol})
-    state = task_local_state!()
-    ctx = state.context
-    devidx = deviceid(state.device)+1
-    old = state.streams[devidx]
-    old_priority = state.priorities[devidx]
-    priority!(p)
+function restore_priority!(state::TaskLocalState, ctx::CuContext, devidx::Int,
+                           old::Union{Nothing,CuStream}, old_priority::Cint)
+    restored = old
+    success = false
     try
-        return f()
-    finally
         context!(ctx) do
             current = state.streams[devidx]
             if current !== old
@@ -507,10 +506,37 @@ function priority!(f::Function, p::Union{Integer,Symbol})
                     check_priority_capture(current, restored)
                     handoff_stream!(current, restored)
                 end
-                state.streams[devidx] = restored
             end
-            state.priorities[devidx] = old_priority
         end
+        success = true
+    finally
+        # A failed handoff (e.g. during capture) cannot order the streams, but still
+        # restore the task's selection. Array uses retain their usual synchronization.
+        state.streams[devidx] = success ? restored : old
+        state.priorities[devidx] = old_priority
+    end
+end
+
+function priority!(f::Function, p::Union{Integer,Symbol})
+    state = task_local_state!()
+    ctx = state.context
+    devidx = deviceid(state.device)+1
+    old = state.streams[devidx]
+    old_priority = state.priorities[devidx]
+    priority!(p)
+    failed = false
+    try
+        return f()
+    catch
+        failed = true
+        try
+            restore_priority!(state, ctx, devidx, old, old_priority)
+        catch err
+            @warn "Failed to restore CUDA task priority after an error" exception=(err, catch_backtrace())
+        end
+        rethrow()
+    finally
+        failed || restore_priority!(state, ctx, devidx, old, old_priority)
     end
 end
 

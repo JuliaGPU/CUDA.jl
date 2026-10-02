@@ -176,7 +176,7 @@ end
 
 
 """
-    priority_range(s::CuStream)
+    priority(s::CuStream)
 
 Return the priority of a stream `s`.
 """

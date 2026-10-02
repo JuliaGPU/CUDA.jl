@@ -151,6 +151,12 @@ function spin(cycles)
     return
 end
 
+function priority_increment!(a, cycles)
+    spin(cycles)
+    a[1] += 1
+    return
+end
+
 @testset "stream recycling" begin
     idle_limit = CUDACore.STREAM_POOL_IDLE
     pool() = CUDACore.stream_pools[(context(), Cint(0), CUDACore.STREAM_DEFAULT)]
@@ -254,6 +260,7 @@ end
     high = last(priority_range())
     @test_throws ArgumentError priority!(:invalid)
     @test_throws ArgumentError priority!(high - 1)
+    @test_throws ArgumentError priority!(false)
 
     # choosing a priority before first use should not also create a normal stream
     fetch(Threads.@spawn begin
@@ -281,6 +288,19 @@ end
         priority!(:high)
         @test stream() === high_stream
         @test high == 0 || normal_stream !== high_stream
+    end)
+
+    fetch(Threads.@spawn begin
+        high_stream = priority!(:high) do
+            s = stream()
+            priority!(:normal) do
+                @test priority() == 0
+            end
+            @test stream() === s
+            s
+        end
+        @test priority() == 0
+        @test high == 0 || stream() !== high_stream
     end)
 
     normal_stream = stream()
@@ -357,6 +377,21 @@ end
             @test CUDA.isdone(second_stream)
         end)
     end
+
+    a = CuArray(Int32[0])
+    @cuda priority_increment!(a, 0) # compile before switching priorities
+    synchronize()
+    fetch(Threads.@spawn begin
+        # Work on an explicit stream is not ordered by the task's priority handoff.
+        # Using the array on the new stream must synchronize with this kernel.
+        @cuda stream=explicit priority_increment!(a, 200_000_000)
+        priority!(:high)
+        @cuda priority_increment!(a, 0)
+        priority!(:normal)
+        @cuda priority_increment!(a, 0)
+        synchronize()
+    end)
+    @test Array(a) == Int32[4]
 end
 
 @testset "issue 1331: repeated initialization failure should stick" begin

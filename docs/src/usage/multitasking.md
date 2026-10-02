@@ -125,6 +125,11 @@ high-priority stream; `CUDA.priority!(:normal)` selects the normal priority agai
 The scoped form, `CUDA.priority!(:high) do ... end`, restores the previous stream when the
 block ends. CUDA treats stream priority as a scheduling hint for pending kernels, and
 existing work is not interrupted. Repeated priority changes reuse the task's streams.
+Using an array from before the switch may wait on the CPU for pending work on its
+previous stream; switch before queuing long work when that wait matters.
+New tasks start at normal priority, even when spawned from a high-priority task.
+If you selected an explicit stream with `stream!`, use the scoped form of `priority!`
+to restore that stream after the priority change.
 
 
 ## Multithreading
