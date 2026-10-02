@@ -393,17 +393,9 @@ function claim_stream!(pool::Vector{PooledStream}, task::Task)
     return candidate.stream
 end
 
-function query(s::CuStream)
-    # querying a stream is prohibited while another one is being captured in global mode,
-    # even though it doesn't interfere with the capture, so temporarily relax that.
-    mode = Ref(STREAM_CAPTURE_MODE_RELAXED)
-    cuThreadExchangeStreamCaptureMode(mode)
-    try
-        unchecked_cuStreamQuery(s)
-    finally
-        cuThreadExchangeStreamCaptureMode(mode)
-    end
-end
+# querying a stream is prohibited while another one is being captured in global mode,
+# even though it doesn't interfere with the capture
+query(s::CuStream) = relaxed_capture_mode(() -> unchecked_cuStreamQuery(s))
 
 """
     priority()
