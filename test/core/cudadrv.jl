@@ -954,6 +954,146 @@ end
 
 ############################################################################################
 
+# compute-sanitizer serializes kernels, which the tests below rely on not happening
+sanitize || @testset "cooperative synchronization" begin
+
+# keep the GPU busy until the host opens a gate. this keeps the tests below independent of
+# timing: a synchronization can only return after the task that opens the gate has run. if
+# that does not happen (e.g., because the thread it runs on is blocked), the kernel gives up
+# after a while, and records that it timed out, instead of hanging.
+function gate_kernel(gate::Ptr{UInt32}, cycles)
+    t0 = clock(UInt64)
+    while unsafe_load(gate, :monotonic) == 0
+        if clock(UInt64) - t0 >= cycles
+            unsafe_store!(gate, UInt32(1), 2)
+            break
+        end
+    end
+    return
+end
+gate = zeros(UInt32, 2)     # (is open, timed out)
+gpu_gate = unsafe_wrap(CuArray, gate)
+gate_ptr = reinterpret(Ptr{UInt32}, pointer(gpu_gate))
+timeout = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))
+open_gate() = unsafe_store!(pointer(gate), UInt32(1), :release)
+gate_is_open() = unsafe_load(pointer(gate), :acquire) != 0
+
+# run `f` while a kernel on `stream` keeps the GPU busy until the gate is opened, returning
+# whether `f` succeeded and the gate was opened in time.
+function gated(f, stream)
+    # while the gate is closed, nothing on the host may wait for the GPU to become idle,
+    # as e.g. freeing memory does. so avoid running finalizers, by collecting beforehand
+    # and not collecting while the gate is closed.
+    GC.gc(true)
+    gc_enabled = GC.enable(false)
+    ret = GC.@preserve gpu_gate try
+        gate .= 0
+        @cuda stream=stream gate_kernel(gate_ptr, timeout)
+        f()
+    finally
+        open_gate()
+        GC.enable(gc_enabled)
+        # also when `f` failed, as the gate is reused
+        synchronize(stream)
+    end
+    return ret && gate[2] == 0
+end
+
+# compile the kernels beforehand, because loading code waits for the GPU to become idle
+noop_kernel() = return
+@cuda noop_kernel()
+open_gate()
+@cuda gate_kernel(gate_ptr, timeout)
+synchronize()
+
+# run `f` while another task on the same thread opens the gate, but only after it got to run
+# many more times than the polling at the start of a synchronization yields. returns whether
+# `f` only returned after the gate had been opened.
+function open_gate_during(f)
+    t = @async begin
+        for _ in 1:10_000
+            yield()
+        end
+        open_gate()
+    end
+    try
+        f()
+        gate_is_open()
+    finally
+        wait(t)
+    end
+end
+
+let s = CuStream()
+    @test gated(s) do
+        open_gate_during(() -> synchronize(s))
+    end
+end
+
+let s = CuStream(), e = CuEvent()
+    @test gated(s) do
+        record(e, s)
+        open_gate_during(() -> synchronize(e))
+    end
+end
+
+# the entire context, including streams that do not synchronize with the legacy stream
+let s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    @test gated(s) do
+        open_gate_during(device_synchronize)
+    end
+end
+
+# streams that are not associated with a context, or are specific to the calling thread
+# (which the `@async` task sticks to)
+for s in (default_stream(), legacy_stream(), per_thread_stream())
+    @test fetch(@async gated(s) do
+        open_gate_during(() -> synchronize(s; spin=false))
+    end)
+end
+
+# a long wait does not delay other ones
+let long = CuStream()
+    # set up the other tasks before closing the gate, as creating a stream (including a
+    # task's default one) waits for the GPU to become idle when the driver needs more.
+    go = Base.Event()
+    ready = Channel{Nothing}(8)
+    tasks = map(1:8) do _
+        Threads.@spawn begin
+            s = CuStream()
+            @cuda stream=s noop_kernel()
+            synchronize(s)
+            put!(ready, nothing)
+
+            # without polling, every synchronization needs a worker thread
+            wait(go)
+            for _ in 1:10
+                @cuda stream=s noop_kernel()
+                synchronize(s; spin=false)
+            end
+        end
+    end
+    foreach(_ -> take!(ready), 1:8)
+
+    @test gated(long) do
+        # without polling, the waiter normally submits its request to a worker before
+        # yielding, so it should occupy one while the other tasks synchronize
+        waiter = @async synchronize(long; spin=false)
+        yield()
+
+        notify(go)
+        foreach(wait, tasks)
+        waiting = !CUDA.isdone(long) && !istaskdone(waiter)
+        open_gate()
+        wait(waiter)
+        waiting
+    end
+end
+
+end
+
+############################################################################################
+
 @testset "version" begin
 
 @test isa(CUDA.driver_version(), VersionNumber)
