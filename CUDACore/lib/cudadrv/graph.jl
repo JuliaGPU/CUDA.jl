@@ -178,6 +178,19 @@ end
     return status[] != STREAM_CAPTURE_STATUS_NONE
 end
 
+# some API calls, like synchronizing a stream, are prohibited while another stream is being
+# captured in global mode, even when they don't interfere with the capture. `f` must not
+# yield, because the capture mode is a property of the thread.
+function relaxed_capture_mode(f)
+    mode = Ref(STREAM_CAPTURE_MODE_RELAXED)
+    cuThreadExchangeStreamCaptureMode(mode)
+    try
+        f()
+    finally
+        cuThreadExchangeStreamCaptureMode(mode)
+    end
+end
+
 
 ## convenience macro
 
