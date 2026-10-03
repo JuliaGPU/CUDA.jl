@@ -1061,6 +1061,66 @@ end
       @test eltype(a) == Float32
     end
   end
+
+  # issue #3322: accessing unified memory on the CPU while the GPU is busy with other work.
+  # this crashed on devices without concurrent managed access (e.g., on Windows or Tegra).
+  # compute-sanitizer serializes kernels, so the GPU wouldn't get to our own work.
+  sanitize || let
+    # keep another stream busy until the host opens a gate, or until a timeout expires
+    function gate_kernel(gate, cycles)
+      unsafe_store!(gate, UInt32(1), 3)
+      t0 = clock(UInt64)
+      while unsafe_load(gate, :monotonic) == 0
+        if clock(UInt64) - t0 >= cycles
+          unsafe_store!(gate, UInt32(1), 2)
+          break
+        end
+      end
+      return
+    end
+    gate = CuVector{UInt32,CUDA.HostMemory}(undef, 3)  # (is open, timed out, started)
+    gate_cpu = pointer(gate; type=CUDA.HostMemory)
+    gate_gpu = reinterpret(Ptr{UInt32}, pointer(gate))
+    timeout = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))
+    busy = CuStream()
+
+    # compile beforehand, because loading code waits for the GPU to become idle
+    a = cu([1, 2, 3]; unified=true)
+    a .+= 1
+    unsafe_store!(gate_cpu, UInt32(1))
+    @cuda stream=busy gate_kernel(gate_gpu, timeout)
+    synchronize(busy)
+
+    # freeing memory also waits for the GPU to become idle, so don't run finalizers
+    GC.gc(true)
+    gc_enabled = GC.enable(false)
+    try
+      for i in 1:3
+        unsafe_store!(gate_cpu, UInt32(0), i)
+      end
+      @cuda stream=busy gate_kernel(gate_gpu, timeout)
+      t0 = time()
+      while unsafe_load(gate_cpu + 2sizeof(UInt32), :acquire) == 0 && time() - t0 < 60
+      end
+      @test unsafe_load(gate_cpu, 3) == 1
+
+      # freshly allocated memory, initialized on the CPU
+      a = cu([1, 2, 3]; unified=true)
+      @test a[1] == 1
+
+      # after using it on the GPU
+      a .+= 1
+      @test Array(a) == [2, 3, 4]
+      a[1] = 0
+      a .+= 1
+      @test a[1] == 1
+    finally
+      unsafe_store!(gate_cpu, UInt32(1))
+      GC.enable(gc_enabled)
+      synchronize(busy)
+    end
+    @test unsafe_load(gate_cpu, 2) == 0
+  end
 end
 
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
