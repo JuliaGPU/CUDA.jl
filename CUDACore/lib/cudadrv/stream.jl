@@ -14,6 +14,10 @@ mutable struct CuStream
 
     const ctx::Union{Nothing,CuContext}
 
+    # when destroyed by the garbage collector, an event recorded right before, which
+    # captures the work that was submitted to the stream (a `CuEvent`, if any)
+    final_event::Any
+
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
         handle_ref = Ref{CUstream}()
@@ -25,16 +29,20 @@ mutable struct CuStream
         end
 
         ctx = current_context()
-        obj = new(handle_ref[], true, ctx)
-        finalizer(unsafe_destroy!, obj)
+        # make sure memory last used on this stream can be released after destroying it
+        disposal_stream(ctx)
+        obj = new(handle_ref[], true, ctx, nothing)
+        # destroying a stream from a finalizer is deferred, as with all resources
+        # (see `retire!`), also so that memory that was last used on it can be freed first
+        finalizer(retire!, obj)
         return obj
     end
 
-    global default_stream() = new(convert(CUstream, C_NULL), true)
+    global default_stream() = new(convert(CUstream, C_NULL), true, nothing, nothing)
 
-    global legacy_stream() = new(convert(CUstream, 1), true)
+    global legacy_stream() = new(convert(CUstream, 1), true, nothing, nothing)
 
-    global per_thread_stream() = new(convert(CUstream, 2), true)
+    global per_thread_stream() = new(convert(CUstream, 2), true, nothing, nothing)
 end
 
 """

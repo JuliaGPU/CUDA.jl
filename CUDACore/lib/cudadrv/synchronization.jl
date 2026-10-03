@@ -32,6 +32,10 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
         maybe_collect(true)
     end
 
+    # release memory that finalizers retired, before waiting (so that the GPU can process
+    # the frees in the meantime) and after (as finalizers may have run while waiting)
+    drain_retired(ALLOC_DRAIN_LIMIT)
+
     res = if !blocking && use_nonblocking_synchronization
         ctx = obj isa CuContext ? obj : obj.ctx === nothing ? context() : obj.ctx
         # if polling found the object to be done, there's no need to synchronize again:
@@ -48,6 +52,7 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     if res != SUCCESS
         throw_api_error(res)
     end
+    drain_retired(ALLOC_DRAIN_LIMIT)
     return
 end
 

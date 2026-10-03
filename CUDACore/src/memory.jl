@@ -171,7 +171,11 @@ function maybe_collect(will_block::Bool=false)
   # finalizers running during GC may free memory in either.
   pre_device_live = stats.live
   pre_host_live = _host_stats.live
-  gc_time = Base.@elapsed GC.gc(false)
+  gc_time = Base.@elapsed begin
+    GC.gc(false)
+    # finalizers only retire memory, so release it before measuring what was freed
+    drain_retired()
+  end
   Base.@atomic stats.last_freed = pre_device_live - stats.live
   Base.@atomic _host_stats.last_freed = pre_host_live - _host_stats.live
   ## GC times can vary, so smooth them out
@@ -256,8 +260,15 @@ end
 
 function stream_ordered(dev::CuDevice)
   @memoize index=deviceid(dev)+1 begin
-    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
-    get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) && pools_enabled()
+  end::Bool
+end
+
+# whether memory can be freed in stream order, which is also supported for memory that wasn't
+# allocated from a pool
+function async_free_supported(dev::CuDevice)
+  @memoize index=deviceid(dev)+1 begin
+    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev)
   end::Bool
 end
 
@@ -369,7 +380,8 @@ end
 
 Report to `io` on the memory status of the current GPU and the active memory pool.
 """
-function pool_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
+# (release memory that has been garbage collected, so that it isn't reported as being used)
+function pool_status(io::IO=stdout, info::MemoryInfo=(drain_retired(); MemoryInfo()))
   state = active_state()
   ctx = context()
 
@@ -524,23 +536,35 @@ end
 # bisect on alloc failure. GC.gc(true) drains pending finalizers before
 # returning, so the post-GC purge sees caches populated by wrapper finalizers.
 function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
+    # memory is also freed asynchronously when not using a pool
+    async = async_free_supported(dev)
+    drain_retired()
     if level == RECLAIM_PURGE
         foreach_reclaimable(purge!)
     elseif level == RECLAIM_SYNC
-        stream_ordered && device_synchronize()
+        async && device_synchronize()
     elseif level == RECLAIM_GC
         GC.gc(true)
-        stream_ordered && device_synchronize()
+        drain_retired()
+        async && device_synchronize()
         foreach_reclaimable(purge!)
-        stream_ordered && trim(pool_create(dev))
+        trim_pools(dev, stream_ordered)
     elseif level == RECLAIM_DROP
         foreach_reclaimable(drop!)
         GC.gc(true)
-        stream_ordered && device_synchronize()
+        drain_retired()
+        async && device_synchronize()
         foreach_reclaimable(purge!)
-        stream_ordered && trim(pool_create(dev))
+        trim_pools(dev, stream_ordered)
     end
     return
+end
+
+function trim_pools(dev::CuDevice, stream_ordered::Bool)
+    stream_ordered && trim(pool_create(dev))
+    for pool in (host_pool(), unified_pool())
+        pool === nothing || trim(pool)
+    end
 end
 
 
@@ -554,8 +578,10 @@ mutable struct Managed{M}
   const mem::M
   const lock::ReentrantLock
 
-  # which stream is currently using the memory.
+  # which stream is currently using the memory, and in which context (which isn't known for
+  # the default streams).
   stream::CuStream
+  stream_ctx::CuContext
 
   # whether accessing this memory can cause implicit synchronization
   synchronizing::Bool
@@ -570,7 +596,7 @@ mutable struct Managed{M}
                    dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, ReentrantLock(), stream, synchronizing, dirty, captured)
+    new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, synchronizing, dirty, captured)
   end
 end
 
@@ -579,7 +605,15 @@ Base.sizeof(managed::Managed) = sizeof(managed.mem)
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
   Base.@lock managed.lock begin
-    synchronize(managed.stream)
+    # the default streams need to be synchronized in the context they were used in
+    context!(managed.stream_ctx) do
+      if on_per_thread_stream(managed.stream)
+        # that one is specific to the thread that used it, which isn't known
+        device_synchronize()
+      else
+        synchronize(managed.stream)
+      end
+    end
     managed.dirty = false
   end
 end
@@ -627,10 +661,12 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     #end
   end
 
-  # accessing memory on another stream: ensure the data is ready and take ownership
-  if managed.stream != stream
+  # accessing memory on another stream: ensure the data is ready and take ownership.
+  # (the default streams are specific to a context, so also check that.)
+  if managed.stream != stream || managed.stream_ctx != state.context
     maybe_synchronize(managed)
     managed.stream = stream
+    managed.stream_ctx = state.context
   end
 
   # prefetch unified memory as we're likely to use it on the GPU
@@ -685,6 +721,262 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
 end
 
 
+## retirement of resources freed by finalizers
+#
+# finalizers run on whatever thread triggers a collection, or releases a lock while
+# finalizers are pending, and cannot switch tasks. releasing memory there could block that
+# thread, as some driver calls wait for unrelated GPU work to finish (also blocking kernel
+# launches from other threads in the meantime). if that work depends on a task on this
+# thread, that would deadlock. so finalizers only retire resources, pushing them onto a
+# lock-free list, and regular tasks dispose of them.
+
+mutable struct Retired
+  const resource::Any
+  next::Union{Nothing,Retired}
+end
+
+mutable struct RetiredList
+  Base.@atomic head::Union{Nothing,Retired}
+end
+const retired_memory = RetiredList(nothing)
+
+function push_retired!(first::Retired, last::Retired)
+  head = Base.@atomic :monotonic retired_memory.head
+  while true
+    last.next = head
+    head, ok = Base.@atomicreplace :release :monotonic retired_memory.head head => first
+    ok && return
+  end
+end
+
+# can be called from a finalizer: doesn't switch tasks, take locks or call into CUDA.
+# `dispose(resource)` is called later on, by a regular task.
+function retire!(resource)
+  node = Retired(resource, nothing)
+  push_retired!(node, node)
+  return
+end
+
+# drains detach the list, and process it holding a lock, so that a bounded drain can leave
+# the rest for a later one (in `retired_backlog`) without having to put it back.
+const drain_lock = ReentrantLock()
+const retired_backlog = RetiredList(nothing)
+
+"""
+    drain_retired([limit])
+
+Dispose of (at most `limit`) resources that have been retired by finalizers, e.g., making
+memory available to future allocations. Returns the number of resources disposed of.
+"""
+function drain_retired(limit::Int=typemax(Int))
+  GC.in_finalizer() && return 0
+  if (Base.@atomic :monotonic retired_memory.head) === nothing &&
+     (Base.@atomic :monotonic retired_backlog.head) === nothing
+    pending_owner_count[] == 0 && destroyed_stream_count[] == 0 && return 0
+  end
+
+  # exhaustive drains wait for others to finish, bounded ones leave the work to them
+  if limit == typemax(Int)
+    lock(drain_lock)
+  else
+    trylock(drain_lock) || return 0
+  end
+  n = 0
+  try
+    while n < limit
+      node = Base.@atomic :monotonic retired_backlog.head
+      if node === nothing
+        node = Base.@atomicswap :acquire retired_memory.head = nothing
+        node === nothing && break
+      end
+      # (update the backlog first, as disposing may drain recursively)
+      Base.@atomic :monotonic retired_backlog.head = node.next
+      try
+        dispose(node.resource)
+      catch err
+        @error "Failed to dispose of a $(typeof(node.resource))" exception=(err, catch_backtrace())
+      end
+      n += 1
+    end
+    release_owners!()
+    release_destroyed_streams!()
+  finally
+    unlock(drain_lock)
+  end
+  return n
+end
+
+# drain periodically, so that memory gets released when the application stops using CUDA
+const retired_drainer = Threads.Atomic{Bool}(false)
+function start_retired_drainer()
+  Threads.atomic_cas!(retired_drainer, false, true) && return
+  Timer(1; interval=1) do _
+    try
+      drain_retired()
+    catch err
+      @error "Failed to release retired GPU resources" exception=(err, catch_backtrace())
+    end
+  end
+  return
+end
+
+# how many retired resources to dispose of when allocating, to bound allocation latency
+const ALLOC_DRAIN_LIMIT = 256
+
+dispose(event::CuEvent) = unsafe_destroy!(event)
+
+# memory that was last used on a stream may be retired after that stream, and released
+# after the stream has been destroyed. it then needs to wait for the work that was submitted
+# to the stream, which is captured by an event recorded before destroying it.
+const stream_disposal_lock = ReentrantLock()
+function dispose(stream::CuStream)
+  @lock stream_disposal_lock begin
+    isvalid(stream) || return
+    context!(stream.ctx) do
+      event = CuEvent(EVENT_DISABLE_TIMING)
+      record(event, stream)
+      stream.final_event = event
+      cuStreamDestroy_v2(stream)
+    end
+    Base.@atomic stream.valid = false
+    push!(destroyed_streams, stream)
+    destroyed_stream_count[] = length(destroyed_streams)
+  end
+  return
+end
+
+# destroyed streams whose final event may still be needed. the event is only reachable
+# through its stream, so when both become garbage at the same time as memory that was last
+# used on the stream, finalizers (which aren't ordered) could otherwise retire the event
+# before the memory, which then waits for a destroyed event. keep them alive until the event
+# has completed, after which memory doesn't need to wait for it anymore.
+const destroyed_streams = CuStream[]
+const destroyed_stream_count = Ref(0)
+
+function release_destroyed_streams!()
+  destroyed_stream_count[] == 0 && return
+  @lock stream_disposal_lock begin
+    filter!(destroyed_streams) do stream
+      isdone(stream.final_event) || return true
+      stream.final_event = nothing
+      return false
+    end
+    destroyed_stream_count[] = length(destroyed_streams)
+  end
+  return
+end
+
+# memory released after its stream was destroyed is released on a non-blocking stream that
+# waits for the final event of that stream. (the legacy default stream would make other
+# streams wait as well, which could deadlock.) it is created when a task starts using a
+# context, so that releasing memory doesn't create streams (which can block).
+const disposal_streams = Dict{CuContext,CUstream}()
+const disposal_streams_lock = ReentrantLock()
+function disposal_stream(ctx::CuContext)
+  @lock disposal_streams_lock get!(disposal_streams, ctx) do
+    context!(ctx) do
+      handle = Ref{CUstream}()
+      cuStreamCreate(handle, STREAM_NON_BLOCKING)
+      handle[]
+    end
+  end
+end
+
+# a stream to release memory on that was last used on `stream`, along with its context.
+# needs to be called with `stream_disposal_lock` held.
+function release_stream(stream::CuStream, ctx::CuContext)
+  if isvalid(stream)
+    return stream.handle, something(stream.ctx, ctx)
+  end
+  event = stream.final_event
+  if event === nothing
+    # either the work on the stream has finished, or the stream was explicitly destroyed,
+    # in which case the user should have made sure of that
+    return disposal_stream(ctx), ctx
+  end
+  handle = disposal_stream(event.ctx)
+  context!(event.ctx) do
+    cuStreamWaitEvent(handle, event, 0)
+  end
+  return handle, event.ctx
+end
+
+# make the disposal stream wait for the work on `stream`
+function after_on_disposal_stream(stream::CUstream, ctx::CuContext)
+  disposal = disposal_stream(ctx)
+  stream == disposal && return disposal
+  event = CuEvent(EVENT_DISABLE_TIMING)
+  cuEventRecord(event, stream)
+  cuStreamWaitEvent(disposal, event, 0)
+  return disposal
+end
+
+# the per-thread default stream is specific to the thread that used it, which isn't known
+# when releasing memory, so memory last used on it is only released when memory is
+# reclaimed, after synchronizing the context it was used in.
+on_per_thread_stream(stream::CuStream) = stream.handle == CU_STREAM_PER_THREAD
+function synchronize_and(f, ctx::CuContext)
+  return x -> begin
+    context!(device_synchronize, ctx)
+    f(x)
+  end
+end
+
+
+## objects that need to be kept alive while the GPU uses them
+
+struct RetiredOwner
+  owner::Any
+  managed::Managed
+end
+
+# owners whose memory might still be in use, along with an event signalling it isn't
+const pending_owners = Tuple{CuEvent,Any}[]
+const pending_owners_lock = ReentrantLock()
+const pending_owner_count = Ref(0)
+
+release_owner(owner, managed::Managed) =
+  GC.in_finalizer() ? retire!(RetiredOwner(owner, managed)) :
+                      dispose(RetiredOwner(owner, managed))
+
+function dispose(retired::RetiredOwner)
+  stream = retired.managed.stream
+  ctx = retired.managed.stream_ctx
+  if on_per_thread_stream(stream)
+    destroy_later(synchronize_and(identity, retired.managed.stream_ctx), retired.owner)
+    return
+  end
+  event = try
+    @lock stream_disposal_lock begin
+      handle, ctx = release_stream(stream, ctx)
+      context!(ctx) do
+        event = CuEvent(EVENT_DISABLE_TIMING)
+        cuEventRecord(event, handle)
+        event
+      end
+    end
+  catch
+    # the memory may still be in use, so keep the owner alive until reclaiming memory
+    destroy_later(synchronize_and(identity, retired.managed.stream_ctx), retired.owner)
+    rethrow()
+  end
+  @lock pending_owners_lock begin
+    push!(pending_owners, (event, retired.owner))
+    pending_owner_count[] = length(pending_owners)
+  end
+  return
+end
+
+function release_owners!()
+  pending_owner_count[] == 0 && return
+  @lock pending_owners_lock begin
+    filter!(((event, owner),) -> !isdone(event), pending_owners)
+    pending_owner_count[] = length(pending_owners)
+  end
+  return
+end
+
+
 ## public interface
 
 """
@@ -699,6 +991,7 @@ cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return Managed(B())
 
+  drain_retired(ALLOC_DRAIN_LIMIT)
   maybe_collect()
   time = Base.@elapsed begin
     mem = _pool_alloc(B, sz)
@@ -756,13 +1049,13 @@ end
   # exhausted, the OS kills the process on the page fault before the driver
   # call can fail. The only thing that can prevent OOM is the proactive
   # `maybe_collect` call in `pool_alloc`, which uses `_host_stats`.
-  mem = alloc(UnifiedMemory, sz)
-  account!(_host_stats, sz)
+  mem = alloc_unified(sz)
+  account!(_host_stats, sizeof(mem))
   mem
 end
 @inline function _pool_alloc(::Type{HostMemory}, sz)
-  mem = alloc(HostMemory, sz)
-  account!(_host_stats, sz)
+  mem = alloc_host(sz)
+  account!(_host_stats, sizeof(mem))
   mem
 end
 
@@ -771,19 +1064,39 @@ end
 
 Releases memory to the pool. If possible, this operation will not block but will be ordered
 against the stream that last used the memory.
+
+When called from a finalizer, the memory is only retired, and released later by a regular
+task (see [`drain_retired`](@ref)).
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
+  # 0-byte allocations shouldn't hit the pool
+  sizeof(managed.mem) == 0 && return
+
+  if GC.in_finalizer()
+    retire!(managed)
+  else
+    dispose(managed)
+  end
+  return
+end
+
+function dispose(managed::Managed)
+  if on_per_thread_stream(managed.stream)
+    destroy_later(synchronize_and(dispose_now, managed.stream_ctx), managed)
+    return
+  end
+  dispose_now(managed)
+end
+
+function dispose_now(managed::Managed)
   Base.@lock managed.lock begin
     mem = managed.mem
-
-    # 0-byte allocations shouldn't hit the pool
     sz = sizeof(mem)
-    sz == 0 && return
 
-    # this function is typically called from a finalizer, where we can't switch tasks,
-    # so perform our own error handling.
+    # this function is called when draining retired memory, e.g. before allocating, where a
+    # failure to free memory shouldn't be fatal, so perform our own error handling.
     try
-      time = Base.@elapsed _pool_free(mem, managed.stream)
+      time = Base.@elapsed _pool_free(mem, managed.stream, managed.stream_ctx)
 
       Base.@atomic alloc_stats.free_count += 1
       Base.@atomic alloc_stats.free_bytes += sz
@@ -800,33 +1113,387 @@ against the stream that last used the memory.
 
   return
 end
-@inline function _pool_free(mem::DeviceMemory, stream::CuStream)
-    if mem.async
-      # stream-ordered allocations are not tied to a context. we always need to free them,
-      # and if the owning stream was destroyed, use a default one.
-      if isvalid(stream)
-        context!(mem.ctx) do
-          free(mem; stream)
+@inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext)
+    if mem.async || async_free_supported(mem.dev)
+      # free in stream order. `cuMemFree` would wait for all work on the device to finish,
+      # blocking kernel launches from other threads in the meantime. that also works for
+      # memory that wasn't allocated from a pool.
+      @lock stream_disposal_lock begin
+        stream, ctx = release_stream(stream, stream_ctx)
+        context!(ctx) do
+          if !mem.async
+            # when memory that wasn't allocated from a pool is freed in stream order,
+            # destroying that stream waits for the free, i.e., for all work on the stream.
+            # so free it on the disposal stream instead, after the work on this stream.
+            stream = after_on_disposal_stream(stream, ctx)
+          end
+          cuMemFreeAsync(mem, stream)
         end
-      else
-        free(mem; stream=default_stream())
       end
     else
-      # regular allocations are tied to a context, so free them in their owning context.
-      context!(mem.ctx) do
-        free(mem)
+      # without support for freeing memory in stream order, `cuMemFree` is the only option,
+      # which waits for all running kernels. defer that until memory is reclaimed.
+      destroy_later(mem) do mem
+        context!(mem.ctx) do
+          free(mem)
+        end
       end
     end
     account!(memory_stats(mem.dev), -sizeof(mem))
 end
-@inline function _pool_free(mem::UnifiedMemory, stream::CuStream)
-  free(mem)
+@inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
+                            stream_ctx::CuContext)
+  if mem.pooled
+    @lock stream_disposal_lock begin
+      stream, ctx = release_stream(stream, stream_ctx)
+      context!(ctx) do
+        cuMemFreeAsync(convert(CuPtr{Cvoid}, mem), stream)
+      end
+    end
+  else
+    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx)
+  end
   account!(_host_stats, -sizeof(mem))
 end
-@inline function _pool_free(mem::HostMemory, stream::CuStream)
-  free(mem)
-  account!(_host_stats, -sizeof(mem))
+
+
+## pinned host and unified memory
+#
+# freeing such memory with `cuMemFreeHost` or `cuMemFree` waits for all running kernels to
+# finish, also blocking kernel launches from other threads in the meantime. where supported,
+# it is allocated from memory pools instead, which can be freed in stream order without
+# waiting. otherwise, freed allocations are cached for reuse, and only released when
+# reclaiming memory, or when the cache grows too large.
+
+function try_create_pool(f)
+  try
+    f()
+  catch err
+    isa(err, CuError) || rethrow()
+    @debug "Could not create a memory pool" exception=(err, catch_backtrace())
+    nothing
+  end
 end
+
+pools_enabled() = get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+
+# a pool of pinned host memory, accessible from all devices
+function host_pool()
+  @memoize begin
+    supported = driver_version() >= v"13.0" && pools_enabled() &&
+                all(devices()) do dev
+                  attribute(dev, DEVICE_ATTRIBUTE_HOST_MEMORY_POOLS_SUPPORTED) == 1
+                end
+    supported ? try_create_pool() do
+      pool = CuMemoryPool(device(); location_type=CU_MEM_LOCATION_TYPE_HOST, location_id=0)
+      access!(pool, collect(devices()), ACCESS_FLAGS_PROT_READWRITE)
+      pool
+    end : nothing
+  end::Union{Nothing,CuMemoryPool}
+end
+
+# a pool of unified memory, without a preferred location
+function unified_pool()
+  @memoize begin
+    supported = driver_version() >= v"13.0" && pools_enabled() &&
+                all(devices()) do dev
+                  memory_pools_supported(dev) &&
+                    attribute(dev, DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+                end
+    supported ? try_create_pool() do
+      CuMemoryPool(device(); alloc_type=CU_MEM_ALLOCATION_TYPE_MANAGED,
+                   location_type=CU_MEM_LOCATION_TYPE_NONE, location_id=0)
+    end : nothing
+  end::Union{Nothing,CuMemoryPool}
+end
+
+function alloc_from_pool(pool::CuMemoryPool, sz, stream::CuStream)
+  ptr = retry_reclaim(isnothing) do
+    ref = Ref{CUdeviceptr}()
+    res = unchecked_cuMemAllocFromPoolAsync(ref, sz, pool, stream)
+    res == ERROR_OUT_OF_MEMORY && return nothing
+    res == SUCCESS || throw_api_error(res)
+    ref[]
+  end
+  ptr === nothing && throw(OutOfGPUMemoryError(sz))
+  return ptr
+end
+
+# allocations that cannot be freed without blocking, kept for reuse by later allocations
+struct CachedBlock{M}
+  mem::M
+  # recorded after the last use of the memory
+  idle::CuEvent
+end
+
+mutable struct BlockCache{M} <: Reclaimable
+  const lock::ReentrantLock
+  const blocks::Dict{Tuple{CuContext,Int},Vector{CachedBlock{M}}}
+  Base.@atomic bytes::Int
+end
+BlockCache{M}() where {M} =
+  BlockCache{M}(ReentrantLock(), Dict{Tuple{CuContext,Int},Vector{CachedBlock{M}}}(), 0)
+
+const host_cache = BlockCache{HostMemory}()
+const unified_cache = BlockCache{UnifiedMemory}()
+
+# allocations are rounded up, so that cached ones can be reused for similar sizes
+cached_size(sz) = sz <= 1<<20 ? nextpow(2, max(sz, 512)) : cld(sz, 1<<20) << 20
+
+# how many bytes a cache may hold before allocating releases cached memory. on devices that
+# share memory with the CPU, cached memory competes with everything else.
+cache_limit() = Sys.total_memory() ÷ 20
+
+function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream,
+                    stream_ctx::CuContext) where {M}
+  idle = @lock stream_disposal_lock begin
+    stream, ctx = release_stream(stream, stream_ctx)
+    # (the event needs to be created in the context of the stream it is recorded on)
+    context!(ctx) do
+      event = CuEvent(EVENT_DISABLE_TIMING)
+      cuEventRecord(event, stream)
+      event
+    end
+  end
+  @lock cache.lock begin
+    blocks = get!(Vector{CachedBlock{M}}, cache.blocks, (mem.ctx, sizeof(mem)))
+    push!(blocks, CachedBlock(mem, idle))
+    Base.@atomic cache.bytes += sizeof(mem)
+  end
+  return
+end
+
+# take a cached allocation that is not in use anymore
+function cache_take!(cache::BlockCache{M}, ctx::CuContext, sz::Int) where {M}
+  block = @lock cache.lock begin
+    blocks = get(cache.blocks, (ctx, sz), nothing)
+    blocks === nothing && return nothing
+    i = findlast(block -> isdone(block.idle), blocks)
+    i === nothing && return nothing
+    Base.@atomic cache.bytes -= sz
+    popat!(blocks, i)
+  end
+  block === nothing && return nothing
+  return block.mem
+end
+
+# release cached allocations. this blocks, also kernel launches from other threads, until
+# all running kernels have finished, so only do so when reclaiming memory.
+function cache_release!(cache::BlockCache, bytes::Int=typemax(Int))
+  released = 0
+  while released < bytes
+    block = @lock cache.lock begin
+      key = findfirst(!isempty, cache.blocks)
+      if key === nothing
+        nothing
+      else
+        block = pop!(cache.blocks[key])
+        Base.@atomic cache.bytes -= sizeof(block.mem)
+        block
+      end
+    end
+    block === nothing && break
+    synchronize(block.idle)
+    context!(block.mem.ctx) do
+      free(block.mem)
+    end
+    released += sizeof(block.mem)
+  end
+  return released
+end
+purge!(cache::BlockCache) = (cache_release!(cache); nothing)
+
+# before allocating more memory, release cached memory if the cache has grown too large
+function maybe_release!(cache::BlockCache)
+  limit = cache_limit()
+  bytes = Base.@atomic cache.bytes
+  bytes > limit && cache_release!(cache, bytes - limit ÷ 2)
+  return
+end
+
+function alloc_host(sz)
+  state = active_state()
+  pool = host_pool()
+  if pool !== nothing
+    ptr = alloc_from_pool(pool, sz, state.stream)
+    return HostMemory(state.context, reinterpret(Ptr{Cvoid}, ptr), sz, true)
+  end
+
+  sz = cached_size(sz)
+  mem = cache_take!(host_cache, state.context, sz)
+  mem === nothing || return mem
+  maybe_release!(host_cache)
+  return alloc(HostMemory, sz)
+end
+
+function alloc_unified(sz)
+  state = active_state()
+  pool = unified_pool()
+  if pool !== nothing
+    ptr = alloc_from_pool(pool, sz, state.stream)
+    return UnifiedMemory(state.context, reinterpret(CuPtr{Cvoid}, ptr), sz, true)
+  end
+
+  sz = cached_size(sz)
+  mem = cache_take!(unified_cache, state.context, sz)
+  if mem !== nothing
+    reset_advice!(mem)
+    return mem
+  end
+  maybe_release!(unified_cache)
+  return alloc(UnifiedMemory, sz)
+end
+
+# a reused allocation shouldn't keep advice given for its previous use. not all advice is
+# supported everywhere, so ignore errors.
+function reset_advice!(mem::UnifiedMemory)
+  unchecked_cuMemAdvise(mem, sizeof(mem), MEM_ADVISE_UNSET_READ_MOSTLY, CU_DEVICE_CPU)
+  unchecked_cuMemAdvise(mem, sizeof(mem), MEM_ADVISE_UNSET_PREFERRED_LOCATION, CU_DEVICE_CPU)
+  unchecked_cuMemAdvise(mem, sizeof(mem), MEM_ADVISE_UNSET_ACCESSED_BY, CU_DEVICE_CPU)
+  for dev in devices()
+    unchecked_cuMemAdvise(mem, sizeof(mem), MEM_ADVISE_UNSET_ACCESSED_BY, dev.handle)
+  end
+end
+
+## registered host memory
+#
+# unregistering host memory with `cuMemHostUnregister` waits for all running kernels to
+# finish, also blocking kernel launches from other threads in the meantime. that is deferred
+# until reclaiming memory, or until many registrations are pending, keeping the owner of the
+# memory alive in the meantime so that it cannot be reused while still registered.
+
+struct RetiredRegistration
+  mem::HostMemory
+  # registered by `__pin`, which counts registrations
+  counted::Bool
+  # what keeps the memory alive (if anything)
+  owner::Any
+end
+
+mutable struct PendingRegistrations <: Reclaimable
+  const lock::ReentrantLock
+  const registrations::Vector{RetiredRegistration}
+  Base.@atomic bytes::Int
+end
+const pending_registrations =
+  PendingRegistrations(ReentrantLock(), RetiredRegistration[], 0)
+
+function dispose(reg::RetiredRegistration)
+  @lock pending_registrations.lock push!(pending_registrations.registrations, reg)
+  Base.@atomic pending_registrations.bytes += sizeof(reg.mem)
+  return
+end
+
+release_registration(reg::RetiredRegistration) =
+  GC.in_finalizer() ? retire!(reg) : dispose(reg)
+
+# unregister pending registrations. this blocks, also kernel launches from other threads,
+# until all running kernels have finished, so only do so when reclaiming memory.
+function unregister_pending!()
+  drain_retired()
+  regs = @lock pending_registrations.lock begin
+    regs = copy(pending_registrations.registrations)
+    empty!(pending_registrations.registrations)
+    regs
+  end
+  for reg in regs
+    mem = reg.mem
+    try
+      if reg.counted
+        __unpin(pointer(mem), mem.ctx)
+      else
+        context!(mem.ctx) do
+          unregister(mem)
+        end
+      end
+      Base.@atomic pending_registrations.bytes -= sizeof(mem)
+    catch err
+      # the memory may still be registered, so keep its owner alive
+      @error "Failed to unregister host memory" exception=(err, catch_backtrace())
+      @lock pending_registrations.lock push!(pending_registrations.registrations, reg)
+    end
+  end
+  return
+end
+purge!(::PendingRegistrations) = unregister_pending!()
+
+function register_host_memory(ptr::Ptr, sz::Integer, flags=0)
+  # before registering more memory, unregister pending registrations if there are many
+  drain_retired(ALLOC_DRAIN_LIMIT)
+  if (Base.@atomic pending_registrations.bytes) > cache_limit()
+    unregister_pending!()
+  end
+
+  try
+    register(HostMemory, ptr, sz, flags)
+  catch err
+    # the memory may still be registered, e.g., when the memory backing an array that was
+    # wrapped by pointer has been freed and reused.
+    (err isa CuError && err.code == ERROR_HOST_MEMORY_ALREADY_REGISTERED) || rethrow()
+    unregister_pending!()
+    register(HostMemory, ptr, sz, flags)
+  end
+end
+
+
+## deferred destruction
+#
+# some objects (e.g., modules, texture arrays, and library handles or plans) can only be
+# destroyed with calls that wait for all running kernels to finish, sometimes also blocking
+# kernel launches from other threads. their destruction is deferred until memory is
+# reclaimed, e.g., when running out of memory or when calling `reclaim()`.
+
+struct DeferredDestruction
+  f::Any
+  obj::Any
+end
+
+mutable struct PendingDestructions <: Reclaimable
+  const lock::ReentrantLock
+  const items::Vector{DeferredDestruction}
+  # destructions that failed, whose objects are kept alive as they may still be in use
+  const failed::Vector{DeferredDestruction}
+end
+const pending_destructions =
+  PendingDestructions(ReentrantLock(), DeferredDestruction[], DeferredDestruction[])
+
+"""
+    CUDACore.destroy_later(f, obj)
+
+Destroy `obj` by calling `f(obj)` when memory is reclaimed, instead of right away. This is
+meant for objects whose destruction may wait for running kernels to finish, and can be used
+from a finalizer, e.g., `finalizer(obj -> destroy_later(unsafe_destroy!, obj), obj)`.
+"""
+function destroy_later(f, obj)
+  destruction = DeferredDestruction(f, obj)
+  GC.in_finalizer() ? retire!(destruction) : dispose(destruction)
+  return
+end
+
+function dispose(destruction::DeferredDestruction)
+  @lock pending_destructions.lock push!(pending_destructions.items, destruction)
+  return
+end
+
+function purge!(pending::PendingDestructions)
+  drain_retired()
+  items = @lock pending.lock begin
+    items = copy(pending.items)
+    empty!(pending.items)
+    items
+  end
+  for destruction in items
+    try
+      # the destructor may have been defined after this code was compiled
+      Base.invokelatest(destruction.f, destruction.obj)
+    catch err
+      @error "Failed to destroy $(typeof(destruction.obj))" exception=(err, catch_backtrace())
+      @lock pending.lock push!(pending.failed, destruction)
+    end
+  end
+  return
+end
+
 
 """
     reclaim([level::ReclaimLevel = RECLAIM_DROP])

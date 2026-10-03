@@ -106,8 +106,12 @@ struct HostMemory <: AbstractMemory
     ctx::CuContext
     ptr::Ptr{Cvoid}
     bytesize::Int
+
+    # whether this memory was allocated from a memory pool
+    pooled::Bool
 end
 
+HostMemory(ctx::CuContext, ptr::Ptr, bytesize::Integer) = HostMemory(ctx, ptr, bytesize, false)
 HostMemory() = HostMemory(context(), C_NULL, 0)
 
 Base.pointer(mem::HostMemory) = mem.ptr
@@ -121,6 +125,8 @@ Base.convert(::Type{Ptr{T}}, mem::HostMemory) where {T} =
 
 function Base.convert(::Type{CuPtr{T}}, mem::HostMemory) where {T}
     pointer(mem) == C_NULL && return convert(CuPtr{T}, CU_NULL)
+    # pool memory is accessed using the same address on the device
+    mem.pooled && return reinterpret(CuPtr{T}, pointer(mem))
     ptr_ref = Ref{CuPtr{Cvoid}}()
     cuMemHostGetDevicePointer_v2(ptr_ref, pointer(mem), #=flags=# 0)
     convert(CuPtr{T}, ptr_ref[])
@@ -206,8 +212,13 @@ struct UnifiedMemory <: AbstractMemory
     ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
+
+    # whether this memory was allocated from a memory pool
+    pooled::Bool
 end
 
+UnifiedMemory(ctx::CuContext, ptr::CuPtr, bytesize::Integer) =
+    UnifiedMemory(ctx, ptr, bytesize, false)
 UnifiedMemory() = UnifiedMemory(context(), CU_NULL, 0)
 
 Base.pointer(mem::UnifiedMemory) = mem.ptr
@@ -349,7 +360,10 @@ function alloc(::Type{<:ArrayMemory{T}}, dims::Dims{N}) where {T,N}
         0))
 
     handle_ref = Ref{CUarray}()
-    cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    res = retry_reclaim(isequal(ERROR_OUT_OF_MEMORY)) do
+        unchecked_cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    end
+    res == SUCCESS || throw_api_error(res)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
     return ArrayMemory{T,N}(context(), ptr, dims)
@@ -437,7 +451,10 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
     dst_dev = device(dst)
     src_dev = device(src)
     if dst_dev == src_dev
-        cuMemcpyDtoDAsync_v2(dst, src, nbytes, stream)
+        # these pointers may refer to host memory (e.g., from `HostMemory` arrays), so let
+        # the driver infer the direction. `cuMemcpyDtoDAsync` reads memory from a host pool
+        # when the copy is enqueued, instead of in stream order.
+        cuMemcpyAsync(dst, src, nbytes, stream)
     else
         cuMemcpyPeerAsync(dst, context(dst_dev),
                           src, context(src_dev),
@@ -687,6 +704,18 @@ end
 # - WeakRef dict does not unique the key by objectid
 const __pinned_objects = Dict{Tuple{CuContext,Ptr{Cvoid}}, PinnedObject}()
 
+"""
+    pin(a::AbstractArray)
+    pin(ref::Base.RefValue)
+
+Page-lock (pin) the host memory backing `a`, which makes copies between it and the GPU
+faster, and makes it possible to perform them asynchronously.
+
+The memory stays pinned for the lifetime of `a`. Unpinning memory waits for all running
+kernels to finish, so once `a` has been garbage collected, its memory is only unpinned (and
+freed) when memory is reclaimed, e.g., when calling `CUDA.reclaim()`, or when a lot of
+memory is waiting to be unpinned.
+"""
 function pin(a::AbstractArray)
     ctx = context()
     ptr = pointer(a)
@@ -705,9 +734,11 @@ function pin(a::AbstractArray)
         __pinned_objects[key] = PinnedObject(WeakRef(a), sizeof(a))
     end
 
-     __pin(ptr, sizeof(a))
-    finalizer(a) do _
-        __unpin(ptr, ctx)
+    __pin(ptr, sizeof(a))
+    sz = sizeof(a)
+    finalizer(a) do a
+        # unregistering can block, so it is deferred, keeping `a` alive in the meantime
+        retire!(RetiredRegistration(HostMemory(ctx, ptr, sz), true, a))
     end
 
     a
@@ -717,9 +748,11 @@ function pin(ref::Base.RefValue{T}) where T
     ctx = context()
     ptr = Base.unsafe_convert(Ptr{T}, ref)
 
-    __pin(ptr, aligned_sizeof(T))
-    finalizer(ref) do _
-        __unpin(ptr, ctx)
+    sz = aligned_sizeof(T)
+    __pin(ptr, sz)
+    finalizer(ref) do ref
+        # unregistering can block, so it is deferred, keeping `ref` alive in the meantime
+        retire!(RetiredRegistration(HostMemory(ctx, ptr, sz), true, ref))
     end
 
     ref
@@ -750,7 +783,7 @@ function __pin(ptr::Ptr, sz::Int)
         end
 
         if pin_count == 1
-            mem = register(HostMemory, ptr, sz)
+            mem = register_host_memory(ptr, sz)
             __pinned_memory[key] = mem
         elseif Base.JLOptions().debug_level >= 2
             # make sure we're pinning the exact same range
@@ -771,8 +804,14 @@ function __unpin(ptr::Ptr, ctx::CuContext)
 
         if pin_count == 0
             mem = @inbounds __pinned_memory[key]
-            context!(ctx) do
-                unregister(mem)
+            try
+                context!(ctx) do
+                    unregister(mem)
+                end
+            catch
+                # still registered
+                __pin_count[key] += 1
+                rethrow()
             end
             delete!(__pinned_memory, key)
         end
@@ -789,6 +828,14 @@ end
 
 
 ## pointer attributes
+
+# whether memory was allocated from a memory pool
+function from_pool(ptr::Union{Ptr,CuPtr})
+    pool = Ref{Ptr{Cvoid}}(C_NULL)
+    res = unchecked_cuPointerGetAttribute(pool, CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE,
+                                          reinterpret(CuPtr{Cvoid}, ptr))
+    return res == SUCCESS && pool[] != C_NULL
+end
 
 export attribute, attribute!, memory_type, is_managed
 @public host_pointer, device_pointer, is_pinned

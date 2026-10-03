@@ -187,37 +187,54 @@ end
             @test vec(Array(b)) == 1:1024
         end
 
-        # the Array is only released once outstanding work on the wrapper has finished.
-        # errors while releasing are only logged, so check for those too.
+        # freeing the wrapper doesn't wait for the GPU, but the Array is kept alive (and
+        # registered) until the work on it has finished. errors while releasing are only
+        # logged, so check for those too.
+        function launch_on_wrapped(out, M; stream=stream())
+            a = collect(1:1024)
+            b = unsafe_wrap(CuArray{Int,1,M}, a)
+            @cuda stream=stream slow_sum(out, b, 500_000_000)
+            CUDA.unsafe_free!(b)
+            return
+        end
+        # allocate and fill arrays of the same size, which would overwrite freed memory
+        function churn()
+            for _ in 1:10
+                GC.gc(true)
+                fill!(Vector{Int}(undef, 1024), 0)
+            end
+        end
         for M in memtypes
             @test_logs min_level=Base.CoreLogging.Error begin
-                # the kernel's output is written to wrapped host memory, which can be
-                # checked from the CPU without synchronizing
+                # the kernel's output is written to wrapped host memory
                 outh = [0]
                 out = unsafe_wrap(CuArray{Int,1,M}, outh)
+                launch_on_wrapped(out, M)
+                churn()
+                synchronize()
+                @test outh[] == sum(1:1024)
+
+                # an Array whose wrapper has been freed can be wrapped again right away
                 a = collect(1:1024)
                 b = unsafe_wrap(CuArray{Int,1,M}, a)
                 @cuda slow_sum(out, b, 500_000_000)
                 CUDA.unsafe_free!(b)
-                @test outh[] == sum(1:1024)
-
-                # the memory is released right away, so it can be wrapped again
                 b = unsafe_wrap(CuArray{Int,1,M}, a)
                 @test Array(b) == 1:1024
 
                 # also when the stream the work was submitted to has been destroyed since
                 outh[] = 0
                 s = CuStream()
-                @cuda stream=s slow_sum(out, b, 500_000_000)
+                launch_on_wrapped(out, M; stream=s)
                 finalize(s)
-                CUDA.unsafe_free!(b)
+                churn()
+                device_synchronize()
                 @test outh[] == sum(1:1024)
             end
         end
 
         # freeing a wrapper while another stream is being captured, here by the task that
-        # frees it, doesn't affect that capture, and the memory is released once the work
-        # on it has finished
+        # frees it, doesn't affect that capture
         for M in memtypes
             @test_logs min_level=Base.CoreLogging.Error begin
                 outh = [0]
@@ -237,19 +254,16 @@ end
                     CUDA.unsafe_free!(b)
                     c .+= 1
                 end
-                @test outh[] == sum(1:1024)
                 put!(finish, nothing)
                 wait(t)
                 CUDA.launch(CUDA.instantiate(graph))
                 @test Array(c) == [1]
+                device_synchronize()
+                @test outh[] == sum(1:1024)
 
-                # the memory has been released, so it can be wrapped again
-                b = unsafe_wrap(CuArray{Int,1,M}, a)
-                @test Array(b) == 1:1024
-
-                # if the stream has been destroyed, the whole context needs to be waited
-                # for, which can only happen after the capture
+                # also when the stream the work was submitted to has been destroyed since
                 outh[] = 0
+                b = unsafe_wrap(CuArray{Int,1,M}, a)
                 s = CuStream()
                 @cuda stream=s slow_sum(out, b, 500_000_000)
                 finalize(s)
@@ -258,22 +272,15 @@ end
                     c .+= 1
                 end
                 @test graph !== nothing
-                t0 = time()
-                while (outh[] == 0 || (M == CUDA.HostMemory && CUDA.is_pinned(pointer(a)))) &&
-                      time() - t0 < 10
-                    sleep(0.01)
-                end
+                device_synchronize()
                 @test outh[] == sum(1:1024)
                 @test Array(unsafe_wrap(CuArray{Int,1,M}, a)) == 1:1024
             end
         end
 
-        # when the GC frees the wrapper, a task releases the Array
-        function launch_tracked(outh, M, released)
+        # the same holds when the GC frees the wrapper
+        function launch_and_drop(outh, M)
             a = collect(1:1024)
-            finalizer(a) do _
-                released[] = outh[] == sum(1:1024) ? 1 : -1
-            end
             out = unsafe_wrap(CuArray{Int,1,M}, outh)
             b = unsafe_wrap(CuArray{Int,1,M}, a)
             @cuda slow_sum(out, b, 500_000_000)
@@ -281,14 +288,10 @@ end
         end
         for M in memtypes
             outh = [0]
-            released = Threads.Atomic{Int}(0)
-            launch_tracked(outh, M, released)
-            t = time()
-            while released[] == 0 && time() - t < 10
-                GC.gc(true)
-                sleep(0.01)
-            end
-            @test released[] == 1
+            launch_and_drop(outh, M)
+            churn()
+            synchronize()
+            @test outh[] == sum(1:1024)
         end
     end
 
@@ -1072,6 +1075,27 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
   gpu = unsafe_wrap(CuArray, gpu_ptr, size(cpu))
   @test Array(gpu) == cpu
 end
+end
+
+function slow_fill(a, val, cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    for i in eachindex(a)
+        a[i] = val
+    end
+    return
+end
+
+@testset "stream-ordered copies from host memory" begin
+  # copies from host memory need to wait for the kernels that write that memory
+  for M in (CUDA.HostMemory, CUDA.UnifiedMemory)
+    h = CuArray{Int,1,M}([1, 2, 3, 4])
+    d = CUDA.zeros(Int, 4)
+    copyto!(d, h)   # so that compiling doesn't delay the copy below
+    @cuda slow_fill(h, 42, 100_000_000)
+    copyto!(d, h)
+    @test Array(d) == fill(42, 4)
+  end
 end
 
 if length(devices()) > 1

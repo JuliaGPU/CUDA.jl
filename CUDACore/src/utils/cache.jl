@@ -78,9 +78,11 @@ function Base.push!(cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
     end
 
     if !saved
-        # Handle destruction can run from CUDACore's generic reclaim callback,
-        # whose compiled world can predate the owning library's destructor.
-        Base.invokelatest(cache.dtor, key, handle)
+        # destroying a handle may wait for running kernels to finish, while this is
+        # typically called from a finalizer, so defer that until memory is reclaimed.
+        destroy_later(key=>handle) do (key, handle)
+            cache.dtor(key, handle)
+        end
     end
 end
 
