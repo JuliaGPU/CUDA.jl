@@ -160,7 +160,7 @@ end
 
 @testset "local memory stores due to byval" begin
     # JuliaGPU/GPUCompiler.jl#92
-    @test @filecheck CUDA.code_ptx(NTuple{2,CuDeviceArray{Float32,1,AS.Global}}) do y1, y2
+    @test @filecheck CUDA.code_ptx(NTuple{2,CuDeviceArray{Float32,1,AS.Global,Int32}}) do y1, y2
         @check_not ".local"
         y = threadIdx().x == 1 ? y1 : y2
         @inbounds y[] = 0
@@ -169,7 +169,7 @@ end
 
     # dynamically-indexed aggregate arguments should load directly from parameter space
     # instead of being copied to local memory first
-    @test @filecheck CUDA.code_ptx(Tuple{CuDeviceArray{Float32,1,AS.Global},
+    @test @filecheck CUDA.code_ptx(Tuple{CuDeviceArray{Float32,1,AS.Global,Int32},
                                          NTuple{32,Float32}, Int}) do out, t, i
         @check_not ".local"
         @inbounds out[1] = t[i]
