@@ -13,8 +13,8 @@
 # usual synchronization between tasks keeps working, and so that releasing memory is ordered
 # after the last launch of the graph.
 
-export CuGraph, CuGraphExec, CuGraphNode, capture, instantiate, launch, update, upload,
-       @captured
+export CuGraph, CuGraphExec, CuGraphNode, capture, capture!, instantiate, launch, update,
+       update!, upload, @captured
 @public nodes
 
 
@@ -75,8 +75,8 @@ function capture_id(stream::CuStream)
     return id[]
 end
 
-# the capture by `capture` that `stream` is part of, if any. must only be called for
-# streams that are being captured.
+# the capture by `capture` or `capture!` that `stream` is part of, if any. must only be
+# called for streams that are being captured.
 function current_capture(stream::CuStream)
     if stream.ctx !== nothing
         capture = @lock captures_lock get(captures_by_stream, stream.handle, nothing)
@@ -200,8 +200,9 @@ end
 """
     CuGraph()
 
-A graph of GPU operations, typically created by recording operations with
-[`capture`](@ref). To execute a graph, [`instantiate`](@ref) it.
+A graph of GPU operations. Graphs are typically created by recording operations with
+[`capture`](@ref), but you can also create an empty graph and add operations to it using
+[`capture!`](@ref). To execute a graph, [`instantiate`](@ref) it.
 
 A graph keeps the memory that its operations use alive for as long as it exists.
 """
@@ -318,7 +319,8 @@ end
 """
     CuGraphNode
 
-A node in a [`CuGraph`](@ref), representing an operation. Nodes are owned by their graph.
+A node in a [`CuGraph`](@ref), representing an operation. Nodes are owned by their graph,
+and are returned by [`capture!`](@ref) to express dependencies between operations.
 """
 struct CuGraphNode
     handle::CUgraphNode
@@ -344,9 +346,12 @@ end
 
 ## capture
 
-# capture the operations performed by `f` on the current task's stream into a new graph.
-# returns the graph, or `nothing` if capturing failed and `throw_error` is false.
-function capture_stream(f; mode::CUstreamCaptureMode, throw_error::Bool)
+# capture the operations performed by `f` on the current task's stream, either into a new
+# graph, or into an existing one (depending on the nodes in `deps`). returns the graph, or
+# `nothing` if capturing failed and `throw_error` is false, along with the nodes that
+# operations depending on the captured ones should depend on.
+function capture_stream(f, graph::Union{Nothing,CuGraph}, deps::Vector{CUgraphNode};
+                        mode::CUstreamCaptureMode, throw_error::Bool)
     ctx = context()
     stream = CUDACore.stream()
     capture = CaptureState(stream)
@@ -361,7 +366,11 @@ function capture_stream(f; mode::CUstreamCaptureMode, throw_error::Bool)
         # so wait for any disposal in progress to finish, and prevent new ones from starting
         @lock drain_lock Threads.atomic_add!(active_captures, 1)
         try
-            cuStreamBeginCapture_v2(stream, mode)
+            if graph === nothing
+                cuStreamBeginCapture_v2(stream, mode)
+            else
+                cuStreamBeginCaptureToGraph(stream, graph, deps, C_NULL, length(deps), mode)
+            end
 
             # from here on, the capture needs to be ended
             try
@@ -374,29 +383,31 @@ function capture_stream(f; mode::CUstreamCaptureMode, throw_error::Bool)
                 catch
                     # report the original error
                 end
-                discard_capture(capture, handle[])
+                discard_capture(graph, capture, handle[])
                 if !throw_error && unsupported_during_capture(err)
-                    return nothing
+                    return nothing, CUgraphNode[]
                 end
                 rethrow()
             end
-            res = try
+            frontier, res = try
                 end_capture(capture, handle)
             catch
-                discard_capture(capture, handle[])
+                discard_capture(graph, capture, handle[])
                 rethrow()
             end
             if res != SUCCESS
-                discard_capture(capture, handle[])
+                discard_capture(graph, capture, handle[])
                 if !throw_error && res == ERROR_STREAM_CAPTURE_INVALIDATED
-                    return nothing
+                    return nothing, CUgraphNode[]
                 end
                 throw_api_error(res)
             end
 
-            graph = CuGraph(handle[], ctx)
+            if graph === nothing
+                graph = CuGraph(handle[], ctx)
+            end
             adopt!(graph, capture)
-            return graph
+            return graph, frontier
         finally
             Threads.atomic_sub!(active_captures, 1)
         end
@@ -408,18 +419,30 @@ function capture_stream(f; mode::CUstreamCaptureMode, throw_error::Bool)
     end
 end
 
-# end a capture, returning the result
+# end a capture, returning the dependencies of the last captured operations, and the result
 function end_capture(capture::CaptureState, handle::Ref{CUgraph})
-    res = unchecked_cuStreamEndCapture(capture.stream, handle)
-    unregister!(capture)
+    stream = capture.stream
+    local res
+    frontier = try
+        capture_frontier(stream)
+    finally
+        res = unchecked_cuStreamEndCapture(stream, handle)
+        unregister!(capture)
+    end
     finish_allocations(capture)
-    return res
+    return frontier, res
 end
 
-function discard_capture(capture::CaptureState, handle::CUgraph)
-    # a failed capture may still have produced a graph, which we don't need
-    handle == C_NULL || cuGraphDestroy(handle)
-    foreach(unlease!, capture.memory)
+function discard_capture(graph::Union{Nothing,CuGraph}, capture::CaptureState,
+                         handle::CUgraph)
+    if graph === nothing
+        # a failed capture may still have produced a graph, which we don't need
+        handle == C_NULL || cuGraphDestroy(handle)
+        foreach(unlease!, capture.memory)
+    else
+        # the existing graph may contain some of the captured operations
+        adopt!(graph, capture)
+    end
     return
 end
 
@@ -444,6 +467,18 @@ unsupported_during_capture(err) =
                                      ERROR_STREAM_CAPTURE_INVALIDATED,
                                      ERROR_STREAM_CAPTURE_IMPLICIT,
                                      ERROR_CAPTURED_EVENT))
+
+# the nodes that the next captured operation on `stream` would depend on
+function capture_frontier(stream::CuStream)
+    driver_version() >= v"12.3" || return CUgraphNode[]
+    status = Ref{CUstreamCaptureStatus}()
+    deps = Ref{Ptr{CUgraphNode}}()
+    count = Ref{Csize_t}(0)
+    res = unchecked_cuStreamGetCaptureInfo_v3(stream, status, C_NULL, C_NULL, deps, C_NULL,
+                                              count)
+    (res == SUCCESS && status[] == STREAM_CAPTURE_STATUS_ACTIVE) || return CUgraphNode[]
+    return copy(unsafe_wrap(Array, deps[], count[]))
+end
 
 """
     capture(f; mode=STREAM_CAPTURE_MODE_THREAD_LOCAL, throw_error=true)::CuGraph
@@ -481,7 +516,7 @@ By default, only the capturing thread is prohibited from performing operations t
 unsafe during capture. Use `mode=STREAM_CAPTURE_MODE_GLOBAL` to also check other threads,
 or `mode=STREAM_CAPTURE_MODE_RELAXED` to disable these checks.
 
-See also: [`instantiate`](@ref).
+See also: [`instantiate`](@ref), [`capture!`](@ref).
 """
 function capture(f::Function; mode::CUstreamCaptureMode=STREAM_CAPTURE_MODE_THREAD_LOCAL,
                  flags::Union{Nothing,CUstreamCaptureMode}=nothing, throw_error::Bool=true)
@@ -490,7 +525,49 @@ function capture(f::Function; mode::CUstreamCaptureMode=STREAM_CAPTURE_MODE_THRE
                      :capture)
         mode = flags
     end
-    return capture_stream(f; mode, throw_error)
+    graph, _ = capture_stream(f, nothing, CUgraphNode[]; mode, throw_error)
+    return graph
+end
+
+"""
+    capture!(f, graph::CuGraph; after=CuGraphNode[], mode=STREAM_CAPTURE_MODE_THREAD_LOCAL)
+
+Capture the GPU operations that `f` performs, like [`capture`](@ref), but add them to an
+existing graph. The captured operations depend on the nodes in `after`, and are independent
+of the other operations in the graph. This makes it possible to construct graphs with
+operations that can execute concurrently, without having to capture multiple streams:
+
+```julia
+graph = CuGraph()
+a = capture!(graph) do
+    x .= sin.(x)
+end
+b = capture!(graph) do
+    y .= cos.(y)
+end
+capture!(graph; after=[a; b]) do
+    z .= x .+ y
+end
+```
+
+Returns the nodes that operations depending on the captured operations should depend on.
+If capturing fails, the graph may contain some of the captured operations, and should not
+be used anymore.
+
+This functionality requires CUDA 12.3 or higher.
+"""
+function capture!(f::Function, graph::CuGraph; after::AbstractVector{CuGraphNode}=CuGraphNode[],
+                  mode::CUstreamCaptureMode=STREAM_CAPTURE_MODE_THREAD_LOCAL)
+    driver_version() >= v"12.3" ||
+        error("Capturing into an existing graph requires CUDA 12.3 or higher")
+    all(node -> node.graph === graph, after) ||
+        throw(ArgumentError("Dependencies need to be nodes of the same graph"))
+    deps = CUgraphNode[node.handle for node in after]
+    frontier = @lock graph.lock context!(graph.ctx) do
+        _, frontier = capture_stream(f, graph, deps; mode, throw_error=true)
+        frontier
+    end
+    return CuGraphNode[CuGraphNode(node, graph) for node in frontier]
 end
 
 
@@ -510,10 +587,12 @@ mutable struct CuGraphExec
     const ctx::CuContext
     const lock::ReentrantLock
 
-    # memory used by the graph, leased for as long as the executable graph may be launched
+    # memory used by the graph, and by nodes that have been updated individually (see
+    # `update!`), leased for as long as the executable graph may be launched
     memory::Vector{Managed}
+    node_memory::Dict{CUgraphNode,Vector{Managed}}
 
-    # that memory, in the order it needs to be locked in when launching the graph
+    # all that memory, in the order it needs to be locked in when launching the graph
     launch_memory::Vector{Managed}
 
     # allocations made by the graph that it doesn't free itself (see `unfreed_allocations`)
@@ -537,6 +616,9 @@ function lease_memory(graph::CuGraph)
     foreach(lease!, memory)
     return memory
 end
+
+launch_order(memory, node_memory) =
+    locking_order(reduce(vcat, values(node_memory); init=memory))
 
 """
     instantiate(graph::CuGraph, [flags])::CuGraphExec
@@ -579,7 +661,8 @@ function instantiate_locked(graph::CuGraph, flags)
 
     memory = lease_memory(graph)
     exec = CuGraphExec(handle_ref[], graph.ctx, ReentrantLock(), memory,
-                       locking_order(memory), allocations, nothing, 0)
+                       Dict{CUgraphNode,Vector{Managed}}(), locking_order(memory),
+                       allocations, nothing, 0)
     finalizer(retire!, exec)
     return exec
 end
@@ -633,6 +716,7 @@ function dispose(exec::CuGraphExec)
         end
     finally
         foreach(unlease!, exec.memory)
+        foreach(memory -> foreach(unlease!, memory), values(exec.node_memory))
     end
     return
 end
@@ -685,13 +769,14 @@ Returns whether the update succeeded. Unless `throw_error` is false, an error is
 the update failed.
 """
 function update(exec::CuGraphExec, graph::CuGraph; throw_error::Bool=true)
-    old_memory, old_allocations = @lock exec.lock begin
+    old_memory, old_node_memory, old_allocations = @lock exec.lock begin
         @lock graph.lock begin
             # prepare the new state of the executable graph, which uses the memory of the
             # new graph, before updating it
             memory = lease_memory(graph)
-            allocations, launch_memory, result = try
+            allocations, launch_memory, node_memory, result = try
                 (unfreed_allocations(graph), locking_order(memory),
+                 Dict{CUgraphNode,Vector{Managed}}(),
                  context!(() -> exec_update(exec, graph), exec.ctx))
             catch
                 foreach(unlease!, memory)
@@ -704,8 +789,9 @@ function update(exec::CuGraphExec, graph::CuGraph; throw_error::Bool=true)
             end
 
             # commit the new state (which can't fail)
-            old = (exec.memory, launched_allocations(exec))
+            old = (exec.memory, exec.node_memory, launched_allocations(exec))
             exec.memory = memory
+            exec.node_memory = node_memory
             exec.launch_memory = launch_memory
             exec.allocations = allocations
             exec.stream = nothing
@@ -719,6 +805,7 @@ function update(exec::CuGraphExec, graph::CuGraph; throw_error::Bool=true)
         old_allocations === nothing || discard(old_allocations)
     finally
         foreach(unlease!, old_memory)
+        foreach(memory -> foreach(unlease!, memory), values(old_node_memory))
     end
     return true
 end
@@ -737,6 +824,92 @@ function exec_update(exec::CuGraphExec, graph::CuGraph)
     end
     res in (SUCCESS, ERROR_GRAPH_EXEC_UPDATE_FAILURE) || throw_api_error(res)
     return result
+end
+
+"""
+    update!(f, exec::CuGraphExec, node::CuGraphNode)
+
+Update the parameters of a single operation in an executable graph, by capturing the
+operation that `f` performs, which needs to be of the same kind as the existing one (e.g.,
+launching the same kernel). This is cheaper than updating the entire graph, and makes it
+possible to change the arguments of an operation without capturing the graph again:
+
+```julia
+graph = CuGraph()
+node = only(capture!(graph) do
+    @cuda kernel(a)
+end)
+exec = instantiate(graph)
+exec()
+
+update!(exec, node) do
+    @cuda kernel(b)
+end
+exec()
+```
+
+Only kernel launches, memory copies and memory sets can be updated this way.
+"""
+function update!(f::Function, exec::CuGraphExec, node::CuGraphNode)
+    graph = context!(() -> capture(f), exec.ctx)
+    new_nodes = nodes(graph)
+    length(new_nodes) == 1 ||
+        throw(ArgumentError("Expected a single operation to update a node with, got $(length(new_nodes))"))
+    new_node = only(new_nodes)
+    type = nodetype(node)
+    nodetype(new_node) == type ||
+        throw(ArgumentError("Cannot update a $(nodetype(node)) node with a $(nodetype(new_node)) node"))
+
+    # the node will use the memory of the captured operation instead. we don't know which
+    # memory the node used originally, so keep that around.
+    new_memory = lease_memory(graph)
+    old_memory = @lock exec.lock begin
+        # prepare the new state of the executable graph before updating it
+        node_memory, launch_memory, old_memory = try
+            node_memory = copy(exec.node_memory)
+            old_memory = get(node_memory, node.handle, Managed[])
+            node_memory[node.handle] = new_memory
+            launch_memory = launch_order(exec.memory, node_memory)
+            @lock node.graph.lock set_params(exec, node, new_node, type)
+            node_memory, launch_memory, old_memory
+        catch
+            foreach(unlease!, new_memory)
+            rethrow()
+        end
+
+        # commit the new state (which can't fail)
+        exec.node_memory = node_memory
+        exec.launch_memory = launch_memory
+        old_memory
+    end
+    foreach(unlease!, old_memory)
+
+    # the graph we captured isn't needed anymore, so don't wait for the GC to destroy it
+    finalize(graph)
+    return
+end
+
+# set the parameters of a node in an executable graph to those of a node in another graph
+function set_params(exec::CuGraphExec, node::CuGraphNode, new_node::CuGraphNode,
+                    type::CUgraphNodeType)
+    context!(exec.ctx) do
+        if type == CU_GRAPH_NODE_TYPE_KERNEL
+            params = Ref{CUDA_KERNEL_NODE_PARAMS}()
+            cuGraphKernelNodeGetParams_v2(new_node, params)
+            cuGraphExecKernelNodeSetParams_v2(exec, node, params)
+        elseif type == CU_GRAPH_NODE_TYPE_MEMCPY
+            params = Ref{CUDA_MEMCPY3D}()
+            cuGraphMemcpyNodeGetParams(new_node, params)
+            cuGraphExecMemcpyNodeSetParams(exec, node, params, exec.ctx)
+        elseif type == CU_GRAPH_NODE_TYPE_MEMSET
+            params = Ref{CUDA_MEMSET_NODE_PARAMS}()
+            cuGraphMemsetNodeGetParams(new_node, params)
+            cuGraphExecMemsetNodeSetParams(exec, node, params, exec.ctx)
+        else
+            throw(ArgumentError("Cannot update $type nodes"))
+        end
+    end
+    return
 end
 
 
