@@ -98,6 +98,10 @@ are listed as subsections of the minor release they belong to.
   on the task that submitted it. Work submitted through a pointer taken outside
   of a CUDA.jl operation (e.g. with `pointer(a)`) is only waited for if it was
   submitted from that task's stream before the array is used on another stream.
+- A task whose stream waited for an event with `CUDA.wait(event)` uses arrays
+  last used before that event without waiting for other work that was queued
+  after it. This lets tasks spawned with `KernelAbstractions.@spawn` overlap
+  with their parent.
 
 
 ## v6.4 (September 2026)

@@ -1394,6 +1394,71 @@ let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream(), e = CuEvent()
     end
 end
 
+# memory whose last use is known to come before the work on a stream, because that stream
+# waited for an event recorded after it, doesn't need to be handed off. this is the pattern
+# `KernelAbstractions.@spawn` uses.
+let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream()
+    a .+= 1
+    fetch(Threads.@spawn (stream!(other); a .+= 1; unsafe_use(a)))
+    synchronize()
+
+    # kernels on the waiting stream don't wait for work queued after the event
+    a .+= 1
+    e = CuEvent()
+    record(e)
+    @test gated(s) do
+        fetch(Threads.@spawn begin
+            stream!(other)
+            CUDA.wait(e)
+            a .+= 1
+            synchronize(other)
+            !CUDA.isdone(s)
+        end)
+    end
+
+    # library pointer conversions only wait for the waiting stream
+    a .+= 1
+    e = CuEvent()
+    record(e)
+    @test gated(s) do
+        fetch(Threads.@spawn begin
+            stream!(other)
+            CUDA.wait(e)
+            unsafe_use(a)
+            !CUDA.isdone(s)
+        end)
+    end
+
+    # memory used after the event still needs to be waited for
+    e = CuEvent()
+    record(e)
+    @test gated(s) do
+        a .+= 1
+        fetch(Threads.@spawn begin
+            stream!(other)
+            CUDA.wait(e)
+            a .+= 1
+            open_gate_during(() -> synchronize(other))
+        end)
+    end
+
+    # and so is work submitted through a pointer that was taken before the event
+    p = pointer(a)
+    e = CuEvent()
+    record(e)
+    @test gated(s) do
+        @cuda stream=s store_kernel(raw_array(p))
+        fetch(Threads.@spawn begin
+            stream!(other)
+            CUDA.wait(e)
+            a .+= 1
+            open_gate_during(() -> synchronize(other))
+        end)
+    end
+    synchronize(other)
+    @test Array(a) == [43]
+end
+
 end
 
 ############################################################################################

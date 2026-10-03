@@ -122,7 +122,22 @@ Make a stream wait on a event. This only makes the stream wait, and not the host
 [`synchronize(::CuEvent)`](@ref) for that.
 """
 wait(e::CuEvent, stream::CuStream=stream()) =
-    capture_submission(() -> cuStreamWaitEvent(stream, e, 0), stream)
+    capture_submission(() -> wait_tracked(e, stream), stream)
+function wait_tracked(e::CuEvent, stream::CuStream)
+    Base.@lock e.lock begin
+        cuStreamWaitEvent(stream, e, 0)
+
+        # only learn about the order once the wait has been submitted, so that work isn't
+        # believed to be ordered after the event before it actually is. a wait that is
+        # captured only orders the graph's operations, once it is launched.
+        source = e.source
+        order = stream.order
+        if source !== nothing && order !== nothing && !is_capturing(stream)
+            mark_ordered!(order, source...)
+        end
+    end
+    return
+end
 
 # make the work submitted to `stream` from now on wait for the work submitted to `source` so
 # far, on the device. returns false if that isn't possible because `source` is being

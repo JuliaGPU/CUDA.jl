@@ -94,6 +94,14 @@ function stream_epoch(stream::CuStream)
   order === nothing ? typemax(UInt64) : current_epoch(order)
 end
 
+# whether work submitted to `stream` is known to run after the last use of memory
+function is_ordered(managed::Managed, stream::CuStream)
+  order = stream.order
+  source = managed.stream.order
+  !managed.captured && !managed.escaped && order !== nothing && source !== nothing &&
+    is_ordered(order, source, managed.epoch)
+end
+
 # whether the last use of memory is known to have completed. memory whose pointer escaped
 # may be used by work that was submitted after the epoch it was stamped with was closed.
 function is_completed(managed::Managed)
@@ -336,7 +344,12 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
   # accessing memory on another stream: ensure the data is ready and take ownership.
   # (the default streams are specific to a context, so also check that.)
   if managed.stream != stream || managed.stream_ctx != state.context
-    if !(!external && can_handoff(managed, stream) && handoff!(managed, stream))
+    on_device = can_handoff(managed, stream)
+    if on_device && is_ordered(managed, stream)
+      # `stream` already waits for the last use on the device. an external consumer
+      # synchronizes `stream` below, which only waits for what `stream` is ordered after.
+      managed.waiting = managed.dirty && !is_completed(managed)
+    elseif !(on_device && !external && handoff!(managed, stream))
       maybe_synchronize(managed)
     end
     managed.stream = stream
