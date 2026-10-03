@@ -344,6 +344,7 @@ const stream_pool_lock = ReentrantLock()
             push!(stream_pools[key], PooledStream(stream, WeakRef(task)))
         end
     end
+    bind!(stream)
 
     # register the name of this task
     # XXX: do this when the user has imported NVTX.jl (using weak dependencies?)
@@ -525,6 +526,7 @@ function stream!(stream::CuStream)
     check_stream_capture()
     state = task_local_state!()
     devidx = deviceid(state.device)+1
+    bind!(stream)
     state.streams[devidx] = stream
     return
 end
@@ -535,6 +537,7 @@ function stream!(f::Function, stream::CuStream)
     devidx = deviceid(state.device)+1
     old_stream = state.streams[devidx]
     old_priority = state.priorities[devidx]
+    bind!(stream)
     state.streams[devidx] = stream
     try
         f()

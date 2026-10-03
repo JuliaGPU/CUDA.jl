@@ -91,6 +91,14 @@ are listed as subsections of the minor release they belong to.
   (Windows, and Jetson boards up to Orin). Previously, that crashed with a
   memory access error.
 
+*Minor changes*:
+
+- An array that another task uses doesn't wait for work that the host already
+  waited for, by synchronizing the stream or an event recorded after that work
+  on the task that submitted it. Work submitted through a pointer taken outside
+  of a CUDA.jl operation (e.g. with `pointer(a)`) is only waited for if it was
+  submitted from that task's stream before the array is used on another stream.
+
 
 ## v6.4 (September 2026)
 

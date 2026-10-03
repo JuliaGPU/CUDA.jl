@@ -37,6 +37,9 @@ mutable struct Managed{M}
   stream_ctx::CuContext
   generation::Int
 
+  # the epoch of `stream` during which the memory was last used (see `StreamOrder`)
+  epoch::UInt64
+
   # whether accessing this memory can cause implicit synchronization
   synchronizing::Bool
 
@@ -50,6 +53,10 @@ mutable struct Managed{M}
   # whether `stream` waits on the device for operations on other streams that used the
   # memory, which therefore haven't been synchronized either (implies `dirty`)
   waiting::Bool
+
+  # whether a pointer was taken outside of an operation that CUDA.jl submits, and may thus
+  # be used by work submitted to `stream` after it was stamped with `epoch`
+  escaped::Bool
 
   # whether the memory was allocated by CUDA.jl, as opposed to imported using `unsafe_wrap`.
   # only such memory counts towards our memory usage, and can be reused once freed.
@@ -70,8 +77,8 @@ mutable struct Managed{M}
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
-                     synchronizing, dirty, captured, false, owned_allocation, attachment,
-                     0, nothing)
+                     stream_epoch(stream), synchronizing, dirty, captured, false, false,
+                     owned_allocation, attachment, 0, nothing)
   end
 end
 
@@ -79,6 +86,21 @@ end
 recycled(managed::Managed) = managed.generation != generation(managed.stream)
 
 Base.sizeof(managed::Managed) = sizeof(managed.mem)
+
+# the epoch to stamp an access on `stream` with. accesses on untracked streams are never
+# covered by an event or synchronization.
+function stream_epoch(stream::CuStream)
+  order = stream.order
+  order === nothing ? typemax(UInt64) : current_epoch(order)
+end
+
+# whether the last use of memory is known to have completed. memory whose pointer escaped
+# may be used by work that was submitted after the epoch it was stamped with was closed.
+function is_completed(managed::Managed)
+  order = managed.stream.order
+  !managed.captured && !managed.escaped && order !== nothing &&
+    is_completed(order, managed.epoch)
+end
 
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
@@ -133,7 +155,12 @@ end
 function maybe_synchronize(managed::Managed)
   Base.@lock managed.lock begin
     if managed.synchronizing && (managed.dirty || managed.captured)
-      synchronize(managed)
+      if is_completed(managed)
+        managed.dirty = false
+        managed.waiting = false
+      else
+        synchronize(managed)
+      end
     end
   end
 end
@@ -237,6 +264,11 @@ end
 # whether that was possible (see `stream_wait`)
 function handoff!(managed::Managed, stream::CuStream)
   managed.dirty || return true
+  if is_completed(managed)
+    managed.dirty = false
+    managed.waiting = false
+    return true
+  end
   source = managed.stream
   # (holding the lock that recycling streams takes, see `pending_work`)
   @lock stream_disposal_lock begin
@@ -309,6 +341,9 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     end
     managed.stream = stream
     managed.stream_ctx = state.context
+    # the work submitted to the previous stream has been waited for, which is all that's
+    # known about uses of pointers that escaped (see `convert(::Type{CuPtr}, ::Managed)`)
+    managed.escaped = false
   end
   managed.generation = generation(managed.stream)
 
@@ -328,6 +363,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     can_prefetch && prefetch(managed.mem; device=state.device, stream)
   end
 
+  managed.epoch = stream_epoch(stream)
   managed.dirty = true
   return managed
 end
@@ -339,12 +375,17 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
     ptr == CU_NULL && return ptr
 
     # within an operation that CUDA.jl submits (see `with_managed`), the pointer is used on
-    # that operation's stream. otherwise, we don't know who is going to use it.
+    # that operation's stream. otherwise, we don't know who is going to use it, or when.
+    # it's assumed to be used on the task's stream, until the memory is used on another
+    # stream: work submitted through the pointer after that isn't waited for. that work
+    # may also be submitted after the stream was synchronized or an event was recorded,
+    # so neither tells anything about the memory anymore (see `is_completed`).
     tls = task_local_state!()
     state = active_state(tls)
     stream = tls.operation_stream
     if stream === nothing
       take_ownership!(managed; state, stream=state.stream, external=true)
+      managed.escaped = true
     else
       take_ownership!(managed; state, stream, capturing=tls.operation_capturing)
     end

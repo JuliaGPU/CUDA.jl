@@ -3,8 +3,26 @@
 export CuStream, default_stream, legacy_stream, per_thread_stream,
        unique_id, priority, priority_range, synchronize, device_synchronize
 
-# State used to order work on other streams after the work on a stream (see `stream_wait`).
+# What the host knows about the work submitted to a stream, so that memory moving between
+# streams only needs to be ordered when that's actually necessary (see `take_ownership!`).
+# The stream's work is divided in epochs: memory accesses are stamped with the current
+# epoch, and recording an event or synchronizing the stream closes it. An event or
+# synchronization thus covers all accesses stamped with an epoch up to and including the
+# one it closed. Recording an event on a stream that is being captured only adds a node to
+# the graph, so it doesn't close anything.
 mutable struct StreamOrder
+    # the epoch accesses are currently stamped with
+    Base.@atomic epoch::UInt64
+
+    # all accesses stamped with this epoch, or an earlier one, have completed
+    Base.@atomic completed::UInt64
+
+    # the task submitting work to this stream, and whether other tasks do so too. a stream
+    # stays shared: tasks that activated it with `stream!` may still use it after the task
+    # it was created for has finished and it has been recycled.
+    Base.@atomic owner::Union{Nothing,WeakRef}
+    Base.@atomic shared::Bool
+
     # an event to make other streams wait for this one, created when first needed. the lock
     # is held from recording the event until the other stream waited for it. (a `CuEvent`,
     # which is defined after streams.)
@@ -19,8 +37,48 @@ mutable struct StreamOrder
 
     const lock::ReentrantLock
 
-    StreamOrder() = new(nothing, nothing, ReentrantLock())
+    StreamOrder() = new(1, 0, nothing, false, nothing, nothing, ReentrantLock())
 end
+
+current_epoch(order::StreamOrder) = Base.@atomic order.epoch
+
+# close the current epoch, returning it when the operation about to be submitted (an event
+# or synchronization) will cover all accesses stamped with it. the epoch needs to be closed
+# *before* submitting that operation, so that accesses stamped after submitting their own
+# work aren't covered. however, an access may also be stamped when taking a pointer, before
+# submitting the work that uses it. only the task submitting work to the stream knows that
+# has happened, so an epoch closed by another task, or when several tasks submit work to
+# the stream, doesn't cover anything.
+function close_epoch!(order::StreamOrder)
+    epoch = (Base.@atomic order.epoch += 1) - 1
+    owner = Base.@atomic order.owner
+    if Base.@atomic(order.shared) || (owner !== nothing && owner.value !== current_task())
+        return nothing
+    end
+    return epoch
+end
+
+# note that the current task submits work to the stream. a task that has finished can't be
+# about to submit work anymore, so its stream can be handed to another task, e.g., when
+# streams are recycled, without considering it shared.
+function bind!(order::StreamOrder)
+    task = current_task()
+    while true
+        owner = Base.@atomic order.owner
+        previous = owner === nothing ? nothing : owner.value
+        previous === task && return
+        if previous === nothing || istaskdone(previous)
+            _, bound = Base.@atomicreplace order.owner owner => WeakRef(task)
+            bound && return
+        else
+            Base.@atomic order.shared = true
+            return
+        end
+    end
+end
+
+mark_completed!(order::StreamOrder, epoch::UInt64) = (Base.@atomic order.completed max epoch; return)
+is_completed(order::StreamOrder, epoch::UInt64) = epoch <= Base.@atomic order.completed
 
 """
     CuStream(; flags=STREAM_DEFAULT, priority=nothing)
@@ -110,6 +168,8 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
 per_thread_stream()
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
+
+bind!(s::CuStream) = (s.order === nothing || bind!(s.order); return)
 
 # only bumped while holding `stream_pool_lock` and `stream_disposal_lock`, but read without them
 generation(s::CuStream) = Base.@atomic :acquire s.generation

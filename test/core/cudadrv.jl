@@ -1266,6 +1266,134 @@ let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), u = cu([0]; unified=true),
     @test Array(u) == [4]
 end
 
+# memory whose last use is known to have completed doesn't need to be waited for. as the
+# kernels above don't block anyway, check that with the pointer conversion of a library.
+unsafe_use(a) = (Base.unsafe_convert(CuPtr{Int}, a); nothing)
+let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream(), third = CuStream()
+    a .+= 1
+    fetch(Threads.@spawn (stream!(other); unsafe_use(a)))
+    synchronize()
+
+    # the host waited for an event recorded after the last use
+    a .+= 1
+    e = CuEvent()
+    record(e)
+    @test gated(s) do
+        fetch(Threads.@spawn begin
+            stream!(other)
+            synchronize(e)
+            unsafe_use(a)
+            !CUDA.isdone(s)
+        end)
+    end
+
+    # but not for a use after that event
+    e = CuEvent()
+    record(e)
+    @test gated(s) do
+        a .+= 1
+        open_gate_during() do
+            fetch(Threads.@spawn (stream!(other); synchronize(e); unsafe_use(a)))
+        end
+    end
+
+    # an event recorded by another task doesn't count, as it may have been recorded before
+    # the work that used the memory was submitted
+    a .+= 1
+    e = fetch(Threads.@spawn (e = CuEvent(); record(e, s); e))
+    @test gated(s) do
+        open_gate_during() do
+            fetch(Threads.@spawn (stream!(other); synchronize(e); unsafe_use(a)))
+        end
+    end
+
+    # re-recording an event replaces the work it covers
+    a .+= 1
+    e = CuEvent()
+    record(e)
+    record(e, third)
+    @test gated(s) do
+        open_gate_during() do
+            fetch(Threads.@spawn (stream!(other); synchronize(e); unsafe_use(a)))
+        end
+    end
+
+    # a stream can be used by another task once the previous one has finished
+    s2 = CuStream()
+    wait(Threads.@spawn (stream!(s2); synchronize(s2)))
+    e = fetch(Threads.@spawn begin
+        stream!(s2)
+        a .+= 1
+        e = CuEvent()
+        record(e)
+        e
+    end)
+    @test gated(s2) do
+        fetch(Threads.@spawn begin
+            stream!(other)
+            synchronize(e)
+            unsafe_use(a)
+            !CUDA.isdone(s2)
+        end)
+    end
+    synchronize(s2)
+    @test Array(a) == [6]
+end
+
+# work submitted through a pointer that was taken before synchronizing the stream isn't
+# covered by that synchronization, so other tasks using the memory still need to wait for it
+store_kernel(x) = (@inbounds x[1] = 42; return)
+raw_array(p::CuPtr{Int}) =
+    CuDeviceArray{Int,1,CUDA.AS.Global}(reinterpret(Core.LLVMPtr{Int,CUDA.AS.Global}, p), (1,))
+let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream()
+    # warm up, as compiling kernels waits for the GPU to become idle
+    @cuda stream=s store_kernel(raw_array(pointer(a)))
+    fetch(Threads.@spawn (stream!(other); a .+= 1; unsafe_use(a)))
+    synchronize(other)
+
+    # library pointer conversions on another task wait for the launch
+    p = pointer(a)
+    synchronize(s)
+    @test gated(s) do
+        @cuda stream=s store_kernel(raw_array(p))
+        open_gate_during() do
+            fetch(Threads.@spawn (stream!(other); unsafe_use(a)))
+        end
+    end
+
+    # and so do kernels on another task's stream
+    p = pointer(a)
+    synchronize(s)
+    @test gated(s) do
+        @cuda stream=s store_kernel(raw_array(p))
+        fetch(Threads.@spawn begin
+            stream!(other)
+            a .+= 1
+            !CUDA.isdone(other)
+        end)
+    end
+    synchronize(other)
+    @test Array(a) == [43]
+end
+
+# an event can be recorded again while another task waits for it, which then doesn't tell
+# anything about the work covered by the earlier recording
+let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream(), e = CuEvent()
+    @test gated(s) do
+        a .+= 1
+        record(e)
+        waiter = Threads.@spawn synchronize(e)
+        for _ in 1:100
+            yield()
+        end
+        record(e, other)
+        wait(waiter)
+        open_gate_during() do
+            fetch(Threads.@spawn (stream!(other); unsafe_use(a)))
+        end
+    end
+end
+
 end
 
 ############################################################################################

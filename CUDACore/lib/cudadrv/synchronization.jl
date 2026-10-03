@@ -20,7 +20,12 @@ function worker_synchronize((obj, ctx))
         unchecked_synchronize(obj)
     end
 end
-worker_isdone((obj, ctx)) = isdone(obj)
+worker_isdone((obj, ctx)) = poll(obj)
+
+# whether the object is done, without taking locks, so that this can be called from any
+# thread. (`isdone` on an event also learns what the work it covers is.)
+poll(obj::CuStream) = isdone(obj)
+poll(obj::CuEvent) = unsafe_isdone(obj)
 
 function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     obj isa CuEvent || check_capture(obj)
@@ -30,7 +35,7 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     pollable = !(obj isa CuContext)
 
     # if we're about to wait, now may be a good time for a GC pause
-    if !pollable || !isdone(obj)
+    if !pollable || !poll(obj)
         maybe_collect(true)
     end
 
@@ -65,7 +70,9 @@ end
 # XXX: compute-sanitizer doesn't treat a successful query of an event as synchronization, and
 #      reports races with the work that the event ordered (#3346). so when synchronizing an
 #      event finds it done by polling, synchronize it too. that only blocks if the event was
-#      recorded again since. other queries of events, e.g. with `isdone`, aren't covered.
+#      recorded again since. `isdone` also does so when it learns that tracked work has
+#      completed. other queries of events, e.g. the ones that gate releasing held resources
+#      and reusing cached memory, aren't covered.
 #      synchronizing is prohibited while another thread captures in global mode, even though
 #      it doesn't affect that capture, so relax the capture mode.
 synchronize_completed(event::CuEvent) =
@@ -77,6 +84,14 @@ function device_synchronize(; blocking::Bool=false, spin::Bool=true)
 end
 
 function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool=true)
+    order = stream.order
+    epoch = if order === nothing
+        nothing
+    else
+        # (a stream that is being captured can't be synchronized, so don't close its epoch)
+        check_capture(stream)
+        close_epoch!(order)
+    end
     if stream.handle == CU_STREAM_PER_THREAD && !blocking && use_nonblocking_synchronization
         # the per-thread stream is specific to the calling thread, so it can't be
         # synchronized from a worker thread. wait for an event recorded on it instead.
@@ -90,8 +105,15 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
     else
         synchronize_object(stream; blocking, spin)
     end
+    epoch === nothing || mark_completed!(order, epoch)
     check_exceptions()
 end
 
-synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true) =
+# the event's lock isn't held while waiting, so that other tasks can record or query it in
+# the meantime. what the wait covers is only learned if the event hasn't been recorded again.
+function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
+    source = Base.@lock event.lock event.source
     synchronize_object(event; blocking, spin)
+    source === nothing || Base.@lock event.lock mark_completed!(event, source)
+    return
+end
