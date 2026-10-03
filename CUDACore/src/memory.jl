@@ -603,6 +603,7 @@ mutable struct Managed{M}
   dirty::Bool
 
   # whether the memory has been captured in a way that would make the dirty bit unreliable
+  # (only for captures that CUDA.jl doesn't know about, see `take_ownership!`)
   captured::Bool
 
   # how many graphs use this memory, and how to release it when they're gone, in case its
@@ -673,8 +674,16 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
                          capturing::Bool=is_capturing(stream)) where {M}
   sizeof(managed) == 0 && return managed
 
-  # accessing memory during stream capture: taint the memory so that we always synchronize
   if capturing
+    capture = current_capture(stream)
+    if capture !== nothing
+      # captured operations don't execute until the graph is launched, so only record the
+      # use of the memory. the graph will take ownership of it when it is launched.
+      record!(capture, managed)
+      return managed
+    end
+
+    # an unknown capture: taint the memory so that we always synchronize
     managed.captured = true
   end
 

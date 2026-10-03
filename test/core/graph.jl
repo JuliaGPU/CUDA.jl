@@ -45,6 +45,37 @@ end
     @test_throws ErrorException update(exec, capture(() -> (b .+= 1; b .+= 1)))
 end
 
+@testset "memory is kept alive" begin
+    x = CUDA.ones(Float32, 1024)
+    y = CUDA.zeros(Float32, 1024)
+    y .+= x
+    exec = instantiate(capture(() -> y .+= x))
+
+    # freeing the input, and allocating new memory that could reuse it, doesn't affect the
+    # graph. the executable graph also doesn't need the graph to be kept around.
+    CUDA.unsafe_free!(x)
+    x = nothing
+    GC.gc(true)
+    z = CUDA.fill(42f0, 1024)
+    exec()
+    exec()
+    @test Array(y) == fill(3f0, 1024)
+    @test Array(z) == fill(42f0, 1024)
+
+    # neither do views or wrapped arrays
+    p = CUDA.ones(Float32, 2048)
+    v = view(p, 1025:2048)
+    w = unsafe_wrap(CuArray, fill(2f0, 1024))
+    kernel(y, v, w) = (i = threadIdx().x; y[i] += v[i] + w[i]; nothing)
+    @cuda threads=1024 kernel(y, v, w)
+    exec = instantiate(capture(() -> @cuda threads=1024 kernel(y, v, w)))
+    p = v = w = nothing
+    GC.gc(true)
+    CUDA.fill(0f0, 2048)
+    exec()
+    @test Array(y) == fill(9f0, 1024)
+end
+
 @testset "garbage collection during capture" begin
     # garbage that was last used on various streams, using various kinds of memory
     function garbage(M, s)
@@ -94,9 +125,35 @@ end
     @test_throws ArgumentError capture(() -> throw(ArgumentError("oops")); throw_error=false)
     @test !is_capturing()
 
+    # arrays from an allocation cache would be reused when the cache's scope ends
+    cache = GPUArrays.AllocCache()
+    GPUArrays.@cached cache begin
+        b = CUDA.zeros(Int, 4)
+        @test_throws CaptureError capture(() -> b .+= 1)
+    end
+
     # the stream is still usable
     a .+= 1
     @test Array(a) == fill(2, 4)
+end
+
+@testset "multitasking" begin
+    a = CUDA.zeros(Float32, 1024)
+    b = CUDA.zeros(Float32, 1024)
+    a .+= 1
+    exec = instantiate(capture(() -> a .+= 1))
+
+    # launching a graph synchronizes with other tasks like other operations do
+    for i in 1:10
+        @sync begin
+            Threads.@spawn begin
+                exec()
+            end
+        end
+        b .+= a
+    end
+    @test Array(a) == fill(11f0, 1024)
+    @test Array(b) == fill(sum(2:11), 1024)
 end
 
 @testset "@captured" begin
