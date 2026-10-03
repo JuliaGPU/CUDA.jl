@@ -536,6 +536,18 @@ end
 # bisect on alloc failure. GC.gc(true) drains pending finalizers before
 # returning, so the post-GC purge sees caches populated by wrapper finalizers.
 function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
+    # prevent captures from starting while reclaiming memory
+    @lock drain_lock reclaim_step_locked(level, dev, stream_ordered)
+end
+function reclaim_step_locked(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
+    if active_captures[] > 0
+        # while a graph is being captured, the device can't be synchronized, and purging
+        # caches would destroy objects, which isn't allowed either. collecting garbage only
+        # retires memory, which will be released after the capture has ended.
+        level >= RECLAIM_GC && GC.gc(true)
+        return
+    end
+
     # memory is also freed asynchronously when not using a pool
     async = async_free_supported(dev)
     drain_retired()
@@ -565,6 +577,10 @@ function trim_pools(dev::CuDevice, stream_ordered::Bool)
     for pool in (host_pool(), unified_pool())
         pool === nothing || trim(pool)
     end
+    # memory allocated by graphs (e.g., by libraries during capture) is cached separately
+    if driver_version() >= v"11.4" && memory_pools_supported(dev)
+        cuDeviceGraphMemTrim(dev)
+    end
 end
 
 
@@ -591,14 +607,20 @@ mutable struct Managed{M}
   dirty::Bool
 
   # whether the memory has been captured in a way that would make the dirty bit unreliable
+  # (only for captures that CUDA.jl doesn't know about, see `take_ownership!`)
   captured::Bool
+
+  # how many graphs use this memory, and how to release it when they're gone, in case its
+  # owner has released it in the meantime (see `lease!` and `release`)
+  Base.@atomic leases::Int
+  Base.@atomic pending::Any
 
   function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
                    dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
-                     synchronizing, dirty, captured)
+                     synchronizing, dirty, captured, 0, nothing)
   end
 end
 
@@ -632,7 +654,9 @@ end
 # may be capturing the stream, so check that while holding the lock that recycling takes.
 function pending_work(managed::Managed)
   @lock stream_disposal_lock begin
-    (recycled(managed) || isdone(managed.stream)) && return nothing
+    recycled(managed) && return nothing
+    check_capture(managed.stream)
+    isdone(managed.stream) && return nothing
     event = CuEvent(EVENT_DISABLE_TIMING)
     record(event, managed.stream)
     return event
@@ -654,8 +678,16 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
                          capturing::Bool=is_capturing(stream)) where {M}
   sizeof(managed) == 0 && return managed
 
-  # accessing memory during stream capture: taint the memory so that we always synchronize
   if capturing
+    capture = current_capture(stream)
+    if capture !== nothing
+      # captured operations don't execute until the graph is launched, so only record the
+      # use of the memory. the graph will take ownership of it when it is launched.
+      record!(capture, managed)
+      return managed
+    end
+
+    # an unknown capture: taint the memory so that we always synchronize
     managed.captured = true
   end
 
@@ -743,6 +775,52 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
 end
 
 
+## leases
+#
+# graphs use memory whenever they are launched, long after the operations that use the memory
+# were captured. to keep that memory alive, graphs lease it: releasing leased memory (from
+# whatever owns it, e.g., an array that's been freed) is postponed until the last lease ends.
+# all ways to release managed memory go through `release`, so that they respect leases.
+
+"""
+    lease!(managed::Managed)
+
+Prevent memory from being released until a matching call to [`unlease!`](@ref).
+"""
+function lease!(managed::Managed)
+  Base.@atomic managed.leases += 1
+  return managed
+end
+
+"""
+    unlease!(managed::Managed)
+
+End a lease on memory, releasing it if it was released while leased.
+"""
+function unlease!(managed::Managed)
+  if (Base.@atomic managed.leases -= 1) == 0
+    f = Base.@atomicswap managed.pending = nothing
+    f === nothing || f(managed)
+  end
+  return
+end
+
+# release memory by calling `f(managed)`, now, or when the last lease ends. this can be
+# called from a finalizer, as long as `f` can be.
+function release(f, managed::Managed)
+  if (Base.@atomic managed.leases) > 0
+    Base.@atomic managed.pending = f
+    # the last lease may have ended in the meantime, in which case `unlease!` might not have
+    # seen `f`. whoever takes it from `pending` first calls it.
+    (Base.@atomic managed.leases) > 0 && return
+    f = Base.@atomicswap managed.pending = nothing
+    f === nothing && return
+  end
+  f(managed)
+  return
+end
+
+
 ## retirement of resources freed by finalizers
 #
 # finalizers run on whatever thread triggers a collection, or releases a lock while
@@ -779,6 +857,38 @@ function retire!(resource)
   return
 end
 
+# run `f`, which disposes of resources, unless a graph is being captured. returns whether
+# `f` was called.
+function disposing(f)
+  active_captures[] == 0 || return false
+  # captures only start while holding the drain lock (see `capture_stream`)
+  @lock drain_lock begin
+    active_captures[] == 0 || return false
+    f()
+  end
+  return true
+end
+
+# dispose of a resource now, if possible. that isn't possible from a finalizer, nor while a
+# graph is being captured: disposing of resources often involves API calls that aren't
+# allowed then, or that would end up being captured (e.g., freeing memory that was last used
+# on the stream being captured). such resources are disposed of once the capture has ended.
+function discard(resource)
+  # captures only start while holding the drain lock (see `capture_stream`)
+  if !GC.in_finalizer() && active_captures[] == 0 && trylock(drain_lock)
+    try
+      if active_captures[] == 0
+        dispose(resource)
+        return
+      end
+    finally
+      unlock(drain_lock)
+    end
+  end
+  retire!(resource)
+  return
+end
+
 # drains detach the list, and process it holding a lock, so that a bounded drain can leave
 # the rest for a later one (in `retired_backlog`) without having to put it back.
 const drain_lock = ReentrantLock()
@@ -791,7 +901,8 @@ Dispose of (at most `limit`) resources that have been retired by finalizers, e.g
 memory available to future allocations. Returns the number of resources disposed of.
 """
 function drain_retired(limit::Int=typemax(Int))
-  GC.in_finalizer() && return 0
+  # (captures drain retired resources when they end)
+  (GC.in_finalizer() || active_captures[] > 0) && return 0
   if (Base.@atomic :monotonic retired_memory.head) === nothing &&
      (Base.@atomic :monotonic retired_backlog.head) === nothing
     pending_owner_count[] == 0 && destroyed_stream_count[] == 0 && return 0
@@ -805,6 +916,8 @@ function drain_retired(limit::Int=typemax(Int))
   end
   n = 0
   try
+    # captures only start while holding the drain lock, so check again
+    active_captures[] > 0 && return 0
     while n < limit
       node = Base.@atomic :monotonic retired_backlog.head
       if node === nothing
@@ -963,9 +1076,7 @@ const pending_owners = Tuple{CuEvent,Any}[]
 const pending_owners_lock = ReentrantLock()
 const pending_owner_count = Ref(0)
 
-release_owner(owner, managed::Managed) =
-  GC.in_finalizer() ? retire!(RetiredOwner(owner, managed)) :
-                      dispose(RetiredOwner(owner, managed))
+release_owner(owner, managed::Managed) = discard(RetiredOwner(owner, managed))
 
 function dispose(retired::RetiredOwner)
   stream = retired.managed.stream
@@ -1019,10 +1130,13 @@ cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return Managed(B())
 
+  state = active_state()
+  in_capture(state.stream) && return capture_alloc(B, sz, state)
+
   drain_retired(ALLOC_DRAIN_LIMIT)
   maybe_collect()
   time = Base.@elapsed begin
-    mem = _pool_alloc(B, sz)
+    mem = _pool_alloc(B, sz, state)
   end
 
   Base.@atomic alloc_stats.alloc_count += 1
@@ -1032,9 +1146,8 @@ cannot be satisfied.
 
   return Managed(mem)
 end
-@inline function _pool_alloc(::Type{DeviceMemory}, sz)
-    state = active_state()
 
+@inline function _pool_alloc(::Type{DeviceMemory}, sz, state)
     mem = if stream_ordered(state.device)
       pool_mark!(state.device, true)
       pool = pool_create(state.device)
@@ -1071,18 +1184,18 @@ end
 
     mem
 end
-@inline function _pool_alloc(::Type{UnifiedMemory}, sz)
+@inline function _pool_alloc(::Type{UnifiedMemory}, sz, state)
   # NOTE: no `retry_reclaim` here. `cuMemAllocManaged` allocates lazily and
   # essentially never returns `ERROR_OUT_OF_MEMORY` — when host RAM is actually
   # exhausted, the OS kills the process on the page fault before the driver
   # call can fail. The only thing that can prevent OOM is the proactive
   # `maybe_collect` call in `pool_alloc`, which uses `_host_stats`.
-  mem = alloc_unified(sz)
+  mem = alloc_unified(sz, state)
   account!(_host_stats, sizeof(mem))
   mem
 end
-@inline function _pool_alloc(::Type{HostMemory}, sz)
-  mem = alloc_host(sz)
+@inline function _pool_alloc(::Type{HostMemory}, sz, state)
+  mem = alloc_host(sz, state)
   account!(_host_stats, sizeof(mem))
   mem
 end
@@ -1094,17 +1207,14 @@ Releases memory to the pool. If possible, this operation will not block but will
 against the stream that last used the memory.
 
 When called from a finalizer, the memory is only retired, and released later by a regular
-task (see [`drain_retired`](@ref)).
+task (see [`drain_retired`](@ref)). Memory that is used by a graph is only released when
+that graph is destroyed.
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
   # 0-byte allocations shouldn't hit the pool
   sizeof(managed.mem) == 0 && return
 
-  if GC.in_finalizer()
-    retire!(managed)
-  else
-    dispose(managed)
-  end
+  release(discard, managed)
   return
 end
 
@@ -1338,12 +1448,11 @@ purge!(cache::BlockCache) = (cache_release!(cache); nothing)
 function maybe_release!(cache::BlockCache)
   limit = cache_limit()
   bytes = Base.@atomic cache.bytes
-  bytes > limit && cache_release!(cache, bytes - limit ÷ 2)
+  bytes > limit && disposing(() -> cache_release!(cache, bytes - limit ÷ 2))
   return
 end
 
-function alloc_host(sz)
-  state = active_state()
+function alloc_host(sz, state=active_state())
   pool = host_pool()
   if pool !== nothing
     ptr = alloc_from_pool(pool, sz, state.stream)
@@ -1357,8 +1466,7 @@ function alloc_host(sz)
   return alloc(HostMemory, sz)
 end
 
-function alloc_unified(sz)
-  state = active_state()
+function alloc_unified(sz, state=active_state())
   pool = unified_pool()
   if pool !== nothing
     ptr = alloc_from_pool(pool, sz, state.stream)
@@ -1415,8 +1523,7 @@ function dispose(reg::RetiredRegistration)
   return
 end
 
-release_registration(reg::RetiredRegistration) =
-  GC.in_finalizer() ? retire!(reg) : dispose(reg)
+release_registration(reg::RetiredRegistration) = discard(reg)
 
 # unregister pending registrations. this blocks, also kernel launches from other threads,
 # until all running kernels have finished, so only do so when reclaiming memory.
@@ -1452,7 +1559,7 @@ function register_host_memory(ptr::Ptr, sz::Integer, flags=0)
   # before registering more memory, unregister pending registrations if there are many
   drain_retired(ALLOC_DRAIN_LIMIT)
   if (Base.@atomic pending_registrations.bytes) > cache_limit()
-    unregister_pending!()
+    disposing(unregister_pending!)
   end
 
   try
@@ -1461,7 +1568,7 @@ function register_host_memory(ptr::Ptr, sz::Integer, flags=0)
     # the memory may still be registered, e.g., when the memory backing an array that was
     # wrapped by pointer has been freed and reused.
     (err isa CuError && err.code == ERROR_HOST_MEMORY_ALREADY_REGISTERED) || rethrow()
-    unregister_pending!()
+    disposing(unregister_pending!) || rethrow()
     register(HostMemory, ptr, sz, flags)
   end
 end
@@ -1496,8 +1603,7 @@ meant for objects whose destruction may wait for running kernels to finish, and 
 from a finalizer, e.g., `finalizer(obj -> destroy_later(unsafe_destroy!, obj), obj)`.
 """
 function destroy_later(f, obj)
-  destruction = DeferredDestruction(f, obj)
-  GC.in_finalizer() ? retire!(destruction) : dispose(destruction)
+  discard(DeferredDestruction(f, obj))
   return
 end
 
