@@ -20,7 +20,12 @@ mutable struct StreamOrder
     Base.@atomic owner::Union{Nothing,WeakRef}
     Base.@atomic shared::Bool
 
-    StreamOrder() = new(1, 0, nothing, false)
+    # work submitted to this stream from now on is ordered after the accesses to other
+    # streams up to these epochs, because the stream waited for an event covering them.
+    # weakly keyed, as there's nothing to learn about streams that are gone.
+    const waited::WeakKeyDict{StreamOrder,UInt64}
+
+    StreamOrder() = new(1, 0, nothing, false, WeakKeyDict{StreamOrder,UInt64}())
 end
 
 current_epoch(order::StreamOrder) = Base.@atomic order.epoch
@@ -52,6 +57,21 @@ function bind!(order::StreamOrder)
 end
 
 mark_completed!(order::StreamOrder, epoch::UInt64) = (Base.@atomic order.completed max epoch; return)
+
+# record that work submitted to `order` from now on runs after `source`'s accesses up to `epoch`
+function mark_ordered!(order::StreamOrder, source::StreamOrder, epoch::UInt64)
+    Base.@lock order.waited begin
+        order.waited[source] = max(get(order.waited, source, UInt64(0)), epoch)
+    end
+    return
+end
+
+# whether work submitted to `order` now runs after `source`'s accesses up to `epoch`
+function is_ordered(order::StreamOrder, source::StreamOrder, epoch::UInt64)
+    Base.@lock order.waited begin
+        epoch <= get(order.waited, source, UInt64(0))
+    end
+end
 
 """
     CuStream(; flags=STREAM_DEFAULT, priority=nothing)

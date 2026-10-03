@@ -1091,14 +1091,14 @@ let long = CuStream()
 end
 
 # memory moving to another stream does not synchronize the stream that last used it when
-# that use is known to be complete through an event
+# that use is known to be complete, or ordered before the new stream's work, through an event
 let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream()
     # warm up, as compiling and creating streams may wait for the GPU to become idle
     a .+= 1
     fetch(Threads.@spawn (stream!(other); a .+= 1))
     synchronize()
 
-    for wait_for in (synchronize,)
+    for wait_for in (CUDA.wait, synchronize)
         a .+= 1
         e = CuEvent()
         record(e)
@@ -1112,8 +1112,21 @@ let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream()
         end
     end
 
+    # a use after the event still needs to be synchronized
+    e = CuEvent()
+    record(e)
+    @test gated(s) do
+        a .+= 1
+        open_gate_during() do
+            fetch(Threads.@spawn begin
+                stream!(other)
+                CUDA.wait(e)
+                a .+= 1
+            end)
+        end
+    end
     synchronize(other)
-    @test Array(a) == [4]
+    @test Array(a) == [8]
 end
 
 # an event recorded by another task doesn't cover accesses on the stream, as their work may

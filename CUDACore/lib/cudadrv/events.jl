@@ -106,8 +106,20 @@ end
 Make a stream wait on a event. This only makes the stream wait, and not the host; use
 [`synchronize(::CuEvent)`](@ref) for that.
 """
-wait(e::CuEvent, stream::CuStream=stream()) =
-    cuStreamWaitEvent(stream, e, 0)
+function wait(e::CuEvent, stream::CuStream=stream())
+    Base.@lock e.lock begin
+        cuStreamWaitEvent(stream, e, 0)
+
+        # only learn about the order once the wait has been submitted, so that work isn't
+        # believed to be ordered after the event before it actually is
+        source = e.source
+        order = stream.order
+        if source !== nothing && order !== nothing && !is_capturing(stream)
+            mark_ordered!(order, source...)
+        end
+    end
+    return
+end
 
 """
     elapsed(start::CuEvent, stop::CuEvent)
