@@ -23,6 +23,8 @@ end
 worker_isdone((obj, ctx)) = isdone(obj)
 
 function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
+    obj isa CuEvent || check_capture(obj)
+
     # there is no way to poll an entire context (querying the legacy stream does not cover
     # non-blocking streams)
     pollable = !(obj isa CuContext)

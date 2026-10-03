@@ -536,6 +536,18 @@ end
 # bisect on alloc failure. GC.gc(true) drains pending finalizers before
 # returning, so the post-GC purge sees caches populated by wrapper finalizers.
 function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
+    # prevent captures from starting while reclaiming memory
+    @lock drain_lock reclaim_step_locked(level, dev, stream_ordered)
+end
+function reclaim_step_locked(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
+    if active_captures[] > 0
+        # while a graph is being captured, the device can't be synchronized, and purging
+        # caches would destroy objects, which isn't allowed either. collecting garbage only
+        # retires memory, which will be released after the capture has ended.
+        level >= RECLAIM_GC && GC.gc(true)
+        return
+    end
+
     # memory is also freed asynchronously when not using a pool
     async = async_free_supported(dev)
     drain_retired()
@@ -637,7 +649,9 @@ end
 # may be capturing the stream, so check that while holding the lock that recycling takes.
 function pending_work(managed::Managed)
   @lock stream_disposal_lock begin
-    (recycled(managed) || isdone(managed.stream)) && return nothing
+    recycled(managed) && return nothing
+    check_capture(managed.stream)
+    isdone(managed.stream) && return nothing
     event = CuEvent(EVENT_DISABLE_TIMING)
     record(event, managed.stream)
     return event
@@ -830,6 +844,38 @@ function retire!(resource)
   return
 end
 
+# run `f`, which disposes of resources, unless a graph is being captured. returns whether
+# `f` was called.
+function disposing(f)
+  active_captures[] == 0 || return false
+  # captures only start while holding the drain lock (see `capture_stream`)
+  @lock drain_lock begin
+    active_captures[] == 0 || return false
+    f()
+  end
+  return true
+end
+
+# dispose of a resource now, if possible. that isn't possible from a finalizer, nor while a
+# graph is being captured: disposing of resources often involves API calls that aren't
+# allowed then, or that would end up being captured (e.g., freeing memory that was last used
+# on the stream being captured). such resources are disposed of once the capture has ended.
+function discard(resource)
+  # captures only start while holding the drain lock (see `capture_stream`)
+  if !GC.in_finalizer() && active_captures[] == 0 && trylock(drain_lock)
+    try
+      if active_captures[] == 0
+        dispose(resource)
+        return
+      end
+    finally
+      unlock(drain_lock)
+    end
+  end
+  retire!(resource)
+  return
+end
+
 # drains detach the list, and process it holding a lock, so that a bounded drain can leave
 # the rest for a later one (in `retired_backlog`) without having to put it back.
 const drain_lock = ReentrantLock()
@@ -842,7 +888,8 @@ Dispose of (at most `limit`) resources that have been retired by finalizers, e.g
 memory available to future allocations. Returns the number of resources disposed of.
 """
 function drain_retired(limit::Int=typemax(Int))
-  GC.in_finalizer() && return 0
+  # (captures drain retired resources when they end)
+  (GC.in_finalizer() || active_captures[] > 0) && return 0
   if (Base.@atomic :monotonic retired_memory.head) === nothing &&
      (Base.@atomic :monotonic retired_backlog.head) === nothing
     pending_owner_count[] == 0 && destroyed_stream_count[] == 0 && return 0
@@ -856,6 +903,8 @@ function drain_retired(limit::Int=typemax(Int))
   end
   n = 0
   try
+    # captures only start while holding the drain lock, so check again
+    active_captures[] > 0 && return 0
     while n < limit
       node = Base.@atomic :monotonic retired_backlog.head
       if node === nothing
@@ -1014,9 +1063,7 @@ const pending_owners = Tuple{CuEvent,Any}[]
 const pending_owners_lock = ReentrantLock()
 const pending_owner_count = Ref(0)
 
-release_owner(owner, managed::Managed) =
-  GC.in_finalizer() ? retire!(RetiredOwner(owner, managed)) :
-                      dispose(RetiredOwner(owner, managed))
+release_owner(owner, managed::Managed) = discard(RetiredOwner(owner, managed))
 
 function dispose(retired::RetiredOwner)
   stream = retired.managed.stream
@@ -1152,9 +1199,7 @@ that graph is destroyed.
   # 0-byte allocations shouldn't hit the pool
   sizeof(managed.mem) == 0 && return
 
-  release(managed) do managed
-    GC.in_finalizer() ? retire!(managed) : dispose(managed)
-  end
+  release(discard, managed)
   return
 end
 
@@ -1388,7 +1433,7 @@ purge!(cache::BlockCache) = (cache_release!(cache); nothing)
 function maybe_release!(cache::BlockCache)
   limit = cache_limit()
   bytes = Base.@atomic cache.bytes
-  bytes > limit && cache_release!(cache, bytes - limit ÷ 2)
+  bytes > limit && disposing(() -> cache_release!(cache, bytes - limit ÷ 2))
   return
 end
 
@@ -1465,8 +1510,7 @@ function dispose(reg::RetiredRegistration)
   return
 end
 
-release_registration(reg::RetiredRegistration) =
-  GC.in_finalizer() ? retire!(reg) : dispose(reg)
+release_registration(reg::RetiredRegistration) = discard(reg)
 
 # unregister pending registrations. this blocks, also kernel launches from other threads,
 # until all running kernels have finished, so only do so when reclaiming memory.
@@ -1502,7 +1546,7 @@ function register_host_memory(ptr::Ptr, sz::Integer, flags=0)
   # before registering more memory, unregister pending registrations if there are many
   drain_retired(ALLOC_DRAIN_LIMIT)
   if (Base.@atomic pending_registrations.bytes) > cache_limit()
-    unregister_pending!()
+    disposing(unregister_pending!)
   end
 
   try
@@ -1511,7 +1555,7 @@ function register_host_memory(ptr::Ptr, sz::Integer, flags=0)
     # the memory may still be registered, e.g., when the memory backing an array that was
     # wrapped by pointer has been freed and reused.
     (err isa CuError && err.code == ERROR_HOST_MEMORY_ALREADY_REGISTERED) || rethrow()
-    unregister_pending!()
+    disposing(unregister_pending!) || rethrow()
     register(HostMemory, ptr, sz, flags)
   end
 end
@@ -1546,8 +1590,7 @@ meant for objects whose destruction may wait for running kernels to finish, and 
 from a finalizer, e.g., `finalizer(obj -> destroy_later(unsafe_destroy!, obj), obj)`.
 """
 function destroy_later(f, obj)
-  destruction = DeferredDestruction(f, obj)
-  GC.in_finalizer() ? retire!(destruction) : dispose(destruction)
+  discard(DeferredDestruction(f, obj))
   return
 end
 
