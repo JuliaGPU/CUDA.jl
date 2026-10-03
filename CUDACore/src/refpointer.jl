@@ -52,7 +52,15 @@ mutable struct CuRefValue{T} <: AbstractCuRef{T}
 end
 function CuRefValue{T}(x::T) where {T}
     ref = CuRefValue{T}()
-    ref[] = x
+    if in_capture(stream())
+        # initializing a reference while capturing would add a memory copy to the graph,
+        # which is relatively expensive to launch. instead, initialize it right away: the
+        # memory was allocated for this capture (see `capture_alloc`), so it can't be used
+        # by any operations that were captured before.
+        initialize_during_capture(ref.buf, x)
+    else
+        ref[] = x
+    end
     return ref
 end
 CuRefValue{T}(x) where {T} = CuRefValue{T}(convert(T, x))

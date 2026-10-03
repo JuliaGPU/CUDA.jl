@@ -76,6 +76,33 @@ end
     @test Array(y) == fill(9f0, 1024)
 end
 
+@testset "allocations" begin
+    x = CUDA.ones(Float32, 1024)
+    y = x .+ 1
+    local z
+    exec = instantiate(capture() do
+        z = x .+ 1          # memory is allocated outside of the graph
+        y .= 2 .* z
+    end)
+    @test size(z) == (1024,)
+
+    used = CUDA.used_memory()
+    for i in 1:10
+        x .= i
+        exec()
+        # the allocated memory is reused, and overwritten by every launch
+        @test Array(z) == fill(Float32(i + 1), 1024)
+        @test Array(y) == fill(Float32(2(i + 1)), 1024)
+    end
+    @test CUDA.used_memory() == used
+
+    # memory allocated during capture can be used right away
+    local w
+    graph = capture(() -> w = CUDA.zeros(Float32, 4))
+    copyto!(w, Float32[1, 2, 3, 4])
+    @test Array(w) == [1, 2, 3, 4]
+end
+
 @testset "garbage collection during capture" begin
     # garbage that was last used on various streams, using various kinds of memory
     function garbage(M, s)

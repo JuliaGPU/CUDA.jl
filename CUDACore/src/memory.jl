@@ -1126,10 +1126,13 @@ cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return Managed(B())
 
+  state = active_state()
+  in_capture(state.stream) && return capture_alloc(B, sz, state)
+
   drain_retired(ALLOC_DRAIN_LIMIT)
   maybe_collect()
   time = Base.@elapsed begin
-    mem = _pool_alloc(B, sz)
+    mem = _pool_alloc(B, sz, state)
   end
 
   Base.@atomic alloc_stats.alloc_count += 1
@@ -1139,9 +1142,8 @@ cannot be satisfied.
 
   return Managed(mem)
 end
-@inline function _pool_alloc(::Type{DeviceMemory}, sz)
-    state = active_state()
 
+@inline function _pool_alloc(::Type{DeviceMemory}, sz, state)
     mem = if stream_ordered(state.device)
       pool_mark!(state.device, true)
       pool = pool_create(state.device)
@@ -1178,18 +1180,18 @@ end
 
     mem
 end
-@inline function _pool_alloc(::Type{UnifiedMemory}, sz)
+@inline function _pool_alloc(::Type{UnifiedMemory}, sz, state)
   # NOTE: no `retry_reclaim` here. `cuMemAllocManaged` allocates lazily and
   # essentially never returns `ERROR_OUT_OF_MEMORY` — when host RAM is actually
   # exhausted, the OS kills the process on the page fault before the driver
   # call can fail. The only thing that can prevent OOM is the proactive
   # `maybe_collect` call in `pool_alloc`, which uses `_host_stats`.
-  mem = alloc_unified(sz)
+  mem = alloc_unified(sz, state)
   account!(_host_stats, sizeof(mem))
   mem
 end
-@inline function _pool_alloc(::Type{HostMemory}, sz)
-  mem = alloc_host(sz)
+@inline function _pool_alloc(::Type{HostMemory}, sz, state)
+  mem = alloc_host(sz, state)
   account!(_host_stats, sizeof(mem))
   mem
 end
@@ -1446,8 +1448,7 @@ function maybe_release!(cache::BlockCache)
   return
 end
 
-function alloc_host(sz)
-  state = active_state()
+function alloc_host(sz, state=active_state())
   pool = host_pool()
   if pool !== nothing
     ptr = alloc_from_pool(pool, sz, state.stream)
@@ -1461,8 +1462,7 @@ function alloc_host(sz)
   return alloc(HostMemory, sz)
 end
 
-function alloc_unified(sz)
-  state = active_state()
+function alloc_unified(sz, state=active_state())
   pool = unified_pool()
   if pool !== nothing
     ptr = alloc_from_pool(pool, sz, state.stream)
