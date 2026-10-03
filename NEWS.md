@@ -22,6 +22,10 @@ are listed as subsections of the minor release they belong to.
   checked, so out-of-bounds indices that happened to linearize into the array
   (e.g. `A[3, 1]` on a 2×2 array) were accepted. Linear indexing now also
   rejects indices below 1.
+- Unified-memory arrays can be accessed from the CPU while other tasks or
+  threads are using the GPU, on devices without concurrent managed access
+  (Windows, and Jetson boards up to Orin). Previously, that crashed with a
+  memory access error.
 
 
 ## v6.4 (September 2026)
