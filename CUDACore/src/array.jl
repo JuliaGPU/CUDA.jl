@@ -341,16 +341,20 @@ function wrap_host_memory(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
     mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
     DataRef(Managed(mem)) do managed
       # keep the owner alive until the GPU is done with its memory
-      release_owner(owner, managed)
+      release(managed) do managed
+        release_owner(owner, managed)
+      end
     end
   elseif M == HostMemory
     # register as device-accessible host memory
     mem = context!(ctx) do
       register_host_memory(p, sz, MEMHOSTREGISTER_DEVICEMAP)
     end
-    DataRef(Managed(mem)) do args...
+    DataRef(Managed(mem)) do managed, args...
       # unregistering can block, so it is deferred (see `release_registration`)
-      release_registration(RetiredRegistration(mem, false, owner))
+      release(managed) do _
+        release_registration(RetiredRegistration(mem, false, owner))
+      end
     end
   else
     throw(ArgumentError("Cannot wrap system memory as $M"))

@@ -593,12 +593,17 @@ mutable struct Managed{M}
   # whether the memory has been captured in a way that would make the dirty bit unreliable
   captured::Bool
 
+  # how many graphs use this memory, and how to release it when they're gone, in case its
+  # owner has released it in the meantime (see `lease!` and `release`)
+  Base.@atomic leases::Int
+  Base.@atomic pending::Any
+
   function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
                    dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
-                     synchronizing, dirty, captured)
+                     synchronizing, dirty, captured, 0, nothing)
   end
 end
 
@@ -740,6 +745,52 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
     maybe_synchronize(managed)
     return ptr
   end
+end
+
+
+## leases
+#
+# graphs use memory whenever they are launched, long after the operations that use the memory
+# were captured. to keep that memory alive, graphs lease it: releasing leased memory (from
+# whatever owns it, e.g., an array that's been freed) is postponed until the last lease ends.
+# all ways to release managed memory go through `release`, so that they respect leases.
+
+"""
+    lease!(managed::Managed)
+
+Prevent memory from being released until a matching call to [`unlease!`](@ref).
+"""
+function lease!(managed::Managed)
+  Base.@atomic managed.leases += 1
+  return managed
+end
+
+"""
+    unlease!(managed::Managed)
+
+End a lease on memory, releasing it if it was released while leased.
+"""
+function unlease!(managed::Managed)
+  if (Base.@atomic managed.leases -= 1) == 0
+    f = Base.@atomicswap managed.pending = nothing
+    f === nothing || f(managed)
+  end
+  return
+end
+
+# release memory by calling `f(managed)`, now, or when the last lease ends. this can be
+# called from a finalizer, as long as `f` can be.
+function release(f, managed::Managed)
+  if (Base.@atomic managed.leases) > 0
+    Base.@atomic managed.pending = f
+    # the last lease may have ended in the meantime, in which case `unlease!` might not have
+    # seen `f`. whoever takes it from `pending` first calls it.
+    (Base.@atomic managed.leases) > 0 && return
+    f = Base.@atomicswap managed.pending = nothing
+    f === nothing && return
+  end
+  f(managed)
+  return
 end
 
 
@@ -1094,16 +1145,15 @@ Releases memory to the pool. If possible, this operation will not block but will
 against the stream that last used the memory.
 
 When called from a finalizer, the memory is only retired, and released later by a regular
-task (see [`drain_retired`](@ref)).
+task (see [`drain_retired`](@ref)). Memory that is used by a graph is only released when
+that graph is destroyed.
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
   # 0-byte allocations shouldn't hit the pool
   sizeof(managed.mem) == 0 && return
 
-  if GC.in_finalizer()
-    retire!(managed)
-  else
-    dispose(managed)
+  release(managed) do managed
+    GC.in_finalizer() ? retire!(managed) : dispose(managed)
   end
   return
 end
