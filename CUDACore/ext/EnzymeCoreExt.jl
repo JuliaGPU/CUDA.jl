@@ -326,8 +326,10 @@ end
     return idx + 1
 end
 
-# kernel argument types after host-to-device conversion
-@inline device_types(args...) = map(arg -> typeof(cudaconvert(arg)), args)
+# kernel argument types after host-to-device conversion. this needs to match the conversion
+# of an actual launch, which chooses one index type for all arrays (see `kernel_call`).
+@inline device_types(args...) =
+    map(typeof, CUDACore.kernel_call(CUDACore.LLVMBackend(), nothing, args).arguments)
 
 @inline function launch_meta(meta, launch_kwargs, compiler_kwargs, args...)
     call = CUDACore.KernelCall(meta, args...)
@@ -420,7 +422,8 @@ const KernelPipeline = typeof(CUDACore.kernel_pipeline)
 end
 
 @inline function primal_kernel(backend, f, compiler_kwargs, args...)
-    tt = Tuple{map(arg -> Core.Typeof(cudaconvert(arg.val)), args)...}
+    vals = map(arg -> arg.val, args)
+    tt = Tuple{map(Core.Typeof, CUDACore.kernel_call(backend, nothing, vals).arguments)...}
     return CUDACore.kernel_compile(backend, f, tt; compiler_kwargs...)
 end
 

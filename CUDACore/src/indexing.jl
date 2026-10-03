@@ -43,12 +43,13 @@ function Base.findall(bools::AnyCuArray{Bool})
             return
         end
 
-        call = KernelCall(kernel, ys, bools, indices)
-        compiled = kernel_compile(call; name="findall")
-        config = launch_configuration(compiled.fun)
-        threads = min(length(indices), config.threads)
-        blocks = cld(length(indices), threads)
-        kernel_launch(compiled, call; threads, blocks)
+        with_kernel_call(LLVMBackend(), kernel, (ys, bools, indices)) do call
+            compiled = kernel_compile(call; name="findall")
+            config = launch_configuration(compiled.fun)
+            threads = min(length(indices), config.threads)
+            blocks = cld(length(indices), threads)
+            kernel_launch(compiled, call; threads, blocks)
+        end
     end
 
     unsafe_free!(indices)
