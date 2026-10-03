@@ -324,11 +324,17 @@ end
 supports_hmm(dev) = driver_version() >= v"12.2" &&
                     attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
 
-# whether the stream that last used wrapped memory is being captured
+# whether waiting for the stream that last used wrapped memory would interfere with a capture
 function stream_capturing(managed::Managed)
   stream = managed.stream
-  isvalid(stream) && stream.ctx !== nothing &&
+  if stream.ctx === nothing || !isvalid(stream)
+    # waiting for these involves synchronizing the whole context, which isn't allowed while
+    # any of its streams is being captured. we can only know about our own captures, and
+    # one could still start between this check and the wait.
+    active_captures[] > 0
+  else
     context!(() -> is_capturing(stream), stream.ctx)
+  end
 end
 
 # wait for outstanding work on wrapped memory, without blocking the thread. this doesn't
@@ -336,24 +342,36 @@ end
 function wait_for_work(managed::Managed, wrap_ctx::CuContext)
   Base.@lock managed.lock begin
     (managed.dirty || managed.captured) || return
+    while stream_capturing(managed)
+      sleep(0.01)
+    end
     stream = managed.stream
     if stream.ctx === nothing
       # special streams aren't tied to a context or a thread, so wait for the whole context
-      isvalid(wrap_ctx) && nonblocking_synchronize(wrap_ctx)
+      isvalid(wrap_ctx) && wait_relaxed(wrap_ctx, wrap_ctx)
     elseif isvalid(stream)
-      # waiting for a stream that is being captured is not allowed
-      while stream_capturing(managed)
-        sleep(0.01)
-      end
-      nonblocking_synchronize(stream)
+      wait_relaxed(stream, stream.ctx)
     elseif isvalid(stream.ctx)
       # the stream has been destroyed, but its work may still be executing
-      nonblocking_synchronize(stream.ctx)
+      wait_relaxed(stream.ctx, stream.ctx)
     end
     # a destroyed context has no outstanding work
     managed.dirty = false
   end
 end
+
+# the memory may be freed while another stream is being captured, e.g., by the task doing
+# so. waiting for an unrelated stream doesn't affect that capture, so relax the capture mode
+# (which is a property of the thread that waits).
+function wait_relaxed(obj::Union{CuContext,CuStream}, ctx::CuContext)
+  res = cooperative_wait(relaxed_synchronize, (obj, ctx);
+                         isdone = obj isa CuStream ? relaxed_isdone : nothing)
+  res === nothing || something(res) == SUCCESS || throw_api_error(something(res))
+  return
+end
+relaxed_synchronize((obj, ctx)) =
+  context!(() -> relaxed_capture_mode(() -> unchecked_synchronize(obj)), ctx)
+relaxed_isdone((obj, ctx)) = relaxed_capture_mode(() -> isdone(obj))
 
 # release wrapped system memory, and its owner, once outstanding work using it has finished
 function release_after_work(managed::Managed, owner, ctx::CuContext)
@@ -367,7 +385,7 @@ function release_after_work(managed::Managed, owner, ctx::CuContext)
     # a destroyed context has no registrations left
     if managed.mem isa HostMemory && isvalid(ctx)
       context!(ctx) do
-        unregister(managed.mem)
+        relaxed_capture_mode(() -> unregister(managed.mem))
       end
     end
   end

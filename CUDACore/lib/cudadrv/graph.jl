@@ -6,6 +6,10 @@ export CuGraph, capture, instantiate, CuGraphExec, launch, update,
 
 @enum_without_prefix visibility=:public CUstreamCaptureMode CU_
 
+# the number of captures in progress using `capture`. this is needed to avoid operations that
+# would invalidate them, but that can't be checked for on a per-stream basis.
+const active_captures = Threads.Atomic{Int}(0)
+
 """
     CuGraph([flags])
 
@@ -33,12 +37,14 @@ mutable struct CuGraph
         gc_state = GC.enable(false)
         ctx = current_context()
         obj = nothing
+        Threads.atomic_add!(active_captures, 1)
         try
             cuStreamBeginCapture_v2(stream(), flags)
             f()
         finally
             handle_ref = Ref{CUgraph}()
             err = unchecked_cuStreamEndCapture(stream(), handle_ref)
+            Threads.atomic_sub!(active_captures, 1)
             GC.enable(gc_state)
             if err == ERROR_STREAM_CAPTURE_INVALIDATED && !throw_error
                 return nothing
@@ -176,6 +182,19 @@ end
     status = Ref{CUstreamCaptureStatus}()
     cuStreamIsCapturing(stream, status)
     return status[] != STREAM_CAPTURE_STATUS_NONE
+end
+
+# some API calls, like synchronizing a stream, are prohibited while another stream is being
+# captured in global mode, even when they don't interfere with the capture. `f` must not
+# yield, because the capture mode is a property of the thread.
+function relaxed_capture_mode(f)
+    mode = Ref(STREAM_CAPTURE_MODE_RELAXED)
+    cuThreadExchangeStreamCaptureMode(mode)
+    try
+        f()
+    finally
+        cuThreadExchangeStreamCaptureMode(mode)
+    end
 end
 
 

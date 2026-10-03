@@ -187,29 +187,85 @@ end
             @test vec(Array(b)) == 1:1024
         end
 
-        # the Array is only released once outstanding work on the wrapper has finished
+        # the Array is only released once outstanding work on the wrapper has finished.
+        # errors while releasing are only logged, so check for those too.
         for M in memtypes
-            # the kernel's output is written to wrapped host memory, which can be checked
-            # from the CPU without synchronizing
-            outh = [0]
-            out = unsafe_wrap(CuArray{Int,1,M}, outh)
-            a = collect(1:1024)
-            b = unsafe_wrap(CuArray{Int,1,M}, a)
-            @cuda slow_sum(out, b, 500_000_000)
-            CUDA.unsafe_free!(b)
-            @test outh[] == sum(1:1024)
+            @test_logs min_level=Base.CoreLogging.Error begin
+                # the kernel's output is written to wrapped host memory, which can be
+                # checked from the CPU without synchronizing
+                outh = [0]
+                out = unsafe_wrap(CuArray{Int,1,M}, outh)
+                a = collect(1:1024)
+                b = unsafe_wrap(CuArray{Int,1,M}, a)
+                @cuda slow_sum(out, b, 500_000_000)
+                CUDA.unsafe_free!(b)
+                @test outh[] == sum(1:1024)
 
-            # the memory is released right away, so it can be wrapped again
-            b = unsafe_wrap(CuArray{Int,1,M}, a)
-            @test Array(b) == 1:1024
+                # the memory is released right away, so it can be wrapped again
+                b = unsafe_wrap(CuArray{Int,1,M}, a)
+                @test Array(b) == 1:1024
 
-            # also when the stream the work was submitted to has been destroyed since
-            outh[] = 0
-            s = CuStream()
-            @cuda stream=s slow_sum(out, b, 500_000_000)
-            finalize(s)
-            CUDA.unsafe_free!(b)
-            @test outh[] == sum(1:1024)
+                # also when the stream the work was submitted to has been destroyed since
+                outh[] = 0
+                s = CuStream()
+                @cuda stream=s slow_sum(out, b, 500_000_000)
+                finalize(s)
+                CUDA.unsafe_free!(b)
+                @test outh[] == sum(1:1024)
+            end
+        end
+
+        # freeing a wrapper while another stream is being captured, here by the task that
+        # frees it, doesn't affect that capture, and the memory is released once the work
+        # on it has finished
+        for M in memtypes
+            @test_logs min_level=Base.CoreLogging.Error begin
+                outh = [0]
+                out = unsafe_wrap(CuArray{Int,1,M}, outh)
+                a = collect(1:1024)
+                wrapped = Channel(1)
+                finish = Channel(1)
+                t = @async begin
+                    b = unsafe_wrap(CuArray{Int,1,M}, a)
+                    @cuda slow_sum(out, b, 500_000_000)
+                    put!(wrapped, b)
+                    take!(finish)
+                end
+                b = take!(wrapped)
+                c = CUDA.zeros(Int, 1)
+                graph = CUDA.capture() do
+                    CUDA.unsafe_free!(b)
+                    c .+= 1
+                end
+                @test outh[] == sum(1:1024)
+                put!(finish, nothing)
+                wait(t)
+                CUDA.launch(CUDA.instantiate(graph))
+                @test Array(c) == [1]
+
+                # the memory has been released, so it can be wrapped again
+                b = unsafe_wrap(CuArray{Int,1,M}, a)
+                @test Array(b) == 1:1024
+
+                # if the stream has been destroyed, the whole context needs to be waited
+                # for, which can only happen after the capture
+                outh[] = 0
+                s = CuStream()
+                @cuda stream=s slow_sum(out, b, 500_000_000)
+                finalize(s)
+                graph = CUDA.capture() do
+                    CUDA.unsafe_free!(b)
+                    c .+= 1
+                end
+                @test graph !== nothing
+                t0 = time()
+                while (outh[] == 0 || (M == CUDA.HostMemory && CUDA.is_pinned(pointer(a)))) &&
+                      time() - t0 < 10
+                    sleep(0.01)
+                end
+                @test outh[] == sum(1:1024)
+                @test Array(unsafe_wrap(CuArray{Int,1,M}, a)) == 1:1024
+            end
         end
 
         # when the GC frees the wrapper, a task releases the Array
