@@ -576,13 +576,6 @@ function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...)
     return nothing
 end
 
-# `make_zero`/`make_zero!` for GPU arrays, the `Base.fill!` rules and the rules
-# for `GPUArrays.mapreducedim!`/`GPUArrays._mapreduce` used to live here, keyed on
-# `DenseCuArray`/`AnyCuArray`. Nothing in them was CUDA specific, so they moved to
-# Enzyme's GPUArraysCore and GPUArrays extensions, keyed on `AbstractGPUArray`,
-# where every backend gets them. The `fill!` rules covered only
-# `MemsetCompatTypes` here and now cover every float, complex and integer element
-# type. Requires Enzyme >= 0.13.204.
 
 end # module
 
