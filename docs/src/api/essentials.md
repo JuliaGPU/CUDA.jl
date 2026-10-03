@@ -22,4 +22,6 @@ device
 device!
 stream
 stream!
+priority()
+priority!
 ```

@@ -18,6 +18,10 @@ mutable struct CuStream
     # captures the work that was submitted to the stream (a `CuEvent`, if any)
     final_event::Any
 
+    # bumped when the stream is handed to another task (see `create_stream`), which only
+    # happens when it is idle, so work submitted during earlier generations has finished.
+    Base.@atomic generation::Int
+
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
         handle_ref = Ref{CUstream}()
@@ -31,18 +35,18 @@ mutable struct CuStream
         ctx = current_context()
         # make sure memory last used on this stream can be released after destroying it
         disposal_stream(ctx)
-        obj = new(handle_ref[], true, ctx, nothing)
+        obj = new(handle_ref[], true, ctx, nothing, 0)
         # destroying a stream from a finalizer is deferred, as with all resources
         # (see `retire!`), also so that memory that was last used on it can be freed first
         finalizer(retire!, obj)
         return obj
     end
 
-    global default_stream() = new(convert(CUstream, C_NULL), true, nothing, nothing)
+    global default_stream() = new(convert(CUstream, C_NULL), true, nothing, nothing, 0)
 
-    global legacy_stream() = new(convert(CUstream, 1), true, nothing, nothing)
+    global legacy_stream() = new(convert(CUstream, 1), true, nothing, nothing, 0)
 
-    global per_thread_stream() = new(convert(CUstream, 2), true, nothing, nothing)
+    global per_thread_stream() = new(convert(CUstream, 2), true, nothing, nothing, 0)
 end
 
 """
@@ -84,6 +88,9 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
 per_thread_stream()
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
+
+# only bumped while holding `stream_pool_lock` and `stream_disposal_lock`, but read without them
+generation(s::CuStream) = Base.@atomic :acquire s.generation
 
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
@@ -169,7 +176,7 @@ end
 
 
 """
-    priority_range(s::CuStream)
+    priority(s::CuStream)
 
 Return the priority of a stream `s`.
 """

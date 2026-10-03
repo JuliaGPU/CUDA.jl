@@ -145,6 +145,255 @@ end
 @test fetch(task) == s
 @test stream() == default_s
 
+function spin(cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    return
+end
+
+function priority_increment!(a, cycles)
+    spin(cycles)
+    a[1] += 1
+    return
+end
+
+@testset "stream recycling" begin
+    idle_limit = CUDACore.STREAM_POOL_IDLE
+    pool() = CUDACore.stream_pools[(context(), Cint(0), CUDACore.STREAM_DEFAULT)]
+    function finished(entry)
+        owner = entry.owner.value
+        return owner === nothing || istaskdone(owner)
+    end
+
+    # call `f` with the streams of `n` tasks that are alive at the same time
+    function with_concurrent_streams(f, n)
+        ready = Channel{CuStream}(Inf)
+        release = Base.Event()
+        tasks = [Threads.@spawn begin
+                     try
+                         put!(ready, stream())
+                     catch err
+                         # don't leave the caller waiting for our stream
+                         close(ready, err)
+                         rethrow()
+                     end
+                     wait(release)
+                 end for _ in 1:n]
+        try
+            f([take!(ready) for _ in tasks])
+        finally
+            notify(release)
+            foreach(wait, tasks)
+        end
+    end
+
+    # finished tasks hand their stream to new ones, without having to wait for the GC
+    tasks = Task[]
+    streams = map(1:2idle_limit) do _
+        task = Threads.@spawn stream()
+        push!(tasks, task)
+        fetch(task)
+    end
+    @test length(unique(streams)) <= idle_limit
+    @test all(s -> any(entry -> entry.stream == s, pool()), streams)
+
+    # tasks running at the same time never share a stream, even beyond the pool's size,
+    # but only a limited number of idle streams is kept around afterwards
+    streams = with_concurrent_streams(identity, idle_limit+8)
+    @test allunique(streams)
+    foreach(synchronize, streams)
+    @test fetch(Threads.@spawn stream()) in streams
+    @test count(finished, pool()) <= idle_limit+1
+
+    # tasks that keep their stream don't prevent others from being recycled
+    with_concurrent_streams(idle_limit) do _
+        streams = [fetch(Threads.@spawn stream()) for _ in 1:8]
+        @test length(unique(streams)) <= 2
+    end
+
+    # a stream that still has work queued isn't handed to another task
+    busy = fetch(Threads.@spawn begin
+        @cuda spin(1_000_000_000)
+        stream()
+    end)
+    with_concurrent_streams(idle_limit) do streams
+        if !CUDA.isdone(busy)
+            @test !(busy in streams)
+        end
+    end
+    synchronize(busy)
+
+    # streams that can't be used anymore are removed from the pool
+    s = fetch(Threads.@spawn stream())
+    CUDA.unsafe_destroy!(s)
+    @test fetch(Threads.@spawn stream()) !== s
+    @test !any(entry -> entry.stream === s, pool())
+
+    # memory knows that the work of a stream's previous owner has finished, so it doesn't
+    # wait for the new owner, nor gets released on its stream (which the new owner may be
+    # capturing)
+    a = fetch(Threads.@spawn begin
+        a = CuArray([42])
+        synchronize()
+        a
+    end)
+    with_concurrent_streams(idle_limit) do streams
+        @test a.data[].stream in streams
+        @test CUDACore.recycled(a.data[])
+        managed = a.data[]
+        @lock CUDACore.stream_disposal_lock begin
+            handle, _ = CUDACore.release_stream(managed.stream, managed.stream_ctx,
+                                                managed.generation)
+            @test handle == CUDACore.disposal_stream(context())
+        end
+        @test Array(a) == [42]
+    end
+
+    # looking for a stream to recycle doesn't break graph capture
+    capture() do
+        @test fetch(Threads.@spawn stream()) != stream()
+    end
+end
+
+@testset "task priority" begin
+    priority! = CUDA.priority!
+    high = last(priority_range())
+    @test_throws ArgumentError priority!(:invalid)
+    @test_throws ArgumentError priority!(high - 1)
+    @test_throws ArgumentError priority!(false)
+
+    # choosing a priority before first use should not also create a normal stream
+    fetch(Threads.@spawn begin
+        priority!(:high)
+        state = CUDACore.task_local_state!()
+        @test state.streams[deviceid(device())+1] === nothing
+        high_stream = stream()
+        owned = Base.@lock CUDACore.stream_pool_lock begin
+            [entry for entry in Iterators.flatten(values(CUDACore.stream_pools))
+             if entry.owner.value === current_task()]
+        end
+        @test length(owned) == 1
+        @test priority() == high
+        @test priority(high_stream) == high
+
+        priority!(:high)
+        @test stream() === high_stream
+        priority!(high)
+        @test stream() === high_stream
+        priority!(:normal)
+        normal_stream = stream()
+        @test priority() == 0
+        priority!(:low)
+        @test priority() == first(priority_range())
+        priority!(:high)
+        @test stream() === high_stream
+        @test high == 0 || normal_stream !== high_stream
+    end)
+
+    fetch(Threads.@spawn begin
+        high_stream = priority!(:high) do
+            s = stream()
+            priority!(:normal) do
+                @test priority() == 0
+            end
+            @test stream() === s
+            s
+        end
+        @test priority() == 0
+        @test high == 0 || stream() !== high_stream
+    end)
+
+    normal_stream = stream()
+    selected = priority!(:high) do
+        @test priority() == high
+        stream()
+    end
+    @test stream() === normal_stream
+    @test priority() == 0
+    @test priority(selected) == high
+    @test_throws ErrorException priority!(:high) do
+        error("scope failed")
+    end
+    @test stream() === normal_stream
+
+    explicit = CuStream(; flags=CUDACore.STREAM_NON_BLOCKING)
+    stream!(explicit) do
+        priority!(:high) do
+            @test priority() == high
+            @test high == 0 || stream() !== explicit
+            @test CUDACore.stream_flags(stream()) == CUDACore.STREAM_NON_BLOCKING
+        end
+        @test stream() === explicit
+    end
+    @test stream() === normal_stream
+
+    if high != 0
+        fetch(Threads.@spawn begin
+            priority!(:high)
+            stream!(explicit) do
+                priority!(:normal)
+            end
+            @test priority() == high
+            @test priority(stream()) == high
+        end)
+    end
+
+    # KernelAbstractions uses the same task-local selection, without new streams on repeats
+    KA = CUDACore.CUDAKernels.KA
+    fetch(Threads.@spawn begin
+        KA.priority!(CUDACore.CUDABackend(), :high)
+        s = stream()
+        KA.priority!(CUDACore.CUDABackend(), :high)
+        @test stream() === s
+    end)
+
+    # changing priority during capture cannot move the task away from the capturing stream
+    capture() do
+        if high == 0
+            priority!(:high)
+        else
+            @test_throws ArgumentError priority!(:high)
+        end
+        @test stream() === normal_stream
+        priority!(:normal)
+        stream!(explicit) do
+            if high != 0
+                @test_throws ArgumentError priority!(:high)
+            end
+        end
+    end
+
+    if high != 0
+        fetch(Threads.@spawn begin
+            first_stream = stream()
+            @cuda spin(200_000_000)
+            priority!(:high)
+            second_stream = stream()
+            synchronize()
+            @test CUDA.isdone(first_stream)
+            @cuda spin(200_000_000)
+            priority!(:normal)
+            synchronize()
+            @test CUDA.isdone(second_stream)
+        end)
+    end
+
+    a = CuArray(Int32[0])
+    @cuda priority_increment!(a, 0) # compile before switching priorities
+    synchronize()
+    fetch(Threads.@spawn begin
+        # Work on an explicit stream is not ordered by the task's priority handoff.
+        # Using the array on the new stream must synchronize with this kernel.
+        @cuda stream=explicit priority_increment!(a, 200_000_000)
+        priority!(:high)
+        @cuda priority_increment!(a, 0)
+        priority!(:normal)
+        @cuda priority_increment!(a, 0)
+        synchronize()
+    end)
+    @test Array(a) == Int32[4]
+end
+
 @testset "issue 1331: repeated initialization failure should stick" begin
     script = """
         using CUDA, Test

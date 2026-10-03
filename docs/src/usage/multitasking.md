@@ -111,6 +111,26 @@ copy was executed while the GPU was still active with the second round of comput
 Furthermore, the copies executed much quicker -- if the memory were unpinned, it would first
 have to be staged to a pinned CPU buffer anyway.
 
+Streams are not free: each one holds on to some device memory, and many streams slow down
+memory allocation. To keep applications that spawn many short-lived tasks from accumulating
+streams, the stream of a task is recycled once the task has finished and all work on it has
+completed. Tasks that are running at the same time never share a stream, but a newly started
+task may get the stream of an earlier one. If you need a stream that outlives the task that
+uses it, e.g., to pass it on to other tasks, create one explicitly with [`CuStream()`](@ref)
+and activate it with [`stream!`](@ref).
+
+To give a task's subsequent GPU work higher scheduling priority, call
+[`CUDA.priority!`](@ref) in that task. For example, `CUDA.priority!(:high)` selects a
+high-priority stream; `CUDA.priority!(:normal)` selects the normal priority again.
+The scoped form, `CUDA.priority!(:high) do ... end`, restores the previous stream when the
+block ends. CUDA treats stream priority as a scheduling hint for pending kernels, and
+existing work is not interrupted. Repeated priority changes reuse the task's streams.
+Using an array from before the switch may wait on the CPU for pending work on its
+previous stream; switch before queuing long work when that wait matters.
+New tasks start at normal priority, even when spawned from a high-priority task.
+If you selected an explicit stream with `stream!`, use the scoped form of `priority!`
+to restore that stream after the priority change.
+
 
 ## Multithreading
 
