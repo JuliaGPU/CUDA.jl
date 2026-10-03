@@ -179,6 +179,21 @@ function finish_allocations(capture::CaptureState)
     return
 end
 
+# host memory read by a captured copy needs to stay valid for as long as the graph may be
+# launched. copy it to pinned memory, which the graph keeps alive. (this gives captured
+# copies snapshot semantics, which is also what library calls taking scalar arguments by
+# reference need.)
+function stage_host_memory(src::Ptr{T}, nbytes::Integer, stream::CuStream) where {T}
+    capture = current_capture(stream)
+    capture === nothing &&
+        throw(CaptureError("cannot copy from host memory while capturing a graph using the driver API"))
+    managed = capture_alloc(HostMemory, nbytes, active_state())
+    staging = convert(Ptr{UInt8}, managed.mem)
+    Base.unsafe_copyto!(staging, convert(Ptr{UInt8}, src), nbytes)
+    record!(capture, managed)
+    pool_free(managed)  # (only when the graph is gone)
+    return convert(Ptr{T}, staging)
+end
 
 ## graphs
 
@@ -430,6 +445,7 @@ the graph with different inputs, copy them into the arrays used during capture.
 Memory that is used by captured operations is kept alive by the graph. Arrays that are
 allocated during capture are allocated once, outside of the graph, and launching the graph
 overwrites their contents, so allocating operations like `y = a .* x` can be captured too.
+Data copied from the CPU (e.g., when using `CuRef` scalars) is copied when capturing.
 
 Not all operations can be captured. Anything that waits for the GPU, like copying memory
 back to the CPU, or that creates library handles, results in a [`CaptureError`](@ref) or a
