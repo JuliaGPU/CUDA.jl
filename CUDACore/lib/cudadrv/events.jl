@@ -15,12 +15,18 @@ mutable struct CuEvent
     handle::CUevent
     ctx::CuContext
 
+    # the stream and epoch covered by the most recent recording of this event, if tracked.
+    # protected by `lock`, which is held while (re)recording, waiting for, or querying the
+    # event, so that what we learn from it is about the recording it was told about.
+    source::Union{Nothing,Tuple{StreamOrder,UInt64}}
+    const lock::ReentrantLock
+
     function CuEvent(flags=EVENT_DEFAULT)
         handle_ref = Ref{CUevent}()
         cuEventCreate(handle_ref, flags)
 
         ctx = current_context()
-        obj = new(handle_ref[], ctx)
+        obj = new(handle_ref[], ctx, nothing, ReentrantLock())
         finalizer(unsafe_destroy!, obj)
         return obj
     end
@@ -42,8 +48,24 @@ Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 
 Record an event on a stream.
 """
-record(e::CuEvent, stream::CuStream=stream()) =
-    cuEventRecord(e, stream)
+function record(e::CuEvent, stream::CuStream=stream())
+    Base.@lock e.lock begin
+        # recording during capture only adds a node to the graph
+        order = stream.order
+        epoch = order === nothing || is_capturing(stream) ? nothing : close_epoch!(order)
+        e.source = nothing
+        cuEventRecord(e, stream)
+        epoch === nothing || (e.source = (order, epoch))
+    end
+    return
+end
+
+# the event's recording has completed, so the work it covers has too
+function mark_completed!(e::CuEvent)
+    source = e.source
+    source === nothing || mark_completed!(source...)
+    return
+end
 
 """
     synchronize(e::CuEvent)
@@ -59,6 +81,15 @@ Return `false` if there is outstanding work preceding the most recent
 call to `record(e)` and `true` if all captured work has been completed.
 """
 function isdone(e::CuEvent)
+    Base.@lock e.lock begin
+        done = unsafe_isdone(e)
+        done && mark_completed!(e)
+        return done
+    end
+end
+
+# query the event without taking its lock, e.g., from a worker thread
+function unsafe_isdone(e::CuEvent)
     res = unchecked_cuEventQuery(e)
     if res == ERROR_NOT_READY
         return false
@@ -75,8 +106,20 @@ end
 Make a stream wait on a event. This only makes the stream wait, and not the host; use
 [`synchronize(::CuEvent)`](@ref) for that.
 """
-wait(e::CuEvent, stream::CuStream=stream()) =
-    cuStreamWaitEvent(stream, e, 0)
+function wait(e::CuEvent, stream::CuStream=stream())
+    Base.@lock e.lock begin
+        cuStreamWaitEvent(stream, e, 0)
+
+        # only learn about the order once the wait has been submitted, so that work isn't
+        # believed to be ordered after the event before it actually is
+        source = e.source
+        order = stream.order
+        if source !== nothing && order !== nothing && !is_capturing(stream)
+            mark_ordered!(order, source...)
+        end
+    end
+    return
+end
 
 """
     elapsed(start::CuEvent, stop::CuEvent)

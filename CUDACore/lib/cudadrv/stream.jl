@@ -3,6 +3,76 @@
 export CuStream, default_stream, legacy_stream, per_thread_stream,
        unique_id, priority, priority_range, synchronize, device_synchronize
 
+# What the host knows about the work submitted to a stream, so that memory moving between
+# streams only needs to be synchronized when that's actually necessary (see
+# `take_ownership!`). The stream's work is divided in epochs: memory accesses are stamped
+# with the current epoch, and recording an event or synchronizing the stream closes it.
+# An event or synchronization thus covers all accesses stamped with an epoch up to and
+# including the one it closed.
+mutable struct StreamOrder
+    # the epoch accesses are currently stamped with
+    Base.@atomic epoch::UInt64
+
+    # all accesses stamped with this epoch, or an earlier one, have completed
+    Base.@atomic completed::UInt64
+
+    # the task submitting work to this stream, and whether other tasks do so too
+    Base.@atomic owner::Union{Nothing,WeakRef}
+    Base.@atomic shared::Bool
+
+    # work submitted to this stream from now on is ordered after the accesses to other
+    # streams up to these epochs, because the stream waited for an event covering them.
+    # weakly keyed, as there's nothing to learn about streams that are gone.
+    const waited::WeakKeyDict{StreamOrder,UInt64}
+
+    StreamOrder() = new(1, 0, nothing, false, WeakKeyDict{StreamOrder,UInt64}())
+end
+
+current_epoch(order::StreamOrder) = Base.@atomic order.epoch
+
+# close the current epoch, returning it when the operation about to be submitted (an event
+# or synchronization) will cover all accesses stamped with it. the epoch needs to be closed
+# *before* submitting that operation, so that accesses stamped after submitting their own
+# work aren't covered. however, an access may also be stamped when taking a pointer, before
+# submitting the work that uses it. only the task submitting work to the stream knows that
+# has happened, so an epoch closed by another task, or when several tasks submit work to
+# the stream, doesn't cover anything.
+function close_epoch!(order::StreamOrder)
+    epoch = (Base.@atomic order.epoch += 1) - 1
+    owner = Base.@atomic order.owner
+    if Base.@atomic(order.shared) || (owner !== nothing && owner.value !== current_task())
+        return nothing
+    end
+    return epoch
+end
+
+# note that the current task submits work to the stream
+function bind!(order::StreamOrder)
+    task = current_task()
+    owner, bound = Base.@atomicreplace order.owner nothing => WeakRef(task)
+    if !bound && owner.value !== task
+        Base.@atomic order.shared = true
+    end
+    return
+end
+
+mark_completed!(order::StreamOrder, epoch::UInt64) = (Base.@atomic order.completed max epoch; return)
+
+# record that work submitted to `order` from now on runs after `source`'s accesses up to `epoch`
+function mark_ordered!(order::StreamOrder, source::StreamOrder, epoch::UInt64)
+    Base.@lock order.waited begin
+        order.waited[source] = max(get(order.waited, source, UInt64(0)), epoch)
+    end
+    return
+end
+
+# whether work submitted to `order` now runs after `source`'s accesses up to `epoch`
+function is_ordered(order::StreamOrder, source::StreamOrder, epoch::UInt64)
+    Base.@lock order.waited begin
+        epoch <= get(order.waited, source, UInt64(0))
+    end
+end
+
 """
     CuStream(; flags=STREAM_DEFAULT, priority=nothing)
 
@@ -13,6 +83,9 @@ mutable struct CuStream
     Base.@atomic valid::Bool
 
     const ctx::Union{Nothing,CuContext}
+
+    # special streams aren't tracked, since they implicitly synchronize with other streams
+    const order::Union{Nothing,StreamOrder}
 
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
@@ -25,16 +98,16 @@ mutable struct CuStream
         end
 
         ctx = current_context()
-        obj = new(handle_ref[], true, ctx)
+        obj = new(handle_ref[], true, ctx, StreamOrder())
         finalizer(unsafe_destroy!, obj)
         return obj
     end
 
-    global default_stream() = new(convert(CUstream, C_NULL), true)
+    global default_stream() = new(convert(CUstream, C_NULL), true, nothing, nothing)
 
-    global legacy_stream() = new(convert(CUstream, 1), true)
+    global legacy_stream() = new(convert(CUstream, 1), true, nothing, nothing)
 
-    global per_thread_stream() = new(convert(CUstream, 2), true)
+    global per_thread_stream() = new(convert(CUstream, 2), true, nothing, nothing)
 end
 
 """
@@ -76,6 +149,8 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
 per_thread_stream()
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
+
+bind!(s::CuStream) = (s.order === nothing || bind!(s.order); return)
 
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)

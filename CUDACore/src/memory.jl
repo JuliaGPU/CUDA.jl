@@ -566,15 +566,40 @@ mutable struct Managed{M}
   # whether the memory has been captured in a way that would make the dirty bit unreliable
   captured::Bool
 
+  # the epoch of `stream` during which the memory was last used (see `StreamOrder`)
+  epoch::UInt64
+
   function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
                    dirty = true, captured = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, ReentrantLock(), stream, synchronizing, dirty, captured)
+    new{typeof(mem)}(mem, ReentrantLock(), stream, synchronizing, dirty, captured,
+                     stream_epoch(stream))
   end
 end
 
 Base.sizeof(managed::Managed) = sizeof(managed.mem)
+
+# the epoch to stamp an access on `stream` with. accesses on untracked streams are never
+# covered by an event or synchronization.
+function stream_epoch(stream::CuStream)
+  order = stream.order
+  order === nothing ? typemax(UInt64) : current_epoch(order)
+end
+
+# whether work submitted to `stream` is known to run after the last use of memory
+function is_ordered(managed::Managed, stream::CuStream)
+  order = stream.order
+  source = managed.stream.order
+  !managed.captured && order !== nothing && source !== nothing &&
+    is_ordered(order, source, managed.epoch)
+end
+
+# whether the last use of memory is known to have completed
+function is_completed(managed::Managed)
+  order = managed.stream.order
+  !managed.captured && order !== nothing && managed.epoch <= Base.@atomic order.completed
+end
 
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
@@ -586,7 +611,11 @@ end
 function maybe_synchronize(managed::Managed)
   Base.@lock managed.lock begin
     if managed.synchronizing && (managed.dirty || managed.captured)
-      synchronize(managed)
+      if is_completed(managed)
+        managed.dirty = false
+      else
+        synchronize(managed)
+      end
     end
   end
 end
@@ -627,9 +656,14 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     #end
   end
 
-  # accessing memory on another stream: ensure the data is ready and take ownership
+  # accessing memory on another stream: ensure the data is ready and take ownership.
+  # that's not needed when the stream already waited for an event covering the last use, as
+  # operations submitted to it will then run after it. the memory stays dirty, since it may
+  # still be in use, but synchronizing the new owner now also covers that previous use.
   if managed.stream != stream
-    maybe_synchronize(managed)
+    if !is_ordered(managed, stream)
+      maybe_synchronize(managed)
+    end
     managed.stream = stream
   end
 
@@ -643,6 +677,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     can_prefetch && prefetch(managed.mem; device=state.device, stream)
   end
 
+  managed.epoch = stream_epoch(stream)
   managed.dirty = true
   return managed
 end

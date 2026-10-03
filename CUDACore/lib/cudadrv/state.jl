@@ -297,6 +297,7 @@ Get the CUDA stream that should be used as the default one for the currently exe
 end
 @noinline function create_stream()
     stream = CuStream()
+    bind!(stream)
 
     # register the name of this task
     # XXX: do this when the user has imported NVTX.jl (using weak dependencies?)
@@ -311,6 +312,7 @@ end
 function stream!(stream::CuStream)
     state = task_local_state!()
     devidx = deviceid(state.device)+1
+    bind!(stream)
     state.streams[devidx] = stream
     return
 end
@@ -319,6 +321,7 @@ function stream!(f::Function, stream::CuStream)
     state = task_local_state!()
     devidx = deviceid(state.device)+1
     old_stream = state.streams[devidx]
+    bind!(stream)
     state.streams[devidx] = stream
     try
         f()

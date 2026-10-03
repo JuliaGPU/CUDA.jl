@@ -420,6 +420,10 @@ function unlock_managed(locked::AbstractVector{<:Managed})
     return
 end
 
+# Take ownership of memory for the duration of an operation submitted by `f`. The memory is
+# stamped with the stream's epoch once the operation has been submitted, so that an event
+# recorded in the meantime (which closes the epoch before recording) isn't believed to cover
+# the operation.
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
     state = active_state()
@@ -429,7 +433,9 @@ function with_managed(f::F, managed::AbstractVector{<:Managed};
         lock(memory.lock)
         try
             take_ownership!(memory; state, stream, capturing)
-            return f()
+            ret = f()
+            memory.epoch = stream_epoch(stream)
+            return ret
         finally
             unlock(memory.lock)
         end
@@ -439,7 +445,12 @@ function with_managed(f::F, managed::AbstractVector{<:Managed};
         for memory in locked
             take_ownership!(memory; state, stream, capturing)
         end
-        return f()
+        ret = f()
+        epoch = stream_epoch(stream)
+        for memory in locked
+            memory.epoch = epoch
+        end
+        return ret
     finally
         unlock_managed(locked)
     end

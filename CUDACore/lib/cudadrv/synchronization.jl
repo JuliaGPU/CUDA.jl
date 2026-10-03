@@ -20,7 +20,7 @@ function worker_synchronize((obj, ctx))
         unchecked_synchronize(obj)
     end
 end
-worker_isdone((obj, ctx)) = isdone(obj)
+worker_isdone((obj, ctx)) = obj isa CuEvent ? unsafe_isdone(obj) : isdone(obj)
 
 function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     # there is no way to poll an entire context (querying the legacy stream does not cover
@@ -28,7 +28,7 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     pollable = !(obj isa CuContext)
 
     # if we're about to wait, now may be a good time for a GC pause
-    if !pollable || !isdone(obj)
+    if !pollable || !(obj isa CuEvent ? unsafe_isdone(obj) : isdone(obj))
         maybe_collect(true)
     end
 
@@ -57,6 +57,8 @@ function device_synchronize(; blocking::Bool=false, spin::Bool=true)
 end
 
 function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool=true)
+    order = stream.order
+    epoch = order === nothing ? nothing : close_epoch!(order)
     if stream.handle == CU_STREAM_PER_THREAD && !blocking && use_nonblocking_synchronization
         # the per-thread stream is specific to the calling thread, so it can't be
         # synchronized from a worker thread. wait for an event recorded on it instead.
@@ -70,8 +72,14 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
     else
         synchronize_object(stream; blocking, spin)
     end
+    epoch === nothing || mark_completed!(order, epoch)
     check_exceptions()
 end
 
-synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true) =
-    synchronize_object(event; blocking, spin)
+function synchronize(event::CuEvent; blocking::Bool=false, spin::Bool=true)
+    Base.@lock event.lock begin
+        synchronize_object(event; blocking, spin)
+        mark_completed!(event)
+    end
+    return
+end
