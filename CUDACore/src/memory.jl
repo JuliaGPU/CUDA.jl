@@ -772,7 +772,7 @@ function drain_retired(limit::Int=typemax(Int))
   GC.in_finalizer() && return 0
   if (Base.@atomic :monotonic retired_memory.head) === nothing &&
      (Base.@atomic :monotonic retired_backlog.head) === nothing
-    pending_owner_count[] == 0 && return 0
+    pending_owner_count[] == 0 && destroyed_stream_count[] == 0 && return 0
   end
 
   # exhaustive drains wait for others to finish, bounded ones leave the work to them
@@ -799,6 +799,7 @@ function drain_retired(limit::Int=typemax(Int))
       n += 1
     end
     release_owners!()
+    release_destroyed_streams!()
   finally
     unlock(drain_lock)
   end
@@ -838,6 +839,29 @@ function dispose(stream::CuStream)
       cuStreamDestroy_v2(stream)
     end
     Base.@atomic stream.valid = false
+    push!(destroyed_streams, stream)
+    destroyed_stream_count[] = length(destroyed_streams)
+  end
+  return
+end
+
+# destroyed streams whose final event may still be needed. the event is only reachable
+# through its stream, so when both become garbage at the same time as memory that was last
+# used on the stream, finalizers (which aren't ordered) could otherwise retire the event
+# before the memory, which then waits for a destroyed event. keep them alive until the event
+# has completed, after which memory doesn't need to wait for it anymore.
+const destroyed_streams = CuStream[]
+const destroyed_stream_count = Ref(0)
+
+function release_destroyed_streams!()
+  destroyed_stream_count[] == 0 && return
+  @lock stream_disposal_lock begin
+    filter!(destroyed_streams) do stream
+      isdone(stream.final_event) || return true
+      stream.final_event = nothing
+      return false
+    end
+    destroyed_stream_count[] = length(destroyed_streams)
   end
   return
 end
@@ -866,7 +890,8 @@ function release_stream(stream::CuStream, ctx::CuContext)
   end
   event = stream.final_event
   if event === nothing
-    # explicitly destroyed, so the user should have made sure the work has finished
+    # either the work on the stream has finished, or the stream was explicitly destroyed,
+    # in which case the user should have made sure of that
     return disposal_stream(ctx), ctx
   end
   handle = disposal_stream(event.ctx)
