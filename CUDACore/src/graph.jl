@@ -288,6 +288,30 @@ function Base.show(io::IO, ::MIME"text/vnd.graphviz", graph::CuGraph)
     return
 end
 
+# memory allocations that a graph makes without freeing them. these remain allocated after
+# launching the graph, and need to be freed before the graph can be launched again. we don't
+# allocate memory like that (see `capture_alloc`), but libraries may.
+function unfreed_allocations(graph::CuGraph)
+    @lock graph.lock unfreed_allocations_locked(graph)
+end
+function unfreed_allocations_locked(graph::CuGraph)
+    allocated = CuPtr{Cvoid}[]
+    freed = CuPtr{Cvoid}[]
+    for node in nodes(graph)
+        type = nodetype(node)
+        if type == CU_GRAPH_NODE_TYPE_MEM_ALLOC
+            params = Ref{CUDA_MEM_ALLOC_NODE_PARAMS}()
+            cuGraphMemAllocNodeGetParams(node, params)
+            push!(allocated, reinterpret(CuPtr{Cvoid}, params[].dptr))
+        elseif type == CU_GRAPH_NODE_TYPE_MEM_FREE
+            ptr = Ref{CUdeviceptr}()
+            cuGraphMemFreeNodeGetParams(node, ptr)
+            push!(freed, reinterpret(CuPtr{Cvoid}, ptr[]))
+        end
+    end
+    return setdiff(allocated, freed)
+end
+
 
 ## graph nodes
 
@@ -491,6 +515,13 @@ mutable struct CuGraphExec
 
     # that memory, in the order it needs to be locked in when launching the graph
     launch_memory::Vector{Managed}
+
+    # allocations made by the graph that it doesn't free itself (see `unfreed_allocations`)
+    allocations::Vector{CuPtr{Cvoid}}
+
+    # the stream the graph was last launched on, and the generation of that stream
+    stream::Union{Nothing,CuStream}
+    generation::Int
 end
 
 Base.unsafe_convert(::Type{CUgraphExec}, exec::CuGraphExec) = exec.handle
@@ -519,10 +550,18 @@ function instantiate(graph::CuGraph, flags=0)
     @lock graph.lock instantiate_locked(graph, flags)
 end
 function instantiate_locked(graph::CuGraph, flags)
+    allocations = unfreed_allocations(graph)
     handle_ref = Ref{CUgraphExec}()
     context!(graph.ctx) do
         if driver_version() >= v"11.4"
-            cuGraphInstantiateWithFlags(handle_ref, graph, flags)
+            # graphs that allocate memory without freeing it can only be launched again
+            # after freeing that memory, which this flag makes the graph do itself
+            flags |= CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH
+            res = unchecked_cuGraphInstantiateWithFlags(handle_ref, graph, flags)
+            if res == ERROR_NOT_SUPPORTED && !isempty(allocations)
+                throw(ArgumentError("A graph that allocates memory can only be instantiated once at a time"))
+            end
+            res == SUCCESS || throw_api_error(res)
         else
             flags == 0 || error("Graph instantiation flags require CUDA 11.4 or higher")
             error_node = Ref{CUgraphNode}()
@@ -540,14 +579,55 @@ function instantiate_locked(graph::CuGraph, flags)
 
     memory = lease_memory(graph)
     exec = CuGraphExec(handle_ref[], graph.ctx, ReentrantLock(), memory,
-                       locking_order(memory))
+                       locking_order(memory), allocations, nothing, 0)
     finalizer(retire!, exec)
     return exec
+end
+
+# the memory that a graph allocated during its last launch, which would leak when updating
+# or destroying the executable graph
+struct GraphAllocations
+    ctx::CuContext
+    allocations::Vector{CuPtr{Cvoid}}
+    stream::CuStream
+    generation::Int
+end
+
+function launched_allocations(exec::CuGraphExec)
+    (exec.stream === nothing || isempty(exec.allocations)) && return nothing
+    GraphAllocations(exec.ctx, exec.allocations, exec.stream, exec.generation)
+end
+
+function dispose(graph_allocations::GraphAllocations)
+    if on_per_thread_stream(graph_allocations.stream)
+        # see `dispose(::Managed)`
+        destroy_later(synchronize_and(free_allocations, graph_allocations.ctx),
+                      graph_allocations)
+        return
+    end
+    free_allocations(graph_allocations)
+end
+
+# free that memory after the launch. like other memory, that's not necessarily on the stream
+# of the launch, which may have been destroyed or handed to another task since.
+function free_allocations(graph_allocations::GraphAllocations)
+    (; ctx, allocations, stream, generation) = graph_allocations
+    @lock stream_disposal_lock begin
+        stream, ctx = release_stream(stream, ctx, generation)
+        context!(ctx) do
+            for ptr in allocations
+                cuMemFreeAsync(ptr, stream)
+            end
+        end
+    end
+    return
 end
 
 function dispose(exec::CuGraphExec)
     try
         context!(exec.ctx) do
+            allocations = launched_allocations(exec)
+            allocations === nothing || dispose(allocations)
             # (destroying an executable graph that is still executing is allowed)
             cuGraphExecDestroy(exec)
         end
@@ -572,6 +652,8 @@ function launch(exec::CuGraphExec, stream::CuStream=stream())
         with_ordered_managed(exec.launch_memory; stream) do
             cuGraphLaunch(exec, stream)
         end
+        exec.stream = stream
+        exec.generation = CUDACore.generation(stream)
     end
     return
 end
@@ -603,13 +685,14 @@ Returns whether the update succeeded. Unless `throw_error` is false, an error is
 the update failed.
 """
 function update(exec::CuGraphExec, graph::CuGraph; throw_error::Bool=true)
-    old_memory = @lock exec.lock begin
+    old_memory, old_allocations = @lock exec.lock begin
         @lock graph.lock begin
             # prepare the new state of the executable graph, which uses the memory of the
             # new graph, before updating it
             memory = lease_memory(graph)
-            launch_memory, result = try
-                (locking_order(memory), context!(() -> exec_update(exec, graph), exec.ctx))
+            allocations, launch_memory, result = try
+                (unfreed_allocations(graph), locking_order(memory),
+                 context!(() -> exec_update(exec, graph), exec.ctx))
             catch
                 foreach(unlease!, memory)
                 rethrow()
@@ -621,15 +704,22 @@ function update(exec::CuGraphExec, graph::CuGraph; throw_error::Bool=true)
             end
 
             # commit the new state (which can't fail)
-            old = exec.memory
+            old = (exec.memory, launched_allocations(exec))
             exec.memory = memory
             exec.launch_memory = launch_memory
+            exec.allocations = allocations
+            exec.stream = nothing
             old
         end
     end
 
     # clean up the old state
-    foreach(unlease!, old_memory)
+    try
+        # (not while a graph is being captured, which freeing memory could end up in)
+        old_allocations === nothing || discard(old_allocations)
+    finally
+        foreach(unlease!, old_memory)
+    end
     return true
 end
 
