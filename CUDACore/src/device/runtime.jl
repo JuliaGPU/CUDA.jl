@@ -99,27 +99,9 @@ macro strptr(str::String)
     sym = Val(Symbol(str))
     return :(_strptr($sym))
 end
-@generated function _strptr(::Val{sym}) where {sym}
-    str = String(sym)
-    @dispose ctx=Context() begin
-        T_pint8 = LLVM.PointerType(LLVM.Int8Type())
-        T_ptr = convert(LLVMType, Ptr{UInt8})
-
-        # create function
-        llvm_f, llvm_ft = create_function(T_ptr)
-
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            ptr = globalstring_ptr!(builder, str)
-            jlptr = ptrtoint!(builder, ptr, T_ptr)
-            ret!(builder, jlptr)
-        end
-
-        call_function(llvm_f, Ptr{UInt8}, Tuple{})
-    end
+@llvmgenerated builder function _strptr(::Val{sym})::Ptr{UInt8} where {sym}
+    ptr = globalstring_ptr!(builder, String(sym))
+    pointercast!(builder, ptr, convert(LLVMType, Ptr{UInt8}))
 end
 
 

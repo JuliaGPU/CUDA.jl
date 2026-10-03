@@ -145,24 +145,29 @@ export cluster_arrive, cluster_arrive_relaxed, cluster_wait
 
 # These intrinsics only exist in LLVM 17+, so `ccall(intr, llvmcall, ...)` cannot be
 # used here: on older LLVM (Julia <= 1.11) the unknown name demotes to a runtime trap.
-# A textual declaration passes through to the NVPTX back end on every version, but
-# must spell out the attributes the loaded LLVM can't infer: `convergent`, plus
-# `nomerge` to stop pre-17 SimplifyCFG from merging the calls across branches.
+# A declaration passes through to the NVPTX back end on every version, but must spell
+# out the attributes the loaded LLVM can't infer: `convergent`, plus `nomerge` to stop
+# pre-17 SimplifyCFG from merging the calls across branches.
+@device_function @llvmgenerated builder function cluster_barrier(::Val{barrier})::Nothing where {barrier}
+    mod = current_module(builder)
+    intr_name = "llvm.nvvm.barrier.cluster.$barrier"
+    intr_typ = LLVM.FunctionType(LLVM.VoidType())
+    intr = get!(mod.functions, intr_name) do
+        f = LLVM.Function(mod, intr_name, intr_typ)
+        for kind in (:convergent, :nomerge, :nounwind)
+            push!(f.function_attributes, EnumAttribute(kind))
+        end
+        f
+    end
+    call!(builder, intr_typ, intr)
+    nothing
+end
 for (fn, barrier) in ["cluster_arrive"         => "arrive",
                       "cluster_arrive_relaxed" => "arrive.relaxed",
                       "cluster_wait"           => "wait"]
-    intr = "llvm.nvvm.barrier.cluster.$barrier"
-    mod = """
-        declare void @$intr() #0
-        define void @entry() #1 {
-            call void @$intr()
-            ret void
-        }
-        attributes #0 = { convergent nomerge nounwind }
-        attributes #1 = { alwaysinline }"""
     @eval @device_function @inline function $(Symbol(fn))()
         require_sm_90()
-        Base.llvmcall(($mod, "entry"), Cvoid, Tuple{})
+        cluster_barrier($(Val(Symbol(barrier))))
     end
 end
 

@@ -44,7 +44,7 @@ following instructions will work:
 ```
 pkg> add GPUCompiler#master
 pkg> add GPUArrays#master
-pkg> add LLVM#master
+pkg> add LLVM#main
 ```
 
 

@@ -381,18 +381,7 @@ end
             # volatile polling; fence
             while true
                 # volatile load
-                current_arrive = @static if LLVM.version() >= v"17"
-                    Base.llvmcall("""
-                            %val = load volatile i32, ptr addrspace(1) %0
-                            ret i32 %val
-                        """, UInt32, Tuple{LLVMPtr{UInt32,AS.Global}}, arrived)
-                else
-                    Base.llvmcall("""
-                            %ptr = bitcast i8 addrspace(1)* %0 to i32 addrspace(1)*
-                            %val = load volatile i32, i32 addrspace(1)* %ptr
-                            ret i32 %val
-                        """, UInt32, Tuple{LLVMPtr{UInt32,AS.Global}}, arrived)
-                end
+                current_arrive = volatile_load(arrived, 1, Val(4))
                 if bar_has_flipped(token, current_arrive)
                     break
                 end

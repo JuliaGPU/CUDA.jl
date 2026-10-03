@@ -2,6 +2,8 @@ module VolumeRHS
 
 using BenchmarkTools
 using CUDA
+using LLVM.Build: fadd!, fmul!, fsub!
+using LLVM.Interop: @llvmgenerated
 using StableRNGs
 using StaticArrays
 
@@ -19,16 +21,23 @@ macro unroll(expr)
 end
 
 # HACK: module-local versions of core arithmetic; needed to get FMA
+@llvmgenerated builder function contractable(::Val{op}, a::T, b::T)::T where {op, T}
+    inst = if op === :add
+        fadd!(builder, a, b)
+    elseif op === :mul
+        fmul!(builder, a, b)
+    elseif op === :sub
+        fsub!(builder, a, b)
+    end
+    inst.fast_math = (; contract=true, nsz=true)
+    inst
+end
 for (jlf, f) in zip((:+, :*, :-), (:add, :mul, :sub))
-    for (T, llvmT) in ((:Float32, "float"), (:Float64, "double"))
-        ir = """
-            %x = f$f contract nsz $llvmT %0, %1
-            ret $llvmT %x
-        """
+    for T in (:Float32, :Float64)
         @eval begin
             # the @pure is necessary so that we can constant propagate.
             @inline Base.@pure function $jlf(a::$T, b::$T)
-                Base.llvmcall($ir, $T, Tuple{$T, $T}, a, b)
+                contractable($(Val(f)), a, b)
             end
         end
     end

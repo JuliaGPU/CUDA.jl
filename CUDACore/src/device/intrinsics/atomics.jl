@@ -9,7 +9,6 @@
 # system scope, which Pascal cannot provide under Windows (#3187).
 const atomic_scopes = (:block, :device, :system)
 const AtomicScope = Union{Val{:block}, Val{:device}, Val{:system}}
-llvm_syncscope(::Val{S}) where {S} = SyncScope(String(S))
 
 # the PTX spelling of a scope, for inline assembly
 ptx_scope(::Val{:block}) = ".cta"
@@ -33,9 +32,9 @@ end
 
 # all atomic operations have acquire and/or release semantics,
 # depending on whether they load or store values (mimics Base)
-const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
-const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
-const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+const atomic_acquire = LLVM.AtomicOrdering.Acquire
+const atomic_release = LLVM.AtomicOrdering.Release
+const atomic_acquire_release = LLVM.AtomicOrdering.AcquireRelease
 
 # common arithmetic operations on integers using LLVM instructions
 #
@@ -46,50 +45,16 @@ const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 # >
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
-@generated function llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T,
-                                   scope::Val{S}) where {binop, T, A, S}
-    @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T)
-        T_ptr = convert(LLVMType, ptr)
-
-        T_typed_ptr = LLVM.PointerType(T_val, A)
-
-        llvm_f, _ = create_function(T_val, [T_ptr, T_val])
-
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
-
-            rv = atomic_rmw!(builder, binop,
-                            typed_ptr, parameters(llvm_f)[2],
-                            atomic_acquire_release, llvm_syncscope(scope()))
-
-            ret!(builder, rv)
-        end
-
-        quote
-            check_atomic_scope(ptr, scope)
-            $(call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T}, :ptr, :val))
-        end
-    end
+@inline function llvm_atomic_op(binop::Val, ptr::LLVMPtr, val, scope::Val)
+    check_atomic_scope(ptr, scope)
+    _llvm_atomic_op(binop, ptr, val, scope)
 end
-
-const binops = Dict(
-    :xchg  => LLVM.API.LLVMAtomicRMWBinOpXchg,
-    :add   => LLVM.API.LLVMAtomicRMWBinOpAdd,
-    :sub   => LLVM.API.LLVMAtomicRMWBinOpSub,
-    :and   => LLVM.API.LLVMAtomicRMWBinOpAnd,
-    :or    => LLVM.API.LLVMAtomicRMWBinOpOr,
-    :xor   => LLVM.API.LLVMAtomicRMWBinOpXor,
-    :max   => LLVM.API.LLVMAtomicRMWBinOpMax,
-    :min   => LLVM.API.LLVMAtomicRMWBinOpMin,
-    :umax  => LLVM.API.LLVMAtomicRMWBinOpUMax,
-    :umin  => LLVM.API.LLVMAtomicRMWBinOpUMin,
-    :fadd  => LLVM.API.LLVMAtomicRMWBinOpFAdd,
-    :fsub  => LLVM.API.LLVMAtomicRMWBinOpFSub,
-)
+@llvmgenerated builder function _llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T,
+                                                scope::Val{S})::T where {binop, T, A, S}
+    T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
+    typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
+    atomic_rmw!(builder, binop, typed_ptr, val, atomic_acquire_release; scope=S)
+end
 
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
@@ -107,7 +72,7 @@ for T in (Int32, Int64, UInt32, UInt64)
                                      LLVMPtr{$T,AS.Global},
                                      LLVMPtr{$T,AS.Shared}}, val::$T,
                           scope::AtomicScope=Val(:device)) =
-            llvm_atomic_op($(Val(binops[rmw])), ptr, val, scope)
+            llvm_atomic_op($(Val(parse(LLVM.AtomicRMWBinOp.T, String(rmw)))), ptr, val, scope)
     end
 end
 
@@ -123,7 +88,7 @@ for T in (:Float16, :Float32, :Float64)
                                      LLVMPtr{$T,AS.Global},
                                      LLVMPtr{$T,AS.Shared}}, val::$T,
                           scope::AtomicScope=Val(:device)) =
-           llvm_atomic_op($(Val(binops[rmw])), ptr, val, scope)
+           llvm_atomic_op($(Val(parse(LLVM.AtomicRMWBinOp.T, String(rmw)))), ptr, val, scope)
     end
 
     # there's no specific NNVM intrinsic for fsub, resulting in a selection error.
@@ -141,7 +106,7 @@ end
                                          LLVMPtr{BFloat16,AS.Global},
                                          LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16,
                               scope::AtomicScope=Val(:device)) =
-        llvm_atomic_op($(Val(binops[:fadd])), ptr, val, scope)
+        llvm_atomic_op($(Val(LLVM.AtomicRMWBinOp.FAdd)), ptr, val, scope)
     @eval @inline atomic_sub!(ptr::Union{LLVMPtr{BFloat16,AS.Generic},
                                          LLVMPtr{BFloat16,AS.Global},
                                          LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16,
@@ -150,36 +115,17 @@ end
 end
 
 # cmpxchg is subject to the same address space restrictions as atomicrmw, above
-@generated function llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T,
-                                    scope::Val{S}) where {T, A, S}
-    @dispose ctx=Context() begin
-        T_val = convert(LLVMType, T)
-        T_ptr = convert(LLVMType, ptr)
-
-        T_typed_ptr = LLVM.PointerType(T_val, A)
-
-        llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
-
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            typed_ptr = bitcast!(builder, parameters(llvm_f)[1], T_typed_ptr)
-
-            res = atomic_cmpxchg!(builder, typed_ptr, parameters(llvm_f)[2],
-                                parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
-                                llvm_syncscope(scope()))
-
-            rv = extract_value!(builder, res, 0)
-
-            ret!(builder, rv)
-        end
-
-        quote
-            check_atomic_scope(ptr, scope)
-            $(call_function(llvm_f, T, Tuple{LLVMPtr{T,A}, T, T}, :ptr, :cmp, :val))
-        end
-    end
+@inline function llvm_atomic_cas(ptr::LLVMPtr, cmp, val, scope::Val)
+    check_atomic_scope(ptr, scope)
+    _llvm_atomic_cas(ptr, cmp, val, scope)
+end
+@llvmgenerated builder function _llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T,
+                                                 scope::Val{S})::T where {T, A, S}
+    T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
+    typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
+    res = atomic_cmpxchg!(builder, typed_ptr, cmp, val, atomic_acquire_release,
+                          atomic_acquire; scope=S)
+    extract_value!(builder, res, 0)
 end
 
 for T in (:Int32, :Int64, :UInt32, :UInt64)
@@ -238,10 +184,9 @@ for A in (AS.Generic, AS.Global, AS.Shared)
         fn = Symbol("atomic_$(op)!")
         @static if Base.libllvm_version >= v"21"
             # LLVM 21 removed these intrinsics in favor of `atomicrmw uinc_wrap/udec_wrap`
-            binop = op == :inc ? LLVM.API.LLVMAtomicRMWBinOpUIncWrap :
-                                 LLVM.API.LLVMAtomicRMWBinOpUDecWrap
+            rmw = op == :inc ? LLVM.AtomicRMWBinOp.UIncWrap : LLVM.AtomicRMWBinOp.UDecWrap
             @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T, ::Val{:device}=Val(:device)) =
-                llvm_atomic_op($(Val(binop)), ptr, val, Val(:device))
+                llvm_atomic_op($(Val(rmw)), ptr, val, Val(:device))
         else
             intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
             @eval @device_function @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T,

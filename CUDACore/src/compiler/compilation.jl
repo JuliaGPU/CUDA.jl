@@ -37,17 +37,14 @@ function GPUCompiler.link_libraries!(@nospecialize(job::AnyCUDAJob), mod::LLVM.M
     lib = parse(LLVM.Module, MemoryBufferFile(CUDA_Compiler.libdevice); lazy=true)
 
     # override libdevice's triple and datalayout to avoid warnings
-    triple!(lib, triple(mod))
-    datalayout!(lib, datalayout(mod))
+    lib.triple = mod.triple
+    lib.datalayout = mod.datalayout
 
     # the linker will only materialize libdevice symbols referenced by `mod`
     link!(mod, lib; only_needed=true)  # destroys lib
 
-    @dispose pm=ModulePassManager() begin
-        push!(metadata(mod)["nvvm-reflect-ftz"],
-              MDNode([ConstantInt(Int32(1))]))
-        run!(pm, mod)
-    end
+    push!(get!(mod.metadata, "nvvm-reflect-ftz").operands,
+          MDNode([ConstantInt(Int32(1))]))
 
     return
 end
@@ -72,16 +69,16 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
                           "sm_features" => UInt32(feature_set),
                           "ptx_major"   => job.config.target.ptx.major,
                           "ptx_minor"   => job.config.target.ptx.minor]
-        if haskey(globals(mod), name)
-            gv = globals(mod)[name]
-            initializer!(gv, ConstantInt(LLVM.Int32Type(), value))
-            linkage!(gv, LLVM.API.LLVMPrivateLinkage)
+        gv = get(mod.globals, name, nothing)
+        if gv !== nothing
+            gv.initializer = ConstantInt(LLVM.Int32Type(), value)
+            gv.linkage = LLVM.Linkage.Private
         end
     end
 
     # if this kernel uses our RNG, we should prime the shared state.
     # XXX: these transformations should really happen at the Julia IR level...
-    if haskey(globals(mod), "global_random_keys")
+    if haskey(mod.globals, "global_random_keys")
         f = initialize_rng_state
         ft = typeof(f)
         tt = Tuple{}
@@ -99,30 +96,21 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
         GPUCompiler.deferred_codegen_jobs[id] = job
 
         # generate IR for calls to `deferred_codegen` and the resulting function pointer
-        top_bb = first(blocks(entry))
-        bb = BasicBlock(top_bb, "initialize_rng")
+        top_bb = first(entry.blocks)
+        bb = BasicBlock(LLVM.before(top_bb), "initialize_rng")
         @dispose builder=IRBuilder() begin
-            position!(builder, bb)
-            subprogram = LLVM.subprogram(entry)
+            position!(builder, LLVM.at_end(bb))
+            # give the instructions we generate a line-zero location in the kernel
+            subprogram = entry.subprogram
             if subprogram !== nothing
-                loc = DILocation(0, 0, subprogram)
-                debuglocation!(builder, loc)
+                builder.debug_location = DILocation(0, 0, subprogram)
             end
-            debuglocation!(builder, first(instructions(top_bb)))
 
-            # call the `deferred_codegen` marker function
-            T_ptr = if LLVM.version() >= v"17"
-                LLVM.PointerType()
-            elseif VERSION >= v"1.12.0-DEV.225"
-                LLVM.PointerType(LLVM.Int8Type())
-            else
-                LLVM.Int64Type()
-            end
+            # call the `deferred_codegen` marker function, which returns a `Ptr{Cvoid}`
+            T_ptr = convert(LLVMType, Ptr{Cvoid})
             T_id = convert(LLVMType, Int)
             deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_id])
-            deferred_codegen = if haskey(functions(mod), "deferred_codegen")
-                functions(mod)["deferred_codegen"]
-            else
+            deferred_codegen = get!(mod.functions, "deferred_codegen") do
                 LLVM.Function(mod, "deferred_codegen", deferred_codegen_ft)
             end
             fptr = call!(builder, deferred_codegen_ft, deferred_codegen, [ConstantInt(id)])
@@ -131,7 +119,12 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
             rt = Core.Compiler.return_type(f, tt)
             llvm_rt = convert(LLVMType, rt)
             llvm_ft = LLVM.FunctionType(llvm_rt)
-            fptr = inttoptr!(builder, fptr, LLVM.PointerType(llvm_ft))
+            T_fptr = LLVM.PointerType(llvm_ft)
+            fptr = if T_ptr isa LLVM.IntegerType     # Julia < 1.12 lowers `Ptr` to integers
+                inttoptr!(builder, fptr, T_fptr)
+            else
+                pointercast!(builder, fptr, T_fptr)
+            end
             call!(builder, llvm_ft, fptr)
             br!(builder, top_bb)
         end
@@ -151,7 +144,7 @@ function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
 end
 
 function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, format)
-    @assert format == LLVM.API.LLVMAssemblyFile
+    @assert format == LLVM.CodeGenFileType.Assembly
     asm = invoke(GPUCompiler.mcgen,
                  Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
                  job, mod, format)
@@ -392,19 +385,24 @@ device_compatible_layout(@nospecialize(T)) =
 function compile(@nospecialize(job::CompilerJob))
     # lower to PTX
     # TODO: on 1.9, this actually creates a context. cache those.
-    asm, meta = JuliaContext() do ctx
-        invoke_frozen(GPUCompiler.compile, :asm, job)
-    end
+    # the IR is ours: inspect it in here, and dispose of it so that it does not leak
+    asm, entry, relocations, needs_cudadevrt = JuliaContext() do ctx
+        asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
 
-    # check if we'll need the device runtime
-    undefined_fs = filter(collect(functions(meta.ir))) do f
-        isdeclaration(f) && !LLVM.isintrinsic(f) &&
-        # intrinsics unknown to the in-process LLVM are still lowered by the back-end
-        !startswith(LLVM.name(f), "llvm.")
+        # check if we'll need the device runtime
+        undefined_fs = filter(collect(meta.ir.functions)) do f
+            isdeclaration(f) && !LLVM.isintrinsic(f) &&
+            # intrinsics unknown to the in-process LLVM are still lowered by the back-end
+            !startswith(f.name, "llvm.")
+        end
+        intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
+                         "__nvvm_reflect" #= TODO: should have been optimized away =#]
+        needs_cudadevrt = !isempty(setdiff(map(f -> f.name, undefined_fs), intrinsic_fns))
+
+        entry = meta.entry.name
+        dispose(meta.ir)
+        asm, entry, meta.relocations, needs_cudadevrt
     end
-    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
-                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
-    needs_cudadevrt = !isempty(setdiff(LLVM.name.(undefined_fs), intrinsic_fns))
 
     # prepare invocations of CUDA compiler tools
     ptxas_opts = String[]
@@ -553,7 +551,7 @@ function compile(@nospecialize(job::CompilerJob))
         rm(ptxas_output)
     end
 
-    return (image, entry=LLVM.name(meta.entry), relocations=meta.relocations)
+    return (; image, entry, relocations)
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context

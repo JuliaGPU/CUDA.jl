@@ -104,68 +104,52 @@ end
 end
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
-@generated function emit_shmem(::Type{T}, ::Val{len}=Val(0)) where {T,len}
-    @dispose ctx=Context() begin
-        T_int8 = LLVM.Int8Type()
-        T_ptr = convert(LLVMType, LLVMPtr{T,AS.Shared})
+@llvmgenerated builder function emit_shmem(::Type{T},
+                                           ::Val{len}=Val(0))::LLVMPtr{T,AS.Shared} where {T,len}
+    T_int8 = LLVM.Int8Type()
+    T_ptr = convert(LLVMType, LLVMPtr{T,AS.Shared})
 
-        # create a function
-        llvm_f, _ = create_function(T_ptr)
+    # determine the array size
+    # TODO: assert that allocatedinline(T) (or it won't have a layout)
+    sz = len*sizeof(T)
+    if !isbitstype(T)
+        sz += len
+    end
 
-        # determine the array size
-        # TODO: assert that allocatedinline(T) (or it won't have a layout)
-        sz = len*sizeof(T)
-        if !isbitstype(T)
-            sz += len
-        end
-
-        # create the global variable
-        # NOTE: this variable can't have T as element type, because it may be a boxed type
-        #       when we're dealing with a union isbits array (e.g. `Union{Missing,Int}`)
-        mod = LLVM.parent(llvm_f)
-        gv_typ = LLVM.ArrayType(T_int8, sz)
-        gv = GlobalVariable(mod, gv_typ, "shmem", AS.Shared)
-        if len > 0
-            # static shared memory should be demoted to local variables, whenever possible.
-            # this is done by the NVPTX ASM printer:
-            # > Find out if a global variable can be demoted to local scope.
-            # > Currently, this is valid for CUDA shared variables, which have local
-            # > scope and global lifetime. So the conditions to check are :
-            # > 1. Is the global variable in shared address space?
-            # > 2. Does it have internal linkage?
-            # > 3. Is the global variable referenced only in one function?
-            linkage!(gv, LLVM.API.LLVMInternalLinkage)
-            initializer!(gv, null(gv_typ))
-        end
-        # by requesting a larger-than-datatype alignment, we might be able to vectorize.
-        # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
-        # TODO: Make the alignment configurable
-        align = 32
-        if isbitstype(T)
-            align = max(align, Base.datatype_alignment(T))
-        else # isbitsunion etc
-            for typ in Base.uniontypes(T)
-                if typ.layout != C_NULL
-                    align = max(align, Base.datatype_alignment(typ))
-                end
+    # create the global variable
+    # NOTE: this variable can't have T as element type, because it may be a boxed type
+    #       when we're dealing with a union isbits array (e.g. `Union{Missing,Int}`)
+    gv_typ = LLVM.ArrayType(T_int8, sz)
+    gv = GlobalVariable(current_module(builder), gv_typ, "shmem", AS.Shared)
+    if len > 0
+        # static shared memory should be demoted to local variables, whenever possible.
+        # this is done by the NVPTX ASM printer:
+        # > Find out if a global variable can be demoted to local scope.
+        # > Currently, this is valid for CUDA shared variables, which have local
+        # > scope and global lifetime. So the conditions to check are :
+        # > 1. Is the global variable in shared address space?
+        # > 2. Does it have internal linkage?
+        # > 3. Is the global variable referenced only in one function?
+        gv.linkage = LLVM.Linkage.Internal
+        gv.initializer = null(gv_typ)
+    end
+    # by requesting a larger-than-datatype alignment, we might be able to vectorize.
+    # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
+    # TODO: Make the alignment configurable
+    align = 32
+    if isbitstype(T)
+        align = max(align, Base.datatype_alignment(T))
+    else # isbitsunion etc
+        for typ in Base.uniontypes(T)
+            if typ.layout != C_NULL
+                align = max(align, Base.datatype_alignment(typ))
             end
         end
-        alignment!(gv, align)
-
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            ptr = gep!(builder, gv_typ, gv, [ConstantInt(0), ConstantInt(0)])
-
-            untyped_ptr = bitcast!(builder, ptr, T_ptr)
-
-            ret!(builder, untyped_ptr)
-        end
-
-        call_function(llvm_f, LLVMPtr{T,AS.Shared})
     end
+    gv.alignment = align
+
+    ptr = gep!(builder, gv_typ, gv, [ConstantInt(0), ConstantInt(0)])
+    bitcast!(builder, ptr, T_ptr)
 end
 
 
@@ -173,43 +157,26 @@ end
 
 export malloc
 
-@generated function malloc(sz::Csize_t)
-    @dispose ctx=Context() begin
-        T_pint8 = LLVM.PointerType(LLVM.Int8Type())
-        T_size = convert(LLVMType, Csize_t)
-        T_ptr = convert(LLVMType, Ptr{Cvoid})
+@llvmgenerated builder function malloc(sz::Csize_t)::Ptr{Cvoid}
+    T_pint8 = LLVM.PointerType(LLVM.Int8Type())
+    T_size = convert(LLVMType, Csize_t)
+    T_ptr = convert(LLVMType, Ptr{Cvoid})
 
-        # create function
-        llvm_f, _ = create_function(T_ptr, [T_size])
-        mod = LLVM.parent(llvm_f)
+    # get the intrinsic
+    # NOTE: LLVM doesn't have void*, Clang uses i8* for malloc too
+    intr_typ = LLVM.FunctionType(T_pint8, [T_size])
+    intr = LLVM.Function(current_module(builder), "malloc", intr_typ)
+    # should we attach some metadata here? julia.gc_alloc_obj has the following:
+    #let attrs = intr.function_attributes
+    #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
+    #    packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
+    #    push!(attrs, EnumAttribute(:allocsize, packed_allocsize))
+    #end
+    #let attrs = intr.return_attributes
+    #    push!(attrs, EnumAttribute(:noalias))
+    #    push!(attrs, EnumAttribute(:nonnull))
+    #end
 
-        # get the intrinsic
-        # NOTE: LLVM doesn't have void*, Clang uses i8* for malloc too
-        intr_typ = LLVM.FunctionType(T_pint8, [T_size])
-        intr = LLVM.Function(mod, "malloc", intr_typ)
-        # should we attach some metadata here? julia.gc_alloc_obj has the following:
-        #let attrs = function_attributes(intr)
-        #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
-        #    packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
-        #    push!(attrs, EnumAttribute("allocsize", packed_allocsize))
-        #end
-        #let attrs = return_attributes(intr)
-        #    push!(attrs, EnumAttribute("noalias", 0))
-        #    push!(attrs, EnumAttribute("nonnull", 0))
-        #end
-
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            ptr = call!(builder, intr_typ, intr, [parameters(llvm_f)[1]])
-
-            jlptr = ptrtoint!(builder, ptr, T_ptr)
-
-            ret!(builder, jlptr)
-        end
-
-        call_function(llvm_f, Ptr{Cvoid}, Tuple{Csize_t}, :sz)
-    end
+    ptr = call!(builder, intr_typ, intr, [sz])
+    pointercast!(builder, ptr, T_ptr)
 end
