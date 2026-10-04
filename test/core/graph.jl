@@ -411,3 +411,35 @@ end
     finalize(graph)
     CUDA.reclaim()
 end
+
+@testset "allocations owned by graph nodes" begin
+    if CUDACore.driver_version() >= v"11.4" && CUDACore.memory_pools_supported(device())
+        # Model a library allocating directly through CUDA while being captured, even
+        # when CUDA.jl's own allocator is disabled.
+        CUDA.reclaim()
+        function graph_used()
+            bytes = Ref{UInt64}()
+            CUDACore.cuDeviceGetGraphMemAttribute(device(),
+                CUDACore.CU_GRAPH_MEM_ATTR_USED_MEM_CURRENT, bytes)
+            bytes[]
+        end
+        before = graph_used()
+        ptr = Ref{CUDACore.CUdeviceptr}()
+        graph = capture() do
+            CUDACore.cuMemAllocAsync(ptr, 4096, stream())
+            CUDACore.cuMemsetD8Async(ptr[], 0x2a, 4096, stream())
+        end
+        exec = instantiate(graph)
+        output = Vector{UInt8}(undef, 4096)
+        for _ in 1:2
+            exec()
+            GC.@preserve output unsafe_copyto!(pointer(output),
+                reinterpret(CuPtr{UInt8}, ptr[]), length(output))
+            @test all(==(0x2a), output)
+        end
+        finalize(exec)
+        finalize(graph)
+        CUDA.reclaim()
+        @test graph_used() <= before
+    end
+end
