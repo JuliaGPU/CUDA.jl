@@ -626,133 +626,53 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}
     return ()
 end
 
-# Reading and writing a box copies between host and device memory with `cuMemcpy`, which
-# Enzyme does not see through, so the derivative is propagated explicitly here: the shadow
-# box holds the derivative of the stored value, a write sets it and a read passes it on.
+# Enzyme loses the shadow when taking the device address of a buffer (which also takes
+# stream ownership of it), so return the address of the shadow buffer explicitly. Copies
+# from and to that address are then differentiated by the `unsafe_copyto!` rules in
+# Enzyme.jl, e.g. when reading or writing a `CuRefValue`.
 
-curef_shadow_at(dval, ::Val{1}, i) = dval
-curef_shadow_at(dval, ::Val, i) = dval[i]
+managed_shadow_ptr(::Type{P}, managed::Const, i...) where {P} = convert(P, managed.val)
+managed_shadow_ptr(::Type{P}, managed::EnzymeCore.Annotation) where {P} = convert(P, managed.dval)
+managed_shadow_ptr(::Type{P}, managed::EnzymeCore.Annotation, i) where {P} = convert(P, managed.dval[i])
 
-# read the derivative from (the `i`-th) shadow box, and clear it
-curef_take!(ref::Const, x) = zero(x)
-curef_take!(ref::Const, x, i) = zero(x)
-curef_take!(ref::EnzymeCore.Annotation, x) = curef_take!(ref.dval)
-curef_take!(ref::EnzymeCore.Annotation, x, i) = curef_take!(ref.dval[i])
-function curef_take!(dref::CUDACore.CuRefValue{T}) where {T}
-    d = dref[]::T
-    zero_curef!(dref)
-    return d
-end
-
-function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(Base.setindex!)}, ::Type{RT},
-                                        ref::EnzymeCore.Annotation{CT}, x::EnzymeCore.Annotation{T}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
-    ref.val[] = x.val
-    if !(ref isa Const)
-        W = Val(EnzymeRules.width(config))
-        for i in 1:EnzymeRules.width(config)
-            dref = curef_shadow_at(ref.dval, W, i)
-            if x isa Const
-                zero_curef!(dref)
-            else
-                dref[] = curef_shadow_at(x.dval, W, i)
-            end
+function managed_shadow_ptrs(config, ::Type{P}, managed) where {P}
+    if EnzymeRules.width(config) == 1
+        managed_shadow_ptr(P, managed)
+    else
+        ntuple(Val(EnzymeRules.width(config))) do i
+            Base.@_inline_meta
+            managed_shadow_ptr(P, managed, i)
         end
     end
+end
 
+function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(Base.convert)}, ::Type{RT},
+                                        ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
     if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
-            Duplicated(ref.val, ref.dval)
+            Duplicated(convert(P, managed.val), managed_shadow_ptrs(config, P, managed))
         else
-            BatchDuplicated(ref.val, ref.dval)
+            BatchDuplicated(convert(P, managed.val), managed_shadow_ptrs(config, P, managed))
         end
     elseif EnzymeRules.needs_shadow(config)
-        ref.dval
+        managed_shadow_ptrs(config, P, managed)
     elseif EnzymeRules.needs_primal(config)
-        ref.val
+        convert(P, managed.val)
     else
         nothing
     end
 end
 
-function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.setindex!)}, ::Type{RT},
-                                                 ref::EnzymeCore.Annotation{CT}, x::EnzymeCore.Annotation{T}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
-    ref.val[] = x.val
-    primal = EnzymeRules.needs_primal(config) ? ref.val : nothing
-    shadow = EnzymeRules.needs_shadow(config) ? ref.dval : nothing
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.convert)}, ::Type{RT},
+                                                 ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
+    primal = EnzymeRules.needs_primal(config) ? convert(P, managed.val) : nothing
+    shadow = EnzymeRules.needs_shadow(config) ? managed_shadow_ptrs(config, P, managed) : nothing
     return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
 end
 
-function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.setindex!)}, ::Type{RT}, tape,
-                                        ref::EnzymeCore.Annotation{CT}, x::EnzymeCore.Annotation{T}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
-    # the write overwrote the box, so its derivative moves to `x` and the shadow box is cleared
-    dx = if EnzymeRules.width(config) == 1
-        curef_take!(ref, x.val)
-    else
-        ntuple(Val(EnzymeRules.width(config))) do i
-            Base.@_inline_meta
-            curef_take!(ref, x.val, i)
-        end
-    end
-    return (nothing, x isa Active ? dx : nothing)
-end
-
-curef_shadow_value(ref::Const{CT}, i...) where {T, CT <: CUDACore.CuRefValue{T}} = zero(T)
-curef_shadow_value(ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}} = ref.dval[]::T
-curef_shadow_value(ref::EnzymeCore.Annotation{CT}, i) where {T, CT <: CUDACore.CuRefValue{T}} = ref.dval[i][]::T
-
-function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(Base.getindex)}, ::Type{RT},
-                                        ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
-    shadow = if !EnzymeRules.needs_shadow(config)
-        nothing
-    elseif EnzymeRules.width(config) == 1
-        curef_shadow_value(ref)
-    else
-        ntuple(Val(EnzymeRules.width(config))) do i
-            Base.@_inline_meta
-            curef_shadow_value(ref, i)
-        end
-    end
-
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            Duplicated(ref.val[], shadow)
-        else
-            BatchDuplicated(ref.val[], shadow)
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        shadow
-    elseif EnzymeRules.needs_primal(config)
-        ref.val[]
-    else
-        nothing
-    end
-end
-
-function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.getindex)}, ::Type{RT},
-                                                 ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}, RT <: Union{Const, Active}}
-    primal = EnzymeRules.needs_primal(config) ? ref.val[] : nothing
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), Nothing, Nothing}(primal, nothing, nothing)
-end
-
-function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.getindex)}, ::Type{<:Const}, tape,
-                                        ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}}
-    return (nothing,)
-end
-
-# in batch mode, `dret` is a tuple with one `Active` per batch element
-curef_dret(dret::Active, i) = dret.val
-curef_dret(dret::Tuple, i) = dret[i].val
-
-function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.getindex)}, dret::Union{Active, Tuple{Vararg{Active}}}, tape,
-                                        ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}}
-    if !(ref isa Const)
-        W = Val(EnzymeRules.width(config))
-        for i in 1:EnzymeRules.width(config)
-            dref = curef_shadow_at(ref.dval, W, i)
-            dref[] += curef_dret(dret, i)
-        end
-    end
-    return (nothing,)
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.convert)}, ::Type{RT}, tape,
+                                        ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
+    return (nothing, nothing)
 end
 
 function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...) where {CT <: CuArray}

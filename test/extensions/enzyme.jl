@@ -267,32 +267,47 @@ function curef_overwrite(x)
     r[] = 5f0
     return a * r[]
 end
+function curef_set(x)
+    r = CuRef{Float32}()
+    r[] = 2f0 * x
+    return r[] * x
+end
 function curef_square!(y, x)
     r = CuRef{Float32}(x[])
     y[] = r[] * r[]
     return nothing
 end
 
+# forward mode reads and writes a box through the forward `unsafe_copyto!` rules in Enzyme.jl
+const curef_forward = hasmethod(Enzyme.EnzymeRules.forward,
+    Tuple{Enzyme.EnzymeRules.FwdConfig{true,true,1,false,false}, Const{typeof(unsafe_copyto!)},
+          Type{Duplicated{CuPtr{Float32}}}, Duplicated{CuPtr{Float32}}, Duplicated{Ptr{Float32}}, Const{Int}})
+
 @testset "CuRef" begin
     # allocating a box must not expose the allocator's statistics to Enzyme
     @test autodiff(Reverse, curef_alloc, Active, Active(3f0)) == ((6f0,),)
-    @test autodiff(Forward, curef_alloc, Duplicated(3f0, 1f0)) == (6f0,)
 
     # derivatives flow through values stored in a box
     @test autodiff(Reverse, curef_square, Active, Active(3f0))[1][1] ≈ 6f0
-    @test autodiff(Forward, curef_square, Duplicated(3f0, 1f0))[1] ≈ 6f0
-    dy = autodiff(Forward, curef_square, BatchDuplicated(3f0, (1f0, 2f0)))[1]
-    @test dy[1] ≈ 6f0
-    @test dy[2] ≈ 12f0
-    @test autodiff(Forward, CuRef{Float32}, Duplicated(3f0, 1f0))[1][] ≈ 1f0
+    @test autodiff(Reverse, curef_set, Active, Active(3f0))[1][1] ≈ 12f0
 
     # overwriting a box drops the derivative of the old value
     @test autodiff(Reverse, curef_overwrite, Active, Active(3f0))[1][1] ≈ 5f0
-    @test autodiff(Forward, curef_overwrite, Duplicated(3f0, 1f0))[1] ≈ 5f0
 
     x = Ref(3f0); dx = (Ref(0f0), Ref(0f0))
     y = Ref(0f0); dy = (Ref(1f0), Ref(2f0))
     autodiff(Reverse, curef_square!, Const, BatchDuplicated(y, dy), BatchDuplicated(x, dx))
     @test dx[1][] ≈ 6f0
     @test dx[2][] ≈ 12f0
+
+    if curef_forward
+        @test autodiff(Forward, curef_alloc, Duplicated(3f0, 1f0)) == (6f0,)
+        @test autodiff(Forward, curef_square, Duplicated(3f0, 1f0))[1] ≈ 6f0
+        @test autodiff(Forward, curef_set, Duplicated(3f0, 1f0))[1] ≈ 12f0
+        dy = autodiff(Forward, curef_square, BatchDuplicated(3f0, (1f0, 2f0)))[1]
+        @test dy[1] ≈ 6f0
+        @test dy[2] ≈ 12f0
+        @test autodiff(Forward, CuRef{Float32}, Duplicated(3f0, 1f0))[1][] ≈ 1f0
+        @test autodiff(Forward, curef_overwrite, Duplicated(3f0, 1f0))[1] ≈ 5f0
+    end
 end
