@@ -572,6 +572,189 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}
     end
 end
 
+### reference boxes
+
+# `CuRefValue{T}()` allocates its buffer through `pool_alloc`, which also updates the
+# global allocation statistics using atomic operations on `Float64` fields that Enzyme
+# cannot differentiate. Allocating a box has no derivative of its own, but the box may later
+# hold an active value, so we cannot mark the constructor inactive: give it a zero-initialized
+# shadow box instead, like the `CuArray(undef, ...)` constructor rules above.
+
+function zero_curef!(ref::CUDACore.CuRefValue)
+    GC.@preserve ref CUDACore.memset(convert(CuPtr{UInt8}, ref.buf), 0x00, sizeof(ref.buf))
+    return ref
+end
+
+function zeroed_curef(::Type{CT}) where {CT <: CUDACore.CuRefValue}
+    return zero_curef!(CT())
+end
+
+function curef_shadow(config, ::Type{CT}) where {CT <: CUDACore.CuRefValue}
+    if EnzymeRules.width(config) == 1
+        zeroed_curef(CT)
+    else
+        ntuple(Val(EnzymeRules.width(config))) do i
+            Base.@_inline_meta
+            zeroed_curef(CT)
+        end
+    end
+end
+
+function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}}, ::Type{RT}) where {CT <: CUDACore.CuRefValue, RT}
+    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            Duplicated(ofn.val(), curef_shadow(config, CT))
+        else
+            BatchDuplicated(ofn.val(), curef_shadow(config, CT))
+        end
+    elseif EnzymeRules.needs_shadow(config)
+        curef_shadow(config, CT)
+    elseif EnzymeRules.needs_primal(config)
+        ofn.val()
+    else
+        nothing
+    end
+end
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}) where {CT <: CUDACore.CuRefValue, RT}
+    primal = EnzymeRules.needs_primal(config) ? ofn.val() : nothing
+    shadow = EnzymeRules.needs_shadow(config) ? curef_shadow(config, CT) : nothing
+    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape) where {CT <: CUDACore.CuRefValue, RT}
+    return ()
+end
+
+# Reading and writing a box copies between host and device memory with `cuMemcpy`, which
+# Enzyme does not see through, so the derivative is propagated explicitly here: the shadow
+# box holds the derivative of the stored value, a write sets it and a read passes it on.
+
+curef_shadow_at(dval, ::Val{1}, i) = dval
+curef_shadow_at(dval, ::Val, i) = dval[i]
+
+# read the derivative from (the `i`-th) shadow box, and clear it
+curef_take!(ref::Const, x) = zero(x)
+curef_take!(ref::Const, x, i) = zero(x)
+curef_take!(ref::EnzymeCore.Annotation, x) = curef_take!(ref.dval)
+curef_take!(ref::EnzymeCore.Annotation, x, i) = curef_take!(ref.dval[i])
+function curef_take!(dref::CUDACore.CuRefValue{T}) where {T}
+    d = dref[]::T
+    zero_curef!(dref)
+    return d
+end
+
+function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(Base.setindex!)}, ::Type{RT},
+                                        ref::EnzymeCore.Annotation{CT}, x::EnzymeCore.Annotation{T}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
+    ref.val[] = x.val
+    if !(ref isa Const)
+        W = Val(EnzymeRules.width(config))
+        for i in 1:EnzymeRules.width(config)
+            dref = curef_shadow_at(ref.dval, W, i)
+            if x isa Const
+                zero_curef!(dref)
+            else
+                dref[] = curef_shadow_at(x.dval, W, i)
+            end
+        end
+    end
+
+    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            Duplicated(ref.val, ref.dval)
+        else
+            BatchDuplicated(ref.val, ref.dval)
+        end
+    elseif EnzymeRules.needs_shadow(config)
+        ref.dval
+    elseif EnzymeRules.needs_primal(config)
+        ref.val
+    else
+        nothing
+    end
+end
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.setindex!)}, ::Type{RT},
+                                                 ref::EnzymeCore.Annotation{CT}, x::EnzymeCore.Annotation{T}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
+    ref.val[] = x.val
+    primal = EnzymeRules.needs_primal(config) ? ref.val : nothing
+    shadow = EnzymeRules.needs_shadow(config) ? ref.dval : nothing
+    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.setindex!)}, ::Type{RT}, tape,
+                                        ref::EnzymeCore.Annotation{CT}, x::EnzymeCore.Annotation{T}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
+    # the write overwrote the box, so its derivative moves to `x` and the shadow box is cleared
+    dx = if EnzymeRules.width(config) == 1
+        curef_take!(ref, x.val)
+    else
+        ntuple(Val(EnzymeRules.width(config))) do i
+            Base.@_inline_meta
+            curef_take!(ref, x.val, i)
+        end
+    end
+    return (nothing, x isa Active ? dx : nothing)
+end
+
+curef_shadow_value(ref::Const{CT}, i...) where {T, CT <: CUDACore.CuRefValue{T}} = zero(T)
+curef_shadow_value(ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}} = ref.dval[]::T
+curef_shadow_value(ref::EnzymeCore.Annotation{CT}, i) where {T, CT <: CUDACore.CuRefValue{T}} = ref.dval[i][]::T
+
+function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(Base.getindex)}, ::Type{RT},
+                                        ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}, RT}
+    shadow = if !EnzymeRules.needs_shadow(config)
+        nothing
+    elseif EnzymeRules.width(config) == 1
+        curef_shadow_value(ref)
+    else
+        ntuple(Val(EnzymeRules.width(config))) do i
+            Base.@_inline_meta
+            curef_shadow_value(ref, i)
+        end
+    end
+
+    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            Duplicated(ref.val[], shadow)
+        else
+            BatchDuplicated(ref.val[], shadow)
+        end
+    elseif EnzymeRules.needs_shadow(config)
+        shadow
+    elseif EnzymeRules.needs_primal(config)
+        ref.val[]
+    else
+        nothing
+    end
+end
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.getindex)}, ::Type{RT},
+                                                 ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}, RT <: Union{Const, Active}}
+    primal = EnzymeRules.needs_primal(config) ? ref.val[] : nothing
+    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), Nothing, Nothing}(primal, nothing, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.getindex)}, ::Type{<:Const}, tape,
+                                        ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}}
+    return (nothing,)
+end
+
+# in batch mode, `dret` is a tuple with one `Active` per batch element
+curef_dret(dret::Active, i) = dret.val
+curef_dret(dret::Tuple, i) = dret[i].val
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.getindex)}, dret::Union{Active, Tuple{Vararg{Active}}}, tape,
+                                        ref::EnzymeCore.Annotation{CT}) where {T, CT <: CUDACore.CuRefValue{T}}
+    if !(ref isa Const)
+        W = Val(EnzymeRules.width(config))
+        for i in 1:EnzymeRules.width(config)
+            dref = curef_shadow_at(ref.dval, W, i)
+            dref[] += curef_dret(dret, i)
+        end
+    end
+    return (nothing,)
+end
+
 function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...) where {CT <: CuArray}
     return nothing
 end

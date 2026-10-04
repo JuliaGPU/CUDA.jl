@@ -258,3 +258,41 @@ end
 #     x = CuArray(x)
 #     square!(x)
 # end
+
+curef_alloc(x) = (CuRef{Float32}(1f0); x * x)
+curef_square(x) = (r = CuRef{Float32}(x); r[] * r[])
+function curef_overwrite(x)
+    r = CuRef{Float32}(x)
+    a = r[]
+    r[] = 5f0
+    return a * r[]
+end
+function curef_square!(y, x)
+    r = CuRef{Float32}(x[])
+    y[] = r[] * r[]
+    return nothing
+end
+
+@testset "CuRef" begin
+    # allocating a box must not expose the allocator's statistics to Enzyme
+    @test autodiff(Reverse, curef_alloc, Active, Active(3f0)) == ((6f0,),)
+    @test autodiff(Forward, curef_alloc, Duplicated(3f0, 1f0)) == (6f0,)
+
+    # derivatives flow through values stored in a box
+    @test autodiff(Reverse, curef_square, Active, Active(3f0))[1][1] ≈ 6f0
+    @test autodiff(Forward, curef_square, Duplicated(3f0, 1f0))[1] ≈ 6f0
+    dy = autodiff(Forward, curef_square, BatchDuplicated(3f0, (1f0, 2f0)))[1]
+    @test dy[1] ≈ 6f0
+    @test dy[2] ≈ 12f0
+    @test autodiff(Forward, CuRef{Float32}, Duplicated(3f0, 1f0))[1][] ≈ 1f0
+
+    # overwriting a box drops the derivative of the old value
+    @test autodiff(Reverse, curef_overwrite, Active, Active(3f0))[1][1] ≈ 5f0
+    @test autodiff(Forward, curef_overwrite, Duplicated(3f0, 1f0))[1] ≈ 5f0
+
+    x = Ref(3f0); dx = (Ref(0f0), Ref(0f0))
+    y = Ref(0f0); dy = (Ref(1f0), Ref(2f0))
+    autodiff(Reverse, curef_square!, Const, BatchDuplicated(y, dy), BatchDuplicated(x, dx))
+    @test dx[1][] ≈ 6f0
+    @test dx[2][] ≈ 12f0
+end
