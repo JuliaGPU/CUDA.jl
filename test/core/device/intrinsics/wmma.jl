@@ -478,7 +478,7 @@ end
 
 @testset "Codegen addressing" begin
     @testset "Global" begin
-        @test @filecheck CUDA.code_ptx((CuDeviceArray{Float32,1,CUDA.AS.Global},)) do d
+        @test @filecheck CUDA.code_ptx((CuDeviceArray{Float32,1,CUDA.AS.Global,Int32},)) do d
             @check "{{wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32}}"
             @check_not "{{wmma.store.d.sync(.aligned)?.col.m16n16k16.f32}}"
             conf = WMMA.Config{16, 16, 16, Float32}

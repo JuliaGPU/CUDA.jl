@@ -171,7 +171,7 @@ julia> id(x) = x
 id (generic function with 1 method)
 
 julia> @cuda threads=size(a, 1) my_outer_kernel2(id, a)
-CUDA.HostKernel for my_outer_kernel2(typeof(id), CuDeviceMatrix{Int64, 1})
+CUDA.HostKernel for my_outer_kernel2(typeof(id), CuDeviceMatrix{Int64, 1, Int32})
 ```
 
 More cases and details on specialization can be found in [the Julia manual](https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing).

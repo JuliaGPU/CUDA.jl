@@ -5,28 +5,28 @@ using CUDACore.GPUArrays: GPUSparseDeviceVector, GPUSparseDeviceMatrixCSC, GPUSp
                       GPUSparseDeviceMatrixBSR, GPUSparseDeviceMatrixCOO
 
 @testset "cudaconvert" begin
-    @test isbitstype(GPUSparseDeviceVector{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCSC{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCSR{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixBSR{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCOO{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
+    @test isbitstype(GPUSparseDeviceVector{Float32, Cint, CuDeviceVector{Cint, AS.Global, Int32}, CuDeviceVector{Float32, AS.Global, Int32}, AS.Global})
+    @test isbitstype(GPUSparseDeviceMatrixCSC{Float32, Cint, CuDeviceVector{Cint, AS.Global, Int32}, CuDeviceVector{Float32, AS.Global, Int32}, AS.Global})
+    @test isbitstype(GPUSparseDeviceMatrixCSR{Float32, Cint, CuDeviceVector{Cint, AS.Global, Int32}, CuDeviceVector{Float32, AS.Global, Int32}, AS.Global})
+    @test isbitstype(GPUSparseDeviceMatrixBSR{Float32, Cint, CuDeviceVector{Cint, AS.Global, Int32}, CuDeviceVector{Float32, AS.Global, Int32}, AS.Global})
+    @test isbitstype(GPUSparseDeviceMatrixCOO{Float32, Cint, CuDeviceVector{Cint, AS.Global, Int32}, CuDeviceVector{Float32, AS.Global, Int32}, AS.Global})
 
     V = sprand(10, 0.5)
     cuV = CuSparseVector(V)
-    @test cudaconvert(cuV) isa GPUSparseDeviceVector{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
+    @test cudaconvert(cuV) isa GPUSparseDeviceVector{Float64, Cint, <:CuDeviceVector{Cint, AS.Global}, <:CuDeviceVector{Float64, AS.Global}, AS.Global}
 
     A = sprand(10, 10, 0.5)
     cuA = CuSparseMatrixCSC(A)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCSC{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
+    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCSC{Float64, Cint, <:CuDeviceVector{Cint, AS.Global}, <:CuDeviceVector{Float64, AS.Global}, AS.Global}
 
     cuA = CuSparseMatrixCSR(A)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCSR{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
+    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCSR{Float64, Cint, <:CuDeviceVector{Cint, AS.Global}, <:CuDeviceVector{Float64, AS.Global}, AS.Global}
 
     cuA = CuSparseMatrixCOO(A)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCOO{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
+    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCOO{Float64, Cint, <:CuDeviceVector{Cint, AS.Global}, <:CuDeviceVector{Float64, AS.Global}, AS.Global}
 
     cuA = CuSparseMatrixBSR(A, 2)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixBSR{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
+    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixBSR{Float64, Cint, <:CuDeviceVector{Cint, AS.Global}, <:CuDeviceVector{Float64, AS.Global}, AS.Global}
 end
 
 @testset "device SparseArrays api" begin
