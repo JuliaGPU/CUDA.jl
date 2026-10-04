@@ -83,3 +83,19 @@ end
         @test Array(a) == (fastmath ? zeros(Float32, 2) : Array(b))
     end
 end
+
+@testset "index types" begin
+    # launches with arrays that don't fit 32-bit indices take a different path
+    KA.@kernel function size_kernel!(out, a)
+        @inbounds out[1] = size(a, 2)
+    end
+    out = CuArray([0])
+    a = CuArray{Float32}(undef, 2, 3)
+    size_kernel!(CUDABackend())(out, a; ndrange=1)
+    @test Array(out) == [3]
+    GC.@preserve a begin
+        big = unsafe_wrap(CuArray, pointer(a), (2, 2^30))   # never accessed
+        size_kernel!(CUDABackend())(out, big; ndrange=1)
+        @test Array(out) == [2^30]
+    end
+end
