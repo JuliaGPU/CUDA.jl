@@ -81,6 +81,41 @@ end
     @test Array(y) == fill(9f0, 1024)
 end
 
+@testset "allocations" begin
+    x = CUDA.ones(Float32, 1024)
+    y = x .+ 1
+    local z
+    exec = instantiate(capture() do
+        z = x .+ 1          # memory is allocated outside of the graph
+        y .= 2 .* z
+    end)
+    @test size(z) == (1024,)
+
+    # free the garbage of earlier tests first, as collecting it during the loop would lower
+    # the memory usage
+    CUDA.reclaim()
+    used = CUDA.used_memory()
+    allocation = z.data[]
+    for i in 1:10
+        x .= i
+        exec()
+        # the allocated memory is reused, and overwritten by every launch
+        @test z.data[] === allocation
+        @test Array(z) == fill(Float32(i + 1), 1024)
+        @test Array(y) == fill(Float32(2(i + 1)), 1024)
+    end
+    # Physical pool accounting is unavailable with JULIA_CUDA_MEMORY_POOL=none.
+    if used !== missing
+        @test CUDA.used_memory() == used
+    end
+
+    # memory allocated during capture can be used right away
+    local w
+    graph = capture(() -> w = CUDA.zeros(Float32, 4))
+    copyto!(w, Float32[1, 2, 3, 4])
+    @test Array(w) == [1, 2, 3, 4]
+end
+
 @testset "garbage collection during capture" begin
     # garbage that was last used on various streams, using various kinds of memory
     function garbage(M, s)
@@ -331,4 +366,15 @@ end
     @test length(graph) == 1
     instantiate(graph)()
     @test Array(y) == fill(2f0, 4)
+end
+
+@testset "captured allocation provenance" begin
+    allocated = Ref{CuArray{Float32,1}}()
+    graph = capture() do
+        allocated[] = CuArray{Float32}(undef, 16)
+    end
+    @test allocated[].data[].owned_allocation
+    CUDA.unsafe_free!(allocated[])
+    finalize(graph)
+    CUDA.reclaim()
 end

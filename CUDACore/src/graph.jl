@@ -94,6 +94,68 @@ function record!(capture::CaptureState, managed::Managed)
     return
 end
 
+## memory allocation
+
+# memory allocated in stream order while capturing a graph would become owned by that graph,
+# only valid after launching it, and only until launching it again (or destroying it). that
+# is not compatible with arrays whose lifetime is managed by the GC, so allocate memory on a
+# separate stream instead, and keep it alive for as long as the graph may use it.
+@noinline function capture_alloc(::Type{B}, sz, state) where {B<:AbstractMemory}
+    alloc_stream = allocation_stream(state.context)
+    time = Base.@elapsed begin
+        # (allocating on another stream isn't allowed while capturing)
+        mem = relaxed_capture_mode() do
+            _pool_alloc(B, sz, (; state..., stream=alloc_stream))
+        end
+
+        if B != DeviceMemory
+            # other memory can be accessed by the CPU, so wait for the allocation right away
+            res = relaxed_capture_mode(() -> unchecked_synchronize(alloc_stream))
+            res == SUCCESS || throw_api_error(res)
+        end
+    end
+
+    Base.@atomic alloc_stats.alloc_count += 1
+    Base.@atomic alloc_stats.alloc_bytes += sz
+    Base.@atomic alloc_stats.total_time += time
+
+    # the memory is owned by the allocation stream, and dirty, so that whoever uses it next
+    # (launching the graph, or another task) waits for the allocation, and for any
+    # initialization that is performed on that stream before the memory is published. the
+    # captured operations themselves only record their use (see `take_ownership!`).
+    return Managed(mem; stream=alloc_stream, owned_allocation=true)
+end
+
+# a non-blocking stream per context, used to allocate memory while capturing graphs
+const allocation_streams = Dict{CuContext,CuStream}()
+const allocation_streams_lock = Threads.SpinLock()
+function allocation_stream(ctx::CuContext)
+    @lock allocation_streams_lock get!(allocation_streams, ctx) do
+        context!(() -> CuStream(; flags=STREAM_NON_BLOCKING), ctx)
+    end
+end
+
+# initialize memory that was allocated during capture with a (small) value, without capturing
+# the operation. this is ordered after the allocation on the stream that owns the memory, so
+# users of the memory wait for it too. memsets are used, as copying from unpinned memory
+# would wait for the stream, and as such for any work the allocation depends on.
+function initialize_during_capture(managed::Managed, value::T) where {T}
+    ref = Ref(value)
+    nbytes = aligned_sizeof(T)
+    ptr = convert(CuPtr{UInt8}, managed.mem)
+    GC.@preserve ref relaxed_capture_mode() do
+        stream = allocation_stream(managed.mem.ctx)
+        src = Ptr{UInt8}(Base.unsafe_convert(Ptr{T}, ref))
+        for i in 0:4:nbytes-4
+            cuMemsetD32Async(ptr + i, unsafe_load(Ptr{UInt32}(src + i)), 1, stream)
+        end
+        for i in (nbytes - nbytes % 4):nbytes-1
+            cuMemsetD8Async(ptr + i, unsafe_load(src + i), 1, stream)
+        end
+    end
+    return
+end
+
 
 ## graphs
 
@@ -343,7 +405,9 @@ are captured with the arguments they were called with, so launching the graph al
 the same arrays and scalars. The contents of those arrays may change, though, so to execute
 the graph with different inputs, copy them into the arrays used during capture.
 
-Memory that is used by captured operations is kept alive by the graph.
+Memory that is used by captured operations is kept alive by the graph. Arrays that are
+allocated during capture are allocated once, outside of the graph, and launching the graph
+overwrites their contents, so allocating operations like `y = a .* x` can be captured too.
 
 Not all operations can be captured. Anything that waits for the GPU, like copying memory
 back to the CPU, or that creates library handles, results in a [`CaptureError`](@ref) or a
