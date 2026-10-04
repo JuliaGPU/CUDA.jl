@@ -161,6 +161,10 @@ end
     @test capture(() -> (record(event); synchronize(event)); throw_error=false) === nothing
     @test !is_capturing()
 
+    # copying to host memory that the graph can't keep alive
+    pinned = CUDA.pin(zeros(Int, 4))
+    @test_throws CaptureError capture(() -> copyto!(pinned, a))
+
     # other errors are always reported
     @test_throws ArgumentError capture(() -> throw(ArgumentError("oops")); throw_error=false)
     @test !is_capturing()
@@ -184,6 +188,35 @@ end
     # the stream is still usable
     a .+= 1
     @test Array(a) == fill(2, 4)
+end
+
+@testset "copies from the CPU" begin
+    a = CUDA.zeros(Float32, 4)
+    h = Float32[1, 2, 3, 4]
+    exec = instantiate(capture(() -> copyto!(a, h)))
+
+    # data is copied when capturing
+    h .= 0
+    exec()
+    @test Array(a) == [1, 2, 3, 4]
+
+    # also from pinned memory
+    h = CUDA.pin(Float32[5, 6, 7, 8])
+    exec = instantiate(capture(() -> copyto!(a, h)))
+    h .= 0
+    exec()
+    @test Array(a) == [5, 6, 7, 8]
+
+    # to use host memory when launching a graph, use arrays backed by host memory
+    h = CuArray{Float32,1,CUDA.HostMemory}([1, 2, 3, 4])
+    exec = instantiate(capture(() -> copyto!(a, h)))
+    h .= 9
+    exec()
+    @test Array(a) == fill(9, 4)
+    exec = instantiate(capture(() -> copyto!(h, a .+ 1)))
+    exec()
+    synchronize()
+    @test Array(h) == fill(10, 4)
 end
 
 @testset "multitasking" begin
