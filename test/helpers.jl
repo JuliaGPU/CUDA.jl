@@ -73,3 +73,19 @@ function julia_exec(args::Cmd, env...)
     wait(proc)
     proc, read(out, String), read(err, String)
 end
+
+# keep the GPU busy until the host opens a gate, so that tests can do things while a kernel
+# is running without depending on timing. if the gate is not opened in time (e.g., because
+# the host is blocked waiting for the GPU), the kernel gives up and records that it timed
+# out, instead of hanging. `gate` points to two flags: (is open, timed out).
+function gate_kernel(gate::Ptr{UInt32}, cycles)
+    t0 = clock(UInt64)
+    while unsafe_load(gate, :monotonic) == 0
+        if clock(UInt64) - t0 >= cycles
+            unsafe_store!(gate, UInt32(1), 2)
+            break
+        end
+    end
+    return
+end
+gate_timeout() = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))

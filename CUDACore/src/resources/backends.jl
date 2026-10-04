@@ -115,7 +115,7 @@ function free_now(managed::Managed)
 
   try
     time = Base.@elapsed _pool_free(mem, managed.stream, managed.stream_ctx,
-                                    managed.owned_allocation)
+                                    managed.generation, managed.owned_allocation)
     Base.@atomic alloc_stats.free_count += 1
     Base.@atomic alloc_stats.free_bytes += sz
     Base.@atomic alloc_stats.total_time += time
@@ -126,13 +126,13 @@ function free_now(managed::Managed)
   return
 end
 @inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
-                            owned_allocation::Bool)
+                            generation::Int, owned_allocation::Bool)
     if mem.async || async_free_supported(mem.dev)
       # free in stream order. `cuMemFree` would wait for all work on the device to finish,
       # blocking kernel launches from other threads in the meantime. that also works for
       # memory that wasn't allocated from a pool.
       @lock stream_disposal_lock begin
-        handle, ctx = release_stream(stream, stream_ctx)
+        handle, ctx = release_stream(stream, stream_ctx, generation)
         context!(ctx) do
           free_stream = if !mem.async
             # when memory that wasn't allocated from a pool is freed in stream order,
@@ -157,16 +157,16 @@ end
     owned_allocation && account!(memory_stats(mem.dev), -sizeof(mem))
 end
 @inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
-                            stream_ctx::CuContext, owned_allocation::Bool)
+                            stream_ctx::CuContext, generation::Int, owned_allocation::Bool)
   if mem.pooled
     @lock stream_disposal_lock begin
-      stream, ctx = release_stream(stream, stream_ctx)
+      stream, ctx = release_stream(stream, stream_ctx, generation)
       context!(ctx) do
         cuMemFreeAsync(convert(CuPtr{Cvoid}, mem), stream)
       end
     end
   elseif owned_allocation
-    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx)
+    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx, generation)
   else
     # imported memory may not have been allocated like we do, so isn't reused. freeing it
     # waits for all running kernels to finish, so defer that until memory is reclaimed.
@@ -274,9 +274,9 @@ const unified_cache = BlockCache{UnifiedMemory}()
 cached_size(sz) = sz <= 1<<20 ? nextpow(2, max(sz, 512)) : cld(sz, 1<<20) << 20
 
 function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream,
-                    stream_ctx::CuContext) where {M}
+                    stream_ctx::CuContext, generation::Int) where {M}
   idle = @lock stream_disposal_lock begin
-    stream, ctx = release_stream(stream, stream_ctx)
+    stream, ctx = release_stream(stream, stream_ctx, generation)
     # (the event needs to be created in the context of the stream it is recorded on)
     context!(ctx) do
       event = CuEvent(EVENT_DISABLE_TIMING)

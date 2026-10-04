@@ -291,18 +291,48 @@ math_precision() = task_local_state!().math_precision
     stream()
 
 Get the CUDA stream that should be used as the default one for the currently executing task.
+
+Each task gets its own stream, which may be handed to another task once the task has finished
+and all work on the stream has completed. If you need a stream that outlives the task, or that
+is never shared, create one with `CuStream()` and activate it using [`stream!`](@ref).
 """
 @inline function stream(state=task_local_state!())
     # @inline so that it can be DCE'd when unused from active_state
     devidx = deviceid(state.device)+1
     @inbounds if state.streams[devidx] === nothing
-        state.streams[devidx] = create_stream()
+        state.streams[devidx] = create_stream(state)
     else
         state.streams[devidx]::CuStream
     end
 end
-@noinline function create_stream()
-    stream = CuStream()
+
+# streams are cheap to create, but each one holds on to about half a MiB of device memory,
+# and the stream-ordered allocator gets slower with every stream that has used it. since the
+# GC is in no hurry to collect finished tasks (and with them, their streams), code that
+# spawns many short-lived tasks would pile up thousands of streams. instead, recycle the
+# streams of tasks that have finished, keeping up to `STREAM_POOL_IDLE` unused ones per
+# context.
+const STREAM_POOL_IDLE = 32
+struct PooledStream
+    stream::CuStream
+    owner::WeakRef
+end
+const stream_pools = Dict{CuContext,Vector{PooledStream}}()
+const stream_pool_lock = ReentrantLock()
+
+@noinline function create_stream(state::TaskLocalState)
+    # finalizers can't wait for the pool lock
+    GC.in_finalizer() && error("Cannot create a CUDA stream from a finalizer")
+    task = current_task()
+    stream = @lock stream_pool_lock begin
+        claim_stream!(get!(Vector{PooledStream}, stream_pools, state.context), task)
+    end
+    if stream === nothing
+        stream = CuStream()
+        @lock stream_pool_lock begin
+            push!(stream_pools[state.context], PooledStream(stream, WeakRef(task)))
+        end
+    end
 
     # register the name of this task
     # XXX: do this when the user has imported NVTX.jl (using weak dependencies?)
@@ -313,6 +343,50 @@ end
 
     stream
 end
+
+# looks at every stream in the pool, i.e., is O(live tasks) under a global lock. that's fine
+# as long as streams are only claimed when a task first uses the GPU.
+function claim_stream!(pool::Vector{PooledStream}, task::Task)
+    candidate = nothing
+    idle = 0
+    i = 1
+    while i <= length(pool)
+        entry = pool[i]
+        owner = entry.owner.value
+        keep = if owner !== nothing && !istaskdone(owner::Task)
+            true
+        elseif !isvalid(entry.stream)
+            false
+        else
+            status = query(entry.stream)
+            if status == ERROR_NOT_READY
+                # don't make a new task wait for work that the previous owner left behind
+                true
+            elseif status != SUCCESS
+                # the stream is in an error state
+                false
+            elseif candidate === nothing
+                candidate = entry
+                true
+            else
+                (idle += 1) <= STREAM_POOL_IDLE
+            end
+        end
+        keep ? (i += 1) : deleteat!(pool, i)
+    end
+    candidate === nothing && return nothing
+
+    candidate.owner.value = task
+    # (holding the lock that memory is released under, see `release_stream`)
+    @lock stream_disposal_lock begin
+        gen = Base.@atomic :monotonic candidate.stream.generation
+        Base.@atomic :release candidate.stream.generation = gen + 1
+    end
+    return candidate.stream
+end
+
+# (a task may start using the GPU while another thread is capturing in global mode)
+query(s::CuStream) = relaxed_capture_mode(() -> unchecked_cuStreamQuery(s))
 
 function stream!(stream::CuStream)
     state = task_local_state!()

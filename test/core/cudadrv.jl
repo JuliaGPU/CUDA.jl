@@ -975,24 +975,13 @@ end
 # compute-sanitizer serializes kernels, which the tests below rely on not happening
 sanitize || @testset "cooperative synchronization" begin
 
-# keep the GPU busy until the host opens a gate. this keeps the tests below independent of
-# timing: a synchronization can only return after the task that opens the gate has run. if
-# that does not happen (e.g., because the thread it runs on is blocked), the kernel gives up
-# after a while, and records that it timed out, instead of hanging.
-function gate_kernel(gate::Ptr{UInt32}, cycles)
-    t0 = clock(UInt64)
-    while unsafe_load(gate, :monotonic) == 0
-        if clock(UInt64) - t0 >= cycles
-            unsafe_store!(gate, UInt32(1), 2)
-            break
-        end
-    end
-    return
-end
+# keep the GPU busy with a `gate_kernel` (see helpers.jl). this keeps the tests below
+# independent of timing: a synchronization can only return after the task that opens the
+# gate has run.
 gate = zeros(UInt32, 2)     # (is open, timed out)
 gpu_gate = unsafe_wrap(CuArray, gate)
 gate_ptr = reinterpret(Ptr{UInt32}, pointer(gpu_gate))
-timeout = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))
+timeout = gate_timeout()
 open_gate() = unsafe_store!(pointer(gate), UInt32(1), :release)
 gate_is_open() = unsafe_load(pointer(gate), :acquire) != 0
 
@@ -1133,6 +1122,46 @@ let old = CuStream(), blocked = CuStream(), opener = CuStream(),
         synchronize(opener)
         !gate_is_open()
     end
+end
+
+# run `f` while another task owns `s`, the stream of a task that has finished
+function while_reused(f, s)
+    release = Base.Event()
+    owners = Task[]
+    try
+        for _ in 1:64
+            claimed = Channel{CuStream}(1)
+            push!(owners, Threads.@spawn begin
+                put!(claimed, stream())
+                wait(release)
+            end)
+            bind(claimed, owners[end])
+            take!(claimed) == s && return f()
+        end
+        error("the stream of a finished task was not reused")
+    finally
+        notify(release)
+        foreach(wait, owners)
+    end
+end
+
+# memory last used on a stream that has been handed to another task doesn't wait for the
+# work of the new owner, neither when it's used nor when it's freed
+for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory)
+    a, s = fetch(Threads.@spawn begin
+        a = CuArray{UInt8,1,M}(undef, 4096)
+        fill!(a, 0x2a)
+        synchronize()
+        a, stream()
+    end)
+    while_reused(s) do
+        @test gated(s) do
+            Array(a) == fill(0x2a, 4096) || return false
+            unsafe_free!(a)
+            !gate_is_open()
+        end
+    end
+    CUDA.reclaim()
 end
 
 # memory released after the stream it was last used on has been destroyed (as happens when

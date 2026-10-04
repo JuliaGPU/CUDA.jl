@@ -267,3 +267,26 @@ end
         @test_throws ErrorException capture(() -> nothing)
     end
 end
+
+@testset "stream construction from finalizers is rejected" begin
+    # (a task's stream is created on first use, which can't be arranged to happen in a
+    #  finalizer, so call the internal function that does)
+    state = CUDACore.task_local_state!()
+    result = Ref{Any}(nothing)
+    @noinline function stream_finalizer(state, result)
+        obj = Ref(0)
+        finalizer(obj) do _
+            result[] = try
+                CUDACore.create_stream(state)
+            catch err
+                err
+            end
+        end
+        WeakRef(obj)
+    end
+    weak = stream_finalizer(state, result)
+    GC.gc(true)
+    @test weak.value === nothing
+    @test result[] isa ErrorException
+    @test occursin("Cannot create a CUDA stream from a finalizer", sprint(showerror, result[]))
+end

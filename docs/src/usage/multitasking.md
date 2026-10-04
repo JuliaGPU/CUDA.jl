@@ -111,6 +111,14 @@ copy was executed while the GPU was still active with the second round of comput
 Furthermore, the copies executed much quicker -- if the memory were unpinned, it would first
 have to be staged to a pinned CPU buffer anyway.
 
+Streams are not free: each one holds on to some device memory, and many streams slow down
+memory allocation. To keep applications that spawn many short-lived tasks from accumulating
+streams, the stream of a task is recycled once the task has finished and all work on it has
+completed. Tasks that are running at the same time never share a stream, but a newly started
+task may get the stream of an earlier one. If you need a stream that outlives the task that
+uses it, e.g., to pass it on to other tasks, create one explicitly with [`CuStream()`](@ref)
+and activate it with [`stream!`](@ref).
+
 
 ## Multithreading
 

@@ -27,6 +27,13 @@ are listed as subsections of the minor release they belong to.
   calling `CUDA.reclaim()`. Pinned arrays are kept alive until then.
 - `JULIA_CUDA_MEMORY_POOL=none` now also disables the memory pools that are used
   to allocate host and unified memory.
+- The stream that `stream()` returns in a task is handed to another task once
+  the task has finished and the work on the stream has completed, instead of
+  being kept alive until the GC collects the task. This keeps applications that
+  spawn many short-lived GPU tasks from piling up thousands of streams, which
+  each hold on to device memory and slow down memory allocation. Code that uses
+  a task's stream after the task has finished should create its own stream with
+  `CuStream()` instead.
 
 *New features*:
 
