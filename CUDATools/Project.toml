@@ -22,7 +22,7 @@ demumble_jll = "1e29f10c-031c-5a83-9565-69cddfc27673"
 
 [sources]
 CUPTI = {path = "../lib/cupti"}
-KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main", subdir = "lib/KernelInterface"}
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "vc/ki-subgroup-ops", subdir = "lib/KernelInterface"}
 NVML = {path = "../lib/nvml"}
 
 [compat]

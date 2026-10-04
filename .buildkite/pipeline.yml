@@ -27,7 +27,7 @@ steps:
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
           # XXX: KernelAbstractions 0.10 and KernelInterface 0.4 aren't registered yet
-          git clone --depth 1 --branch main https://github.com/JuliaGPU/KernelAbstractions.jl ka
+          git clone --depth 1 --branch vc/ki-subgroup-ops https://github.com/JuliaGPU/KernelAbstractions.jl ka
           julia --project=. -e '
             using Pkg
             Pkg.develop([PackageSpec(; path) for path in (
