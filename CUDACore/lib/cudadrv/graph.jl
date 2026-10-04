@@ -47,7 +47,8 @@ mutable struct CuGraph
             rethrow()
         end
         try
-            f()
+            # (marks the task as capturing, which `priority!` can't support)
+            task_local_storage(f, :CUDA_capture_stream, stream())
         finally
             handle_ref = Ref{CUgraph}()
             err = unchecked_cuStreamEndCapture(stream(), handle_ref)

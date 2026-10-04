@@ -43,6 +43,13 @@ are listed as subsections of the minor release they belong to.
 - Host and unified memory is allocated from stream-ordered memory pools where
   supported (CUDA 13 and later), or otherwise cached for reuse, making allocating
   and freeing such memory considerably faster.
+- `CUDA.priority!(p)` sets the priority of the current task's GPU work, by
+  switching the task to a stream of that priority that is ordered after its
+  previous one; `CUDA.priority!(p) do ... end` restores the previous stream
+  afterwards. `p` is `:low`, `:normal`, `:high`, or an integer from
+  `priority_range()`, and `CUDA.priority()` returns the current priority.
+  `KernelAbstractions.priority!` uses the same mechanism, and no longer creates
+  a new stream on every call.
 
 *Bug fixes*:
 

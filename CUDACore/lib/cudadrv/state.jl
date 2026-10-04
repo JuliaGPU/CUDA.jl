@@ -11,7 +11,7 @@
 # identical to Julia's task-local one.
 
 export context, context!, device, device!, deviceid, stream, stream!
-@public math_mode, math_mode!, math_precision, PEDANTIC_MATH, DEFAULT_MATH, FAST_MATH
+@public math_mode, math_mode!, math_precision, PEDANTIC_MATH, DEFAULT_MATH, FAST_MATH, priority!
 
 
 ## task-local state
@@ -43,6 +43,7 @@ mutable struct TaskLocalState
     device::CuDevice
     context::CuContext
     streams::Vector{Union{Nothing,CuStream}}
+    priorities::Vector{Cint}
     math_mode::MathMode
     math_precision::Symbol
 
@@ -52,6 +53,7 @@ mutable struct TaskLocalState
                               Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
         math_precision = something(default_math_precision[], :TensorFloat32)
         new(dev, ctx, Union{Nothing,CuStream}[nothing for _ in 1:ndevices()],
+            Cint[0 for _ in 1:ndevices()],
             math_mode, math_precision)
     end
 end
@@ -300,7 +302,7 @@ is never shared, create one with `CuStream()` and activate it using [`stream!`](
     # @inline so that it can be DCE'd when unused from active_state
     devidx = deviceid(state.device)+1
     @inbounds if state.streams[devidx] === nothing
-        state.streams[devidx] = create_stream(state)
+        state.streams[devidx] = create_stream(state; priority=state.priorities[devidx])
     else
         state.streams[devidx]::CuStream
     end
@@ -311,26 +313,28 @@ end
 # GC is in no hurry to collect finished tasks (and with them, their streams), code that
 # spawns many short-lived tasks would pile up thousands of streams. instead, recycle the
 # streams of tasks that have finished, keeping up to `STREAM_POOL_IDLE` unused ones per
-# context.
+# context, priority and set of flags.
 const STREAM_POOL_IDLE = 32
 struct PooledStream
     stream::CuStream
     owner::WeakRef
 end
-const stream_pools = Dict{CuContext,Vector{PooledStream}}()
+const stream_pools = Dict{Tuple{CuContext,Cint,CUstream_flags},Vector{PooledStream}}()
 const stream_pool_lock = ReentrantLock()
 
-@noinline function create_stream(state::TaskLocalState)
+@noinline function create_stream(state::TaskLocalState;
+                                 priority::Cint=Cint(0), flags::CUstream_flags=STREAM_DEFAULT)
     # finalizers can't wait for the pool lock
     GC.in_finalizer() && error("Cannot create a CUDA stream from a finalizer")
     task = current_task()
+    key = (state.context, priority, flags)
     stream = @lock stream_pool_lock begin
-        claim_stream!(get!(Vector{PooledStream}, stream_pools, state.context), task)
+        claim_stream!(get!(Vector{PooledStream}, stream_pools, key), task)
     end
     if stream === nothing
-        stream = CuStream()
+        stream = priority == 0 ? CuStream(; flags) : CuStream(; priority, flags)
         @lock stream_pool_lock begin
-            push!(stream_pools[state.context], PooledStream(stream, WeakRef(task)))
+            push!(stream_pools[key], PooledStream(stream, WeakRef(task)))
         end
     end
 
@@ -353,7 +357,11 @@ function claim_stream!(pool::Vector{PooledStream}, task::Task)
     while i <= length(pool)
         entry = pool[i]
         owner = entry.owner.value
-        keep = if owner !== nothing && !istaskdone(owner::Task)
+        keep = if owner === task
+            # the task switched back to a priority that it used before
+            isvalid(entry.stream) && return entry.stream
+            false
+        elseif owner !== nothing && !istaskdone(owner::Task)
             true
         elseif !isvalid(entry.stream)
             false
@@ -388,6 +396,118 @@ end
 # (a task may start using the GPU while another thread is capturing in global mode)
 query(s::CuStream) = relaxed_capture_mode(() -> unchecked_cuStreamQuery(s))
 
+"""
+    priority()
+
+Return the effective priority of the current task's stream on the active device.
+See [`priority!`](@ref) to change it.
+"""
+priority() = let state = task_local_state!(), devidx = deviceid(state.device)+1
+    current = state.streams[devidx]
+    current === nothing ? state.priorities[devidx] : priority(current)
+end
+
+function task_priority(p::Integer)
+    p in priority_range() || throw(ArgumentError("Priority is out of range"))
+    Cint(p)
+end
+task_priority(::Bool) = throw(ArgumentError("Priority must not be a Bool"))
+function task_priority(p::Symbol)
+    p === :normal && return Cint(0)
+    p in (:low, :high) ||
+        throw(ArgumentError("Priority must be :normal, :low, or :high"))
+    range = priority_range()
+    p === :low && return Cint(first(range))
+    Cint(last(range))
+end
+
+function stream_flags(s::CuStream)
+    flags = Ref{Cuint}()
+    cuStreamGetFlags(s, flags)
+    CUstream_flags_enum(flags[])
+end
+
+# order work on `new` after the work that was submitted to `old`
+function handoff_stream!(old::CuStream, new::CuStream)
+    old === new && return
+    event = CuEvent(EVENT_DISABLE_TIMING)
+    record(event, old)
+    wait(event, new)
+    return
+end
+
+# switching streams during a capture would move the task's work out of the graph
+function check_priority_capture(s::Union{Nothing,CuStream})
+    if haskey(task_local_storage(), :CUDA_capture_stream) ||
+       (s !== nothing && is_capturing(s))
+        throw(ArgumentError("Cannot change task priority during graph capture"))
+    end
+    return
+end
+
+"""
+    priority!([f::Function,] p::Union{Integer,Symbol})
+
+Set the priority of the current task's CUDA work on the current device. The do-block form
+restores the previous stream after `f` returns, ordered after the work that `f` submitted
+(unless `f` throws). Priorities are assigned when streams are
+created, so switching priorities selects another stream and orders it after the previous one.
+Repeated switches reuse the task's streams.
+
+Use an integer from [`priority_range`](@ref), or `:normal`, `:low`, or `:high`. The symbolic
+values map to `0`, the least priority, and the greatest priority, respectively. Stream
+priority is a scheduling hint for pending GPU work, not a guarantee of execution order.
+The `:low` and `:normal` values may coincide. A different priority replaces an explicit
+stream selected with [`stream!`](@ref); use the do-block form to restore that stream.
+New tasks start at normal priority. Changing priority during graph capture is unsupported.
+Using an array from the previous stream may wait on the CPU for that stream's pending work.
+"""
+function priority!(p::Union{Integer,Symbol})
+    state = task_local_state!()
+    desired = task_priority(p)
+    devidx = deviceid(state.device)+1
+    old = state.streams[devidx]
+    if old === nothing
+        desired != state.priorities[devidx] && check_priority_capture(old)
+    elseif priority(old) != desired
+        check_priority_capture(old)
+        new = create_stream(state; priority=desired, flags=stream_flags(old))
+        handoff_stream!(old, new)
+        state.streams[devidx] = new
+    end
+    state.priorities[devidx] = desired
+    return
+end
+
+function priority!(f::Function, p::Union{Integer,Symbol})
+    state = task_local_state!()
+    ctx = state.context
+    devidx = deviceid(state.device)+1
+    old = state.streams[devidx]
+    old_priority = state.priorities[devidx]
+    priority!(p)
+    ret = try
+        f()
+    catch
+        # restore the selection without ordering the streams: that takes CUDA calls,
+        # which may fail and replace the error thrown by `f`
+        state.streams[devidx] = old
+        state.priorities[devidx] = old_priority
+        rethrow()
+    end
+    context!(ctx) do
+        state.priorities[devidx] = old_priority
+        current = state.streams[devidx]
+        if current !== nothing && current !== old
+            restored = old === nothing ? create_stream(state; priority=old_priority) : old
+            state.streams[devidx] = restored
+            check_priority_capture(current)
+            handoff_stream!(current, restored)
+        end
+    end
+    return ret
+end
+
 function stream!(stream::CuStream)
     state = task_local_state!()
     devidx = deviceid(state.device)+1
@@ -399,11 +519,13 @@ function stream!(f::Function, stream::CuStream)
     state = task_local_state!()
     devidx = deviceid(state.device)+1
     old_stream = state.streams[devidx]
+    old_priority = state.priorities[devidx]
     state.streams[devidx] = stream
     try
         f()
     finally
         state.streams[devidx] = old_stream
+        state.priorities[devidx] = old_priority
     end
 end
 

@@ -145,6 +145,18 @@ end
 @test fetch(task) == s
 @test stream() == default_s
 
+function spin(cycles)
+    t0 = clock(UInt64)
+    while clock(UInt64) - t0 < cycles end
+    return
+end
+
+function priority_increment!(a, cycles)
+    spin(cycles)
+    a[1] += 1
+    return
+end
+
 @testset "stream recycling" begin
     idle_limit = CUDACore.STREAM_POOL_IDLE
 
@@ -186,7 +198,7 @@ end
     @test fetch(Threads.@spawn stream()) in streams
     # (peeks at the pool, as there's no way to observe which idle streams it has dropped)
     finished(entry) = (owner = entry.owner.value; owner === nothing || istaskdone(owner))
-    pool = CUDACore.stream_pools[context()]
+    pool = CUDACore.stream_pools[(context(), Cint(0), CUDACore.STREAM_DEFAULT)]
     @test count(finished, pool) <= idle_limit + 1
 
     # tasks that keep their stream don't prevent others from being recycled
@@ -228,6 +240,138 @@ end
     capture() do
         @test fetch(Threads.@spawn stream()) != stream()
     end
+end
+
+@testset "task priority" begin
+    priority! = CUDA.priority!
+    high = last(priority_range())
+    @test_throws ArgumentError priority!(:invalid)
+    @test_throws ArgumentError priority!(high - 1)
+    @test_throws ArgumentError priority!(false)
+
+    # a priority can be chosen before the task first uses the GPU
+    fetch(Threads.@spawn begin
+        priority!(:high)
+        @test priority() == high
+        high_stream = stream()
+        @test priority(high_stream) == high
+
+        priority!(:high)
+        @test stream() === high_stream
+        priority!(high)
+        @test stream() === high_stream
+        priority!(:normal)
+        normal_stream = stream()
+        @test priority() == 0
+        priority!(:low)
+        @test priority() == first(priority_range())
+        priority!(:high)
+        @test stream() === high_stream
+        @test high == 0 || normal_stream !== high_stream
+    end)
+
+    fetch(Threads.@spawn begin
+        high_stream = priority!(:high) do
+            s = stream()
+            priority!(:normal) do
+                @test priority() == 0
+            end
+            @test stream() === s
+            s
+        end
+        @test priority() == 0
+        @test high == 0 || stream() !== high_stream
+    end)
+
+    normal_stream = stream()
+    selected = priority!(:high) do
+        @test priority() == high
+        stream()
+    end
+    @test stream() === normal_stream
+    @test priority() == 0
+    @test priority(selected) == high
+    @test_throws ErrorException priority!(:high) do
+        error("scope failed")
+    end
+    @test stream() === normal_stream
+
+    explicit = CuStream(; flags=CUDACore.STREAM_NON_BLOCKING)
+    stream!(explicit) do
+        priority!(:high) do
+            @test priority() == high
+            @test high == 0 || stream() !== explicit
+            @test CUDACore.stream_flags(stream()) == CUDACore.STREAM_NON_BLOCKING
+        end
+        @test stream() === explicit
+    end
+    @test stream() === normal_stream
+
+    if high != 0
+        fetch(Threads.@spawn begin
+            priority!(:high)
+            stream!(explicit) do
+                priority!(:normal)
+            end
+            @test priority() == high
+            @test priority(stream()) == high
+        end)
+    end
+
+    # KernelAbstractions uses the same task-local selection, without new streams on repeats
+    KA = CUDACore.CUDAKernels.KA
+    fetch(Threads.@spawn begin
+        KA.priority!(CUDACore.CUDABackend(), :high)
+        s = stream()
+        KA.priority!(CUDACore.CUDABackend(), :high)
+        @test stream() === s
+    end)
+
+    # changing priority during capture cannot move the task away from the capturing stream
+    capture() do
+        if high == 0
+            priority!(:high)
+        else
+            @test_throws ArgumentError priority!(:high)
+        end
+        @test stream() === normal_stream
+        priority!(:normal)
+        stream!(explicit) do
+            if high != 0
+                @test_throws ArgumentError priority!(:high)
+            end
+        end
+    end
+
+    if high != 0
+        fetch(Threads.@spawn begin
+            first_stream = stream()
+            @cuda spin(200_000_000)
+            priority!(:high)
+            second_stream = stream()
+            synchronize()
+            @test CUDA.isdone(first_stream)
+            @cuda spin(200_000_000)
+            priority!(:normal)
+            synchronize()
+            @test CUDA.isdone(second_stream)
+        end)
+    end
+
+    a = CuArray(Int32[0])
+    @cuda priority_increment!(a, 0) # compile before switching priorities
+    synchronize()
+    fetch(Threads.@spawn begin
+        # Work on an explicit stream is not ordered by the task's priority handoff.
+        # Using the array on the new stream must synchronize with this kernel.
+        @cuda stream=explicit priority_increment!(a, 200_000_000)
+        priority!(:high)
+        @cuda priority_increment!(a, 0)
+        priority!(:normal)
+        @cuda priority_increment!(a, 0)
+        synchronize()
+    end)
+    @test Array(a) == Int32[4]
 end
 
 @testset "issue 1331: repeated initialization failure should stick" begin
