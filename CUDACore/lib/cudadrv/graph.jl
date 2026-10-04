@@ -1,183 +1,21 @@
-## graph
+## stream capture
+#
+# the graph objects, and the integration of stream capture with the memory allocator, are
+# implemented in `src/graph.jl`. here, we only provide queries and helpers that other
+# driver-level code needs.
 
-export CuGraph, capture, instantiate, CuGraphExec, launch, update,
-       capture_status, is_capturing,
-       @captured
+export capture_status, is_capturing, CaptureError
 
 @enum_without_prefix visibility=:public CUstreamCaptureMode CU_
-
-# the number of captures in progress using `capture`. this is needed to avoid operations that
-# would invalidate them, but that can't be checked for on a per-stream basis.
-const active_captures = Threads.Atomic{Int}(0)
-
-"""
-    CuGraph([flags])
-
-Create an empty graph for use with low-level graph operations. If you want to create a graph
-while directly recording operations, use [`capture`](@ref). For a high-level interface that
-also automatically executes the graph, use the [`@captured`](@ref) macro.
-"""
-mutable struct CuGraph
-    handle::CUgraph
-    ctx::CuContext
-
-    function CuGraph(flags=STREAM_CAPTURE_MODE_GLOBAL)
-        handle_ref = Ref{CUgraph}()
-        cuGraphCreate(handle_ref, flags)
-
-        ctx = current_context()
-        obj = new(handle_ref[], ctx)
-        resource_finalizer(unsafe_destroy!, obj; ctx, blocking=false)
-        return obj
-    end
-
-    global function capture(f::Function; flags=STREAM_CAPTURE_MODE_GLOBAL,
-                            throw_error::Bool=true)
-        ctx = current_context()
-        obj = nothing
-        # releasing resources could interfere with the capture (see `begin_capture`)
-        begin_capture()
-        # graph capture does not support asynchronous memory operations, so disable the GC
-        gc_state = GC.enable(false)
-        try
-            cuStreamBeginCapture_v2(stream(), flags)
-        catch
-            end_capture()
-            GC.enable(gc_state)
-            rethrow()
-        end
-        try
-            # (marks the task as capturing, which `priority!` can't support)
-            task_local_storage(f, :CUDA_capture_stream, stream())
-        finally
-            handle_ref = Ref{CUgraph}()
-            err = unchecked_cuStreamEndCapture(stream(), handle_ref)
-            end_capture()
-            GC.enable(gc_state)
-            if err == ERROR_STREAM_CAPTURE_INVALIDATED && !throw_error
-                return nothing
-            elseif err != CUDA_SUCCESS
-                throw_api_error(err)
-            end
-
-            obj = new(handle_ref[], ctx)
-            resource_finalizer(unsafe_destroy!, obj; ctx, blocking=false)
-        end
-        return obj::CuGraph
-    end
-end
-
-"""
-    capture([flags], [throw_error::Bool=true]) do
-        ...
-    end
-
-Capture a graph of CUDA operations. The returned graph can then be instantiated and
-executed repeatedly for improved performance.
-
-Note that many operations, like initial kernel compilation or memory allocations,
-cannot be captured. To work around this, you can set the `throw_error` keyword to false,
-which will cause this function to return `nothing` if such a failure happens. You can
-then try to evaluate the function in a regular way, and re-record afterwards.
-
-See also: [`instantiate`](@ref).
-"""
-capture
-
-function unsafe_destroy!(graph::CuGraph)
-    context!(graph.ctx) do
-        cuGraphDestroy(graph)
-    end
-end
-
-Base.unsafe_convert(::Type{CUgraph}, graph::CuGraph) = graph.handle
-
-
-## instantiated graph
-
-mutable struct CuGraphExec
-    handle::CUgraphExec
-    graph::CuGraph
-    ctx::CuContext
-
-    global function instantiate(graph::CuGraph, flags=0)
-        handle_ref = Ref{CUgraphExec}()
-
-        if driver_version() >= v"11.4"
-            cuGraphInstantiateWithFlags(handle_ref, graph, flags)
-        else
-            flags == 0 || error("Graph instantiation flags require CUDA 11.4 or higher")
-
-            error_node = Ref{CUgraphNode}()
-            buflen = 256
-            buf = Vector{UInt8}(undef, buflen)
-            GC.@preserve buf begin
-                if driver_version() >= v"11"
-                    cuGraphInstantiate_v2(handle_ref, graph, error_node, pointer(buf), buflen)
-                else
-                    cuGraphInstantiate(handle_ref, graph, error_node, pointer(buf), buflen)
-                end
-            end
-        end
-
-        ctx = current_context()
-        obj = new(handle_ref[], graph, ctx)
-        resource_finalizer(unsafe_destroy!, obj; ctx, blocking=false)
-        return obj
-    end
-end
-
-"""
-    instantiate(graph::CuGraph)
-
-Creates an executable graph from a graph. This graph can then be launched, or updated
-with an other graph.
-
-See also: [`launch`](@ref), [`update`](@ref).
-"""
-instantiate
-
-function unsafe_destroy!(exec::CuGraphExec)
-    context!(exec.ctx) do
-        cuGraphExecDestroy(exec)
-    end
-end
-
-Base.unsafe_convert(::Type{CUgraphExec}, exec::CuGraphExec) = exec.handle
-
-"""
-    launch(exec::CuGraphExec, [stream::CuStream])
-
-Launches an executable graph, by default in the currently-active stream.
-"""
-launch(exec::CuGraphExec, stream::CuStream=stream()) = cuGraphLaunch(exec, stream)
-
-@enum_without_prefix visibility=:public CUgraphExecUpdateResult CU_
-
-"""
-    update(exec::CuGraphExec, graph::CuGraph; [throw_error::Bool=true])
-
-Check whether an executable graph can be updated with a graph and perform the update if
-possible. Returns a boolean indicating whether the update was successful. Unless
-`throw_error` is set to false, also throws an error if the update failed.
-"""
-function update(exec::CuGraphExec, graph::CuGraph; throw_error::Bool=true)
-    error_node = Ref{CUgraphNode}()
-    update_result = Ref{CUgraphExecUpdateResult}()
-    cuGraphExecUpdate(exec, graph, error_node, update_result)
-    if update_result[] != GRAPH_EXEC_UPDATE_SUCCESS && !throw_error
-        return false
-    elseif update_result[] != GRAPH_EXEC_UPDATE_SUCCESS
-        error("Could not update the executable graph: $(update_result[])")
-    end
-    return true
-end
-
-
-## global properties
-
 @enum_without_prefix visibility=:public CUstreamCaptureStatus CU_
 
+"""
+    capture_status([stream::CuStream])
+
+Return the capture status of a stream as a named tuple `(status, id)`, where `status` is a
+`CUstreamCaptureStatus` and `id` is the unique identifier of the capture sequence the stream
+is part of (or `nothing` when the stream is not being captured).
+"""
 function capture_status(stream::CuStream=stream())
     status_ref = Ref{CUstreamCaptureStatus}()
     id_ref = Ref{UInt64}()
@@ -186,15 +24,30 @@ function capture_status(stream::CuStream=stream())
             id=(status_ref[] == STREAM_CAPTURE_STATUS_ACTIVE ? id_ref[] : nothing))
 end
 
+"""
+    is_capturing([stream::CuStream])
+
+Return whether a stream is being captured into a graph.
+"""
 @inline function is_capturing(stream::CuStream=stream())
     status = Ref{CUstreamCaptureStatus}()
     cuStreamIsCapturing(stream, status)
     return status[] != STREAM_CAPTURE_STATUS_NONE
 end
 
-# some API calls, like synchronizing a stream, are prohibited while another stream is being
-# captured in global mode, even when they don't interfere with the capture. `f` must not
-# yield, because the capture mode is a property of the thread.
+# the number of captures in progress using `capture`. many operations need to behave
+# differently while capturing, e.g., by not releasing memory, but checking for that on
+# every operation would be too expensive. captures started directly through the driver API
+# are not counted, and are not supported by CUDA.jl's memory management.
+const active_captures = Threads.Atomic{Int}(0)
+
+# whether `stream` is being captured, cheaply checking whether any capture is in progress
+@inline in_capture(stream::CuStream) = active_captures[] > 0 && is_capturing(stream)
+
+# some API calls, like synchronizing an unrelated stream, are prohibited while a stream
+# is being captured, even though they don't interfere with that capture. relaxing the
+# capture mode of the thread makes it possible to call them. `f` must not yield, because
+# the capture mode is a property of the thread.
 function relaxed_capture_mode(f)
     mode = Ref(STREAM_CAPTURE_MODE_RELAXED)
     cuThreadExchangeStreamCaptureMode(mode)
@@ -205,70 +58,30 @@ function relaxed_capture_mode(f)
     end
 end
 
-
-## convenience macro
-
 """
-    for ...
-        @captured begin
-            # code that executes several kernels or CUDA operations
-        end
-    end
+    CaptureError(msg)
 
-A convenience macro for recording a graph of CUDA operations and automatically cache and
-update the execution. This can improve performance when executing kernels in a loop, where
-the launch overhead might dominate the execution.
-
-!!! warning
-
-    For this to be effective, the kernels and operations executed inside of the
-    captured region should not significantly change across iterations of the loop. It is
-    allowed to, e.g., change kernel arguments or inputs to operations, as this will be
-    processed by updating the cached executable graph. However, significant changes will
-    result in an instantiation of the graph from scratch, which is an expensive operation.
-
-See also: [`capture`](@ref).
+An operation was attempted that isn't supported while capturing a graph, e.g., waiting for
+the GPU, which is not possible as captured operations only execute when the graph is
+launched.
 """
-macro captured(ex)
-    @gensym exec
-    @eval __module__ begin
-        const $exec = Ref{CuGraphExec}()
-    end
-    quote
-        executed = false
+struct CaptureError <: Exception
+    msg::String
+end
 
-        # capture
-        GC.enable(false)    # avoid memory operations during capture
-        graph = try
-            capture(throw_error=false) do
-                $(esc(ex))
-            end
-        finally
-            GC.enable(true)
-        end
-        if graph === nothing
-            # if the capture failed, this may have been due to JIT compilation.
-            # execute the body out of capture, and try capturing again.
-            $(esc(ex))
+Base.showerror(io::IO, err::CaptureError) = print(io, "CaptureError: ", err.msg)
 
-            GC.enable(false)
-            graph = try
-                # don't tolerate capture failures now so that the user will be informed
-                capture(throw_error=true) do
-                    $(esc(ex))
-                end
-            finally
-                GC.enable(true)
-            end
-            executed = true
-        end
-
-        # update or instantiate
-        if !isassigned($(esc(exec))) || !update($(esc(exec))[], graph; throw_error=false)
-            $(esc(exec))[] = instantiate(graph)
-        end
-
-        # execute
-        executed || launch($(esc(exec))[])
+# waiting for an object can't be done when it involves work that is being captured
+function check_capture(obj::Union{CuStream,CuContext})
+    active_captures[] == 0 && return
+    if obj isa CuContext
+        # synchronizing a context waits for every stream in it, including captured ones
+        throw(CaptureError("""cannot synchronize the device while a graph is being captured.
+                              That would wait for the captured operations, which only execute when the graph is launched,
+                              and invalidate the capture. Synchronize a stream instead, or wait for the capture to finish."""))
+    elseif is_capturing(obj)
+        throw(CaptureError("""cannot wait for the GPU while capturing a graph.
+                              Captured operations only execute when the graph is launched, so it is not possible to wait for their results,
+                              or to access GPU memory from the CPU (e.g., by copying to an `Array`, or by indexing an array)."""))
     end
 end

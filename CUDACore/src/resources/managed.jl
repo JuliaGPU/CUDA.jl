@@ -69,6 +69,7 @@ end
 function pending_work(managed::Managed)
   @lock stream_disposal_lock begin
     recycled(managed) && return nothing
+    check_capture(managed.stream)
     relaxed_capture_mode(() -> isdone(managed.stream)) && return nothing
     event = CuEvent(EVENT_DISABLE_TIMING)
     record(event, managed.stream)
