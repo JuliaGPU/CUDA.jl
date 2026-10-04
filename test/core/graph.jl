@@ -50,6 +50,37 @@ end
     @test_throws ErrorException update(exec, capture(() -> (b .+= 1; b .+= 1)))
 end
 
+@testset "memory is kept alive" begin
+    x = CUDA.ones(Float32, 1024)
+    y = CUDA.zeros(Float32, 1024)
+    y .+= x
+    exec = instantiate(capture(() -> y .+= x))
+
+    # freeing the input, and allocating new memory that could reuse it, doesn't affect the
+    # graph. the executable graph also doesn't need the graph to be kept around.
+    CUDA.unsafe_free!(x)
+    x = nothing
+    GC.gc(true)
+    z = CUDA.fill(42f0, 1024)
+    exec()
+    exec()
+    @test Array(y) == fill(3f0, 1024)
+    @test Array(z) == fill(42f0, 1024)
+
+    # neither do views or wrapped arrays
+    p = CUDA.ones(Float32, 2048)
+    v = view(p, 1025:2048)
+    w = unsafe_wrap(CuArray, fill(2f0, 1024))
+    kernel(y, v, w) = (i = threadIdx().x; y[i] += v[i] + w[i]; nothing)
+    @cuda threads=1024 kernel(y, v, w)
+    exec = instantiate(capture(() -> @cuda threads=1024 kernel(y, v, w)))
+    p = v = w = nothing
+    GC.gc(true)
+    CUDA.fill(0f0, 2048)
+    exec()
+    @test Array(y) == fill(9f0, 1024)
+end
+
 @testset "garbage collection during capture" begin
     # garbage that was last used on various streams, using various kinds of memory
     function garbage(M, s)
@@ -108,9 +139,35 @@ end
     @test Array(a) == fill(2, 4)
     a .= 1
 
+    # arrays from an allocation cache would be reused when the cache's scope ends
+    cache = GPUArrays.AllocCache()
+    GPUArrays.@cached cache begin
+        b = CUDA.zeros(Int, 4)
+        @test_throws CaptureError capture(() -> b .+= 1)
+    end
+
     # the stream is still usable
     a .+= 1
     @test Array(a) == fill(2, 4)
+end
+
+@testset "multitasking" begin
+    a = CUDA.zeros(Float32, 1024)
+    b = CUDA.zeros(Float32, 1024)
+    a .+= 1
+    exec = instantiate(capture(() -> a .+= 1))
+
+    # launching a graph synchronizes with other tasks like other operations do
+    for i in 1:10
+        @sync begin
+            Threads.@spawn begin
+                exec()
+            end
+        end
+        b .+= a
+    end
+    @test Array(a) == fill(11f0, 1024)
+    @test Array(b) == fill(sum(2:11), 1024)
 end
 
 @testset "unrelated tasks during capture" begin
@@ -168,4 +225,110 @@ end
         @captured iteration(a, i)
     end
     @test Array(a) == [6]
+end
+
+@testset "graphs and executable graphs keep memory alive independently" begin
+    x = CUDA.ones(Float32, 4)
+    y = CUDA.zeros(Float32, 4)
+    y .+= x
+    memory = x.data[]
+    graph = capture() do
+        y .+= x
+        CUDA.unsafe_free!(x)
+        GC.gc(true)
+    end
+    first_exec, second_exec = instantiate(graph), instantiate(graph)
+    leases = Base.@atomic memory.leases
+
+    # memory stays leased when destroying a graph fails
+    @test_throws ErrorException CUDACore.release_now(graph; destroy=_ -> error("injected graph destroy failure"))
+    @test (Base.@atomic memory.leases) == leases
+    finalize(graph)
+    CUDA.reclaim()
+    z = CUDA.fill(42f0, 4)
+    first_exec(); second_exec()
+    @test Array(y) == fill(3f0, 4)
+    @test Array(z) == fill(42f0, 4)
+
+    @test_throws ErrorException CUDACore.release_now(first_exec; destroy=_ -> error("injected exec destroy failure"))
+    @test (Base.@atomic memory.leases) == leases - 1
+    finalize(first_exec)
+    CUDA.reclaim()
+    z = CUDA.fill(42f0, 4)
+    second_exec()
+    @test Array(y) == fill(4f0, 4)
+    @test Array(z) == fill(42f0, 4)
+    finalize(second_exec)
+    CUDA.reclaim()
+end
+
+# (not inlined, so that the object doesn't end up in a GC root of the caller)
+@noinline isalive(weak::WeakRef) = weak.value !== nothing
+
+@testset "graphs keep wrapped memory alive" begin
+    # (in a function, so that no temporaries keep the wrapped array alive)
+    function check(M)
+        owner = fill(2f0, 1024)
+        weak = WeakRef(owner)
+        wrapped = unsafe_wrap(CuArray{Float32,1,M}, owner)
+        out = CUDA.zeros(Float32, 1024)
+        out .= wrapped
+        graph = capture() do
+            out .= wrapped
+            CUDA.unsafe_free!(wrapped)
+        end
+        exec = instantiate(graph)
+        owner = wrapped = nothing
+        GC.gc(true)
+        CUDA.reclaim()
+        @test isalive(weak)
+        finalize(graph)
+        CUDA.reclaim()
+        GC.gc(true)
+        @test isalive(weak)
+        out .= 0
+        exec()
+        @test Array(out) == fill(2f0, 1024)
+
+        # the last lease ends with the executable graph
+        finalize(exec)
+        CUDA.reclaim()
+        GC.gc(true)
+        @test !isalive(weak)
+    end
+    check(CUDA.HostMemory)
+    CUDACore.supports_hmm(device()) && check(CUDA.UnifiedMemory)
+end
+
+@testset "recycled stream capturing a new generation" begin
+    s = CuStream()
+    old = CUDA.ones(Float32, 4)
+    memory = old.data[]
+    lock(memory.lock) do
+        CUDACore.take_ownership!(memory; stream=s)
+    end
+    synchronize(s)
+    owner = @async nothing
+    wait(owner)
+    pool = [CUDACore.PooledStream(s, WeakRef(owner))]
+    lock(CUDACore.stream_pool_lock) do
+        @test CUDACore.claim_stream!(pool, current_task()) === s
+    end
+    y = CUDA.zeros(Float32, 4)
+    y .+= 1
+    graph = stream!(s) do
+        capture() do
+            @test CUDACore.pending_work(memory) === nothing
+            lock(CUDACore.stream_disposal_lock) do
+                handle, _ = CUDACore.release_stream(s, memory.stream_ctx, memory.generation)
+                @test handle == CUDACore.disposal_stream(context())
+            end
+            CUDA.unsafe_free!(old)
+            GC.gc(true)
+            y .+= 1
+        end
+    end
+    @test length(graph) == 1
+    instantiate(graph)()
+    @test Array(y) == fill(2f0, 4)
 end

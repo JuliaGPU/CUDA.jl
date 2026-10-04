@@ -276,6 +276,8 @@ regular task:
   `CUDA.pin`, or when wrapping an `Array` with `unsafe_wrap`), unloading modules, destroying
   texture arrays, and destroying some library objects. Arrays whose memory was pinned are
   kept alive until then.
+- Memory that a graph uses is kept alive as long as the graph, or an executable graph
+  instantiated from it, exists, even if the array it belonged to has been freed.
 
 As `CUDA.reclaim()` may wait for the GPU, don't call it while GPU work depends on the calling
 task to make progress. Nothing is released while a graph is being captured, and starting a
