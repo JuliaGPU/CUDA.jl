@@ -81,6 +81,7 @@ function main()
                 "usage/memory.md",
                 "usage/multitasking.md",
                 "usage/multigpu.md",
+                "usage/graphs.md",
             ],
             "Development" => Any[
                 "development/profiling.md",

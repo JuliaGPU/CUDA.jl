@@ -266,20 +266,24 @@ occupancy
 
 ## Graph Execution
 
-CUDA graphs can be easily recorded and executed using the high-level `@captured` macro:
+CUDA graphs record a sequence of operations so that they can be launched with less overhead.
+See the [Graphs](@ref UsageGraphs) section of the manual for an introduction.
 
 ```@docs
-@captured
-```
-
-Low-level operations are available too:
-
-```@docs
-CuGraph
 capture
+capture!
+CuGraph
+CuGraphNode
 instantiate
+CuGraphExec
 launch(::CuGraphExec)
+upload
 update
+update!
+@captured
+CaptureError
+is_capturing
+capture_status
 ```
 
 ## Deferred resource cleanup
