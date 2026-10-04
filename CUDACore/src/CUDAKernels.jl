@@ -38,9 +38,10 @@ KI.supports_unified(::CUDABackend) = true
 KI.supports_float64(::CUDABackend) = true
 KI.supports_atomics(::CUDABackend) = true
 KI.supports_subgroups(::CUDABackend) = true
-# `shfl_down_sync` decomposes other types into 32-bit shuffles
-KI.supports_shuffle(::CUDABackend, ::Type{T}) where {T} =
-    T <: Union{Bool, Base.BitInteger, Base.IEEEFloat, Complex{<:Union{Base.BitInteger, Base.IEEEFloat}}}
+# the primitive types CUDA's warp shuffles support (decomposing them into 32-bit shuffles);
+# KernelInterface shuffles other `isbits` types, e.g. `Complex`, field by field
+const ShuffleTypes = Union{Bool, Base.BitInteger, Base.IEEEFloat}
+KI.supports_shuffle(::CUDABackend, ::Type{<:ShuffleTypes}) = true
 
 Adapt.adapt_storage(::CUDABackend, a::AbstractArray) = Adapt.adapt(CuArray, a)
 Adapt.adapt_storage(::CUDABackend, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}) = a
@@ -168,11 +169,15 @@ end
 
 @device_override KI.get_sub_group_size(::Type{T}) where {T} = active_sub_group_size() % T
 
-@device_override KI.get_max_sub_group_size(::Type{T}) where {T} = warpsize() % T
+# the warp size is 32 on every NVIDIA GPU (CUDA.jl's warp intrinsics assume so too), so it is
+# a constant rather than a read of `%WARP_SZ`, which the compiler can't fold
+const WARP_SIZE = 32i32
 
-@device_override KI.get_num_sub_groups(::Type{T}) where {T} = cld(prod(blockDim()), warpsize()) % T
+@device_override KI.get_max_sub_group_size(::Type{T}) where {T} = WARP_SIZE % T
 
-@device_override KI.get_sub_group_id(::Type{T}) where {T} = (linear_thread_id() ÷ warpsize() + 1i32) % T
+@device_override KI.get_num_sub_groups(::Type{T}) where {T} = cld(prod(blockDim()), WARP_SIZE) % T
+
+@device_override KI.get_sub_group_id(::Type{T}) where {T} = (linear_thread_id() ÷ WARP_SIZE + 1i32) % T
 
 @device_override KI.get_sub_group_local_id(::Type{T}) where {T} = laneid() % T
 
@@ -186,7 +191,7 @@ end
 # the last warp of a block can be partial
 @inline function active_sub_group_size()
     threads = blockDim().x * blockDim().y * blockDim().z
-    return min(warpsize(), threads - (linear_thread_id() ÷ warpsize()) * warpsize())
+    return min(WARP_SIZE, threads - (linear_thread_id() ÷ WARP_SIZE) * WARP_SIZE)
 end
 
 ## shared and scratch memory
@@ -205,9 +210,28 @@ end
     sync_warp()
 end
 
-@device_override function KI.shfl_down(val::T, offset::Integer) where T
-    shfl_down_sync(0xffffffff, val, offset)
-end
+# the lanes and offsets are truncated to the `UInt32` the intrinsics take, so that values out
+# of range don't throw an `InexactError` but give an unspecified value. `shfl_sync` takes a
+# 1-based lane and subtracts one from it, so wrap the lane to 1:32 (as PTX would wrap the
+# 0-based one to 0:31).
+@device_override KI.shfl(val::T, lane::Integer) where {T <: ShuffleTypes} =
+    shfl_sync(FULL_MASK, val, ((lane - one(lane)) % UInt32 & 0x1f) + 0x1)
+
+@device_override KI.shfl_down(val::T, offset::Integer) where {T <: ShuffleTypes} =
+    shfl_down_sync(FULL_MASK, val, offset % UInt32)
+
+@device_override KI.shfl_up(val::T, offset::Integer) where {T <: ShuffleTypes} =
+    shfl_up_sync(FULL_MASK, val, offset % UInt32)
+
+@device_override KI.shfl_xor(val::T, mask::Integer) where {T <: ShuffleTypes} =
+    shfl_xor_sync(FULL_MASK, val, mask % UInt32)
+
+@device_override KI.sub_group_any(pred::Bool) = vote_any_sync(FULL_MASK, pred)
+
+@device_override KI.sub_group_all(pred::Bool) = vote_all_sync(FULL_MASK, pred)
+
+# bit `i - 1` for the thread with (1-based) lane `i`
+@device_override KI.sub_group_ballot(pred::Bool) = UInt64(vote_ballot_sync(FULL_MASK, pred))
 
 @device_override @inline function KI._print(args...)
     CUDACore._cuprint(args...)
