@@ -367,7 +367,9 @@ function wrap_host_memory(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
     end
     DataRef(Managed(mem)) do managed
       # unregistering can block, so it is deferred (see `release_registration`)
-      release_registration(RetiredRegistration(managed.mem, false, owner))
+      release(managed) do managed
+        release_registration(RetiredRegistration(managed.mem, false, owner))
+      end
     end
   else
     throw(ArgumentError("Cannot wrap system memory as $M"))

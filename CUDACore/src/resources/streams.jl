@@ -94,7 +94,8 @@ struct RetiredOwner
   managed::Managed
 end
 
-release_owner(owner, managed::Managed) = discard(RetiredOwner(owner, managed))
+release_owner(owner, managed::Managed) =
+  release(m -> discard(RetiredOwner(owner, m)), managed)
 
 function release_now(retired::RetiredOwner)
   stream = retired.managed.stream

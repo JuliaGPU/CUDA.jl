@@ -90,13 +90,14 @@ Releases memory to the pool. If possible, this operation will not block but will
 against the stream that last used the memory.
 
 When called from a finalizer, the memory is only retired, and released later by a regular
-task (see [`drain_retired`](@ref)).
+task (see [`drain_retired`](@ref)). Memory leased by a graph is released after its last
+lease ends.
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
   # 0-byte allocations shouldn't hit the pool
   sizeof(managed.mem) == 0 && return
 
-  discard(managed)
+  release(discard, managed)
   return
 end
 
