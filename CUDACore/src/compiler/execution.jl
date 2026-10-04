@@ -395,20 +395,35 @@ function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
     return managed
 end
 
-function lock_managed(managed::AbstractVector{<:Managed})
-    # Sort globally to avoid deadlocks and make duplicates adjacent.
-    locked = sort(managed; by=memory -> objectid(memory.lock))
-    n = 0
-    prev = nothing
-    for memory in locked
-        memory === prev && continue
-        n += 1
-        @inbounds locked[n] = memory
-        prev = memory
+# The distinct memories in `managed`, in order (`managed` itself if none repeats).
+function unique_managed(managed::AbstractVector{<:Managed})
+    unique = managed
+    for i in eachindex(managed)
+        memory = @inbounds managed[i]
+        if any(j -> @inbounds(managed[j]) === memory, firstindex(managed):i-1)
+            unique === managed && (unique = managed[firstindex(managed):i-1])
+        elseif unique !== managed
+            push!(unique, memory)
+        end
     end
-    resize!(locked, n)
-    for memory in locked
-        lock(memory.lock)
+    return unique
+end
+
+function lock_managed(managed::AbstractVector{<:Managed})
+    locked = unique_managed(managed)
+    # Uncontended: take the locks without blocking, which cannot deadlock.
+    for i in eachindex(locked)
+        if !trylock(@inbounds(locked[i]).lock)
+            for j in i-1:-1:firstindex(locked)
+                unlock(@inbounds(locked[j]).lock)
+            end
+            # Contended: block, in a global order to avoid deadlocks.
+            locked = sort(locked; by=memory -> objectid(memory.lock))
+            for memory in locked
+                lock(memory.lock)
+            end
+            return locked
+        end
     end
     return locked
 end
