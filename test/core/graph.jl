@@ -443,3 +443,80 @@ end
         @test graph_used() <= before
     end
 end
+
+if CUDA.driver_version() >= v"12.3"
+@testset "capture!" begin
+    x = CUDA.zeros(Float32, 4)
+    y = CUDA.zeros(Float32, 4)
+    z = CUDA.zeros(Float32, 4)
+    x .+= 1; y .+= 1; z .= x .+ y
+    # compute-sanitizer misreports accesses by graphs that were captured into several times
+    # to memory whose allocation hasn't been synchronized yet (#3347)
+    synchronize()
+
+    graph = CuGraph()
+    a = capture!(graph) do
+        x .+= 1
+    end
+    b = capture!(graph) do
+        y .+= 2
+    end
+    @test a isa Vector{CuGraphNode}
+    c = capture!(graph; after=[a; b]) do
+        z .= x .+ y
+    end
+    @test length(graph) == 3
+
+    exec = instantiate(graph)
+    exec()
+    @test Array(z) == fill(5f0, 4)
+
+    # a failure leaves the graph intact
+    @test_throws ErrorException capture!(graph) do
+        z .+= 1
+        error("oops")
+    end
+    @test length(graph) >= 3
+end
+
+@testset "update!" begin
+    a = CUDA.zeros(Int, 4)
+    b = CUDA.zeros(Int, 4)
+    kernel(a, val) = (a[threadIdx().x] += val; nothing)
+    @cuda threads=4 kernel(a, 1)
+
+    graph = CuGraph()
+    node = only(capture!(graph) do
+        @cuda threads=4 kernel(a, 1)
+    end)
+    exec = instantiate(graph)
+    exec()
+    @test Array(a) == fill(2, 4)
+
+    # nodes keep their graph alive
+    graph = nothing
+    GC.gc(true)
+
+    update!(exec, node) do
+        @cuda threads=4 kernel(b, 2)
+    end
+    exec()
+    exec()
+    @test Array(a) == fill(2, 4)
+    @test Array(b) == fill(4, 4)
+
+    # only a single operation of the same kind can be used
+    @test_throws ArgumentError update!(exec, node) do
+        a .= 0
+        a .= 1
+    end
+
+    # of the graph the executable graph was instantiated from
+    other_node = only(capture!(CuGraph()) do
+        @cuda threads=4 kernel(a, 1)
+    end)
+    @test_throws ArgumentError update!(exec, other_node) do
+        @cuda threads=4 kernel(b, 2)
+    end
+end
+end
