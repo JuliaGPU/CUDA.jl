@@ -435,6 +435,13 @@ function unlock_managed(locked::AbstractVector{<:Managed})
     return
 end
 
+# Device memory is the common case: call it statically, saving a dynamic dispatch
+# and the boxing of the keyword arguments per memory.
+@inline take_ownership_split!(memory::Managed, state, stream, capturing) =
+    memory isa Managed{DeviceMemory} ?
+        take_ownership!(memory; state, stream, capturing) :
+        take_ownership!(memory; state, stream, capturing)
+
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
     state = active_state()
@@ -443,7 +450,7 @@ function with_managed(f::F, managed::AbstractVector{<:Managed};
         memory = @inbounds managed[1]
         lock(memory.lock)
         try
-            take_ownership!(memory; state, stream, capturing)
+            take_ownership_split!(memory, state, stream, capturing)
             return f()
         finally
             unlock(memory.lock)
@@ -452,7 +459,7 @@ function with_managed(f::F, managed::AbstractVector{<:Managed};
     locked = lock_managed(managed)
     try
         for memory in locked
-            take_ownership!(memory; state, stream, capturing)
+            take_ownership_split!(memory, state, stream, capturing)
         end
         return f()
     finally
