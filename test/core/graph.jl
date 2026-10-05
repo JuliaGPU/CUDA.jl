@@ -1,5 +1,14 @@
 using Random
 
+# run `f` in a task on thread `tid`
+function on_thread(f, tid)
+    task = Task(f)
+    task.sticky = true
+    ccall(:jl_set_task_tid, Cint, (Any, Cint), task, tid-1)
+    schedule(task)
+    return task
+end
+
 @testset "capture and launch" begin
     a = CUDA.zeros(Int, 4)
     a .+= 1     # compile outside of the capture
@@ -169,15 +178,6 @@ end
     @test_throws ArgumentError capture(() -> throw(ArgumentError("oops")); throw_error=false)
     @test !is_capturing()
 
-    # a capture that fails to begin leaves the capture in progress alone
-    graph = capture() do
-        @test_throws CuError capture(() -> nothing)
-        a .+= 1
-    end
-    launch(instantiate(graph))
-    @test Array(a) == fill(2, 4)
-    a .= 1
-
     # arrays from an allocation cache would be reused when the cache's scope ends
     cache = GPUArrays.AllocCache()
     GPUArrays.@cached cache begin
@@ -277,6 +277,77 @@ end
     end
 end
 
+@testset "capture streams" begin
+    # operations are captured on a dedicated stream, which is the task's stream while
+    # capturing, also when capturing fails
+    s = stream()
+    capturing_stream = Ref{CuStream}()
+    capture(() -> capturing_stream[] = stream())
+    @test capturing_stream[] != s
+    @test stream() === s
+    @test_throws ErrorException capture(() -> error("oops"))
+    @test stream() === s
+    @test !is_capturing(s)
+    @test_throws CaptureError capture(() -> synchronize())
+    @test stream() === s
+
+    # concurrent captures use different streams
+    streams = Channel{CuStream}(Inf)
+    capture() do
+        put!(streams, stream())
+        wait(@async capture() do
+            put!(streams, stream())
+        end)
+    end
+    close(streams)
+    @test allunique(collect(streams))
+end
+
+@testset "using memory from a capturing task" begin
+    # a task produces an array, and then captures unrelated work, while other tasks use the
+    # array it produced
+    a = CUDA.zeros(Float32, 16)
+    a .+= 1
+    uses = [x -> Array(x),
+            x -> Array(x .+ 1),
+            x -> CUDA.unsafe_free!(x)]
+    # run the other task on the same thread, and on another one (if possible)
+    spawners = Any[f -> @async f()]
+    if Threads.nthreads() > 1
+        push!(spawners, f -> on_thread(f, Threads.threadid() % Threads.nthreads() + 1))
+    end
+    for use in uses, spawn in spawners
+        a .= 1
+        x = CUDA.zeros(Float32, 1 << 16)
+        x .+= 1
+        go = Base.Event()
+        other = spawn(() -> (wait(go); use(x)))
+        graph = capture() do
+            a .+= 1
+            notify(go)
+            wait(other)
+            a .+= 1
+        end
+        result = fetch(other)
+        result === nothing || @test all(>=(1f0), result)
+        instantiate(graph)()
+        @test Array(a) == fill(3f0, 16)
+    end
+
+    # memory allocated during capture can be used by other tasks, before and after
+    # launching the graph
+    local y
+    graph = capture() do
+        y = CUDA.ones(Float32, 16)
+        y .+= 1
+    end
+    # (its contents are only initialized when the graph is launched)
+    @test length(fetch(@async Array(y))) == 16
+    instantiate(graph)()
+    @test fetch(@async Array(y)) == fill(2f0, 16)
+    @test Array(y) == fill(2f0, 16)
+end
+
 @testset "@captured" begin
     a = CUDA.zeros(Int, 1)
     function iteration(a, val)
@@ -366,39 +437,6 @@ end
     end
     check(CUDA.HostMemory)
     CUDACore.supports_hmm(device()) && check(CUDA.UnifiedMemory)
-end
-
-@testset "recycled stream capturing a new generation" begin
-    s = CuStream()
-    old = CUDA.ones(Float32, 4)
-    memory = old.data[]
-    lock(memory.lock) do
-        CUDACore.take_ownership!(memory; stream=s)
-    end
-    synchronize(s)
-    owner = @async nothing
-    wait(owner)
-    pool = [CUDACore.PooledStream(s, WeakRef(owner))]
-    lock(CUDACore.stream_pool_lock) do
-        @test CUDACore.claim_stream!(pool, current_task()) === s
-    end
-    y = CUDA.zeros(Float32, 4)
-    y .+= 1
-    graph = stream!(s) do
-        capture() do
-            @test CUDACore.pending_work(memory) === nothing
-            lock(CUDACore.stream_disposal_lock) do
-                handle, _ = CUDACore.release_stream(s, memory.stream_ctx, memory.generation)
-                @test handle == CUDACore.disposal_stream(context())
-            end
-            CUDA.unsafe_free!(old)
-            GC.gc(true)
-            y .+= 1
-        end
-    end
-    @test length(graph) == 1
-    instantiate(graph)()
-    @test Array(y) == fill(2f0, 4)
 end
 
 @testset "captured allocation provenance" begin

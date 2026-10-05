@@ -323,14 +323,69 @@ end
 
 ## capture
 
-# capture the operations performed by `f` on the current task's stream, either into a new
-# graph, or into an existing one (depending on the nodes in `deps`). returns the graph, or
+# operations are captured on a dedicated stream, instead of on the task's stream. that keeps
+# the task's stream usable by other tasks waiting for work that was submitted to it before
+# the capture (e.g., to use an array that the capturing task produced). capture streams are
+# non-blocking, so that they don't synchronize with the legacy default stream, and are only
+# ever used by one capture at a time. nothing executes on them, so they can be reused right
+# after the capture has ended.
+const capture_streams = Dict{Tuple{CuContext,Cint},Vector{CuStream}}()
+const capture_streams_lock = Threads.SpinLock()
+
+function checkout_capture_stream(ctx::CuContext, priority::Cint)
+    stream = @lock capture_streams_lock begin
+        pool = get(capture_streams, (ctx, priority), nothing)
+        pool === nothing || isempty(pool) ? nothing : pop!(pool)
+    end
+    stream === nothing || return stream
+    context!(ctx) do
+        priority == 0 ? CuStream(; flags=STREAM_NON_BLOCKING) :
+                        CuStream(; flags=STREAM_NON_BLOCKING, priority)
+    end
+end
+
+function release_capture_stream(stream::CuStream, priority::Cint)
+    # a capture that couldn't be ended leaves its stream capturing
+    (isvalid(stream) && !is_capturing(stream)) || return
+    @lock capture_streams_lock begin
+        push!(get!(Vector{CuStream}, capture_streams, (something(stream.ctx), priority)),
+              stream)
+    end
+    return
+end
+
+# make `stream` the stream of the current task for the duration of `f`
+function with_task_stream(f, stream::CuStream)
+    state = task_local_state!()
+    devidx = deviceid(state.device)+1
+    old = state.streams[devidx]
+    state.streams[devidx] = stream
+    try
+        # (so that the task's stream isn't changed while capturing, see `priority!`)
+        task_local_storage(f, :CUDA_capture_stream, stream)
+    finally
+        state.streams[devidx] = old
+    end
+end
+
+# capture the operations performed by `f` on a dedicated stream, either into a new graph,
+# or into an existing one (depending on the nodes in `deps`). returns the graph, or
 # `nothing` if capturing failed and `throw_error` is false, along with the nodes that
 # operations depending on the captured ones should depend on.
 function capture_stream(f, graph::Union{Nothing,CuGraph}, deps::Vector{CUgraphNode};
                         mode::CUstreamCaptureMode, throw_error::Bool)
     ctx = context()
-    stream = CUDACore.stream()
+    prio = Cint(priority())
+    stream = checkout_capture_stream(ctx, prio)
+    try
+        capture_on(f, stream, ctx, graph, deps; mode, throw_error)
+    finally
+        release_capture_stream(stream, prio)
+    end
+end
+
+function capture_on(f, stream::CuStream, ctx::CuContext, graph::Union{Nothing,CuGraph},
+                    deps::Vector{CUgraphNode}; mode::CUstreamCaptureMode, throw_error::Bool)
     capture = CaptureState(stream)
     handle = Ref{CUgraph}(C_NULL)
 
@@ -354,8 +409,7 @@ function capture_stream(f, graph::Union{Nothing,CuGraph}, deps::Vector{CUgraphNo
             # from here on, the capture needs to be ended
             try
                 register!(capture)
-                # (so that the task's stream isn't changed while capturing, see `priority!`)
-                task_local_storage(f, :CUDA_capture_stream, stream)
+                with_task_stream(f, stream)
             catch err
                 try
                     end_capture(capture, handle)
@@ -461,8 +515,10 @@ end
 """
     capture(f; mode=STREAM_CAPTURE_MODE_RELAXED, throw_error=true)::CuGraph
 
-Capture the GPU operations that `f` performs on the current task's stream into a graph,
-without executing them. Instantiate the graph to execute it, possibly many times:
+Capture the GPU operations that `f` performs into a graph, without executing them. The
+operations are captured on a dedicated stream, which is the task's stream while capturing,
+so other tasks can keep using the regular stream of the task. Instantiate the graph to
+execute it, possibly many times:
 
 ```julia
 graph = capture() do

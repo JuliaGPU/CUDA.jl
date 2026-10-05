@@ -329,12 +329,13 @@ end
 
     # changing priority during capture cannot move the task away from the capturing stream
     capture() do
+        s = stream()
         if high == 0
             priority!(:high)
         else
             @test_throws ArgumentError priority!(:high)
         end
-        @test stream() === normal_stream
+        @test stream() === s
         priority!(:normal)
         stream!(explicit) do
             if high != 0
