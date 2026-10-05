@@ -161,3 +161,38 @@ end
     KI.@launch CUDABackend(; prefer_blocks=true) ndrange=length(A) ki_store_index!(A)
     @test Array(A) == 1:1024
 end
+
+KA.@kernel function private_reduce!(A)
+    I = KA.@index(Global, Linear)
+    priv = KA.@private Float32 (8,)
+    for j in 1:8
+        @inbounds priv[j] = A[I] * j
+    end
+    @inbounds A[I] = sum(priv) + maximum(priv) + foldr(-, priv)
+end
+
+@noinline private_consume(priv) = @inbounds priv[1] + priv[8]
+
+KA.@kernel function private_escape!(A)
+    I = KA.@index(Global, Linear)
+    priv = KA.@private Float32 (8,)
+    for j in 1:8
+        @inbounds priv[j] = A[I] * j
+    end
+    @inbounds A[I] = private_consume(priv)
+end
+
+@testset "private memory" begin
+    # whole-array reductions keep `@private` storage in registers
+    A = CUDA.ones(Float32, 64)
+    ptx = sprint(io -> CUDA.@device_code_ptx io=io private_reduce!(CUDABackend())(A; ndrange=64))
+    @test !occursin(".local", ptx)
+    @test Array(A) == fill(sum(1:8) + 8 + foldr(-, 1:8), 64)
+
+    # storage that escapes goes to the stack, not to the device heap
+    A = CUDA.ones(Float32, 64)
+    ptx = sprint(io -> CUDA.@device_code_ptx io=io private_escape!(CUDABackend())(A; ndrange=64))
+    @test occursin(".local", ptx)
+    @test !occursin("gc_pool_alloc", ptx)
+    @test Array(A) == fill(9, 64)
+end
