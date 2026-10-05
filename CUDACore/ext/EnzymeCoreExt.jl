@@ -572,6 +572,109 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}
     end
 end
 
+### reference boxes
+
+# `CuRefValue{T}()` allocates its buffer through `pool_alloc`, which also updates the
+# global allocation statistics using atomic operations on `Float64` fields that Enzyme
+# cannot differentiate. Allocating a box has no derivative of its own, but the box may later
+# hold an active value, so we cannot mark the constructor inactive: give it a zero-initialized
+# shadow box instead, like the `CuArray(undef, ...)` constructor rules above.
+
+function zero_curef!(ref::CUDACore.CuRefValue)
+    GC.@preserve ref CUDACore.memset(convert(CuPtr{UInt8}, ref.buf), 0x00, sizeof(ref.buf))
+    return ref
+end
+
+function zeroed_curef(::Type{CT}) where {CT <: CUDACore.CuRefValue}
+    return zero_curef!(CT())
+end
+
+function curef_shadow(config, ::Type{CT}) where {CT <: CUDACore.CuRefValue}
+    if EnzymeRules.width(config) == 1
+        zeroed_curef(CT)
+    else
+        ntuple(Val(EnzymeRules.width(config))) do i
+            Base.@_inline_meta
+            zeroed_curef(CT)
+        end
+    end
+end
+
+function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}}, ::Type{RT}) where {CT <: CUDACore.CuRefValue, RT}
+    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            Duplicated(ofn.val(), curef_shadow(config, CT))
+        else
+            BatchDuplicated(ofn.val(), curef_shadow(config, CT))
+        end
+    elseif EnzymeRules.needs_shadow(config)
+        curef_shadow(config, CT)
+    elseif EnzymeRules.needs_primal(config)
+        ofn.val()
+    else
+        nothing
+    end
+end
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}) where {CT <: CUDACore.CuRefValue, RT}
+    primal = EnzymeRules.needs_primal(config) ? ofn.val() : nothing
+    shadow = EnzymeRules.needs_shadow(config) ? curef_shadow(config, CT) : nothing
+    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape) where {CT <: CUDACore.CuRefValue, RT}
+    return ()
+end
+
+# Enzyme loses the shadow when taking the device address of a buffer (which also takes
+# stream ownership of it), so return the address of the shadow buffer explicitly. Copies
+# from and to that address are then differentiated by the `unsafe_copyto!` rules in
+# Enzyme.jl, e.g. when reading or writing a `CuRefValue`.
+
+managed_shadow_ptr(::Type{P}, managed::Const, i...) where {P} = convert(P, managed.val)
+managed_shadow_ptr(::Type{P}, managed::EnzymeCore.Annotation) where {P} = convert(P, managed.dval)
+managed_shadow_ptr(::Type{P}, managed::EnzymeCore.Annotation, i) where {P} = convert(P, managed.dval[i])
+
+function managed_shadow_ptrs(config, ::Type{P}, managed) where {P}
+    if EnzymeRules.width(config) == 1
+        managed_shadow_ptr(P, managed)
+    else
+        ntuple(Val(EnzymeRules.width(config))) do i
+            Base.@_inline_meta
+            managed_shadow_ptr(P, managed, i)
+        end
+    end
+end
+
+function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(Base.convert)}, ::Type{RT},
+                                        ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
+    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+        if EnzymeRules.width(config) == 1
+            Duplicated(convert(P, managed.val), managed_shadow_ptrs(config, P, managed))
+        else
+            BatchDuplicated(convert(P, managed.val), managed_shadow_ptrs(config, P, managed))
+        end
+    elseif EnzymeRules.needs_shadow(config)
+        managed_shadow_ptrs(config, P, managed)
+    elseif EnzymeRules.needs_primal(config)
+        convert(P, managed.val)
+    else
+        nothing
+    end
+end
+
+function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.convert)}, ::Type{RT},
+                                                 ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
+    primal = EnzymeRules.needs_primal(config) ? convert(P, managed.val) : nothing
+    shadow = EnzymeRules.needs_shadow(config) ? managed_shadow_ptrs(config, P, managed) : nothing
+    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+end
+
+function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.convert)}, ::Type{RT}, tape,
+                                        ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
+    return (nothing, nothing)
+end
+
 function EnzymeCore.EnzymeRules.noalias(::Type{CT}, ::UndefInitializer, args...) where {CT <: CuArray}
     return nothing
 end
