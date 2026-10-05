@@ -562,6 +562,10 @@ end
   @test view(b, :, 1, :) isa StridedCuArray
 end
 
+# composition of affine maps x -> a*x + b: associative, but not commutative
+compose_affine(f, g) = (f[1]*g[1], f[2]*g[1] + g[2])
+GPUArrays.neutral_element(::typeof(compose_affine), ::Type{Tuple{Int,Int}}) = (1, 0)
+
 @testset "accumulate" begin
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
     @test testf(x->accumulate(+, x), rand(n))
@@ -583,6 +587,19 @@ end
                         (1, 70, 50, 20) => 3)
     @test testf((x,y)->accumulate(+, x; dims=dims, init=y), rand(Int, sizes), rand(Int))
     @test testf((x,y)->accumulate(+, x; init=y), rand(Int, sizes), rand(Int))
+  end
+
+  # non-commutative operator
+  affine(dims...) = map(_ -> (rand((-1, 1)), rand(-100:100)), CartesianIndices(dims))
+  for n in (4, 10_000, 16384+1)
+    x = affine(n)
+    @test Array(accumulate(compose_affine, CuArray(x))) == accumulate(compose_affine, x)
+    @test Array(accumulate(compose_affine, CuArray(x); init=(2, 5))) ==
+          accumulate(compose_affine, x; init=(2, 5))
+  end
+  let x = affine(3, 4, 5)
+    @test Array(accumulate(compose_affine, CuArray(x); dims=2)) ==
+          accumulate(compose_affine, x; dims=2)
   end
 
   # in place

@@ -71,7 +71,7 @@ function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArr
 
             t = temp[ai]
             temp[ai] = temp[bi]
-            temp[bi] = op(t, temp[bi])
+            temp[bi] = op(temp[bi], t)
         end
         d *= 2
     end
