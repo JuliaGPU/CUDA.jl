@@ -303,6 +303,75 @@ end
     @test allunique(collect(streams))
 end
 
+@testset "capturing on a specific stream" begin
+    s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    t = stream()
+    a = CUDA.zeros(Float32, 4)
+    a .+= 1
+    graph = capture(; stream=s) do
+        @test stream() === s
+        @test is_capturing(s)
+        a .+= 1
+    end
+    @test stream() === t
+    @test !is_capturing(s)
+    instantiate(graph)()
+    @test Array(a) == fill(2f0, 4)
+
+    if CUDA.driver_version() >= v"12.3"
+        graph = CuGraph()
+        capture!(graph; stream=s) do
+            @test stream() === s
+            a .+= 1
+        end
+        instantiate(graph)()
+        @test Array(a) == fill(3f0, 4)
+    end
+
+    # the task's stream is restored when capturing fails
+    @test_throws ErrorException capture(() -> error("oops"); stream=s)
+    @test stream() === t
+    @test !is_capturing(s)
+
+    # only ordinary non-blocking streams can be used
+    @test_throws ArgumentError capture(() -> nothing; stream=CuStream())
+    @test_throws ArgumentError capture(() -> nothing; stream=CUDA.default_stream())
+    @test_throws ArgumentError capture(() -> nothing; stream=t)
+
+    # by one capture at a time
+    @test_throws ArgumentError capture(; stream=s) do
+        capture(() -> nothing; stream=s)
+    end
+    @test_throws ArgumentError capture() do
+        capture(() -> nothing; stream=CuStream(; flags=CUDA.STREAM_NON_BLOCKING))
+    end
+    other = Ref{Any}()
+    capture(; stream=s) do
+        other[] = fetch(@async try
+            capture(() -> nothing; stream=s)
+        catch err
+            err
+        end)
+    end
+    @test other[] isa ArgumentError
+    @test !is_capturing(s)
+
+    # also not when it was used by an earlier capture
+    local pooled
+    capture(() -> (pooled = stream()))
+    go = Base.Event()
+    explicit = @async capture(() -> wait(go); stream=pooled)
+    yield()
+    capture() do
+        @test stream() != pooled
+    end
+    notify(go)
+    wait(explicit)
+    graph = capture(() -> a .+= 1; stream=s)
+    instantiate(graph)()
+    @test Array(a) == fill(4f0, 4)
+end
+
 @testset "using memory from a capturing task" begin
     # a task produces an array, and then captures unrelated work, while other tasks use the
     # array it produced
@@ -437,6 +506,37 @@ end
     end
     check(CUDA.HostMemory)
     CUDACore.supports_hmm(device()) && check(CUDA.UnifiedMemory)
+end
+
+@testset "recycled stream capturing a new generation" begin
+    s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    old = CUDA.ones(Float32, 4)
+    memory = old.data[]
+    lock(memory.lock) do
+        CUDACore.take_ownership!(memory; stream=s)
+    end
+    synchronize(s)
+    owner = @async nothing
+    wait(owner)
+    pool = [CUDACore.PooledStream(s, WeakRef(owner))]
+    lock(CUDACore.stream_pool_lock) do
+        @test CUDACore.claim_stream!(pool, current_task()) === s
+    end
+    y = CUDA.zeros(Float32, 4)
+    y .+= 1
+    graph = capture(; stream=s) do
+        @test CUDACore.pending_work(memory) === nothing
+        lock(CUDACore.stream_disposal_lock) do
+            handle, _ = CUDACore.release_stream(s, memory.stream_ctx, memory.generation)
+            @test handle == CUDACore.disposal_stream(context())
+        end
+        CUDA.unsafe_free!(old)
+        GC.gc(true)
+        y .+= 1
+    end
+    @test length(graph) == 1
+    instantiate(graph)()
+    @test Array(y) == fill(2f0, 4)
 end
 
 @testset "captured allocation provenance" begin

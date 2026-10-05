@@ -330,26 +330,38 @@ end
 # ever used by one capture at a time. nothing executes on them, so they can be reused right
 # after the capture has ended.
 const capture_streams = Dict{Tuple{CuContext,Cint},Vector{CuStream}}()
+# streams that are in use by a capture, including ones passed to `capture` explicitly
+const busy_capture_streams = Set{CuStream}()
 const capture_streams_lock = Threads.SpinLock()
 
 function checkout_capture_stream(ctx::CuContext, priority::Cint)
     stream = @lock capture_streams_lock begin
-        pool = get(capture_streams, (ctx, priority), nothing)
-        pool === nothing || isempty(pool) ? nothing : pop!(pool)
+        pool = get(capture_streams, (ctx, priority), CuStream[])
+        while !isempty(pool)
+            stream = pop!(pool)
+            # (a stream may have been passed to `capture` explicitly since it was released)
+            if !(stream in busy_capture_streams)
+                push!(busy_capture_streams, stream)
+                return stream
+            end
+        end
     end
-    stream === nothing || return stream
-    context!(ctx) do
+    stream = context!(ctx) do
         priority == 0 ? CuStream(; flags=STREAM_NON_BLOCKING) :
                         CuStream(; flags=STREAM_NON_BLOCKING, priority)
     end
+    @lock capture_streams_lock push!(busy_capture_streams, stream)
+    return stream
 end
 
 function release_capture_stream(stream::CuStream, priority::Cint)
-    # a capture that couldn't be ended leaves its stream capturing
-    (isvalid(stream) && !is_capturing(stream)) || return
     @lock capture_streams_lock begin
-        push!(get!(Vector{CuStream}, capture_streams, (something(stream.ctx), priority)),
-              stream)
+        delete!(busy_capture_streams, stream)
+        # a capture that couldn't be ended leaves its stream capturing
+        if isvalid(stream) && !is_capturing(stream)
+            push!(get!(Vector{CuStream}, capture_streams,
+                       (something(stream.ctx), priority)), stream)
+        end
     end
     return
 end
@@ -373,15 +385,42 @@ end
 # `nothing` if capturing failed and `throw_error` is false, along with the nodes that
 # operations depending on the captured ones should depend on.
 function capture_stream(f, graph::Union{Nothing,CuGraph}, deps::Vector{CUgraphNode};
-                        mode::CUstreamCaptureMode, throw_error::Bool)
+                        mode::CUstreamCaptureMode, throw_error::Bool,
+                        stream::Union{Nothing,CuStream}=nothing)
     ctx = context()
-    prio = Cint(priority())
-    stream = checkout_capture_stream(ctx, prio)
-    try
-        capture_on(f, stream, ctx, graph, deps; mode, throw_error)
-    finally
-        release_capture_stream(stream, prio)
+    if stream === nothing
+        prio = Cint(priority())
+        stream = checkout_capture_stream(ctx, prio)
+        try
+            capture_on(f, stream, ctx, graph, deps; mode, throw_error)
+        finally
+            release_capture_stream(stream, prio)
+        end
+    else
+        reserve_capture_stream(stream, ctx)
+        try
+            capture_on(f, stream, ctx, graph, deps; mode, throw_error)
+        finally
+            @lock capture_streams_lock delete!(busy_capture_streams, stream)
+        end
     end
+end
+
+function reserve_capture_stream(stream::CuStream, ctx::CuContext)
+    haskey(task_local_storage(), :CUDA_capture_stream) &&
+        throw(ArgumentError("Cannot capture on a specific stream while already capturing"))
+    stream.ctx == ctx ||
+        throw(ArgumentError("Can only capture on a stream of the current context"))
+    @lock capture_streams_lock begin
+        (stream in busy_capture_streams || is_capturing(stream)) &&
+            throw(ArgumentError("Cannot capture on a stream that's already being captured"))
+        # (only once we know the stream isn't being captured, as some drivers don't support
+        #  querying its flags then, and invalidate the capture instead)
+        stream_flags(stream) == STREAM_NON_BLOCKING ||
+            throw(ArgumentError("Can only capture on a stream created with `flags=STREAM_NON_BLOCKING`"))
+        push!(busy_capture_streams, stream)
+    end
+    return
 end
 
 function capture_on(f, stream::CuStream, ctx::CuContext, graph::Union{Nothing,CuGraph},
@@ -513,7 +552,7 @@ function capture_frontier(stream::CuStream)
 end
 
 """
-    capture(f; mode=STREAM_CAPTURE_MODE_RELAXED, throw_error=true)::CuGraph
+    capture(f; [stream], mode=STREAM_CAPTURE_MODE_RELAXED, throw_error=true)::CuGraph
 
 Capture the GPU operations that `f` performs into a graph, without executing them. The
 operations are captured on a dedicated stream, which is the task's stream while capturing,
@@ -546,6 +585,11 @@ back to the CPU, or that creates library handles, results in a [`CaptureError`](
 kernels are compiled and libraries are initialized. When `throw_error` is false, failures
 due to unsupported operations are not reported, and `nothing` is returned instead.
 
+To capture on a specific stream instead, pass it as the `stream` keyword argument. That
+needs to be a stream that was created with `flags=STREAM_NON_BLOCKING` in the current
+context, and that isn't used by anything else while capturing. Other tasks cannot wait for
+work that was submitted to that stream before the capture until the capture has ended.
+
 CUDA.jl checks the operations it performs itself, like waiting for the GPU, but by default
 doesn't ask the driver to prohibit other operations that are potentially unsafe during
 capture. The driver performs those checks per thread rather than per task, so they would
@@ -557,19 +601,20 @@ debug a library that doesn't support capture, use `mode=STREAM_CAPTURE_MODE_THRE
 
 See also: [`instantiate`](@ref), [`capture!`](@ref).
 """
-function capture(f::Function; mode::CUstreamCaptureMode=STREAM_CAPTURE_MODE_RELAXED,
+function capture(f::Function; stream::Union{Nothing,CuStream}=nothing,
+                 mode::CUstreamCaptureMode=STREAM_CAPTURE_MODE_RELAXED,
                  flags::Union{Nothing,CUstreamCaptureMode}=nothing, throw_error::Bool=true)
     if flags !== nothing
         Base.depwarn("The `flags` keyword argument to `capture` has been renamed to `mode`.",
                      :capture)
         mode = flags
     end
-    graph, _ = capture_stream(f, nothing, CUgraphNode[]; mode, throw_error)
+    graph, _ = capture_stream(f, nothing, CUgraphNode[]; mode, throw_error, stream)
     return graph
 end
 
 """
-    capture!(f, graph::CuGraph; after=CuGraphNode[], mode=STREAM_CAPTURE_MODE_RELAXED)
+    capture!(f, graph::CuGraph; after=CuGraphNode[], [stream], mode=STREAM_CAPTURE_MODE_RELAXED)
 
 Capture the GPU operations that `f` performs, like [`capture`](@ref), but add them to an
 existing graph. The captured operations depend on the nodes in `after`, and are independent
@@ -596,6 +641,7 @@ be used anymore.
 This functionality requires CUDA 12.3 or higher.
 """
 function capture!(f::Function, graph::CuGraph; after::AbstractVector{CuGraphNode}=CuGraphNode[],
+                  stream::Union{Nothing,CuStream}=nothing,
                   mode::CUstreamCaptureMode=STREAM_CAPTURE_MODE_RELAXED)
     driver_version() >= v"12.3" ||
         error("Capturing into an existing graph requires CUDA 12.3 or higher")
@@ -603,7 +649,7 @@ function capture!(f::Function, graph::CuGraph; after::AbstractVector{CuGraphNode
         throw(ArgumentError("Dependencies need to be nodes of the same graph"))
     deps = CUgraphNode[node.handle for node in after]
     frontier = @lock graph.lock context!(graph.ctx) do
-        _, frontier = capture_stream(f, graph, deps; mode, throw_error=true)
+        _, frontier = capture_stream(f, graph, deps; mode, throw_error=true, stream)
         frontier
     end
     return CuGraphNode[CuGraphNode(node, graph) for node in frontier]
