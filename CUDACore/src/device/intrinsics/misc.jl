@@ -21,7 +21,7 @@ clock(::Type{UInt32}) = ccall("llvm.nvvm.read.ptx.sreg.clock", llvmcall, UInt32,
 
 Returns the value of a per-multiprocessor counter that is incremented every clock cycle.
 """
-clock(::Type{UInt64}) = ccall("llvm.nvvm.read.ptx.sreg.clock64", llvmcall, UInt64, ())
+clock(::Type{UInt64}) = ccall("llvm.readcyclecounter", llvmcall, UInt64, ())
 
 end
 
