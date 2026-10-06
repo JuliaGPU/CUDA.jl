@@ -29,7 +29,6 @@ Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Random123 = "74087812-796a-5b5d-8853-05524746bad3"
 RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 ScopedValues = "7e506255-f358-4e82-b7e4-beb19740aa63"
-StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 UnsafeAtomics = "013be700-e6cd-48c3-b4a1-df204f14c38f"
 
 [weakdeps]
@@ -38,12 +37,14 @@ ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [extensions]
 ChainRulesCoreExt = "ChainRulesCore"
 EnzymeCoreExt = "EnzymeCore"
 KernelAbstractionsExt = "KernelAbstractions"
 SpecialFunctionsExt = "SpecialFunctions"
+StaticArraysExt = "StaticArrays"
 
 [sources]
 KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main", subdir = "lib/KernelInterface"}
@@ -88,3 +89,4 @@ julia = "1.10"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"

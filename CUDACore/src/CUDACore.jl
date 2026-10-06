@@ -133,10 +133,6 @@ include("CUDAKernels.jl")
 import .CUDAKernels: CUDABackend
 export CUDABackend
 
-# StaticArrays is still a direct dependency, so directly include the extension
-include("../ext/StaticArraysExt.jl")
-# NOTE: StaticArrays is a direct dep, so extension is directly included
-
 include("precompile.jl")
 
 end
