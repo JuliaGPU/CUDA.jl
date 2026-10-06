@@ -524,6 +524,11 @@ Base.unsafe_convert(typ::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
   return data
 end
 
+# the address of an array's memory, for use by an operation that already took ownership of
+# it (see `with_managed_arrays`)
+unmanaged_pointer(x::CuArray{T}, i::Integer=1) where {T} =
+  convert(CuPtr{T}, x.data[].mem) + x.offset + Base._memory_offset(x, i)
+
 
 ## indexing
 
@@ -574,6 +579,31 @@ end
 
 
 ## memory copying
+
+# submit an operation on arrays, or views of them, to the current stream (see
+# `with_managed`). host arrays are ignored.
+function with_managed_arrays(f, a::AbstractArray)
+  ma = managed_memory(a)
+  ma === nothing ? f() : with_ordered_managed(f, (ma,))
+end
+function with_managed_arrays(f, a::AbstractArray, b::AbstractArray)
+  ma, mb = managed_memory(a), managed_memory(b)
+  if mb === nothing || mb === ma
+    ma === nothing ? f() : with_ordered_managed(f, (ma,))
+  elseif ma === nothing
+    with_ordered_managed(f, (mb,))
+  elseif objectid(ma.lock) < objectid(mb.lock)  # see `locking_order`
+    with_ordered_managed(f, (ma, mb))
+  else
+    with_ordered_managed(f, (mb, ma))
+  end
+end
+
+managed_memory(a::CuArray) = check_capture(a.data)[]
+function managed_memory(a::AbstractArray)
+  p = parent(a)
+  p === a ? nothing : managed_memory(p)
+end
 
 if VERSION >= v"1.11.0-DEV.753"
 function typetagdata(a::Array, i=1)
@@ -653,12 +683,12 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
       # synchronization here, but the exact cases are hard to know and detect (e.g.,
       # unpinned memory normally blocks, but not for all sizes, and not on all memory
       # architectures).
-      GC.@preserve src dest begin
+      GC.@preserve src dest with_managed_arrays(dest) do
         # semantically, it is not safe for this operation to execute asynchronously, because
         # the Array may be collected before the copy starts executing. However, when using
         # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
         # the source array, making this operation safe.
-        unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+        unsafe_copyto!(unmanaged_pointer(dest, doffs), pointer(src, soffs), n; async=true)
         if Base.isbitsunion(T)
           unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
         end
@@ -694,8 +724,9 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
     # use direct device-to-device copy
     context!(context(src)) do
       capture_submission() do
-        GC.@preserve src dest begin
-          unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+        GC.@preserve src dest with_managed_arrays(dest, src) do
+          unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
+                         async=true)
           if Base.isbitsunion(T)
             unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
           end
@@ -756,8 +787,9 @@ end
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   context!(context(src)) do
-    GC.@preserve src dest begin
-      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+    GC.@preserve src dest with_managed_arrays(dest, src) do
+      unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
+                     async=true)
       if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
@@ -769,8 +801,9 @@ end
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
   context!(context(dest)) do
-    GC.@preserve src dest begin
-      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+    GC.@preserve src dest with_managed_arrays(dest, src) do
+      unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
+                     async=true)
       if Base.isbitsunion(T)
         unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
       end
@@ -781,8 +814,9 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
-  GC.@preserve src dest begin
-    unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+  GC.@preserve src dest with_managed_arrays(dest, src) do
+    unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
+                   async=true)
     if Base.isbitsunion(T)
       unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
     end
@@ -909,7 +943,9 @@ function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
     capture_submission() do
-      GC.@preserve A memset(convert(CuPtr{U}, pointer(A)), y, length(A))
+      GC.@preserve A with_managed_arrays(A) do
+        memset(convert(CuPtr{U}, unmanaged_pointer(A)), y, length(A))
+      end
     end
   end
   A
