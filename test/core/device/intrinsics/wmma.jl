@@ -4,13 +4,19 @@ using CUDA.WMMA
 
 using BFloat16s: BFloat16
 
+# Julia 1.11's LLVM can't select vectorized BFloat16 conversions when targeting a CPU with
+# AVX512-BF16 (Zen 4+, Cooper Lake, Sapphire Rapids), aborting the process when compiling
+# host code like `Float32.(::Array{BFloat16})`. Worked around in 1.12.7 (JuliaLang/julia#62676).
+const host_bf16_broken = v"1.11" <= VERSION < v"1.12" && Sys.ARCH === :x86_64 &&
+    Base.BinaryPlatforms.CPUID.test_cpu_feature(Base.BinaryPlatforms.CPUID.JL_X86_avx512bf16)
+
 map_ptx_to_jl_frag = Dict(
                             "u8"  => reinterpret(Int32, UInt8(42) * ones(UInt8, 4))[1],
                             "s8"  => reinterpret(Int32, UInt8(42) * ones(UInt8, 4))[1],
                             "u32" => UInt32(42),
                             "s32" => Int32(42),
                             "f16" => ntuple(i -> VecElement{Float16}(42), 2),
-                            "bf16" => reinterpret(UInt32, BFloat16(42) * ones(BFloat16, 2))[1],
+                            "bf16" => reinterpret(UInt32, fill(BFloat16(42), 2))[1],
                             "f32" => Float32(42)
                             )
 # Return specific matrix shape given operation configuration
@@ -51,8 +57,8 @@ end
                                                  startswith(elem_type, "u"))
                 continue
             end
-            # Skip BFloat16 WMMA on pre-Ampere devices
-            if capability(device()) < v"8.0" && elem_type == "bf16"
+            # Skip BFloat16 WMMA on pre-Ampere devices, or when the host can't verify it
+            if (capability(device()) < v"8.0" || host_bf16_broken) && elem_type == "bf16"
                 continue
             end
 
@@ -122,8 +128,8 @@ end
                                                  startswith(elem_type, "u"))
                 continue
             end
-            # Skip BFloat16 WMMA on pre-Ampere devices
-            if capability(device()) < v"8.0" && elem_type == "bf16"
+            # Skip BFloat16 WMMA on pre-Ampere devices, or when the host can't verify it
+            if (capability(device()) < v"8.0" || host_bf16_broken) && elem_type == "bf16"
                 continue
             end
 
@@ -186,8 +192,8 @@ end
                                                  startswith(ab_elem_type, "u"))
                 continue
             end
-            # Skip BFloat16 WMMA on pre-Ampere devices
-            if capability(device()) < v"8.0" && ab_elem_type == "bf16"
+            # Skip BFloat16 WMMA on pre-Ampere devices, or when the host can't verify it
+            if (capability(device()) < v"8.0" || host_bf16_broken) && ab_elem_type == "bf16"
                 continue
             end
 
@@ -274,7 +280,7 @@ end
         @test WMMA.unflatten(NTuple{8, NTuple{2, VecElement{Float16}}}, ntuple(i -> Float16(i), 2 * 8)) == ntuple(i -> ntuple(j -> VecElement{Float16}((i-1) * 2 + j), 2), 8)
     end
 
-    @testset "BFloat16 packing/unpacking" begin
+    host_bf16_broken || @testset "BFloat16 packing/unpacking" begin
         bf_vals = ntuple(i -> BFloat16(i), 8)
         packed = WMMA.unflatten_bf16(bf_vals)
         @test length(packed) == 4
@@ -286,7 +292,7 @@ end
 ################################################################################
 
 @testset "Broadcasting over fragments: size=$sz, type=$ty" for sz = [1, 2, 5],
-        ty = [Float16, Float32, BFloat16]
+        ty = (host_bf16_broken ? [Float16, Float32] : [Float16, Float32, BFloat16])
         @test ty(5) .* Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(i), sz)) == Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(5 * i), sz))
         @test ty(5) .+ Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(i), sz)) == Fragment{16, 16, 16, sz, ty, RowMajor, MatrixA}(ntuple(i -> ty(5 + i), sz))
 end
@@ -356,7 +362,7 @@ end
 
 ################################################################################
 
-if capability(device()) >= v"8.0"
+if capability(device()) >= v"8.0" && !host_bf16_broken
 @testset "CUDA C-style API (BFloat16)" begin
     @testset "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout" for a_layout in [ColMajor, RowMajor],
         b_layout in [ColMajor, RowMajor],
@@ -414,7 +420,7 @@ end
 
 # BFloat16 fragment broadcasting requires native bf16 scalar ops (CC 8.9+)
 # On earlier architectures, frag[i] returns UInt32 (packed), causing type mismatch
-if capability(device()) >= v"8.9"
+if capability(device()) >= v"8.9" && !host_bf16_broken
 @testset "CUDA C-style API (BFloat16 with scaling)" begin
     @testset "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout" for a_layout in [ColMajor, RowMajor],
         b_layout in [ColMajor, RowMajor],
