@@ -1188,6 +1188,84 @@ let long = CuStream()
     end
 end
 
+# memory used by CUDA.jl operations on another stream is handed off on the device: the new
+# stream waits for the old one, without blocking the host
+let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), u = cu([0]; unified=true),
+    s = stream(), other = CuStream(), third = CuStream()
+    # warm up, as compiling kernels waits for the GPU to become idle
+    for x in (a, u)
+        x .+= 1
+        fetch(Threads.@spawn (stream!(other); x .*= 2; copyto!(b, a)))
+        fetch(Threads.@spawn (stream!(third); x .-= 1))
+        synchronize(third)
+        x .= 1
+    end
+
+    # kernels and copies don't block, and still execute in order
+    @test gated(s) do
+        a .+= 1
+        fetch(Threads.@spawn begin
+            stream!(other)
+            a .*= 2
+            fetch(Threads.@spawn (stream!(third); a .-= 1; copyto!(b, a)))
+            !CUDA.isdone(s)
+        end)
+    end
+    synchronize(third)
+    @test Array(a) == [3]
+    @test Array(b) == [3]
+
+    # synchronizing the memory also waits for the stream it was handed off from
+    @test gated(s) do
+        a .+= 1
+        fetch(Threads.@spawn (stream!(other); a .*= 2))
+        open_gate_during(() -> synchronize(a))
+    end
+    @test Array(a) == [8]
+
+    # other consumers of a pointer, like a library, get the memory ready on the host, also
+    # when the stream that hands it to them already waits for the previous use
+    for hops in (1, 2)
+        @test gated(s) do
+            a .+= 1
+            fetch(Threads.@spawn begin
+                stream!(other)
+                a .*= 2
+                if hops == 2
+                    fetch(Threads.@spawn (stream!(third); a .-= 1))
+                end
+                open_gate_during(() -> Base.unsafe_convert(CuPtr{Int}, a))
+            end)
+        end
+    end
+    @test Array(a) == [37]
+
+    # capturing doesn't wait for memory that was handed off, but launching the graph takes
+    # ownership of it, so a launch on yet another stream waits for it on the device
+    @test gated(s) do
+        a .+= 1
+        fetch(Threads.@spawn begin
+            stream!(other)
+            a .*= 2
+            graph = capture(() -> (a .-= 1))
+            launch(instantiate(graph), third)
+            !CUDA.isdone(s) && !CUDA.isdone(third)
+        end)
+    end
+    synchronize(third)
+    @test Array(a) == [75]
+
+    # memory that isn't device memory is still synchronized on the host
+    @test gated(s) do
+        u .+= 1
+        open_gate_during() do
+            fetch(Threads.@spawn (stream!(other); u .*= 2))
+        end
+    end
+    synchronize(other)
+    @test Array(u) == [4]
+end
+
 end
 
 ############################################################################################

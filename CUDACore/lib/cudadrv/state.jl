@@ -47,6 +47,11 @@ mutable struct TaskLocalState
     math_mode::MathMode
     math_precision::Symbol
 
+    # the stream of the operation CUDA.jl is submitting, if any, and whether it's being
+    # captured (see `with_managed`)
+    operation_stream::Union{Nothing,CuStream}
+    operation_capturing::Bool
+
     function TaskLocalState(dev::CuDevice=something(default_device[], CuDevice(0)),
                             ctx::CuContext = context(dev))
         math_mode = something(default_math_mode[],
@@ -54,7 +59,7 @@ mutable struct TaskLocalState
         math_precision = something(default_math_precision[], :TensorFloat32)
         new(dev, ctx, Union{Nothing,CuStream}[nothing for _ in 1:ndevices()],
             Cint[0 for _ in 1:ndevices()],
-            math_mode, math_precision)
+            math_mode, math_precision, nothing, false)
     end
 end
 
@@ -103,9 +108,8 @@ end
 
 # convenience function to get all relevant state
 # without querying task local storage multiple times
-@inline function active_state()
+@inline function active_state(state::TaskLocalState=task_local_state!())
     # inline to remove unused state properties
-    state = task_local_state!()
     return (device=state.device, context=state.context, stream=stream(state),
             math_mode=state.math_mode, math_precision=state.math_precision)
 end

@@ -416,7 +416,9 @@ end
 
 Submit an operation on `managed` memory to `stream` by calling `f`. The memory is made
 ready for use on `stream`, and locked so that it can't move to another stream before the
-operation has been submitted.
+operation has been submitted. Pointers to memory that are taken within `f` (e.g., by
+converting an array) are assumed to be used by an operation on `stream` too, so they don't
+wait for other streams that used the memory before.
 """
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
@@ -431,7 +433,8 @@ function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
                               stream::CuStream=stream()) where {F}
     # (taking ownership of the memory and using it is a single submission)
     capture_submission(stream) do
-        state = active_state()
+        tls = task_local_state!()
+        state = active_state(tls)
         capturing = is_capturing(stream)
         for memory in ordered
             lock(memory.lock)
@@ -440,12 +443,25 @@ function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
             for memory in ordered
                 take_ownership!(memory; state, stream, capturing)
             end
-            return f()
+            return with_operation_stream(f, tls, stream, capturing)
         finally
             for memory in Iterators.reverse(ordered)
                 unlock(memory.lock)
             end
         end
+    end
+end
+
+# pointers taken during `f` are used by an operation that CUDA.jl submits to `stream` (see
+# `convert(::Type{CuPtr}, ::Managed)`)
+@inline function with_operation_stream(f::F, tls::TaskLocalState, stream::CuStream,
+                                       capturing::Bool) where {F}
+    old_stream, old_capturing = tls.operation_stream, tls.operation_capturing
+    tls.operation_stream, tls.operation_capturing = stream, capturing
+    try
+        return f()
+    finally
+        tls.operation_stream, tls.operation_capturing = old_stream, old_capturing
     end
 end
 

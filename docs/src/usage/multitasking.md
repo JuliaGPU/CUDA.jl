@@ -51,18 +51,26 @@ GPU arrays filled with random numbers:
 function main(N=1024)
     a = CUDA.rand(N,N)
     b = CUDA.rand(N,N)
-
-    # make sure this data can be used by other tasks!
-    synchronize()
-
     run(a, b)
 end
 ```
 
-The `main` function illustrates how we need to take care when sharing data between tasks:
-GPU operations typically execute asynchronously, queued on an execution stream, so if we
-switch tasks and thus switch execution streams we need to `synchronize()` to ensure the data
-is actually available.
+The arrays are initialized on the stream of the main task, and used from the streams of the
+two tasks that `run` spawns. GPU operations execute asynchronously, so that initialization
+may not have finished when the tasks start. CUDA.jl takes care of that: it remembers which
+stream last used each array, and orders work on the array from another stream after all the
+work that was queued on that stream before:
+
+- for operations that CUDA.jl submits itself, i.e., kernel launches (including broadcasts
+  and KernelAbstractions kernels), copies, `fill!` and graph launches, the new stream waits
+  for the previous one on the GPU, without blocking the task;
+- for other uses of the array's memory, like library calls (the matrix multiplication in
+  `compute` uses CUBLAS) or passing a pointer to C code or MPI, the task first waits until
+  the previous stream has finished its work, because CUDA.jl doesn't know which stream, or
+  whether the CPU, will access the memory.
+
+Unified and host memory, and memory that is used on another device, are always waited for
+by the task.
 
 Using Nsight Systems, we can visualize the execution of this example:
 
@@ -125,8 +133,9 @@ high-priority stream; `CUDA.priority!(:normal)` selects the normal priority agai
 The scoped form, `CUDA.priority!(:high) do ... end`, restores the previous stream when the
 block ends. CUDA treats stream priority as a scheduling hint for pending kernels, and
 existing work is not interrupted. Repeated priority changes reuse the task's streams.
-Using an array from before the switch may wait on the CPU for pending work on its
-previous stream; switch before queuing long work when that wait matters.
+Using an array from before the switch then waits for pending work on its previous
+stream, as described above; for library calls, that blocks the task, so switch before
+queuing long work when that wait matters.
 New tasks start at normal priority, even when spawned from a high-priority task.
 If you selected an explicit stream with `stream!`, use the scoped form of `priority!`
 to restore that stream after the priority change.

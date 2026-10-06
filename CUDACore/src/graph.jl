@@ -398,9 +398,14 @@ function capture_stream(f, graph::Union{Nothing,CuGraph}, deps::Vector{CUgraphNo
         end
     else
         reserve_capture_stream(stream, ctx)
+        order = stream.order::StreamOrder
         try
+            # other tasks wait for the stream by recording an event on it (see
+            # `stream_wait`), which they can't do anymore once the capture has begun
+            @lock order.lock order.capturing = true
             capture_on(f, stream, ctx, graph, deps; mode, throw_error)
         finally
+            @lock order.lock order.capturing = false
             @lock capture_streams_lock delete!(busy_capture_streams, stream)
         end
     end

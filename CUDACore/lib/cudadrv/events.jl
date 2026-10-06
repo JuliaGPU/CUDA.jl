@@ -79,6 +79,26 @@ Make a stream wait on a event. This only makes the stream wait, and not the host
 wait(e::CuEvent, stream::CuStream=stream()) =
     capture_submission(() -> cuStreamWaitEvent(stream, e, 0), stream)
 
+# make the work submitted to `stream` from now on wait for the work submitted to `source` so
+# far, on the device. returns false if that isn't possible because `source` is being
+# captured, as recording an event on it would then only add a node to the graph.
+function stream_wait(stream::CuStream, source::CuStream)
+    order = source.order::StreamOrder
+    Base.@lock order.lock begin
+        (order.capturing || in_capture(source)) && return false
+        event = order.event
+        if event === nothing
+            event = context!(source.ctx) do
+                CuEvent(EVENT_DISABLE_TIMING)
+            end
+            order.event = event
+        end
+        cuEventRecord(event::CuEvent, source)
+        cuStreamWaitEvent(stream, event::CuEvent, 0)
+    end
+    return true
+end
+
 """
     elapsed(start::CuEvent, stop::CuEvent)
 
