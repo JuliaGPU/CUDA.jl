@@ -466,6 +466,16 @@ let A = CUDA.zeros(Int, 1)
     @test Array(A) == [3]
 end
 
+# a capture that fails to begin leaves the one in progress alone
+let A = CUDA.zeros(Int, 1)
+    graph = capture() do
+        @test_throws CuError capture(() -> nothing)
+        A .+= 1
+    end
+    CUDA.launch(instantiate(graph))
+    @test Array(A) == [1]
+end
+
 end
 
 ############################################################################################

@@ -41,6 +41,12 @@ mutable struct CuGraph
         gc_state = GC.enable(false)
         try
             cuStreamBeginCapture_v2(stream(), flags)
+        catch
+            end_capture()
+            GC.enable(gc_state)
+            rethrow()
+        end
+        try
             f()
         finally
             handle_ref = Ref{CUgraph}()
