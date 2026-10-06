@@ -19,26 +19,11 @@ unsafe_atomics_scope(::Val{:block}) = UnsafeAtomics.workgroup
 unsafe_atomics_scope(::Val{:device}) = UnsafeAtomics.device
 unsafe_atomics_scope(::Val{:system}) = UnsafeAtomics.system
 
-# Shared memory is confined to a block, regardless of the requested scope.
-@inline function check_atomic_scope(::LLVMPtr{T,A}, ::Val{S}) where {T,A,S}
-    if S === :system && A != AS.Shared
-        GPUCompiler.@static_assert(compute_capability() >= sv"6.0",
-            "system-scope atomics require compute capability 6.0; use device scope")
-        @static if Sys.iswindows()
-            GPUCompiler.@static_assert(compute_capability() >= sv"7.0",
-                "system-scope atomics are not supported on Pascal GPUs under Windows; use device scope")
-        end
-    end
-    return
-end
-
 # PTX only has atomics on global and shared memory, which generic pointers may point to.
 const AtomicPtr{T} = Union{LLVMPtr{T,AS.Generic}, LLVMPtr{T,AS.Global}, LLVMPtr{T,AS.Shared}}
 
-@inline function atomic_rmw!(f::F, ptr::LLVMPtr, val, scope::AtomicScope) where {F}
-    check_atomic_scope(ptr, scope)
+@inline atomic_rmw!(f::F, ptr::LLVMPtr, val, scope::AtomicScope) where {F} =
     f(ptr, val, atomic_order, unsafe_atomics_scope(scope))
-end
 
 for (fn, rmw, types) in [(:atomic_add!,  UnsafeAtomics.add!,
                           (Int32, Int64, UInt32, UInt64, Float16, Float32, Float64)),
@@ -75,12 +60,9 @@ end
 for T in (Int16, UInt16, Int32, Int64, UInt32, UInt64, Float16, Float32, Float64, BFloat16)
     @eval @device_function @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, val::$T,
                                                         scope::AtomicScope=Val(:device)) where {A}
-        GPUCompiler.@static_assert(
-            A == AS.Generic || A == AS.Global || A == AS.Shared,
-            "atomics require a generic, global, or shared address space")
-        check_atomic_scope(ptr, scope)
         @static if sizeof($T) == 2
-            compute_capability() >= sv"7.0" && return atomic_cas_b16(ptr, cmp, val, scope)
+            A in (AS.Generic, AS.Global, AS.Shared) && compute_capability() >= sv"7.0" &&
+                return atomic_cas_b16(ptr, cmp, val, scope)
         end
         UnsafeAtomics.cas!(ptr, cmp, val, atomic_order, atomic_order,
                            unsafe_atomics_scope(scope)).old
@@ -136,7 +118,6 @@ end
 # promote (e.g. `/` on integers).
 @inline function atomic_modify!(ptr::LLVMPtr{T}, op::Function, val,
                                 scope::AtomicScope=Val(:device)) where {T}
-    check_atomic_scope(ptr, scope)
     sizeof(T) == 2 && return atomic_modify_b16!(ptr, op, val, scope)
     old, new = UnsafeAtomics.modify!(ptr, (old, val) -> convert(T, op(old, val)),
                                      convert(T, val), atomic_order,

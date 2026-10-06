@@ -316,9 +316,14 @@ end
     llvm_sm === nothing &&
         error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")
 
+    # system-scope atomics are part of the ISA from sm_60 on (which GPUCompiler checks), but
+    # Windows doesn't support them on Pascal GPUs (#3187), nor do Tegra GPUs before sm_72
+    sm = base_version(ptxas_sm)
+    system_atomics = !(Sys.iswindows() && sm < v"7.0") && !(is_tegra() && sm < v"7.2")
+
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,
-                                 feature_set=llvm_sm.feature_set,
+                                 feature_set=llvm_sm.feature_set, system_atomics,
                                  debuginfo=true, kwargs...)
     params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
     CompilerConfig(target, params; kernel, name, always_inline)

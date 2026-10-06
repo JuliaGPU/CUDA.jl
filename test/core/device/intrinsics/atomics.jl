@@ -607,7 +607,8 @@ end
     @test Array(a) == [1024, 2048 - 1024]
 end
 
-# system-scope atomics require sm_60, and are not available on Pascal under Windows
+# system-scope atomics require sm_60, and are not available on Pascal under Windows, nor on
+# Tegra before sm_72
 if system_scope_supported
 @testset "system scope" begin
     function add_kernel(a, scope)
@@ -732,12 +733,13 @@ end
         err
     end
     @test err isa CUDA.InvalidIRError
-    @test occursin("system-scope atomics require compute capability 6.0",
+    @test occursin("system-scope atomic operation (requires compute capability 6.0",
                    sprint(showerror, err))
     @test any(frame -> frame.func == :system_kernel,
               Iterators.flatten(e[2] for e in err.errors))
 
-    # RMW, 16-bit CAS emulation, and the inc/dec fallbacks must check the scope too.
+    # all atomic functions are checked, as are atomics used without them, e.g. through
+    # UnsafeAtomics (or Atomix, which uses it)
     function rmw_kernel(a)
         CUDA.atomic_add!(pointer(a), Int32(1), Val(:system))
         return
@@ -754,23 +756,33 @@ end
         CUDA.atomic_dec!(pointer(a), Int32(7), Val(:system))
         return
     end
+    function modify_kernel(a)
+        CUDACore.atomic_modify!(pointer(a), *, Int32(2), Val(:system))
+        return
+    end
+    function unsafe_atomics_kernel(a)
+        CUDACore.UnsafeAtomics.add!(pointer(a), Int32(1))
+        return
+    end
     for (f, tt) in ((rmw_kernel, T), (cas16_kernel, Tuple{CuDeviceVector{Int16,1}}),
-                    (inc_kernel, T), (dec_kernel, T))
-        @test_throws CUDA.InvalidIRError validate_kernel(f, tt; arch=sm"50")
-        validate_kernel(f, tt; arch=sm"70")
+                    (inc_kernel, T), (dec_kernel, T), (modify_kernel, T),
+                    (unsafe_atomics_kernel, T))
+        @test_throws "system-scope atomic operation" validate_kernel(f, tt; arch=sm"50")
+        validate_kernel(f, tt; arch=sm"75")
     end
 
     # the default scope, and shared memory, are fine everywhere
     validate_kernel(device_kernel, T; arch=sm"50")
     validate_kernel(shared_kernel, T; arch=sm"50")
 
-    # Windows rejects Pascal modules containing system-scope atomics (#3187).
-    if Sys.iswindows()
-        @test_throws CUDA.InvalidIRError validate_kernel(system_kernel, T; arch=sm"61")
+    # Windows rejects Pascal modules containing system-scope atomics (#3187), and Tegra
+    # GPUs only support them from sm_72
+    if Sys.iswindows() || CUDA.is_tegra()
+        @test_throws "system-scope atomic operation (not supported on this platform" validate_kernel(system_kernel, T; arch=sm"61")
     else
         validate_kernel(system_kernel, T; arch=sm"61")
     end
-    validate_kernel(system_kernel, T; arch=sm"70")
+    validate_kernel(system_kernel, T; arch=sm"75")
 end
 
 end

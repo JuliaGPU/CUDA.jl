@@ -126,7 +126,7 @@ end
             return
         end
         local_ptr_t = Core.LLVMPtr{UInt32,AS.Local}
-        @test_throws "atomics require a generic, global, or shared address space" begin
+        @test_throws "atomic operation in address space 5" begin
             compile_kernel(invalid_atomic_address_space_kernel, Tuple{local_ptr_t};
                            arch=sm"80")
         end
