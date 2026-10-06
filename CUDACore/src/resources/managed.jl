@@ -106,12 +106,29 @@ end
 function pending_work(managed::Managed)
   @lock stream_disposal_lock begin
     recycled(managed) && return nothing
-    check_capture(managed.stream)
-    relaxed_capture_mode(() -> isdone(managed.stream)) && return nothing
-    event = CuEvent(EVENT_DISABLE_TIMING)
-    cuEventRecord(event, managed.stream)
-    return event
+    stream = managed.stream
+    order = stream.order
+    order === nothing && return record_pending_work(stream)
+    # a stream that `capture` is capturing on has an event that covers the work submitted
+    # to it before, including the last use of the memory (captured operations don't take
+    # ownership of memory). that's not enough for the capture itself, which may have
+    # captured operations on the memory. the lock keeps a capture from beginning meanwhile.
+    @lock order.lock begin
+      event = order.capture_event
+      if event === nothing || CUDACore.stream() == stream
+        record_pending_work(stream)
+      else
+        event::CuEvent
+      end
+    end
   end
+end
+function record_pending_work(stream::CuStream)
+  check_capture(stream)
+  relaxed_capture_mode(() -> isdone(stream)) && return nothing
+  event = CuEvent(EVENT_DISABLE_TIMING)
+  cuEventRecord(event, stream)
+  return event
 end
 function maybe_synchronize(managed::Managed)
   Base.@lock managed.lock begin
@@ -156,19 +173,36 @@ function prepare_host_access!(managed::Managed)
   if managed.attachment == GLOBALLY_ATTACHED && managed.synchronizing &&
      !managed.captured && managed.stream.ctx !== nothing
     event = @lock stream_disposal_lock begin
-      if !recycled(managed) && isvalid(managed.stream)
-        check_capture(managed.stream)
-      end
-      # this also handles owners that have been recycled or destroyed
-      stream, ctx = release_stream(managed.stream, managed.stream_ctx, managed.generation)
-      context!(ctx) do
-        # (attaching is prohibited while another thread captures in global mode)
-        relaxed_capture_mode() do
-          cuStreamAttachMemAsync(stream, managed.mem, 0, MEM_ATTACH_HOST)
+      # (holding the lock under which a capture on the stream begins, see `pending_work`)
+      order = managed.stream.order
+      order === nothing || lock(order.lock)
+      try
+        fence = order === nothing || recycled(managed) ? nothing : order.capture_event
+        if fence !== nothing && CUDACore.stream() != managed.stream
+          # the stream is being captured by another task, so attach on another stream,
+          # after the work that was submitted before the capture began
+          ctx = something(managed.stream.ctx)
+          stream = disposal_stream(ctx)
+        else
+          fence = nothing
+          if !recycled(managed) && isvalid(managed.stream)
+            check_capture(managed.stream)
+          end
+          # this also handles owners that have been recycled or destroyed
+          stream, ctx = release_stream(managed.stream, managed.stream_ctx, managed.generation)
         end
-        event = CuEvent(EVENT_DISABLE_TIMING)
-        cuEventRecord(event, stream)
-        event
+        context!(ctx) do
+          fence === nothing || cuStreamWaitEvent(stream, fence::CuEvent, 0)
+          # (attaching is prohibited while another thread captures in global mode)
+          relaxed_capture_mode() do
+            cuStreamAttachMemAsync(stream, managed.mem, 0, MEM_ATTACH_HOST)
+          end
+          event = CuEvent(EVENT_DISABLE_TIMING)
+          cuEventRecord(event, stream)
+          event
+        end
+      finally
+        order === nothing || unlock(order.lock)
       end
     end
     synchronize(event)

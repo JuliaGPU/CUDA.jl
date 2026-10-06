@@ -10,13 +10,16 @@ mutable struct StreamOrder
     # which is defined after streams.)
     event::Any
 
-    # whether `capture` is capturing on the stream. it's set while holding the lock before
-    # the capture begins, so that no event is recorded on the stream after that.
-    capturing::Bool
+    # while `capture` is capturing on the stream, recording an event on it would only add a
+    # node to the graph. instead, other streams wait for an event that was recorded right
+    # before the capture began, which covers the work that was submitted to the stream
+    # before. it's set while holding the lock, so that no event is recorded on the stream
+    # after the capture began (see `capture(; stream)`). also a `CuEvent`, or `nothing`.
+    capture_event::Any
 
     const lock::ReentrantLock
 
-    StreamOrder() = new(nothing, false, ReentrantLock())
+    StreamOrder() = new(nothing, nothing, ReentrantLock())
 end
 
 """

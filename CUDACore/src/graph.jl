@@ -400,12 +400,18 @@ function capture_stream(f, graph::Union{Nothing,CuGraph}, deps::Vector{CUgraphNo
         reserve_capture_stream(stream, ctx)
         order = stream.order::StreamOrder
         try
-            # other tasks wait for the stream by recording an event on it (see
-            # `stream_wait`), which they can't do anymore once the capture has begun
-            @lock order.lock order.capturing = true
+            # memory may have been used on the stream before. other tasks wait for that by
+            # recording an event on the stream (see `stream_wait`), which they can't do once
+            # the capture has begun, so record one for them. (a new one, as tasks may still
+            # be waiting for the event of an earlier capture.)
+            event = CuEvent(EVENT_DISABLE_TIMING)
+            @lock order.lock begin
+                cuEventRecord(event, stream)
+                order.capture_event = event
+            end
             capture_on(f, stream, ctx, graph, deps; mode, throw_error)
         finally
-            @lock order.lock order.capturing = false
+            @lock order.lock order.capture_event = nothing
             @lock capture_streams_lock delete!(busy_capture_streams, stream)
         end
     end
@@ -604,8 +610,8 @@ affected by the capture.
 
 To capture on a specific stream instead, pass it as the `stream` keyword argument. That
 needs to be a stream that was created with `flags=STREAM_NON_BLOCKING` in the current
-context, and that isn't used by anything else while capturing. Other tasks cannot wait for
-work that was submitted to that stream before the capture until the capture has ended.
+context, and that isn't used by anything else while capturing. Other tasks can still use
+memory that was last used on that stream before the capture.
 
 CUDA.jl checks the operations it performs itself, like waiting for the GPU, but by default
 doesn't ask the driver to prohibit other operations that are potentially unsafe during
