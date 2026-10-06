@@ -1,11 +1,9 @@
 module KernelAbstractionsExt
 
 using CUDACore
-using CUDACore: @device_override, GPUArrays
+using CUDACore: GPUArrays
 
 import KernelAbstractions as KA
-
-import StaticArrays
 
 import Adapt
 
@@ -22,12 +20,6 @@ function KA.compiler_options(obj::KA.Kernel{CUDABackend})
     else
         return (;)
     end
-end
-
-## scratch memory
-
-@device_override @inline function KA.Scratchpad(ctx, ::Type{T}, ::Val{Dims}) where {T, Dims}
-    StaticArrays.MArray{Tuple{Dims...}, T}(undef)
 end
 
 ## other
