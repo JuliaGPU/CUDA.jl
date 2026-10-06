@@ -1,6 +1,7 @@
 # TODO: unify with Base.@atomic
 using CUDA: @atomic, AtomicError
 using BFloat16s: BFloat16
+import UnsafeAtomics
 
 @testset "atomics (low-level)" begin
 
@@ -757,4 +758,34 @@ end
     validate_kernel(system_kernel, T; arch=sm"70")
 end
 
+end
+
+@testset "sub-word atomics on the last element" begin
+    # LLVM implements 8- and 16-bit atomics on the containing 32-bit word, which has to be
+    # part of the allocation for compute-sanitizer not to flag an out-of-bounds access.
+    function global_kernel(a)
+        UnsafeAtomics.modify!(pointer(a, length(a)), +, one(eltype(a)), UnsafeAtomics.monotonic)
+        return
+    end
+    @testset for T in (Int8, Int16), len in (1, 3)
+        a = CUDA.zeros(T, len)
+        @cuda threads=4 global_kernel(a)
+        @test Array(a)[end] == 4
+    end
+
+    function shared_kernel(out, ::Val{len}, dynamic) where {len}
+        T = eltype(out)
+        shared = dynamic ? CuDynamicSharedArray(T, len) : CuStaticSharedArray(T, len)
+        threadIdx().x == 1 && (shared[len] = zero(T))
+        sync_threads()
+        UnsafeAtomics.modify!(pointer(shared, len), +, one(T), UnsafeAtomics.monotonic)
+        sync_threads()
+        threadIdx().x == 1 && (out[] = shared[len])
+        return
+    end
+    @testset for T in (Int8, Int16), len in (1, 3), dynamic in (false, true)
+        out = CuArray{T}(undef)
+        @cuda threads=4 shmem=(dynamic ? len*sizeof(T) : 0) shared_kernel(out, Val(len), dynamic)
+        @test Array(out)[] == 4
+    end
 end

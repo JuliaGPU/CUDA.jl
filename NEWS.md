@@ -22,6 +22,10 @@ are listed as subsections of the minor release they belong to.
   checked, so out-of-bounds indices that happened to linearize into the array
   (e.g. `A[3, 1]` on a 2×2 array) were accepted. Linear indexing now also
   rejects indices below 1.
+- 8- and 16-bit atomics on the last element of an array no longer make
+  `compute-sanitizer` abort the kernel. These atomics operate on the containing
+  32-bit word, so allocations and shared memory arrays are now padded to whole
+  words.
 
 
 ## v6.4 (September 2026)

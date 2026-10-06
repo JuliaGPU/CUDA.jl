@@ -699,6 +699,11 @@ cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return Managed(B())
 
+  # LLVM implements 8- and 16-bit atomics on the containing 32-bit word, which may extend
+  # past the end of the array. That never faults (allocations are 256-byte aligned), but
+  # compute-sanitizer flags it, so make the allocation cover that word.
+  sz = cld(sz, 4) * 4
+
   maybe_collect()
   time = Base.@elapsed begin
     mem = _pool_alloc(B, sz)

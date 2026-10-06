@@ -405,6 +405,16 @@ This macro is much more lenient, automatically converting inputs to the appropri
 and falling back to an atomic compare-and-swap loop for unsupported operations. It however
 may disappear once CUDA.jl integrates with the `@atomic` macro in Julia Base.
 
+### 8- and 16-bit atomics
+
+The hardware has few atomic instructions for 8- and 16-bit values, so these are generally
+implemented as a compare-and-swap loop on the 32-bit word that contains the value. That word
+may extend past the end of an array. This never faults, but `compute-sanitizer` reports it as
+an out-of-bounds access and aborts the kernel. To avoid this, `CuArray` and other arrays
+backed by CUDA.jl's memory pool, as well as shared memory arrays, are padded to a whole number
+of 32-bit words. Other memory is not padded: memory wrapped with `unsafe_wrap`, or allocated
+with the low-level `CUDA.alloc` or the device-side `malloc`.
+
 
 ## Warp intrinsics
 

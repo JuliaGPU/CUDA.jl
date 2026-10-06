@@ -115,6 +115,8 @@ end
     if !isbitstype(T)
         sz += len
     end
+    # cover the 32-bit word that 8- and 16-bit atomics operate on (see `pool_alloc`)
+    sz = cld(sz, 4) * 4
 
     # create the global variable
     # NOTE: this variable can't have T as element type, because it may be a boxed type
