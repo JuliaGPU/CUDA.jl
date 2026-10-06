@@ -319,18 +319,20 @@ using SpecialFunctions
 
     @testset "fastmath" begin
         # libdevice provides some fast math functions
-        a(x) = cos(x)
-        b(x) = @fastmath cos(x)
-        @test Array(map(a, cu([0.1,0.2]))) ≈ Array(map(b, cu([0.1,0.2])))
+        # NOTE: every helper needs a distinct name; redefining a local function
+        #       replaces the earlier method throughout the scope.
+        cos_kernel(x) = cos(x)
+        cos_fast_kernel(x) = @fastmath cos(x)
+        @test Array(map(cos_kernel, cu([0.1,0.2]))) ≈ Array(map(cos_fast_kernel, cu([0.1,0.2])))
 
         # JuliaGPU/CUDA.jl#1352: some functions used to fall back to libm
-        f(x) = log1p(x)
-        g(x) = @fastmath log1p(x)
-        @test Array(map(f, cu([0.1,0.2]))) ≈ Array(map(g, cu([0.1,0.2])))
+        log1p_kernel(x) = log1p(x)
+        log1p_fast_kernel(x) = @fastmath log1p(x)
+        @test Array(map(log1p_kernel, cu([0.1,0.2]))) ≈ Array(map(log1p_fast_kernel, cu([0.1,0.2])))
 
         # JuliaGPU/CUDA.jl#2886: LLVM below v18 emits non-existing min.NaN.f64/max.NaN.f64
-        f(a, b) = @fastmath max(a, b)
-        @test Array(map(f, CuArray([1.0, 2.0]), CuArray([4.0, 3.0]))) == [4.0, 3.0]
+        max_fast_kernel(a, b) = @fastmath max(a, b)
+        @test Array(map(max_fast_kernel, CuArray([1.0, 2.0]), CuArray([4.0, 3.0]))) == [4.0, 3.0]
 
         # JuliaGPU/CUDA.jl#3065: pow_fast with integer exponent used unsupported llvm.powi
         function fastpow_kernel(A, y)
@@ -362,25 +364,38 @@ using SpecialFunctions
         @test Array(A) == Float32[-1]
 
         # Test fast tan on Float32
-        f(x) = tan(x)
-        g(x) = @fastmath tan(x)
-        @test Array(map(f, cu([0.1,0.2]))) ≈ Array(map(g, cu([0.1,0.2])))
+        tan_kernel(x) = tan(x)
+        tan_fast_kernel(x) = @fastmath tan(x)
+        @test Array(map(tan_kernel, cu([0.1,0.2]))) ≈ Array(map(tan_fast_kernel, cu([0.1,0.2])))
 
-        # exp and exp2 for Float32 and Float64
+        # exp, exp2 and exp10 for Float32 and Float64
+        exp_fast_kernel(x) = @fastmath exp(x)
+        exp2_fast_kernel(x) = @fastmath exp2(x)
+        exp10_fast_kernel(x) = @fastmath exp10(x)
         for T in (Float32, Float64)
-            A = CUDA.rand(T, 4)
-            f(x) = exp(x)
-            g(x) = @fastmath exp(x)
-            @test Array(map(f, A)) ≈ Array(map(g, A))
-            f(x) = exp2(x)
-            g(x) = @fastmath exp2(x)
-            @test Array(map(f, A)) ≈ Array(map(g, A))
+            x = rand(T, 4)
+            A = CuArray(x)
+            @test Array(map(exp_fast_kernel, A)) ≈ exp.(x) rtol=16*eps(T)
+            @test Array(map(exp2_fast_kernel, A)) ≈ exp2.(x) rtol=16*eps(T)
+            @test Array(map(exp10_fast_kernel, A)) ≈ exp10.(x) rtol=16*eps(T)
         end
+
+        # the remaining libdevice __nv_fast_* functions
+        log_fast_kernel(x) = @fastmath log(x)
+        log2_fast_kernel(x) = @fastmath log2(x)
+        log10_fast_kernel(x) = @fastmath log10(x)
+        sin_fast_kernel(x) = @fastmath sin(x)
+        pow_fast_kernel(x, y) = @fastmath x^y
+        x = Float32[0.1, 0.5, 2, 10]
+        @test Array(map(log_fast_kernel, cu(x))) ≈ log.(x) rtol=1f-5
+        @test Array(map(log2_fast_kernel, cu(x))) ≈ log2.(x) rtol=1f-5
+        @test Array(map(log10_fast_kernel, cu(x))) ≈ log10.(x) rtol=1f-5
+        @test Array(map(sin_fast_kernel, cu(x))) ≈ sin.(x) atol=1f-5
+        @test Array(map(pow_fast_kernel, cu(x), cu(x))) ≈ x .^ x rtol=1f-5
 
         # Float16 hardware approximations: tanh.approx.f16 / ex2.approx.f16 on sm_75+
         if capability(device()) >= v"7.5"
             tanh_fast_kernel(x) = @fastmath tanh(x)
-            exp2_fast_kernel(x) = @fastmath exp2(x)
             xs = Float16[-1, -0.5, 0, 0.5, 1]
             @test Array(map(tanh_fast_kernel, cu(xs))) ≈ tanh.(xs) atol = Float16(1e-3)
             @test Array(map(exp2_fast_kernel, cu(xs))) ≈ exp2.(xs) atol = Float16(1e-3)
@@ -863,5 +878,158 @@ using SpecialFunctions
             @check "fma.rn.f64"
             x / y
         end
+    end
+
+    @testset "expm1 Float16" begin
+        x = Float16[-1, -0.5, 0, 0.001, 0.5, 1]
+        @test Array(map(expm1, cu(x))) == Float16.(expm1.(Float32.(x)))
+    end
+
+    @testset "ldexp Int32" begin
+        # integer literals hit Base's generic method; the override takes Int32
+        for T in (Float32, Float64)
+            x = T[0.75, -1.5, 3]
+            @test Array(map(x -> ldexp(x, Int32(4)), CuArray(x))) == ldexp.(x, 4)
+            @test Array(map(x -> ldexp(x, Int32(-2)), CuArray(x))) == ldexp.(x, -2)
+        end
+    end
+
+    # CUDA-only device functions error on the host, so they can't go through
+    # `map`/`broadcast` (which infer the host return type); use a plain kernel.
+    function gpu_map(f, ::Type{R}, xs...) where {R}
+        function kernel(out, f, xs...)
+            i = threadIdx().x
+            @inbounds out[i] = f(map(x -> x[i], xs)...)
+            return
+        end
+        out = CuArray{R}(undef, length(first(xs)))
+        @cuda threads=length(out) kernel(out, f, map(CuArray, xs)...)
+        return Array(out)
+    end
+
+    @testset "logb/ilogb" begin
+        for T in (Float32, Float64)
+            x = T[0.25, 0.5, 1, 3, 1000, -0.75]
+            @test gpu_map(CUDACore.logb, T, x) == T.(exponent.(x))
+            @test gpu_map(CUDACore.ilogb, Int32, x) == Int32.(exponent.(x))
+        end
+    end
+
+    @testset "bit twiddling" begin
+        for T in (Int32, UInt32, Int64, UInt64)
+            U = unsigned(T)
+            x = T[0, 1, 2, 0x70, typemax(T), typemax(T) >> 7, typemin(T)]
+            @test gpu_map(CUDACore.brev, U, x) == bitreverse.(x .% U)
+            @test gpu_map(CUDACore.clz, Int32, x) == Int32.(leading_zeros.(x))
+            @test gpu_map(CUDACore.ffs, Int32, x) ==
+                  Int32[iszero(v) ? 0 : trailing_zeros(v) + 1 for v in x]
+            @test gpu_map(CUDACore.popc, Int32, x) == Int32.(count_ones.(x))
+        end
+    end
+
+    @testset "nearbyint/nextafter" begin
+        for T in (Float32, Float64)
+            x = T[0.5, 1.5, 2.5, -0.5, -2.5, 2.4, -2.6]
+            # rounds to nearest, ties to even
+            @test gpu_map(CUDACore.nearbyint, T, x) == round.(x)
+
+            y = T[1, -1, 0, 1000]
+            @test gpu_map(CUDACore.nextafter, T, y, fill(T(Inf), 4)) == nextfloat.(y)
+            @test gpu_map(CUDACore.nextafter, T, y, fill(T(-Inf), 4)) == prevfloat.(y)
+            @test gpu_map(CUDACore.nextafter, T, y, y) == y
+        end
+    end
+
+    @testset "rcbrt" begin
+        for T in (Float32, Float64)
+            x = T[0.125, 1, 8, 27, -64, 1000]
+            @test gpu_map(CUDACore.rcbrt, T, x) ≈ inv.(cbrt.(x)) rtol=4*eps(T)
+        end
+    end
+
+    @testset "powi" begin
+        for T in (Float32, Float64)
+            x = T[1.5, -2, 0.5, 3]
+            n = Int32[2, 3, -4, 7]
+            # libdevice squares at the working precision, so allow some drift
+            @test gpu_map(CUDACore.powi, T, x, n) ≈ x .^ n rtol=16*eps(T)
+        end
+    end
+
+    @testset "saturate" begin
+        x = Float32[-1, 0.25, 1, 2, Inf, -Inf, NaN]
+        @test isequal(gpu_map(CUDACore.saturate, Float32, x),
+                      Float32[0, 0.25, 1, 1, 1, 0, 0])
+    end
+
+    @testset "normcdf/normcdfinv" begin
+        for T in (Float32, Float64)
+            x = T[-3, -1, 0, 0.5, 2]
+            @test gpu_map(CUDACore.normcdf, T, x) ≈
+                  SpecialFunctions.erfc.(-x ./ sqrt(T(2))) ./ 2 rtol=8*eps(T)
+            p = T[0.01, 0.25, 0.5, 0.75, 0.99]
+            @test gpu_map(CUDACore.normcdfinv, T, p) ≈
+                  -sqrt(T(2)) .* SpecialFunctions.erfcinv.(2 .* p) rtol=16*eps(T)
+        end
+    end
+
+    @testset "integer arithmetic" begin
+        x = Int32[7, -5, 100, typemax(Int32), typemin(Int32), -1]
+        y = Int32[3, 9, -100, typemax(Int32), typemin(Int32), 1]
+        z = Int32[1, 2, 3, 0, 0, 4]
+
+        @test gpu_map(CUDACore.sad, Int32, x[1:3], y[1:3], z[1:3]) ==
+              abs.(x[1:3] .- y[1:3]) .+ z[1:3]
+        # unsigned variants used to round-trip through Int32, throwing for large values
+        ux, uy, uz = UInt32[7, 5, 100, typemax(UInt32), 0], UInt32[3, 9, 1, 0, typemax(UInt32)], UInt32[1, 2, 3, 0, 0]
+        @test gpu_map(CUDACore.sad, UInt32, ux, uy, uz) ==
+              UInt32.(abs.(Int64.(ux) .- Int64.(uy))) .+ uz
+
+        # only the low 24 bits of each operand participate
+        a = Int32[3, -1000, 4095, 2^24 + 3]
+        b = Int32[7, 2000, -4095, 5]
+        @test gpu_map(CUDACore.mul24, Int32, a, b) == Int32[21, -2_000_000, -4095^2, 15]
+        ua, ub = UInt32[3, 4095, 2^24 + 3, 0xffffff], UInt32[7, 4095, 5, 0xffffff]
+        @test gpu_map(CUDACore.mul24, UInt32, ua, ub) ==
+              (UInt64.(ua .& 0xffffff) .* UInt64.(ub .& 0xffffff)) .% UInt32
+
+        @test gpu_map(CUDACore.mulhi, Int32, x, y) == Int32.((Int64.(x) .* Int64.(y)) .>> 32)
+        ux = UInt32[7, typemax(UInt32), 0x8000_0000]
+        uy = UInt32[3, typemax(UInt32), 4]
+        @test gpu_map(CUDACore.mulhi, UInt32, ux, uy) ==
+              UInt32.((UInt64.(ux) .* UInt64.(uy)) .>> 32)
+
+        lx = Int64[7, -5, typemax(Int64), typemin(Int64)]
+        ly = Int64[3, typemax(Int64), typemax(Int64), 2]
+        @test gpu_map(CUDACore.mul64hi, Int64, lx, ly) ==
+              Int64.((Int128.(lx) .* Int128.(ly)) .>> 64)
+        ulx = UInt64[7, typemax(UInt64), 0x8000_0000_0000_0000]
+        uly = UInt64[3, typemax(UInt64), 4]
+        @test gpu_map(CUDACore.mul64hi, UInt64, ulx, uly) ==
+              UInt64.((UInt128.(ulx) .* UInt128.(uly)) .>> 64)
+
+        # halving adds don't overflow the intermediate sum
+        @test gpu_map(CUDACore.hadd, Int32, x, y) == Int32.((Int64.(x) .+ Int64.(y)) .>> 1)
+        @test gpu_map(CUDACore.rhadd, Int32, x, y) == Int32.((Int64.(x) .+ Int64.(y) .+ 1) .>> 1)
+        @test gpu_map(CUDACore.hadd, UInt32, ux, uy) == UInt32.((UInt64.(ux) .+ UInt64.(uy)) .>> 1)
+        @test gpu_map(CUDACore.rhadd, UInt32, ux, uy) == UInt32.((UInt64.(ux) .+ UInt64.(uy) .+ 1) .>> 1)
+    end
+
+    @testset "dim/scalbn" begin
+        for T in (Float32, Float64)
+            x = T[3, 1, -2, 5]
+            y = T[1, 3, -5, 5]
+            @test gpu_map(CUDACore.dim, T, x, y) == max.(x .- y, zero(T))
+            n = Int32[0, 3, -2, 10]
+            @test gpu_map(CUDACore.scalbn, T, x, n) == ldexp.(x, n)
+        end
+    end
+
+    @testset "norm3df/rnorm3df" begin
+        x = Float32[1, 2, 0, 3]
+        y = Float32[2, 3, 0, 4]
+        z = Float32[2, 6, 5, 12]
+        @test gpu_map(CUDACore.norm3df, Float32, x, y, z) ≈ hypot.(x, y, z) rtol=4*eps(Float32)
+        @test gpu_map(CUDACore.rnorm3df, Float32, x, y, z) ≈ inv.(hypot.(x, y, z)) rtol=4*eps(Float32)
     end
 end
