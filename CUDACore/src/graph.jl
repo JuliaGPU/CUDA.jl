@@ -5,7 +5,9 @@
 # capturing the operations that are executed on a stream, and can be instantiated into
 # executable graphs that can be launched many times.
 
-export CuGraph, CuGraphExec, capture, instantiate, launch, update, @captured
+export CuGraph, CuGraphExec, CuGraphNode, capture, instantiate, launch, update, upload,
+       @captured
+@public nodes
 
 
 ## graphs
@@ -45,9 +47,80 @@ function release_now(graph::CuGraph)
     return
 end
 
+"""
+    nodes(graph::CuGraph)
+
+Return the nodes of a graph.
+"""
+function nodes(graph::CuGraph)
+    handles = @lock graph.lock begin
+        count = Ref{Csize_t}(0)
+        cuGraphGetNodes(graph, C_NULL, count)
+        handles = Vector{CUgraphNode}(undef, count[])
+        # the driver rejects requests for zero nodes
+        isempty(handles) || cuGraphGetNodes(graph, handles, count)
+        resize!(handles, count[])
+    end
+    return CuGraphNode[CuGraphNode(handle, graph) for handle in handles]
+end
+
+Base.length(graph::CuGraph) = length(nodes(graph))
+
 function Base.show(io::IO, graph::CuGraph)
     print(io, "CuGraph(")
     @printf(io, "%p", graph.handle)
+    print(io, ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", graph::CuGraph)
+    types = map(nodetype, nodes(graph))
+    print(io, "CuGraph with ", length(types), length(types) == 1 ? " node" : " nodes")
+    counts = Dict{CUgraphNodeType,Int}()
+    for type in types
+        counts[type] = get(counts, type, 0) + 1
+    end
+    isempty(counts) && return
+    print(io, ": ")
+    join(io, ["$n $(lowercase(string(type)[length("CU_GRAPH_NODE_TYPE_")+1:end]))"
+              for (type, n) in sort!(collect(counts); by=last, rev=true)], ", ")
+end
+
+# render as Graphviz, e.g., for use with the `dot` command or a notebook
+function Base.show(io::IO, ::MIME"text/vnd.graphviz", graph::CuGraph)
+    mktemp() do path, file
+        close(file)
+        @lock graph.lock cuGraphDebugDotPrint(graph, path, 0)
+        write(io, read(path))
+    end
+    return
+end
+
+
+## graph nodes
+
+"""
+    CuGraphNode
+
+A node in a [`CuGraph`](@ref), representing an operation. Nodes are owned by their graph.
+"""
+struct CuGraphNode
+    handle::CUgraphNode
+    graph::CuGraph
+end
+
+Base.unsafe_convert(::Type{CUgraphNode}, node::CuGraphNode) = node.handle
+
+@enum_without_prefix visibility=:public CUgraphNodeType CU_
+
+function nodetype(node::CuGraphNode)
+    type = Ref{CUgraphNodeType}()
+    @lock node.graph.lock cuGraphNodeGetType(node, type)
+    return type[]
+end
+
+function Base.show(io::IO, node::CuGraphNode)
+    print(io, "CuGraphNode(")
+    @printf(io, "%p", node.handle)
     print(io, ")")
 end
 
@@ -129,7 +202,7 @@ graph = capture() do
 end
 exec = instantiate(graph)
 for i in 1:100
-    launch(exec)
+    exec()
 end
 ```
 
@@ -236,11 +309,26 @@ end
 
 """
     launch(exec::CuGraphExec, [stream::CuStream])
+    exec([stream::CuStream])
 
 Launch an executable graph, by default on the current task's stream.
 """
 function launch(exec::CuGraphExec, stream::CuStream=stream())
     @lock exec.lock cuGraphLaunch(exec, stream)
+    return
+end
+(exec::CuGraphExec)(stream::CuStream=stream()) = launch(exec, stream)
+
+"""
+    upload(exec::CuGraphExec, [stream::CuStream])
+
+Upload an executable graph to the device, without executing it. This makes the first launch
+of the graph faster, which is otherwise slower than subsequent ones.
+"""
+function upload(exec::CuGraphExec, stream::CuStream=stream())
+    @lock exec.lock context!(exec.ctx) do
+        cuGraphUpload(exec, stream)
+    end
     return
 end
 

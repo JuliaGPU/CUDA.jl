@@ -15,9 +15,23 @@ using Random
     exec = instantiate(graph)
     launch(exec)
     @test Array(a) == fill(2, 4)
-    launch(exec)
-    launch(exec)
+    exec()
+    exec()
     @test Array(a) == fill(4, 4)
+
+    @test sprint(show, MIME"text/plain"(), graph) == "CuGraph with 1 node: 1 kernel"
+    @test occursin("digraph", sprint(show, MIME"text/vnd.graphviz"(), graph))
+
+    # the first launch of a graph can be made faster by uploading it
+    exec = instantiate(graph)
+    upload(exec)
+    exec()
+    @test Array(a) == fill(5, 4)
+end
+
+@testset "empty graphs" begin
+    @test length(CuGraph()) == 0
+    @test isempty(CUDA.nodes(capture(() -> nothing)))
 end
 
 @testset "update" begin
@@ -27,7 +41,7 @@ end
     exec = instantiate(capture(() -> a .+= 1))
 
     @test update(exec, capture(() -> b .+= 2))
-    launch(exec)
+    exec()
     @test Array(a) == fill(1, 4)
     @test Array(b) == fill(2, 4)
 
@@ -57,7 +71,7 @@ end
             x .+= 1
         end
         exec = instantiate(graph)
-        launch(exec)
+        exec()
         @test Array(x) == [3f0]
         x .= 1
     end
@@ -133,7 +147,7 @@ end
             a .+= 1
         end
         @test (fetch(other); true)
-        launch(instantiate(graph))
+        instantiate(graph)()
         @test Array(a) == fill(3f0, 16)
     end
 end
