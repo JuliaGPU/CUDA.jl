@@ -90,6 +90,8 @@ are listed as subsections of the minor release they belong to.
   threads are using the GPU, on devices without concurrent managed access
   (Windows, and Jetson boards up to Orin). Previously, that crashed with a
   memory access error.
+- `add_rn` and `mul_rn` are no longer contracted into a fused multiply-add on
+  Julia 1.10 and 1.11.
 
 *Minor changes*:
 

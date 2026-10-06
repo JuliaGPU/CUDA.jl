@@ -241,6 +241,20 @@ using SpecialFunctions
             @test add_out[4] == one(T)              # RM
         end
 
+        @testset "no contraction ($T)" for T in (Float32, Float64)
+            # (1+ε)(1-ε) = 1-ε² rounds to 1, so a separately rounded product cancels
+            # exactly, while an fma would keep the -ε²
+            a, b = 1 + eps(T), 1 - eps(T)
+            function kernel(out, a, b, c)
+                out[1] = CUDA.add_rn(a * b, c)
+                out[2] = CUDA.mul_rn(a, b) + c
+                return
+            end
+            out = CuArray{T}(undef, 2)
+            @cuda kernel(out, a, b, -one(T))
+            @test Array(out) == zeros(T, 2)
+        end
+
         @testset "sub_($T)" for T in (Float32, Float64)
             # Pick a y whose addition to x is inexact so we can see directed
             # rounding. 1.0 - 2^-(prec+1) is exactly halfway between

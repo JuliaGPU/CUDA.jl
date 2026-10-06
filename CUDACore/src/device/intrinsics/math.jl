@@ -557,6 +557,17 @@ end
 for rnd in ("rn", "rz", "rm", "rp")
     for op in (:add, :mul, :div)
         fname = Symbol(op, :_, rnd)
+        if rnd == "rn" && op !== :div && Base.libllvm_version < v"18"
+            # LLVM 17 and older fold these into a plain fadd/fmul, which the back-end then
+            # contracts into an fma (llvm/llvm-project#76870)
+            asm_f = "$op.rn.f32 \$0, \$1, \$2;"
+            asm_d = "$op.rn.f64 \$0, \$1, \$2;"
+            @eval @device_function $fname(x::Float32, y::Float32) =
+                @asmcall($asm_f, "=f,f,f", Float32, Tuple{Float32, Float32}, x, y)
+            @eval @device_function $fname(x::Float64, y::Float64) =
+                @asmcall($asm_d, "=d,d,d", Float64, Tuple{Float64, Float64}, x, y)
+            continue
+        end
         intrinsic_f = "llvm.nvvm.$(op).$(rnd).f"
         intrinsic_d = "llvm.nvvm.$(op).$(rnd).d"
         @eval @device_function $fname(x::Float32, y::Float32) =
