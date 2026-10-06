@@ -417,6 +417,52 @@ end
     @test Array(y) == fill(2f0, 16)
 end
 
+@testset "loading code during capture" begin
+    # another task compiles and loads a kernel while a graph is being captured
+    a = CUDA.zeros(Float32, 16)
+    a .+= 1
+    fresh_kernel(x) = (x[threadIdx().x] += 41; nothing)
+    b = CUDA.ones(Float32, 16)
+    go = Base.Event()
+    other = @async begin
+        wait(go)
+        @cuda threads=16 fresh_kernel(b)
+        Array(b)
+    end
+    graph = capture() do
+        a .+= 1
+        notify(go)
+        wait(other)
+        a .+= 1
+    end
+    @test fetch(other) == fill(42f0, 16)
+    instantiate(graph)()
+    @test Array(a) == fill(3f0, 16)
+
+    # a capture that starts while loading code waits for the GPU fails instead of waiting
+    gate = UInt32[1, 0]     # (is open, timed out), see `gate_kernel`
+    gpu_gate = unsafe_wrap(CuArray, gate)
+    gate_ptr = reinterpret(Ptr{UInt32}, pointer(gpu_gate))
+    # (compiled beforehand, as loading code waits for the GPU)
+    @cuda gate_kernel(gate_ptr, gate_timeout())
+    synchronize()
+    ptx = ".version 6.0\n.target sm_50\n.address_size 64\n.visible .entry k() { ret; }\n"
+    GC.@preserve gpu_gate begin
+        gate[1] = 0
+        busy = CuStream()
+        @cuda stream=busy gate_kernel(gate_ptr, gate_timeout())
+        loader = @async CuModule(ptx)
+        # (the task only yields once it waits for the GPU)
+        yield()
+        @test !istaskdone(loader)
+        @test_throws ErrorException capture(() -> nothing)
+        unsafe_store!(pointer(gate), UInt32(1), :release)
+        @test fetch(loader) isa CuModule
+        synchronize(busy)
+        @test gate[2] == 0
+    end
+end
+
 @testset "@captured" begin
     a = CUDA.zeros(Int, 1)
     function iteration(a, val)
