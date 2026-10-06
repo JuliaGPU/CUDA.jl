@@ -49,6 +49,9 @@ function versioninfo(io::IO=stdout)
         mod === nothing && continue
         if mod.functional()
             println(io, "- $name: $(mod.version())")
+        elseif name == "cuDNN" && mod._initialized[]
+            cap = capability(CUDACore.device())
+            println(io, "- $name: $(mod.version()) (unsupported on sm_$(cap.major)$(cap.minor), requires sm_75 or newer)")
         else
             println(io, "- $name: missing")
         end

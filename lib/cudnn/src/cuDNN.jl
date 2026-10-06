@@ -31,9 +31,11 @@ Whether cuDNN is initialized and supports the current device.
 """
 function functional()
     _initialized[] || return false
-    # cuDNN 9.11 dropped Maxwell, Pascal, and Volta support.
-    return version() < v"9.11" || capability(device()) >= v"7.5"
+    return supports(device())
 end
+
+# cuDNN 9.11 dropped Maxwell, Pascal, and Volta support.
+supports(dev::CuDevice) = version() < v"9.11" || capability(dev) >= v"7.5"
 
 # core library
 include("libcudnn.jl")
@@ -247,6 +249,13 @@ function __init__()
     CUDACore.register_reclaimable!(state_cache)
 
     _initialized[] = true
+
+    if !precompiling
+        unsupported = filter(!supports, collect(devices()))
+        if !isempty(unsupported)
+            @warn "cuDNN $(version()) requires a GPU with compute capability 7.5 (Turing) or newer; cuDNN.functional() will return false on $(join(map(CUDACore.name, unsupported), ", "))."
+        end
+    end
 end
 
 include("precompile.jl")
