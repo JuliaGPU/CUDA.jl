@@ -171,7 +171,7 @@ for (fn, barrier) in ["cluster_arrive"         => "arrive",
     end
 end
 
-## memory barriers (membar)
+## memory fences
 
 export threadfence, threadfence_block, threadfence_system
 
@@ -187,7 +187,7 @@ A memory fence that ensures that:
 - All reads from all memory made by the calling thread before the call to `threadfence_block()`
   are ordered before all reads from all memory made by the calling thread after the call to `threadfence_block()`.
 """
-@inline threadfence_block() = ccall("llvm.nvvm.membar.cta", llvmcall, Cvoid, ())
+@inline threadfence_block() = UnsafeAtomics.fence(UnsafeAtomics.seq_cst, UnsafeAtomics.workgroup)
 
 """
     threadfence()
@@ -198,10 +198,9 @@ the call to `threadfence()` are observed by any thread in the device as occurrin
 write to all memory made by the calling thread before the call to `threadfence()`.
 
 Note that for this ordering guarantee to be true, the observing threads must truly observe the
-memory and not cached versions of it; this is requires the use of volatile loads and stores,
-which is not available from Julia right now.
+memory and not cached versions of it, e.g., with atomic loads (`UnsafeAtomics.load`).
 """
-@inline threadfence() = ccall("llvm.nvvm.membar.gl", llvmcall, Cvoid, ())
+@inline threadfence() = UnsafeAtomics.fence(UnsafeAtomics.seq_cst, UnsafeAtomics.device)
 
 """
     threadfence_system()
@@ -212,6 +211,6 @@ before the call to `threadfence_system()` are observed by all threads in the dev
 host threads, and all threads in peer devices as occurring before all writes to all
 memory made by the calling thread after the call to `threadfence_system()`.
 """
-@inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())
+@inline threadfence_system() = UnsafeAtomics.fence(UnsafeAtomics.seq_cst, UnsafeAtomics.system)
 
 end # @device_functions

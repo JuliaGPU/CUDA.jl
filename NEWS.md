@@ -72,6 +72,10 @@ are listed as subsections of the minor release they belong to.
 
 *Bug fixes*:
 
+- `CUDA.@atomic` with an operation that has no native instruction no longer
+  returns without updating the element when another thread stores a NaN with a
+  different payload.
+
 - Indexing a `CuDeviceArray` with multiple indices checks every index against
   its dimension, like `Base` does. Previously only the linearized index was
   checked, so out-of-bounds indices that happened to linearize into the array

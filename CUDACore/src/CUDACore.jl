@@ -31,6 +31,8 @@ using LLVMLoopInfo
 
 import ScopedValues
 
+using UnsafeAtomics: UnsafeAtomics
+
 using CUDA_Driver_jll
 
 import CUDA_Runtime_jll

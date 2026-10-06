@@ -4,16 +4,22 @@
 # Low-level intrinsics
 #
 
-# Memory scopes, named as LLVM's NVPTX sync scopes. Default is device scope, like CUDA C's
-# atomic*() (the _system/_block variants are explicit there too). LLVM's own default is
-# system scope, which Pascal cannot provide under Windows (#3187).
+# These implement CUDA C's atomic functions on top of UnsafeAtomics, which emits LLVM
+# atomics that the NVPTX back-end lowers (expanding what PTX lacks into compare-and-swap
+# loops). All operations have acquire and/or release semantics, depending on whether they
+# load or store values (mimics Base).
+const atomic_order = UnsafeAtomics.acq_rel
+const atomic_load_order = UnsafeAtomics.acquire
+
+# Memory scopes, named after CUDA C's scoped variants. Default is device scope, like CUDA
+# C's atomic*() (the _system/_block variants are explicit there too). UnsafeAtomics' own
+# default is the system scope, which Pascal cannot provide under Windows (#3187).
 const atomic_scopes = (:block, :device, :system)
 const AtomicScope = Union{Val{:block}, Val{:device}, Val{:system}}
 
-# the PTX spelling of a scope, for inline assembly
-ptx_scope(::Val{:block}) = ".cta"
-ptx_scope(::Val{:device}) = ".gpu"
-ptx_scope(::Val{:system}) = ".sys"
+unsafe_atomics_scope(::Val{:block}) = UnsafeAtomics.workgroup
+unsafe_atomics_scope(::Val{:device}) = UnsafeAtomics.device
+unsafe_atomics_scope(::Val{:system}) = UnsafeAtomics.system
 
 # Shared memory is confined to a block, regardless of the requested scope.
 @inline function check_atomic_scope(::LLVMPtr{T,A}, ::Val{S}) where {T,A,S}
@@ -28,220 +34,129 @@ ptx_scope(::Val{:system}) = ".sys"
     return
 end
 
-## LLVM
+# PTX only has atomics on global and shared memory, which generic pointers may point to.
+const AtomicPtr{T} = Union{LLVMPtr{T,AS.Generic}, LLVMPtr{T,AS.Global}, LLVMPtr{T,AS.Shared}}
 
-# all atomic operations have acquire and/or release semantics,
-# depending on whether they load or store values (mimics Base)
-const atomic_acquire = LLVM.AtomicOrdering.Acquire
-const atomic_release = LLVM.AtomicOrdering.Release
-const atomic_acquire_release = LLVM.AtomicOrdering.AcquireRelease
-
-# common arithmetic operations on integers using LLVM instructions
-#
-# > 8.6.6. atomicrmw Instruction
-# >
-# > nand is not supported. The other keywords are supported for i32 and i64 types, with the
-# > following restrictions.
-# >
-# > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
-# >   that points to either the global address space or the shared address space.
-@inline function llvm_atomic_op(binop::Val, ptr::LLVMPtr, val, scope::Val)
+@inline function atomic_rmw!(f::F, ptr::LLVMPtr, val, scope::AtomicScope) where {F}
     check_atomic_scope(ptr, scope)
-    _llvm_atomic_op(binop, ptr, val, scope)
-end
-@llvmgenerated builder function _llvm_atomic_op(::Val{binop}, ptr::LLVMPtr{T,A}, val::T,
-                                                scope::Val{S})::T where {binop, T, A, S}
-    T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
-    typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
-    atomic_rmw!(builder, binop, typed_ptr, val, atomic_acquire_release; scope=S)
+    f(ptr, val, atomic_order, unsafe_atomics_scope(scope))
 end
 
-for T in (Int32, Int64, UInt32, UInt64)
-    ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
-
-    for op in ops
-        # LLVM distinguishes signedness in the operation, not the integer type.
-        rmw = if T <: Unsigned && (op == :max || op == :min)
-            Symbol("u$op")
-        else
-            Symbol("$op")
-        end
-
-        fn = Symbol("atomic_$(op)!")
-        @eval @inline $fn(ptr::Union{LLVMPtr{$T,AS.Generic},
-                                     LLVMPtr{$T,AS.Global},
-                                     LLVMPtr{$T,AS.Shared}}, val::$T,
-                          scope::AtomicScope=Val(:device)) =
-            llvm_atomic_op($(Val(parse(LLVM.AtomicRMWBinOp.T, String(rmw)))), ptr, val, scope)
+for (fn, rmw, types) in [(:atomic_add!,  UnsafeAtomics.add!,
+                          (Int32, Int64, UInt32, UInt64, Float16, Float32, Float64)),
+                         (:atomic_sub!,  UnsafeAtomics.sub!,  (Int32, Int64, UInt32, UInt64)),
+                         (:atomic_and!,  UnsafeAtomics.and!,  (Int32, Int64, UInt32, UInt64)),
+                         (:atomic_or!,   UnsafeAtomics.or!,   (Int32, Int64, UInt32, UInt64)),
+                         (:atomic_xor!,  UnsafeAtomics.xor!,  (Int32, Int64, UInt32, UInt64)),
+                         (:atomic_min!,  UnsafeAtomics.min!,  (Int32, Int64, UInt32, UInt64)),
+                         (:atomic_max!,  UnsafeAtomics.max!,  (Int32, Int64, UInt32, UInt64)),
+                         (:atomic_xchg!, UnsafeAtomics.xchg!, (Int32, Int64, UInt32, UInt64))]
+    for T in types
+        @eval @inline $fn(ptr::AtomicPtr{$T}, val::$T, scope::AtomicScope=Val(:device)) =
+            atomic_rmw!($rmw, ptr, val, scope)
     end
 end
 
-for T in (:Float16, :Float32, :Float64)
-    ops = [:add]
-
-    for op in ops
-        # LLVM has specific operations for floating point types.
-        rmw = Symbol("f$op")
-
-        fn = Symbol("atomic_$(op)!")
-        @eval @inline $fn(ptr::Union{LLVMPtr{$T,AS.Generic},
-                                     LLVMPtr{$T,AS.Global},
-                                     LLVMPtr{$T,AS.Shared}}, val::$T,
-                          scope::AtomicScope=Val(:device)) =
-           llvm_atomic_op($(Val(parse(LLVM.AtomicRMWBinOp.T, String(rmw)))), ptr, val, scope)
+# PTX only has BFloat16 addition from sm_90, and LLVM only knows BFloat16s.BFloat16 as such
+# when it is Core.BFloat16. otherwise, loop on `atomic_cas!` (see `atomic_cas_b16`).
+@inline function atomic_add!(ptr::AtomicPtr{BFloat16}, val::BFloat16,
+                             scope::AtomicScope=Val(:device))
+    @static if isdefined(Core, :BFloat16) && BFloat16 === Core.BFloat16
+        compute_capability() >= sv"9.0" && return atomic_rmw!(UnsafeAtomics.add!, ptr, val, scope)
     end
+    first(atomic_modify!(ptr, +, val, scope))
+end
 
-    # there's no specific NNVM intrinsic for fsub, resulting in a selection error.
-    @eval @inline atomic_sub!(ptr::Union{LLVMPtr{$T,AS.Generic},
-                                         LLVMPtr{$T,AS.Global},
-                                         LLVMPtr{$T,AS.Shared}}, val::$T,
-                              scope::AtomicScope=Val(:device)) =
+# PTX has no floating-point subtraction, so add the negated value instead of having the
+# back-end expand `atomicrmw fsub` into a compare-and-swap loop.
+for T in (Float16, Float32, Float64, BFloat16)
+    @eval @inline atomic_sub!(ptr::AtomicPtr{$T}, val::$T, scope::AtomicScope=Val(:device)) =
         atomic_add!(ptr, -val, scope)
 end
 
-# BFloat16 requires Julia 1.11 for bfloat codegen support; on older versions (and older
-# devices, where the back-end expands the operation) the compare-and-swap fallback is used.
-@static if VERSION >= v"1.11"
-    @eval @inline atomic_add!(ptr::Union{LLVMPtr{BFloat16,AS.Generic},
-                                         LLVMPtr{BFloat16,AS.Global},
-                                         LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16,
-                              scope::AtomicScope=Val(:device)) =
-        llvm_atomic_op($(Val(LLVM.AtomicRMWBinOp.FAdd)), ptr, val, scope)
-    @eval @inline atomic_sub!(ptr::Union{LLVMPtr{BFloat16,AS.Generic},
-                                         LLVMPtr{BFloat16,AS.Global},
-                                         LLVMPtr{BFloat16,AS.Shared}}, val::BFloat16,
-                              scope::AtomicScope=Val(:device)) =
-        atomic_add!(ptr, -val, scope)
-end
-
-# cmpxchg is subject to the same address space restrictions as atomicrmw, above
-@inline function llvm_atomic_cas(ptr::LLVMPtr, cmp, val, scope::Val)
-    check_atomic_scope(ptr, scope)
-    _llvm_atomic_cas(ptr, cmp, val, scope)
-end
-@llvmgenerated builder function _llvm_atomic_cas(ptr::LLVMPtr{T,A}, cmp::T, val::T,
-                                                 scope::Val{S})::T where {T, A, S}
-    T_typed_ptr = LLVM.PointerType(convert(LLVMType, T), A)
-    typed_ptr = bitcast!(builder, ptr, T_typed_ptr)
-    res = atomic_cmpxchg!(builder, typed_ptr, cmp, val, atomic_acquire_release,
-                          atomic_acquire; scope=S)
-    extract_value!(builder, res, 0)
-end
-
-for T in (:Int32, :Int64, :UInt32, :UInt64)
-    @eval @device_function @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T,
-                                                        val::$T,
+for T in (Int16, UInt16, Int32, Int64, UInt32, UInt64, Float16, Float32, Float64, BFloat16)
+    @eval @device_function @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, val::$T,
                                                         scope::AtomicScope=Val(:device)) where {A}
         GPUCompiler.@static_assert(
             A == AS.Generic || A == AS.Global || A == AS.Shared,
             "atomics require a generic, global, or shared address space")
-        llvm_atomic_cas(ptr, cmp, val, scope)
-    end
-end
-
-# LLVM expands i16 cmpxchg to a 32-bit CAS loop; use native PTX where available.
-for A in (AS.Generic, AS.Global, AS.Shared), T in (:Int16, :UInt16), S in atomic_scopes
-    if A == AS.Global
-        space = ".global"
-    elseif A == AS.Shared
-        space = ".shared"
-    else
-        space = ""
-    end
-
-    # mirror what LLVM emits for the wider types: acquire/release semantics, which PTX
-    # only spells out from sm_70 (the same hardware that has the 16-bit instruction).
-    intr = "atom.acq_rel$(ptx_scope(Val(S)))$space.cas.b16 \$0, [\$1], \$2, \$3;"
-    @eval @device_function @inline function atomic_cas!(ptr::LLVMPtr{$T,$A}, cmp::$T, val::$T,
-                                                        scope::Val{$(QuoteNode(S))})
         check_atomic_scope(ptr, scope)
-        if compute_capability() >= sv"7.0"
-            @asmcall($intr, "=h,l,h,h", true, $T,
-                     Tuple{Core.LLVMPtr{$T,$A},$T,$T}, ptr, cmp, val)
-        else
-            llvm_atomic_cas(ptr, cmp, val, scope)
+        @static if sizeof($T) == 2
+            compute_capability() >= sv"7.0" && return atomic_cas_b16(ptr, cmp, val, scope)
         end
-    end
-end
-for T in (:Int16, :UInt16)
-    @eval @inline atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, val::$T) where {A} =
-        atomic_cas!(ptr, cmp, val, Val(:device))
-end
-
-
-## NVVM
-
-for A in (AS.Generic, AS.Global, AS.Shared)
-    # declare i32 @llvm.nvvm.atomic.load.inc.32.p0i32(i32* address, i32 val)
-    # declare i32 @llvm.nvvm.atomic.load.inc.32.p1i32(i32 addrspace(1)* address, i32 val)
-    # declare i32 @llvm.nvvm.atomic.load.inc.32.p3i32(i32 addrspace(3)* address, i32 val)
-    #
-    # declare i32 @llvm.nvvm.atomic.load.dec.32.p0i32(i32* address, i32 val)
-    # declare i32 @llvm.nvvm.atomic.load.dec.32.p1i32(i32 addrspace(1)* address, i32 val)
-    # declare i32 @llvm.nvvm.atomic.load.dec.32.p3i32(i32 addrspace(3)* address, i32 val)
-    for T in (Int32,), op in (:inc, :dec)
-        nb = sizeof(T)*8
-        fn = Symbol("atomic_$(op)!")
-        @static if Base.libllvm_version >= v"21"
-            # LLVM 21 removed these intrinsics in favor of `atomicrmw uinc_wrap/udec_wrap`
-            rmw = op == :inc ? LLVM.AtomicRMWBinOp.UIncWrap : LLVM.AtomicRMWBinOp.UDecWrap
-            @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T, ::Val{:device}=Val(:device)) =
-                llvm_atomic_op($(Val(rmw)), ptr, val, Val(:device))
-        else
-            intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
-            @eval @device_function @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T,
-                                               ::Val{:device}=Val(:device)) =
-                @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
-        end
+        UnsafeAtomics.cas!(ptr, cmp, val, atomic_order, atomic_load_order,
+                           unsafe_atomics_scope(scope)).old
     end
 end
 
-# the intrinsics have no scope operand, so other scopes use a compare-and-swap loop.
-# the comparisons are unsigned, like the PTX instructions (and CUDA C's atomicInc).
-@inline function inc_op(old::Int32, val::Int32)
-    reinterpret(UInt32, old) >= reinterpret(UInt32, val) ? Int32(0) : old + Int32(1)
+# The hardware has no 16-bit compare-and-swap: both LLVM (llvm/llvm-project#120220) and
+# ptxas (for PTX's `atom.cas.b16`) emulate it with a loop on the containing 32-bit word.
+# ptxas does it better, as it is not bound by the PTX memory model: it reads the initial
+# word with a weak load and doesn't yield in the loop, while LLVM has to use a relaxed load
+# (llvm/llvm-project#188361) and ptxas inserts a YIELD in every iteration of LLVM's loop.
+# That makes compare-and-swap loops up to 30% slower under contention (RTX 5080), so use
+# the native instruction where PTX has it, like CUDA C does. It also keeps compute-sanitizer
+# from flagging accesses to the neighbouring value in memory that isn't padded to whole
+# 32-bit words.
+ptx_scope(::Val{:block}) = ".cta"
+ptx_scope(::Val{:device}) = ".gpu"
+ptx_scope(::Val{:system}) = ".sys"
+for A in (AS.Generic, AS.Global, AS.Shared), S in atomic_scopes
+    space = A == AS.Global ? ".global" : A == AS.Shared ? ".shared" : ""
+    intr = "atom.acq_rel$(ptx_scope(Val(S)))$space.cas.b16 \$0, [\$1], \$2, \$3;"
+    @eval @device_function @inline atomic_cas_b16(ptr::LLVMPtr{UInt16,$A}, cmp::UInt16,
+                                                  val::UInt16, ::Val{$(QuoteNode(S))}) =
+        @asmcall($intr, "=h,l,h,h", true, UInt16,
+                 Tuple{LLVMPtr{UInt16,$A},UInt16,UInt16}, ptr, cmp, val)
 end
-@inline function dec_op(old::Int32, val::Int32)
-    (old == Int32(0) || reinterpret(UInt32, old) > reinterpret(UInt32, val)) ? val : old - Int32(1)
-end
-@inline atomic_inc!(ptr::LLVMPtr{Int32}, val::Int32, scope::Union{Val{:block},Val{:system}}) =
-    first(atomic_modify!(ptr, inc_op, val, scope))
-@inline atomic_dec!(ptr::LLVMPtr{Int32}, val::Int32, scope::Union{Val{:block},Val{:system}}) =
-    first(atomic_modify!(ptr, dec_op, val, scope))
+@inline atomic_cas_b16(ptr::LLVMPtr{T,A}, cmp::T, val::T, scope::Val) where {T,A} =
+    reinterpret(T, atomic_cas_b16(reinterpret(LLVMPtr{UInt16,A}, ptr), reinterpret(UInt16, cmp),
+                                  reinterpret(UInt16, val), scope))
 
-
-## Julia
-
-# floating-point CAS via bitcasting
-
-inttype(::Type{T}) where {T<:Integer} = T
-inttype(::Type{Float16}) = Int16
-inttype(::Type{Float32}) = Int32
-inttype(::Type{Float64}) = Int64
-inttype(::Type{BFloat16}) = Int16
-
-for T in [:Float16, :Float32, :Float64, :BFloat16]
-    @eval @inline function atomic_cas!(ptr::LLVMPtr{$T,A}, cmp::$T, new::$T,
-                                       scope::AtomicScope=Val(:device)) where {A}
-        IT = inttype($T)
-        cmp_i = reinterpret(IT, cmp)
-        new_i = reinterpret(IT, new)
-        old_i = atomic_cas!(reinterpret(LLVMPtr{IT,A}, ptr), cmp_i, new_i, scope)
-        return reinterpret($T, old_i)
+# CUDA C's atomicInc and atomicDec, which interpret the value as unsigned, are LLVM's
+# `uinc_wrap` and `udec_wrap`. LLVM 15 can't express those: there, the back-end upgrades
+# NVVM's device-scope intrinsics, and UnsafeAtomics uses a compare-and-swap loop otherwise.
+for A in (AS.Generic, AS.Global, AS.Shared), (fn, rmw, op) in
+        [(:atomic_inc!, UnsafeAtomics.inc_wrap!, :inc), (:atomic_dec!, UnsafeAtomics.dec_wrap!, :dec)]
+    @static if Base.libllvm_version < v"16"
+        intr = "llvm.nvvm.atomic.load.$op.32.p$(convert(Int, A))i32"
+        @eval @device_function @inline $fn(ptr::LLVMPtr{Int32,$A}, val::Int32, ::Val{:device}) =
+            @typed_ccall($intr, llvmcall, Int32, (LLVMPtr{Int32,$A}, Int32), ptr, val)
+    end
+    @eval @inline function $fn(ptr::LLVMPtr{Int32,$A}, val::Int32,
+                               scope::AtomicScope=Val(:device))
+        old = atomic_rmw!($rmw, reinterpret(LLVMPtr{UInt32,$A}, ptr),
+                          reinterpret(UInt32, val), scope)
+        reinterpret(Int32, old)
     end
 end
 
 
-# generic atomic support using compare-and-swap
+## generic atomic support using compare-and-swap
 
+# Returns `(old, new)`. The result of `op` is converted to the element type, so `op` can
+# promote (e.g. `/` on integers).
 @inline function atomic_modify!(ptr::LLVMPtr{T}, op::Function, val,
                                 scope::AtomicScope=Val(:device)) where {T}
-    old = Base.unsafe_load(ptr)
+    check_atomic_scope(ptr, scope)
+    sizeof(T) == 2 && return atomic_modify_b16!(ptr, op, val, scope)
+    old, new = UnsafeAtomics.modify!(ptr, (old, val) -> convert(T, op(old, val)),
+                                     convert(T, val), atomic_order,
+                                     unsafe_atomics_scope(scope))
+    return old, new
+end
+
+# loop on `atomic_cas!`, which uses the native 16-bit instruction where available (see
+# `atomic_cas_b16`), instead of on LLVM's emulation of it like `UnsafeAtomics.modify!` does
+@inline function atomic_modify_b16!(ptr::LLVMPtr{T}, op::Function, val,
+                                    scope::AtomicScope) where {T}
+    old = UnsafeAtomics.load(ptr, atomic_load_order, unsafe_atomics_scope(scope))
     while true
-        cmp = old
         new = convert(T, op(old, val))
-        old = atomic_cas!(ptr, cmp, new, scope)
-        isequal(old, cmp) && return (old, new)
+        cur = atomic_cas!(ptr, old, new, scope)
+        # compare bits, so that a NaN with another payload doesn't count as success
+        reinterpret(UInt16, cur) == reinterpret(UInt16, old) && return old, new
+        old = cur
     end
 end
 
@@ -259,8 +174,8 @@ Reads the value `old` located at address `ptr` and compare with `cmp`. If `old` 
 operations are performed in one atomic transaction. The function returns `old`.
 
 This operation is supported for values of type Int16, Int32, Int64, UInt16, UInt32,
-UInt64, Float16, Float32, Float64, and BFloat16. 16-bit operations use a native
-instruction on GPU hardware with compute capability 7.0+, and are emulated otherwise.
+UInt64, Float16, Float32, Float64, and BFloat16. 16-bit operations are implemented with a
+compare-and-swap of the 32-bit word that contains the value before compute capability 7.0.
 
 `scope` selects the set of threads the operation is atomic with respect to: `Val(:block)`,
 `Val(:device)` (default, matching CUDA C's `atomicX`), or `Val(:system)` (matching
@@ -289,8 +204,8 @@ back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float16,
-Float32, and Float64. BFloat16 is supported on Julia 1.11+. The back-end uses a native
-instruction where available and emulates the operation otherwise.
+Float32, Float64, and BFloat16. The back-end uses a native instruction where available and
+emulates the operation otherwise.
 
 For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
 """
@@ -303,7 +218,8 @@ Reads the value `old` located at address `ptr`, computes `old - val`, and stores
 back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float16,
+Float32, Float64, and BFloat16.
 
 For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
 """
@@ -499,11 +415,7 @@ end
 
 # native atomics that the back-end expands on older devices
 @inline atomic_arrayset(A::AbstractArray{T}, I::Integer, ::typeof(+), val::T) where
-        {T <: Union{Float16,Float64}} = atomic_add!(pointer(A, I), val)
-@static if VERSION >= v"1.11"
-    @inline atomic_arrayset(A::AbstractArray{BFloat16}, I::Integer, ::typeof(+),
-                            val::BFloat16) = atomic_add!(pointer(A, I), val)
-end
+        {T <: Union{Float16,Float64,BFloat16}} = atomic_add!(pointer(A, I), val)
 
 # fallback using compare-and-swap
 @inline atomic_arrayset(A::AbstractArray{T}, I::Integer, op::Function, val) where {T} =

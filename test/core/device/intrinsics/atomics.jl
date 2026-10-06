@@ -418,6 +418,21 @@ end
         @test isnan(Array(a)[1])
     end
 
+    @testset "NaN payloads ($T)" for T in (Float32, Float16)
+        # the operation stores a NaN with another payload, as a racing thread could, so
+        # the compare-and-swap fails and the update has to be retried
+        other = reinterpret(T, reinterpret(Base.uinttype(T), T(NaN)) | one(Base.uinttype(T)))
+        function kernel(x, other)
+            g(old, new) = (unsafe_store!(pointer(x), other); new)
+            CUDA.@atomic x[1] = g(x[1], one(eltype(x)))
+            nothing
+        end
+
+        a = CuArray([T(NaN)])
+        @cuda kernel(a, other)
+        @test Array(a)[1] == one(T)
+    end
+
     @test_throws AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = 1
     end
