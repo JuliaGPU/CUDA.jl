@@ -769,6 +769,14 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
         copyto!(hA, dA)
         copyto!(dA, hA)
     end
+
+    # pinning memory that is registered already fails, without recording the pin
+    hA = rand(UInt8, 512)
+    mem = CUDA.register(CUDA.HostMemory, pointer(hA), sizeof(hA))
+    @test_throws CUDA.CuError CUDA.pin(hA)
+    CUDA.unregister(mem)
+    CUDA.pin(hA)
+    @test CUDA.is_pinned(pointer(hA))
 end
 
 end

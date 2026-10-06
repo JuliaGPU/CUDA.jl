@@ -24,20 +24,20 @@ function pin(a::AbstractArray)
     Base.@lock __pin_lock begin
         # only pin an object once per context
         key = (ctx, convert(Ptr{Nothing}, ptr))
-        if haskey(__pinned_objects, key) && __pinned_objects[key].ref.value !== nothing
-            if sizeof(a) == __pinned_objects[key].size
-                return nothing
-            else
-                # if the object size has changed, unpin it first; it will be re-pinned with the new size
+        previous = get(__pinned_objects, key, nothing)
+        already_owned = previous !== nothing && previous.ref.value !== nothing
+        if already_owned && haskey(__pin_count, key)
+            sizeof(a) == previous.size && return nothing
+            # the object was resized: replace its registration, but not its finalizer
+            __unpin(ptr, ctx)
+        end
+        __pin(ptr, sizeof(a))
+        __pinned_objects[key] = PinnedObject(WeakRef(a), sizeof(a))
+        if !already_owned
+            finalizer(a) do _
                 __unpin(ptr, ctx)
             end
         end
-        __pinned_objects[key] = PinnedObject(WeakRef(a), sizeof(a))
-    end
-
-     __pin(ptr, sizeof(a))
-    finalizer(a) do _
-        __unpin(ptr, ctx)
     end
 
     a
@@ -73,21 +73,16 @@ function __pin(ptr::Ptr, sz::Int)
     key = (ctx, convert(Ptr{Nothing}, ptr))
 
     Base.@lock __pin_lock begin
-        pin_count = if haskey(__pin_count, key)
-            __pin_count[key] += 1
-        else
-            __pin_count[key] = 1
-        end
-
-        if pin_count == 1
-            mem = register(HostMemory, ptr, sz)
-            __pinned_memory[key] = mem
+        pin_count = get(__pin_count, key, 0)
+        if pin_count == 0
+            # only record the pin once the memory has been registered
+            __pinned_memory[key] = register(HostMemory, ptr, sz)
         elseif Base.JLOptions().debug_level >= 2
             # make sure we're pinning the exact same range
-            @assert haskey(__pinned_memory, key) "Cannot find memory for $ptr with pin count $pin_count."
             mem = __pinned_memory[key]
             @assert sz == sizeof(mem) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(mem))."
         end
+        __pin_count[key] = pin_count + 1
     end
 
     return
@@ -97,14 +92,18 @@ function __unpin(ptr::Ptr, ctx::CuContext)
 
     Base.@lock __pin_lock begin
         @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
-        pin_count = __pin_count[key] -= 1
+        pin_count = __pin_count[key] - 1
 
         if pin_count == 0
+            # only forget about the pin once the memory has been unregistered
             mem = @inbounds __pinned_memory[key]
             context!(ctx) do
                 unregister(mem)
             end
             delete!(__pinned_memory, key)
+            delete!(__pin_count, key)
+        else
+            __pin_count[key] = pin_count
         end
     end
 

@@ -28,6 +28,9 @@ are listed as subsections of the minor release they belong to.
   words.
 - The output of a kernel that throws an exception is flushed before reporting
   the exception.
+- Memory that failed to be pinned, e.g. because it was registered already
+  using `CUDA.register`, or that has been unpinned, isn't recorded as pinned
+  anymore. Re-pinning a resized array doesn't lead to unpinning it twice.
 
 
 ## v6.4 (September 2026)
