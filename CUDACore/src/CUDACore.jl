@@ -29,6 +29,8 @@ using ExprTools: splitdef, combinedef
 
 using LLVMLoopInfo
 
+import ScopedValues
+
 using CUDA_Driver_jll
 
 import CUDA_Runtime_jll

@@ -9,7 +9,7 @@ function release_now(stream::CuStream)
     isvalid(stream) || return
     context!(stream.ctx) do
       event = CuEvent(EVENT_DISABLE_TIMING)
-      record(event, stream)
+      cuEventRecord(event, stream)
       stream.final_event = event
       cuStreamDestroy_v2(stream)
     end

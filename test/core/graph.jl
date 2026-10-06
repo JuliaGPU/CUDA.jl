@@ -463,6 +463,141 @@ end
     end
 end
 
+@testset "tasks spawned during capture" begin
+    a = CUDA.zeros(Float32, 16)
+    b = CUDA.zeros(Float32, 16)
+    c = CUDA.zeros(Float32, 16)
+    a .+= 1; b .+= a; c .= a .+ b; c .*= 2
+
+    # operations of tasks spawned during capture are captured too, ordered like the tasks
+    local y
+    graph = capture() do
+        a .+= 1
+        @sync begin
+            Threads.@spawn b .+= a
+            Threads.@spawn begin
+                y = CUDA.zeros(Float32, 16)
+                y .+= 41
+            end
+        end
+        c .= a .+ b
+    end
+    a .= 0; b .= 0; c .= 0
+    exec = instantiate(graph)
+    exec()
+    @test Array(a) == fill(1f0, 16)
+    @test Array(b) == fill(1f0, 16)
+    @test Array(c) == fill(2f0, 16)
+    @test Array(y) == fill(41f0, 16)
+    exec()
+    @test Array(c) == fill(5f0, 16)
+
+    # also when the tasks hand over arrays, and spawn tasks themselves
+    channel = Channel{CuArray{Float32,1}}(1)
+    graph = capture() do
+        @sync begin
+            Threads.@spawn begin
+                x = CUDA.ones(Float32, 16)
+                x .*= 2
+                put!(channel, x)
+            end
+            Threads.@spawn begin
+                x = take!(channel)
+                @sync Threads.@spawn c .= x .+ 1
+            end
+        end
+    end
+    c .= 0
+    instantiate(graph)()
+    @test Array(c) == fill(3f0, 16)
+
+    # also when the tasks contend for the same memory
+    graph = capture() do
+        @sync for i in 1:8
+            Threads.@spawn a .+= 1
+        end
+    end
+    a .= 0
+    instantiate(graph)()
+    @test Array(a) == fill(8f0, 16)
+
+    # tasks that performed operations need to finish before the capture ends
+    submitted = Base.Event()
+    go = Base.Event()
+    local child
+    @test_throws CaptureError capture() do
+        child = Threads.@spawn begin
+            b .+= 1
+            notify(submitted)
+            wait(go)
+            b .+= 1
+        end
+        wait(submitted)
+    end
+    @test !is_capturing()
+    notify(go)
+    err = try wait(child); nothing catch err; err end
+    @test err isa TaskFailedException && err.task.exception isa CaptureError
+
+    # tasks spawned during capture that perform operations after it ended fail, without
+    # performing those operations
+    b .= 0
+    go = Base.Event()
+    graph = capture() do
+        child = Threads.@spawn (wait(go); b .+= 1)
+    end
+    notify(go)
+    err = try wait(child); nothing catch err; err end
+    @test err isa TaskFailedException && err.task.exception isa CaptureError
+    @test Array(b) == fill(0f0, 16)
+
+    # also when using pointers and an explicit stream
+    h = zeros(Float32, 16)
+    ready = Base.Event()
+    go = Base.Event()
+    graph = capture() do
+        child = Threads.@spawn begin
+            s = stream()
+            dst, src = pointer(h), pointer(b)
+            notify(ready)
+            wait(go)
+            GC.@preserve h b unsafe_copyto!(dst, src, 16; stream=s, async=true)
+        end
+        wait(ready)
+    end
+    b .= 1
+    notify(go)
+    err = try wait(child); nothing catch err; err end
+    @test err isa TaskFailedException && err.task.exception isa CaptureError
+    synchronize()
+    @test h == zeros(Float32, 16)
+    child = nothing
+
+    # tasks spawned during capture can only use the capture's stream, not, e.g., the stream
+    # of another capture
+    capturing = Base.Event()
+    done = Base.Event()
+    local other_stream
+    other = @async capture() do
+        other_stream = stream()
+        notify(capturing)
+        wait(done)
+    end
+    wait(capturing)
+    noop() = nothing
+    err = try
+        capture() do
+            fetch(Threads.@spawn @cuda stream=other_stream noop())
+        end
+        nothing
+    catch err
+        err
+    end
+    @test err isa TaskFailedException && err.task.exception isa CaptureError
+    notify(done)
+    @test length(fetch(other)) == 0
+end
+
 @testset "@captured" begin
     a = CUDA.zeros(Int, 1)
     function iteration(a, val)

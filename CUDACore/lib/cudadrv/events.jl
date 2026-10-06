@@ -44,7 +44,7 @@ Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 Record an event on a stream.
 """
 record(e::CuEvent, stream::CuStream=stream()) =
-    cuEventRecord(e, stream)
+    capture_submission(() -> cuEventRecord(e, stream), stream)
 
 """
     synchronize(e::CuEvent)
@@ -77,7 +77,7 @@ Make a stream wait on a event. This only makes the stream wait, and not the host
 [`synchronize(::CuEvent)`](@ref) for that.
 """
 wait(e::CuEvent, stream::CuStream=stream()) =
-    cuStreamWaitEvent(stream, e, 0)
+    capture_submission(() -> cuStreamWaitEvent(stream, e, 0), stream)
 
 """
     elapsed(start::CuEvent, stop::CuEvent)

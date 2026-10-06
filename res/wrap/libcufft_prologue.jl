@@ -13,7 +13,8 @@ end
 @inline function check(f)
     retry_if(res) = res in (CUFFT_ALLOC_FAILED,
                             CUFFT_INTERNAL_ERROR)
-    res = retry_reclaim(f, retry_if)
+    # (a single submission, when part of a graph capture)
+    res = CUDACore.capture_submission(() -> retry_reclaim(f, retry_if))
 
     if res != CUFFT_SUCCESS
         throw_api_error(res)

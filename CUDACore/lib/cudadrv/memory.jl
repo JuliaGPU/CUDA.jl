@@ -267,7 +267,7 @@ Prefetches memory to the specified destination device.
 function prefetch(mem::UnifiedMemory, bytes::Integer=sizeof(mem);
                   device::CuDevice=device(), stream::CuStream=stream())
     bytes > sizeof(mem) && throw(BoundsError(mem, bytes))
-    cuMemPrefetchAsync(mem, bytes, device, stream)
+    capture_submission(() -> cuMemPrefetchAsync(mem, bytes, device, stream), stream)
 end
 
 
@@ -420,7 +420,9 @@ for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
     fn = Symbol("cuMemsetD$(bits)Async")
     @eval function memset(ptr::CuPtr{$T}, value::$T, len::Integer; stream::CuStream=stream())
-        $(getproperty(CUDACore, fn))(ptr, value, len, stream)
+        capture_submission(stream) do
+            $(getproperty(CUDACore, fn))(ptr, value, len, stream)
+        end
         return
     end
 end
@@ -434,12 +436,14 @@ function Base.unsafe_copyto!(dst::Ptr{T}, src::CuPtr{T}, N::Integer;
                              stream::CuStream=stream(), async::Bool=false) where T
     nbytes = N*aligned_sizeof(T)
     nbytes == 0 && return dst
-    if in_capture(stream)
-        # a captured copy writes to the destination whenever the graph is launched, but we
-        # can't keep host memory that's only known by its pointer alive until then
-        throw(CaptureError("cannot copy to host memory while capturing a graph; use an array backed by `HostMemory` instead"))
+    capture_submission(stream) do
+        if in_capture(stream)
+            # a captured copy writes to the destination whenever the graph is launched, but
+            # we can't keep host memory that's only known by its pointer alive until then
+            throw(CaptureError("cannot copy to host memory while capturing a graph; use an array backed by `HostMemory` instead"))
+        end
+        cuMemcpyDtoHAsync_v2(dst, src, nbytes, stream)
     end
-    cuMemcpyDtoHAsync_v2(dst, src, nbytes, stream)
     async || synchronize(stream)
     return dst
 end
@@ -448,13 +452,13 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::Ptr{T}, N::Integer;
                              stream::CuStream=stream(), async::Bool=false) where T
     nbytes = N*aligned_sizeof(T)
     nbytes == 0 && return dst
-    if in_capture(stream)
+    capture_submission(stream) do
         # a captured copy reads from the source whenever the graph is launched, but we can't
         # keep host memory that's only known by its pointer alive until then, so copy the
         # data to memory that the graph keeps alive
-        src = stage_host_memory(src, nbytes, stream)
+        staged = in_capture(stream) ? stage_host_memory(src, nbytes, stream) : src
+        cuMemcpyHtoDAsync_v2(dst, staged, nbytes, stream)
     end
-    cuMemcpyHtoDAsync_v2(dst, src, nbytes, stream)
     async || synchronize(stream)
     return dst
 end
@@ -469,15 +473,17 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
     # (memory from a host pool reports the device of the pool's location, i.e. device 0)
     peer = dst_dev != src_dev &&
            memory_type(dst) == MEMORYTYPE_DEVICE && memory_type(src) == MEMORYTYPE_DEVICE
-    if !peer
-        # these pointers may refer to host memory (e.g., from `HostMemory` arrays), so let
-        # the driver infer the direction. `cuMemcpyDtoDAsync` reads memory from a host pool
-        # when the copy is enqueued, instead of in stream order.
-        cuMemcpyAsync(dst, src, nbytes, stream)
-    else
-        cuMemcpyPeerAsync(dst, context(dst_dev),
-                          src, context(src_dev),
-                          nbytes, stream)
+    capture_submission(stream) do
+        if !peer
+            # these pointers may refer to host memory (e.g., from `HostMemory` arrays), so
+            # let the driver infer the direction. `cuMemcpyDtoDAsync` reads memory from a
+            # host pool when the copy is enqueued, instead of in stream order.
+            cuMemcpyAsync(dst, src, nbytes, stream)
+        else
+            cuMemcpyPeerAsync(dst, context(dst_dev),
+                              src, context(src_dev),
+                              nbytes, stream)
+        end
     end
     async || synchronize(stream)
     return dst
@@ -488,7 +494,7 @@ function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N:
                              async::Bool=false) where T
     nbytes = N*aligned_sizeof(T)
     nbytes == 0 && return dst
-    cuMemcpyHtoAAsync_v2(dst, doffs, src, nbytes, stream)
+    capture_submission(() -> cuMemcpyHtoAAsync_v2(dst, doffs, src, nbytes, stream), stream)
     async || synchronize(stream)
     return dst
 end
@@ -498,16 +504,29 @@ function Base.unsafe_copyto!(dst::Ptr{T}, src::CuArrayPtr{T}, soffs::Integer, N:
                              async::Bool=false) where T
     nbytes = N*aligned_sizeof(T)
     nbytes == 0 && return dst
-    cuMemcpyAtoHAsync_v2(dst, src, soffs, nbytes, stream)
+    capture_submission(() -> cuMemcpyAtoHAsync_v2(dst, src, soffs, nbytes, stream), stream)
     async || synchronize(stream)
     return dst
 end
 
-Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::CuPtr{T}, N::Integer) where {T} =
-    cuMemcpyDtoA_v2(dst, doffs, src, N*aligned_sizeof(T))
+# synchronous copies can't be part of a capture
+function check_synchronous_copy()
+    if current_capture_scope() !== nothing
+        throw(CaptureError("cannot perform a synchronous copy while capturing a graph"))
+    end
+end
 
-Base.unsafe_copyto!(dst::CuPtr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer) where {T} =
+function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::CuPtr{T},
+                             N::Integer) where {T}
+    check_synchronous_copy()
+    cuMemcpyDtoA_v2(dst, doffs, src, N*aligned_sizeof(T))
+end
+
+function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuArrayPtr{T}, soffs::Integer,
+                             N::Integer) where {T}
+    check_synchronous_copy()
     cuMemcpyAtoD_v2(dst, src, soffs, N*aligned_sizeof(T))
+end
 
 Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
     Base.unsafe_copyto!(dst, 0, src, N; kwargs...)
@@ -593,7 +612,7 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         # extent
         width*aligned_sizeof(T), height
     ))
-    cuMemcpy2DAsync_v2(params_ref, stream)
+    capture_submission(() -> cuMemcpy2DAsync_v2(params_ref, stream), stream)
     async || synchronize(stream)
     return dst
 end
@@ -693,7 +712,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         # extent
         width*aligned_sizeof(T), height, depth
     ))
-    cuMemcpy3DAsync_v2(params_ref, stream)
+    capture_submission(() -> cuMemcpy3DAsync_v2(params_ref, stream), stream)
     async || synchronize(stream)
     return dst
 end
