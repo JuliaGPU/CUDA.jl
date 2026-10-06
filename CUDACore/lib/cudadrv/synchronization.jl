@@ -38,9 +38,13 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
         # `isdone` reports errors, and a successful query counts as synchronization (e.g.,
         # for accessing unified memory). doing so anyway would risk blocking the thread,
         # if another task submitted work in the meantime.
-        something(cooperative_wait(worker_synchronize, (obj, ctx);
-                                   isdone = pollable ? worker_isdone : nothing, spin),
-                  SUCCESS)::CUresult
+        res = cooperative_wait(worker_synchronize, (obj, ctx);
+                               isdone = pollable ? worker_isdone : nothing, spin)
+        if res === nothing && obj isa CuEvent
+            synchronize_completed(obj)
+        else
+            something(res, SUCCESS)::CUresult
+        end
     else
         unchecked_synchronize(obj)
     end
@@ -50,6 +54,15 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     end
     return
 end
+
+# XXX: compute-sanitizer doesn't treat a successful query of an event as synchronization, and
+#      reports races with the work that the event ordered (#3346). so when synchronizing an
+#      event finds it done by polling, synchronize it too. that only blocks if the event was
+#      recorded again since. other queries of events, e.g. with `isdone`, aren't covered.
+#      synchronizing is prohibited while another thread captures in global mode, even though
+#      it doesn't affect that capture, so relax the capture mode.
+synchronize_completed(event::CuEvent) =
+    relaxed_capture_mode(() -> unchecked_synchronize(event))::CUresult
 
 function device_synchronize(; blocking::Bool=false, spin::Bool=true)
     synchronize_object(context(); blocking, spin)
