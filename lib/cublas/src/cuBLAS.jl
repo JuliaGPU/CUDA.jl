@@ -4,7 +4,7 @@ using CUDACore
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationSpecialValuesSupport, cudaEmulationMantissaControl
-using CUDACore: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context
+using CUDACore: unsafe_free!, retry_reclaim, isdebug, @sync, initialize_context, resource_finalizer
 
 using GPUArrays
 
@@ -123,7 +123,7 @@ function handle()
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
         wrapped = Handle(new_handle, cuda.context)
-        finalizer(handle_finalizer, wrapped)
+        resource_finalizer(handle_finalizer, wrapped; blocking=false)
 
         cublasSetStream_v2(new_handle, cuda.stream)
         cublasSetPointerMode_v2(new_handle, CUBLAS_POINTER_MODE_DEVICE)
@@ -212,7 +212,7 @@ function xt_handle()
 
         new_handle = pop!(idle_xt_handles, ctxs)
         wrapped = XtHandle(new_handle, ctxs)
-        finalizer(xt_handle_finalizer, wrapped)
+        resource_finalizer(xt_handle_finalizer, wrapped; blocking=false)
 
         # if we're using the stream-ordered allocator,
         # make sure allocations are visible on all devices

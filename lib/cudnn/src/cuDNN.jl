@@ -9,7 +9,7 @@ module cuDNN
 
 using CUDACore
 using CUDACore: CUstream, CUgraph, libraryPropertyType
-using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked
+using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked, resource_finalizer
 
 using CEnum: @cenum
 
@@ -140,7 +140,7 @@ function handle()
     @noinline function new_state(cuda)
         pooled = pop!(idle_handles, cuda.context)
         wrapped = Handle(pooled.handle, cuda.context, pooled.plans)
-        finalizer(handle_finalizer, wrapped)
+        resource_finalizer(handle_finalizer, wrapped; blocking=false)
 
         cudnnSetStream(pooled.handle, cuda.stream)
 

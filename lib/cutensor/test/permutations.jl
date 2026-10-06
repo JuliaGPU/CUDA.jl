@@ -46,3 +46,19 @@ eltypes = [(Float16, Float16),
 end
 
 end
+
+@testset "releasing plans" begin
+    a = CuArray(rand(Float32, 16, 16))
+    b = similar(a)
+    plan = cuTENSOR.plan_permutation(a, ['i', 'j'], cuTENSOR.OP_IDENTITY, b, ['j', 'i'])
+    permute!(plan, 1, a, b)
+    @test Array(b) == permutedims(Array(a))
+    workspace = plan.workspace.data
+    # destroying a plan may wait for the GPU, so that's deferred until reclaiming memory
+    finalize(plan)
+    CUDACore.pool_status(devnull)
+    @test plan.handle != C_NULL
+    CUDACore.reclaim()
+    @test plan.handle == C_NULL
+    @test workspace.freed
+end

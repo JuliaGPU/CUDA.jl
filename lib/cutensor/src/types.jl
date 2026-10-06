@@ -138,7 +138,7 @@ mutable struct CuTensorPlan
         workspace = CuArray{UInt8}(undef, actualWorkspaceSize[])
 
         obj = new(context(), plan_ref[], workspace, Type(required_scalar_type[]))
-        finalizer(CUDACore.unsafe_free!, obj)
+        resource_finalizer(CUDACore.unsafe_free!, obj)
         return obj
     end
 end
@@ -159,11 +159,11 @@ end
 
 # freeing the plan and associated workspace
 function CUDACore.unsafe_free!(plan::CuTensorPlan)
-    CUDACore.unsafe_free!(plan.workspace)
     if plan.handle != C_NULL
         unsafe_destroy!(plan)
         plan.handle = C_NULL
     end
+    CUDACore.unsafe_free!(plan.workspace)
 end
 
 
@@ -181,7 +181,7 @@ mutable struct CuTensorDescriptor
         cutensorCreateTensorDescriptor(handle(), desc, N, sz, st, eltype, alignmentRequirement)
 
         obj = new(desc[])
-        finalizer(unsafe_destroy!, obj)
+        resource_finalizer(unsafe_destroy!, obj)
         return obj
     end
 end

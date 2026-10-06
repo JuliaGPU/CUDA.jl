@@ -273,8 +273,9 @@ regular task:
 - Releasing other resources may wait for the GPU, so that only happens when memory is
   reclaimed: when an allocation runs out of memory, or when calling `CUDA.reclaim()`. This
   includes emptying the caches mentioned above, unpinning host memory (as pinned by
-  `CUDA.pin`, or when wrapping an `Array` with `unsafe_wrap`), unloading modules, and
-  destroying texture arrays. Arrays whose memory was pinned are kept alive until then.
+  `CUDA.pin`, or when wrapping an `Array` with `unsafe_wrap`), unloading modules, destroying
+  texture arrays, and destroying some library objects. Arrays whose memory was pinned are
+  kept alive until then.
 
 As `CUDA.reclaim()` may wait for the GPU, don't call it while GPU work depends on the calling
 task to make progress. Nothing is released while a graph is being captured, and starting a

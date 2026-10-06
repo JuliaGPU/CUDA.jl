@@ -91,3 +91,18 @@ end
     end
     @test fetch(t)
 end
+
+@testset "releasing cached generators" begin
+    # destroying a generator may wait for the GPU, so that's deferred until reclaiming
+    # memory, which also empties the cache it was returned to
+    @noinline function borrow_and_return()
+        ctx = context()
+        rng = pop!(cuRAND.idle_library_rngs, ctx)
+        push!(cuRAND.idle_library_rngs, ctx, rng)
+        return WeakRef(rng)
+    end
+    weak = borrow_and_return()
+    CUDACore.reclaim()
+    GC.gc(true)
+    @test weak.value === nothing
+end

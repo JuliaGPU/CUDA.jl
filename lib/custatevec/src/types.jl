@@ -68,7 +68,7 @@ mutable struct CuStateVecSampler
         extra_size = Ref{Csize_t}(0)
         custatevecSamplerCreate(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, shot_count, extra_size)
         obj = new(desc_ref[], extra_size[])
-        finalizer(custatevecSamplerDestroy, obj)
+        resource_finalizer(custatevecSamplerDestroy, obj)
         obj
     end
 end
@@ -85,7 +85,7 @@ mutable struct CuStateVecAccessor
         mask_order  = isempty(mask_ordering)   ? C_NULL : mask_ordering
         custatevecAccessorCreate(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, bit_ordering, length(bit_ordering), mask_string, mask_order, length(mask_bit_string), extra_size)
         obj = new(desc_ref[], extra_size[])
-        finalizer(custatevecAccessorDestroy, obj)
+        resource_finalizer(custatevecAccessorDestroy, obj)
         obj
     end
 end

@@ -2,7 +2,7 @@ module cuStateVec
 
 using CUDACore
 using CUDACore: CUstream, cudaDataType, cudaEvent_t, libraryPropertyType
-using CUDACore: unsafe_free!, retry_reclaim, initialize_context, isdebug
+using CUDACore: unsafe_free!, retry_reclaim, initialize_context, isdebug, resource_finalizer
 using CUDACore: @checked, @gcsafe_ccall
 
 using CEnum: @cenum
@@ -77,7 +77,7 @@ function handle()
 
         cache = CuVector{UInt8}(undef, 0)
         fat_handle = Handle(new_handle, cuda.context, cache)
-        finalizer(handle_finalizer, fat_handle)
+        resource_finalizer(handle_finalizer, fat_handle; blocking=false)
 
         custatevecSetStream(new_handle, cuda.stream)
 

@@ -4,7 +4,7 @@ using CUDACore
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using CUDACore: unsafe_free!, retry_reclaim, initialize_context, @allowscalar, isdebug
+using CUDACore: unsafe_free!, retry_reclaim, initialize_context, @allowscalar, isdebug, resource_finalizer
 
 using GPUArrays
 
@@ -99,7 +99,7 @@ function handle()
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
         wrapped = Handle(new_handle, cuda.context)
-        finalizer(handle_finalizer, wrapped)
+        resource_finalizer(handle_finalizer, wrapped; blocking=false)
 
         cusparseSetStream(new_handle, cuda.stream)
 

@@ -84,7 +84,7 @@ mutable struct CuTensorBSDescriptor
         stride, eltype)
 
         obj = new(desc[])
-        finalizer(unsafe_destroy!, obj)
+        resource_finalizer(unsafe_destroy!, obj)
         return obj
     end
 end
