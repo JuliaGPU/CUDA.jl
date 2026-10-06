@@ -83,7 +83,7 @@ end
         return
     end
     @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"70") do ptr
-        @check "atom.acq_rel.gpu.global.cas.b16"
+        @check "atom.relaxed.gpu.global.cas.b16"
         CUDA.atomic_cas!(ptr, UInt16(0), UInt16(1))
         return
     end

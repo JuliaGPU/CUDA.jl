@@ -6,10 +6,8 @@
 
 # These implement CUDA C's atomic functions on top of UnsafeAtomics, which emits LLVM
 # atomics that the NVPTX back-end lowers (expanding what PTX lacks into compare-and-swap
-# loops). All operations have acquire and/or release semantics, depending on whether they
-# load or store values (mimics Base).
-const atomic_order = UnsafeAtomics.acq_rel
-const atomic_load_order = UnsafeAtomics.acquire
+# loops). Like CUDA C's, they are relaxed: use UnsafeAtomics directly for other orderings.
+const atomic_order = UnsafeAtomics.monotonic
 
 # Memory scopes, named after CUDA C's scoped variants. Default is device scope, like CUDA
 # C's atomic*() (the _system/_block variants are explicit there too). UnsafeAtomics' own
@@ -84,7 +82,7 @@ for T in (Int16, UInt16, Int32, Int64, UInt32, UInt64, Float16, Float32, Float64
         @static if sizeof($T) == 2
             compute_capability() >= sv"7.0" && return atomic_cas_b16(ptr, cmp, val, scope)
         end
-        UnsafeAtomics.cas!(ptr, cmp, val, atomic_order, atomic_load_order,
+        UnsafeAtomics.cas!(ptr, cmp, val, atomic_order, atomic_order,
                            unsafe_atomics_scope(scope)).old
     end
 end
@@ -103,7 +101,7 @@ ptx_scope(::Val{:device}) = ".gpu"
 ptx_scope(::Val{:system}) = ".sys"
 for A in (AS.Generic, AS.Global, AS.Shared), S in atomic_scopes
     space = A == AS.Global ? ".global" : A == AS.Shared ? ".shared" : ""
-    intr = "atom.acq_rel$(ptx_scope(Val(S)))$space.cas.b16 \$0, [\$1], \$2, \$3;"
+    intr = "atom.relaxed$(ptx_scope(Val(S)))$space.cas.b16 \$0, [\$1], \$2, \$3;"
     @eval @device_function @inline atomic_cas_b16(ptr::LLVMPtr{UInt16,$A}, cmp::UInt16,
                                                   val::UInt16, ::Val{$(QuoteNode(S))}) =
         @asmcall($intr, "=h,l,h,h", true, UInt16,
@@ -150,7 +148,7 @@ end
 # `atomic_cas_b16`), instead of on LLVM's emulation of it like `UnsafeAtomics.modify!` does
 @inline function atomic_modify_b16!(ptr::LLVMPtr{T}, op::Function, val,
                                     scope::AtomicScope) where {T}
-    old = UnsafeAtomics.load(ptr, atomic_load_order, unsafe_atomics_scope(scope))
+    old = UnsafeAtomics.load(ptr, atomic_order, unsafe_atomics_scope(scope))
     while true
         new = convert(T, op(old, val))
         cur = atomic_cas!(ptr, old, new, scope)
@@ -177,6 +175,9 @@ This operation is supported for values of type Int16, Int32, Int64, UInt16, UInt
 UInt64, Float16, Float32, Float64, and BFloat16. 16-bit operations are implemented with a
 compare-and-swap of the 32-bit word that contains the value before compute capability 7.0.
 
+Like CUDA C's atomic functions, these operations are relaxed: they don't order the memory
+accesses around them. For other orderings, use UnsafeAtomics.jl, or Atomix.jl's `@atomic`.
+
 `scope` selects the set of threads the operation is atomic with respect to: `Val(:block)`,
 `Val(:device)` (default, matching CUDA C's `atomicX`), or `Val(:system)` (matching
 `atomicX_system`; requires compute capability 6.0, or 7.2 on Tegra, and is not available on
@@ -192,7 +193,7 @@ operations are performed in one atomic transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_xchg!
 
@@ -207,7 +208,7 @@ This operation is supported for values of type Int32, Int64, UInt32, UInt64, Flo
 Float32, Float64, and BFloat16. The back-end uses a native instruction where available and
 emulates the operation otherwise.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_add!
 
@@ -221,7 +222,7 @@ transaction. The function returns `old`.
 This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float16,
 Float32, Float64, and BFloat16.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_sub!
 
@@ -234,7 +235,7 @@ transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_and!
 
@@ -247,7 +248,7 @@ transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_or!
 
@@ -260,7 +261,7 @@ transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_xor!
 
@@ -273,7 +274,7 @@ transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_min!
 
@@ -286,7 +287,7 @@ transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_max!
 
@@ -299,7 +300,7 @@ in one atomic transaction. The function returns `old`.
 
 This operation accepts Int32 values, interpreted as unsigned 32-bit integers.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_inc!
 
@@ -312,7 +313,7 @@ operations are performed in one atomic transaction. The function returns `old`.
 
 This operation accepts Int32 values, interpreted as unsigned 32-bit integers.
 
-For memory scopes and platform restrictions, see [`atomic_cas!`](@ref).
+For memory scopes, ordering and platform restrictions, see [`atomic_cas!`](@ref).
 """
 atomic_dec!
 
@@ -362,9 +363,15 @@ array element should be used in the left and right hand side of the assignment, 
 in-place application of a known operator. In both cases, the array reference should be pure
 and not induce any side-effects.
 
+Like the lower-level `atomic_...!` functions, these operations are relaxed and atomic with
+respect to the threads of the device.
+
 !!! warn
-    This interface is experimental, and might change without warning.  Use the lower-level
-    `atomic_...!` functions for a stable API, albeit one limited to natively-supported ops.
+    This interface is experimental, and might change without warning. Prefer Atomix.jl's
+    `@atomic` (as used by KernelAbstractions.jl), which also supports other orderings. Note
+    that, like `Base.@atomic`, it reads an assignment `@atomic a[I] = a[I] + val` as an
+    atomic store of a value that is computed separately; write `@atomic a[I] += val` for an
+    atomic update.
 """
 macro atomic(ex)
     # decode assignment and call

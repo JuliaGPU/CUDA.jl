@@ -40,6 +40,12 @@ are listed as subsections of the minor release they belong to.
   that used the memory before. Code that passes such pointers to libraries,
   other streams or the CPU should take them outside of `with_managed`
   ([#3329](https://github.com/JuliaGPU/CUDA.jl/pull/3329)).
+- The low-level atomic functions (`atomic_add!`, `atomic_cas!`, etc.) are now
+  relaxed, like CUDA C's `atomicAdd` and friends: they no longer order the
+  memory accesses around them, which they were documented to do but, before
+  CUDA.jl 6.4, didn't. Code that synchronizes threads through them needs an
+  ordered atomic (e.g. `UnsafeAtomics.add!(ptr, val, UnsafeAtomics.acq_rel,
+  UnsafeAtomics.device)`) or a fence (`threadfence()`).
 
 *New features*:
 
@@ -69,6 +75,11 @@ are listed as subsections of the minor release they belong to.
   of the new task now waits for the previous one on the GPU. Library calls and
   pointers that are passed to other code still wait on the CPU
   ([#3329](https://github.com/JuliaGPU/CUDA.jl/pull/3329)).
+- The atomic functions are implemented with UnsafeAtomics.jl, emitting LLVM
+  atomics that the NVPTX back-end lowers. For atomic loads and stores, other
+  orderings, or other operations, use UnsafeAtomics.jl directly; for atomic
+  operations on arrays, Atomix.jl's `@atomic` (as used by KernelAbstractions.jl)
+  is now preferred over `CUDA.@atomic`.
 
 *Bug fixes*:
 

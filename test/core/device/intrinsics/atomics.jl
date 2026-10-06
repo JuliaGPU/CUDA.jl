@@ -508,9 +508,9 @@ system_scope_supported = dev_cap >= v"6.0" &&
 
 @testset "reflection" begin
     # what LLVM spells out depends on the target: sm_5x has no scope qualifiers at all,
-    # sm_6x adds them, and sm_70+ also adds acquire/release semantics.
+    # sm_6x adds them, and sm_70+ also spells out the (relaxed) semantics.
     function cas_pattern(cap, scope)
-        sem = cap >= v"7.0" ? ".acq_rel" : ""
+        sem = cap >= v"7.0" ? ".relaxed" : ""
         qual = cap >= v"6.0" ? ".$scope" : ""
         "atom$sem$qual.global.cas.b32"
     end
@@ -568,12 +568,12 @@ system_scope_supported = dev_cap >= v"6.0" &&
     if dev_cap >= v"7.0"
         # 16-bit CAS uses inline assembly, which spells out the scope too
         @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
-            @check "atom.acq_rel.gpu.global.cas.b16"
+            @check "atom.relaxed.gpu.global.cas.b16"
             CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1))
             return
         end
         @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
-            @check "atom.acq_rel.cta.global.cas.b16"
+            @check "atom.relaxed.cta.global.cas.b16"
             CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1), Val(:block))
             return
         end
