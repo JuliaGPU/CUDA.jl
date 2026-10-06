@@ -137,4 +137,84 @@ end
 
 end
 
+@testset "exception output while unrelated work is running" begin
+for capturing in (false, true)
+    script = """
+        using CUDA, CUDACore, Test
+        function gate_kernel(gate, cycles)
+            unsafe_store!(gate, UInt32(1), 3)
+            t0 = clock(UInt64)
+            while unsafe_load(gate, :monotonic) == 0
+                if clock(UInt64) - t0 >= cycles
+                    unsafe_store!(gate, UInt32(1), 2)
+                    break
+                end
+            end
+            return
+        end
+        function bad_kernel(a, i)
+            a[i] = 1
+            return
+        end
+        gate = CuVector{UInt32,CUDA.HostMemory}(undef, 3)
+        cpu = pointer(gate; type=CUDA.HostMemory)
+        gpu = reinterpret(Ptr{UInt32}, pointer(gate))
+        busy = CuStream()  # blocking stream: a context/default-stream wait would deadlock
+        worker = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+        a = CUDA.zeros(Int, 1)
+        timeout = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))
+        unsafe_store!(cpu, UInt32(1))
+        @cuda stream=busy gate_kernel(gpu, timeout)
+        @cuda stream=worker bad_kernel(a, 1)
+        synchronize(busy)
+        synchronize(worker)
+        GC.gc(true)
+        enabled = GC.enable(false)
+        try
+            for i in 1:3
+                unsafe_store!(cpu, UInt32(0), i)
+            end
+            @cuda stream=busy gate_kernel(gpu, timeout)
+            t0 = time()
+            while unsafe_load(cpu + 2sizeof(UInt32), :acquire) == 0 && time()-t0 < 60
+            end
+            @test unsafe_load(cpu, 3) == 1
+            @cuda stream=worker bad_kernel(a, 2)
+            while !CUDACore.isdone(worker)
+                yield()
+            end
+            if $capturing
+                # Stream queries themselves are prohibited during capture. Isolate the error
+                # reporting path after the failed kernel has already completed.
+                graph = capture() do
+                    @test_throws CUDACore.KernelException CUDACore.check_exceptions()
+                end
+                @test graph isa CuGraph
+            else
+                @test_throws CUDACore.KernelException synchronize(worker)
+            end
+            Base.Libc.flush_cstdio()
+            println("exception reported")
+            flush(stdout)
+            @test unsafe_load(cpu, 2) == 0
+        finally
+            unsafe_store!(cpu, UInt32(1))
+            GC.enable(enabled)
+            synchronize(busy)
+        end
+    """
+    let (proc, out, err) = julia_exec(`-g1 -e $script`)
+        @test success(proc)
+        diagnostic = findfirst("BoundsError", out)
+        reported = findfirst("exception reported", out)
+        @test diagnostic !== nothing
+        @test reported !== nothing
+        if diagnostic !== nothing && reported !== nothing
+            # A later synchronization during cleanup must not be what flushes the text.
+            @test first(diagnostic) < first(reported)
+        end
+    end
+end
+end
+
 end

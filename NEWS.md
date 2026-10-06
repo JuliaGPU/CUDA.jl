@@ -26,6 +26,8 @@ are listed as subsections of the minor release they belong to.
   `compute-sanitizer` abort the kernel. These atomics operate on the containing
   32-bit word, so allocations and shared memory arrays are now padded to whole
   words.
+- The output of a kernel that throws an exception is flushed before reporting
+  the exception.
 
 
 ## v6.4 (September 2026)
