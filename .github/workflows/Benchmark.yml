@@ -5,58 +5,92 @@ permissions:
   pull-requests: write  # comment on PR with benchmark results
   deployments: write    # deploy GitHub pages website
 
-on:
-  repository_dispatch:
-    types: [benchmarks_complete]
+# Buildkite posts a commit status for every step, so we can react to the benchmark step
+# finishing instead of keeping a runner busy polling for it. Status events are delivered
+# to this repository even for pull requests from forks, and always run this workflow as
+# it exists on the default branch, with access to secrets. Never check out or execute
+# code from the commit being benchmarked; the results are untrusted data.
+on: status
 
 jobs:
   benchmark:
+    if: |
+      github.event.context == 'buildkite/cuda-dot-jl/racehorse-benchmarks' &&
+      github.event.state == 'success'
     runs-on: ubuntu-latest
-    concurrency:
-      group: benchmarks-${{ github.event.client_payload.pull_request != 'false' && format('pr-{0}', github.event.client_payload.pull_request) || github.run_id }}
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.client_payload.commit }}
 
-      - name: Download Buildkite Artifacts
+      - name: Download Benchmark Results
         id: download
-        uses: EnricoMi/download-buildkite-artifact-action@v1
-        with:
-          buildkite_token: ${{ secrets.BUILDKITE_TOKEN }}
-          buildkite_build_url: https://buildkite.com/julialang/cuda-dot-jl/builds/${{ github.event.client_payload.build_number }}
-          output_path: artifacts
+        env:
+          BUILDKITE_TOKEN: ${{ secrets.BUILDKITE_TOKEN }}
+          TARGET_URL: ${{ github.event.target_url }}
+          SHA: ${{ github.event.sha }}
+          ON_MAIN: ${{ contains(github.event.branches.*.name, 'main') }}
+        run: |
+          set -euo pipefail
+          # the status links to the job that ran the benchmarks
+          if [[ ! "$TARGET_URL" =~ ^https://buildkite\.com/julialang/cuda-dot-jl/builds/([0-9]+)#([0-9a-f-]+)$ ]]; then
+            echo "Unexpected target URL: $TARGET_URL"
+            exit 1
+          fi
+          api="https://api.buildkite.com/v2/organizations/julialang/pipelines/cuda-dot-jl/builds/${BASH_REMATCH[1]}"
+          job="${BASH_REMATCH[2]}"
+          auth="Authorization: Bearer $BUILDKITE_TOKEN"
 
-      - name: Locate Benchmarks Artifact
-        id: locate
-        if: ${{ steps.download.outputs.download-state == 'success' }}
-        run: echo "path=$(find artifacts -type f -name benchmarkresults.json 2>/dev/null)" >> $GITHUB_OUTPUT
+          build=$(curl -fsS -H "$auth" "$api")
+          if [[ "$(jq -r .commit <<<"$build")" != "$SHA" ]]; then
+            echo "Build does not match commit $SHA"
+            exit 1
+          fi
+          pull_request=$(jq -r '.pull_request.id // empty' <<<"$build")
+
+          url=$(curl -fsS -H "$auth" "$api/jobs/$job/artifacts" |
+                jq -r '.[] | select(.path == "benchmarkresults.json") | .download_url')
+          if [[ -z "$url" ]]; then
+            echo "No benchmark results found"
+            exit 0
+          fi
+          mkdir -p artifacts
+          curl -fsSL -H "$auth" -o artifacts/benchmarkresults.json "$url"
+
+          echo "path=artifacts/benchmarkresults.json" >> "$GITHUB_OUTPUT"
+          echo "pull_request=$pull_request" >> "$GITHUB_OUTPUT"
+          # only record results of commits on main, as decided by GitHub: Buildkite's branch
+          # name for a fork's pull request is chosen by the fork
+          if [[ -z "$pull_request" && "$ON_MAIN" == "true" ]]; then
+            echo "main=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload Benchmark Results
-        if: ${{ steps.locate.outputs.path != '' }}
+        if: ${{ steps.download.outputs.path != '' }}
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: CUDA.jl Benchmarks
           tool: "julia"
-          output-file-path: ${{ steps.locate.outputs.path }}
+          output-file-path: ${{ steps.download.outputs.path }}
           benchmark-data-dir-path: "bench"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.event.client_payload.commit }}
-          comment-always: ${{ github.event.client_payload.pull_request != 'false' }}
+          ref: ${{ github.event.sha }}
+          comment-always: ${{ steps.download.outputs.pull_request != '' }}
           summary-always: true
           alert-threshold: "125%"
           fail-on-alert: false
-          auto-push: ${{ github.event.client_payload.branch == 'main' }}
+          auto-push: ${{ steps.download.outputs.main == 'true' }}
 
+      # github-action-benchmark only comments on pull requests when triggered by one,
+      # so move the comment it left on the commit to the pull request
       - name: Move Benchmark Results to Pull Request
-        if: ${{ steps.locate.outputs.path != '' && github.event.client_payload.pull_request != 'false' }}
+        if: ${{ steps.download.outputs.path != '' && steps.download.outputs.pull_request != '' }}
         uses: actions/github-script@v9
+        env:
+          PULL_REQUEST: ${{ steps.download.outputs.pull_request }}
         with:
           script: |
             const {owner, repo} = context.repo;
-            const commit_sha = context.payload.client_payload.commit;
-            const issue_number = Number(context.payload.client_payload.pull_request);
+            const commit_sha = context.payload.sha;
+            const issue_number = Number(process.env.PULL_REQUEST);
             const marker = '<!-- github-benchmark-action-comment(start): CUDA.jl Benchmarks Summary -->';
 
             const commitComments = await github.paginate(
