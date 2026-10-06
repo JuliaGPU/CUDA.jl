@@ -24,7 +24,7 @@ Noteworthy missing functionality:
 module CG
 
 using ..CUDACore
-using ..CUDACore: i32, Aligned, alignment, GPUCompiler, @device_function
+using ..CUDACore: i32, Aligned, alignment, GPUCompiler, @device_function, UnsafeAtomics
 
 import ..LLVM
 using ..LLVM.Interop
@@ -356,17 +356,15 @@ end
             nb = 0x80000000 - (expected - UInt32(1))
         end
 
+        # barrier update with release. before sm_70, the back-end implements that with a
+        # fence, but older back-ends relaxed the update, so spell the fence out there.
         if compute_capability() < sv"7.0"
-            # fence; barrier update
             threadfence()
-
-            oldArrive = CUDACore.atomic_add!(arrived, nb)
+            oldArrive = UnsafeAtomics.add!(arrived, nb, UnsafeAtomics.monotonic,
+                                           UnsafeAtomics.device)
         else
-            # barrier update with release
-            oldArrive = @asmcall("atom.add.release.gpu.u32 \$0,[\$1],\$2;",
-                                 "=r,l,r,~{memory}", true, UInt32,
-                                 Tuple{LLVMPtr{UInt32,AS.Global}, UInt32},
-                                 arrived, nb)
+            oldArrive = UnsafeAtomics.add!(arrived, nb, UnsafeAtomics.release,
+                                           UnsafeAtomics.device)
         end
     end
 
@@ -377,26 +375,16 @@ end
     arrived = gg.details.barrier
 
     if is_cta_master()
+        # polling with acquire. older back-ends can't lower acquire loads before sm_70,
+        # so use relaxed loads followed by a fence there.
         if compute_capability() < sv"7.0"
-            # volatile polling; fence
-            while true
-                # volatile load
-                current_arrive = volatile_load(arrived, 1, Val(4))
-                if bar_has_flipped(token, current_arrive)
-                    break
-                end
+            while !bar_has_flipped(token, UnsafeAtomics.load(arrived, UnsafeAtomics.monotonic,
+                                                              UnsafeAtomics.device))
             end
             threadfence()
         else
-            # polling with acquire
-            while true
-                current_arrive = @asmcall("ld.acquire.gpu.u32 \$0,[\$1];",
-                                          "=r,l,~{memory}", true, UInt32,
-                                          Tuple{LLVMPtr{UInt32,AS.Global}},
-                                          arrived)
-                if bar_has_flipped(token, current_arrive)
-                    break
-                end
+            while !bar_has_flipped(token, UnsafeAtomics.load(arrived, UnsafeAtomics.acquire,
+                                                              UnsafeAtomics.device))
             end
         end
     end
