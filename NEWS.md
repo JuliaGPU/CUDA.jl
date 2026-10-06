@@ -73,6 +73,10 @@ are listed as subsections of the minor release they belong to.
 - Memory that failed to be pinned, e.g. because it was registered already
   using `CUDA.register`, or that has been unpinned, isn't recorded as pinned
   anymore. Re-pinning a resized array doesn't lead to unpinning it twice.
+- Unified-memory arrays can be accessed from the CPU while other tasks or
+  threads are using the GPU, on devices without concurrent managed access
+  (Windows, and Jetson boards up to Orin). Previously, that crashed with a
+  memory access error.
 
 
 ## v6.4 (September 2026)

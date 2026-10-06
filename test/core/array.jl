@@ -1093,6 +1093,28 @@ end
       @test eltype(a) == Float32
     end
   end
+
+  # issue #3322: accessing unified memory on the CPU while another stream keeps the GPU busy.
+  # this only guards against regressions on devices without concurrent managed access
+  # (Windows, Jetson boards up to Orin), where it crashed; other devices always allow it.
+  # compute-sanitizer serializes kernels, so the GPU wouldn't get to our own work.
+  sanitize || let
+    a = cu([1, 2, 3]; unified=true)
+    a .+= 1
+    synchronize()
+    while_gpu_busy() do
+      # freshly allocated memory, initialized on the CPU
+      a = cu([1, 2, 3]; unified=true)
+      @test a[1] == 1
+
+      # after using it on the GPU
+      a .+= 1
+      @test Array(a) == [2, 3, 4]
+      a[1] = 0
+      a .+= 1
+      @test a[1] == 1
+    end
+  end
 end
 
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0

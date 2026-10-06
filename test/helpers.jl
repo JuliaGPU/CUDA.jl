@@ -77,8 +77,9 @@ end
 # keep the GPU busy until the host opens a gate, so that tests can do things while a kernel
 # is running without depending on timing. if the gate is not opened in time (e.g., because
 # the host is blocked waiting for the GPU), the kernel gives up and records that it timed
-# out, instead of hanging. `gate` points to two flags: (is open, timed out).
+# out, instead of hanging. `gate` points to three flags: (is open, timed out, started).
 function gate_kernel(gate::Ptr{UInt32}, cycles)
+    unsafe_store!(gate, UInt32(1), 3)
     t0 = clock(UInt64)
     while unsafe_load(gate, :monotonic) == 0
         if clock(UInt64) - t0 >= cycles
@@ -89,3 +90,40 @@ function gate_kernel(gate::Ptr{UInt32}, cycles)
     return
 end
 gate_timeout() = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))
+
+# run `f` while a kernel on another stream keeps the GPU busy, testing that the kernel was
+# running all along. everything `f` does on the GPU needs to have been compiled beforehand,
+# as loading code waits for the GPU to become idle.
+function while_gpu_busy(f)
+    gate = CuVector{UInt32,CUDA.HostMemory}(undef, 3)
+    GC.@preserve gate begin
+        cpu = pointer(gate; type=CUDA.HostMemory)
+        gpu = reinterpret(Ptr{UInt32}, pointer(gate))
+        # a blocking stream, so that waiting for the legacy stream or the device times out
+        busy = CuStream()
+        unsafe_store!(cpu, UInt32(1))
+        @cuda stream=busy gate_kernel(gpu, gate_timeout())
+        synchronize(busy)
+
+        # freeing memory can also wait for the GPU, so don't run finalizers
+        GC.gc(true)
+        gc_enabled = GC.enable(false)
+        try
+            for i in 1:3
+                unsafe_store!(cpu, UInt32(0), i)
+            end
+            @cuda stream=busy gate_kernel(gpu, gate_timeout())
+            t0 = time()
+            while unsafe_load(cpu + 2sizeof(UInt32), :acquire) == 0 && time() - t0 < 60
+            end
+            @test unsafe_load(cpu, 3) == 1
+            f()
+        finally
+            unsafe_store!(cpu, UInt32(1), :release)
+            GC.enable(gc_enabled)
+            synchronize(busy)
+        end
+        @test unsafe_load(cpu, 2) == 0
+    end
+    return
+end

@@ -3,6 +3,30 @@
 # to safely use allocated memory across tasks and devices, we don't simply return raw
 # memory objects, but wrap them in a manager that ensures synchronization and ownership.
 
+# On devices without concurrent managed access (Windows, Jetson boards up to Orin), the CPU
+# cannot touch globally attached unified memory while any kernel is running, on any stream.
+# Unified memory we allocate on such devices is therefore attached to the host, attached
+# globally when it's used on the GPU, and attached to the host again before CPU access.
+# Attaching to a single stream isn't an option: libraries like cuBLAS access memory from
+# their own internal streams.
+#
+# This only covers allocations made by CUDA.jl. Attachment applies to an entire allocation,
+# and a wrapper created with `unsafe_wrap` doesn't know the state of the allocation it points
+# into, so it's never attached. Using a wrapper of host-attached memory on the GPU is the
+# caller's responsibility (CUDA leaves that undefined).
+@enum Attachment::UInt8 begin
+  UNTRACKED           # not managed by us: other devices, pooled or wrapped memory
+  HOST_ATTACHED
+  GLOBALLY_ATTACHED
+  ALWAYS_GLOBAL       # used by a graph, which can be launched at any time
+end
+
+function concurrent_managed_access(dev::CuDevice)
+  @memoize index=deviceid(dev)+1 begin
+    attribute(dev, DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+  end::Bool
+end
+
 # XXX: immutable with atomic refs?
 mutable struct Managed{M}
   const mem::M
@@ -27,16 +51,22 @@ mutable struct Managed{M}
   # only such memory counts towards our memory usage, and can be reused once freed.
   const owned_allocation::Bool
 
+  # how the visibility of unified memory is managed (see `Attachment`)
+  attachment::Attachment
+
   # Graphs keep a lease beyond the lifetime of the array that owns this memory.
   Base.@atomic leases::Int
   Base.@atomic pending::Any
 
   function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
                    dirty = true, captured = false, owned_allocation = false)
+    # our unified allocations start out attached to the host (see `alloc_unified`)
+    attachment = owned_allocation && mem isa UnifiedMemory && !mem.pooled &&
+                 !concurrent_managed_access(device(mem.ctx)) ? HOST_ATTACHED : UNTRACKED
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
-                     synchronizing, dirty, captured, owned_allocation, 0, nothing)
+                     synchronizing, dirty, captured, owned_allocation, attachment, 0, nothing)
   end
 end
 
@@ -85,6 +115,66 @@ function maybe_synchronize(managed::Managed)
   end
 end
 
+# Attach memory globally before it's used on `stream`. Attaching is prohibited during stream
+# capture, also on other streams unless the calling thread relaxes its capture mode, so for
+# a capture the memory is attached on the allocation stream and kept global from then on.
+function attach_globally!(managed::Managed{UnifiedMemory}, stream::CuStream, capturing::Bool)
+  if managed.attachment == HOST_ATTACHED
+    if capturing
+      mem = managed.mem
+      context!(mem.ctx) do
+        side = allocation_stream(mem.ctx)
+        # (synchronizing the allocation stream doesn't yield to other tasks)
+        relaxed_capture_mode() do
+          cuStreamAttachMemAsync(side, mem, 0, MEM_ATTACH_GLOBAL)
+          cuStreamSynchronize(side)
+        end
+      end
+    else
+      cuStreamAttachMemAsync(stream, managed.mem, 0, MEM_ATTACH_GLOBAL)
+    end
+    managed.attachment = GLOBALLY_ATTACHED
+  end
+  if capturing && managed.attachment == GLOBALLY_ATTACHED
+    managed.attachment = ALWAYS_GLOBAL
+  end
+  return
+end
+
+# Wait for the GPU to finish using memory before CPU access. Globally attached memory is
+# also attached to the host again, ordered after its last use. That isn't done for memory
+# with implicit synchronization disabled, or memory last used on one of the default streams
+# (the per-thread one can't be targeted from another thread), so CPU access to those still
+# requires the GPU to be idle. The caller holds `managed.lock`.
+function prepare_host_access!(managed::Managed)
+  if managed.attachment == GLOBALLY_ATTACHED && managed.synchronizing &&
+     !managed.captured && managed.stream.ctx !== nothing
+    event = @lock stream_disposal_lock begin
+      if !recycled(managed) && isvalid(managed.stream)
+        check_capture(managed.stream)
+      end
+      # this also handles owners that have been recycled or destroyed
+      stream, ctx = release_stream(managed.stream, managed.stream_ctx, managed.generation)
+      context!(ctx) do
+        # (attaching is prohibited while another thread captures in global mode)
+        relaxed_capture_mode() do
+          cuStreamAttachMemAsync(stream, managed.mem, 0, MEM_ATTACH_HOST)
+        end
+        event = CuEvent(EVENT_DISABLE_TIMING)
+        cuEventRecord(event, stream)
+        event
+      end
+    end
+    synchronize(event)
+    managed.attachment = HOST_ATTACHED
+    managed.dirty = false
+    check_exceptions()
+  else
+    maybe_synchronize(managed)
+  end
+  return
+end
+
 # Transfer stream ownership of an allocation and mark it dirty in anticipation of a
 # device-side operation. The caller must hold `managed.lock` until that operation has been
 # submitted to `stream`, so the recorded owner cannot become visible before its submission.
@@ -92,6 +182,8 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
                          stream::CuStream=state.stream,
                          capturing::Bool=is_capturing(stream)) where {M}
   sizeof(managed) == 0 && return managed
+
+  M == UnifiedMemory && attach_globally!(managed, stream, capturing)
 
   if capturing
     capture = current_capture(stream)
@@ -142,8 +234,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
   if M == UnifiedMemory
     can_prefetch = !capturing
     can_prefetch &= !__pinned(convert(Ptr{Cvoid}, managed.mem), managed.mem.ctx)
-    can_prefetch &= attribute(state.device,
-                              DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+    can_prefetch &= concurrent_managed_access(state.device)
     can_prefetch &= ndevices() == 1
     can_prefetch && prefetch(managed.mem; device=state.device, stream)
   end
@@ -183,8 +274,7 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
              allocating using `cu(...; unified=true)`."""))
     end
 
-    # make sure any work on the memory has finished.
-    maybe_synchronize(managed)
+    prepare_host_access!(managed)
     return ptr
   end
 end

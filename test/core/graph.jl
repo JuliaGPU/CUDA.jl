@@ -440,7 +440,7 @@ end
     @test Array(a) == fill(3f0, 16)
 
     # a capture that starts while loading code waits for the GPU fails instead of waiting
-    gate = UInt32[1, 0]     # (is open, timed out), see `gate_kernel`
+    gate = UInt32[1, 0, 0]  # (is open, timed out, started), see `gate_kernel`
     gpu_gate = unsafe_wrap(CuArray, gate)
     gate_ptr = reinterpret(Ptr{UInt32}, pointer(gpu_gate))
     # (compiled beforehand, as loading code waits for the GPU)

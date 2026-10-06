@@ -84,6 +84,19 @@ julia> gpu = cu(cpu; unified=true)
  2
 ```
 
+On devices without concurrent managed access (Windows, and Jetson boards up to Orin), the CPU
+cannot access unified memory that is visible to the GPU while any kernel is running, even
+one that doesn't use that memory. CUDA.jl therefore keeps the unified memory it allocates
+attached to the host until it's used on the GPU, and attaches it to the host again when the
+CPU accesses it next, after waiting for the GPU to finish using it. That way, the CPU can
+access unified arrays while other tasks keep the GPU busy. This doesn't apply to memory used
+in a graph capture (which stays visible to the GPU until freed, because the graph can be
+launched at any time), to memory with implicit synchronization disabled, to memory last used
+on one of the default streams, or to memory wrapped with `unsafe_wrap`: accessing those on
+the CPU still requires the GPU to be idle. Attachment applies to an entire allocation, so
+using a wrapper of CUDA.jl-allocated unified memory on the GPU while the array it was taken
+from is attached to the host is not supported; use the original array on the GPU first.
+
 Using unified memory has several advantages: it is possible to allocate more memory than the
 GPU has available, and the memory can be accessed efficiently from the CPU, either directly
 or by wrapping the `CuArray` using an `Array`:
