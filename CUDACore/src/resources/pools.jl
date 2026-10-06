@@ -2,8 +2,7 @@
 
 function stream_ordered(dev::CuDevice)
   @memoize index=deviceid(dev)+1 begin
-    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
-    get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) && pools_enabled()
   end::Bool
 end
 

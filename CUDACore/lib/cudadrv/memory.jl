@@ -106,8 +106,12 @@ struct HostMemory <: AbstractMemory
     ctx::CuContext
     ptr::Ptr{Cvoid}
     bytesize::Int
+
+    # whether this memory was allocated from a memory pool
+    pooled::Bool
 end
 
+HostMemory(ctx::CuContext, ptr::Ptr, bytesize::Integer) = HostMemory(ctx, ptr, bytesize, false)
 HostMemory() = HostMemory(context(), C_NULL, 0)
 
 Base.pointer(mem::HostMemory) = mem.ptr
@@ -121,6 +125,8 @@ Base.convert(::Type{Ptr{T}}, mem::HostMemory) where {T} =
 
 function Base.convert(::Type{CuPtr{T}}, mem::HostMemory) where {T}
     pointer(mem) == C_NULL && return convert(CuPtr{T}, CU_NULL)
+    # pool memory is accessed using the same address on the device
+    mem.pooled && return reinterpret(CuPtr{T}, pointer(mem))
     ptr_ref = Ref{CuPtr{Cvoid}}()
     cuMemHostGetDevicePointer_v2(ptr_ref, pointer(mem), #=flags=# 0)
     convert(CuPtr{T}, ptr_ref[])
@@ -206,8 +212,13 @@ struct UnifiedMemory <: AbstractMemory
     ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
+
+    # whether this memory was allocated from a memory pool
+    pooled::Bool
 end
 
+UnifiedMemory(ctx::CuContext, ptr::CuPtr, bytesize::Integer) =
+    UnifiedMemory(ctx, ptr, bytesize, false)
 UnifiedMemory() = UnifiedMemory(context(), CU_NULL, 0)
 
 Base.pointer(mem::UnifiedMemory) = mem.ptr
@@ -440,8 +451,14 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
     nbytes == 0 && return dst
     dst_dev = device(dst)
     src_dev = device(src)
-    if dst_dev == src_dev
-        cuMemcpyDtoDAsync_v2(dst, src, nbytes, stream)
+    # (memory from a host pool reports the device of the pool's location, i.e. device 0)
+    peer = dst_dev != src_dev &&
+           memory_type(dst) == MEMORYTYPE_DEVICE && memory_type(src) == MEMORYTYPE_DEVICE
+    if !peer
+        # these pointers may refer to host memory (e.g., from `HostMemory` arrays), so let
+        # the driver infer the direction. `cuMemcpyDtoDAsync` reads memory from a host pool
+        # when the copy is enqueued, instead of in stream order.
+        cuMemcpyAsync(dst, src, nbytes, stream)
     else
         cuMemcpyPeerAsync(dst, context(dst_dev),
                           src, context(src_dev),
@@ -673,6 +690,14 @@ end
 #
 
 ## pointer attributes
+
+# whether memory was allocated from a memory pool
+function from_pool(ptr::Union{Ptr,CuPtr})
+    pool = Ref{Ptr{Cvoid}}(C_NULL)
+    res = unchecked_cuPointerGetAttribute(pool, CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE,
+                                          reinterpret(CuPtr{Cvoid}, ptr))
+    return res == SUCCESS && pool[] != C_NULL
+end
 
 export attribute, attribute!, memory_type, is_managed
 @public host_pointer, device_pointer, is_pinned

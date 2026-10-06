@@ -54,6 +54,8 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
+    register_reclaimable!(host_cache)
+    register_reclaimable!(unified_cache)
     register_reclaimable!(resource_holds)
 
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,

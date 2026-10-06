@@ -22,15 +22,20 @@ are listed as subsections of the minor release they belong to.
   deadlock whichever thread the garbage collector runs on. Collected memory is now
   released the next time CUDA.jl allocates memory or synchronizes, or within a
   second, so `GC.gc()` by itself doesn't make it available anymore. Releases that
-  may wait for the GPU, like freeing host memory or unpinning memory, are deferred
-  until memory is reclaimed: on an out-of-memory error, or when calling
-  `CUDA.reclaim()`. Pinned arrays are kept alive until then.
+  may wait for the GPU, like unpinning memory, are deferred until memory is
+  reclaimed: on an out-of-memory error, or when calling `CUDA.reclaim()`. Pinned
+  arrays are kept alive until then.
+- `JULIA_CUDA_MEMORY_POOL=none` now also disables the memory pools that are used
+  to allocate host and unified memory.
 
 *New features*:
 
 - `CUDA.resource_finalizer` registers a finalizer that releases CUDA resources
   on a regular task instead of from the garbage collector, for use by packages
   that wrap objects of CUDA libraries.
+- Host and unified memory is allocated from stream-ordered memory pools where
+  supported (CUDA 13 and later), or otherwise cached for reuse, making allocating
+  and freeing such memory considerably faster.
 
 *Bug fixes*:
 

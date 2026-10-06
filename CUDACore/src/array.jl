@@ -291,13 +291,14 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
   sz = prod(dims) * aligned_sizeof(T)
 
   # create a memory object
+  # owned memory may have been allocated from a pool, which needs to be freed differently
+  pooled = own && from_pool(ptr)
   mem = if M == UnifiedMemory
-    UnifiedMemory(ctx, ptr, sz)
+    UnifiedMemory(ctx, ptr, sz, pooled)
   elseif M == DeviceMemory
-    # TODO: can we identify whether this pointer was allocated asynchronously?
-    DeviceMemory(device(ctx), ctx, ptr, sz, false)
+    DeviceMemory(device(ctx), ctx, ptr, sz, pooled)
   elseif M == HostMemory
-    HostMemory(ctx, host_pointer(ptr), sz)
+    HostMemory(ctx, host_pointer(ptr), sz, pooled)
   else
     throw(ArgumentError("Unknown memory type $M"))
   end

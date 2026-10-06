@@ -265,13 +265,16 @@ deadlock if the running kernels depend on that thread. That is why CUDA.jl doesn
 resources from finalizers. Instead, collected resources are queued, and released later by a
 regular task:
 
-- Device memory is freed in stream order the next time CUDA.jl allocates memory or
+- Device memory, and pinned host or unified memory allocated from a memory pool (supported
+  by CUDA 13 and later), is freed in stream order the next time CUDA.jl allocates memory or
   synchronizes, or within a second. `CUDA.pool_status()` also does so before reporting.
+- Where host or unified memory cannot be allocated from a pool (e.g., on Jetson devices),
+  freed allocations are cached and reused once the GPU has finished using them.
 - Releasing other resources may wait for the GPU, so that only happens when memory is
   reclaimed: when an allocation runs out of memory, or when calling `CUDA.reclaim()`. This
-  includes freeing host and unified memory, unpinning host memory (as pinned by `CUDA.pin`,
-  or when wrapping an `Array` with `unsafe_wrap`), unloading modules, and destroying texture
-  arrays. Arrays whose memory was pinned are kept alive until then.
+  includes emptying the caches mentioned above, unpinning host memory (as pinned by
+  `CUDA.pin`, or when wrapping an `Array` with `unsafe_wrap`), unloading modules, and
+  destroying texture arrays. Arrays whose memory was pinned are kept alive until then.
 
 As `CUDA.reclaim()` may wait for the GPU, don't call it while GPU work depends on the calling
 task to make progress. Nothing is released while a graph is being captured, and starting a

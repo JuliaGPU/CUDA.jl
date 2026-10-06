@@ -22,7 +22,7 @@ mutable struct Managed{M}
   captured::Bool
 
   # whether the memory was allocated by CUDA.jl, as opposed to imported using `unsafe_wrap`.
-  # only such memory counts towards our memory usage.
+  # only such memory counts towards our memory usage, and can be reused once freed.
   const owned_allocation::Bool
 
   function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,

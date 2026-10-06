@@ -123,6 +123,9 @@ end
 
 function trim_pools(dev::CuDevice, stream_ordered::Bool)
     stream_ordered && trim(pool_create(dev))
+    for pool in (host_pool(), unified_pool())
+        pool === nothing || trim(pool)
+    end
 end
 
 

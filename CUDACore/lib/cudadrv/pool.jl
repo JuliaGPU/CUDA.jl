@@ -14,13 +14,15 @@ mutable struct CuMemoryPool
     function CuMemoryPool(dev::CuDevice;
                           alloc_type::CUmemAllocationType=ALLOCATION_TYPE_PINNED,
                           handle_type::CUmemAllocationHandleType=HANDLE_TYPE_NONE,
-                          maxSize::Integer=0, usage::Integer=0)
+                          maxSize::Integer=0, usage::Integer=0,
+                          location_type::CUmemLocationType=CU_MEM_LOCATION_TYPE_DEVICE,
+                          location_id::Integer=deviceid(dev))
         location = Ref{CUmemLocation}()
         GC.@preserve location begin
             # Clang.jl wraps this object in an annoying way
             location_ptr = Base.unsafe_convert(Ptr{CUDACore.CUmemLocation}, location)
-            location_ptr.type = CU_MEM_LOCATION_TYPE_DEVICE
-            location_ptr.id = deviceid(dev)
+            location_ptr.type = location_type
+            location_ptr.id = location_id
 
             props = Ref(CUmemPoolProps(
                 alloc_type,
