@@ -1199,6 +1199,7 @@ if length(devices()) > 1
 
     device!(other_dev)
     @test Array(a) == Array(b) == data
+    device!(dev)
   end
 end
 end
