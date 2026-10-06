@@ -592,6 +592,18 @@ end
   @test testf(cumsum, rand(2))
   @test testf(cumprod, rand(2))
 
+  # operator without a known neutral element, across multiple thread blocks
+  let op(a, b) = a + b
+    for n in (10_000, 3_000_000)
+      x = CUDA.ones(Int, n)
+      @test Array(CUDACore.scan!(op, similar(x), x; dims=1, neutral=0)) == 1:n
+    end
+    x = CUDA.ones(Int, 3, 5000, 2)
+    @test Array(CUDACore.scan!(op, similar(x), x; dims=2, neutral=0)) == cumsum(Array(x); dims=2)
+    x = CUDA.rand(Float32, 10_000)
+    @test Array(CUDACore.scan!(op, similar(x), x; dims=1, neutral=0)) ≈ cumsum(Array(x))
+  end
+
   @test_throws ArgumentError("accumulate does not support the keyword arguments [:bad_kwarg]") accumulate(+, CuArray(rand(Float32, 1024)); bad_kwarg="bad")
 end
 

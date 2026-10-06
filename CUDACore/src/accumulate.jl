@@ -173,13 +173,13 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
               partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, nothing, Val(true)))
 
         # get the total of each thread block (except the first) of the partial scans
-        aggregates = fill(neutral, Base.setindex(size(input), blocks_dim, dims))
+        aggregates = fill!(similar(output, Base.setindex(size(input), blocks_dim, dims)), neutral)
         partials = selectdim(output, dims, partial:partial:length(Rdim))
         indices = CartesianIndices(partials)
         copyto!(aggregates, indices, partials, indices)
 
         # scan these totals to get totals for the entire partial scan
-        accumulate!(f, aggregates, aggregates; dims=dims)
+        scan!(f, aggregates, aggregates; dims, neutral)
 
         # add those totals to the partial scan result
         # NOTE: we assume that this kernel requires fewer resources than the scan kernel.
