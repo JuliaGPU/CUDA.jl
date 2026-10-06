@@ -17,6 +17,7 @@ cannot be satisfied.
   # compute-sanitizer flags it, so make the allocation cover that word.
   sz = cld(sz, 4) * 4
 
+  drain_retired(ALLOC_DRAIN_LIMIT)
   maybe_collect()
   time = Base.@elapsed begin
     mem = _pool_alloc(B, sz)
@@ -27,7 +28,7 @@ cannot be satisfied.
   Base.@atomic alloc_stats.total_time += time
   # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
 
-  return Managed(mem)
+  return Managed(mem; owned_allocation=true)
 end
 @inline function _pool_alloc(::Type{DeviceMemory}, sz)
     state = active_state()
@@ -69,18 +70,16 @@ end
     mem
 end
 @inline function _pool_alloc(::Type{UnifiedMemory}, sz)
-  # NOTE: no `retry_reclaim` here. `cuMemAllocManaged` allocates lazily and
-  # essentially never returns `ERROR_OUT_OF_MEMORY` — when host RAM is actually
-  # exhausted, the OS kills the process on the page fault before the driver
-  # call can fail. The only thing that can prevent OOM is the proactive
-  # `maybe_collect` call in `pool_alloc`, which uses `_host_stats`.
-  mem = alloc(UnifiedMemory, sz)
-  account!(_host_stats, sz)
+  # NOTE: allocating unified memory rarely fails, as it is only backed by physical memory
+  #       when used. when host memory runs out, the OS kills the process on a page fault
+  #       instead, so the proactive `maybe_collect` in `pool_alloc` is what prevents that.
+  mem = alloc_or_reclaim(UnifiedMemory, sz)
+  account!(_host_stats, sizeof(mem))
   mem
 end
 @inline function _pool_alloc(::Type{HostMemory}, sz)
-  mem = alloc(HostMemory, sz)
-  account!(_host_stats, sz)
+  mem = alloc_or_reclaim(HostMemory, sz)
+  account!(_host_stats, sizeof(mem))
   mem
 end
 
@@ -89,59 +88,93 @@ end
 
 Releases memory to the pool. If possible, this operation will not block but will be ordered
 against the stream that last used the memory.
+
+When called from a finalizer, the memory is only retired, and released later by a regular
+task (see [`drain_retired`](@ref)).
 """
 @inline function pool_free(managed::Managed{<:AbstractMemory})
-  Base.@lock managed.lock begin
-    mem = managed.mem
+  # 0-byte allocations shouldn't hit the pool
+  sizeof(managed.mem) == 0 && return
 
-    # 0-byte allocations shouldn't hit the pool
-    sz = sizeof(mem)
-    sz == 0 && return
+  discard(managed)
+  return
+end
 
-    # this function is typically called from a finalizer, where we can't switch tasks,
-    # so perform our own error handling.
-    try
-      time = Base.@elapsed _pool_free(mem, managed.stream)
+function release_now(managed::Managed)
+  if on_per_thread_stream(managed.stream)
+    destroy_later(synchronize_and(free_now, managed.stream_ctx), managed)
+    return
+  end
+  free_now(managed)
+end
 
-      Base.@atomic alloc_stats.free_count += 1
-      Base.@atomic alloc_stats.free_bytes += sz
-      Base.@atomic alloc_stats.total_time += time
-    catch ex
-      # NOTE: avoid `show`ing `mem` here since the buffer may be in a bad state
-      # (often the reason free is failing); printing the byte count is safer.
-      Base.showerror_nostdio(ex,
-          "WARNING: Error while freeing $(Base.format_bytes(sz)) of GPU memory")
-      Base.show_backtrace(Core.stdout, catch_backtrace())
-      Core.println()
-    end
+function free_now(managed::Managed)
+  # nothing references this memory anymore, so its stream can't change anymore either
+  mem = managed.mem
+  sz = sizeof(mem)
+
+  try
+    time = Base.@elapsed _pool_free(mem, managed.stream, managed.stream_ctx,
+                                    managed.owned_allocation)
+    Base.@atomic alloc_stats.free_count += 1
+    Base.@atomic alloc_stats.free_bytes += sz
+    Base.@atomic alloc_stats.total_time += time
+  catch err
+    release_failed!(ReleaseAction(identity, managed, nothing, false), err, catch_backtrace())
   end
 
   return
 end
-@inline function _pool_free(mem::DeviceMemory, stream::CuStream)
-    if mem.async
-      # stream-ordered allocations are not tied to a context. we always need to free them,
-      # and if the owning stream was destroyed, use a default one.
-      if isvalid(stream)
-        context!(mem.ctx) do
-          free(mem; stream)
+@inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
+                            owned_allocation::Bool)
+    if mem.async || async_free_supported(mem.dev)
+      # free in stream order. `cuMemFree` would wait for all work on the device to finish,
+      # blocking kernel launches from other threads in the meantime. that also works for
+      # memory that wasn't allocated from a pool.
+      @lock stream_disposal_lock begin
+        handle, ctx = release_stream(stream, stream_ctx)
+        context!(ctx) do
+          free_stream = if !mem.async
+            # when memory that wasn't allocated from a pool is freed in stream order,
+            # destroying that stream waits for the free, i.e., for all work on the stream.
+            # so free it on the disposal stream instead, after the work on this stream.
+            after_on_disposal_stream(handle, ctx)
+          else
+            handle
+          end
+          cuMemFreeAsync(mem, free_stream)
         end
-      else
-        free(mem; stream=default_stream())
       end
     else
-      # regular allocations are tied to a context, so free them in their owning context.
-      context!(mem.ctx) do
-        free(mem)
+      # without support for freeing memory in stream order, `cuMemFree` is the only option,
+      # which waits for all running kernels. defer that until memory is reclaimed.
+      destroy_later(mem) do mem
+        context!(mem.ctx) do
+          free(mem)
+        end
       end
     end
-    account!(memory_stats(mem.dev), -sizeof(mem))
+    owned_allocation && account!(memory_stats(mem.dev), -sizeof(mem))
 end
-@inline function _pool_free(mem::UnifiedMemory, stream::CuStream)
-  free(mem)
-  account!(_host_stats, -sizeof(mem))
+@inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
+                            stream_ctx::CuContext, owned_allocation::Bool)
+  # freeing such memory with `cuMemFreeHost` or `cuMemFree` waits for all running kernels to
+  # finish (including those using the memory), also blocking kernel launches from other
+  # threads in the meantime. so defer that until memory is reclaimed.
+  defer_release(free, mem; ctx=mem.ctx, blocking=true)
+  owned_allocation && account!(_host_stats, -sizeof(mem))
 end
-@inline function _pool_free(mem::HostMemory, stream::CuStream)
-  free(mem)
-  account!(_host_stats, -sizeof(mem))
+
+# freed memory may only be released when reclaiming memory, so do so when running out
+function alloc_or_reclaim(::Type{M}, sz) where {M}
+  mem = retry_reclaim(isnothing) do
+    try
+      alloc(M, sz)
+    catch err
+      err isa OutOfGPUMemoryError || rethrow()
+      nothing
+    end
+  end
+  mem === nothing && throw(OutOfGPUMemoryError(sz))
+  return mem
 end

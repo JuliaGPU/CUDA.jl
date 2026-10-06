@@ -93,7 +93,7 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
         DataRef(pool_free, pool_alloc(M, bufsize))
     end
     obj = new{T,N,M}(data, maxsize, 0, dims)
-    finalizer(unsafe_free!, obj)
+    array_finalizer(obj, data)
     return obj
   end
 
@@ -101,10 +101,27 @@ mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
                         maxsize::Int=prod(dims) * aligned_sizeof(T), offset::Int=0) where {T,N,M}
     check_eltype("CuArray", T)
     obj = new{T,N,M}(data, maxsize, offset, dims)
-    finalizer(unsafe_free!, obj)
+    array_finalizer(obj, data)
     return obj
   end
 end
+
+# arrays allocated using a GPUArrays allocation cache borrow the cache's reference to their
+# memory. as arrays are only released some time after being collected, the cache may have
+# been invalidated by then (clearing the `cached` flag), so whether the array owns its memory
+# is decided now: only if it has been resized in the meantime.
+function array_finalizer(obj::CuArray, data)
+  if data.cached
+    resource_finalizer(obj; blocking=false, ctx=nothing) do a
+      a.data === data || unsafe_free!(a)
+    end
+  else
+    resource_finalizer(obj)
+  end
+  return obj
+end
+
+release_now(a::CuArray) = unsafe_free!(a)
 
 GPUArrays.storage(a::CuArray) = a.data
 
@@ -323,150 +340,60 @@ end
 # unmanaged pointer to CuArray
 supports_hmm(dev) = driver_version() >= v"12.2" &&
                     attribute(dev, DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS) == 1
+Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
+                 ctx::CuContext=context()) where {T,N,M<:AbstractMemory} =
+  wrap_host_memory(CuArray{T,N,M}, p, dims, ctx, nothing)
 
-# whether waiting for the stream that last used wrapped memory would interfere with a capture
-function stream_capturing(managed::Managed)
-  stream = managed.stream
-  if stream.ctx === nothing || !isvalid(stream)
-    # waiting for these involves synchronizing the whole context, which isn't allowed while
-    # any of its streams is being captured. we can only know about our own captures, and
-    # one could still start between this check and the wait.
-    active_captures[] > 0
-  else
-    context!(() -> is_capturing(stream), stream.ctx)
-  end
-end
-
-# wait for outstanding work on wrapped memory, without blocking the thread. this doesn't
-# use `synchronize`, which would also report (and reset) unrelated kernel exceptions.
-function wait_for_work(managed::Managed, wrap_ctx::CuContext)
-  Base.@lock managed.lock begin
-    (managed.dirty || managed.captured) || return
-    while stream_capturing(managed)
-      sleep(0.01)
-    end
-    stream = managed.stream
-    if stream.ctx === nothing
-      # special streams aren't tied to a context or a thread, so wait for the whole context
-      isvalid(wrap_ctx) && wait_relaxed(wrap_ctx, wrap_ctx)
-    elseif isvalid(stream)
-      wait_relaxed(stream, stream.ctx)
-    elseif isvalid(stream.ctx)
-      # the stream has been destroyed, but its work may still be executing
-      wait_relaxed(stream.ctx, stream.ctx)
-    end
-    # a destroyed context has no outstanding work
-    managed.dirty = false
-  end
-end
-
-# the memory may be freed while another stream is being captured, e.g., by the task doing
-# so. waiting for an unrelated stream doesn't affect that capture, so relax the capture mode
-# (which is a property of the thread that waits).
-function wait_relaxed(obj::Union{CuContext,CuStream}, ctx::CuContext)
-  res = cooperative_wait(relaxed_synchronize, (obj, ctx);
-                         isdone = obj isa CuStream ? relaxed_isdone : nothing)
-  res === nothing || something(res) == SUCCESS || throw_api_error(something(res))
-  return
-end
-relaxed_synchronize((obj, ctx)) =
-  context!(() -> relaxed_capture_mode(() -> unchecked_synchronize(obj)), ctx)
-relaxed_isdone((obj, ctx)) = relaxed_capture_mode(() -> isdone(obj))
-
-# release wrapped system memory, and its owner, once outstanding work using it has finished
-function release_after_work(managed::Managed, owner, ctx::CuContext)
-  GC.@preserve owner begin
-    try
-      wait_for_work(managed, ctx)
-    catch ex
-      # waiting only fails if the work can't complete anymore, e.g., after a fatal error
-      @error "Error while waiting for GPU work on wrapped system memory" exception=(ex, catch_backtrace())
-    end
-    # a destroyed context has no registrations left
-    if managed.mem isa HostMemory && isvalid(ctx)
-      context!(ctx) do
-        relaxed_capture_mode(() -> unregister(managed.mem))
-      end
-    end
-  end
-  return
-end
-
-# `owner` is kept alive for as long as the wrapper, and until the GPU is done with it
-function wrap_system_memory(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int},
-                            owner=nothing; ctx::CuContext=context()) where {T,N,M<:AbstractMemory}
+# `owner` is kept alive for as long as the memory is used
+function wrap_host_memory(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int},
+                          ctx::CuContext, owner) where {T,N,M<:AbstractMemory}
   isbitstype(T) || throw(ArgumentError("Can only unsafe_wrap a pointer to a bits type"))
   sz = prod(dims) * aligned_sizeof(T)
 
-  mem = if M == UnifiedMemory
+  data = if M == UnifiedMemory
     # HMM extends unified memory to include system memory
     supports_hmm(device(ctx)) ||
       throw(ArgumentError("Cannot wrap system memory as unified memory on your system"))
-    UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
+    mem = UnifiedMemory(ctx, reinterpret(CuPtr{Nothing}, p), sz)
+    DataRef(Managed(mem)) do managed
+      # keep the owner alive until the GPU is done with its memory
+      release_owner(owner, managed)
+    end
   elseif M == HostMemory
     # register as device-accessible host memory
-    context!(ctx) do
-      register(HostMemory, p, sz, MEMHOSTREGISTER_DEVICEMAP)
+    mem = context!(ctx) do
+      register_host_memory(p, sz, MEMHOSTREGISTER_DEVICEMAP)
+    end
+    DataRef(Managed(mem)) do managed
+      # unregistering can block, so it is deferred (see `release_registration`)
+      release_registration(RetiredRegistration(managed.mem, false, owner))
     end
   else
     throw(ArgumentError("Cannot wrap system memory as $M"))
   end
-  managed = Managed(mem)
-
-  # wrapped unified memory without an owner doesn't need to be released
-  if M == UnifiedMemory && owner === nothing
-    return CuArray{T,N}(DataRef(Returns(nothing), managed), dims)
-  end
-
-  # waiting for the GPU requires switching tasks, which isn't possible from a finalizer, so
-  # the memory is released by a task that's woken up when the wrapper is freed. it is
-  # created here, so it isn't affected by cancellation of the scope the wrapper is freed in.
-  released = Base.Event()
-  cond = Base.AsyncCondition() do cond
-    try
-      release_after_work(managed, owner, ctx)
-    catch ex
-      @error "Error while releasing wrapped system memory" exception=(ex, catch_backtrace())
-    finally
-      close(cond)
-      notify(released)
-    end
-  end
-  data = DataRef(managed) do managed, args...
-    ccall(:uv_async_send, Cint, (Ptr{Cvoid},), cond)
-    # when possible, wait for that, so that the memory can be wrapped again right away.
-    # that's not possible from a finalizer, or while a capture of the stream that last
-    # used the memory, which this task may have to end, is holding up the release.
-    if !GC.in_finalizer() && !stream_capturing(managed)
-      Base.wait(released)
-    end
-  end
 
   CuArray{T,N}(data, dims)
 end
-function wrap_system_memory(::Type{CuArray{T,N}}, p::Ptr{T}, dims::NTuple{N,Int},
-                            owner=nothing; ctx::CuContext=context()) where {T,N}
-  M = supports_hmm(device(ctx)) ? UnifiedMemory : HostMemory
-  wrap_system_memory(CuArray{T,N,M}, p, dims, owner; ctx)
-end
-Base.unsafe_wrap(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int};
-                 ctx::CuContext=context()) where {T,N,M<:AbstractMemory} =
-  wrap_system_memory(CuArray{T,N,M}, p, dims; ctx)
 Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                  p::Ptr{T}, dims::NTuple{N,Int}; ctx::CuContext=context()) where {T,N} =
-  wrap_system_memory(CuArray{T,N}, p, dims; ctx)
+  wrap_host_memory(CuArray{T,N}, p, dims, ctx, nothing)
+function wrap_host_memory(::Type{CuArray{T,N}}, p::Ptr{T}, dims::NTuple{N,Int},
+                          ctx::CuContext, owner) where {T,N}
+  M = supports_hmm(device(ctx)) ? UnifiedMemory : HostMemory
+  wrap_host_memory(CuArray{T,N,M}, p, dims, ctx, owner)
+end
 # integer size input
 Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
                  p::Ptr{T}, dim::Int) where {T} =
   unsafe_wrap(CuArray{T,1}, p, (dim,))
 Base.unsafe_wrap(::Type{CuArray{T,1,M}}, p::Ptr{T}, dim::Int) where {T,M} =
   unsafe_wrap(CuArray{T,1,M}, p, (dim,))
-# array input: keep the array alive for as long as the wrapper
+# array input, which is kept alive by the wrapping array
 Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                  a::Array{T,N}) where {T,N} =
-  wrap_system_memory(CuArray{T,N}, pointer(a), size(a), a)
+  wrap_host_memory(CuArray{T,N}, pointer(a), size(a), context(), a)
 Base.unsafe_wrap(::Type{CuArray{T,N,M}}, a::Array{T,N}) where {T,N,M} =
-  wrap_system_memory(CuArray{T,N,M}, pointer(a), size(a), a)
+  wrap_host_memory(CuArray{T,N,M}, pointer(a), size(a), context(), a)
 
 
 ## array interface

@@ -15,7 +15,7 @@ cheapest to most aggressive:
 
 | Level           | Action                                              |
 | :---            | :---                                                |
-| `RECLAIM_PURGE` | empty `HandleCache`s (no GC, no sync)               |
+| `RECLAIM_PURGE` | release retired resources and empty caches (no GC, no sync) |
 | `RECLAIM_SYNC`  | synchronize the device (lets async deallocs finish) |
 | `RECLAIM_GC`    | run a full Julia GC, then sync + purge + trim       |
 | `RECLAIM_DROP`  | also drop task-local library state, then GC + …     |
@@ -71,24 +71,58 @@ end
 # just runs the matching step. `retry_reclaim` walks the levels in order to
 # bisect on alloc failure. GC.gc(true) drains pending finalizers before
 # returning, so the post-GC purge sees caches populated by wrapper finalizers.
+#
+# none of this holds a lock while collecting garbage (a task holding a lock doesn't run
+# finalizers) or waiting for the GPU (as other tasks may need to make progress for that).
 function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
-    if level == RECLAIM_PURGE
-        foreach_reclaimable(purge!)
-    elseif level == RECLAIM_SYNC
-        stream_ordered && device_synchronize()
-    elseif level == RECLAIM_GC
-        GC.gc(true)
-        stream_ordered && device_synchronize()
-        foreach_reclaimable(purge!)
-        stream_ordered && trim(pool_create(dev))
-    elseif level == RECLAIM_DROP
+    # memory is also freed asynchronously when not using a pool
+    async = async_free_supported(dev)
+
+    # captures may not be interfered with, e.g., by synchronizing the device
+    capturing = active_captures[] > 0
+    if level == RECLAIM_DROP && !capturing
         foreach_reclaimable(drop!)
+    end
+    if level >= RECLAIM_GC
         GC.gc(true)
-        stream_ordered && device_synchronize()
-        foreach_reclaimable(purge!)
-        stream_ordered && trim(pool_create(dev))
+    end
+    capturing && return
+
+    drain_retired()
+    # the checks above are only a shortcut: a capture may start at any time, unless we are
+    # releasing resources. a capture that starts while we wait for the GPU fails instead.
+    releasing(; blocking=true) do
+        if level == RECLAIM_PURGE
+            purge_resources!()
+        elseif level == RECLAIM_SYNC
+            async && device_synchronize()
+        elseif level >= RECLAIM_GC
+            async && device_synchronize()
+            purge_resources!()
+            # releases deferred until after synchronizing the context (of memory last used
+            # on the per-thread default stream) can free memory asynchronously
+            async && device_synchronize()
+            trim_pools(dev, stream_ordered)
+        end
     end
     return
+end
+
+function purge_resources!()
+    releasing(; blocking=true) do
+        # releasing the held resources (e.g. memory last used on the per-thread default
+        # stream) may put memory in a cache, and purging a cache may hold resources again,
+        # so do this before and after purging the caches.
+        purge!(resource_holds)
+        foreach_reclaimable() do resource
+            resource === resource_holds || purge!(resource)
+        end
+        purge!(resource_holds)
+    end
+end
+
+function trim_pools(dev::CuDevice, stream_ordered::Bool)
+    stream_ordered && trim(pool_create(dev))
 end
 
 

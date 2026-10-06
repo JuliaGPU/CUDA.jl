@@ -39,7 +39,9 @@ mutable struct CuTextureArray{T,N}
     function CuTextureArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
         mem = alloc(ArrayMemory{T}, dims)
         t = new{T,N}(mem, dims, context())
-        finalizer(unsafe_destroy!, t)
+        # destroying an array waits for running kernels to finish, also blocking kernel
+        # launches from other threads
+        resource_finalizer(unsafe_destroy!, t)
         return t
     end
 end
@@ -254,7 +256,7 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
         cuTexObjectCreate(texObject_ref, resDesc_ref, texDesc_ref, C_NULL)
 
         t = new{T,N,P}(parent, texObject_ref[], interpolation, normalized_coordinates, context())
-        finalizer(unsafe_destroy!, t)
+        resource_finalizer(unsafe_destroy!, t; blocking=false)
         return t
     end
 end

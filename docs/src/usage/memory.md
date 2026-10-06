@@ -137,6 +137,9 @@ they will be collected once they are unreachable, and the memory hold by it will
 repurposed or freed. There is no need for manual memory management, just make sure your
 objects are not reachable (i.e., there are no instances or references).
 
+Note that the garbage collector itself does not release GPU memory: that happens shortly
+after, as explained in the section on [Releasing resources](@ref) below.
+
 ### Memory pool
 
 Behind the scenes, a memory pool will hold on to your objects and cache the underlying
@@ -252,3 +255,41 @@ Batch 2: [7]
 For each batch, every argument (assumed to be an array-like) is uploaded to the GPU using
 the `adapt` mechanism from above. Afterwards, the memory is eagerly put back in the CUDA
 memory pool using `unsafe_free!` to lower GC pressure.
+
+### Releasing resources
+
+Many CUDA operations that release resources wait for all kernels running on the device to
+finish, and block kernel launches from other threads in the meantime. Doing so from a
+finalizer could stall whichever thread the garbage collector happens to run on, or even
+deadlock if the running kernels depend on that thread. That is why CUDA.jl doesn't release
+resources from finalizers. Instead, collected resources are queued, and released later by a
+regular task:
+
+- Device memory is freed in stream order the next time CUDA.jl allocates memory or
+  synchronizes, or within a second. `CUDA.pool_status()` also does so before reporting.
+- Releasing other resources may wait for the GPU, so that only happens when memory is
+  reclaimed: when an allocation runs out of memory, or when calling `CUDA.reclaim()`. This
+  includes freeing host and unified memory, unpinning host memory (as pinned by `CUDA.pin`,
+  or when wrapping an `Array` with `unsafe_wrap`), unloading modules, and destroying texture
+  arrays. Arrays whose memory was pinned are kept alive until then.
+
+As `CUDA.reclaim()` may wait for the GPU, don't call it while GPU work depends on the calling
+task to make progress. Nothing is released while a graph is being captured, and starting a
+capture fails while `CUDA.reclaim()` is releasing resources that may wait for the GPU.
+
+### Wrapping CUDA library objects
+
+Packages that wrap objects of CUDA libraries can use [`CUDA.resource_finalizer`](@ref)
+instead of `finalizer` to destroy them the same way:
+
+```julia
+using CUDA: resource_finalizer
+
+obj = MyLibraryObject(handle)
+resource_finalizer(obj) do obj
+    destroy_library_object(obj.handle)
+end
+```
+
+By default, the destructor is only called when memory is reclaimed. If it is known not to
+wait for the GPU, pass `blocking=false` to have it called as soon as possible instead.

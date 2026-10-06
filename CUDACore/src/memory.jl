@@ -171,7 +171,11 @@ function maybe_collect(will_block::Bool=false)
   # finalizers running during GC may free memory in either.
   pre_device_live = stats.live
   pre_host_live = _host_stats.live
-  gc_time = Base.@elapsed GC.gc(false)
+  gc_time = Base.@elapsed begin
+    GC.gc(false)
+    # finalizers only retire memory, so release it before measuring what was freed
+    drain_retired()
+  end
   Base.@atomic stats.last_freed = pre_device_live - stats.live
   Base.@atomic _host_stats.last_freed = pre_host_live - _host_stats.live
   ## GC times can vary, so smooth them out
@@ -278,9 +282,10 @@ end
 """
     pool_status([io=stdout])
 
-Report to `io` on the memory status of the current GPU and the active memory pool.
+Report to `io` on the memory status of the current GPU and the active memory pool. Memory
+that has been garbage collected, but not released yet, is released first.
 """
-function pool_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
+function pool_status(io::IO=stdout, info::MemoryInfo=(drain_retired(); MemoryInfo()))
   state = active_state()
   ctx = context()
 
@@ -291,13 +296,23 @@ function pool_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
               Base.format_bytes(info.total_bytes))
 
   if info.pool_reserved_bytes === nothing
-    @printf(io, "No memory pool is in use.")
+    @printf(io, "No memory pool is in use.\n")
   else
     @printf(io, "Memory pool usage: %s (%s reserved)\n",
                 Base.format_bytes(info.pool_used_bytes),
                 Base.format_bytes(info.pool_reserved_bytes))
 
   end
+
+  active_handles = idle_handles = 0
+  foreach_reclaimable() do resource
+    if resource isa HandleCache
+      counts = handle_cache_counts(resource)
+      active_handles += counts.active
+      idle_handles += counts.idle
+    end
+  end
+  println(io, "Library handles: $active_handles active, $idle_handles reusable (released at reclaim)")
 
   limits = memory_limits()
   if limits.soft > 0 || limits.hard > 0

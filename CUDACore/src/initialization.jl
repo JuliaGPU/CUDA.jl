@@ -54,6 +54,8 @@ end
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
 
+    register_reclaimable!(resource_holds)
+
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,
     #       and remove functional(), once people sufficiently use weak dependencies.
 

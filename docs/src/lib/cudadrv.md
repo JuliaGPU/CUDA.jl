@@ -281,3 +281,9 @@ instantiate
 launch(::CuGraphExec)
 update
 ```
+
+## Deferred resource cleanup
+
+```@docs
+resource_finalizer
+```

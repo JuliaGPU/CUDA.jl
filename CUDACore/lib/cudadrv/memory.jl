@@ -349,7 +349,11 @@ function alloc(::Type{<:ArrayMemory{T}}, dims::Dims{N}) where {T,N}
         0))
 
     handle_ref = Ref{CUarray}()
-    cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    # destroying arrays is deferred until memory is reclaimed, so do so when running out
+    res = retry_reclaim(isequal(ERROR_OUT_OF_MEMORY)) do
+        unchecked_cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    end
+    res == SUCCESS || throw_api_error(res)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
     return ArrayMemory{T,N}(context(), ptr, dims)

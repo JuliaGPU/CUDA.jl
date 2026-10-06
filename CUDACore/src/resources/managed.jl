@@ -7,9 +7,10 @@
 mutable struct Managed{M}
   const mem::M
   const lock::ReentrantLock
-
-  # which stream is currently using the memory.
+  # which stream is currently using the memory, and in which context (which isn't known for
+  # the default streams).
   stream::CuStream
+  stream_ctx::CuContext
 
   # whether accessing this memory can cause implicit synchronization
   synchronizing::Bool
@@ -20,11 +21,16 @@ mutable struct Managed{M}
   # whether the memory has been captured in a way that would make the dirty bit unreliable
   captured::Bool
 
+  # whether the memory was allocated by CUDA.jl, as opposed to imported using `unsafe_wrap`.
+  # only such memory counts towards our memory usage.
+  const owned_allocation::Bool
+
   function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
-                   dirty = true, captured = false)
+                   dirty = true, captured = false, owned_allocation = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, ReentrantLock(), stream, synchronizing, dirty, captured)
+    new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, synchronizing, dirty, captured,
+                     owned_allocation)
   end
 end
 
@@ -33,7 +39,15 @@ Base.sizeof(managed::Managed) = sizeof(managed.mem)
 # wait for the current owner of memory to finish processing
 function synchronize(managed::Managed)
   Base.@lock managed.lock begin
-    synchronize(managed.stream)
+    # the default streams need to be synchronized in the context they were used in
+    context!(managed.stream_ctx) do
+      if on_per_thread_stream(managed.stream)
+        # that one is specific to the thread that used it, which isn't known
+        device_synchronize()
+      else
+        synchronize(managed.stream)
+      end
+    end
     managed.dirty = false
   end
 end
@@ -81,10 +95,12 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     #end
   end
 
-  # accessing memory on another stream: ensure the data is ready and take ownership
-  if managed.stream != stream
+  # accessing memory on another stream: ensure the data is ready and take ownership.
+  # (the default streams are specific to a context, so also check that.)
+  if managed.stream != stream || managed.stream_ctx != state.context
     maybe_synchronize(managed)
     managed.stream = stream
+    managed.stream_ctx = state.context
   end
 
   # prefetch unified memory as we're likely to use it on the GPU
@@ -137,3 +153,4 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
     return ptr
   end
 end
+

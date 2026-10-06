@@ -15,6 +15,23 @@ are listed as subsections of the minor release they belong to.
 
 ## v6.5 (unreleased)
 
+*Technically breaking changes*:
+
+- GPU resources are no longer released from finalizers, as many of the CUDA calls
+  that release them wait for all running kernels to finish, which could stall or
+  deadlock whichever thread the garbage collector runs on. Collected memory is now
+  released the next time CUDA.jl allocates memory or synchronizes, or within a
+  second, so `GC.gc()` by itself doesn't make it available anymore. Releases that
+  may wait for the GPU, like freeing host memory or unpinning memory, are deferred
+  until memory is reclaimed: on an out-of-memory error, or when calling
+  `CUDA.reclaim()`. Pinned arrays are kept alive until then.
+
+*New features*:
+
+- `CUDA.resource_finalizer` registers a finalizer that releases CUDA resources
+  on a regular task instead of from the garbage collector, for use by packages
+  that wrap objects of CUDA libraries.
+
 *Bug fixes*:
 
 - Indexing a `CuDeviceArray` with multiple indices checks every index against

@@ -90,6 +90,10 @@ end
     res == SUCCESS || throw_api_error(res)
     if ctx[] != state.context.handle
         activate(state.context)
+
+        # releasing memory may need a stream, which shouldn't be created only then (as
+        # creating a stream can block), so make sure it exists before using the context
+        disposal_stream(state.context)
     end
 
     return
@@ -146,6 +150,7 @@ function context!(ctx::CuContext)
             dev = current_device()
             state.device = dev
             state.context = ctx
+            disposal_stream(ctx)    # see `prepare_cuda_state`
         end
     end
 
@@ -242,6 +247,7 @@ function device!(dev::CuDevice, flags=nothing)
     else
         state.device = dev
         state.context = ctx
+        disposal_stream(ctx)        # see `prepare_cuda_state`
     end
     activate(ctx)
 

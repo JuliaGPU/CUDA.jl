@@ -989,18 +989,12 @@ gate_is_open() = unsafe_load(pointer(gate), :acquire) != 0
 # run `f` while a kernel on `stream` keeps the GPU busy until the gate is opened, returning
 # whether `f` succeeded and the gate was opened in time.
 function gated(f, stream)
-    # while the gate is closed, nothing on the host may wait for the GPU to become idle,
-    # as e.g. freeing memory does. so avoid running finalizers, by collecting beforehand
-    # and not collecting while the gate is closed.
-    GC.gc(true)
-    gc_enabled = GC.enable(false)
     ret = GC.@preserve gpu_gate try
         gate .= 0
         @cuda stream=stream gate_kernel(gate_ptr, timeout)
         f()
     finally
         open_gate()
-        GC.enable(gc_enabled)
         # also when `f` failed, as the gate is reused
         synchronize(stream)
     end
@@ -1058,6 +1052,122 @@ for s in (default_stream(), legacy_stream(), per_thread_stream())
     @test fetch(@async gated(s) do
         open_gate_during(() -> synchronize(s; spin=false))
     end)
+end
+
+# finalizers do not wait for the GPU, which they could when freeing memory, so collecting
+# garbage while the GPU is busy doesn't block the thread
+@noinline function make_garbage!(garbage)
+    # (in a function, as top-level code may keep temporaries alive)
+    garbage[] = vcat(
+        # memory allocated by CUDA.jl
+        [CuArray{Float32,1,M}(undef, 1024)
+         for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory) for _ in 1:10],
+        # registered host memory
+        [CUDA.pin(zeros(UInt8, 1 << 20)) for _ in 1:10],
+        [unsafe_wrap(CuArray{Float32,1,CUDA.HostMemory}, zeros(Float32, 1024)) for _ in 1:10],
+        # objects whose destruction waits for running kernels
+        [CuTextureArray{Float32,2}(undef, (64, 64)) for _ in 1:10],
+        [CuModule(".version 6.0\n.target sm_50\n.address_size 64\n.visible .entry k() { ret; }\n")
+         for _ in 1:10])
+    return map(WeakRef, garbage[])
+end
+let s = CuStream(), garbage = Ref{Any}()
+    weak = make_garbage!(garbage)
+    @test gated(s) do
+        garbage[] = nothing
+        GC.gc()
+        open_gate_during(() -> synchronize(s))
+    end
+    @test all(ref -> ref.value === nothing, weak)
+end
+
+# objects whose destruction doesn't wait for the GPU are destroyed right away
+# (constructed before closing the gate, as creating them may wait for the GPU)
+let s = CuStream(), link = CuLink(), texture = CuTexture(CuTextureArray(zeros(Float32, 16)))
+    add_file!(link, joinpath(@__DIR__, "ptx/vadd_child.ptx"), CUDA.JIT_INPUT_PTX)
+    add_data!(link, "vadd_parent", read(joinpath(@__DIR__, "ptx/vadd_parent.ptx"), String))
+    complete(link)
+    @test gated(s) do
+        finalize(link)
+        finalize(texture)
+        CUDA.pool_status(devnull)
+        !gate_is_open()
+    end
+    CUDA.reclaim()
+end
+
+# a capture that starts while reclaiming memory waits for the GPU fails instead of waiting
+let s = CuStream()
+    @test gated(s) do
+        reclaimer = @async CUDA.reclaim()
+        # (the task only yields once it waits for the GPU)
+        yield()
+        @test !istaskdone(reclaimer)
+        @test_throws ErrorException capture(() -> nothing)
+        open_gate()
+        wait(reclaimer)
+        istaskdone(reclaimer)
+    end
+end
+
+# memory last used on a stream that was destroyed explicitly is freed on a non-blocking
+# stream, as the legacy default stream would wait for unrelated work
+let old = CuStream(), blocked = CuStream(), opener = CuStream(),
+    a = CuArray{UInt8}(undef, 4096)
+    CUDA.stream!(() -> fill!(a, 0), old)
+    synchronize(old)
+    CUDA.unsafe_destroy!(old)
+    @test gated(blocked) do
+        unsafe_free!(a)
+        @cuda stream=opener noop_kernel()
+        synchronize(opener)
+        !gate_is_open()
+    end
+end
+
+# memory released after the stream it was last used on has been destroyed (as happens when
+# both are collected) is not reused before the work on that stream has finished, without
+# making work on other streams wait as well
+touch_kernel(a) = (@inbounds a[1] = 1; return)
+# (launched beforehand, as with --check-bounds=yes it can throw, and the first launch in a
+#  context of a kernel that prints waits for the GPU to become idle)
+let a = CuArray{UInt8,1,CUDA.HostMemory}(undef, 1)
+    @cuda touch_kernel(a)
+    synchronize()
+end
+for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory), stream_first in (true, false)
+    GC.gc(true)
+    s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    other = CuStream()
+    a = CuArray{UInt8,1,M}(undef, 4096)
+    ptr = UInt(pointer(a))
+    gate .= 0
+    @cuda stream=s gate_kernel(gate_ptr, timeout)
+    @cuda stream=s touch_kernel(a)
+    try
+        # finalizing the stream retires it, and querying the pool status releases it
+        if stream_first
+            finalize(s)
+            CUDA.pool_status(devnull)
+            CUDA.unsafe_free!(a)
+        else
+            CUDA.unsafe_free!(a)
+            finalize(s)
+            CUDA.pool_status(devnull)
+        end
+
+        # if the memory is reused, using it waits for the pending work
+        b = CuArray{UInt8,1,M}(undef, 4096)
+        @test UInt(pointer(b)) != ptr || !CUDA.isdone(stream())
+
+        # unrelated work doesn't
+        @cuda stream=other noop_kernel()
+        synchronize(other)
+    finally
+        open_gate()
+        device_synchronize()
+    end
+    @test gate[2] == 0
 end
 
 # a long wait does not delay other ones

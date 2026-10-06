@@ -7,6 +7,14 @@ function stream_ordered(dev::CuDevice)
   end::Bool
 end
 
+# whether memory can be freed in stream order, which is also supported for memory that wasn't
+# allocated from a pool
+function async_free_supported(dev::CuDevice)
+  @memoize index=deviceid(dev)+1 begin
+    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev)
+  end::Bool
+end
+
 function pool_create(dev::CuDevice)
   @memoize index=deviceid(dev)+1 begin
     limits = memory_limits()
@@ -77,9 +85,10 @@ function pool_cleanup()
       pool_mark!(dev, false)
 
       if idle_counters[i] == 5
-        # the pool hasn't been used for a while, so reclaim unused buffers
+        # the pool hasn't been used for a while, so release unused memory. (not using
+        # `reclaim`, which would release resources whose release may wait for the GPU)
         device!(dev) do
-          reclaim()
+          trim(pool_create(dev))
         end
       end
     end
