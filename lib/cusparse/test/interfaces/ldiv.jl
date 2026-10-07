@@ -1,11 +1,11 @@
 using cuSPARSE
 using LinearAlgebra, SparseArrays
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF64]
     m = 20
     nB = 2
 
-    @testset "ldiv $elty $triangle" for triangle in [LowerTriangular, UnitLowerTriangular, UpperTriangular, UnitUpperTriangular]
+    @testset "ldiv $elty $triangle" for triangle in [LowerTriangular, UnitUpperTriangular] # covers both uplo and both diag
         A  = rand(elty, m, m)
         A  = triangle in (UnitLowerTriangular, LowerTriangular) ? tril(A) : triu(A)
         A  = triangle in (UnitLowerTriangular, UnitUpperTriangular) ? A - Diagonal(A) + I : A
@@ -79,4 +79,23 @@ using LinearAlgebra, SparseArrays
             end
         end
     end
+end
+
+# the legacy BSR routines (bsrsv2/bsrsm2) have a separate wrapper per eltype,
+# so cover the eltypes not tested above
+@testset "BSR ldiv $elty" for elty in [Float64, ComplexF32]
+    m = 20
+    nB = 2
+    A  = sparse(tril(rand(elty, m, m)) + m*I)
+    dA = CuSparseMatrixBSR(A, 1)
+    z  = rand(elty, m)
+    dz = CuArray(z)
+    ldiv!(LowerTriangular(A), z)
+    ldiv!(LowerTriangular(dA), dz)
+    @test z ≈ collect(dz)
+    B  = rand(elty, m, nB)
+    dB = CuArray(B)
+    ldiv!(LowerTriangular(A), B)
+    ldiv!(LowerTriangular(dA), dB)
+    @test B ≈ collect(dB)
 end

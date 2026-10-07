@@ -2,14 +2,17 @@
     rng = cuRAND.NativeRNG()
     Random.seed!(rng)
 
+    # the host-side wrappers are generic, so a representative selection of element
+    # types and shapes (empty + non-empty) suffices
+    uniform_types = (Float16, Float32, ComplexF32, Int8, UInt128)
+    normal_types = (Float16, Float64, ComplexF32)
+    test_dims = (0, (2,2))
+
     ## in-place
 
     # uniform
-    for T in (Float16, Float32, Float64,
-              ComplexF16, ComplexF32, ComplexF64,
-              Int8, Int16, Int32, Int64, Int128,
-              UInt8, UInt16, UInt32, UInt64, UInt128),
-        dims = (0, 2, (2,2), (2,2,2))
+    for T in uniform_types,
+        dims = test_dims
         A = CuArray{T}(undef, dims)
         rand!(rng, A)
 
@@ -18,14 +21,13 @@
     end
 
     # normal
-    for T in (Float16, Float32, Float64,
-              ComplexF16, ComplexF32, ComplexF64),
-        dims = (0, 2, (2,2), (2,2,2))
+    for T in normal_types,
+        dims = test_dims
         A = CuArray{T}(undef, dims)
         randn!(rng, A)
 
         B = Array{T}(undef, dims)
-        CUDACore.@allowscalar rand!(rng, B)
+        CUDACore.@allowscalar randn!(rng, B)
     end
 
     ## out-of-place
@@ -35,12 +37,9 @@
         @test rand(rng) isa Number
         @test rand(rng, Float32) isa Float32
     end
-    for dims in (0, 2, (2,2), (2,2,2))
+    for dims in test_dims
         @test rand(rng, dims) isa CuArray
-        for T in (Float16, Float32, Float64,
-                  ComplexF16, ComplexF32, ComplexF64,
-                  Int8, Int16, Int32, Int64, Int128,
-                  UInt8, UInt16, UInt32, UInt64, UInt128)
+        for T in uniform_types
             @test rand(rng, T, dims) isa CuArray{T}
         end
     end
@@ -50,10 +49,9 @@
         @test randn(rng) isa Number
         @test randn(rng, Float32) isa Float32
     end
-    for dims in (0, 2, (2,2), (2,2,2))
+    for dims in test_dims
         @test randn(rng, dims) isa CuArray
-        for T in (Float16, Float32, Float64,
-                  ComplexF16, ComplexF32, ComplexF64)
+        for T in normal_types
             @test randn(rng, T, dims) isa CuArray{T}
         end
     end

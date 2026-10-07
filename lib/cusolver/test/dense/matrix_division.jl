@@ -4,10 +4,11 @@ using LinearAlgebra
 m = 15
 n = 10
 
-@testset "Matrix division $elty1 \\ $elty2" for elty1 in [
-    Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64, Int32, Int64, Complex{Int32}, Complex{Int64}
-], elty2 in [
-    Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64, Int32, Int64, Complex{Int32}, Complex{Int64}
+# `\` only branches on the shape of the system; promotion is handled generically, so a
+# handful of element type combinations (real/complex, float/integer, mixed) suffice.
+@testset "Matrix division $elty1 \\ $elty2" for (elty1, elty2) in [
+    (Float32, Float32), (ComplexF64, ComplexF64), (Float16, ComplexF32),
+    (Int64, Float32), (Complex{Int32}, Float64)
 ]
     @testset "Symmetric linear systems" begin
         A = rand(elty1, n, n)

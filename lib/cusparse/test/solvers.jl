@@ -1,5 +1,5 @@
 @testset "bsrsv2" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+    @testset for elty in [Float32, ComplexF64]
         @testset "bsrsv2!" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
@@ -74,7 +74,7 @@
 end
 
 @testset "bsrsm2" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+    @testset for elty in [Float32, ComplexF64]
         @testset "bsrsm2!" begin
             for unit_diag ∈ (false, true)
                 diag = unit_diag ? 'U' : 'N'
@@ -149,7 +149,7 @@ end
 end
 
 @testset "Triangular solves -- CuSparseMatrixBSR" begin
-    @testset "y = T \\ x -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
+    @testset "y = T \\ x -- $elty" for elty in (Float32, ComplexF64)
         for (trans, op) in (('N', identity), ('T', transpose), ('C', adjoint))
             for uplo in ('L', 'U')
                 for diag in ('N', 'U')
@@ -168,24 +168,24 @@ end
                 end
             end
         end
+    end
 
-        @testset "Y = T \\ X -- $elty" for elty in (Float32, Float64, ComplexF32, ComplexF64)
-            for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
-                for (transX, opX) in (('N', identity), ('T', transpose))
-                    for uplo in ('L', 'U')
-                        for diag in ('N', 'U')
-                            @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
-                                T = rand(elty,n,n)
-                                T = uplo == 'L' ? tril(T) : triu(T)
-                                T = diag == 'N' ? T : T - Diagonal(T) + I
-                                T = sparse(T)
-                                d_T = CuSparseMatrixBSR(CuSparseMatrixCSR(T), blockdim)
-                                X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
-                                d_X = CuMatrix{elty}(X)
-                                d_Y = cuSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
-                                Y = opT(T) \ opX(X)
-                                @test collect(d_Y) ≈ (transX == 'N' ? Y : transpose(Y))
-                            end
+    @testset "Y = T \\ X -- $elty" for elty in (Float32, ComplexF64)
+        for (transT, opT) in (('N', identity), ('T', transpose), ('C', adjoint))
+            for (transX, opX) in (('N', identity), ('T', transpose))
+                for uplo in ('L', 'U')
+                    for diag in ('N', 'U')
+                        @testset "transT = $transT | transX = $transX | uplo = $uplo | diag = $diag" begin
+                            T = rand(elty,n,n)
+                            T = uplo == 'L' ? tril(T) : triu(T)
+                            T = diag == 'N' ? T : T - Diagonal(T) + I
+                            T = sparse(T)
+                            d_T = CuSparseMatrixBSR(CuSparseMatrixCSR(T), blockdim)
+                            X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
+                            d_X = CuMatrix{elty}(X)
+                            d_Y = cuSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
+                            Y = opT(T) \ opX(X)
+                            @test collect(d_Y) ≈ (transX == 'N' ? Y : transpose(Y))
                         end
                     end
                 end

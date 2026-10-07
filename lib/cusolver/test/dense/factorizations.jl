@@ -21,7 +21,7 @@ n = 10
     @test dB ≈ dA
 end
 
-@testset "ormqr! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "ormqr! elty = $elty" for elty in [Float64, ComplexF32]
     @testset "side = $side" for side in ['L', 'R']
         @testset "trans = $trans" for (trans, op) in [('N', identity), ('T', transpose), ('C', adjoint)]
             (elty <: Complex) && (trans == 'T') && continue
@@ -42,7 +42,7 @@ end
             @test dC ≈ dD
 
             # blocked application of the reflectors (used for very tall matrices)
-            for blocksize in (1, 3, 4)
+            for blocksize in (1, 3)
                 dC = CuArray(C)
                 cuSOLVER.ormqr!(side, trans, dA, dτ, dC; blocksize)
                 @test dC ≈ dD
@@ -56,7 +56,7 @@ end
     end
 end
 
-@testset "getrf! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "getrf! elty = $elty" for elty in [Float64, ComplexF32]
     A = rand(elty, m, n)
     d_A = CuArray(A)
     d_A, d_ipiv, info = cuSOLVER.getrf!(d_A)
@@ -76,7 +76,7 @@ end
     @test_throws LinearAlgebra.SingularException LinearAlgebra.checknonsingular(info)
 end
 
-@testset "getrs! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "getrs! elty = $elty" for elty in [Float64, ComplexF32]
     A      = rand(elty, n, n)
     d_A    = CuArray(A)
     d_A, d_ipiv = cuSOLVER.getrf!(d_A)
@@ -98,7 +98,7 @@ end
     @test_throws DimensionMismatch cuSOLVER.getrs!('N', d_A, d_ipiv, d_B)
 end
 
-@testset "sytrf! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "sytrf! elty = $elty" for elty in [Float64, ComplexF32]
     A = rand(elty, n, n)
     A = A + A' #symmetric
     d_A = CuArray(A)

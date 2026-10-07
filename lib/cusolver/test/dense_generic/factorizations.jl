@@ -6,7 +6,7 @@ n = 10
 p = 5
 
 if cuSOLVER.version() >= v"11"
-@testset "trtri! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "trtri! elty = $elty" for elty in [Float64, ComplexF32]
     for uplo in ('L', 'U')
         for diag in ('N', 'U')
             A = rand(elty, n, n)
@@ -20,7 +20,7 @@ if cuSOLVER.version() >= v"11"
     end
 end
 
-@testset "potrf! -- potrs! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "potrf! -- potrs! elty = $elty" for elty in [Float64, ComplexF32]
     for uplo in ('L', 'U')
         A    = rand(elty, n, n)
         A    = A*A' + I
@@ -36,7 +36,7 @@ end
     end
 end
 
-@testset "getrf! -- getrs! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "getrf! -- getrs! elty = $elty" for elty in [Float64, ComplexF32]
     for trans in ('N', 'T', 'C')
         A   = rand(elty, n, n)
         B   = rand(elty, n, p)
@@ -51,7 +51,7 @@ end
     end
 end
 
-@testset "geqrf! -- orgqr! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "geqrf! -- orgqr! elty = $elty" for elty in [Float64, ComplexF32]
     A = rand(elty, m, n)
     d_A = CuMatrix(A)
     d_A, tau = cuSOLVER.Xgeqrf!(d_A)
@@ -60,9 +60,8 @@ end
 end
 
 if cuSOLVER.version() >= v"11.6.0"
-    @testset "larft! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        @testset "direct = $direct" for direct in ('F', 'B')
-            direct == 'B' && continue
+    @testset "larft! elty = $elty" for elty in [Float64, ComplexF32]
+        @testset "direct = $direct" for direct in ('F',)
             A = rand(elty, m, n)
             t = rand(elty, n, n)
 
@@ -87,7 +86,7 @@ if cuSOLVER.version() >= v"11.6.0"
     end
 end
 
-@testset "sytrs! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "sytrs! elty = $elty" for elty in [Float64, ComplexF32]
     @testset "uplo = $uplo" for uplo in ('L', 'U')
         @testset "pivoting = $pivoting" for pivoting in (false, true)
             !pivoting && (cuSOLVER.version() < v"11.7.2") && continue

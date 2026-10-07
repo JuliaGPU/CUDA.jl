@@ -1,7 +1,7 @@
 using cuBLAS
 using LinearAlgebra
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF32]
     m = 20
     n = 35
 
@@ -56,8 +56,8 @@ using LinearAlgebra
     end
 
     @testset "CuMatrix -- A ± B" begin
-        for opa in (identity, transpose, adjoint),
-            opb in (identity, transpose, adjoint)
+        ops = elty <: Complex ? (identity, transpose, adjoint) : (identity, adjoint)
+        for opa in ops, opb in ops
 
             p, q = 10, 20
             A = opa == identity ? rand(elty, p, q) : rand(elty, q, p)
@@ -75,7 +75,7 @@ using LinearAlgebra
         @test_throws DimensionMismatch CuMatrix(rand(elty, 10, 1)) - CuMatrix(rand(elty, 3, 1))
     end
 
-    @testset "diagm" begin
+    elty == Float32 && @testset "diagm" begin
         A = rand(elty, m)
         B = rand(elty, n)
         d_A = CuArray(A)
@@ -92,4 +92,13 @@ using LinearAlgebra
         diagA = diagm(m, m, d_A)
         @test A ≈ Array(diagA[diagind(diagA, 0)])
     end
+end
+
+# per-eltype cuBLAS wrappers for the eltypes not covered by the loop above
+@testset "geam wrappers ($elty)" for elty in [Float64, ComplexF64]
+    alpha = rand(elty)
+    beta = rand(elty)
+    A = rand(elty, 20, 35)
+    B = rand(elty, 20, 35)
+    @test Array(cuBLAS.geam('N', 'N', alpha, CuArray(A), beta, CuArray(B))) ≈ alpha * A + beta * B
 end

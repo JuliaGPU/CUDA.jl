@@ -16,7 +16,7 @@ n = 35
 k = 13
 
 @testset "cublasXt" begin
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset for elty in [Float32, ComplexF32]
         @testset "xt_trmm! gpu" begin
             alpha = rand(elty)
             A = triu(rand(elty, m, m))
@@ -527,20 +527,32 @@ k = 13
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end
+        end
+    end
 
-            @testset "her2k" begin
-                A = rand(elty,m,k)
-                B = rand(elty,m,k)
-                d_A = CuArray(A)
-                d_B = CuArray(B)
-                C = A*B' + B*A'
-                d_C = cuBLAS.her2k('U','N',d_A,d_B)
-                # move back to host and compare
-                C = triu(C)
-                h_C = Array(d_C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
+    # per-eltype cublasXt wrappers for the eltypes not covered by the loop above
+    @testset "xt wrappers ($elty)" for elty in [Float64, ComplexF64]
+        alpha = rand(elty)
+        A = rand(elty, m, k)
+        B = rand(elty, k, n)
+        @test cuBLAS.xt_gemm('N', 'N', A, B) ≈ A * B
+        tA = triu(rand(elty, m, m)) + m * I
+        sB = rand(elty, m, n)
+        @test cuBLAS.xt_trmm('L', 'U', 'N', 'N', alpha, copy(tA), copy(sB)) ≈ alpha * tA * sB
+        @test cuBLAS.xt_trsm('L', 'U', 'N', 'N', alpha, copy(tA), copy(sB)) ≈ alpha * (tA \ sB)
+        sA = rand(elty, m, m)
+        sA = sA + transpose(sA)
+        @test cuBLAS.xt_symm('L', 'U', copy(sA), copy(sB)) ≈ sA * sB
+        A2 = rand(elty, n, k)
+        B2 = rand(elty, n, k)
+        @test triu(cuBLAS.xt_syrk('U', 'N', copy(A2))) ≈ triu(A2 * transpose(A2))
+        @test triu(cuBLAS.xt_syrkx('U', 'N', A2, B2)) ≈ triu(A2 * transpose(B2))
+        if elty <: Complex
+            hA = rand(elty, m, m)
+            hA = hA + hA'
+            @test cuBLAS.xt_hemm('L', 'U', copy(hA), copy(sB)) ≈ hA * sB
+            @test triu(cuBLAS.xt_herk('U', 'N', copy(A2))) ≈ triu(A2 * A2')
+            @test triu(cuBLAS.xt_her2k('U', 'N', A2, B2)) ≈ triu(A2 * B2' + B2 * A2')
         end
     end
 end

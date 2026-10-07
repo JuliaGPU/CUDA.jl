@@ -1,7 +1,9 @@
 n = 8
 m = 16
 @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    @testset "Simple serial" begin
+    # Float32 and ComplexF64 cover both compute types (real(T) == Float32/Float64),
+    # so only test the expensive contractions and gate splits for those
+    elty in (Float32, ComplexF64) && @testset "Simple serial" begin
         modesA = ['m', 'h', 'k', 'n']
         modesB = ['u', 'k', 'h']
         modesC = ['x', 'u', 'y']
@@ -27,25 +29,27 @@ m = 16
         aligns_in = UInt32.([256, 256, 256])
         aligns_out = UInt32(256)
         ctn = CuTensorNetwork(elty, modes_in, extents_in, [C_NULL, C_NULL, C_NULL], Int32[0, 0, 0], Int32.(modesD), extentsD, C_NULL)
+        # CPU reference
+        hA = collect(A)
+        hB = collect(B)
+        hC = collect(C)
+        hD = zeros(elty, extentsD...)
+        for ym in 1:extent['y'], xm in 1:extent['x'], nm in 1:extent['n'], mm in 1:extent['m']
+            s = zero(elty)
+            for hm in 1:extent['h'], km in 1:extent['k'], um in 1:extent['u']
+                s += hA[mm, hm, km, nm] * hB[um, km, hm] * hC[xm, um, ym]
+            end
+            hD[mm, xm, nm, ym] = s
+        end
         @testset for max_ws_size in [2^28]
-            @testset for tuning in [NoAutoTune(), AutoTune()]
+            # autotuning doesn't depend on the element type, so only test it once
+            @testset for tuning in (elty == Float32 ? [NoAutoTune(), AutoTune()] : [NoAutoTune()])
                 ctn.input_arrs = raw_data_in
                 info = rehearse_contraction(ctn, max_ws_size)
                 ctn.output_arr = CUDACore.zeros(elty, extentsD...)
                 ctn = perform_contraction!(ctn, info, tuning)
                 @test size(ctn.output_arr) == tuple(extentsD...)
-                hA = collect(A)
-                hB = collect(B)
-                hC = collect(C)
                 # verify contraction result against CPU reference
-                hD = zeros(elty, extentsD...)
-                for ym in 1:extent['y'], xm in 1:extent['x'], nm in 1:extent['n'], mm in 1:extent['m']
-                    s = zero(elty)
-                    for hm in 1:extent['h'], km in 1:extent['k'], um in 1:extent['u']
-                        s += hA[mm, hm, km, nm] * hB[um, km, hm] * hC[xm, um, ym]
-                    end
-                    hD[mm, xm, nm, ym] = s
-                end
                 D = collect(ctn.output_arr)
                 @test D ≈ hD
             end
@@ -76,7 +80,7 @@ m = 16
         @test cuTensorNet.rel_cutoff(config) == 0.0
         @test cuTensorNet.normalization(config) == cuTensorNet.CUTENSORNET_TENSOR_SVD_NORMALIZATION_NONE
     end
-    @testset "GateSplit" begin
+    elty in (Float32, ComplexF64) && @testset "GateSplit" begin
         a = 16
         b = 16
         c = 16

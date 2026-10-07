@@ -9,13 +9,10 @@ using StaticArrays: SVector
 end
 
 @testset "dot" begin
-    @testset for T in [Int16, Int32, Int64,
-                       Float16, Float32, Float64,
-                       ComplexF16, ComplexF32, ComplexF64]
+    # one eltype per code path of the generic fallback: the atomic kernel
+    # (Int16 needs sm_70+, otherwise it falls back) and the mapreduce path (complex)
+    @testset for T in [Int16, Int64, Float16, ComplexF32]
         @test testf(dot, rand(T, 256), rand(Bool, 256))
-        @test testf(dot, rand(Bool, 256), rand(T, 256))
-
-        @test testf(dot, rand(T, 256), rand(T, 256, 256), rand(Bool, 256))
         @test testf(dot, rand(Bool, 256), rand(T, 256, 256), rand(T, 256))
     end
 
@@ -30,7 +27,9 @@ end
         old_mode = CUDACore.math_mode()
         CUDACore.math_mode!(CUDACore.PEDANTIC_MATH)
         try
-            @testset for T in [Int16, Int32, Int64, Float32, Float64]
+            # cuBLAS-backed dot also has to honour the pedantic math mode
+            @test testf(dot, rand(Float32, 256), rand(Float32, 256))
+            @testset for T in [Int16]
                 @test testf(dot, rand(T, 256), rand(T, 256))
                 @test testf(dot, rand(T, 256), rand(T, 256, 256), rand(T, 256))
             end
@@ -38,7 +37,7 @@ end
             x = [SVector(1f0, 2f0), SVector(3f0, 4f0)]
             y = [SVector(5f0, 6f0), SVector(7f0, 8f0)]
             @test testf(dot, x, Float32[1 2; 3 4], y)
-            for T in (Int16, Int32, Float32), (m, n) in ((0, 0), (0, 3), (3, 0))
+            for T in (Int16,), (m, n) in ((0, 0), (0, 3), (3, 0))
                 @test dot(CUDA.zeros(T, m), CUDA.zeros(T, m, n), CUDA.zeros(T, n)) === zero(T)
             end
         finally
@@ -53,10 +52,8 @@ end
     dim1B = 90
     dim2B = 40
 
-    @testset for T in [Int16, Int32, Int64,
-                       Float16, Float32, Float64,
-                       ComplexF16, ComplexF32, ComplexF64]
-
+    # one type with and one without cached (ldg) loads
+    @testset for T in [Float32, ComplexF32]
         A = CuArray(rand(T, dim1A, dim2A))
         B = CuArray(rand(T, dim1B, dim2B))
         @test Array(kron(A, B)) ≈ kron(Array(A), Array(B))

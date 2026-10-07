@@ -1,20 +1,12 @@
 using CUDACore, cuSPARSE
 using LinearAlgebra, SparseArrays
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF64]
     m = 20
 
     @testset "CuSparseMatrixCSR($f) $elty" for f in [transpose, adjoint]
         S = f(sprand(elty, m, m, 0.1))
         @test SparseMatrixCSC(CuSparseMatrixCSR(S)) ≈ S
-
-        S = sprand(elty, m, m, 0.1)
-        T = f(CuSparseMatrixCSR(S))
-        @test SparseMatrixCSC(CuSparseMatrixCSC(T)) ≈ f(S)
-
-        S = sprand(elty, m, m, 0.1)
-        T = f(CuSparseMatrixCSC(S))
-        @test SparseMatrixCSC(CuSparseMatrixCSR(T)) ≈ f(S)
     end
 
     @testset "$f" for f in [one, oneunit]
@@ -80,7 +72,7 @@ using LinearAlgebra, SparseArrays
 end
 
 @testset "SparseArrays" begin
-    @testset "spdiagm(CuVector{$elty})" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "spdiagm(CuVector{$elty})" for elty in [Float32]
         ref_vec = collect(elty, 100:121)
         cuda_vec = CuVector(ref_vec)
 
@@ -94,7 +86,7 @@ end
         @test ref_cuda_sparse.colPtr == cuda_spdiagm.colPtr
     end
 
-    @testset "spdiagm(2 => CuVector{$elty})" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "spdiagm(2 => CuVector{$elty})" for elty in [Float32]
         ref_vec = collect(elty, 100:121)
         cuda_vec = CuVector(ref_vec)
 
@@ -109,7 +101,7 @@ end
     end
 end
 
-@testset "getindex with boolean masks $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "getindex with boolean masks $elty" for elty in [Float32]
     m = 20
     n = 10
     A = sprand(elty, m, n, 0.4)

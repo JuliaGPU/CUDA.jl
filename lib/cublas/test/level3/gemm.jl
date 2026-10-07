@@ -16,9 +16,11 @@ n = 35
 k = 13
 
 @testset "level 3" begin
-    @testset for elty in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+    @testset for elty in [Float16, Float32, ComplexF32]
+        # Int-typed alpha/beta only needs to be checked for one eltype
+        Tss = elty == Float32 ? (Int, elty) : (elty,)
 
-        @testset "mul! C = $f(A) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+        @testset "mul! C = $f(A) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in Tss
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
             dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
             mul!(dC, f(dA), g(dB), Ts(1), Ts(2))
@@ -26,7 +28,8 @@ k = 13
             @test Array(dC) ≈ C
         end
 
-        @testset "mul! C = $f(A) * $f($g(B)) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+        # nested wrappers only differ from the above for complex eltypes
+        elty <: Complex && @testset "mul! C = $f(A) * $f($g(B)) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in Tss
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
             dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
             mul!(dC, f(dA), f(g(dB)), Ts(1), Ts(2))
@@ -34,7 +37,7 @@ k = 13
             @test Array(dC) ≈ C
         end
 
-        @testset "mul! C = $g($f(A)) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
+        elty <: Complex && @testset "mul! C = $g($f(A)) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in Tss
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
             dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
             mul!(dC, g(f(dA)), g(dB), Ts(1), Ts(2))
@@ -204,7 +207,7 @@ k = 13
             end
         end
     end
-    @testset "elty = $elty" for elty in [Float16, Float32, Float64, ComplexF32, ComplexF64]
+    @testset "elty = $elty" for elty in [Float16, ComplexF32]
         elty == Float16 && capability(device()) < v"5.3" && continue
 
         alpha = rand(elty)
@@ -352,8 +355,42 @@ k = 13
         end
     end
 
+    # per-eltype cuBLAS wrappers for the eltypes not covered by the loops above
+    @testset "level 3 wrappers ($elty)" for elty in [Float64, ComplexF64]
+        A = rand(elty, m, k)
+        B = rand(elty, k, n)
+        C = rand(elty, m, n)
+        d_C = CuArray(C)
+        cuBLAS.gemm!('N', 'N', one(elty), CuArray(A), CuArray(B), one(elty), d_C)
+        @test Array(d_C) ≈ A * B + C
+        sA = rand(elty, m, m)
+        sA = sA + transpose(sA)
+        B2 = rand(elty, m, n)
+        @test Array(cuBLAS.symm('L', 'U', CuArray(sA), CuArray(B2))) ≈ sA * B2
+        if elty <: Complex
+            hA = rand(elty, m, m)
+            hA = hA + hA'
+            @test Array(cuBLAS.hemm('L', 'U', CuArray(hA), CuArray(B2))) ≈ hA * B2
+        end
+    end
+    @testset "batched wrappers ($elty)" for elty in [Float32, Float64, ComplexF64]
+        bA = [rand(elty, m, k) for _ in 1:2]
+        bB = [rand(elty, k, n) for _ in 1:2]
+        bd_C = cuBLAS.gemm_batched('N', 'N', CuArray{elty, 2}[CuArray(a) for a in bA],
+                                   CuArray{elty, 2}[CuArray(b) for b in bB])
+        for i in 1:2
+            @test Array(bd_C[i]) ≈ bA[i] * bB[i]
+        end
+        sA = rand(elty, m, k, 2)
+        sB = rand(elty, k, n, 2)
+        sd_C = Array(cuBLAS.gemm_strided_batched('N', 'N', CuArray(sA), CuArray(sB)))
+        for i in 1:2
+            @test sd_C[:, :, i] ≈ sA[:, :, i] * sB[:, :, i]
+        end
+    end
+
     if cuBLAS.version() >= v"12.4.2"
-        @testset "elty = $elty" for elty in [Float32, Float64]
+        @testset "elty = $elty" for elty in [Float32]
             num_groups = 10
             group_sizes = collect(1:num_groups)
             transA = ['N' for i in 1:num_groups]
@@ -397,7 +434,7 @@ k = 13
 
     # Group size hardcoded to one
     if cuBLAS.version() >= v"12.4.2"
-        @testset "elty = $elty" for elty in [Float32, Float64]
+        @testset "elty = $elty" for elty in [Float64]
 
             transA = ['N' for i in 1:10]
             transB = ['N' for i in 1:10]

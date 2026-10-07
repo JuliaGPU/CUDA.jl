@@ -24,9 +24,10 @@ n = 10
     end
 end
 
+# `svd` is exercised below as well, so only loop over `svd!`
 @testset "$svd_f with $alg algorithm, elty = $elty" for
-    elty in [Float32, Float64, ComplexF32, ComplexF64],
-    svd_f in (svd, svd!),
+    elty in [Float64, ComplexF32],
+    svd_f in (svd!,),
     alg in (cuSOLVER.QRAlgorithm(), cuSOLVER.JacobiAlgorithm()),
     (_m, _n) in ((m, n), (n, m))
 
@@ -59,8 +60,8 @@ let
 end
 
 @testset "batched $svd_f with $alg algorithm, elty = $elty" for
-    elty in [Float32, Float64, ComplexF32, ComplexF64],
-    svd_f in (svd, svd!),
+    elty in [Float64, ComplexF32],
+    svd_f in (svd!,),  # `svd` is exercised by the error-path tests
     alg in (cuSOLVER.JacobiAlgorithm(), cuSOLVER.ApproximateAlgorithm()),
     (_m, _n, _b) in ((m, n, n), (n, m, n), (33, 33, 1))
 
@@ -73,11 +74,12 @@ end
         h_S            = collect(d_S)
         h_U            = collect(d_U)
         h_V            = collect(d_V)
+        h_svdvals      = collect(svdvals(d_A; alg=alg))
         for i=1:_b
             U, S, V = svd(A[:,:,i]; full=true)
             @test abs.(h_U[:,:,i]'*h_U[:,:,i]) ≈ I
             @test abs.(h_U[:,1:min(_m,_n),i]'U[:,1:min(_m,_n)]) ≈ I
-            @test collect(svdvals(d_A; alg=alg))[:,i] ≈ svdvals(A[:,:,i])
+            @test h_svdvals[:,i] ≈ svdvals(A[:,:,i])
             @test abs.(h_V[:,:,i]'*h_V[:,:,i]) ≈ I
             @test collect(d_U[:,:,i]'*d_A[:,:,i]*d_V[:,:,i])[1:r,1:r] ≈ (U'*A[:,:,i]*V)[1:r,1:r]
         end
@@ -86,8 +88,19 @@ end
     end
 end
 
+# the tests above use one real and one complex element type; exercise the remaining
+# element types' ccall wrappers with a minimal check each.
+@testset "remaining wrappers elty = $elty" for elty in [Float32, ComplexF64]
+    A = rand(elty, m, n)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.JacobiAlgorithm())) ≈ svdvals(A)
+    A = rand(elty, n, n, 2)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.JacobiAlgorithm()))[:, 2] ≈ svdvals(A[:, :, 2])
+    A = rand(elty, m, n, 2)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.ApproximateAlgorithm()))[:, 2] ≈ svdvals(A[:, :, 2])
+end
+
 @testset "2-opnorm($sz x $elty)" for
-    elty in [Float32, Float64, ComplexF32, ComplexF64],
+    elty in [Float64],
     sz in [(2, 0), (2, 3)]
 
     A = rand(elty, sz)
@@ -95,7 +108,7 @@ end
     @test opnorm(A, 2) ≈ opnorm(d_A, 2)
 end
 
-@testset "Promotion from elty = $elty" for elty in [Float16, ComplexF16, Int32, Int64, Complex{Int32}, Complex{Int64}]
+@testset "Promotion from elty = $elty" for elty in [Float16, Complex{Int32}]
     @testset "svd with $alg algorithm" for
         alg in (cuSOLVER.QRAlgorithm(), cuSOLVER.JacobiAlgorithm()),
         (_m, _n) in ((m, n), (n, m))

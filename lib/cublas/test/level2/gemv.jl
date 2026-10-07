@@ -1,9 +1,7 @@
 using cuBLAS
 using LinearAlgebra
 
-using StaticArrays
-
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF32]
     m = 20
     n = 35
 
@@ -110,7 +108,7 @@ using StaticArrays
     end
 
     @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint),
-                                                            Ts in (Int, elty)
+                                                            Ts in (elty == Float32 ? (Int, elty) : (elty,))
         y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
         dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
         mul!(dy, f(dA), dx, Ts(1), Ts(2))
@@ -134,8 +132,29 @@ end
     end
 end
 
-@testset "StaticArray eltype" begin
-    A = CuArray(rand(SVector{2, Float64}, 3, 3))
-    B = CuArray(rand(Float64, 3, 1))
-    @test Array(A * B) ≈ Array(A) * Array(B)
+# per-eltype cuBLAS wrappers for the eltypes not covered by the loop above
+@testset "level 2 wrappers ($elty)" for elty in [Float64, ComplexF64]
+    m, n = 20, 35
+    A = rand(elty, n, m)
+    x = rand(elty, m)
+    @test Array(cuBLAS.gemv('N', CuArray(A), CuArray(x))) ≈ A * x
+    if cuBLAS.version() >= v"11.9.2"
+        As = [rand(elty, n, m) for _ in 1:2]
+        xs = [rand(elty, m) for _ in 1:2]
+        dys = CuArray{elty, 1}[CUDACore.zeros(elty, n) for _ in 1:2]
+        cuBLAS.gemv_batched!('N', one(elty), CuArray{elty, 2}[CuArray(a) for a in As],
+                             CuArray{elty, 1}[CuArray(v) for v in xs], zero(elty), dys)
+        for i in 1:2
+            @test Array(dys[i]) ≈ As[i] * xs[i]
+        end
+        A3 = rand(elty, n, m, 2)
+        X = rand(elty, m, 2)
+        dY = CUDACore.zeros(elty, n, 2)
+        cuBLAS.gemv_strided_batched!('N', one(elty), CuArray(A3), CuArray(X), zero(elty), dY)
+        for i in 1:2
+            @test Array(dY)[:, i] ≈ A3[:, :, i] * X[:, i]
+        end
+    end
 end
+
+# the StaticArray-eltype fallback is tested in extensions.jl

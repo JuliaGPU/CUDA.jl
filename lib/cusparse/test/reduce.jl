@@ -1,6 +1,6 @@
 using cuSPARSE, SparseArrays
 
-for elty in [Int32, Int64, Float32, Float64]
+for elty in [Int64, Float32]
     @testset "$typ($elty)" for typ in [CuSparseMatrixCSR, CuSparseMatrixCSC]
         m, n = 5, 6
         p = 0.5

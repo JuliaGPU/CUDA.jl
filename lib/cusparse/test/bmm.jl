@@ -6,7 +6,7 @@ using SparseArrays
 # batched SpMM (`bmm!`) requires cuSPARSE 11.7.2
 if cuSPARSE.version() >= v"11.7.2"
 
-@testset "Sparse-Dense $elty bmm!" for elty in (Float64, Float32, ComplexF64, ComplexF32)
+@testset "Sparse-Dense $elty bmm!" for elty in (Float32, ComplexF64)
     m = 5
     n = 15
     # error when n == 1 and batchsize > 1 as cusparseSpMM fallsback to cusparseSpMV,
@@ -136,7 +136,7 @@ if cuSPARSE.version() >= v"11.7.2"
     end
 end
 
-@testset "Sparse-Dense $elty bmm! for small matrices" for elty in (Float64, Float32, ComplexF64, ComplexF32)
+@testset "Sparse-Dense $elty bmm! for small matrices" for elty in (Float32, ComplexF64)
     # check if #2296 returns
     m = 1
     n = 2

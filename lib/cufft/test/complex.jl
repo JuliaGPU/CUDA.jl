@@ -66,23 +66,11 @@ end
 
 @testset for T in [ComplexF16, ComplexF32, ComplexF64]
 
-@testset "simple" begin
-    @testset "$(n)D" for n = 1:3
-        # Float16 FFTs must have a length that is a power of 2
-        sz = T == ComplexF16 ? 32 : 40
-        dims = ntuple(i -> sz, n)
-        @test testf(fft!, rand(T, dims))
-        @test testf(ifft!, rand(T, dims))
-
-        @test testf(fft, rand(T, dims))
-        @test testf(ifft, rand(T, dims))
-    end
-end
-
 @testset "1D" begin
     dims = (N1,)
     X = rand(T, dims)
     out_of_place(X)
+    @test testf(fft, X)
 end
 @testset "1D inplace" begin
     dims = (N1,)
@@ -101,20 +89,6 @@ end
     in_place(X)
 end
 
-@testset "Batch 1D" begin
-    dims = (N1,N2)
-    X = rand(T, dims)
-    batched(X,1)
-
-    dims = (N1,N2)
-    X = rand(T, dims)
-    batched(X,2)
-
-    dims = (N1,N2)
-    X = rand(T, dims)
-    batched(X,(1,2))
-end
-
 @testset "3D" begin
     dims = (N1,N2,N3)
     X = rand(T, dims)
@@ -127,9 +101,20 @@ end
     in_place(X)
 end
 
+# The batched tests below exercise the region/batching logic, which does not depend on
+# the precision, so they are only run for a subset of the element types, and only for
+# a selection of regions that cover the different code paths.
+if T != ComplexF64
+
+@testset "Batch 1D" begin
+    dims = (N1,N2)
+    X = rand(T, dims)
+    batched(X,1)
+end
+
 @testset "Batch 2D (in 3D)" begin
     dims = (N1,N2,N3)
-    for region in [(1,2),(2,3),(1,3),(3,1)]
+    for region in [(2,3),(3,1)]
         X = rand(T, dims)
         batched(X,region)
     end
@@ -137,31 +122,15 @@ end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,3),(3,),(2,),(2,3)]
+    for region in [(1,3),(2,)]
         X = rand(T, dims)
         batched(X,region)
-    end
-
-    for region in [(1,4),(2,4),(3,4)]
-        X = rand(T, dims)
-        if T <: ComplexF16
-            # cuFFT half-precision transforms require all transform dim sizes
-            # to be powers of 2; N4=9 violates that.
-            @test_throws ArgumentError batched(X, region)
-        else
-            batched(X,region)
-        end
     end
 end
 
 @testset "Batch 3D (in 5D)" begin
     dims = (N1,N2,N3,N4,N5)
-    for region in [(1,2,3),(2,3,5)]
-        X = rand(T, dims)
-        batched(X,region)
-    end
-
-    for region in [(1,2,4),(2,3,4),(3,4,5)]
+    for region in [(1,2,4)]
         X = rand(T, dims)
         if T <: ComplexF16
             # cuFFT half-precision transforms require all transform dim sizes
@@ -171,6 +140,8 @@ end
             batched(X,region)
         end
     end
+end
+
 end
 
 end

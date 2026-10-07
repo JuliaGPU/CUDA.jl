@@ -4,7 +4,7 @@ using LinearAlgebra
 m = 15
 n = 10
 
-@testset "inv elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "inv elty = $elty" for elty in [Float64, ComplexF32]
     @testset "unsymmetric" begin
         A = rand(elty, n, n)
         dA = CuArray(A)
@@ -25,7 +25,8 @@ n = 10
             @test Array(dI) ≈ I
         end
 
-        @testset "triangular" begin
+        # the triangular methods are generic over the element type: test them for one
+        elty == Float64 && @testset "triangular" begin
             for (triangle, uplo, diag) in ((LowerTriangular, 'L', 'N'), (UnitLowerTriangular, 'L', 'U'),
                                            (UpperTriangular, 'U', 'N'), (UnitUpperTriangular, 'U', 'U'))
                 A = rand(elty, n, n)
@@ -40,7 +41,7 @@ n = 10
     end
 end
 
-@testset "lu elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "lu elty = $elty" for elty in [Float64, ComplexF32]
     A = CuArray(rand(elty, m, m))
     F = lu(A)
     @test F.L*F.U ≈ A[F.p, :]
@@ -48,7 +49,7 @@ end
     @test_throws LinearAlgebra.SingularException lu(CUDACore.zeros(elty, n, n))
 end
 
-@testset "lu ldiv! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "lu ldiv! elty = $elty" for elty in [Float64, ComplexF32]
     A = rand(elty, m, m)
     B = rand(elty, m, m)
     A_d = CuArray(A)

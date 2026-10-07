@@ -1,7 +1,7 @@
 using cuSPARSE
 using LinearAlgebra, SparseArrays
 
-@testset "T = $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "T = $T" for T in [Float32, ComplexF64]
     m = 10
     A  = sprand(T, m, m, 0.2)
     B  = sprand(T, m, m, 0.3)
@@ -28,11 +28,11 @@ using LinearAlgebra, SparseArrays
             @test Array(tril(dA, 1)) ≈ tril(A, 1)
             @test Array(exp(dA)) ≈ exp(collect(A))
         end
-        @testset "kronecker product opa = $opa, opb = $opb" for opa in (identity, transpose, adjoint), opb in (identity, transpose, adjoint)
-            if !(opa == transpose && opb == adjoint) && !(opa == adjoint && opb == transpose)
-                @test collect(kron(opa(dA), opb(dB)))  ≈ kron(opa(A), opb(B))
-                @test collect(kron(opa(dZA), opb(dB))) ≈ kron(opa(ZA), opb(B))
-            end
+        # only the matching (opa, opb) pairs: the mixed ones go through the same code
+        @testset "kronecker product opa = opb = $opa" for opa in (identity, transpose, adjoint)
+            opb = opa
+            @test collect(kron(opa(dA), opb(dB)))  ≈ kron(opa(A), opb(B))
+            @test collect(kron(opa(dZA), opb(dB))) ≈ kron(opa(ZA), opb(B))
         end
         @testset "kronecker product with I opa = $opa" for opa in (identity, transpose, adjoint)
             @test collect(kron(opa(dA), C)) ≈ kron(opa(A), C)
@@ -45,7 +45,7 @@ end
 
 @testset "diag, Diagonal and tr for $typ and $elty" for
     typ in [CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO],
-    elty in [Float32, Float64, ComplexF32, ComplexF64]
+    elty in [Float32, ComplexF64]
 
     for (m, n) in [(10, 10), (6, 13), (13, 6)]
         a = sprand(elty, m, n, 0.3)
@@ -85,6 +85,8 @@ end
     @test Array(diag(A, -5)) ≈ diag(Matrix(a), -5)
 
     # offsets of any Integer type behave like the equivalent Int
+    # (each offset type compiles new code, so only check one format)
+    if typ === CuSparseMatrixCOO
     @test Array(diag(A, UInt(2))) ≈ diag(Matrix(a), 2)
     @test Array(diag(A, Int8(-2))) ≈ diag(Matrix(a), -2)
     @test Array(diag(A, big(1))) ≈ diag(Matrix(a), 1)
@@ -98,6 +100,7 @@ end
     B = typ(b)
     @test Array(diag(transpose(B), Int8(-128))) ≈ diag(Matrix(transpose(b)), -128)
     @test Array(diag(adjoint(B), Int8(-128))) ≈ diag(Matrix(adjoint(b)), -128)
+    end
 
     # duplicate entries are permitted and sum (see `sum_duplicate`); the CPU
     # `sparse` constructor sums them too, so it provides the reference
@@ -138,7 +141,7 @@ end
 end
 
 @testset "Generalized dot product for $typ and $elty" for
-    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC], elty in [Int64, Float32, Float64, ComplexF64]
+    typ in [CuSparseMatrixCSR, CuSparseMatrixCSC], elty in [Int64, ComplexF64]
 
     N1 = 100*2
     N2 = 100*3

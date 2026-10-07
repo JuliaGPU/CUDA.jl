@@ -18,7 +18,7 @@ if ndevices() == 1
 end
 
 @testset "mg_syevd!" begin
-    @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "element type $elty" for elty in [Float64, ComplexF32]
         A = rand(elty, m, m)
         A += A'
         hW = eigvals(Hermitian(A))
@@ -40,7 +40,7 @@ end # elty
 
 if cuSOLVER.version() >= v"10.4"
     @testset "mg_potrf!" begin
-        @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "element type $elty" for elty in [Float64, ComplexF32]
             A = rand(elty, m, m)
             A = A*A'+I # posdef
             hA = copy(A)
@@ -52,7 +52,7 @@ if cuSOLVER.version() >= v"10.4"
     end # elty
 
     @testset "mg_potrf and mg_potri!" begin
-        #@testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        #@testset "element type $elty" for elty in [Float64, ComplexF32]
         @testset "element type $elty" for elty in [Float64, ComplexF64]
             A = rand(elty, m, m)
             A = A*A'+I # posdef
@@ -67,7 +67,7 @@ if cuSOLVER.version() >= v"10.4"
     end # elty
 
     @testset "mg_potrf and mg_potrs!" begin
-        #@testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        #@testset "element type $elty" for elty in [Float64, ComplexF32]
         @testset "element type $elty" for elty in [Float64, ComplexF64]
             A = rand(elty, m, m)
             B = rand(elty, m, m)
@@ -88,7 +88,7 @@ end
 
 if cuSOLVER.version() >= v"10.3"
     @testset "mg_getrf!" begin
-        @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "element type $elty" for elty in [Float64, ComplexF32]
             A      = rand(elty,m,m)
             h_A    = copy(A)
             A,ipiv = cuSOLVER.mg_getrf!(A)
@@ -98,7 +98,7 @@ if cuSOLVER.version() >= v"10.3"
     end
 
     @testset "mg_getrs!" begin
-        @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "element type $elty" for elty in [Float64, ComplexF32]
             A      = rand(elty,m,m)
             h_A    = copy(A)
             alu    = lu(A, NoPivot())

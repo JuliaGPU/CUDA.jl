@@ -6,8 +6,8 @@ using Test
 
 @testset "SparseMatricesCSRExt" begin
 
-    for (n, bd, p) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5)]
-        v"12.0" <= cuSPARSE.version() < v"12.1" && n == 4 && continue
+    # conversions between the GPU formats themselves are tested in conversion.jl
+    for (n, bd, p) in [(100, 5, 0.02)]
         @testset "conversions between CuSparseMatrices (n, bd, p) = ($n, $bd, $p)" begin
             _A = sprand(n, n, p)
             A = SparseMatrixCSR(_A)
@@ -16,15 +16,6 @@ using Test
                 dA1 = CuSparseMatrixType1 == CuSparseMatrixBSR ? CuSparseMatrixType1(A, blockdim) : CuSparseMatrixType1(A)
                 @testset "conversion $CuSparseMatrixType1 --> SparseMatrixCSR" begin
                     @test SparseMatrixCSR(dA1) ≈ A
-                end
-                for CuSparseMatrixType2 in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
-                    CuSparseMatrixType1 == CuSparseMatrixType2 && continue
-                    dA2 = CuSparseMatrixType2 == CuSparseMatrixBSR ? CuSparseMatrixType2(dA1, blockdim) : CuSparseMatrixType2(dA1)
-                    dense_conversion(Float64, CuSparseMatrixType1) &&
-                        dense_conversion(Float64, CuSparseMatrixType2) || continue
-                    @testset "conversion $CuSparseMatrixType1 --> $CuSparseMatrixType2" begin
-                        @test collect(dA1) ≈ collect(dA2)
-                    end
                 end
             end
         end

@@ -1,12 +1,14 @@
 @testset "mv!" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+    # the CSR/CSC generic API itself is tested in generic.jl, so only check one eltype;
+    # every eltype of the legacy BSR routine (bsrmv) is only exercised here
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A = sparse(rand(elty,m,n))
         x = rand(elty,n)
         y = rand(elty,m)
         alpha = rand(elty)
         beta = rand(elty)
-        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
-                                              CuSparseMatrixCSC(A)]
+        @testset "$(typeof(d_A))" for d_A in (elty == Float32 ? [CuSparseMatrixCSR(A),
+                                                                 CuSparseMatrixCSC(A)] : [])
             d_x = CuArray(x)
             d_y = CuArray(y)
             @test_throws DimensionMismatch cuSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
@@ -54,7 +56,8 @@
 end
 
 @testset "mm!" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+    # the generic API itself is tested in generic.jl
+    @testset for elty in [Float32]
         A = sparse(rand(elty,m,k))
         B = rand(elty,k,n)
         C = rand(elty,m,n)
@@ -82,7 +85,8 @@ end
 end
 
 @testset "gemvi!" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+    # `mul!` in interfaces/mul.jl covers Float32 and ComplexF64
+    @testset for elty in [Float64, ComplexF32]
         for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
             elty <: Complex && transa == 'C' && continue
             A = transa == 'N' ? rand(elty,m,n) : rand(elty,n,m)
@@ -125,7 +129,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
             A = sparse(A)
             # The adjacency graph of A has at least two colors, one color for
             # {1, 3, 4} and another one for {2, 5}.
-            @testset "5x5 example -- color $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "5x5 example -- color $T" for T in [Float32, ComplexF64]
                 dA = SparseMatrixType{T}(A)
                 ncolors, coloring, reordering = color(dA, 'O')
                 @test ncolors == 2

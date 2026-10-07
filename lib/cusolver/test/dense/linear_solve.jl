@@ -34,7 +34,7 @@ if cuSOLVER.version() >= v"11"
             dR = dB - dA * dX
             @test norm(dR) <= tol
         end
-        @testset "IRSParameters" begin
+        elty == Float64 && @testset "IRSParameters" begin
             params = cuSOLVER.CuSolverIRSParameters()
             max_iter = 10
             cuSOLVER.cusolverDnIRSParamsSetMaxIters(params, max_iter)

@@ -5,7 +5,7 @@ m = 15
 n = 10
 
 if cuSOLVER.version() >= v"11"
-@testset "gesvd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "gesvd! elty = $elty" for elty in [Float64, ComplexF32]
     A = rand(elty, m, n)
     d_A = CuMatrix(A)
     U, Σ, Vt = cuSOLVER.Xgesvd!('A', 'A', d_A)
@@ -22,7 +22,7 @@ if cuSOLVER.version() >= v"11"
     end
 end
 
-@testset "gesvdp! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "gesvdp! elty = $elty" for elty in [Float64, ComplexF32]
     # nrows > ncols
     A = rand(elty, m, n)
     d_A = CuMatrix(A)
@@ -60,7 +60,7 @@ end
     @test collect(Σ) ≈ collect(Σ3)
 end
 
-@testset "gesvdr! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "gesvdr! elty = $elty" for elty in [Float64, ComplexF32]
     R = real(elty)
     tol = R == Float32 ? 1e-2 : 1e-5
     ℓ = min(m, n)

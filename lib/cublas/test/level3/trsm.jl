@@ -3,7 +3,7 @@ using LinearAlgebra
 
 using Adapt: adapt
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF32]
     m = 20
     n = 35
 
@@ -86,9 +86,8 @@ using Adapt: adapt
         dA = CuArray(A)
         dB = CuArray(B)
 
-        for t in (identity, transpose, adjoint),
-            TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
-
+        # the \ testset above covers the full wrapper grid; ldiv! forwards to the same code
+        for (t, TR) in ((identity, UpperTriangular), (adjoint, UnitLowerTriangular))
             dC = copy(dB)
             ldiv!(t(TR(dA)), dC)
             @test t(TR(A)) \ B ≈ Array(dC)
@@ -122,16 +121,15 @@ using Adapt: adapt
         dA = CuArray(A)
         dB = CuArray(B)
 
-        for t in (identity, transpose, adjoint),
-            TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
-
+        # the / testset above covers the full wrapper grid; rdiv! forwards to the same code
+        for (t, TR) in ((identity, UpperTriangular), (adjoint, UnitLowerTriangular))
             dC = copy(dA)
             rdiv!(dC, t(TR(dB)))
             @test A / t(TR(B)) ≈ Array(dC)
         end
     end
 
-    @testset "Diagonal rdiv!" begin
+    elty <: Complex && @testset "Diagonal rdiv!" begin
         A = rand(elty, m, m)
         B = Diagonal(rand(elty, m))
         dA = CuArray(A)
@@ -144,5 +142,21 @@ using Adapt: adapt
 
         B_bad = Diagonal(CuArray(rand(elty, m + 1)))
         @test_throws DimensionMismatch("left hand side has $m columns but D is $(m+1) by $(m+1)") rdiv!(dA, B_bad)
+    end
+end
+
+# per-eltype cuBLAS wrappers for the eltypes not covered by the loop above
+@testset "trsm wrappers ($elty)" for elty in [Float64, ComplexF64]
+    m, n = 20, 35
+    alpha = rand(elty)
+    A = triu(rand(elty, m, m)) + m * I
+    B = rand(elty, m, n)
+    @test Array(cuBLAS.trsm('L', 'U', 'N', 'N', alpha, CuArray(A), CuArray(B))) ≈ alpha * (A \ B)
+    bd_C = cuBLAS.trsm_batched('L', 'U', 'N', 'N', alpha, CuArray{elty, 2}[CuArray(A)],
+                               CuArray{elty, 2}[CuArray(B)])
+    @test Array(bd_C[1]) ≈ alpha * (A \ B)
+    if elty <: Complex
+        D = Diagonal(rand(elty, n))
+        @test Array(CuArray(B) / adapt(CuArray, D)) ≈ B / D
     end
 end

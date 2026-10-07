@@ -13,52 +13,61 @@ eltypes = [(Float32, Float32, Float32, Float32),
            (ComplexF64, ComplexF64, ComplexF64, Float64),
            (ComplexF64, ComplexF64, ComplexF64, Float32)]
 
-@testset for NoA=1:2, NoB=1:2, Nc=1:2
-    @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes
-        # setup
-        dmax = 2^div(12, max(NoA+Nc, NoB+Nc, NoA+NoB))
-        dimsoA = rand(2:dmax, NoA)
-        loA = prod(dimsoA)
-        dimsoB = rand(2:dmax, NoB)
-        loB = prod(dimsoB)
-        dimsc = rand(2:dmax, Nc)
-        lc = prod(dimsc)
-        allinds = collect('a':'z')
-        indsoA = allinds[1:NoA]
-        indsoB = allinds[NoA .+ (1:NoB)]
-        indsc = allinds[NoA .+ NoB .+ (1:Nc)]
-        pA = randperm(NoA + Nc)
-        ipA = invperm(pA)
-        pB = randperm(Nc + NoB)
-        ipB = invperm(pB)
-        pC = randperm(NoA + NoB)
-        ipC = invperm(pC)
-        compute_rtol = (eltyCompute == Float16 || eltyC == Float16) ? 1e-2 : (eltyCompute == Float32 ? 1e-4 : 1e-6)
-        dimsA = [dimsoA; dimsc][pA]
-        indsA = [indsoA; indsc][pA]
-        dimsB = [dimsc; dimsoB][pB]
-        indsB = [indsc; indsoB][pB]
-        dimsC = [dimsoA; dimsoB][pC]
-        indsC = [indsoA; indsoB][pC]
+# The full battery of options is exercised for a few shapes and element types that
+# cover all compute types (F16/F32/F64) and complex conjugation; the remaining element
+# types only run the simple contraction.
+full_eltypes = [(Float32, Float32, Float32, Float16),
+                (ComplexF32, ComplexF32, ComplexF32, Float32),
+                (ComplexF64, ComplexF64, ComplexF64, Float64)]
+cases = [[(dims, T, true) for dims in ((1, 1, 1), (2, 1, 2), (1, 2, 2)) for T in full_eltypes];
+         [((2, 2, 1), T, false) for T in eltypes if !(T in full_eltypes)]]
 
-        A = rand(eltyA, (dimsA...,))
-        mA = reshape(permutedims(A, ipA), (loA, lc))
-        B = rand(eltyB, (dimsB...,))
-        mB = reshape(permutedims(B, ipB), (lc, loB))
-        C = zeros(eltyC, (dimsC...,))
-        dA = CuArray(A)
-        dB = CuArray(B)
-        dC = CuArray(C)
-        # simple case
-        opA = cuTENSOR.OP_IDENTITY
-        opB = cuTENSOR.OP_IDENTITY
-        opC = cuTENSOR.OP_IDENTITY
-        opOut = cuTENSOR.OP_IDENTITY
-        dC = contract!(1, dA, indsA, opA, dB, indsB, opB, 0, dC, indsC, opC, opOut, compute_type=eltyCompute)
-        C = collect(dC)
-        mC = reshape(permutedims(C, ipC), (loA, loB))
-        @test mC ≈ mA * mB rtol=compute_rtol
+@testset for ((NoA, NoB, Nc), (eltyA, eltyB, eltyC, eltyCompute), full) in cases
+    # setup
+    dmax = 2^div(12, max(NoA+Nc, NoB+Nc, NoA+NoB))
+    dimsoA = rand(2:dmax, NoA)
+    loA = prod(dimsoA)
+    dimsoB = rand(2:dmax, NoB)
+    loB = prod(dimsoB)
+    dimsc = rand(2:dmax, Nc)
+    lc = prod(dimsc)
+    allinds = collect('a':'z')
+    indsoA = allinds[1:NoA]
+    indsoB = allinds[NoA .+ (1:NoB)]
+    indsc = allinds[NoA .+ NoB .+ (1:Nc)]
+    pA = randperm(NoA + Nc)
+    ipA = invperm(pA)
+    pB = randperm(Nc + NoB)
+    ipB = invperm(pB)
+    pC = randperm(NoA + NoB)
+    ipC = invperm(pC)
+    compute_rtol = (eltyCompute == Float16 || eltyC == Float16) ? 1e-2 : (eltyCompute == Float32 ? 1e-4 : 1e-6)
+    dimsA = [dimsoA; dimsc][pA]
+    indsA = [indsoA; indsc][pA]
+    dimsB = [dimsc; dimsoB][pB]
+    indsB = [indsc; indsoB][pB]
+    dimsC = [dimsoA; dimsoB][pC]
+    indsC = [indsoA; indsoB][pC]
 
+    A = rand(eltyA, (dimsA...,))
+    mA = reshape(permutedims(A, ipA), (loA, lc))
+    B = rand(eltyB, (dimsB...,))
+    mB = reshape(permutedims(B, ipB), (lc, loB))
+    C = zeros(eltyC, (dimsC...,))
+    dA = CuArray(A)
+    dB = CuArray(B)
+    dC = CuArray(C)
+    # simple case
+    opA = cuTENSOR.OP_IDENTITY
+    opB = cuTENSOR.OP_IDENTITY
+    opC = cuTENSOR.OP_IDENTITY
+    opOut = cuTENSOR.OP_IDENTITY
+    dC = contract!(1, dA, indsA, opA, dB, indsB, opB, 0, dC, indsC, opC, opOut, compute_type=eltyCompute)
+    C = collect(dC)
+    mC = reshape(permutedims(C, ipC), (loA, loB))
+    @test mC ≈ mA * mB rtol=compute_rtol
+
+    if full
         # simple case with plan storage
         opA = cuTENSOR.OP_IDENTITY
         opB = cuTENSOR.OP_IDENTITY
@@ -85,16 +94,19 @@ eltypes = [(Float32, Float32, Float32, Float32),
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ mA * mB rtol=compute_rtol
 
-        # simple case with plan storage and JIT compilation
-        opA = cuTENSOR.OP_IDENTITY
-        opB = cuTENSOR.OP_IDENTITY
-        opC = cuTENSOR.OP_IDENTITY
-        opOut = cuTENSOR.OP_IDENTITY
-        plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; jit=cuTENSOR.JIT_MODE_DEFAULT)
-        dC = cuTENSOR.contract!(plan, 1, dA, dB, 0, dC)
-        C = collect(dC)
-        mC = reshape(permutedims(C, ipC), (loA, loB))
-        @test mC ≈ mA * mB
+        # simple case with plan storage and JIT compilation (JIT compilation is slow,
+        # so only do this once)
+        if (NoA, NoB, Nc) == (1, 1, 1) && eltyA == Float32
+            opA = cuTENSOR.OP_IDENTITY
+            opB = cuTENSOR.OP_IDENTITY
+            opC = cuTENSOR.OP_IDENTITY
+            opOut = cuTENSOR.OP_IDENTITY
+            plan  = cuTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut; jit=cuTENSOR.JIT_MODE_DEFAULT)
+            dC = cuTENSOR.contract!(plan, 1, dA, dB, 0, dC)
+            C = collect(dC)
+            mC = reshape(permutedims(C, ipC), (loA, loB))
+            @test mC ≈ mA * mB
+        end
 
         # with non-trivial α
         α = rand(eltyCompute)
@@ -114,8 +126,8 @@ eltypes = [(Float32, Float32, Float32, Float32),
         mC = reshape(permutedims(C, ipC), (loA, loB))
         mD = reshape(permutedims(D, ipC), (loA, loB))
         @test mD ≈ α * mA * mB + β * mC rtol=compute_rtol
-        # with CuTensor objects
-        if eltyCompute != Float32 && eltyC != Float16
+        # with CuTensor objects (these JIT-compile, so only do this once)
+        if (NoA, NoB, Nc) == (2, 1, 2) && eltyCompute == Float64
             ctA = CuTensor(dA, indsA)
             ctB = CuTensor(dB, indsB)
             ctC = CuTensor(dC, indsC)
@@ -169,7 +181,7 @@ end
 
 # https://github.com/JuliaGPU/CUDA.jl/issues/2407
 @testset "contractions of views" begin
-    @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes
+    @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes[[2, 7]]
         dimsA = (16,)
         dimsB = (4,)
         dimsC = (8,)

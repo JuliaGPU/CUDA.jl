@@ -16,7 +16,9 @@ n = 35
 k = 13
 
 @testset "extensions" begin
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    # the batched wrappers and Diagonal methods have no eltype-specific code paths;
+    # ComplexF32 keeps adjoint distinct from transpose
+    @testset for elty in [Float32, ComplexF32]
         @testset "getrf_batched!" begin
             Random.seed!(1)
             local k
@@ -185,7 +187,7 @@ k = 13
             end
         end
 
-        for (opchar,opfun) in (('N',identity), ('T',transpose), ('C',adjoint))
+        for (opchar,opfun) in (('N',identity), ('C',adjoint))
 
             @testset "getrs_batched!" begin
                 A                   = [rand(elty,n,n) for _ in 1:k]
@@ -538,7 +540,7 @@ k = 13
             h_C = Array(d_C)
             @test C ≈ h_C
         end
-        @testset "diagm" begin
+        elty == Float32 && @testset "diagm" begin
             d_fX = LinearAlgebra.diagm(d_x)
             @test eltype(d_fX) == eltype(d_x)
         end
@@ -613,7 +615,34 @@ k = 13
     end
 end # elty
 
-@testset "rmul/lmul with mixed eltypes ($Tr, $Tc)" for (Tr, Tc) in ((Float32, ComplexF32), (Float64, ComplexF64))
+# per-eltype cuBLAS wrappers for the eltypes not covered by the loop above
+@testset "batched wrappers ($elty)" for elty in [Float64, ComplexF64]
+    A = [rand(elty, m, m) + m * I for _ in 1:2]
+    B = [rand(elty, m, n) for _ in 1:2]
+    d_A = CuArray{elty, 2}[CuArray(a) for a in A]
+    d_pivot, info, d_LU = cuBLAS.getrf_batched!(d_A, true)
+    info, d_X = cuBLAS.getrs_batched!('N', d_LU, CuArray{elty, 2}[CuArray(b) for b in B], d_pivot)
+    _, _, d_inv = cuBLAS.getri_batched(d_LU, d_pivot)
+    for i in 1:2
+        @test Array(d_X[i]) ≈ A[i] \ B[i]
+        @test Array(d_inv[i]) ≈ inv(A[i])
+    end
+    info, d_inv = cuBLAS.matinv_batched(CuArray{elty, 2}[CuArray(a) for a in A])
+    @test Array(d_inv[1]) ≈ inv(A[1])
+
+    Q = [rand(elty, n, k) for _ in 1:2]
+    R = [rand(elty, n, k) for _ in 1:2]
+    tau, d_Q = cuBLAS.geqrf_batched!(CuArray{elty, 2}[CuArray(q) for q in Q])
+    @test abs.(triu(Array(d_Q[1])[1:k, 1:k])) ≈ abs.(qr(Q[1]).R)
+    _, d_R, info = cuBLAS.gels_batched!('N', CuArray{elty, 2}[CuArray(q) for q in Q],
+                                        CuArray{elty, 2}[CuArray(r) for r in R])
+    @test Array(d_R[1])[1:k, 1:k] ≈ Q[1] \ R[1]
+
+    x = rand(elty, m)
+    @test Array(cuBLAS.dgmm('L', CuArray(A[1]), CuArray(x))) ≈ Diagonal(x) * A[1]
+end
+
+@testset "rmul/lmul with mixed eltypes ($Tr, $Tc)" for (Tr, Tc) in ((Float32, ComplexF32),)
     x    = rand(Tr,m)
     d_x  = CuArray(x)
     XA   = rand(Tc,m,n)

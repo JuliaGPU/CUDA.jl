@@ -1,7 +1,7 @@
 using cuSPARSE
 using LinearAlgebra, SparseArrays
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF64]
     m = 20
     k = 15
     n = 10
@@ -54,7 +54,8 @@ using LinearAlgebra, SparseArrays
                 @test c_vec ≈ collect(dc_vec)
             end
         end
-        @testset "opb = $opb" for opb in (identity, transpose, adjoint)
+        # only the matching (opa, opb) pairs: the mixed ones go through the same code
+        @testset "opb = $opb" for opb in (opa,)
             cuSPARSE.version() < v"11" && continue # row-major SpMM
             B  = opb == identity ? sprand(elty, k, n, 0.2) : sprand(elty, n, k, 0.2)
             for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
@@ -89,7 +90,8 @@ using LinearAlgebra, SparseArrays
         db_vec = CuArray(b_vec)
         b_spvec = sprand(elty, m, 0.5)
         db_spvec = CuSparseVector(b_spvec)
-        @testset "opb = $opb" for opb in (identity, transpose, adjoint)
+        # only the matching (opa, opb) pairs: the mixed ones go through the same code
+        @testset "opb = $opb" for opb in (opa,)
             geam_B   = opb == identity ? sprand(elty, n, m, 0.5) : sprand(elty, m, n, 0.5)
             B        = opb == identity ? sprand(elty, k, n, 0.5) : sprand(elty, n, k, 0.5)
             B_dense  = opb == identity ? rand(elty, k, n) : rand(elty, n, k)
@@ -203,7 +205,7 @@ using LinearAlgebra, SparseArrays
             dA = SparseMatrixType(A)
             dB = SparseMatrixType(B)
             for wrap in (Symmetric, Hermitian), uplo in (:U, :L),
-                opa in (identity, transpose, adjoint), op in (+, -)
+                opa in (identity,), op in (+, -)
 
                 @test collect(op(opa(dA), wrap(dB, uplo))) ≈ op(opa(A), wrap(B, uplo))
                 @test collect(op(wrap(dB, uplo), opa(dA))) ≈ op(wrap(B, uplo), opa(A))

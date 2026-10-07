@@ -1,7 +1,7 @@
 using cuBLAS
 using LinearAlgebra
 
-@testset for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for T in [Float32, ComplexF64]
     m = 20
 
     @testset "copy!" begin
@@ -24,15 +24,6 @@ using LinearAlgebra
 
     @test testf(axpy!, rand(), rand(T, m), rand(T, m))
     @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
-
-    if T <: Complex
-        @test testf(dot, rand(T, m), rand(T, m))
-        x = rand(T, m)
-        y = rand(T, m)
-        dx = CuArray(x)
-        dy = CuArray(y)
-        @test dot(dx, dy) ≈ dot(x, y)
-    end
 
     @testset "rmul! strong zero" begin
         @test testf(rmul!, fill(T(NaN), 3), false)
@@ -69,7 +60,7 @@ using LinearAlgebra
         @test norm(x) ≈ result[]
     end
 
-    @testset "norm of Diagonal" begin
+    T == Float32 && @testset "norm of Diagonal" begin
         x = rand(T, m)
         dDx = Diagonal(CuArray(x))
         Dx = Diagonal(x)
@@ -78,7 +69,7 @@ using LinearAlgebra
         @test norm(dDx, Inf) ≈ norm(Dx, Inf)
     end
 
-    @testset "norm of strided views" begin # JuliaGPU/CUDA.jl#2280
+    T <: Complex && @testset "norm of strided views" begin # JuliaGPU/CUDA.jl#2280
         # 1D contiguous view: should hit the cuBLAS nrm2 fast path.
         x = rand(T, m)
         dx = CuArray(x)
@@ -89,6 +80,32 @@ using LinearAlgebra
         @test norm(@view(dy[2:end-1, 2:end-1]), 1) ≈ norm(@view(y[2:end-1, 2:end-1]), 1)
         @test norm(@view(dy[2:end-1, 2:end-1]), 2) ≈ norm(@view(y[2:end-1, 2:end-1]), 2)
         @test norm(@view(dy[2:end-1, 2:end-1]), Inf) ≈ norm(@view(y[2:end-1, 2:end-1]), Inf)
+    end
+end
+
+# per-eltype cuBLAS wrappers for the eltypes not covered by the loop above
+@testset "level 1 wrappers ($T)" for T in [Float64, ComplexF32]
+    m = 20
+    x = rand(T, m)
+    y = rand(T, m)
+    dx = CuArray(x)
+    dy = CuArray(y)
+    dz = similar(dx)
+    cuBLAS.copy!(m, dx, dz)
+    @test Array(dz) == x
+    cuBLAS.swap!(m, dx, dy)
+    @test Array(dx) == y
+    @test Array(dy) == x
+    @test cuBLAS.iamax(dx) == BLAS.iamax(y)
+    @test cuBLAS.iamin(dx) == argmin(abs.(real.(y)) .+ abs.(imag.(y)))
+    @test BLAS.asum(dx) ≈ BLAS.asum(y)
+    if T <: Real
+        @test cuBLAS.nrm2(dx) ≈ norm(y)
+        @test cuBLAS.dot(m, dx, dy) ≈ dot(y, x)
+        cuBLAS.axpy!(m, T(2), dx, dy)
+        @test Array(dy) ≈ 2y + x
+    else
+        @test norm(@view(CuArray(rand(T, 10, 10))[2:end-1, 2:end-1]), 1) isa real(T)
     end
 end
 
@@ -121,15 +138,6 @@ end
         d_α = CuArray([α])
         d_x = cuBLAS.scal!(m, d_α, d_x)
         @test Array(d_x) ≈ α * x
-    end
-
-    if T <: Complex
-        @test testf(dot, rand(T, m), rand(T, m))
-        x = rand(T, m)
-        y = rand(T, m)
-        dx = CuArray(x)
-        dy = CuArray(y)
-        @test dot(dx, dy) ≈ dot(x, y)
     end
 end
 

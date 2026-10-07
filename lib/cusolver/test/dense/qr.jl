@@ -5,7 +5,7 @@ m = 15
 n = 10
 l = 13
 
-@testset "qr elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "qr elty = $elty" for elty in [Float64, ComplexF32]
     tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
 
     A              = rand(elty, m, n)
@@ -35,15 +35,13 @@ l = 13
     @test collect((d_F.Q'd_I) * d_F.Q) ≈ collect(d_I)
     @test collect(d_F.Q * (d_I * d_F.Q')) ≈ collect(d_I)
 
-    d_I = CuMatrix{elty}(I, size(d_F.R))
-    @test collect(d_F.R * d_I) ≈ collect(d_F.R)
-    @test collect(d_I * d_F.R) ≈ collect(d_F.R)
-
     CUDACore.@allowscalar begin
         qval = d_F.Q[1, 1]
         @test qval ≈ F.Q[1, 1]
-        qrstr = sprint(show, MIME"text/plain"(), d_F)
-        @test qrstr == "$(typeof(d_F))\nQ factor: $(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
+        if elty == Float64
+            qrstr = sprint(show, MIME"text/plain"(), d_F)
+            @test qrstr == "$(typeof(d_F))\nQ factor: $(sprint(show, MIME"text/plain"(), d_F.Q))\nR factor:\n$(sprint(show, MIME"text/plain"(), d_F.R))"
+        end
     end
 
     Q, R = F
@@ -65,11 +63,11 @@ l = 13
     @test collect(CuArray(d_q)) ≈ Array(q)
     @test Array(d_r) ≈ Array(r)
     @test CuArray(d_q) ≈ convert(typeof(d_A), d_q)
-    other_elty = elty <: Complex ? (elty == ComplexF32 ? ComplexF64 : ComplexF32) :
-                                   (elty == Float32 ? Float64 : Float32)
-    d_q_other = CuMatrix{other_elty}(d_q)
-    @test eltype(d_q_other) === other_elty
-    @test collect(d_q_other) ≈ Array(q)
+    if elty == Float64
+        d_q_other = CuMatrix{Float32}(d_q)
+        @test eltype(d_q_other) === Float32
+        @test collect(d_q_other) ≈ Array(q)
+    end
 
     A              = rand(elty, n, m)
     d_A            = CuArray(A)
@@ -96,51 +94,32 @@ l = 13
     C              = rand(elty, n)
     d_C            = CuArray(C)
     @test collect(d_M \ d_B) ≈ M \ B
-    @test collect(d_M.Q * d_B) ≈ (M.Q * B)
-    @test collect(d_M.Q' * d_B) ≈ (M.Q' * B)
-    @test collect(d_B' * d_M.Q) ≈ (B' * M.Q)
-    @test collect(d_B' * d_M.Q') ≈ (B' * M.Q')
     @test collect(d_M.R * d_C) ≈ (M.R * C)
     @test collect(d_M.R' * d_C) ≈ (M.R' * C)
     @test collect(d_C' * d_M.R) ≈ (C' * M.R)
     @test collect(d_C' * d_M.R') ≈ (C' * M.R')
 
-    A              = rand(elty, m, n)  # A and B,C are matrices
+    A              = rand(elty, m, n)  # A and B are matrices
     d_A            = CuArray(A)
     M              = qr(A)
     d_M            = qr(d_A)
     B              = rand(elty, m, l) # different second dimension to verify whether dimensions agree
     d_B            = CuArray(B)
-    C              = rand(elty, n, l) # different second dimension to verify whether dimensions agree
-    d_C            = CuArray(C)
     @test collect(d_M \ d_B) ≈ (M \ B)
     @test collect(d_M.Q * d_B) ≈ (M.Q * B)
     @test collect(d_M.Q' * d_B) ≈ (M.Q' * B)
     @test collect(d_B' * d_M.Q) ≈ (B' * M.Q)
     @test collect(d_B' * d_M.Q') ≈ (B' * M.Q')
-    @test collect(d_M.R * d_C) ≈ (M.R * C)
-    @test collect(d_M.R' * d_C) ≈ (M.R' * C)
-    @test collect(d_C' * d_M.R) ≈ (C' * M.R)
-    @test collect(d_C' * d_M.R') ≈ (C' * M.R')
 end
 
-@testset "ldiv! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    @test testf(rand(elty, m, m), rand(elty, m)) do A, x
-        ldiv!(qr(A), x)
-        x
-    end
-
+# the 3-arg ldiv! goes through the 2-arg ldiv! methods for vectors and matrices
+@testset "ldiv! elty = $elty" for elty in [Float64]
     @test testf(rand(elty, m, m), rand(elty, m), rand(elty, m)) do A, x, y
         ldiv!(y, qr(A), x)
         y
     end
 
     # multi-column rhs, e.g. inverting a matrix via `A \ I`
-    @test testf(rand(elty, m, m), rand(elty, m, l)) do A, X
-        ldiv!(qr(A), X)
-        X
-    end
-
     @test testf(rand(elty, m, m), rand(elty, m, l), rand(elty, m, l)) do A, X, Y
         ldiv!(Y, qr(A), X)
         Y

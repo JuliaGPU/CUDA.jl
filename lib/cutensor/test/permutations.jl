@@ -17,32 +17,34 @@ eltypes = [(Float16, Float16),
            (ComplexF64, ComplexF32),
            ]
 
-@testset for N=2:5
-    @testset for (eltyA, eltyC) in eltypes
-        # setup
-        dmax = 2^div(18,N)
-        dims = rand(2:dmax, N)
-        p = randperm(N)
-        indsA = collect(('a':'z')[1:N])
-        indsC = indsA[p]
-        dimsA = dims
-        dimsC = dims[p]
-        A = rand(eltyA, dimsA...)
-        dA = CuArray(A)
-        dC = similar(dA, eltyC, dimsC...)
+# all element types at one rank, all ranks for one element type
+cases = [[(3, T) for T in eltypes];
+         [(N, (Float32, Float32)) for N in (2, 4, 5)]]
 
-        # simple case
-        opA = cuTENSOR.OP_IDENTITY
-        dC = permute!(one(eltyA), dA, indsA, opA, dC, indsC)
-        C  = collect(dC)
-        @test C ≈ eltyC.(permutedims(A, p))
+@testset for (N, (eltyA, eltyC)) in cases
+    # setup
+    dmax = 2^div(18,N)
+    dims = rand(2:dmax, N)
+    p = randperm(N)
+    indsA = collect(('a':'z')[1:N])
+    indsC = indsA[p]
+    dimsA = dims
+    dimsC = dims[p]
+    A = rand(eltyA, dimsA...)
+    dA = CuArray(A)
+    dC = similar(dA, eltyC, dimsC...)
 
-        # with scalar
-        α  = rand(eltyA)
-        dC = permute!(α, dA, indsA, opA, dC, indsC)
-        C  = collect(dC)
-        @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
-    end
+    # simple case
+    opA = cuTENSOR.OP_IDENTITY
+    dC = permute!(one(eltyA), dA, indsA, opA, dC, indsC)
+    C  = collect(dC)
+    @test C ≈ eltyC.(permutedims(A, p))
+
+    # with scalar
+    α  = rand(eltyA)
+    dC = permute!(α, dA, indsA, opA, dC, indsC)
+    C  = collect(dC)
+    @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
 end
 
 end

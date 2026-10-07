@@ -8,7 +8,7 @@ using LinearAlgebra
     @test_throws ArgumentError("Unknown side mode D") convert(cuBLAS.cublasSideMode_t, 'D')
 end
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF32]
     m = 20
     n = 35
 
@@ -33,7 +33,7 @@ end
         @test alpha * A * B ≈ Array(d_C)
     end
 
-    @testset "triangular-dense mul!" begin
+    elty <: Complex && @testset "triangular-dense mul!" begin
         sA = rand(elty, m, m)
         sA = sA + transpose(sA)
         B = rand(elty, m, n)
@@ -66,7 +66,7 @@ end
         end
     end
 
-    @testset "triangular-triangular mul!" begin
+    elty <: Complex && @testset "triangular-triangular mul!" begin
         sA = rand(elty, m, m)
         sA = sA + transpose(sA)
         sB = rand(elty, m, m)
@@ -99,4 +99,13 @@ end
             @test D ≈ Array(dD)
         end
     end
+end
+
+# per-eltype cuBLAS wrappers for the eltypes not covered by the loop above
+@testset "trmm wrappers ($elty)" for elty in [Float64, ComplexF64]
+    m, n = 20, 35
+    alpha = rand(elty)
+    A = triu(rand(elty, m, m))
+    B = rand(elty, m, n)
+    @test Array(cuBLAS.trmm('L', 'U', 'N', 'N', alpha, CuArray(A), CuArray(B))) ≈ alpha * A * B
 end

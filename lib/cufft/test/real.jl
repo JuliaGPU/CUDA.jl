@@ -48,32 +48,23 @@ end
     out_of_place(X)
 end
 
-@testset "Batch 1D" begin
-    dims = (N1,N2)
-    X = rand(T, dims)
-    batched(X,1)
-
-    dims = (N1,N2)
-    X = rand(T, dims)
-    batched(X,2)
-
-    dims = (N1,N2)
-    X = rand(T, dims)
-    batched(X,(1,2))
-end
-
 @testset "2D" begin
     X = rand(T, N1,N2)
     out_of_place(X)
 end
 
+@testset "3D" begin
+    X = rand(T, N1, N2, N3)
+    out_of_place(X)
+end
+
+# The batched tests below exercise the region/batching logic, which does not depend on
+# the precision, so they are only run for a subset of the element types, and only for
+# a selection of regions that cover the different code paths.
+if T != Float64
+
 @testset "Batch 2D (in 3D)" begin
     dims = (N1,N2,N3)
-    for region in [(1,2),(2,3),(1,3)]
-        X = rand(T, dims)
-        batched(X,region)
-    end
-
     X = rand(T, dims)
     # This should only throw an error for rfft type transforms:
     @test_throws ArgumentError batched(X,(3,1))
@@ -81,28 +72,23 @@ end
 
 @testset "Batch 2D (in 4D)" begin
     dims = (N1,N2,N3,N4)
-    for region in [(1,2),(1,3),(2,3)]
+    # (1,3): aligned external batches; (2,3) and (2,4): misaligned external batches
+    for region in [(1,3),(2,3)]
         X = rand(T, dims)
         batched(X,region)
     end
-    for region in [(2,4),(1,4),(3,4)]
+    for region in [(2,4)]
+        X = rand(T, dims)
         if T <: Float16
             # cuFFT half-precision transforms require all transform dim sizes
             # to be powers of 2; N4=9 violates that.
-            X = rand(T, dims)
             @test_throws ArgumentError batched(X,region)
         else
             batched(X,region)
         end
     end
-
-    X = rand(T, dims)
-    @test_throws ArgumentError batched(X,(3,1))
 end
 
-@testset "3D" begin
-    X = rand(T, N1, N2, N3)
-    out_of_place(X)
 end
 
 end

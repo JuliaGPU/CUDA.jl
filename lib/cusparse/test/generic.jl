@@ -72,7 +72,7 @@ end
 
 for SparseMatrixType in keys(SPMV_ALGOS)
     @testset "$SparseMatrixType -- mv! algo=$algo" for algo in SPMV_ALGOS[SparseMatrixType]
-        @testset "mv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "mv! $T" for T in [Float32, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 SparseMatrixType == CuSparseMatrixCSC && T <: Complex && transa == 'C' && continue
                 (SparseMatrixType == CuSparseMatrixBSR) && (transa != 'N') && continue
@@ -95,7 +95,7 @@ end
 
 for SparseMatrixType in keys(SPMM_ALGOS)
     @testset "$SparseMatrixType * CuMatrix -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
-        @testset "mm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "mm! $T" for T in [Float32, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     cuSPARSE.version() < v"12.5.8" && algo == cuSPARSE.CUSPARSE_SPMM_CSR_ALG3 && (transa != 'N' || transb != 'N') && continue
@@ -189,7 +189,7 @@ for SparseMatrixType in keys(SPMM_ALGOS)
     cuSPARSE.version() < v"11" && continue # dense * sparse uses row-major SpMM
     (SparseMatrixType == CuSparseMatrixBSR) && continue
     @testset "CuMatrix * $SparseMatrixType -- mm! algo=$algo" for algo in SPMM_ALGOS[SparseMatrixType]
-        @testset "$T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "$T" for T in [Float32, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                 @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     cuSPARSE.version() < v"12.5.8" && algo == cuSPARSE.CUSPARSE_SPMM_CSR_ALG3 && continue
@@ -308,7 +308,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
     SparseMatrixType == CuSparseMatrixCOO && cuSPARSE.version() < v"11.3" && continue
 
     @testset "$SparseMatrixType -- densetosparse algo=$algo" for algo in [cuSPARSE.CUSPARSE_DENSETOSPARSE_ALG_DEFAULT]
-        @testset "densetosparse $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "densetosparse $T" for T in [Float32, ComplexF64]
             A_sparse = sprand(T, 10, 20, 0.5)
             A_dense = Matrix{T}(A_sparse)
             dA_dense = CuMatrix{T}(A_dense)
@@ -318,7 +318,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
         end
     end
     @testset "$SparseMatrixType -- sparsetodense algo=$algo" for algo in [cuSPARSE.CUSPARSE_SPARSETODENSE_ALG_DEFAULT]
-        @testset "sparsetodense $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "sparsetodense $T" for T in [Float32, ComplexF64]
             A_dense = rand(T, 10, 20)
             A_sparse = sparse(A_dense)
             dA_sparse = SparseMatrixType(A_sparse)
@@ -328,7 +328,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
     end
 end
 
-@testset "vv! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "vv! $T" for T in [Float32, ComplexF64]
     @testset "transx = $transx" for (transx, opx) in [('N', identity), ('C', conj)]
         T <: Real && transx == 'C' && continue
         X = sprand(T, 20, 0.5)
@@ -342,7 +342,7 @@ end
 
 # the generic sparse-vector routines were introduced in cuSPARSE 11
 if cuSPARSE.version() >= v"11"
-    @testset "gather! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "gather! $T" for T in [Float32, ComplexF64]
         X = sprand(T, 20, 0.5)
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
@@ -355,7 +355,7 @@ if cuSPARSE.version() >= v"11"
         @test Z ≈ sparse(collect(dX))
     end
 
-    @testset "scatter! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "scatter! $T" for T in [Float32, ComplexF64]
         X = sprand(T, 20, 0.5)
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
@@ -368,7 +368,7 @@ if cuSPARSE.version() >= v"11"
         @test Z ≈ collect(dY)
     end
 
-    @testset "axpby! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "axpby! $T" for T in [Float32, ComplexF64]
         X = sprand(T, 20, 0.5)
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
@@ -379,7 +379,7 @@ if cuSPARSE.version() >= v"11"
         @test alpha * X + beta * Y ≈ collect(dY)
     end
 
-    @testset "rot! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "rot! $T" for T in [Float32, ComplexF64]
         X = sprand(T, 20, 0.5)
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
@@ -415,7 +415,7 @@ end
 if cuSPARSE.version() >= v"11"
     for SparseMatrixType in keys(SPGEMM_ALGOS)
         @testset "$SparseMatrixType -- gemm -- gemm! algo=$algo" for algo in SPGEMM_ALGOS[SparseMatrixType]
-            @testset "gemm -- gemm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "gemm -- gemm! $T" for T in [Float32, ComplexF64]
                 @testset "transa = $transa" for (transa, opa) in [('N', identity)]
                     @testset "transb = $transb" for (transb, opb) in [('N', identity)]
                         A = sprand(T,25,10,0.2)
@@ -464,7 +464,7 @@ if cuSPARSE.version() >= v"11"
             end
         end
 
-        @testset "gemv $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "gemv $T" for T in [Float32, ComplexF64]
             @testset "transa = $transa" for (transa, opa) in [('N', identity)]
                 A = sprand(T,25,10,0.2)
                 b = sprand(T,10,0.3)
@@ -485,7 +485,7 @@ if cuSPARSE.version() >= v"11.4.1"
 
     for SparseMatrixType in keys(SDDMM_ALGOS)
         @testset "$SparseMatrixType -- sddmm! algo=$algo" for algo in SDDMM_ALGOS[SparseMatrixType]
-            @testset "sddmm! $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
+            @testset "sddmm! $T" for T in [Float32, ComplexF64]
                 @testset "transa = $transa" for (transa, opa) in [('N', identity), ('T', transpose), ('C', adjoint)]
                     @testset "transb = $transb" for (transb, opb) in [('N', identity), ('T', transpose), ('C', adjoint)]
                         T <: Complex && (transa == 'C' || transb == 'C') && continue

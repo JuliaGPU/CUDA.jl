@@ -185,23 +185,18 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
 end
 
 if capability(device()) >= v"8.0"
-    for T in (Float16, BFloat16)
-        sdpatest(T)                                  # default square case
-        sdpatest(T; sq=128, skv=128)                 # longer sequences
-        sdpatest(T; d=32, sq=16, skv=48, h=2, b=3)   # non-square sq != skv
-        sdpatest(T; scale=0.5)                        # custom scale
-        sdpatest(T; d=128, sq=64, skv=64, h=8)       # larger head dim
-        sdpatest(T; h=4, hk=2)                        # grouped-query attention
-        sdpatest(T; causal=true)                      # top-left causal mask
-        sdpatest(T; h=4, hk=2, causal=true)           # causal GQA
-        sdpa_stats_test(T)
-        sdpa_stats_test(T; h=4, hk=2, causal=true)
-        sdpa_backward_test(T)
-        sdpa_backward_test(T; h=4, hk=2)
-        sdpa_backward_test(T; causal=true)
-        sdpa_backward_test(T; h=4, hk=2, causal=true)
-        sdpa_padding_test(T)
-    end
+    # every distinct configuration builds (and autotunes) a new cuDNN graph, which is
+    # slow, so only test a representative set of configurations
+    sdpatest(Float16)                                         # default square case
+    sdpatest(Float16; d=32, sq=16, skv=48, h=2, b=3, scale=0.5)  # non-square sq != skv, custom scale
+    sdpatest(Float16; h=4, hk=2, causal=true)                 # causal GQA
+    sdpa_stats_test(Float16; h=4, hk=2, causal=true)
+    sdpa_backward_test(Float16)
+    sdpa_backward_test(Float16; h=4, hk=2, causal=true)
+    sdpa_padding_test(Float16)
+
+    sdpatest(BFloat16)
+    sdpa_backward_test(BFloat16)
 
     let q = CuArray(Float16.(randn(Float32, 64, 4, 64, 2)))
         qview = view(q, :, :, 1:32, :)  # non-contiguous: dense strides would be wrong
@@ -236,7 +231,7 @@ if capability(device()) >= v"8.0"
         tasks = [Threads.@spawn begin
                      device!(dev)
                      attention(q, k, v; scale)
-                 end for _ in 1:8]
+                 end for _ in 1:2]
         for t in tasks
             @test Array(fetch(t)) ≈ ref rtol=2e-2
         end

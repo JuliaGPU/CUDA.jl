@@ -4,7 +4,7 @@ using LinearAlgebra
 m = 15
 n = 10
 
-@testset "Cholesky (po) elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "Cholesky (po) elty = $elty" for elty in [Float64, ComplexF32]
     A    = rand(elty, n, n)
     A    = A*A'+I #posdef
     B    = rand(elty, n, n)
@@ -22,18 +22,22 @@ n = 10
     @test F.L   ≈ collect(d_F.L)
     @test F\(A'B) ≈ collect(d_F\(d_A'd_B))
 
-    @test_throws DimensionMismatch LinearAlgebra.LAPACK.potrs!('U', d_A, CuArray(rand(elty, m, m)))
+    # error paths do not depend on the element type
+    if elty == Float64
+        @test_throws DimensionMismatch LinearAlgebra.LAPACK.potrs!('U', d_A, CuArray(rand(elty, m, m)))
 
-    A    = rand(elty, m, n)
-    d_A  = CuArray(A)
-    @test_throws DimensionMismatch cholesky(d_A)
-    @test_throws DimensionMismatch LinearAlgebra.LAPACK.potrs!('U', d_A, d_B)
+        A    = rand(elty, m, n)
+        d_A  = CuArray(A)
+        @test_throws DimensionMismatch cholesky(d_A)
+        @test_throws DimensionMismatch LinearAlgebra.LAPACK.potrs!('U', d_A, d_B)
 
-    A    = zeros(elty, n, n)
-    d_A  = CuArray(A)
-    @test_throws LinearAlgebra.PosDefException cholesky(d_A)
+        A    = zeros(elty, n, n)
+        d_A  = CuArray(A)
+        @test_throws LinearAlgebra.PosDefException cholesky(d_A)
+    end
 end
 
+# the low-level wrappers are tested for every element type to cover all ccall wrappers
 @testset "Cholesky inverse (potri) elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     # test lower
     A    = rand(elty, n, n)
@@ -57,6 +61,18 @@ end
     LinearAlgebra.LAPACK.potri!('U', A)
     LinearAlgebra.LAPACK.potri!('U', d_A)
     @test A  ≈ collect(d_A)
+
+    # potrs
+    A    = rand(elty, n, n)
+    A    = A*A'+I #posdef
+    B    = rand(elty, n, 2)
+    d_A  = CuArray(A)
+    d_B  = CuArray(B)
+    LinearAlgebra.LAPACK.potrf!('U', A)
+    LinearAlgebra.LAPACK.potrf!('U', d_A)
+    LinearAlgebra.LAPACK.potrs!('U', A, B)
+    LinearAlgebra.LAPACK.potrs!('U', d_A, d_B)
+    @test B  ≈ collect(d_B)
 end
 
 @testset "potrsBatched! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -100,45 +116,47 @@ end
         @test bB[i] ≈ bh_X[i]
     end
 
-    # error throwing tests
-    bA = [rand(elty, m, m) for i in 1:n]
-    bA = [bA[i]*bA[i]' for i in 1:n]
-    bB = [rand(elty, m) for i in 1:n+1]
+    # error throwing tests (independent of the element type)
+    if elty == Float64
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m) for i in 1:n+1]
 
-    bd_A = CuArray{elty, 2}[]
-    bd_B = CuArray{elty, 1}[]
-    for i in 1:length(bA)
-        push!(bd_A, CuArray(bA[i]))
-        push!(bd_B, CuArray(bB[i]))
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 1}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
+        end
+        push!(bd_B, CuArray(bB[end]))
+
+        @test_throws DimensionMismatch cuSOLVER.potrsBatched!('L', bd_A, bd_B)
+
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m) for i in 1:n]
+        bB[1] = rand(elty, m+1)
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 1}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
+        end
+
+        @test_throws DimensionMismatch cuSOLVER.potrsBatched!('L', bd_A, bd_B)
+
+        bA = [rand(elty, m, m) for i in 1:n]
+        bA = [bA[i]*bA[i]' for i in 1:n]
+        bB = [rand(elty, m, m) for i in 1:n]
+        bd_A = CuArray{elty, 2}[]
+        bd_B = CuArray{elty, 2}[]
+        for i in 1:length(bA)
+            push!(bd_A, CuArray(bA[i]))
+            push!(bd_B, CuArray(bB[i]))
+        end
+
+        @test_throws ArgumentError cuSOLVER.potrsBatched!('L', bd_A, bd_B)
     end
-    push!(bd_B, CuArray(bB[end]))
-
-    @test_throws DimensionMismatch cuSOLVER.potrsBatched!('L', bd_A, bd_B)
-
-    bA = [rand(elty, m, m) for i in 1:n]
-    bA = [bA[i]*bA[i]' for i in 1:n]
-    bB = [rand(elty, m) for i in 1:n]
-    bB[1] = rand(elty, m+1)
-    bd_A = CuArray{elty, 2}[]
-    bd_B = CuArray{elty, 1}[]
-    for i in 1:length(bA)
-        push!(bd_A, CuArray(bA[i]))
-        push!(bd_B, CuArray(bB[i]))
-    end
-
-    @test_throws DimensionMismatch cuSOLVER.potrsBatched!('L', bd_A, bd_B)
-
-    bA = [rand(elty, m, m) for i in 1:n]
-    bA = [bA[i]*bA[i]' for i in 1:n]
-    bB = [rand(elty, m, m) for i in 1:n]
-    bd_A = CuArray{elty, 2}[]
-    bd_B = CuArray{elty, 2}[]
-    for i in 1:length(bA)
-        push!(bd_A, CuArray(bA[i]))
-        push!(bd_B, CuArray(bB[i]))
-    end
-
-    @test_throws ArgumentError cuSOLVER.potrsBatched!('L', bd_A, bd_B)
 end
 
 @testset "potrfBatched! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]

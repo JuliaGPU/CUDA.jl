@@ -20,7 +20,7 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
 
 # Note: Xgeev was introduced in CUDA 12.6.2 / CUSOLVER 11.7.1
 if cuSOLVER.version() >= v"11.7.1"
-    @testset "geev! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "geev! elty = $elty" for elty in [Float64, ComplexF32]
         local d_W, d_V
 
         A              = rand(elty, m, m)
@@ -51,7 +51,7 @@ if cuSOLVER.version() >= v"11.7.1"
     end
 end
 
-@testset "syevd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "syevd! elty = $elty" for elty in [Float64, ComplexF32]
     A              = rand(elty, m, m)
     A             += A'
     d_A            = CuArray(A)
@@ -141,7 +141,7 @@ end
     end
 end
 
-@testset "sygvd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "sygvd! elty = $elty" for elty in [Float64, ComplexF32]
     A              = rand(elty, m, m)
     B              = rand(elty, m, m)
     A              = A*A'+I # posdef
@@ -187,7 +187,7 @@ end
     end
 end
 
-@testset "syevj! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "syevj! elty = $elty" for elty in [Float64, ComplexF32]
     A              = rand(elty, m, m)
     B              = rand(elty, m, m)
     A              = A*A'+I # posdef
@@ -219,7 +219,7 @@ end
     @test Eig.values ≈ h_W
 end
 
-@testset "syevjBatched! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "syevjBatched! elty = $elty" for elty in [Float64, ComplexF32]
     # Generate a random symmetric/hermitian matrix
     A = rand(elty, m, m, n)
     A += permutedims(A, (2, 1, 3))
@@ -256,4 +256,34 @@ end
         Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
         @test Eig.values ≈ h_W2[:,i]
     end
+end
+
+# the tests above use one real and one complex element type; exercise the remaining
+# element types' ccall wrappers with a minimal check each.
+@testset "remaining wrappers elty = $elty" for elty in [Float32, ComplexF64]
+    A = rand(elty, m, m)
+    A = A*A'+I # posdef
+    B = rand(elty, m, m)
+    B = B*B'+I # posdef
+    W = eigvals(Hermitian(A))
+    Wg = eigvals(Hermitian(A), Hermitian(B))
+    if elty <: Complex
+        d_W, d_V = cuSOLVER.heevd!('V', 'U', CuArray(A))
+        d_Wg, _, _ = cuSOLVER.hegvd!(1, 'V', 'U', CuArray(A), CuArray(B))
+        d_Wj, _, _ = cuSOLVER.hegvj!(1, 'V', 'U', CuArray(A), CuArray(B))
+        d_Wb, _ = cuSOLVER.heevjBatched!('V', 'U', CuArray(reshape(A, m, m, 1)))
+    else
+        d_W, d_V = cuSOLVER.syevd!('V', 'U', CuArray(A))
+        d_Wg, _, _ = cuSOLVER.sygvd!(1, 'V', 'U', CuArray(A), CuArray(B))
+        d_Wj, _, _ = cuSOLVER.sygvj!(1, 'V', 'U', CuArray(A), CuArray(B))
+        d_Wb, _ = cuSOLVER.syevjBatched!('V', 'U', CuArray(reshape(A, m, m, 1)))
+    end
+    @test collect(d_W) ≈ W
+    # eigenvector residual, checked on the device
+    d_v = d_V[:, 1]
+    d_r = CuArray(A) * d_v - collect(d_W)[1] * d_v
+    @test maximum(abs.(d_r)) < sqrt(eps(real(elty))) * norm(A)
+    @test collect(d_Wg) ≈ Wg
+    @test collect(d_Wj) ≈ Wg
+    @test collect(d_Wb)[:, 1] ≈ W
 end

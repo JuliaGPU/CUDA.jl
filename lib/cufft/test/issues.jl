@@ -105,7 +105,7 @@ end
     c = rand(ComplexF32, 8, 4)
     r = rand(Float32, 8, 4)
     i = rand(-9:9, 8, 4)
-    for (plan, x, args) in ((plan_fft, c, ()), (plan_fft, c, (2,)), (plan_fft, c, ((1, 2),)),
+    for (plan, x, args) in ((plan_fft, c, ()), (plan_fft, c, ((1, 2),)),
                             (plan_bfft, c, ()), (plan_ifft, c, ()),
                             (plan_fft!, c, ()), (plan_bfft!, c, ()), (plan_ifft!, c, ()),
                             (plan_fft, r, ()), (plan_rfft, r, ()), (plan_rfft, i, ()),

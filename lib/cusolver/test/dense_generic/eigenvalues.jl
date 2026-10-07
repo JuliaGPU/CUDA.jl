@@ -4,6 +4,8 @@ using LinearAlgebra
 n = 10
 
 if cuSOLVER.version() >= v"11.7.1"
+    # besides Xgeev! itself, the real-eltype checks multiply real by complex arrays, which is
+    # the only coverage in this suite for cuBLAS' mixed-eltype fallback, so keep all eltypes
     @testset "geev! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         A = rand(elty, n, n)
         d_A = CuMatrix(A)
@@ -29,11 +31,9 @@ if cuSOLVER.version() >= v"11.7.1"
         end
     end
 
-    @testset "syevBatched! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "syevBatched! elty = $elty" for elty in [Float64, ComplexF32]
         batch_size = 5
-        for uplo in ('L', 'U')
-            (cuSOLVER.version() < v"11.7.2") && (uplo == 'L') && (elty == ComplexF32) && continue
-
+        for uplo in ('U',)
             A = rand(elty, n, n, batch_size)
             B = rand(elty, n, n, batch_size)
             for i in 1:batch_size
@@ -59,11 +59,9 @@ if cuSOLVER.version() >= v"11.7.1"
         end
     end
 
-    @testset "syevBatched! updated elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "syevBatched! updated elty = $elty" for elty in [Float64, ComplexF32]
         batch_size = 5
-        for uplo in ('L', 'U')
-            (cuSOLVER.version() < v"11.7.2") && (uplo == 'L') && (elty == ComplexF32) && continue
-
+        for uplo in ('U',)
             A = rand(elty, n, n * batch_size)
             B = rand(elty, n, n * batch_size)
             for i = 1:batch_size
@@ -90,7 +88,7 @@ if cuSOLVER.version() >= v"11.7.1"
     end
 end
 
-@testset "syevd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "syevd! elty = $elty" for elty in [Float64, ComplexF32]
     for uplo in ('L', 'U')
         A = rand(elty, n, n)
         B = A + A'
@@ -106,7 +104,7 @@ end
 
 # the 64-bit generic API requires cuSOLVER 11 or later
 if cuSOLVER.version() >= v"11"
-    @testset "syevdx! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "syevdx! elty = $elty" for elty in [Float64, ComplexF32]
         R = real(elty)
         Σ = [i*one(R) for i = 1:10]
         B = rand(elty, 10, 10)

@@ -156,27 +156,22 @@ convtest(padding=1)
 convtest(stride=2)
 convtest(dilation=2)
 convtest(group=2) # See https://blog.yani.ai/filter-group-tutorial/
+# the math type is only passed through to cuDNN (and the algorithm selection skips the
+# math type check for Float32), so a single non-default value suffices
 convtest(mathType=CUDNN_DEFAULT_MATH)
-convtest(mathType=CUDNN_TENSOR_OP_MATH)
-convtest(mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
 convtest(reorderType=CUDNN_NO_REORDER)
 convtest(alpha=2)
 convtest(beta=2)
 
 # These call cudnnConvolutionBiasActivationForward
+# (the convolution parameters are handled identically to the above, so only the
+# bias/activation/blending combinations are tested here)
 convtest(bias=cb)
 convtest(blendz=true)
 convtest(activation=CUDNN_ACTIVATION_RELU)
 convtest(bias=cb,blendz=true)
 convtest(bias=cb,activation=CUDNN_ACTIVATION_RELU)
-convtest(bias=cb,padding=1)
-convtest(bias=cb,stride=2)
-convtest(bias=cb,dilation=2)
 convtest(bias=cb,group=2)
-convtest(bias=cb,mathType=CUDNN_DEFAULT_MATH)
-convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH)
-convtest(bias=cb,mathType=CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION)
-convtest(bias=cb,reorderType=CUDNN_NO_REORDER)
 convtest(bias=cb,alpha=2)
 convtest(bias=cb,beta=2)
 convtest(bias=cb,beta=2,blendz=true)

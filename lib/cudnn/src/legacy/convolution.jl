@@ -270,7 +270,10 @@ function cudnnConvolutionAlgoPerfChoose(convDesc, tensorDesc, perfResults, n)
 end
 
 function cudnnFindConvolutionAlgorithmWorkspaceSize(x)
-    CUDACore.reclaim()
+    # algorithm discovery is infrequent but allocates a lot, so it's a good place to
+    # trim the pool. don't use the default `RECLAIM_DROP`, which would also drop the
+    # task's library handles (including the cuDNN handle that's in use here).
+    CUDACore.reclaim(CUDACore.RECLAIM_GC)
     gpufree = CUDACore.free_memory() + coalesce(CUDACore.cached_memory(), 0)
     return min(gpufree ÷ 10, sizeof(x) * 100)
 end

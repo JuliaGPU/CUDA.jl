@@ -1,7 +1,7 @@
 using cuBLAS
 using LinearAlgebra
 
-@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset for elty in [Float32, ComplexF32]
     m = 20
 
     @testset "trmv!" begin
@@ -25,7 +25,7 @@ using LinearAlgebra
     end
 
     @testset "lmul!($op($TR))" for TR in (UpperTriangular, LowerTriangular),
-                                   op in (identity, adjoint, transpose)
+                                   op in (elty <: Complex ? (identity, adjoint, transpose) : (identity,))
         A = rand(elty, m, m)
         dA = CuArray(A)
         x = rand(elty, m)
@@ -63,7 +63,7 @@ using LinearAlgebra
     end
 
     @testset "ldiv!($op($TR))" for TR in (UpperTriangular, LowerTriangular),
-                                   op in (identity, adjoint, transpose)
+                                   op in (elty <: Complex ? (identity, adjoint, transpose) : (identity,))
         A = rand(elty, m, m)
         A = A + transpose(A)
         dA = CuArray(A)
@@ -74,8 +74,17 @@ using LinearAlgebra
         @test op(TR(A)) \ x ≈ Array(dy)
     end
 
-    @testset "inv($TR)" for TR in (UpperTriangular, LowerTriangular,
+    elty == Float32 && @testset "inv($TR)" for TR in (UpperTriangular, LowerTriangular,
                                    UnitUpperTriangular, UnitLowerTriangular)
         @test testf(x -> inv(TR(x)), rand(elty, m, m))
     end
+end
+
+# per-eltype cuBLAS wrappers for the eltypes not covered by the loop above
+@testset "trmv/trsv wrappers ($elty)" for elty in [Float64, ComplexF64]
+    m = 20
+    A = triu(rand(elty, m, m)) + m * I
+    x = rand(elty, m)
+    @test Array(cuBLAS.trmv('U', 'N', 'N', CuArray(A), CuArray(x))) ≈ A * x
+    @test Array(cuBLAS.trsv('U', 'N', 'N', CuArray(A), CuArray(x))) ≈ A \ x
 end

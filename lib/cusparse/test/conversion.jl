@@ -1,5 +1,5 @@
 @testset "conversion" begin
-    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset for elty in [Float32, ComplexF64]
         @testset "CSC(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
@@ -252,7 +252,7 @@ end
 end
 
 @testset "CuSparseMatrix(::Adjoint/::Transpose) from CPU" begin
-    for typ in (Float32, ComplexF32, Float64, ComplexF64)
+    for typ in (Float32, ComplexF64)
         A = sprand(typ, 5, 5, 0.2)
         for T in (CuSparseMatrixCSC{typ}, CuSparseMatrixCSR{typ}, CuSparseMatrixCOO{typ}), f in (transpose, adjoint)
             dA = T(f(A))
@@ -263,7 +263,7 @@ end
 end
 
 @testset "CuSparseMatrix(::Adjoint/::Transpose) from GPU" begin
-    for typ in (Float32, ComplexF32, Float64, ComplexF64), (outer_T, T) in ((CuSparseMatrixCSC, CuSparseMatrixCSR{typ}), (CuSparseMatrixCSR, CuSparseMatrixCSC{typ}))
+    for typ in (Float32, ComplexF64), (outer_T, T) in ((CuSparseMatrixCSC, CuSparseMatrixCSR{typ}), (CuSparseMatrixCSR, CuSparseMatrixCSC{typ}))
         A = sprand(typ, 5, 5, 0.2)
         d_A = outer_T(A)
         for f in (transpose, adjoint)
@@ -273,7 +273,7 @@ end
     end
 
     # fully parameterized constructors, hit by `to_power_type` in `A'^2` (CUDA.jl#2255)
-    for typ in (Float32, ComplexF32, Float64, ComplexF64), T in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+    for typ in (Float32, ComplexF64), T in (CuSparseMatrixCSC, CuSparseMatrixCSR)
         A = sprand(typ, 5, 5, 0.2)
         d_A = T(A)
         for f in (transpose, adjoint)
@@ -284,7 +284,7 @@ end
 end
 
 @testset "sparse(::Symmetric/::Hermitian) (CUDA.jl#3042)" begin
-    for typ in (Float32, ComplexF32, Float64, ComplexF64)
+    for typ in (Float32, ComplexF64)
         A = sprand(typ, 10, 10, 0.3)
         for T in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO),
             wrap in (Symmetric, Hermitian),
