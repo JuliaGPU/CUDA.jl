@@ -119,13 +119,9 @@ include("utilities.jl")
 include("texture.jl")
 
 # integrations and specialized functionality
-include("indexing.jl")
 include("broadcast.jl")
-include("mapreduce.jl")
-include("accumulate.jl")
-include("reverse.jl")
+include("reduction.jl")
 include("iterator.jl")
-include("sorting.jl")
 
 # shared library types
 include("complex.jl")
