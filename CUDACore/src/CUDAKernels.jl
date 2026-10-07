@@ -121,19 +121,28 @@ function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3},
     return
 end
 
-KI.max_work_group_size(kernel::KI.Kernel{CUDABackend})::Int = CUDACore.maxthreads(kernel.kern.kernel)
-function KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; nitems::Union{Integer,Nothing}=nothing,
-                                 max_work_group_size::Integer=typemax(Int))
+# these queries are compiled for every kernel, so they forward to functions of the
+# `CuFunction` that are compiled only once
+KI.max_work_group_size(kernel::KI.Kernel{CUDABackend})::Int =
+    max_threads_per_block(kernel.kern.kernel.fun)
+KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; nitems::Union{Integer,Nothing}=nothing,
+                        max_work_group_size::Integer=typemax(Int)) =
+    (; workgroupsize=launch_threads(kernel.kern.kernel.fun, kernel.backend.prefer_blocks,
+                                    nitems, max_work_group_size))
+
+max_threads_per_block(fun::CuFunction) =
+    Int(attributes(fun)[CUDACore.FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK])
+function launch_threads(fun::CuFunction, prefer_blocks::Bool, nitems, max_work_group_size)
     max_threads = min(max_work_group_size, something(nitems, typemax(Int)), typemax(Int32))
-    config = launch_configuration(kernel.kern.kernel.fun; max_threads)
+    config = launch_configuration(fun; max_threads)
     threads = Int(config.threads)
-    if kernel.backend.prefer_blocks && nitems !== nothing
+    if prefer_blocks && nitems !== nothing
         # prefer blocks over threads: at least as many blocks as the occupancy API suggests
         # XXX: some kernels perform much better with all blocks active
         blocks = max(cld(nitems, threads), Int(config.blocks))
         threads = cld(nitems, blocks)
     end
-    return (; workgroupsize=threads)
+    return threads
 end
 # these limits are the same for every supported device, so don't query them on every launch
 KI.max_work_group_size(::CUDABackend)::Int = 1024
