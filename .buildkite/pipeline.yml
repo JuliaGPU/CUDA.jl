@@ -1,9 +1,12 @@
 # Commit message tags select what to run: `[only X]` runs only the listed steps, `[skip X]`
 # skips them, where X is a comma-separated list of: `tests` (everything but docs and
 # benchmarks), `julia` (released Julia versions), `nightly`, `cuda` (CUDA toolkits),
-# `downstream`, `special`, `docs`, `benchmarks`. Draft pull requests only test the newest
-# Julia release and nightly, unless steps are selected explicitly. See also GPUCompiler.jl's
-# CI, which uses the same tags.
+# `downstream`, `special`, `docs`, `benchmarks`. To limit the load on the shared GPU runners,
+# pull requests only test the oldest and newest supported Julia release, and the oldest and
+# newest toolkit of each CUDA major version; the other Julia versions (including nightly)
+# and toolkits are tested on branch builds, or when selected explicitly with `[only X]`.
+# Draft pull requests only test the newest Julia release. See also GPUCompiler.jl's CI,
+# which uses the same tags.
 steps:
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
@@ -59,12 +62,12 @@ steps:
             julia:
               - "1.13"
 
-      # older releases
+      # intermediate releases, not tested on pull requests
       - <<: *julia
         if: |
           build.message !~ /\[skip [^\]]*(tests|julia)/ &&
           (build.message =~ /\[only [^\]]*(tests|julia)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
+           build.message !~ /\[only / && build.pull_request.id == null)
         matrix:
           setup:
             julia:
@@ -72,9 +75,11 @@ steps:
               - "1.12"
 
       - <<: *julia
+        # not tested on pull requests
         if: |
           build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
-          (build.message =~ /\[only [^\]]*(tests|nightly)/ || build.message !~ /\[only /)
+          (build.message =~ /\[only [^\]]*(tests|nightly)/ ||
+           build.message !~ /\[only / && build.pull_request.id == null)
         soft_fail: true
         matrix:
           setup:
@@ -86,7 +91,9 @@ steps:
     key: "cuda"
     depends_on: "julia"
     steps:
-      - label: "CUDA {{matrix.cuda}}"
+      # the oldest and newest toolkit of each major version
+      - &cuda
+        label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
@@ -105,18 +112,8 @@ steps:
           setup:
             cuda:
               - "13.4"
-              - "13.3"
-              - "13.2"
-              - "13.1"
               - "13.0"
               - "12.9"
-              - "12.8"
-              - "12.6"
-              - "12.5"
-              - "12.4"
-              - "12.3"
-              - "12.2"
-              - "12.1"
               - "12.0"
         commands: |
           # use the newest compiler in each major, including the EA compiler for CUDA 13
@@ -127,104 +124,77 @@ steps:
           esac
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"\n\n[CUDA_Compiler_jll]\nversion = \"$${compiler}\"" >LocalPreferences.toml
 
-  - group: ":telescope: Downstream"
-    depends_on: "cuda"
-    steps:
-      #- label: "NNlib.jl"
-      #  plugins:
-      #    - JuliaCI/julia#v1:
-      #        version: "1.11"
-      #    - JuliaCI/julia-coverage#v1:
-      #        dirs: ["."]
-      #  command: |
-      #    julia --project -e '
-      #      using Pkg
-      #
-      #      cuda = pwd()
-      #      cudnn = joinpath(cuda, "lib", "cudnn")
-      #      devdir = mktempdir()
-      #      nnlib = joinpath(devdir, "NNlib")
-      #
-      #      println("--- :julia: Installing TestEnv")
-      #      Pkg.activate(; temp=true)
-      #      Pkg.add("TestEnv")
-      #      using TestEnv
-      #
-      #      println("--- :julia: Installing NNlib")
-      #      withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0,
-      #              "JULIA_PKG_DEVDIR" => devdir) do
-      #        Pkg.develop("NNlib")
-      #        Pkg.activate(nnlib)
-      #
-      #        try
-      #          Pkg.develop([PackageSpec(path=cuda), PackageSpec(path=cudnn)])
-      #          TestEnv.activate()
-      #        catch err
-      #          @error "Could not install NNlib" exception=(err,catch_backtrace())
-      #          exit(3)
-      #        finally
-      #          Pkg.activate(nnlib)
-      #        end
-      #      end
-      #
-      #      println("+++ :julia: Running tests")
-      #      Pkg.test(; coverage=true)'
-      #  env:
-      #    NNLIB_TEST_CUDA: "true"
-      #    NNLIB_TEST_CPU: "false"
-      #  agents:
-      #    queue: "cuda"
-      #  if: |
-      #    build.message =~ /\[only tests\]/ ||
-      #    build.message =~ /\[only downstream\]/ ||
-      #    build.message !~ /\[only/ && !build.pull_request.draft &&
-      #      build.message !~ /\[skip tests\]/ &&
-      #      build.message !~ /\[skip downstream\]/
-      #  timeout_in_minutes: 30
-      #  soft_fail:
-      #    - exit_status: 3
-      - label: "Enzyme.jl"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.11"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        commands: |
-          julia -e '
-            using Pkg
-
-            println("--- :julia: Instantiating project")
-            withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              # add Enzyme to the test deps
-              Pkg.activate("test")
-              Pkg.add(["Enzyme", "EnzymeCore"])
-
-              # to check compatibility, also add Enzyme to the main environment
-              # (or Pkg.test, which merges both environments, could fail)
-              Pkg.activate(".")
-              # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
-              try
-                Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
-              catch err
-                try
-                  Pkg.develop([PackageSpec("Enzyme")])
-                catch err
-                  @error "Could not install Enzyme" exception=(err,catch_backtrace())
-                  exit(3)
-                end
-              end
-            end
-
-            println("+++ :julia: Running tests")
-            Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
-        agents:
-          queue: "cuda"
+      # intermediate toolkits, not tested on pull requests
+      - <<: *cuda
         if: |
-          build.message !~ /\[skip [^\]]*(tests|downstream)/ &&
-          (build.message =~ /\[only [^\]]*(tests|downstream)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 60
-        soft_fail: true
+          build.message !~ /\[skip [^\]]*(tests|cuda)/ &&
+          (build.message =~ /\[only [^\]]*(tests|cuda)/ ||
+           build.message !~ /\[only / && build.pull_request.id == null)
+        matrix:
+          setup:
+            cuda:
+              - "13.3"
+              - "13.2"
+              - "13.1"
+              - "12.8"
+              - "12.6"
+              - "12.5"
+              - "12.4"
+              - "12.3"
+              - "12.2"
+              - "12.1"
+
+  # Disabled: the Enzyme.jl step has failed on every build since at least 2026-09-16, because
+  # Enzyme does not support LLVM.jl 10 yet, which CUDACore requires ("Unsatisfiable
+  # requirements detected for package LLVM"). It is the only downstream step, and an empty
+  # group is invalid, so the whole group is commented out. Re-enable once Enzyme is
+  # compatible.
+  #
+  # - group: ":telescope: Downstream"
+  #   depends_on: "cuda"
+  #   steps:
+  #     - label: "Enzyme.jl"
+  #       plugins:
+  #         - JuliaCI/julia#v1:
+  #             version: "1.11"
+  #         - JuliaCI/julia-coverage#v1:
+  #             dirs: ["."]
+  #       commands: |
+  #         julia -e '
+  #           using Pkg
+  #
+  #           println("--- :julia: Instantiating project")
+  #           withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
+  #             # add Enzyme to the test deps
+  #             Pkg.activate("test")
+  #             Pkg.add(["Enzyme", "EnzymeCore"])
+  #
+  #             # to check compatibility, also add Enzyme to the main environment
+  #             # (or Pkg.test, which merges both environments, could fail)
+  #             Pkg.activate(".")
+  #             # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
+  #             try
+  #               Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
+  #             catch err
+  #               try
+  #                 Pkg.develop([PackageSpec("Enzyme")])
+  #               catch err
+  #                 @error "Could not install Enzyme" exception=(err,catch_backtrace())
+  #                 exit(3)
+  #               end
+  #             end
+  #           end
+  #
+  #           println("+++ :julia: Running tests")
+  #           Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
+  #       agents:
+  #         queue: "cuda"
+  #       if: |
+  #         build.message !~ /\[skip [^\]]*(tests|downstream)/ &&
+  #         (build.message =~ /\[only [^\]]*(tests|downstream)/ ||
+  #          build.message !~ /\[only / && !build.pull_request.draft)
+  #       timeout_in_minutes: 60
+  #       soft_fail: true
 
   - group: ":eyes: Special"
     depends_on: "cuda"
