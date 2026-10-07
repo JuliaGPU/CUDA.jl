@@ -36,6 +36,53 @@
             threadIdx().x
         end
     end
+
+    # executing these needs sm_90 (see clusters.jl), but codegen works everywhere
+    @testset "cluster codegen" begin
+        for (f, intr) in ((blockIdxInCluster, "cluster.ctaid"), (clusterDim, "cluster.nctaid"),
+                          (clusterIdx, "clusterid"), (gridClusterDim, "nclusterid")),
+            dim in (:x, :y, :z)
+            @test @filecheck CUDA.code_llvm(Tuple{}; raw=true) do
+                @check "{{call .+ @llvm.nvvm.read.ptx.sreg.$intr.$dim.+ !range}}"
+                getproperty(f(), dim)
+            end
+        end
+        @test @filecheck CUDA.code_llvm(Tuple{}; raw=true) do
+            @check "{{call .+ @llvm.nvvm.read.ptx.sreg.cluster.ctarank.+ !range}}"
+            linearBlockIdxInCluster()
+        end
+        @test @filecheck CUDA.code_llvm(Tuple{}; raw=true) do
+            @check "{{call .+ @llvm.nvvm.read.ptx.sreg.cluster.nctarank.+ !range}}"
+            linearClusterSize()
+        end
+    end
+
+    @testset "lanemask" begin
+        function kernel(out)
+            i = threadIdx().x
+            out[1, i] = lanemask(==)
+            out[2, i] = lanemask(<)
+            out[3, i] = lanemask(<=)
+            out[4, i] = lanemask(>=)
+            out[5, i] = lanemask(>)
+            return
+        end
+        out = CuArray{UInt32}(undef, 5, 32)
+        @cuda threads=32 kernel(out)
+        expected = map(CartesianIndices((5, 32))) do I
+            pred, lane = I[1], I[2] - 1
+            eq = UInt32(1) << lane
+            lt = eq - 0x1
+            (eq, lt, lt | eq, ~lt, ~(lt | eq))[pred]
+        end
+        @test Array(out) == expected
+
+        # unsupported predicates fold to an exception
+        @test @filecheck CUDA.code_llvm(Tuple{}) do
+            @check "gpu_report_exception"
+            lanemask(+)
+        end
+    end
 end
 
 

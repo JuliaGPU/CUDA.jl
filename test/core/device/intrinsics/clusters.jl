@@ -42,6 +42,49 @@ end
 
 ###########################################################################################
 
+@testset "cluster dimensions and linear indices" begin
+    function f(A::AbstractArray{Int32,2})
+        b = blockIdx().x + (blockIdx().y - 1i32) * gridDim().x +
+            (blockIdx().z - 1i32) * gridDim().x * gridDim().y
+        A[1,b] = clusterDim().x
+        A[2,b] = clusterDim().y
+        A[3,b] = clusterDim().z
+        A[4,b] = gridClusterDim().x
+        A[5,b] = gridClusterDim().y
+        A[6,b] = gridClusterDim().z
+        A[7,b] = linearClusterSize()
+        A[8,b] = linearBlockIdxInCluster()
+        A[9,b] = blockIdxInCluster().x
+        A[10,b] = blockIdxInCluster().y
+        A[11,b] = blockIdxInCluster().z
+        A[12,b] = clusterIdx().x
+        A[13,b] = clusterIdx().y
+        A[14,b] = clusterIdx().z
+        nothing
+    end
+
+    clustersize = (2,2,2)
+    blocks = (4,2,6)
+    A = CUDA.zeros(Int32, 14, prod(blocks))
+    @cuda threads=1 blocks=blocks clustersize=clustersize f(A)
+    A = Array(A)
+
+    nclusters = blocks .÷ clustersize
+    for (b, I) in enumerate(CartesianIndices(blocks))
+        bidx = Tuple(I)
+        inc = mod1.(bidx, clustersize)
+        @test A[1:3,b] == collect(clustersize)
+        @test A[4:6,b] == collect(nclusters)
+        @test A[7,b] == prod(clustersize)
+        # the linear rank within the cluster is x-major
+        @test A[8,b] == LinearIndices(clustersize)[inc...]
+        @test A[9:11,b] == collect(inc)
+        @test A[12:14,b] == collect(cld.(bidx, clustersize))
+    end
+end
+
+###########################################################################################
+
 @testset "distributed shared memory" begin
     function f(A::AbstractArray{Int32,3})
         ti = threadIdx().x
