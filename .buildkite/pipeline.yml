@@ -7,6 +7,10 @@
 # and toolkits are tested on branch builds, or when selected explicitly with `[only X]`.
 # Draft pull requests only test the newest Julia release. See also GPUCompiler.jl's CI,
 # which uses the same tags.
+#
+# Julia versions run the `julia` group of tests and CUDA toolkits the `cuda` group (see
+# test/runtests.jl). The newest toolkit of each CUDA major version also runs the tests that
+# depend on the compiler, and the newest toolkit overall runs all tests.
 steps:
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
@@ -31,7 +35,7 @@ steps:
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
               "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
             )])
-            Pkg.test(; test_args=["--quickfail"])'
+            Pkg.test(; test_args=["--quickfail", "julia"])'
         if: |
           build.message !~ /\[skip [^\]]*(tests|julia)/ &&
           (build.message =~ /\[only [^\]]*(tests|julia)/ ||
@@ -45,7 +49,7 @@ steps:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail"
+              test_args: "--quickfail julia"
               allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
@@ -91,14 +95,16 @@ steps:
     key: "cuda"
     depends_on: "julia"
     steps:
-      # the oldest and newest toolkit of each major version
+      # every toolkit of a major version uses the compiler of its newest toolkit (see
+      # below), so only that toolkit runs the tests that depend on the compiler. the newest
+      # one is tested with the newest Julia release, and runs all tests.
       - &cuda
         label: "CUDA {{matrix.cuda}}"
         plugins:
           - JuliaCI/julia#v1:
-              version: "1.12"
+              version: "1.13"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core libraries"
+              test_args: "--quickfail --all"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -112,9 +118,6 @@ steps:
           setup:
             cuda:
               - "13.4"
-              - "13.0"
-              - "12.9"
-              - "12.0"
         commands: |
           # use the newest compiler in each major, including the EA compiler for CUDA 13
           case "{{matrix.cuda}}" in
@@ -124,8 +127,42 @@ steps:
           esac
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"\n\n[CUDA_Compiler_jll]\nversion = \"$${compiler}\"" >LocalPreferences.toml
 
-      # intermediate toolkits, not tested on pull requests
+      # the newest CUDA 12 toolkit, without the GPUArrays testsuite (which is unlikely to
+      # depend on the toolkit)
       - <<: *cuda
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.12"
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail core tools libraries"
+          - JuliaCI/julia-coverage#v1:
+              dirs: ["."]
+        matrix:
+          setup:
+            cuda:
+              - "12.9"
+
+      # the other toolkits only differ in their runtime and libraries, so they only run the
+      # tests that depend on those. together with the above, this tests the oldest and
+      # newest toolkit of each major version on pull requests.
+      - &cuda_runtime
+        <<: *cuda
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.12"
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail cuda"
+          - JuliaCI/julia-coverage#v1:
+              dirs: ["."]
+        timeout_in_minutes: 90
+        matrix:
+          setup:
+            cuda:
+              - "13.0"
+              - "12.0"
+
+      # intermediate toolkits, not tested on pull requests
+      - <<: *cuda_runtime
         if: |
           build.message !~ /\[skip [^\]]*(tests|cuda)/ &&
           (build.message =~ /\[only [^\]]*(tests|cuda)/ ||
@@ -239,12 +276,13 @@ steps:
            build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 60
 
+      # only the tests that allocate and free memory in interesting ways
       - label: "Legacy memory allocator"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core"
+              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -257,12 +295,13 @@ steps:
            build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 45
 
+      # only the tests that allocate arrays or pass them to kernels
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core"
+              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach core/device/array core/execution core/kernelabstractions core/kernelinterface core/pointer core/texture"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -280,12 +319,13 @@ steps:
         commands: |
           echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
+      # only the tests that use multiple devices
       - label: "MultiGPU"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core libraries/cublas/xt"
+              test_args: "--quickfail core/array core/cudadrv core/initialization core/pool core/threading core/kernelabstractions core/kernelinterface libraries/cublas/xt libraries/cusolver/multigpu"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -305,7 +345,7 @@ steps:
               # of resolving them from the registry (and update below)
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core base"
+              test_args: "--quickfail core tools"
               allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
