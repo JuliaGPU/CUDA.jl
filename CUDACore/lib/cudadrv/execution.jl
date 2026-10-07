@@ -70,6 +70,9 @@ function launch_tuple(f::CuFunction, args::Tuple; blocks::CuDim=1, threads::CuDi
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
 
+    # cover the 32-bit word that 8- and 16-bit atomics operate on (see `pool_alloc`)
+    shmem = cld(shmem, 4) * 4
+
     if dependent
         driver_version() >= v"11.8" ||
             error("Programmatic dependent launch requires CUDA 11.8 or higher")
