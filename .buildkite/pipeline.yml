@@ -91,7 +91,8 @@ steps:
     key: "cuda"
     depends_on: "julia"
     steps:
-      # the oldest and newest toolkit of each major version
+      # every toolkit of a major version uses the same compiler (see below), so the core
+      # tests only need to run once per major: on the toolkit matching that compiler.
       - &cuda
         label: "CUDA {{matrix.cuda}}"
         plugins:
@@ -112,9 +113,7 @@ steps:
           setup:
             cuda:
               - "13.4"
-              - "13.0"
               - "12.9"
-              - "12.0"
         commands: |
           # use the newest compiler in each major, including the EA compiler for CUDA 13
           case "{{matrix.cuda}}" in
@@ -124,8 +123,26 @@ steps:
           esac
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"\n\n[CUDA_Compiler_jll]\nversion = \"$${compiler}\"" >LocalPreferences.toml
 
+      # the other toolkits only differ in their runtime and libraries. together with the
+      # above, this tests the oldest and newest toolkit of each major version.
+      - &cuda_libraries
+        <<: *cuda
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.12"
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail libraries core/cudadrv core/initialization"
+          - JuliaCI/julia-coverage#v1:
+              dirs: ["."]
+        timeout_in_minutes: 90
+        matrix:
+          setup:
+            cuda:
+              - "13.0"
+              - "12.0"
+
       # intermediate toolkits, not tested on pull requests
-      - <<: *cuda
+      - <<: *cuda_libraries
         if: |
           build.message !~ /\[skip [^\]]*(tests|cuda)/ &&
           (build.message =~ /\[only [^\]]*(tests|cuda)/ ||
@@ -245,12 +262,13 @@ steps:
            build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 60
 
+      # only the tests that allocate in interesting ways
       - label: "Legacy memory allocator"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core"
+              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -263,12 +281,13 @@ steps:
            build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 30
 
+      # only the tests that allocate arrays or pass them to kernels
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core"
+              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/device/array core/execution core/kernelabstractions"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -286,12 +305,13 @@ steps:
         commands: |
           echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
+      # only the tests that use multiple devices
       - label: "MultiGPU"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
           - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core libraries/cublas/xt"
+              test_args: "--quickfail core/array core/cudadrv core/initialization core/pool core/threading libraries/cublas/xt"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
