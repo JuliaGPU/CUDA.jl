@@ -93,30 +93,36 @@ end
                     managed::Vector{Managed}) where {B,F,A,S} =
     KernelCall{B,F,A,S}(backend, f, arguments, source, managed)
 
-@inline @generated function kernel_call(backend::B, f::F, args::A) where {B,F,A<:Tuple}
+@inline function kernel_call(backend::B, f::F, args::A) where {B,F,A<:Tuple}
+    roots = (f=f, arguments=args)
+    GC.@preserve roots begin
+        managed = Managed[]
+        kernel_f = kernel_convert(backend, f, managed)
+        f_range = 1:length(managed)
+        arguments, argument_ranges = kernel_convert_arguments(backend, args, managed)
+        managed_ranges = (f=f_range, arguments=argument_ranges)
+        source = (f=roots.f, arguments=roots.arguments, managed=managed_ranges)
+        kernel_call(backend, kernel_f, arguments, source, managed)
+    end
+end
+
+# convert the arguments, returning them along with the range of `managed` that each one
+# added. not inlined, so that kernels taking the same arguments share this code.
+@noinline @generated function kernel_convert_arguments(backend, args::A,
+                                                       managed::Vector{Managed}) where {A<:Tuple}
     converted = [gensym(:converted) for _ in 1:fieldcount(A)]
-    ranges = [gensym(:managed_range) for _ in 1:fieldcount(A)+1]
+    ranges = [gensym(:managed_range) for _ in 1:fieldcount(A)]
     conversions = Any[]
     for i in 1:fieldcount(A)
         push!(conversions, quote
             start = length(managed) + 1
             $(converted[i]) = kernel_convert(backend, args[$i], managed)
-            $(ranges[i+1]) = start:length(managed)
+            $(ranges[i]) = start:length(managed)
         end)
     end
     quote
-        roots = (f=f, arguments=args)
-        GC.@preserve roots begin
-            managed = Managed[]
-            start = 1
-            kernel_f = kernel_convert(backend, f, managed)
-            $(ranges[1]) = start:length(managed)
-            $(conversions...)
-            arguments = ($(converted...),)
-            managed_ranges = (f=$(ranges[1]), arguments=($(ranges[2:end]...),))
-            source = (f=roots.f, arguments=roots.arguments, managed=managed_ranges)
-            kernel_call(backend, kernel_f, arguments, source, managed)
-        end
+        $(conversions...)
+        return ($(converted...),), ($(ranges...),)
     end
 end
 
