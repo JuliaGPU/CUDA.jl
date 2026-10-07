@@ -1,9 +1,12 @@
 # Commit message tags select what to run: `[only X]` runs only the listed steps, `[skip X]`
 # skips them, where X is a comma-separated list of: `tests` (everything but docs and
 # benchmarks), `julia` (released Julia versions), `nightly`, `cuda` (CUDA toolkits),
-# `downstream`, `special`, `docs`, `benchmarks`. Draft pull requests only test the newest
-# Julia release and nightly, unless steps are selected explicitly. See also GPUCompiler.jl's
-# CI, which uses the same tags.
+# `downstream`, `special`, `docs`, `benchmarks`. To limit the load on the shared GPU runners,
+# pull requests only test the oldest and newest supported Julia release; the other Julia
+# versions (including nightly) are tested on branch builds, or when selected explicitly
+# with `[only X]`.
+# Draft pull requests only test the newest Julia release. See also GPUCompiler.jl's CI,
+# which uses the same tags.
 steps:
   # first, test supported Julia versions (using local CUDA as installed on the system)
   - group: ":julia: Julia"
@@ -59,12 +62,12 @@ steps:
             julia:
               - "1.13"
 
-      # older releases
+      # intermediate releases, not tested on pull requests
       - <<: *julia
         if: |
           build.message !~ /\[skip [^\]]*(tests|julia)/ &&
           (build.message =~ /\[only [^\]]*(tests|julia)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
+           build.message !~ /\[only / && build.pull_request.id == null)
         matrix:
           setup:
             julia:
@@ -72,9 +75,11 @@ steps:
               - "1.12"
 
       - <<: *julia
+        # not tested on pull requests
         if: |
           build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
-          (build.message =~ /\[only [^\]]*(tests|nightly)/ || build.message !~ /\[only /)
+          (build.message =~ /\[only [^\]]*(tests|nightly)/ ||
+           build.message !~ /\[only / && build.pull_request.id == null)
         soft_fail: true
         matrix:
           setup:
