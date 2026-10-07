@@ -144,51 +144,51 @@ steps:
               - "12.2"
               - "12.1"
 
-   - group: ":telescope: Downstream"
-     depends_on: "cuda"
-     steps:
-       - label: "Enzyme.jl"
-         plugins:
-           - JuliaCI/julia#v1:
-               version: "1.11"
-           - JuliaCI/julia-coverage#v1:
-               dirs: ["."]
-         commands: |
-           julia -e '
-             using Pkg
-  
-             println("--- :julia: Instantiating project")
-             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-               # add Enzyme to the test deps
-               Pkg.activate("test")
-               Pkg.add(["Enzyme", "EnzymeCore"])
-  
-               # to check compatibility, also add Enzyme to the main environment
-               # (or Pkg.test, which merges both environments, could fail)
-               Pkg.activate(".")
-               # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
-               try
-                 Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
-               catch err
-                 try
-                   Pkg.develop([PackageSpec("Enzyme")])
-                 catch err
-                   @error "Could not install Enzyme" exception=(err,catch_backtrace())
-                   exit(3)
-                 end
-               end
-             end
-  
-             println("+++ :julia: Running tests")
-             Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
-         agents:
-           queue: "cuda"
-         if: |
-           build.message !~ /\[skip [^\]]*(tests|downstream)/ &&
-           (build.message =~ /\[only [^\]]*(tests|downstream)/ ||
-            build.message !~ /\[only / && !build.pull_request.draft)
-         timeout_in_minutes: 60
-         soft_fail: true
+  - group: ":telescope: Downstream"
+    depends_on: "cuda"
+    steps:
+      - label: "Enzyme.jl"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.11"
+          - JuliaCI/julia-coverage#v1:
+              dirs: ["."]
+        commands: |
+          julia -e '
+            using Pkg
+
+            println("--- :julia: Instantiating project")
+            withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
+              # add Enzyme to the test deps
+              Pkg.activate("test")
+              Pkg.add(["Enzyme", "EnzymeCore"])
+
+              # to check compatibility, also add Enzyme to the main environment
+              # (or Pkg.test, which merges both environments, could fail)
+              Pkg.activate(".")
+              # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
+              try
+                Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
+              catch err
+                try
+                  Pkg.develop([PackageSpec("Enzyme")])
+                catch err
+                  @error "Could not install Enzyme" exception=(err,catch_backtrace())
+                  exit(3)
+                end
+              end
+            end
+
+            println("+++ :julia: Running tests")
+            Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
+        agents:
+          queue: "cuda"
+        if: |
+          build.message !~ /\[skip [^\]]*(tests|downstream)/ &&
+          (build.message =~ /\[only [^\]]*(tests|downstream)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
+        timeout_in_minutes: 60
+        soft_fail: true
 
   - group: ":eyes: Special"
     depends_on: "cuda"
