@@ -768,11 +768,18 @@ in a hot path without degrading performance. New code will be generated automati
 when function changes, or when different types or keyword arguments are provided.
 """
 function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
-    cuda = active_state()
+    source = methodinstance(F, tt)
+    fun, state = cufunction_link(source; kwargs...)
+    return HostKernel{F,tt}(f, fun, state)
+end
 
+# the parts of `cufunction` that don't depend on the type of the function, kept separate so
+# that they are compiled once rather than for every kernel
+function cufunction_link(source::Core.MethodInstance; kwargs...)
     Base.@lock cufunction_lock begin
+        cuda = active_state()
+
         # look up (or generate) the compilation artifacts for this function
-        source = methodinstance(F, tt)
         config = compiler_config(cuda.device; kwargs...)::CUDACompilerConfig
         # Target selection may retain a PTX-compatible target for reflection, but
         # executing a kernel requires a cubin that loads on this device.
@@ -807,23 +814,17 @@ function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
             end
         end
 
-        # create a callable object that captures the function instance. we don't need to think
-        # about world age here, as GPUCompiler already does and will return a different object
-        key = (objectid(source), hash(fun), f)
-        kernel = get(_kernel_instances, key, nothing)
-        if kernel === nothing
-            # create the kernel state object
+        state = get(_kernel_states, fun, nothing)
+        if state === nothing
             state = KernelState(create_exceptions!(fun.mod), UInt32(0))
-
-            kernel = HostKernel{F,tt}(f, fun, state)
-            _kernel_instances[key] = kernel
+            _kernel_states[fun] = state
         end
-        return kernel::HostKernel{F,tt}
+        return fun, state
     end
 end
 
-# cache of kernel instances
-const _kernel_instances = Dict{Any, Any}()
+# the state of every kernel, which is created when the kernel is first used
+const _kernel_states = Dict{CuFunction, KernelState}()
 
 # task-local RNG for kernel launch seeds, so that launching a kernel does not
 # perturb the user-visible `rand()` stream
