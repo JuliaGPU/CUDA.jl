@@ -368,8 +368,10 @@ end
 
 ## floating-point handling
 
-@device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
-@device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
+# NOTE: not using libdevice's `__nv_nearbyint`, which calls `llvm.nvvm.round.*`: LLVM 15
+#       (Julia 1.10) simplifies that to `llvm.round`, which rounds ties away from zero.
+@device_function nearbyint(x::Float64) = ccall("llvm.nearbyint.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_function nearbyint(x::Float32) = ccall("llvm.nearbyint.f32", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_function nextafter(x::Float64, y::Float64) = ccall("extern __nv_nextafter", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_function nextafter(x::Float32, y::Float32) = ccall("extern __nv_nextafterf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
