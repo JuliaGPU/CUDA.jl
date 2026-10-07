@@ -422,10 +422,12 @@ wait for other streams that used the memory before.
 """
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
-    # (a single memory is trivially in locking order)
-    ordered = length(managed) == 1 ? managed : locking_order(managed)
-    with_ordered_managed(f, ordered; stream)
+    with_ordered_managed(f, ordered_managed(managed); stream)
 end
+
+# (a single memory is trivially in locking order)
+ordered_managed(managed::AbstractVector{<:Managed}) =
+    length(managed) == 1 ? managed : locking_order(managed)
 
 # like `with_managed`, but for memory that's already in locking order
 function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
@@ -433,50 +435,65 @@ function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
                               stream::CuStream=stream()) where {F}
     # (taking ownership of the memory and using it is a single submission)
     capture_submission(stream) do
-        tls = task_local_state!()
-        state = active_state(tls)
-        capturing = is_capturing(stream)
-        for memory in ordered
-            lock(memory.lock)
-        end
+        acquired = acquire_managed(ordered, stream)
         try
-            for memory in ordered
-                take_ownership!(memory; state, stream, capturing)
-            end
-            return with_operation_stream(f, tls, stream, capturing)
+            return f()
         finally
-            if !capturing
-                epoch = stream_epoch(stream)
-                for memory in ordered
-                    restamp!(memory, stream, epoch)
-                end
-            end
-            for memory in Iterators.reverse(ordered)
-                unlock(memory.lock)
-            end
+            release_managed(acquired)
         end
     end
+end
+
+# lock the managed memory, transfer its ownership to `stream`, and make `stream` the
+# operation stream, returning what to pass to `release_managed`. kept out of line, as the
+# kernel launch code that uses it is compiled for every kernel.
+@noinline function acquire_managed(ordered, stream::CuStream)
+    tls = task_local_state!()
+    state = active_state(tls)
+    capturing = is_capturing(stream)
+    for memory in ordered
+        lock(memory.lock)
+    end
+    try
+        for memory in ordered
+            take_ownership!(memory; state, stream, capturing)
+        end
+    catch
+        unlock_managed(ordered, stream, capturing)
+        rethrow()
+    end
+    # pointers taken while the memory is acquired are used by an operation that CUDA.jl
+    # submits to `stream` (see `convert(::Type{CuPtr}, ::Managed)`)
+    old_stream, old_capturing = tls.operation_stream, tls.operation_capturing
+    tls.operation_stream, tls.operation_capturing = stream, capturing
+    return (; tls, ordered, stream, capturing, old_stream, old_capturing)
+end
+
+@noinline function release_managed(acquired)
+    (; tls, ordered, stream, capturing, old_stream, old_capturing) = acquired
+    tls.operation_stream, tls.operation_capturing = old_stream, old_capturing
+    unlock_managed(ordered, stream, capturing)
 end
 
 # memory is stamped with the epoch of its stream once the operation using it has been
-# submitted, also when `f` throws, as it may have submitted work first (see `StreamOrder`).
+# submitted, also when it throws, as it may have submitted work first (see `StreamOrder`).
 # only memory that `take_ownership!` actually moved to `stream` is stamped, which captured
 # operations don't do (they execute when the graph is launched, which stamps the memory).
+function unlock_managed(ordered, stream::CuStream, capturing::Bool)
+    if !capturing
+        epoch = stream_epoch(stream)
+        for memory in ordered
+            restamp!(memory, stream, epoch)
+        end
+    end
+    for memory in Iterators.reverse(ordered)
+        unlock(memory.lock)
+    end
+    return
+end
+
 restamp!(memory::Managed, stream::CuStream, epoch::UInt64) =
     (memory.stream == stream && (memory.epoch = epoch); return)
-
-# pointers taken during `f` are used by an operation that CUDA.jl submits to `stream` (see
-# `convert(::Type{CuPtr}, ::Managed)`)
-@inline function with_operation_stream(f::F, tls::TaskLocalState, stream::CuStream,
-                                       capturing::Bool) where {F}
-    old_stream, old_capturing = tls.operation_stream, tls.operation_capturing
-    tls.operation_stream, tls.operation_capturing = stream, capturing
-    try
-        return f()
-    finally
-        tls.operation_stream, tls.operation_capturing = old_stream, old_capturing
-    end
-end
 
 function managed_kernel_launch(backend, kernel, arguments, managed; kwargs...)
     # tasks that are part of a capture submit while holding its lock (see `CaptureScope`)
@@ -484,8 +501,11 @@ function managed_kernel_launch(backend, kernel, arguments, managed; kwargs...)
         return scoped_kernel_launch(backend, kernel, arguments, managed; kwargs...)
     isempty(managed) && return kernel_launch(backend, kernel, arguments; kwargs...)
     target_stream = haskey(kwargs, :stream) ? kwargs[:stream] : stream()
-    with_managed(managed; stream=target_stream) do
+    acquired = acquire_managed(ordered_managed(managed), target_stream)
+    try
         kernel_launch(backend, kernel, arguments; kwargs...)
+    finally
+        release_managed(acquired)
     end
 end
 
@@ -831,7 +851,8 @@ const _kernel_states = Dict{CuFunction, KernelState}()
 launch_rng() = get!(Random.Xoshiro, task_local_storage(),
                     :CUDACore_launch_rng)::Random.Xoshiro
 
-make_seed(::HostKernel) = rand(launch_rng(), UInt32)
+make_seed(::HostKernel) = launch_seed()
+@noinline launch_seed() = rand(launch_rng(), UInt32)
 
 
 ## device-side kernels
