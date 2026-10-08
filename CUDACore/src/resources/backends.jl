@@ -245,8 +245,13 @@ function unified_pool()
                   memory_pools_supported(dev) && concurrent_managed_access(dev)
                 end
     supported ? try_create_pool() do
-      CuMemoryPool(device(); alloc_type=CU_MEM_ALLOCATION_TYPE_MANAGED,
-                   location_type=CU_MEM_LOCATION_TYPE_NONE, location_id=0)
+      pool = CuMemoryPool(device(); alloc_type=CU_MEM_ALLOCATION_TYPE_MANAGED,
+                          location_type=CU_MEM_LOCATION_TYPE_NONE, location_id=0)
+      # managed memory is accessible from every device regardless, but a managed pool
+      # reports no access for any device, and compute-sanitizer then flags accesses from
+      # devices other than the one the allocation was made on.
+      access!(pool, collect(devices()), ACCESS_FLAGS_PROT_READWRITE)
+      pool
     end : nothing
   end::Union{Nothing,CuMemoryPool}
 end
