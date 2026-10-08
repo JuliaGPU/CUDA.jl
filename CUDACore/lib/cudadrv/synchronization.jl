@@ -33,31 +33,37 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     # there is no way to poll an entire context (querying the legacy stream does not cover
     # non-blocking streams)
     pollable = !(obj isa CuContext)
+    nonblocking = !blocking && use_nonblocking_synchronization
 
-    # if we're about to wait, now may be a good time for a GC pause
-    if !pollable || !poll(obj)
-        maybe_collect(true)
-    end
-
-    # release resources that finalizers retired, before waiting (so that the GPU can
-    # process the frees in the meantime) and after (as finalizers may have run meanwhile)
-    drain_retired(ALLOC_DRAIN_LIMIT)
-
-    res = if !blocking && use_nonblocking_synchronization
-        ctx = obj isa CuContext ? obj : obj.ctx === nothing ? context() : obj.ctx
-        # if polling found the object to be done, there's no need to synchronize again:
-        # `isdone` reports errors, and a successful query counts as synchronization (e.g.,
-        # for accessing unified memory). doing so anyway would risk blocking the thread,
-        # if another task submitted work in the meantime.
-        res = cooperative_wait(worker_synchronize, (obj, ctx);
-                               isdone = pollable ? worker_isdone : nothing, spin)
-        if res === nothing && obj isa CuEvent
-            synchronize_completed(obj)
-        else
-            something(res, SUCCESS)::CUresult
-        end
+    # if polling finds the object to be done, there's no need to synchronize again: `isdone`
+    # reports errors, and a successful query counts as synchronization (e.g., for accessing
+    # unified memory). doing so anyway would risk blocking the thread, if another task
+    # submitted work in the meantime. polling here, instead of leaving that to
+    # `cooperative_wait`, lets short operations skip the GC pause and draining. blocking
+    # synchronization doesn't poll, as a query costs about as much as synchronizing an idle
+    # stream.
+    res = if nonblocking && pollable && spin && poll(obj)
+        obj isa CuEvent ? synchronize_completed(obj) : SUCCESS
     else
-        unchecked_synchronize(obj)
+        # if we're about to wait, now may be a good time for a GC pause
+        maybe_collect(true)
+
+        # release resources that finalizers retired, before waiting (so that the GPU can
+        # process the frees in the meantime) and after (as finalizers may have run meanwhile)
+        drain_retired(ALLOC_DRAIN_LIMIT)
+
+        if nonblocking
+            ctx = obj isa CuContext ? obj : obj.ctx === nothing ? context() : obj.ctx
+            res = cooperative_wait(worker_synchronize, (obj, ctx);
+                                   isdone = pollable ? worker_isdone : nothing, spin)
+            if res === nothing && obj isa CuEvent
+                synchronize_completed(obj)
+            else
+                something(res, SUCCESS)::CUresult
+            end
+        else
+            unchecked_synchronize(obj)
+        end
     end
 
     if res != SUCCESS
