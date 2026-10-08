@@ -248,23 +248,26 @@ end
 
 ## integer handling (bit twiddling)
 
-@device_function brev(x::Union{Int32, UInt32}) =   ccall("extern __nv_brev", llvmcall, UInt32, (UInt32,), x)
-@device_function brev(x::Union{Int64, UInt64}) =   ccall("extern __nv_brevll", llvmcall, UInt64, (UInt64,), x)
+# NOTE: signed inputs are reinterpreted (`x % UInt32`), as letting `ccall` convert them
+#       would throw an `InexactError` for negative values.
+
+@device_function brev(x::Union{Int32, UInt32}) =   ccall("extern __nv_brev", llvmcall, UInt32, (UInt32,), x % UInt32)
+@device_function brev(x::Union{Int64, UInt64}) =   ccall("extern __nv_brevll", llvmcall, UInt64, (UInt64,), x % UInt64)
 
 
 @device_function clz(x::Union{Int32, UInt32}) =
     assume(within(UInt32(0), UInt32(32)),
-           ccall("extern __nv_clz", llvmcall, Int32, (UInt32,), x))
+           ccall("extern __nv_clz", llvmcall, Int32, (UInt32,), x % UInt32))
 @device_function clz(x::Union{Int64, UInt64}) =
     assume(within(UInt64(0), UInt64(64)),
-           ccall("extern __nv_clzll", llvmcall, Int32, (UInt64,), x))
+           ccall("extern __nv_clzll", llvmcall, Int32, (UInt64,), x % UInt64))
 
 @device_function ffs(x::Union{Int32, UInt32}) =
     assume(within(UInt32(0), UInt32(32)),
-           ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x))
+           ccall("extern __nv_ffs", llvmcall, Int32, (UInt32,), x % UInt32))
 @device_function ffs(x::Union{Int64, UInt64}) =
     assume(within(UInt64(0), UInt64(64)),
-           ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x))
+           ccall("extern __nv_ffsll", llvmcall, Int32, (UInt64,), x % UInt64))
 
 @device_function function fns(mask::Union{Int32,UInt32}, base::Integer, offset::Integer=0)
     # Reinterpret the input mask instead of letting `ccall` convert them with a range check
@@ -277,10 +280,10 @@ end
 
 @device_function popc(x::Union{Int32, UInt32}) =
     assume(within(UInt32(0), UInt32(32)),
-           ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x))
+           ccall("extern __nv_popc", llvmcall, Int32, (UInt32,), x % UInt32))
 @device_function popc(x::Union{Int64, UInt64}) =
     assume(within(UInt64(0), UInt64(64)),
-           ccall("extern __nv_popcll", llvmcall, Int32, (UInt64,), x))
+           ccall("extern __nv_popcll", llvmcall, Int32, (UInt64,), x % UInt64))
 
 @device_function function byte_perm(x::Union{Int32, UInt32, Int16, UInt16, Int8, UInt8},
                                     y::Union{Int32, UInt32, Int16, UInt16, Int8, UInt8},
@@ -365,8 +368,10 @@ end
 
 ## floating-point handling
 
-@device_function nearbyint(x::Float64) = ccall("extern __nv_nearbyint", llvmcall, Cdouble, (Cdouble,), x)
-@device_function nearbyint(x::Float32) = ccall("extern __nv_nearbyintf", llvmcall, Cfloat, (Cfloat,), x)
+# NOTE: not using libdevice's `__nv_nearbyint`, which calls `llvm.nvvm.round.*`: LLVM 15
+#       (Julia 1.10) simplifies that to `llvm.round`, which rounds ties away from zero.
+@device_function nearbyint(x::Float64) = ccall("llvm.nearbyint.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_function nearbyint(x::Float32) = ccall("llvm.nearbyint.f32", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_function nextafter(x::Float64, y::Float64) = ccall("extern __nv_nextafter", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_function nextafter(x::Float32, y::Float32) = ccall("extern __nv_nextafterf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
@@ -587,24 +592,26 @@ for rnd in ("rn", "rz", "rm", "rp")
 end
 
 @device_function sad(x::Int32, y::Int32, z::Int32) = ccall("extern __nv_sad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z)
-@device_function sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, ccall("extern __nv_usad", llvmcall, Int32, (Int32, Int32, Int32), x, y, z))
+# NOTE: the unsigned variants declare unsigned argument and return types (the LLVM types
+#       are identical), as converting to and from `Int32` would throw for large values.
+@device_function sad(x::UInt32, y::UInt32, z::UInt32) = ccall("extern __nv_usad", llvmcall, UInt32, (UInt32, UInt32, UInt32), x, y, z)
 
 @device_function dim(x::Float64, y::Float64) = ccall("extern __nv_fdim", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @device_function dim(x::Float32, y::Float32) = ccall("extern __nv_fdimf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
 @device_function mul24(x::Int32, y::Int32) = ccall("extern __nv_mul24", llvmcall, Int32, (Int32, Int32), x, y)
-@device_function mul24(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umul24", llvmcall, Int32, (Int32, Int32), x, y))
+@device_function mul24(x::UInt32, y::UInt32) = ccall("extern __nv_umul24", llvmcall, UInt32, (UInt32, UInt32), x, y)
 
 @device_function mul64hi(x::Int64, y::Int64) = ccall("extern __nv_mul64hi", llvmcall, Int64, (Int64, Int64), x, y)
-@device_function mul64hi(x::UInt64, y::UInt64) = convert(UInt64, ccall("extern __nv_umul64hi", llvmcall, Int64, (Int64, Int64), x, y))
+@device_function mul64hi(x::UInt64, y::UInt64) = ccall("extern __nv_umul64hi", llvmcall, UInt64, (UInt64, UInt64), x, y)
 @device_function mulhi(x::Int32, y::Int32) = ccall("extern __nv_mulhi", llvmcall, Int32, (Int32, Int32), x, y)
-@device_function mulhi(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umulhi", llvmcall, Int32, (Int32, Int32), x, y))
+@device_function mulhi(x::UInt32, y::UInt32) = ccall("extern __nv_umulhi", llvmcall, UInt32, (UInt32, UInt32), x, y)
 
 @device_function hadd(x::Int32, y::Int32) = ccall("extern __nv_hadd", llvmcall, Int32, (Int32, Int32), x, y)
-@device_function hadd(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_uhadd", llvmcall, Int32, (Int32, Int32), x, y))
+@device_function hadd(x::UInt32, y::UInt32) = ccall("extern __nv_uhadd", llvmcall, UInt32, (UInt32, UInt32), x, y)
 
 @device_function rhadd(x::Int32, y::Int32) = ccall("extern __nv_rhadd", llvmcall, Int32, (Int32, Int32), x, y)
-@device_function rhadd(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_urhadd", llvmcall, Int32, (Int32, Int32), x, y))
+@device_function rhadd(x::UInt32, y::UInt32) = ccall("extern __nv_urhadd", llvmcall, UInt32, (UInt32, UInt32), x, y)
 
 @device_function scalbn(x::Float64, y::Int32) = ccall("extern __nv_scalbn", llvmcall, Cdouble, (Cdouble, Int32), x, y)
 @device_function scalbn(x::Float32, y::Int32) = ccall("extern __nv_scalbnf", llvmcall, Cfloat, (Cfloat, Int32), x, y)
