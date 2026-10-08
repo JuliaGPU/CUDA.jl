@@ -164,7 +164,7 @@ Returns the linear cluster size (in blocks).
 Returns the warp size (in threads).
 This corresponds to the `warpSize` built-in variable in the C/C++ extension.
 """ warpsize
-@inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, Int32, ())
+@inline warpsize() = 32i32
 
 @doc """
     laneid()::Int32
