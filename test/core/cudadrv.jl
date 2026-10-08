@@ -919,7 +919,7 @@ sanitize || @testset "cooperative synchronization" begin
 # keep the GPU busy with a `gate_kernel` (see helpers.jl). this keeps the tests below
 # independent of timing: a synchronization can only return after the task that opens the
 # gate has run.
-gate = zeros(UInt32, 2)     # (is open, timed out)
+gate = zeros(UInt32, 3)     # (is open, timed out, started)
 gpu_gate = unsafe_wrap(CuArray, gate)
 gate_ptr = reinterpret(Ptr{UInt32}, pointer(gpu_gate))
 timeout = gate_timeout()

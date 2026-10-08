@@ -122,7 +122,8 @@ function free_now(managed::Managed)
 
   try
     time = Base.@elapsed _pool_free(mem, managed.stream, managed.stream_ctx,
-                                    managed.generation, managed.owned_allocation)
+                                    managed.generation, managed.owned_allocation,
+                                    managed.attachment)
     Base.@atomic alloc_stats.free_count += 1
     Base.@atomic alloc_stats.free_bytes += sz
     Base.@atomic alloc_stats.total_time += time
@@ -133,7 +134,7 @@ function free_now(managed::Managed)
   return
 end
 @inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
-                            generation::Int, owned_allocation::Bool)
+                            generation::Int, owned_allocation::Bool, ::Attachment)
     if mem.async || async_free_supported(mem.dev)
       # free in stream order. `cuMemFree` would wait for all work on the device to finish,
       # blocking kernel launches from other threads in the meantime. that also works for
@@ -164,7 +165,8 @@ end
     owned_allocation && account!(memory_stats(mem.dev), -sizeof(mem))
 end
 @inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
-                            stream_ctx::CuContext, generation::Int, owned_allocation::Bool)
+                            stream_ctx::CuContext, generation::Int, owned_allocation::Bool,
+                            attachment::Attachment)
   if mem.pooled
     @lock stream_disposal_lock begin
       stream, ctx = release_stream(stream, stream_ctx, generation)
@@ -173,7 +175,10 @@ end
       end
     end
   elseif owned_allocation
-    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx, generation)
+    # cached unified memory is attached to the host once it's idle, like a new allocation
+    attach_host = attachment in (GLOBALLY_ATTACHED, ALWAYS_GLOBAL)
+    cache_put!(mem isa HostMemory ? host_cache : unified_cache, mem, stream, stream_ctx,
+               generation; attach_host)
   else
     # imported memory may not have been allocated like we do, so isn't reused. freeing it
     # waits for all running kernels to finish, so defer that until memory is reclaimed.
@@ -183,10 +188,10 @@ end
 end
 
 # freed memory may only be released when reclaiming memory, so do so when running out
-function alloc_or_reclaim(::Type{M}, sz) where {M}
+function alloc_or_reclaim(::Type{M}, sz, args...) where {M}
   mem = retry_reclaim(isnothing) do
     try
-      alloc(M, sz)
+      alloc(M, sz, args...)
     catch err
       err isa OutOfGPUMemoryError || rethrow()
       nothing
@@ -237,8 +242,7 @@ function unified_pool()
   @memoize begin
     supported = driver_version() >= v"13.0" && pools_enabled() &&
                 all(devices()) do dev
-                  memory_pools_supported(dev) &&
-                    attribute(dev, DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
+                  memory_pools_supported(dev) && concurrent_managed_access(dev)
                 end
     supported ? try_create_pool() do
       CuMemoryPool(device(); alloc_type=CU_MEM_ALLOCATION_TYPE_MANAGED,
@@ -281,11 +285,16 @@ const unified_cache = BlockCache{UnifiedMemory}()
 cached_size(sz) = sz <= 1<<20 ? nextpow(2, max(sz, 512)) : cld(sz, 1<<20) << 20
 
 function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream,
-                    stream_ctx::CuContext, generation::Int) where {M}
+                    stream_ctx::CuContext, generation::Int; attach_host::Bool=false) where {M}
   idle = @lock stream_disposal_lock begin
     stream, ctx = release_stream(stream, stream_ctx, generation)
     # (the event needs to be created in the context of the stream it is recorded on)
     context!(ctx) do
+      if attach_host
+        relaxed_capture_mode() do
+          cuStreamAttachMemAsync(stream, mem, 0, MEM_ATTACH_HOST)
+        end
+      end
       event = CuEvent(EVENT_DISABLE_TIMING)
       cuEventRecord(event, stream)
       event
@@ -365,7 +374,9 @@ function alloc_unified(sz, state=active_state())
     reset_advice!(mem)
     return mem
   end
-  return alloc_or_reclaim(UnifiedMemory, sz)
+  # see `Attachment` for why memory is attached to the host on some devices
+  flags = concurrent_managed_access(state.device) ? MEM_ATTACH_GLOBAL : MEM_ATTACH_HOST
+  return alloc_or_reclaim(UnifiedMemory, sz, flags)
 end
 
 # a reused allocation shouldn't keep advice given for its previous use. not all advice is
