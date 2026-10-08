@@ -154,3 +154,21 @@ end
     @test occursin("pointer(b) = ", out)
     @test occursin("= 0", out)  # 0x... on Linux, 0... on Windows
 end
+
+@testset "flushed by synchronize" begin
+    # `@grab_output` synchronizes the context, which always flushes. synchronizing a
+    # stream that polling finds done doesn't involve the driver's synchronization.
+    kernel() = (@cuprintln("Hello, World"); nothing)
+    @cuda kernel()
+    synchronize(context())
+    out = mktemp() do fname, fout
+        redirect_stdout(fout) do
+            @cuda kernel()
+            while !CUDA.isdone(stream()) end
+            synchronize()
+        end
+        close(fout)
+        read(fname, String)
+    end
+    @test out == "Hello, World$endline"
+end

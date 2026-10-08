@@ -43,7 +43,7 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     # synchronization doesn't poll, as a query costs about as much as synchronizing an idle
     # stream.
     res = if nonblocking && pollable && spin && poll(obj)
-        obj isa CuEvent ? synchronize_completed(obj) : SUCCESS
+        synchronize_completed(obj)
     else
         # if we're about to wait, now may be a good time for a GC pause
         maybe_collect(true)
@@ -56,7 +56,7 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
             ctx = obj isa CuContext ? obj : obj.ctx === nothing ? context() : obj.ctx
             res = cooperative_wait(worker_synchronize, (obj, ctx);
                                    isdone = pollable ? worker_isdone : nothing, spin)
-            if res === nothing && obj isa CuEvent
+            if res === nothing && pollable
                 synchronize_completed(obj)
             else
                 something(res, SUCCESS)::CUresult
@@ -83,6 +83,25 @@ end
 #      it doesn't affect that capture, so relax the capture mode.
 synchronize_completed(event::CuEvent) =
     relaxed_capture_mode(() -> unchecked_synchronize(event))::CUresult
+
+# polling a stream doesn't flush the output of its kernels (from `printf`), as synchronizing
+# does. synchronizing it anyway would wait for work submitted since, so flush otherwise.
+synchronize_completed(stream::CuStream) =
+    flush_output(stream.ctx === nothing ? context() : stream.ctx)
+
+# synchronizing an event that was never recorded flushes kernel output without waiting for
+# any work. that's also allowed while capturing, once relaxing the capture mode.
+function flush_output(ctx::CuContext)
+    context!(ctx) do
+        handle = Ref{CUevent}()
+        cuEventCreate(handle, EVENT_DISABLE_TIMING)
+        try
+            relaxed_capture_mode(() -> unchecked_cuEventSynchronize(handle[]))::CUresult
+        finally
+            cuEventDestroy_v2(handle[])
+        end
+    end
+end
 
 function device_synchronize(; blocking::Bool=false, spin::Bool=true)
     synchronize_object(context(); blocking, spin)
