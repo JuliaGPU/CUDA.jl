@@ -50,6 +50,12 @@ are listed as subsections of the minor release they belong to.
   `priority_range()`, and `CUDA.priority()` returns the current priority.
   `KernelAbstractions.priority!` uses the same mechanism, and no longer creates
   a new stream on every call.
+- Tasks that are spawned while capturing a graph, e.g., by a library that
+  parallelizes its work using `Threads.@spawn`, take part in the capture: their
+  GPU operations are captured on the capture's stream, in the order the tasks
+  perform them, instead of being executed right away. These tasks need to
+  finish before the capture ends. Changing the stream of a task that takes part
+  in a capture, using `stream!`, is not supported and throws an error.
 
 *Bug fixes*:
 

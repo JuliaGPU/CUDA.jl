@@ -18,7 +18,11 @@ cannot be satisfied.
   sz = cld(sz, 4) * 4
 
   state = active_state()
-  in_capture(state.stream) && return capture_alloc(B, sz, state)
+  # (deciding to allocate for a capture is part of the submission, see `CaptureScope`)
+  managed = capture_submission(state.stream) do
+    in_capture(state.stream) ? capture_alloc(B, sz, state) : nothing
+  end
+  managed === nothing || return managed
 
   drain_retired(ALLOC_DRAIN_LIMIT)
   maybe_collect()

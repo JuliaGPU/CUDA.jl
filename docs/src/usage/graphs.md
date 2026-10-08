@@ -143,6 +143,32 @@ both of them to finish. A graph can be visualized by displaying it as `text/vnd.
 e.g., using `show(stdout, MIME"text/vnd.graphviz"(), graph)`.
 
 
+## Tasks
+
+Capturing only affects the capturing task, and the tasks it spawns:
+
+- Other tasks keep executing their operations normally while a graph is being captured,
+  also when they use arrays that the capturing task used before capturing. Operations are
+  captured on a dedicated stream, which is the capturing task's stream while capturing (see
+  the `stream` keyword argument of [`capture`](@ref) to use a specific stream instead).
+- Tasks spawned while capturing, e.g., by a library that parallelizes its work using
+  `Threads.@spawn`, take part in the capture: their operations are captured on the same
+  stream, one operation at a time, in the order the tasks perform them. These tasks need to
+  have finished before the capture ends (e.g., by using `@sync`): capturing fails with a
+  [`CaptureError`](@ref) when a task that performed operations is still running, and
+  operations that a task performs after the capture has ended result in a `CaptureError`.
+  These tasks can only submit operations to the capture's stream. Because the operations
+  are captured on a single stream, operations from different tasks do not execute
+  concurrently when launching the graph; use [`capture!`](@ref) to construct graphs with
+  concurrent operations.
+
+Spawned tasks only take part in the capture with operations they perform through CUDA.jl,
+including kernel launches (also using `cudacall`), copies, library calls, and recording or
+waiting for events. Operations that they submit otherwise, e.g., by calling the driver API
+directly or by using a library through a handle that CUDA.jl doesn't manage, may be
+captured out of order or executed right away instead.
+
+
 ## Limitations
 
 Not everything can be captured. The following results in a [`CaptureError`](@ref) or a

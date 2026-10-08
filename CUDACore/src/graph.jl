@@ -427,6 +427,8 @@ function capture_on(f, stream::CuStream, ctx::CuContext, graph::Union{Nothing,Cu
                     deps::Vector{CUgraphNode}; mode::CUstreamCaptureMode, throw_error::Bool)
     capture = CaptureState(stream)
     handle = Ref{CUgraph}(C_NULL)
+    # tasks spawned by `f` take part in the capture (see `CaptureScope`)
+    scope = CaptureScope(stream, ctx)
 
     # captures in the stricter modes have to be ended on the thread they were started on,
     # and only protect that thread. relaxed captures can migrate between threads, as tasks
@@ -448,8 +450,13 @@ function capture_on(f, stream::CuStream, ctx::CuContext, graph::Union{Nothing,Cu
             # from here on, the capture needs to be ended
             try
                 register!(capture)
-                with_task_stream(f, stream)
+                with_task_stream(stream) do
+                    ScopedValues.with(f, capture_scope => scope)
+                end
+                close_scope!(scope) ||
+                    throw(CaptureError("tasks that perform GPU operations while capturing a graph need to finish before the capture ends"))
             catch err
+                close_scope!(scope)
                 try
                     end_capture(capture, handle)
                 catch
@@ -481,6 +488,7 @@ function capture_on(f, stream::CuStream, ctx::CuContext, graph::Union{Nothing,Cu
             adopt!(graph, capture)
             return graph, frontier
         finally
+            Base.@atomic :release scope.state = SCOPE_CLOSED
             end_capture()
         end
     finally
@@ -585,6 +593,10 @@ back to the CPU, or that creates library handles, results in a [`CaptureError`](
 kernels are compiled and libraries are initialized. When `throw_error` is false, failures
 due to unsupported operations are not reported, and `nothing` is returned instead.
 
+Tasks that are spawned by `f` take part in the capture: their operations are captured on
+the same stream, so they need to have finished before `f` returns. Other tasks are not
+affected by the capture.
+
 To capture on a specific stream instead, pass it as the `stream` keyword argument. That
 needs to be a stream that was created with `flags=STREAM_NON_BLOCKING` in the current
 context, and that isn't used by anything else while capturing. Other tasks cannot wait for
@@ -636,7 +648,8 @@ end
 
 Returns the nodes that operations depending on the captured operations should depend on.
 If capturing fails, the graph may contain some of the captured operations, and should not
-be used anymore.
+be used anymore. The graph cannot be used by other tasks while capturing, including tasks
+spawned by `f`.
 
 This functionality requires CUDA 12.3 or higher.
 """
@@ -820,12 +833,14 @@ that it is safe to use that memory from other tasks, and so that it is only rele
 the graph has finished executing.
 """
 function launch(exec::CuGraphExec, stream::CuStream=stream())
-    @lock exec.lock begin
-        with_ordered_managed(exec.launch_memory; stream) do
-            cuGraphLaunch(exec, stream)
+    capture_submission(stream) do
+        @lock exec.lock begin
+            with_ordered_managed(exec.launch_memory; stream) do
+                cuGraphLaunch(exec, stream)
+            end
+            exec.stream = stream
+            exec.generation = CUDACore.generation(stream)
         end
-        exec.stream = stream
-        exec.generation = CUDACore.generation(stream)
     end
     return
 end
@@ -838,8 +853,10 @@ Upload an executable graph to the device, without executing it. This makes the f
 of the graph faster, which is otherwise slower than subsequent ones.
 """
 function upload(exec::CuGraphExec, stream::CuStream=stream())
-    @lock exec.lock context!(exec.ctx) do
-        cuGraphUpload(exec, stream)
+    capture_submission(stream) do
+        @lock exec.lock context!(exec.ctx) do
+            cuGraphUpload(exec, stream)
+        end
     end
     return
 end

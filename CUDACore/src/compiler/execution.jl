@@ -428,26 +428,29 @@ end
 
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
-    state = active_state()
-    capturing = is_capturing(stream)
-    if length(managed) == 1
-        memory = @inbounds managed[1]
-        lock(memory.lock)
+    # (taking ownership of the memory and using it is a single submission)
+    capture_submission(stream) do
+        state = active_state()
+        capturing = is_capturing(stream)
+        if length(managed) == 1
+            memory = @inbounds managed[1]
+            lock(memory.lock)
+            try
+                take_ownership!(memory; state, stream, capturing)
+                return f()
+            finally
+                unlock(memory.lock)
+            end
+        end
+        locked = lock_managed(managed)
         try
-            take_ownership!(memory; state, stream, capturing)
+            for memory in locked
+                take_ownership!(memory; state, stream, capturing)
+            end
             return f()
         finally
-            unlock(memory.lock)
+            unlock_managed(locked)
         end
-    end
-    locked = lock_managed(managed)
-    try
-        for memory in locked
-            take_ownership!(memory; state, stream, capturing)
-        end
-        return f()
-    finally
-        unlock_managed(locked)
     end
 end
 
@@ -470,10 +473,26 @@ function with_ordered_managed(f::F, ordered::AbstractVector{<:Managed};
 end
 
 function managed_kernel_launch(backend, kernel, arguments, managed; kwargs...)
+    # tasks that are part of a capture submit while holding its lock (see `CaptureScope`)
+    current_capture_scope() === nothing ||
+        return scoped_kernel_launch(backend, kernel, arguments, managed; kwargs...)
     isempty(managed) && return kernel_launch(backend, kernel, arguments; kwargs...)
     target_stream = haskey(kwargs, :stream) ? kwargs[:stream] : stream()
     with_managed(managed; stream=target_stream) do
         kernel_launch(backend, kernel, arguments; kwargs...)
+    end
+end
+
+# (not specialized, as it would be compiled for every kernel, but only used by tasks that
+# are part of a capture)
+@noinline function scoped_kernel_launch(@nospecialize(backend), @nospecialize(kernel),
+                                       @nospecialize(arguments), managed; kwargs...)
+    target_stream = haskey(kwargs, :stream) ? kwargs[:stream] : stream()
+    capture_submission(target_stream) do
+        isempty(managed) && return kernel_launch(backend, kernel, arguments; kwargs...)
+        with_managed(managed; stream=target_stream) do
+            kernel_launch(backend, kernel, arguments; kwargs...)
+        end
     end
 end
 

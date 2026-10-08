@@ -300,6 +300,9 @@ is never shared, create one with `CuStream()` and activate it using [`stream!`](
 """
 @inline function stream(state=task_local_state!())
     # @inline so that it can be DCE'd when unused from active_state
+    # tasks that are part of a capture use its stream (see `CaptureScope`)
+    scope = current_capture_scope()
+    scope === nothing || return scoped_stream(scope, state.context)
     devidx = deviceid(state.device)+1
     @inbounds if state.streams[devidx] === nothing
         state.streams[devidx] = create_stream(state; priority=state.priorities[devidx])
@@ -431,8 +434,8 @@ end
 function handoff_stream!(old::CuStream, new::CuStream)
     old === new && return
     event = CuEvent(EVENT_DISABLE_TIMING)
-    record(event, old)
-    wait(event, new)
+    cuEventRecord(event, old)
+    cuStreamWaitEvent(new, event, 0)
     return
 end
 
@@ -508,7 +511,14 @@ function priority!(f::Function, p::Union{Integer,Symbol})
     return ret
 end
 
+function check_stream_capture()
+    current_capture_scope() === nothing ||
+        throw(ArgumentError("Cannot change the task's stream during graph capture"))
+    return
+end
+
 function stream!(stream::CuStream)
+    check_stream_capture()
     state = task_local_state!()
     devidx = deviceid(state.device)+1
     state.streams[devidx] = stream
@@ -516,6 +526,7 @@ function stream!(stream::CuStream)
 end
 
 function stream!(f::Function, stream::CuStream)
+    check_stream_capture()
     state = task_local_state!()
     devidx = deviceid(state.device)+1
     old_stream = state.streams[devidx]

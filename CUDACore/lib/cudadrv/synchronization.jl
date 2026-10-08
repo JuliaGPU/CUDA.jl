@@ -82,7 +82,7 @@ function synchronize(stream::CuStream=stream(); blocking::Bool=false, spin::Bool
         # synchronized from a worker thread. wait for an event recorded on it instead.
         event = CuEvent(EVENT_DISABLE_TIMING)
         try
-            record(event, stream)
+            cuEventRecord(event, stream)
             synchronize_object(event; blocking, spin)
         finally
             finalize(event)

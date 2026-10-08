@@ -31,3 +31,32 @@ using LinearAlgebra
         @test Array(c) ≈ Array(a) * Array(b)
     end
 end
+
+@testset "tasks spawned during capture" begin
+    A = CUDA.rand(Float32, 16, 16)
+    B = CUDA.rand(Float32, 16, 16)
+    C1 = similar(A)
+    C2 = similar(A)
+    mul!(C1, A, B)
+
+    # tasks that already used cuBLAS (with handles bound to their own streams)
+    worker = Threads.@spawn begin
+        mul!(C2, B, A)
+        synchronize()
+    end
+    wait(worker)
+
+    exec = instantiate(capture() do
+        @sync begin
+            Threads.@spawn mul!(C1, A, B)
+            Threads.@spawn mul!(C2, B, A)
+        end
+        C1 .+= C2
+    end)
+    for _ in 1:3
+        copyto!(A, rand(Float32, 16, 16))
+        copyto!(B, rand(Float32, 16, 16))
+        exec()
+        @test Array(C1) ≈ Array(A) * Array(B) + Array(B) * Array(A)
+    end
+end

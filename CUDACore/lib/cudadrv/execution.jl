@@ -87,16 +87,18 @@ function launch_tuple(f::CuFunction, args::Tuple; blocks::CuDim=1, threads::CuDi
         end
         try
             pack_arguments(args) do kernelParams
-                if cooperative
-                    cuLaunchCooperativeKernel(f,
-                                              blockdim.x, blockdim.y, blockdim.z,
-                                              threaddim.x, threaddim.y, threaddim.z,
-                                              shmem, stream, kernelParams)
-                else
-                    cuLaunchKernel(f,
-                                   blockdim.x, blockdim.y, blockdim.z,
-                                   threaddim.x, threaddim.y, threaddim.z,
-                                   shmem, stream, kernelParams, C_NULL)
+                capture_submission(stream) do
+                    if cooperative
+                        cuLaunchCooperativeKernel(f,
+                                                  blockdim.x, blockdim.y, blockdim.z,
+                                                  threaddim.x, threaddim.y, threaddim.z,
+                                                  shmem, stream, kernelParams)
+                    else
+                        cuLaunchKernel(f,
+                                       blockdim.x, blockdim.y, blockdim.z,
+                                       threaddim.x, threaddim.y, threaddim.z,
+                                       shmem, stream, kernelParams, C_NULL)
+                    end
                 end
             end
         catch err
@@ -136,7 +138,8 @@ function launch_tuple(f::CuFunction, args::Tuple; blocks::CuDim=1, threads::CuDi
                                 shmem, stream.handle, config_attrs, num_attributes)
         try
             pack_arguments(args) do kernelParams
-                cuLaunchKernelEx(config, f, kernelParams, C_NULL)
+                capture_submission(() -> cuLaunchKernelEx(config, f, kernelParams, C_NULL),
+                                   stream)
             end
         catch err
             diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
@@ -336,7 +339,7 @@ function launch(f::Base.Callable; stream::CuStream=stream())
     # TL;DR We are not allowed to cache `async_send` in the sysimage
     # so instead let's just pull out the function pointer and pass it instead.
     callback = cglobal(:uv_async_send)
-    cuLaunchHostFunc(stream, callback, cond)
+    capture_submission(() -> cuLaunchHostFunc(stream, callback, cond), stream)
 end
 
 

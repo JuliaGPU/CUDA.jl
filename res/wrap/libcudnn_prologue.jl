@@ -15,7 +15,8 @@ end
     retry_if(res) = res in (CUDNN_STATUS_NOT_INITIALIZED,
                             CUDNN_STATUS_ALLOC_FAILED,
                             CUDNN_STATUS_INTERNAL_ERROR)
-    res = retry_reclaim(f, retry_if)
+    # (a single submission, when part of a graph capture)
+    res = CUDACore.capture_submission(() -> retry_reclaim(f, retry_if))
 
     if res != CUDNN_STATUS_SUCCESS
         throw_api_error(res)

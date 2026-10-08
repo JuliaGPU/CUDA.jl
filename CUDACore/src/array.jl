@@ -646,18 +646,22 @@ Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
+  # (taking ownership of the memory and copying is a single submission, see `CaptureScope`)
   context!(context(dest)) do
-    # the copy below may block in `libcuda`, so it'd be good to perform a nonblocking
-    # synchronization here, but the exact cases are hard to know and detect (e.g., unpinned
-    # memory normally blocks, but not for all sizes, and not on all memory architectures).
-    GC.@preserve src dest begin
-      # semantically, it is not safe for this operation to execute asynchronously, because
-      # the Array may be collected before the copy starts executing. However, when using
-      # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
-      # the source array, making this operation safe.
-      unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-      if Base.isbitsunion(T)
-        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+    capture_submission() do
+      # the copy below may block in `libcuda`, so it'd be good to perform a nonblocking
+      # synchronization here, but the exact cases are hard to know and detect (e.g.,
+      # unpinned memory normally blocks, but not for all sizes, and not on all memory
+      # architectures).
+      GC.@preserve src dest begin
+        # semantically, it is not safe for this operation to execute asynchronously, because
+        # the Array may be collected before the copy starts executing. However, when using
+        # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
+        # the source array, making this operation safe.
+        unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+        if Base.isbitsunion(T)
+          unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+        end
       end
     end
   end
@@ -689,10 +693,12 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
      maybe_enable_peer_access(device(src), device(dest)) == 1
     # use direct device-to-device copy
     context!(context(src)) do
-      GC.@preserve src dest begin
-        unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
-        if Base.isbitsunion(T)
-          unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+      capture_submission() do
+        GC.@preserve src dest begin
+          unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n; async=true)
+          if Base.isbitsunion(T)
+            unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+          end
         end
       end
     end
@@ -902,7 +908,9 @@ function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
-    GC.@preserve A memset(convert(CuPtr{U}, pointer(A)), y, length(A))
+    capture_submission() do
+      GC.@preserve A memset(convert(CuPtr{U}, pointer(A)), y, length(A))
+    end
   end
   A
 end

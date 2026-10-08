@@ -48,8 +48,10 @@ Return the current value of a global variable.
 function Base.getindex(var::CuGlobal{T}; async::Bool=false, stream::CuStream=stream()) where T
     val_ref = Ref{T}()
     if async
-        cuMemcpyDtoHAsync_v2(val_ref, var, var.buf.bytesize, stream)
+        capture_submission(() -> cuMemcpyDtoHAsync_v2(val_ref, var, var.buf.bytesize, stream),
+                           stream)
     else
+        check_synchronous_copy()
         cuMemcpyDtoH_v2(val_ref, var, var.buf.bytesize)
     end
     return val_ref[]
@@ -64,8 +66,10 @@ Set the value of a global variable to `val`
 function Base.setindex!(var::CuGlobal{T}, val::T; async::Bool=false, stream::CuStream=stream()) where T
     val_ref = Ref{T}(val)
     if async
-        cuMemcpyHtoDAsync_v2(var, val_ref, var.buf.bytesize, stream)
+        capture_submission(() -> cuMemcpyHtoDAsync_v2(var, val_ref, var.buf.bytesize, stream),
+                           stream)
     else
+        check_synchronous_copy()
         cuMemcpyHtoD_v2(var, val_ref, var.buf.bytesize)
     end
 end

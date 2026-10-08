@@ -236,9 +236,13 @@ end
     CUDA.unsafe_destroy!(s)
     @test fetch(Threads.@spawn stream()) !== s
 
-    # looking for a stream to recycle doesn't break graph capture
+    # looking for a stream to recycle doesn't break graph capture (by a task that isn't
+    # spawned during the capture, and thus doesn't take part in it)
+    go = Base.Event()
+    other = Threads.@spawn (wait(go); stream())
     capture() do
-        @test fetch(Threads.@spawn stream()) != stream()
+        notify(go)
+        @test fetch(other) != stream()
     end
 end
 
@@ -337,11 +341,7 @@ end
         end
         @test stream() === s
         priority!(:normal)
-        stream!(explicit) do
-            if high != 0
-                @test_throws ArgumentError priority!(:high)
-            end
-        end
+        @test_throws ArgumentError stream!(() -> nothing, explicit)
     end
 
     if high != 0

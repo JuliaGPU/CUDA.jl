@@ -15,7 +15,8 @@ end
                             CURAND_STATUS_PREEXISTING_FAILURE,
                             CURAND_STATUS_INITIALIZATION_FAILED,
                             CURAND_STATUS_INTERNAL_ERROR)
-    res = retry_reclaim(f, retry_if)
+    # (a single submission, when part of a graph capture)
+    res = CUDACore.capture_submission(() -> retry_reclaim(f, retry_if))
 
     if res != CURAND_STATUS_SUCCESS
         throw_api_error(res)

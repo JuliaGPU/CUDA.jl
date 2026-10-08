@@ -73,7 +73,7 @@ function pending_work(managed::Managed)
     check_capture(managed.stream)
     relaxed_capture_mode(() -> isdone(managed.stream)) && return nothing
     event = CuEvent(EVENT_DISABLE_TIMING)
-    record(event, managed.stream)
+    cuEventRecord(event, managed.stream)
     return event
   end
 end
