@@ -21,8 +21,8 @@ macro grab_output(ex)
                 redirect_stdout(fout) do
                     ret = $(esc(ex))
 
-                    # NOTE: CUDA requires a 'proper' sync to flush its printf buffer
-                    synchronize(context())
+                    # (synchronizing also flushes the output of kernels)
+                    synchronize()
                 end
             end
             ret, read(fname, String)

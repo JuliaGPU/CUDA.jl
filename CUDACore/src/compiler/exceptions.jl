@@ -33,14 +33,9 @@ function check_exceptions()
             # restore the structure
             unsafe_store!(exception_info, ExceptionInfo_st())
 
-            # flush the output of the kernel, which querying for completion doesn't do (as
-            # non-blocking synchronization does). synchronizing an event that was never
-            # recorded doesn't wait for anything, also not for unrelated work. that's also
-            # allowed while capturing, once relaxing the capture mode.
-            context!(ctx) do
-                event = CuEvent(EVENT_DISABLE_TIMING)
-                relaxed_capture_mode(() -> cuEventSynchronize(event))
-            end
+            # flush the kernel's diagnostic output before reporting the exception
+            res = flush_output(ctx)
+            res == SUCCESS || throw_api_error(res)
 
             # throw host-side
             dev = device(ctx)

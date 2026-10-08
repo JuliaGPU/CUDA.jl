@@ -154,3 +154,21 @@ end
     @test occursin("pointer(b) = ", out)
     @test occursin("= 0", out)  # 0x... on Linux, 0... on Windows
 end
+
+@testset "flushed by synchronize" begin
+    # `@grab_output` often finds the stream busy, synchronizing it through the driver.
+    # make sure the stream is done, so that polling does.
+    # (compile ahead of time, as loading the module flushes too)
+    kernel() = (@cuprintln("Hello, World"); nothing)
+    @cuda launch=false kernel()
+    out = mktemp() do fname, fout
+        redirect_stdout(fout) do
+            @cuda kernel()
+            while !CUDA.isdone(stream()) end
+            synchronize()
+        end
+        close(fout)
+        read(fname, String)
+    end
+    @test out == "Hello, World$endline"
+end
