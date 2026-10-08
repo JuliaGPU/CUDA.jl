@@ -156,8 +156,8 @@ end
 end
 
 @testset "flushed by synchronize" begin
-    # `@grab_output` synchronizes the context, which always flushes. synchronizing a
-    # stream that polling finds done doesn't involve the driver's synchronization.
+    # `@grab_output` often finds the stream busy, synchronizing it through the driver.
+    # make sure the stream is done, so that polling does.
     # (compile ahead of time, as loading the module flushes too)
     kernel() = (@cuprintln("Hello, World"); nothing)
     @cuda launch=false kernel()
