@@ -251,8 +251,7 @@ using it. When wrapping a CPU pointer, the caller has to make sure the memory st
 for as long as the `CuArray` is used. Either way, the memory must not be freed or reallocated (e.g., by `resize!`)
 while it is wrapped, and operations on the `CuArray` execute asynchronously, so
 synchronize before accessing the memory from the CPU. Like other CuArrays, a wrapped array
-is not kept alive by CUDA graphs that captured operations on it: replaying such a graph
-after the array has been freed accesses invalid memory.
+is kept alive by CUDA graphs that captured operations on it.
 
 !!! warning
 
@@ -367,7 +366,9 @@ function wrap_host_memory(::Type{CuArray{T,N,M}}, p::Ptr{T}, dims::NTuple{N,Int}
     end
     DataRef(Managed(mem)) do managed
       # unregistering can block, so it is deferred (see `release_registration`)
-      release_registration(RetiredRegistration(managed.mem, false, owner))
+      release(managed) do managed
+        release_registration(RetiredRegistration(managed.mem, false, owner))
+      end
     end
   else
     throw(ArgumentError("Cannot wrap system memory as $M"))
@@ -512,7 +513,16 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 Base.unsafe_convert(typ::Type{Ptr{T}}, x::CuArray{T}) where {T} =
   convert(typ, x.data[]) + x.offset
 Base.unsafe_convert(typ::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
-  convert(typ, x.data[]) + x.offset
+  convert(typ, check_capture(x.data)[]) + x.offset
+
+# memory from an allocation cache (see `GPUArrays.@cached`) is reused when the cache's scope
+# ends, even if a graph still uses it
+@inline function check_capture(data::DataRef)
+  if active_captures[] > 0 && data.cached && is_capturing(stream())
+    throw(CaptureError("cannot capture operations on arrays allocated from an allocation cache (`GPUArrays.@cached`), as the cache reuses their memory when its scope ends"))
+  end
+  return data
+end
 
 
 ## indexing

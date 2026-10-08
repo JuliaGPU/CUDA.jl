@@ -107,6 +107,9 @@ include("compiler/compilation.jl")
 include("compiler/execution.jl")
 include("compiler/exceptions.jl")
 
+# graphs
+include("graph.jl")
+
 # array implementation
 include("utilities.jl")
 include("texture.jl")

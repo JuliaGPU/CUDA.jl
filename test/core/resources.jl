@@ -239,9 +239,9 @@ end
         finalize(obj)
         CUDA.unsafe_free!(b)
         CUDACore.drain_retired()
+        @test isempty(calls)
     end
-    @test isempty(calls)
-    CUDA.pool_status(devnull)
+    # but once the capture has ended
     @test calls == [:released]
     CUDA.launch(CUDA.instantiate(graph))
     @test Array(a) == [3]

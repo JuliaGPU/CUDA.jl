@@ -430,18 +430,33 @@ end
 
 # XXX: also provide low-level memcpy?
 
-for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", :CuPtr, :Ptr),
-                                 ("cuMemcpyHtoDAsync_v2", :Ptr,   :CuPtr),
-                                 )
-    @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
-                                       stream::CuStream=stream(),
-                                       async::Bool=false) where T
-        nbytes = N*aligned_sizeof(T)
-        nbytes == 0 && return dst
-        $(getproperty(CUDACore, Symbol(fn)))(dst, src, nbytes, stream)
-        async || synchronize(stream)
-        return dst
+function Base.unsafe_copyto!(dst::Ptr{T}, src::CuPtr{T}, N::Integer;
+                             stream::CuStream=stream(), async::Bool=false) where T
+    nbytes = N*aligned_sizeof(T)
+    nbytes == 0 && return dst
+    if in_capture(stream)
+        # a captured copy writes to the destination whenever the graph is launched, but we
+        # can't keep host memory that's only known by its pointer alive until then
+        throw(CaptureError("cannot copy to host memory while capturing a graph; use an array backed by `HostMemory` instead"))
     end
+    cuMemcpyDtoHAsync_v2(dst, src, nbytes, stream)
+    async || synchronize(stream)
+    return dst
+end
+
+function Base.unsafe_copyto!(dst::CuPtr{T}, src::Ptr{T}, N::Integer;
+                             stream::CuStream=stream(), async::Bool=false) where T
+    nbytes = N*aligned_sizeof(T)
+    nbytes == 0 && return dst
+    if in_capture(stream)
+        # a captured copy reads from the source whenever the graph is launched, but we can't
+        # keep host memory that's only known by its pointer alive until then, so copy the
+        # data to memory that the graph keeps alive
+        src = stage_host_memory(src, nbytes, stream)
+    end
+    cuMemcpyHtoDAsync_v2(dst, src, nbytes, stream)
+    async || synchronize(stream)
+    return dst
 end
 
 function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;

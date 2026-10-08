@@ -20,18 +20,23 @@ mutable struct Managed{M}
   dirty::Bool
 
   # whether the memory has been captured in a way that would make the dirty bit unreliable
+  # (only for captures that CUDA.jl does not know about)
   captured::Bool
 
   # whether the memory was allocated by CUDA.jl, as opposed to imported using `unsafe_wrap`.
   # only such memory counts towards our memory usage, and can be reused once freed.
   const owned_allocation::Bool
 
+  # Graphs keep a lease beyond the lifetime of the array that owns this memory.
+  Base.@atomic leases::Int
+  Base.@atomic pending::Any
+
   function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
                    dirty = true, captured = false, owned_allocation = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
-                     synchronizing, dirty, captured, owned_allocation)
+                     synchronizing, dirty, captured, owned_allocation, 0, nothing)
   end
 end
 
@@ -65,6 +70,7 @@ end
 function pending_work(managed::Managed)
   @lock stream_disposal_lock begin
     recycled(managed) && return nothing
+    check_capture(managed.stream)
     relaxed_capture_mode(() -> isdone(managed.stream)) && return nothing
     event = CuEvent(EVENT_DISABLE_TIMING)
     record(event, managed.stream)
@@ -87,8 +93,16 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
                          capturing::Bool=is_capturing(stream)) where {M}
   sizeof(managed) == 0 && return managed
 
-  # accessing memory during stream capture: taint the memory so that we always synchronize
   if capturing
+    capture = current_capture(stream)
+    if capture !== nothing
+      # captured operations don't execute until the graph is launched, so only record the
+      # use of the memory. the graph will take ownership of it when it is launched.
+      record!(capture, managed)
+      return managed
+    end
+
+    # an unknown capture: taint the memory so that we always synchronize
     managed.captured = true
   end
 
@@ -175,3 +189,48 @@ function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
   end
 end
 
+
+## leases
+#
+# graphs use memory whenever they are launched, long after the operations that use the memory
+# were captured. to keep that memory alive, graphs lease it: releasing leased memory (from
+# whatever owns it, e.g., an array that's been freed) is postponed until the last lease ends.
+# all ways to release managed memory go through `release`, so that they respect leases.
+
+"""
+    lease!(managed::Managed)
+
+Prevent memory from being released until a matching call to [`unlease!`](@ref).
+"""
+function lease!(managed::Managed)
+  Base.@atomic managed.leases += 1
+  return managed
+end
+
+"""
+    unlease!(managed::Managed)
+
+End a lease on memory, releasing it if it was released while leased.
+"""
+function unlease!(managed::Managed)
+  if (Base.@atomic managed.leases -= 1) == 0
+    f = Base.@atomicswap managed.pending = nothing
+    f === nothing || f(managed)
+  end
+  return
+end
+
+# release memory by calling `f(managed)`, now, or when the last lease ends. this can be
+# called from a finalizer, as long as `f` can be.
+function release(f, managed::Managed)
+  if (Base.@atomic managed.leases) > 0
+    Base.@atomic managed.pending = f
+    # the last lease may have ended in the meantime, in which case `unlease!` might not have
+    # seen `f`. whoever takes it from `pending` first calls it.
+    (Base.@atomic managed.leases) > 0 && return
+    f = Base.@atomicswap managed.pending = nothing
+    f === nothing && return
+  end
+  f(managed)
+  return
+end

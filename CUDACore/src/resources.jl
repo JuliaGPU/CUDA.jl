@@ -11,10 +11,11 @@
 # what that involves depends on the resource. memory is freed in stream order where
 # possible, after the work on the stream that last used it (which may have been destroyed
 # in the meantime, see streams.jl). owners of memory that the GPU may still be using are
-# kept alive until that work has finished. releases that may wait for the GPU are held
-# until memory is reclaimed, i.e., when running out of memory or when calling `reclaim()`.
-# releases that fail keep their resource alive instead of being retried, as they may
-# already have partially succeeded.
+# kept alive until that work has finished, and memory that graphs use until the last graph
+# that leases it has been destroyed (see `release` in managed.jl). releases that may wait
+# for the GPU are held until memory is reclaimed, i.e., when running out of memory or when
+# calling `reclaim()`. releases that fail keep their resource alive instead of being
+# retried, as they may already have partially succeeded.
 #
 # routine releases never wait for the GPU, and no lock is held while waiting for the GPU
 # (as the work it waits for may depend on another task that needs that lock). while a graph

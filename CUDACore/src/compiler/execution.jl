@@ -395,18 +395,24 @@ function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
     return managed
 end
 
-function lock_managed(managed::AbstractVector{<:Managed})
-    # Sort globally to avoid deadlocks and make duplicates adjacent.
-    locked = sort(managed; by=memory -> objectid(memory.lock))
+# the order in which to lock managed memory: sorted globally to avoid deadlocks, and with
+# duplicates removed
+function locking_order(managed::AbstractVector{<:Managed})
+    ordered = sort(managed; by=memory -> objectid(memory.lock))
     n = 0
     prev = nothing
-    for memory in locked
+    for memory in ordered
         memory === prev && continue
         n += 1
-        @inbounds locked[n] = memory
+        @inbounds ordered[n] = memory
         prev = memory
     end
-    resize!(locked, n)
+    resize!(ordered, n)
+    return ordered
+end
+
+function lock_managed(managed::AbstractVector{<:Managed})
+    locked = locking_order(managed)
     for memory in locked
         lock(memory.lock)
     end
@@ -445,6 +451,24 @@ function with_managed(f::F, managed::AbstractVector{<:Managed};
     end
 end
 
+# like `with_managed`, but for memory that's already in locking order
+function with_ordered_managed(f::F, ordered::AbstractVector{<:Managed};
+                              stream::CuStream=stream()) where {F}
+    state = active_state()
+    capturing = is_capturing(stream)
+    for memory in ordered
+        lock(memory.lock)
+    end
+    try
+        for memory in ordered
+            take_ownership!(memory; state, stream, capturing)
+        end
+        return f()
+    finally
+        unlock_managed(ordered)
+    end
+end
+
 function managed_kernel_launch(backend, kernel, arguments, managed; kwargs...)
     isempty(managed) && return kernel_launch(backend, kernel, arguments; kwargs...)
     target_stream = haskey(kwargs, :stream) ? kwargs[:stream] : stream()
@@ -460,7 +484,7 @@ Adapt.adapt_storage(to::KernelAdaptor, p::CuPtr{T}) where {T} =
 
 # convert CUDA host arrays to device arrays
 function Adapt.adapt_storage(to::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,N}
-  managed = xs.data[]
+  managed = check_capture(xs.data)[]
   push!(to.managed, managed)
   ptr = convert(CuPtr{T}, managed.mem) + xs.offset
   CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, ptr), size(xs),
