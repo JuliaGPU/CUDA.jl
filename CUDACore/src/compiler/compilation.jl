@@ -598,13 +598,14 @@ end
 # Storage is managed by `GPUCompiler.cached_results`: Julia's integrated code cache on 1.11+
 # (which also persists artifacts through precompilation), or a session-local store on 1.10.
 # `image === nothing` identifies a freshly-created `CUDACompilerResults` that hasn't been
-# compiled yet; the `compile_hook` check additionally forces the compile path so that
-# reflection consumers (`@device_code_*`) observe the compilation even on a cache hit.
+# compiled yet. Every lookup is reported to the `@device_code_*` hook, so reflection
+# observes cached kernels without recompiling them.
 # Specialize on the target/parameter types so callers can avoid boxing CompilerJob.
 # Keep the body out of callers that specialize per kernel.
 @noinline function compile_or_lookup(job::CompilerJob)::CUDACompilerResults
+    GPUCompiler.run_compile_hook(job)
     res = GPUCompiler.cached_results(CUDACompilerResults, job)
-    if res === nothing || res.image === nothing || GPUCompiler.compile_hook[] !== nothing
+    if res === nothing || res.image === nothing
         compiled = compile(job)
         # GPUCompiler selects persistent or session-local storage from the relocation
         # strategy and the Julia runtime's relocation support.
