@@ -181,8 +181,11 @@ warpsize(dev::CuDevice) = attribute(dev, DEVICE_ATTRIBUTE_WARP_SIZE)
 Returns the compute capability of the device.
 """
 function capability(dev::CuDevice)
-    return VersionNumber(attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR),
-                         attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR))
+    # (cached, as it is queried every time a kernel is launched)
+    @memoize index=deviceid(dev)+1 begin
+        VersionNumber(attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR),
+                      attribute(dev, DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR))
+    end::VersionNumber
 end
 
 memory_pools_supported(dev::CuDevice) =
