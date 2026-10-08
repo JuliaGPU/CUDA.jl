@@ -626,9 +626,10 @@ function run_and_collect(cmd)
     proc = run(pipeline(ignorestatus(cmd); stdout, stderr=stdout), wait=false)
     close(stdout.in)
 
-    reader = Threads.@spawn String(read(stdout))
+    # (not on another task, which would inherit the caller's scoped values, like a graph
+    # capture, and could keep them alive)
+    log = strip(String(read(stdout)))
     Base.wait(proc)
-    log = strip(fetch(reader))
 
     return proc, log
 end
