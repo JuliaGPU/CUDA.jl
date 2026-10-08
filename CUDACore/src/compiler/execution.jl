@@ -401,10 +401,13 @@ function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
     return managed
 end
 
-# the order in which to lock managed memory: sorted globally to avoid deadlocks, and with
-# duplicates removed
+# the order in which to lock managed memory, which needs to be the same everywhere to avoid
+# deadlocks. every memory has its own lock, and objects don't move, so its address will do.
+lock_rank(memory::Managed) = UInt(pointer_from_objref(memory))
+
+# managed memory sorted in locking order, with duplicates removed
 function locking_order(managed::AbstractVector{<:Managed})
-    ordered = sort(managed; by=memory -> objectid(memory.lock))
+    ordered = sort(managed; by=lock_rank)
     n = 0
     prev = nothing
     for memory in ordered
