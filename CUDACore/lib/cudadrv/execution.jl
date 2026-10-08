@@ -63,9 +63,21 @@ launch(f::CuFunction, args::Vararg{Any,N}) where {N} = launch_tuple(f, args)
 Core.kwcall(kwargs::NamedTuple, ::typeof(launch), f::CuFunction, args::Vararg{Any,N}) where {N} =
     launch_tuple(f, args; kwargs...)
 
-function launch_tuple(f::CuFunction, args::Tuple; blocks::CuDim=1, threads::CuDim=1,
-                      clustersize::CuDim=1, cooperative::Bool=false, dependent::Bool=false,
-                      shmem::Integer=0, stream::CuStream=stream())
+function launch_tuple(f::CuFunction, args::Tuple; kwargs...)
+    pack_arguments(args) do kernelParams
+        GC.@preserve kernelParams begin
+            params = Base.unsafe_convert(Ptr{Ptr{Cvoid}}, kernelParams)
+            launch_packed(f, params; kwargs...)
+        end
+    end
+end
+
+# kept out of `launch_tuple`, which is compiled for every set of argument types (i.e., for
+# most kernels), as none of this depends on them
+@noinline function launch_packed(f::CuFunction, kernelParams::Ptr{Ptr{Cvoid}};
+                                 blocks::CuDim=1, threads::CuDim=1, clustersize::CuDim=1,
+                                 cooperative::Bool=false, dependent::Bool=false,
+                                 shmem::Integer=0, stream::CuStream=stream())
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
     clusterdim = CuDim3(clustersize)
@@ -86,19 +98,17 @@ function launch_tuple(f::CuFunction, args::Tuple; blocks::CuDim=1, threads::CuDi
             error("Thread block clusters require CUDA 11.8 or higher")
         end
         try
-            pack_arguments(args) do kernelParams
-                capture_submission(stream) do
-                    if cooperative
-                        cuLaunchCooperativeKernel(f,
-                                                  blockdim.x, blockdim.y, blockdim.z,
-                                                  threaddim.x, threaddim.y, threaddim.z,
-                                                  shmem, stream, kernelParams)
-                    else
-                        cuLaunchKernel(f,
-                                       blockdim.x, blockdim.y, blockdim.z,
-                                       threaddim.x, threaddim.y, threaddim.z,
-                                       shmem, stream, kernelParams, C_NULL)
-                    end
+            capture_submission(stream) do
+                if cooperative
+                    cuLaunchCooperativeKernel(f,
+                                              blockdim.x, blockdim.y, blockdim.z,
+                                              threaddim.x, threaddim.y, threaddim.z,
+                                              shmem, stream, kernelParams)
+                else
+                    cuLaunchKernel(f,
+                                   blockdim.x, blockdim.y, blockdim.z,
+                                   threaddim.x, threaddim.y, threaddim.z,
+                                   shmem, stream, kernelParams, C_NULL)
                 end
             end
         catch err
@@ -137,10 +147,8 @@ function launch_tuple(f::CuFunction, args::Tuple; blocks::CuDim=1, threads::CuDi
                                 threaddim.x, threaddim.y, threaddim.z,
                                 shmem, stream.handle, config_attrs, num_attributes)
         try
-            pack_arguments(args) do kernelParams
-                capture_submission(() -> cuLaunchKernelEx(config, f, kernelParams, C_NULL),
-                                   stream)
-            end
+            capture_submission(() -> cuLaunchKernelEx(config, f, kernelParams, C_NULL),
+                               stream)
         catch err
             diagnose_launch_failure(f, err; blockdim, threaddim, clusterdim, shmem)
         end
