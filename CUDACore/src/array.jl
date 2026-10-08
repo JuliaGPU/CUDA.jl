@@ -592,7 +592,7 @@ function with_managed_arrays(f, a::AbstractArray, b::AbstractArray)
     ma === nothing ? f() : with_ordered_managed(f, (ma,))
   elseif ma === nothing
     with_ordered_managed(f, (mb,))
-  elseif objectid(ma.lock) < objectid(mb.lock)  # see `locking_order`
+  elseif lock_rank(ma) < lock_rank(mb)
     with_ordered_managed(f, (ma, mb))
   else
     with_ordered_managed(f, (mb, ma))

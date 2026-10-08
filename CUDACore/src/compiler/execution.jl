@@ -401,10 +401,13 @@ function Adapt.adapt_storage(to::KernelAdaptor, managed::Managed)
     return managed
 end
 
-# the order in which to lock managed memory: sorted globally to avoid deadlocks, and with
-# duplicates removed
+# the order in which to lock managed memory, which needs to be the same everywhere to avoid
+# deadlocks. every memory has its own lock, and objects don't move, so its address will do.
+lock_rank(memory::Managed) = UInt(pointer_from_objref(memory))
+
+# managed memory sorted in locking order, with duplicates removed
 function locking_order(managed::AbstractVector{<:Managed})
-    ordered = sort(managed; by=memory -> objectid(memory.lock))
+    ordered = sort(managed; by=lock_rank)
     n = 0
     prev = nothing
     for memory in ordered
@@ -450,6 +453,16 @@ function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
     end
 end
 
+# (concretely typed, as `release_managed` is called out of line too)
+struct AcquiredManaged{T}
+    tls::TaskLocalState
+    ordered::T
+    stream::CuStream
+    capturing::Bool
+    old_stream::Union{Nothing,CuStream}
+    old_capturing::Bool
+end
+
 # lock the managed memory, transfer its ownership to `stream`, and make `stream` the
 # operation stream, returning what to pass to `release_managed`. kept out of line, as the
 # kernel launch code that uses it is compiled for every kernel.
@@ -457,11 +470,9 @@ end
     tls = task_local_state!()
     state = active_state(tls)
     capturing = is_capturing(stream)
-    for memory in ordered
-        lock(memory.lock)
-    end
+    foreach_managed(memory -> lock(memory.lock), ordered)
     try
-        for memory in ordered
+        foreach_managed(ordered) do memory
             take_ownership!(memory; state, stream, capturing)
         end
     catch
@@ -472,10 +483,10 @@ end
     # submits to `stream` (see `convert(::Type{CuPtr}, ::Managed)`)
     old_stream, old_capturing = tls.operation_stream, tls.operation_capturing
     tls.operation_stream, tls.operation_capturing = stream, capturing
-    return (; tls, ordered, stream, capturing, old_stream, old_capturing)
+    return AcquiredManaged(tls, ordered, stream, capturing, old_stream, old_capturing)
 end
 
-@noinline function release_managed(acquired)
+@noinline function release_managed(acquired::AcquiredManaged)
     (; tls, ordered, stream, capturing, old_stream, old_capturing) = acquired
     tls.operation_stream, tls.operation_capturing = old_stream, old_capturing
     unlock_managed(ordered, stream, capturing)
@@ -488,14 +499,27 @@ end
 function unlock_managed(ordered, stream::CuStream, capturing::Bool)
     if !capturing
         epoch = stream_epoch(stream)
-        for memory in ordered
-            restamp!(memory, stream, epoch)
+        foreach_managed(memory -> restamp!(memory, stream, epoch), ordered)
+    end
+    foreach_managed(memory -> unlock(memory.lock), Iterators.reverse(ordered))
+    return
+end
+
+# managed memory is usually collected in a vector with an abstract element type (e.g., the
+# memory of a graph or of a kernel's arguments), so split on the kind of memory to avoid
+# dispatching dynamically for every memory
+@inline function foreach_managed(f::F, managed) where {F}
+    for memory in managed
+        if memory isa Managed{DeviceMemory}
+            f(memory)
+        elseif memory isa Managed{UnifiedMemory}
+            f(memory)
+        elseif memory isa Managed{HostMemory}
+            f(memory)
+        else
+            f(memory)
         end
     end
-    for memory in Iterators.reverse(ordered)
-        unlock(memory.lock)
-    end
-    return
 end
 
 restamp!(memory::Managed, stream::CuStream, epoch::UInt64) =
