@@ -450,6 +450,16 @@ function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
     end
 end
 
+# (concretely typed, as `release_managed` is called out of line too)
+struct AcquiredManaged{T}
+    tls::TaskLocalState
+    ordered::T
+    stream::CuStream
+    capturing::Bool
+    old_stream::Union{Nothing,CuStream}
+    old_capturing::Bool
+end
+
 # lock the managed memory, transfer its ownership to `stream`, and make `stream` the
 # operation stream, returning what to pass to `release_managed`. kept out of line, as the
 # kernel launch code that uses it is compiled for every kernel.
@@ -472,10 +482,10 @@ end
     # submits to `stream` (see `convert(::Type{CuPtr}, ::Managed)`)
     old_stream, old_capturing = tls.operation_stream, tls.operation_capturing
     tls.operation_stream, tls.operation_capturing = stream, capturing
-    return (; tls, ordered, stream, capturing, old_stream, old_capturing)
+    return AcquiredManaged(tls, ordered, stream, capturing, old_stream, old_capturing)
 end
 
-@noinline function release_managed(acquired)
+@noinline function release_managed(acquired::AcquiredManaged)
     (; tls, ordered, stream, capturing, old_stream, old_capturing) = acquired
     tls.operation_stream, tls.operation_capturing = old_stream, old_capturing
     unlock_managed(ordered, stream, capturing)
