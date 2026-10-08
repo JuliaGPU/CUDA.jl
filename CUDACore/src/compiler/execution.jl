@@ -467,11 +467,9 @@ end
     tls = task_local_state!()
     state = active_state(tls)
     capturing = is_capturing(stream)
-    for memory in ordered
-        lock(memory.lock)
-    end
+    foreach_managed(memory -> lock(memory.lock), ordered)
     try
-        for memory in ordered
+        foreach_managed(ordered) do memory
             take_ownership!(memory; state, stream, capturing)
         end
     catch
@@ -498,14 +496,27 @@ end
 function unlock_managed(ordered, stream::CuStream, capturing::Bool)
     if !capturing
         epoch = stream_epoch(stream)
-        for memory in ordered
-            restamp!(memory, stream, epoch)
+        foreach_managed(memory -> restamp!(memory, stream, epoch), ordered)
+    end
+    foreach_managed(memory -> unlock(memory.lock), Iterators.reverse(ordered))
+    return
+end
+
+# managed memory is usually collected in a vector with an abstract element type (e.g., the
+# memory of a graph or of a kernel's arguments), so split on the kind of memory to avoid
+# dispatching dynamically for every memory
+@inline function foreach_managed(f::F, managed) where {F}
+    for memory in managed
+        if memory isa Managed{DeviceMemory}
+            f(memory)
+        elseif memory isa Managed{UnifiedMemory}
+            f(memory)
+        elseif memory isa Managed{HostMemory}
+            f(memory)
+        else
+            f(memory)
         end
     end
-    for memory in Iterators.reverse(ordered)
-        unlock(memory.lock)
-    end
-    return
 end
 
 restamp!(memory::Managed, stream::CuStream, epoch::UInt64) =
