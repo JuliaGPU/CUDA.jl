@@ -15,12 +15,20 @@ mutable struct CuEvent
     handle::CUevent
     ctx::CuContext
 
+    # the stream and epoch covered by the most recent recording of this event, if tracked.
+    # each tracked recording closes a different epoch, so this also identifies the
+    # recording. protected by `lock`, which is held while recording the event, so that
+    # what we learn from querying or waiting for it applies to the recording it was told
+    # about.
+    source::Union{Nothing,Tuple{StreamOrder,UInt64}}
+    const lock::ReentrantLock
+
     function CuEvent(flags=EVENT_DEFAULT)
         handle_ref = Ref{CUevent}()
         cuEventCreate(handle_ref, flags)
 
         ctx = current_context()
-        obj = new(handle_ref[], ctx)
+        obj = new(handle_ref[], ctx, nothing, ReentrantLock())
         # destroying an event from a finalizer is deferred, as with all resources
         resource_finalizer(obj)
         return obj
@@ -44,7 +52,27 @@ Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 Record an event on a stream.
 """
 record(e::CuEvent, stream::CuStream=stream()) =
-    capture_submission(() -> cuEventRecord(e, stream), stream)
+    capture_submission(() -> record_tracked(e, stream), stream)
+function record_tracked(e::CuEvent, stream::CuStream)
+    Base.@lock e.lock begin
+        # recording during capture only adds a node to the graph, which neither completes
+        # nor orders anything before the graph is launched
+        order = stream.order
+        epoch = order === nothing || is_capturing(stream) ? nothing : close_epoch!(order)
+        e.source = nothing
+        cuEventRecord(e, stream)
+        epoch === nothing || (e.source = (order, epoch))
+    end
+    return
+end
+
+# the recording of the event that covers `source` has completed, so the work it covers has
+# too. that's only known if the event hasn't been recorded again since. (caller holds
+# `e.lock`)
+function mark_completed!(e::CuEvent, source)
+    source === nothing || e.source !== source || mark_completed!(source...)
+    return
+end
 
 """
     synchronize(e::CuEvent)
@@ -60,6 +88,23 @@ Return `false` if there is outstanding work preceding the most recent
 call to `record(e)` and `true` if all captured work has been completed.
 """
 function isdone(e::CuEvent)
+    Base.@lock e.lock begin
+        done = unsafe_isdone(e)
+        source = e.source
+        if done && source !== nothing && !is_completed(source...)
+            # work that is known to be done isn't waited for anymore, so this needs the
+            # sanitizer workaround in `synchronize_completed`. a tracked recording can't
+            # change while we hold the lock, so that doesn't block.
+            res = synchronize_completed(e)
+            res == SUCCESS || throw_api_error(res)
+            mark_completed!(e, source)
+        end
+        return done
+    end
+end
+
+# query the event without taking its lock, e.g., from a worker thread
+function unsafe_isdone(e::CuEvent)
     res = unchecked_cuEventQuery(e)
     if res == ERROR_NOT_READY
         return false
@@ -77,7 +122,22 @@ Make a stream wait on a event. This only makes the stream wait, and not the host
 [`synchronize(::CuEvent)`](@ref) for that.
 """
 wait(e::CuEvent, stream::CuStream=stream()) =
-    capture_submission(() -> cuStreamWaitEvent(stream, e, 0), stream)
+    capture_submission(() -> wait_tracked(e, stream), stream)
+function wait_tracked(e::CuEvent, stream::CuStream)
+    Base.@lock e.lock begin
+        cuStreamWaitEvent(stream, e, 0)
+
+        # only learn about the order once the wait has been submitted, so that work isn't
+        # believed to be ordered after the event before it actually is. a wait that is
+        # captured only orders the graph's operations, once it is launched.
+        source = e.source
+        order = stream.order
+        if source !== nothing && order !== nothing && !is_capturing(stream)
+            mark_ordered!(order, source...)
+        end
+    end
+    return
+end
 
 # make the work submitted to `stream` from now on wait for the work submitted to `source` so
 # far, on the device. returns false if that isn't possible because `source` is being

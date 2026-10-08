@@ -140,6 +140,13 @@ New tasks start at normal priority, even when spawned from a high-priority task.
 If you selected an explicit stream with `stream!`, use the scoped form of `priority!`
 to restore that stream after the priority change.
 
+When another task uses an array, CUDA.jl makes it wait for the work that was submitted for
+that array before. That includes work submitted through a pointer to the array's memory,
+e.g., one obtained with `pointer(a)` and passed to a library or a kernel, but only if it was
+submitted from the task that took the pointer, and before the array was used by another
+task. Work submitted through such a pointer later is not ordered with the other task's
+work, so take the pointer again instead.
+
 
 ## Multithreading
 

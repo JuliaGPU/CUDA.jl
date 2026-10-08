@@ -445,12 +445,25 @@ function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
             end
             return with_operation_stream(f, tls, stream, capturing)
         finally
+            if !capturing
+                epoch = stream_epoch(stream)
+                for memory in ordered
+                    restamp!(memory, stream, epoch)
+                end
+            end
             for memory in Iterators.reverse(ordered)
                 unlock(memory.lock)
             end
         end
     end
 end
+
+# memory is stamped with the epoch of its stream once the operation using it has been
+# submitted, also when `f` throws, as it may have submitted work first (see `StreamOrder`).
+# only memory that `take_ownership!` actually moved to `stream` is stamped, which captured
+# operations don't do (they execute when the graph is launched, which stamps the memory).
+restamp!(memory::Managed, stream::CuStream, epoch::UInt64) =
+    (memory.stream == stream && (memory.epoch = epoch); return)
 
 # pointers taken during `f` are used by an operation that CUDA.jl submits to `stream` (see
 # `convert(::Type{CuPtr}, ::Managed)`)
