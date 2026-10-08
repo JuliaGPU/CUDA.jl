@@ -41,7 +41,14 @@ mutable struct CuGraph
         gc_state = GC.enable(false)
         try
             cuStreamBeginCapture_v2(stream(), flags)
-            f()
+        catch
+            end_capture()
+            GC.enable(gc_state)
+            rethrow()
+        end
+        try
+            # (marks the task as capturing, which `priority!` can't support)
+            task_local_storage(f, :CUDA_capture_stream, stream())
         finally
             handle_ref = Ref{CUgraph}()
             err = unchecked_cuStreamEndCapture(stream(), handle_ref)

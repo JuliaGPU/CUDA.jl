@@ -40,9 +40,15 @@ function disposal_stream(ctx::CuContext)
   end
 end
 
-# a stream to release memory on that was last used on `stream`, along with its context.
-# needs to be called with `stream_disposal_lock` held.
-function release_stream(stream::CuStream, ctx::CuContext)
+# a stream to release memory on that was last used on `stream` (during `generation`), along
+# with its context. needs to be called with `stream_disposal_lock` held, which also keeps
+# the stream from being handed to another task (see `claim_stream!`).
+function release_stream(stream::CuStream, ctx::CuContext, generation::Int)
+  if generation != CUDACore.generation(stream)
+    # the stream has been handed to another task, so the work has finished. don't use the
+    # stream, which would wait for the new owner's work, or end up in its capture.
+    return disposal_stream(something(stream.ctx, ctx)), something(stream.ctx, ctx)
+  end
   if isvalid(stream)
     return stream.handle, something(stream.ctx, ctx)
   end
@@ -99,7 +105,7 @@ function release_now(retired::RetiredOwner)
   end
   event = try
     @lock stream_disposal_lock begin
-      handle, ctx = release_stream(stream, ctx)
+      handle, ctx = release_stream(stream, ctx, retired.managed.generation)
       context!(ctx) do
         event = CuEvent(EVENT_DISABLE_TIMING)
         cuEventRecord(event, handle)

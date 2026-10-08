@@ -11,6 +11,7 @@ mutable struct Managed{M}
   # the default streams).
   stream::CuStream
   stream_ctx::CuContext
+  generation::Int
 
   # whether accessing this memory can cause implicit synchronization
   synchronizing::Bool
@@ -29,10 +30,13 @@ mutable struct Managed{M}
                    dirty = true, captured = false, owned_allocation = false)
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, synchronizing, dirty, captured,
-                     owned_allocation)
+    new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
+                     synchronizing, dirty, captured, owned_allocation)
   end
 end
+
+# Earlier generations have completed before the stream is handed to another task.
+recycled(managed::Managed) = managed.generation != generation(managed.stream)
 
 Base.sizeof(managed::Managed) = sizeof(managed.mem)
 
@@ -45,10 +49,26 @@ function synchronize(managed::Managed)
         # that one is specific to the thread that used it, which isn't known
         device_synchronize()
       else
-        synchronize(managed.stream)
+        event = pending_work(managed)
+        event === nothing || synchronize(event)
+        # (the work may have raised an exception)
+        check_exceptions()
       end
     end
     managed.dirty = false
+  end
+end
+
+# an event to wait for the work on the stream that last used memory, or `nothing` if that
+# work has finished. once the stream has been handed to another task (see `recycled`), it
+# may be capturing the stream, so check that while holding the lock that recycling takes.
+function pending_work(managed::Managed)
+  @lock stream_disposal_lock begin
+    recycled(managed) && return nothing
+    relaxed_capture_mode(() -> isdone(managed.stream)) && return nothing
+    event = CuEvent(EVENT_DISABLE_TIMING)
+    record(event, managed.stream)
+    return event
   end
 end
 function maybe_synchronize(managed::Managed)
@@ -102,6 +122,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     managed.stream = stream
     managed.stream_ctx = state.context
   end
+  managed.generation = generation(managed.stream)
 
   # prefetch unified memory as we're likely to use it on the GPU
   if M == UnifiedMemory

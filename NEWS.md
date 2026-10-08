@@ -27,6 +27,13 @@ are listed as subsections of the minor release they belong to.
   calling `CUDA.reclaim()`. Pinned arrays are kept alive until then.
 - `JULIA_CUDA_MEMORY_POOL=none` now also disables the memory pools that are used
   to allocate host and unified memory.
+- The stream that `stream()` returns in a task is handed to another task once
+  the task has finished and the work on the stream has completed, instead of
+  being kept alive until the GC collects the task. This keeps applications that
+  spawn many short-lived GPU tasks from piling up thousands of streams, which
+  each hold on to device memory and slow down memory allocation. Code that uses
+  a task's stream after the task has finished should create its own stream with
+  `CuStream()` instead.
 
 *New features*:
 
@@ -36,6 +43,13 @@ are listed as subsections of the minor release they belong to.
 - Host and unified memory is allocated from stream-ordered memory pools where
   supported (CUDA 13 and later), or otherwise cached for reuse, making allocating
   and freeing such memory considerably faster.
+- `CUDA.priority!(p)` sets the priority of the current task's GPU work, by
+  switching the task to a stream of that priority that is ordered after its
+  previous one; `CUDA.priority!(p) do ... end` restores the previous stream
+  afterwards. `p` is `:low`, `:normal`, `:high`, or an integer from
+  `priority_range()`, and `CUDA.priority()` returns the current priority.
+  `KernelAbstractions.priority!` uses the same mechanism, and no longer creates
+  a new stream on every call.
 
 *Bug fixes*:
 
