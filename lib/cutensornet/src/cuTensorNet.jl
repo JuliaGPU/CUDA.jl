@@ -3,7 +3,7 @@ module cuTensorNet
 using LinearAlgebra
 using CUDACore
 using CUDACore: CUstream, cudaDataType
-using CUDACore: retry_reclaim, initialize_context, isdebug, cuDoubleComplex
+using CUDACore: retry_reclaim, initialize_context, isdebug, cuDoubleComplex, resource_finalizer
 using CUDACore: @checked, @gcsafe_ccall
 
 using cuTENSOR
@@ -76,7 +76,7 @@ function handle()
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
         wrapped = Handle(new_handle, cuda.context)
-        finalizer(handle_finalizer, wrapped)
+        resource_finalizer(handle_finalizer, wrapped; blocking=false)
 
         (; handle=wrapped)
     end

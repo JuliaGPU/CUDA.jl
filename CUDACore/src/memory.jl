@@ -171,7 +171,11 @@ function maybe_collect(will_block::Bool=false)
   # finalizers running during GC may free memory in either.
   pre_device_live = stats.live
   pre_host_live = _host_stats.live
-  gc_time = Base.@elapsed GC.gc(false)
+  gc_time = Base.@elapsed begin
+    GC.gc(false)
+    # finalizers only retire memory, so release it before measuring what was freed
+    drain_retired()
+  end
   Base.@atomic stats.last_freed = pre_device_live - stats.live
   Base.@atomic _host_stats.last_freed = pre_host_live - _host_stats.live
   ## GC times can vary, so smooth them out
@@ -252,95 +256,6 @@ function memory_limit_exceeded(bytes::Integer)
 end
 
 
-## stream-ordered memory pool
-
-function stream_ordered(dev::CuDevice)
-  @memoize index=deviceid(dev)+1 begin
-    CUDACore.driver_version() >= v"11.3" && memory_pools_supported(dev) &&
-    get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
-  end::Bool
-end
-
-function pool_create(dev::CuDevice)
-  @memoize index=deviceid(dev)+1 begin
-    limits = memory_limits()
-
-    # create a custom memory pool and assign it to the device
-    # so that other libraries and applications will use it.
-    pool = if limits.hard > 0 && CUDACore.driver_version() >= v"12.2"
-      CuMemoryPool(dev; maxSize=limits.hard)
-    else
-      CuMemoryPool(dev)
-    end
-    memory_pool!(dev, pool)
-
-    # allow the pool to use up all memory of this device
-    attribute!(pool, MEMPOOL_ATTR_RELEASE_THRESHOLD,
-               limits.soft == 0 ? typemax(UInt64) : limits.soft)
-
-    # launch a task to periodically trim the pool
-    if isinteractive() && !isassigned(__pool_cleanup)
-      __pool_cleanup[] = errormonitor(Threads.@spawn pool_cleanup())
-    end
-
-    pool
-  end::CuMemoryPool
-end
-
-# per-device flag indicating the status of the memory pool.
-function pool_mark_ref(dev::CuDevice)
-  @memoize index=deviceid(dev)+1 begin
-    Ref{Union{Nothing,Bool}}(nothing)
-  end::Base.RefValue{Union{Nothing,Bool}}
-end
-function pool_mark(dev::CuDevice)
-  pool_mark_ref(dev)[]
-end
-function pool_mark!(dev::CuDevice, val)
-  pool_mark_ref(dev)[] = val
-  return
-end
-
-# reclaim unused pool memory after a certain time
-const __pool_cleanup = Ref{Task}()
-function pool_cleanup()
-  idle_counters = Base.fill(0, ndevices())
-  while true
-    try
-      sleep(60)
-    catch ex
-      if ex isa EOFError
-        # If we get EOF here, it's because Julia is shutting down, so we should just exit the loop
-        break
-      else
-        rethrow()
-      end
-    end
-
-    for (i, dev) in enumerate(devices())
-      stream_ordered(dev) || continue
-
-      status = pool_mark(dev)
-      status === nothing && continue
-
-      if status
-        idle_counters[i] = 0
-      else
-        idle_counters[i] += 1
-      end
-      pool_mark!(dev, false)
-
-      if idle_counters[i] == 5
-        # the pool hasn't been used for a while, so reclaim unused buffers
-        device!(dev) do
-          reclaim()
-        end
-      end
-    end
-  end
-end
-
-
 ## OOM handling
 
 export OutOfGPUMemoryError
@@ -367,9 +282,10 @@ end
 """
     pool_status([io=stdout])
 
-Report to `io` on the memory status of the current GPU and the active memory pool.
+Report to `io` on the memory status of the current GPU and the active memory pool. Memory
+that has been garbage collected, but not released yet, is released first.
 """
-function pool_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
+function pool_status(io::IO=stdout, info::MemoryInfo=(drain_retired(); MemoryInfo()))
   state = active_state()
   ctx = context()
 
@@ -380,13 +296,23 @@ function pool_status(io::IO=stdout, info::MemoryInfo=MemoryInfo())
               Base.format_bytes(info.total_bytes))
 
   if info.pool_reserved_bytes === nothing
-    @printf(io, "No memory pool is in use.")
+    @printf(io, "No memory pool is in use.\n")
   else
     @printf(io, "Memory pool usage: %s (%s reserved)\n",
                 Base.format_bytes(info.pool_used_bytes),
                 Base.format_bytes(info.pool_reserved_bytes))
 
   end
+
+  active_handles = idle_handles = 0
+  foreach_reclaimable() do resource
+    if resource isa HandleCache
+      counts = handle_cache_counts(resource)
+      active_handles += counts.active
+      idle_handles += counts.idle
+    end
+  end
+  println(io, "Library handles: $active_handles active, $idle_handles reusable (released at reclaim)")
 
   limits = memory_limits()
   if limits.soft > 0 || limits.hard > 0
@@ -448,403 +374,6 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
       println(io)
       pool_status(io, err.info)
     end
-end
-
-## reclaim escalation
-#
-# `Reclaimable`/`register_reclaimable!`/`TaskLocalCache`/`drop!`/`purge!`
-# are defined in utils/reclaim.jl. Here we add the ladder that drives them
-# along with the allocator-specific sync/trim steps.
-#
-# Registered `drop!`/`purge!` callbacks must not switch the active device:
-# the device is captured once per `reclaim` / `retry_reclaim` call.
-
-"""
-    ReclaimLevel
-
-Escalation levels shared by `reclaim(level)` and `retry_reclaim`, from
-cheapest to most aggressive:
-
-| Level           | Action                                              |
-| :---            | :---                                                |
-| `RECLAIM_PURGE` | empty `HandleCache`s (no GC, no sync)               |
-| `RECLAIM_SYNC`  | synchronize the device (lets async deallocs finish) |
-| `RECLAIM_GC`    | run a full Julia GC, then sync + purge + trim       |
-| `RECLAIM_DROP`  | also drop task-local library state, then GC + …     |
-
-`RECLAIM_DROP` clears the calling task's library state — see
-[`register_reclaimable!`](@ref). It assumes user-held descriptors/plans
-are tied to a context, not to a specific library-handle instance (true
-for all libraries CUDA.jl wraps). Live handles the user holds a
-reference to are unaffected: the wrapper keeps the raw handle alive.
-
-Steps that don't apply to the current allocator (e.g. trim on a
-non-stream-ordered device) are silently skipped.
-"""
-@enum ReclaimLevel::Int begin
-    RECLAIM_PURGE = 0
-    RECLAIM_SYNC  = 1
-    RECLAIM_GC    = 2
-    RECLAIM_DROP  = 3
-end
-
-
-"""
-    retry_reclaim(retry_if) do
-        # code that may fail due to insufficient GPU memory
-    end
-
-Run a block of code repeatedly while `retry_if(ret)` holds for its return
-value, escalating one `ReclaimLevel` between attempts. Returns the final
-(or most recent) return value of the block.
-
-This is intended for CUDA APIs that allocate outside the pool and report
-failure via a status code. It's like `Base.retry`, but works on return
-values instead of exceptions for performance reasons.
-"""
-@inline function retry_reclaim(f, retry_if)
-    ret = f()
-    retry_if(ret) || return ret
-    return retry_reclaim_slow(f, retry_if, ret)
-end
-
-@noinline function retry_reclaim_slow(f, retry_if, ret)
-    dev = active_state().device
-    so = stream_ordered(dev)
-    for level in instances(ReclaimLevel)
-        reclaim_step(level, dev, so)
-        ret = f()
-        retry_if(ret) || return ret
-    end
-    return ret
-end
-
-# Each level is a complete reclaim at that aggressiveness — `reclaim(level)`
-# just runs the matching step. `retry_reclaim` walks the levels in order to
-# bisect on alloc failure. GC.gc(true) drains pending finalizers before
-# returning, so the post-GC purge sees caches populated by wrapper finalizers.
-function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
-    if level == RECLAIM_PURGE
-        foreach_reclaimable(purge!)
-    elseif level == RECLAIM_SYNC
-        stream_ordered && device_synchronize()
-    elseif level == RECLAIM_GC
-        GC.gc(true)
-        stream_ordered && device_synchronize()
-        foreach_reclaimable(purge!)
-        stream_ordered && trim(pool_create(dev))
-    elseif level == RECLAIM_DROP
-        foreach_reclaimable(drop!)
-        GC.gc(true)
-        stream_ordered && device_synchronize()
-        foreach_reclaimable(purge!)
-        stream_ordered && trim(pool_create(dev))
-    end
-    return
-end
-
-
-## managed memory
-
-# to safely use allocated memory across tasks and devices, we don't simply return raw
-# memory objects, but wrap them in a manager that ensures synchronization and ownership.
-
-# XXX: immutable with atomic refs?
-mutable struct Managed{M}
-  const mem::M
-  const lock::ReentrantLock
-
-  # which stream is currently using the memory.
-  stream::CuStream
-
-  # whether accessing this memory can cause implicit synchronization
-  synchronizing::Bool
-
-  # whether there are outstanding operations that haven't been synchronized
-  dirty::Bool
-
-  # whether the memory has been captured in a way that would make the dirty bit unreliable
-  captured::Bool
-
-  function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
-                   dirty = true, captured = false)
-    # NOTE: memory starts as dirty, because stream-ordered allocations are only
-    #       guaranteed to be physically allocated at a synchronization event.
-    new{typeof(mem)}(mem, ReentrantLock(), stream, synchronizing, dirty, captured)
-  end
-end
-
-Base.sizeof(managed::Managed) = sizeof(managed.mem)
-
-# wait for the current owner of memory to finish processing
-function synchronize(managed::Managed)
-  Base.@lock managed.lock begin
-    synchronize(managed.stream)
-    managed.dirty = false
-  end
-end
-function maybe_synchronize(managed::Managed)
-  Base.@lock managed.lock begin
-    if managed.synchronizing && (managed.dirty || managed.captured)
-      synchronize(managed)
-    end
-  end
-end
-
-# Transfer stream ownership of an allocation and mark it dirty in anticipation of a
-# device-side operation. The caller must hold `managed.lock` until that operation has been
-# submitted to `stream`, so the recorded owner cannot become visible before its submission.
-function take_ownership!(managed::Managed{M}; state=active_state(),
-                         stream::CuStream=state.stream,
-                         capturing::Bool=is_capturing(stream)) where {M}
-  sizeof(managed) == 0 && return managed
-
-  # accessing memory during stream capture: taint the memory so that we always synchronize
-  if capturing
-    managed.captured = true
-  end
-
-  # accessing memory on another device: ensure the data is ready and accessible
-  if M == DeviceMemory && state.context != managed.mem.ctx
-    maybe_synchronize(managed)
-    source_device = managed.mem.dev
-
-    # enable peer-to-peer access
-    if maybe_enable_peer_access(state.device, source_device) != 1
-        throw(ArgumentError(
-            """cannot take the GPU address of inaccessible device memory.
-
-               You are trying to use memory from GPU $(deviceid(source_device)) on GPU $(deviceid(state.device)).
-               P2P access between these devices is not possible; either switch to GPU $(deviceid(source_device))
-               by calling `CUDA.device!($(deviceid(source_device)))`, or copy the data to an array allocated on device $(deviceid(state.device))."""))
-    end
-
-    # set pool visibility
-    # XXX: disabled because of NVIDIA bug #6098762
-    #if stream_ordered(source_device)
-    #  pool = pool_create(source_device)
-    #  access!(pool, state.device, ACCESS_FLAGS_PROT_READWRITE)
-    #end
-  end
-
-  # accessing memory on another stream: ensure the data is ready and take ownership
-  if managed.stream != stream
-    maybe_synchronize(managed)
-    managed.stream = stream
-  end
-
-  # prefetch unified memory as we're likely to use it on the GPU
-  if M == UnifiedMemory
-    can_prefetch = !capturing
-    can_prefetch &= !__pinned(convert(Ptr{Cvoid}, managed.mem), managed.mem.ctx)
-    can_prefetch &= attribute(state.device,
-                              DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS) == 1
-    can_prefetch &= ndevices() == 1
-    can_prefetch && prefetch(managed.mem; device=state.device, stream)
-  end
-
-  managed.dirty = true
-  return managed
-end
-
-function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
-  Base.@lock managed.lock begin
-    # let null pointers pass through as-is
-    ptr = convert(CuPtr{T}, managed.mem)
-    ptr == CU_NULL && return ptr
-
-    state = active_state()
-    take_ownership!(managed; state, stream=state.stream)
-    return ptr
-  end
-end
-
-function Base.convert(::Type{Ptr{T}}, managed::Managed{M}) where {T,M}
-  Base.@lock managed.lock begin
-    # let null pointers pass through as-is
-    ptr = convert(Ptr{T}, managed.mem)
-    ptr == C_NULL && return ptr
-
-    # accessing memory on the CPU: only allowed for host or unified allocations
-    if M == DeviceMemory
-      throw(ArgumentError(
-          """cannot take the CPU address of GPU memory.
-
-             You are probably falling back to or otherwise calling CPU functionality
-             with GPU array inputs. This is not supported by regular device memory;
-             ensure this operation is supported by CUDA.jl, and if it isn't, try to
-             avoid it or rephrase it in terms of supported operations. Alternatively,
-             you can consider using GPU arrays backed by unified memory by
-             allocating using `cu(...; unified=true)`."""))
-    end
-
-    # make sure any work on the memory has finished.
-    maybe_synchronize(managed)
-    return ptr
-  end
-end
-
-
-## public interface
-
-"""
-    pool_alloc([DeviceMemory], sz)::Managed{<:AbstractMemory}
-
-Allocate a number of bytes `sz` from the memory pool on the current stream. Returns a
-managed memory object; may throw an [`OutOfGPUMemoryError`](@ref) if the allocation request
-cannot be satisfied.
-"""
-@inline pool_alloc(sz::Integer) = pool_alloc(DeviceMemory, sz)
-@inline function pool_alloc(::Type{B}, sz) where {B<:AbstractMemory}
-  # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return Managed(B())
-
-  # LLVM implements 8- and 16-bit atomics on the containing 32-bit word, which may extend
-  # past the end of the array. That never faults (allocations are 256-byte aligned), but
-  # compute-sanitizer flags it, so make the allocation cover that word.
-  sz = cld(sz, 4) * 4
-
-  maybe_collect()
-  time = Base.@elapsed begin
-    mem = _pool_alloc(B, sz)
-  end
-
-  Base.@atomic alloc_stats.alloc_count += 1
-  Base.@atomic alloc_stats.alloc_bytes += sz
-  Base.@atomic alloc_stats.total_time += time
-  # NOTE: total_time might be an over-estimation if we trigger GC somewhere else
-
-  return Managed(mem)
-end
-@inline function _pool_alloc(::Type{DeviceMemory}, sz)
-    state = active_state()
-
-    mem = if stream_ordered(state.device)
-      pool_mark!(state.device, true)
-      pool = pool_create(state.device)
-
-      retry_reclaim(isnothing) do
-        memory_limit_exceeded(sz) && return nothing
-
-        # try the actual allocation
-        try
-          alloc(DeviceMemory, sz; async=true, state.stream, pool)
-        catch err
-          isa(err, OutOfGPUMemoryError) || rethrow()
-          return nothing
-        end
-      end
-    else
-      retry_reclaim(isnothing) do
-        memory_limit_exceeded(sz) && return nothing
-
-        # try the actual allocation
-        try
-          alloc(DeviceMemory, sz; async=false)
-        catch err
-          isa(err, OutOfGPUMemoryError) || rethrow()
-          return nothing
-        end
-      end
-    end
-    # NOTE: the `retry_reclaim` body is duplicated to work around
-    #       closure capture issues with the `pool` variable
-    mem === nothing && throw(OutOfGPUMemoryError(sz))
-
-    account!(memory_stats(state.device), sz)
-
-    mem
-end
-@inline function _pool_alloc(::Type{UnifiedMemory}, sz)
-  # NOTE: no `retry_reclaim` here. `cuMemAllocManaged` allocates lazily and
-  # essentially never returns `ERROR_OUT_OF_MEMORY` — when host RAM is actually
-  # exhausted, the OS kills the process on the page fault before the driver
-  # call can fail. The only thing that can prevent OOM is the proactive
-  # `maybe_collect` call in `pool_alloc`, which uses `_host_stats`.
-  mem = alloc(UnifiedMemory, sz)
-  account!(_host_stats, sz)
-  mem
-end
-@inline function _pool_alloc(::Type{HostMemory}, sz)
-  mem = alloc(HostMemory, sz)
-  account!(_host_stats, sz)
-  mem
-end
-
-"""
-    pool_free(mem::Managed{<:AbstractMemory})
-
-Releases memory to the pool. If possible, this operation will not block but will be ordered
-against the stream that last used the memory.
-"""
-@inline function pool_free(managed::Managed{<:AbstractMemory})
-  Base.@lock managed.lock begin
-    mem = managed.mem
-
-    # 0-byte allocations shouldn't hit the pool
-    sz = sizeof(mem)
-    sz == 0 && return
-
-    # this function is typically called from a finalizer, where we can't switch tasks,
-    # so perform our own error handling.
-    try
-      time = Base.@elapsed _pool_free(mem, managed.stream)
-
-      Base.@atomic alloc_stats.free_count += 1
-      Base.@atomic alloc_stats.free_bytes += sz
-      Base.@atomic alloc_stats.total_time += time
-    catch ex
-      # NOTE: avoid `show`ing `mem` here since the buffer may be in a bad state
-      # (often the reason free is failing); printing the byte count is safer.
-      Base.showerror_nostdio(ex,
-          "WARNING: Error while freeing $(Base.format_bytes(sz)) of GPU memory")
-      Base.show_backtrace(Core.stdout, catch_backtrace())
-      Core.println()
-    end
-  end
-
-  return
-end
-@inline function _pool_free(mem::DeviceMemory, stream::CuStream)
-    if mem.async
-      # stream-ordered allocations are not tied to a context. we always need to free them,
-      # and if the owning stream was destroyed, use a default one.
-      if isvalid(stream)
-        context!(mem.ctx) do
-          free(mem; stream)
-        end
-      else
-        free(mem; stream=default_stream())
-      end
-    else
-      # regular allocations are tied to a context, so free them in their owning context.
-      context!(mem.ctx) do
-        free(mem)
-      end
-    end
-    account!(memory_stats(mem.dev), -sizeof(mem))
-end
-@inline function _pool_free(mem::UnifiedMemory, stream::CuStream)
-  free(mem)
-  account!(_host_stats, -sizeof(mem))
-end
-@inline function _pool_free(mem::HostMemory, stream::CuStream)
-  free(mem)
-  account!(_host_stats, -sizeof(mem))
-end
-
-"""
-    reclaim([level::ReclaimLevel = RECLAIM_DROP])
-
-Free GPU memory at the given [`ReclaimLevel`](@ref). The default drops
-task-local library state, runs a full GC so handle wrappers finalize and
-return their raw handles to caches, then destroys those caches and trims
-the pool. Returns `nothing`.
-"""
-function reclaim(level::ReclaimLevel = RECLAIM_DROP)
-    dev = active_state().device
-    reclaim_step(level, dev, stream_ordered(dev))
-    return
 end
 
 

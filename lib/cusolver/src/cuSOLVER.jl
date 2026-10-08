@@ -4,7 +4,7 @@ using CUDACore
 using GPUToolbox
 
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType, cudaEmulationStrategy_t, cudaEmulationMantissaControl_t, cudaEmulationSpecialValuesSupport_t
-using CUDACore: @allowscalar, assertscalar, unsafe_free!, retry_reclaim, initialize_context, isdebug
+using CUDACore: @allowscalar, assertscalar, unsafe_free!, retry_reclaim, initialize_context, isdebug, resource_finalizer
 
 using cuBLAS
 using cuBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
@@ -109,7 +109,7 @@ function dense_handle()
         info = CuVector{Cint}(undef, 1)
         fat_handle = DnHandle(new_handle, cuda.context, workspace_gpu,
                                       workspace_cpu, info)
-        finalizer(dense_handle_finalizer, fat_handle)
+        resource_finalizer(dense_handle_finalizer, fat_handle; blocking=false)
 
         cusolverDnSetStream(new_handle, cuda.stream)
 
@@ -172,7 +172,7 @@ function sparse_handle()
     @noinline function new_state(cuda)
         new_handle = pop!(idle_sparse_handles, cuda.context)
         wrapped = SpHandle(new_handle, cuda.context)
-        finalizer(sparse_handle_finalizer, wrapped)
+        resource_finalizer(sparse_handle_finalizer, wrapped; blocking=false)
 
         cusolverSpSetStream(new_handle, cuda.stream)
 
@@ -246,7 +246,7 @@ function mg_handle()
         # we can't reuse cusolverMg handles because they can only be assigned devices once
         new_handle = cusolverMgCreate()
         wrapped = MgHandle(new_handle, cuda.context)
-        finalizer(mg_handle_finalizer, wrapped)
+        resource_finalizer(mg_handle_finalizer, wrapped)
 
         devs = convert.(Cint, devices())
         cusolverMgDeviceSelect(new_handle, length(devs), devs)

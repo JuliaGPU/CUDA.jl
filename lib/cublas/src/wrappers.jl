@@ -2183,7 +2183,6 @@ for (fname, elty) in ((:cublasDgetrfBatched, :Float64),
                      TI<:Union{Nothing,CuArray{Cint}}}
             batchSize = length(ptrs)
             info = TI<:Nothing ? CuArray{Cint}(undef, batchSize) : _info
-            finalizer(unsafe_free!, ptrs)
             if TP<:DenseCuArray
                 $fname(handle(), n, ptrs, lda, pivot, info, batchSize)
                 return pivot, info

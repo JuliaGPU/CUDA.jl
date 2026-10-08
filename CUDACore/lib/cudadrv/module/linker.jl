@@ -38,7 +38,7 @@ mutable struct CuLink
 
         ctx = current_context()
         obj = new(handle_ref[], ctx, options, optionKeys, optionVals)
-        finalizer(unsafe_destroy!, obj)
+        resource_finalizer(unsafe_destroy!, obj; ctx, blocking=false)
         return obj
     end
 end

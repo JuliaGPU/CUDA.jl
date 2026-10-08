@@ -44,7 +44,7 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B} <: Plan{
         abs(K) == 1 || throw(ArgumentError("FFT direction must be either -1 (forward) or +1 (inverse)"))
         inplace isa Bool || throw(ArgumentError("FFT inplace argument must be a Bool"))
         p = new{T,S,K,inplace,N,R,B}(handle, context(), stream(), input_size, output_size, region, buffer)
-        finalizer(unsafe_free!, p)
+        resource_finalizer(unsafe_free!, p; blocking=false)
         p
     end
 end

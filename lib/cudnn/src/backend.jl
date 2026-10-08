@@ -7,7 +7,7 @@ function BackendDescriptor(descriptor_type::cudnnBackendDescriptorType_t)
     ref = Ref{cudnnBackendDescriptor_t}(C_NULL)
     cudnnBackendCreateDescriptor(descriptor_type, ref)
     d = BackendDescriptor(ref[], descriptor_type)
-    finalizer(unsafe_destroy!, d)
+    resource_finalizer(unsafe_destroy!, d)
     return d
 end
 
@@ -158,7 +158,7 @@ function getattr_descriptors(d::BackendDescriptor, name::cudnnBackendAttributeNa
     nreturned == 0 && return BackendDescriptor[]
     return map(1:nreturned) do i
         desc = BackendDescriptor(raw[i], desctype)
-        finalizer(unsafe_destroy!, desc)
+        resource_finalizer(unsafe_destroy!, desc)
         desc
     end
 end

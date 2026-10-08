@@ -3,7 +3,7 @@ module cuRAND
 using CUDACore
 using GPUToolbox
 using CUDACore: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
-using CUDACore: retry_reclaim, initialize_context
+using CUDACore: retry_reclaim, initialize_context, resource_finalizer
 
 using CEnum: @cenum
 
@@ -50,8 +50,9 @@ function handle_ctor(ctx)
 end
 function handle_dtor(ctx, handle)
     context!(ctx) do
-        # no need to do anything, as the RNG is collected by its finalizer
-        # TODO: early free?
+        # queue the generator's destruction, so that it is destroyed by the reclaim that
+        # purges this cache, instead of only after it has been collected
+        finalize(handle)
     end
 end
 const idle_library_rngs = HandleCache{CuContext,LibraryRNG}(handle_ctor, handle_dtor)
@@ -79,7 +80,7 @@ function library_rng()
     @noinline function new_state(cuda)
         new_rng = pop!(idle_library_rngs, cuda.context)
         wrapped = BorrowedLibraryRNG(new_rng, cuda.context)
-        finalizer(library_rng_finalizer, wrapped)
+        resource_finalizer(library_rng_finalizer, wrapped; blocking=false)
         Random.seed!(new_rng)
         wrapped
     end

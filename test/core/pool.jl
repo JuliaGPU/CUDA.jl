@@ -71,3 +71,16 @@ end
     @test CUDACore.parse_limit("8MiB")   == UInt(8*1024*1024)
     @test CUDACore.parse_limit("8GiB")   == UInt(8*1024*1024*1024)
 end
+
+@testset "one reclaim resolves PTDS releases" begin
+    CUDA.reclaim()
+    for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory)
+        CUDA.stream!(CUDA.per_thread_stream()) do
+            a = CuArray{UInt8,1,M}(undef, 513)
+            CUDA.unsafe_free!(a)
+        end
+        CUDA.reclaim()
+        @test (Base.@atomic CUDACore.host_cache.bytes) == 0
+        @test (Base.@atomic CUDACore.unified_cache.bytes) == 0
+    end
+end

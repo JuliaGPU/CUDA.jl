@@ -15,6 +15,28 @@ are listed as subsections of the minor release they belong to.
 
 ## v6.5 (unreleased)
 
+*Technically breaking changes*:
+
+- GPU resources are no longer released from finalizers, as many of the CUDA calls
+  that release them wait for all running kernels to finish, which could stall or
+  deadlock whichever thread the garbage collector runs on. Collected memory is now
+  released the next time CUDA.jl allocates memory or synchronizes, or within a
+  second, so `GC.gc()` by itself doesn't make it available anymore. Releases that
+  may wait for the GPU, like unpinning memory or destroying some library objects,
+  are deferred until memory is reclaimed: on an out-of-memory error, or when
+  calling `CUDA.reclaim()`. Pinned arrays are kept alive until then.
+- `JULIA_CUDA_MEMORY_POOL=none` now also disables the memory pools that are used
+  to allocate host and unified memory.
+
+*New features*:
+
+- `CUDA.resource_finalizer` registers a finalizer that releases CUDA resources
+  on a regular task instead of from the garbage collector, for use by packages
+  that wrap objects of CUDA libraries.
+- Host and unified memory is allocated from stream-ordered memory pools where
+  supported (CUDA 13 and later), or otherwise cached for reuse, making allocating
+  and freeing such memory considerably faster.
+
 *Bug fixes*:
 
 - Indexing a `CuDeviceArray` with multiple indices checks every index against
@@ -26,6 +48,11 @@ are listed as subsections of the minor release they belong to.
   `compute-sanitizer` abort the kernel. These atomics operate on the containing
   32-bit word, so allocations and shared memory arrays are now padded to whole
   words.
+- The output of a kernel that throws an exception is flushed before reporting
+  the exception.
+- Memory that failed to be pinned, e.g. because it was registered already
+  using `CUDA.register`, or that has been unpinned, isn't recorded as pinned
+  anymore. Re-pinning a resized array doesn't lead to unpinning it twice.
 
 
 ## v6.4 (September 2026)

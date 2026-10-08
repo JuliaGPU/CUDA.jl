@@ -2,7 +2,7 @@ module cuTENSOR
 
 using CUDACore
 using CUDACore: CUstream, cudaDataType, @gcsafe_ccall, @checked, @enum_without_prefix
-using CUDACore: retry_reclaim, initialize_context, isdebug
+using CUDACore: retry_reclaim, initialize_context, isdebug, resource_finalizer
 
 using CUDACore.GPUToolbox
 
@@ -84,7 +84,7 @@ function handle()
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
         wrapped = Handle(new_handle, cuda.context)
-        finalizer(handle_finalizer, wrapped)
+        resource_finalizer(handle_finalizer, wrapped; blocking=false)
 
         (; handle=wrapped)
     end

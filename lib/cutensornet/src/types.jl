@@ -54,7 +54,7 @@ mutable struct CuTensorDescriptor{T}
                                           convert(Vector{Int64}, collect(strides)), convert(Vector{Int32}, collect(modes)),
                                           T, desc_ref)
         obj = new{T}(desc_ref[])
-        finalizer(cutensornetDestroyTensorDescriptor, obj)
+        resource_finalizer(cutensornetDestroyTensorDescriptor, obj)
         return obj
     end
 end
@@ -94,7 +94,7 @@ mutable struct CuTensorNetworkDescriptor
         cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, qualifiersIn, numModesOut,
                                            extentsOut, stridesOut, modesOut, dataType, computeType, desc_ref)
         obj = new(desc_ref[])
-        finalizer(cutensornetDestroyNetworkDescriptor, obj)
+        resource_finalizer(cutensornetDestroyNetworkDescriptor, obj)
         return obj
     end
 end
@@ -138,7 +138,7 @@ mutable struct CuTensorSVDInfo
         info_ref = Ref{cutensornetTensorSVDInfo_t}()
         cutensornetCreateTensorSVDInfo(handle(), info_ref)
         obj = new(info_ref[])
-        finalizer(cutensornetDestroyTensorSVDInfo, obj)
+        resource_finalizer(cutensornetDestroyTensorSVDInfo, obj)
         return obj
     end
 end
@@ -167,7 +167,7 @@ mutable struct CuTensorNetworkContractionOptimizerInfo
         desc_ref = Ref{cutensornetContractionOptimizerInfo_t}()
         cutensornetCreateContractionOptimizerInfo(handle(), net_desc, desc_ref)
         obj = new(desc_ref[])
-        finalizer(cutensornetDestroyContractionOptimizerInfo, obj)
+        resource_finalizer(cutensornetDestroyContractionOptimizerInfo, obj)
         return obj
     end
 end
@@ -180,7 +180,7 @@ mutable struct CuTensorNetworkWorkspaceDescriptor
         desc_ref = Ref{cutensornetWorkspaceDescriptor_t}()
         cutensornetCreateWorkspaceDescriptor(handle(), desc_ref)
         obj = new(desc_ref[])
-        finalizer(cutensornetDestroyWorkspaceDescriptor, obj)
+        resource_finalizer(cutensornetDestroyWorkspaceDescriptor, obj)
         return obj
     end
 end
@@ -193,7 +193,7 @@ mutable struct CuTensorNetworkContractionPlan
         desc_ref = Ref{cutensornetContractionPlan_t}()
         cutensornetCreateContractionPlan(handle(), net_desc, info, ws_desc, desc_ref)
         obj = new(desc_ref[])
-        finalizer(cutensornetDestroyContractionPlan, obj)
+        resource_finalizer(cutensornetDestroyContractionPlan, obj)
         return obj
     end
 end
@@ -232,7 +232,7 @@ mutable struct CuTensorNetworkContractionOptimizerConfig
         desc_ref = Ref{cutensornetContractionOptimizerConfig_t}()
         cutensornetCreateContractionOptimizerConfig(handle(), desc_ref)
         obj = new(desc_ref[])
-        finalizer(cutensornetDestroyContractionOptimizerConfig, obj)
+        resource_finalizer(cutensornetDestroyContractionOptimizerConfig, obj)
         # apply preference options
         for attr in (
                         :num_graph_partitions=>CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_GRAPH_NUM_PARTITIONS,
@@ -277,14 +277,14 @@ mutable struct CuTensorSVDConfig
         desc_ref = Ref{cutensornetTensorSVDConfig_t}()
         cutensornetCreateTensorSVDConfig(handle(), desc_ref)
         obj = new(desc_ref[])
-        finalizer(cutensornetDestroyTensorSVDConfig, obj)
+        resource_finalizer(cutensornetDestroyTensorSVDConfig, obj)
         return obj
     end
     function CuTensorSVDConfig(prefs::SVDConfig)
         desc_ref = Ref{cutensornetTensorSVDConfig_t}()
         cutensornetCreateTensorSVDConfig(handle(), desc_ref)
         obj = new(desc_ref[])
-        finalizer(cutensornetDestroyTensorSVDConfig, obj)
+        resource_finalizer(cutensornetDestroyTensorSVDConfig, obj)
         # apply preference options
         for attr in (
             :abs_cutoff=>CUTENSORNET_TENSOR_SVD_CONFIG_ABS_CUTOFF,
@@ -325,7 +325,7 @@ mutable struct CuTensorNetworkAutotunePreference
         pref_ref = Ref{cutensornetContractionAutotunePreference_t}()
         cutensornetCreateContractionAutotunePreference(handle(), pref_ref)
         obj = new(pref_ref[])
-        finalizer(cutensornetDestroyContractionAutotunePreference, obj)
+        resource_finalizer(cutensornetDestroyContractionAutotunePreference, obj)
         # apply preference options
         for attr in (:max_iterations=>CUTENSORNET_CONTRACTION_AUTOTUNE_MAX_ITERATIONS,)
             attr_buf = Ref(Base.getproperty(prefs, attr[1]))
@@ -343,14 +343,14 @@ mutable struct CuTensorNetworkSliceGroup
         group_ref = Ref{cutensornetSliceGroup_t}()
         cutensornetCreateSliceGroupFromIDRange(handle(), sliceStart, sliceStop, sliceStep, group_ref)
         obj = new(group_ref[])
-        finalizer(cutensornetDestroySliceGroup, obj)
+        resource_finalizer(cutensornetDestroySliceGroup, obj)
         return obj
     end
     function CuTensorNetworkSliceGroup(slices::Vector{Int64})
         group_ref = Ref{cutensornetSliceGroup_t}()
         cutensornetCreateSliceGroupFromIDs(handle(), pointer(slices), pointer(slices, length(slices)), group_ref)
         obj = new(group_ref[])
-        finalizer(cutensornetDestroySliceGroup, obj)
+        resource_finalizer(cutensornetDestroySliceGroup, obj)
         return obj
     end
 end

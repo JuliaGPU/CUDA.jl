@@ -32,15 +32,23 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
         maybe_collect(true)
     end
 
+    # release resources that finalizers retired, before waiting (so that the GPU can
+    # process the frees in the meantime) and after (as finalizers may have run meanwhile)
+    drain_retired(ALLOC_DRAIN_LIMIT)
+
     res = if !blocking && use_nonblocking_synchronization
         ctx = obj isa CuContext ? obj : obj.ctx === nothing ? context() : obj.ctx
         # if polling found the object to be done, there's no need to synchronize again:
         # `isdone` reports errors, and a successful query counts as synchronization (e.g.,
         # for accessing unified memory). doing so anyway would risk blocking the thread,
         # if another task submitted work in the meantime.
-        something(cooperative_wait(worker_synchronize, (obj, ctx);
-                                   isdone = pollable ? worker_isdone : nothing, spin),
-                  SUCCESS)::CUresult
+        res = cooperative_wait(worker_synchronize, (obj, ctx);
+                               isdone = pollable ? worker_isdone : nothing, spin)
+        if res === nothing && obj isa CuEvent
+            synchronize_completed(obj)
+        else
+            something(res, SUCCESS)::CUresult
+        end
     else
         unchecked_synchronize(obj)
     end
@@ -48,8 +56,18 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     if res != SUCCESS
         throw_api_error(res)
     end
+    drain_retired(ALLOC_DRAIN_LIMIT)
     return
 end
+
+# XXX: compute-sanitizer doesn't treat a successful query of an event as synchronization, and
+#      reports races with the work that the event ordered (#3346). so when synchronizing an
+#      event finds it done by polling, synchronize it too. that only blocks if the event was
+#      recorded again since. other queries of events, e.g. with `isdone`, aren't covered.
+#      synchronizing is prohibited while another thread captures in global mode, even though
+#      it doesn't affect that capture, so relax the capture mode.
+synchronize_completed(event::CuEvent) =
+    relaxed_capture_mode(() -> unchecked_synchronize(event))::CUresult
 
 function device_synchronize(; blocking::Bool=false, spin::Bool=true)
     synchronize_object(context(); blocking, spin)

@@ -39,7 +39,7 @@ macro cudnnDescriptor(x, set = Symbol("cudnnSet$(x)Descriptor"))
                 $create(ptr)
                 $set(ptr[1], args...)
                 d = $sname(ptr[1])
-                finalizer(x->$destroy(x.ptr), d)
+                resource_finalizer(x->$destroy(x.ptr), d; blocking=false)
                 lock($cache_lock) do
                     $cache[args] = d
                 end

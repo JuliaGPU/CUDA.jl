@@ -27,24 +27,25 @@ mutable struct CuGraph
 
         ctx = current_context()
         obj = new(handle_ref[], ctx)
-        finalizer(unsafe_destroy!, obj)
+        resource_finalizer(unsafe_destroy!, obj; ctx, blocking=false)
         return obj
     end
 
     global function capture(f::Function; flags=STREAM_CAPTURE_MODE_GLOBAL,
                             throw_error::Bool=true)
-        # graph capture does not support asynchronous memory operations, so disable the GC
-        gc_state = GC.enable(false)
         ctx = current_context()
         obj = nothing
-        Threads.atomic_add!(active_captures, 1)
+        # releasing resources could interfere with the capture (see `begin_capture`)
+        begin_capture()
+        # graph capture does not support asynchronous memory operations, so disable the GC
+        gc_state = GC.enable(false)
         try
             cuStreamBeginCapture_v2(stream(), flags)
             f()
         finally
             handle_ref = Ref{CUgraph}()
             err = unchecked_cuStreamEndCapture(stream(), handle_ref)
-            Threads.atomic_sub!(active_captures, 1)
+            end_capture()
             GC.enable(gc_state)
             if err == ERROR_STREAM_CAPTURE_INVALIDATED && !throw_error
                 return nothing
@@ -53,7 +54,7 @@ mutable struct CuGraph
             end
 
             obj = new(handle_ref[], ctx)
-            finalizer(unsafe_destroy!, obj)
+            resource_finalizer(unsafe_destroy!, obj; ctx, blocking=false)
         end
         return obj::CuGraph
     end
@@ -114,7 +115,7 @@ mutable struct CuGraphExec
 
         ctx = current_context()
         obj = new(handle_ref[], graph, ctx)
-        finalizer(unsafe_destroy!, obj)
+        resource_finalizer(unsafe_destroy!, obj; ctx, blocking=false)
         return obj
     end
 end

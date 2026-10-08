@@ -98,6 +98,7 @@ include("device/quirks.jl")
 
 # array essentials
 include("memory.jl")
+include("resources.jl")
 include("array.jl")
 include("refpointer.jl")
 

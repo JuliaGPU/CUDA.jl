@@ -9,7 +9,7 @@ mutable struct SparseQRInfo
         info_ref = Ref{csrqrInfo_t}()
         cusolverSpCreateCsrqrInfo(info_ref)
         obj = new(info_ref[])
-        finalizer(cusolverSpDestroyCsrqrInfo, obj)
+        resource_finalizer(cusolverSpDestroyCsrqrInfo, obj)
         obj
     end
 end
@@ -26,7 +26,7 @@ mutable struct SparseCholeskyInfo
         info_ref = Ref{csrcholInfo_t}()
         cusolverSpCreateCsrcholInfo(info_ref)
         obj = new(info_ref[])
-        finalizer(cusolverSpDestroyCsrcholInfo, obj)
+        resource_finalizer(cusolverSpDestroyCsrcholInfo, obj)
         obj
     end
 end
@@ -44,7 +44,7 @@ mutable struct CuSolverParameters
         parameters_ref = Ref{cusolverDnParams_t}()
         cusolverDnCreateParams(parameters_ref)
         obj = new(parameters_ref[])
-        finalizer(cusolverDnDestroyParams, obj)
+        resource_finalizer(cusolverDnDestroyParams, obj)
         obj
     end
 end
@@ -62,7 +62,7 @@ mutable struct CuSolverIRSParameters
         parameters_ref = Ref{cusolverDnIRSParams_t}()
         cusolverDnIRSParamsCreate(parameters_ref)
         obj = new(parameters_ref[])
-        finalizer(cusolverDnIRSParamsDestroy, obj)
+        resource_finalizer(cusolverDnIRSParamsDestroy, obj)
         obj
     end
 end
@@ -91,7 +91,7 @@ mutable struct CuSolverIRSInformation
         info_ref = Ref{cusolverDnIRSInfos_t}()
         cusolverDnIRSInfosCreate(info_ref)
         obj = new(info_ref[])
-        finalizer(cusolverDnIRSInfosDestroy, obj)
+        resource_finalizer(cusolverDnIRSInfosDestroy, obj)
         obj
     end
 end

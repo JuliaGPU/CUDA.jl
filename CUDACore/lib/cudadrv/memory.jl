@@ -106,8 +106,12 @@ struct HostMemory <: AbstractMemory
     ctx::CuContext
     ptr::Ptr{Cvoid}
     bytesize::Int
+
+    # whether this memory was allocated from a memory pool
+    pooled::Bool
 end
 
+HostMemory(ctx::CuContext, ptr::Ptr, bytesize::Integer) = HostMemory(ctx, ptr, bytesize, false)
 HostMemory() = HostMemory(context(), C_NULL, 0)
 
 Base.pointer(mem::HostMemory) = mem.ptr
@@ -121,6 +125,8 @@ Base.convert(::Type{Ptr{T}}, mem::HostMemory) where {T} =
 
 function Base.convert(::Type{CuPtr{T}}, mem::HostMemory) where {T}
     pointer(mem) == C_NULL && return convert(CuPtr{T}, CU_NULL)
+    # pool memory is accessed using the same address on the device
+    mem.pooled && return reinterpret(CuPtr{T}, pointer(mem))
     ptr_ref = Ref{CuPtr{Cvoid}}()
     cuMemHostGetDevicePointer_v2(ptr_ref, pointer(mem), #=flags=# 0)
     convert(CuPtr{T}, ptr_ref[])
@@ -206,8 +212,13 @@ struct UnifiedMemory <: AbstractMemory
     ctx::CuContext
     ptr::CuPtr{Cvoid}
     bytesize::Int
+
+    # whether this memory was allocated from a memory pool
+    pooled::Bool
 end
 
+UnifiedMemory(ctx::CuContext, ptr::CuPtr, bytesize::Integer) =
+    UnifiedMemory(ctx, ptr, bytesize, false)
 UnifiedMemory() = UnifiedMemory(context(), CU_NULL, 0)
 
 Base.pointer(mem::UnifiedMemory) = mem.ptr
@@ -349,7 +360,11 @@ function alloc(::Type{<:ArrayMemory{T}}, dims::Dims{N}) where {T,N}
         0))
 
     handle_ref = Ref{CUarray}()
-    cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    # destroying arrays is deferred until memory is reclaimed, so do so when running out
+    res = retry_reclaim(isequal(ERROR_OUT_OF_MEMORY)) do
+        unchecked_cuArray3DCreate_v2(handle_ref, allocateArray_ref)
+    end
+    res == SUCCESS || throw_api_error(res)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
     return ArrayMemory{T,N}(context(), ptr, dims)
@@ -436,8 +451,14 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
     nbytes == 0 && return dst
     dst_dev = device(dst)
     src_dev = device(src)
-    if dst_dev == src_dev
-        cuMemcpyDtoDAsync_v2(dst, src, nbytes, stream)
+    # (memory from a host pool reports the device of the pool's location, i.e. device 0)
+    peer = dst_dev != src_dev &&
+           memory_type(dst) == MEMORYTYPE_DEVICE && memory_type(src) == MEMORYTYPE_DEVICE
+    if !peer
+        # these pointers may refer to host memory (e.g., from `HostMemory` arrays), so let
+        # the driver infer the direction. `cuMemcpyDtoDAsync` reads memory from a host pool
+        # when the copy is enqueued, instead of in stream order.
+        cuMemcpyAsync(dst, src, nbytes, stream)
     else
         cuMemcpyPeerAsync(dst, context(dst_dev),
                           src, context(src_dev),
@@ -668,127 +689,15 @@ end
 # auxiliary functionality
 #
 
-@public pin
-
-# given object, find base allocation
-# pin that, or increase refcount
-# finalizer, drop refcount, free if 0
-
-## memory pinning
-
-const __pin_lock = ReentrantLock()
-
-struct PinnedObject
-    ref::WeakRef
-    size::Int  # memory size in bytes
-end
-
-# - IdDict does not free the memory
-# - WeakRef dict does not unique the key by objectid
-const __pinned_objects = Dict{Tuple{CuContext,Ptr{Cvoid}}, PinnedObject}()
-
-function pin(a::AbstractArray)
-    ctx = context()
-    ptr = pointer(a)
-
-    Base.@lock __pin_lock begin
-        # only pin an object once per context
-        key = (ctx, convert(Ptr{Nothing}, ptr))
-        if haskey(__pinned_objects, key) && __pinned_objects[key].ref.value !== nothing
-            if sizeof(a) == __pinned_objects[key].size
-                return nothing
-            else
-                # if the object size has changed, unpin it first; it will be re-pinned with the new size
-                __unpin(ptr, ctx)
-            end
-        end
-        __pinned_objects[key] = PinnedObject(WeakRef(a), sizeof(a))
-    end
-
-     __pin(ptr, sizeof(a))
-    finalizer(a) do _
-        __unpin(ptr, ctx)
-    end
-
-    a
-end
-
-function pin(ref::Base.RefValue{T}) where T
-    ctx = context()
-    ptr = Base.unsafe_convert(Ptr{T}, ref)
-
-    __pin(ptr, aligned_sizeof(T))
-    finalizer(ref) do _
-        __unpin(ptr, ctx)
-    end
-
-    ref
-end
-
-# derived arrays should always pin the parent memory range, because we may end up copying
-# from or to that parent range (containing the derived range), and partially-pinned ranges
-# are not supported:
-#
-# > Memory regions requested must be either entirely registered with CUDA, or in the case
-# > of host pageable transfers, not registered at all. Memory regions spanning over
-# > allocations that are both registered and not registered with CUDA are not supported and
-# > will return CUDA_ERROR_INVALID_VALUE.
-__pin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __pin(parent(a))
-
-# refcount the pinning per context, since we can only pin a memory range once
-const __pinned_memory = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostMemory}()
-const __pin_count = Dict{Tuple{CuContext,Ptr{Cvoid}}, Int}()
-function __pin(ptr::Ptr, sz::Int)
-    ctx = context()
-    key = (ctx, convert(Ptr{Nothing}, ptr))
-
-    Base.@lock __pin_lock begin
-        pin_count = if haskey(__pin_count, key)
-            __pin_count[key] += 1
-        else
-            __pin_count[key] = 1
-        end
-
-        if pin_count == 1
-            mem = register(HostMemory, ptr, sz)
-            __pinned_memory[key] = mem
-        elseif Base.JLOptions().debug_level >= 2
-            # make sure we're pinning the exact same range
-            @assert haskey(__pinned_memory, key) "Cannot find memory for $ptr with pin count $pin_count."
-            mem = __pinned_memory[key]
-            @assert sz == sizeof(mem) "Mismatch between pin request of $ptr: $sz vs. $(sizeof(mem))."
-        end
-    end
-
-    return
-end
-function __unpin(ptr::Ptr, ctx::CuContext)
-    key = (ctx, convert(Ptr{Nothing}, ptr))
-
-    Base.@lock __pin_lock begin
-        @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
-        pin_count = __pin_count[key] -= 1
-
-        if pin_count == 0
-            mem = @inbounds __pinned_memory[key]
-            context!(ctx) do
-                unregister(mem)
-            end
-            delete!(__pinned_memory, key)
-        end
-    end
-
-    return
-end
-function __pinned(ptr::Ptr, ctx::CuContext)
-    key = (ctx, convert(Ptr{Nothing}, ptr))
-    Base.@lock __pin_lock begin
-        haskey(__pin_count, key)
-    end
-end
-
-
 ## pointer attributes
+
+# whether memory was allocated from a memory pool
+function from_pool(ptr::Union{Ptr,CuPtr})
+    pool = Ref{Ptr{Cvoid}}(C_NULL)
+    res = unchecked_cuPointerGetAttribute(pool, CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE,
+                                          reinterpret(CuPtr{Cvoid}, ptr))
+    return res == SUCCESS && pool[] != C_NULL
+end
 
 export attribute, attribute!, memory_type, is_managed
 @public host_pointer, device_pointer, is_pinned

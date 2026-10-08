@@ -10,7 +10,7 @@ mutable struct CuMatrixDescriptor
         descr_ref = Ref{cusparseMatDescr_t}()
         cusparseCreateMatDescr(descr_ref)
         obj = new(descr_ref[])
-        finalizer(cusparseDestroyMatDescr, obj)
+        resource_finalizer(cusparseDestroyMatDescr, obj; blocking=false)
         obj
     end
 end
@@ -40,7 +40,7 @@ mutable struct CuDenseVectorDescriptor
         desc_ref = Ref{cusparseDnVecDescr_t}()
         cusparseCreateDnVec(desc_ref, n, CU_NULL, T)
         obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnVec, obj)
+        resource_finalizer(cusparseDestroyDnVec, obj; blocking=false)
         return obj
     end
 
@@ -48,7 +48,7 @@ mutable struct CuDenseVectorDescriptor
         desc_ref = Ref{cusparseDnVecDescr_t}()
         cusparseCreateDnVec(desc_ref, length(x), x, eltype(x))
         obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnVec, obj)
+        resource_finalizer(cusparseDestroyDnVec, obj; blocking=false)
         obj
     end
 end
@@ -66,7 +66,7 @@ mutable struct CuSparseVectorDescriptor
         cusparseCreateSpVec(desc_ref, length(x), nnz(x), nonzeroinds(x), nonzeros(x),
                             eltype(nonzeroinds(x)), IndexBase, eltype(x))
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpVec, obj)
+        resource_finalizer(cusparseDestroySpVec, obj; blocking=false)
         obj
     end
 end
@@ -87,7 +87,7 @@ mutable struct CuDenseMatrixDescriptor
             cusparseCreateDnMat(desc_ref, m, n, m, CU_NULL, T, 'C')
         end
         obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnMat, obj)
+        resource_finalizer(cusparseDestroyDnMat, obj; blocking=false)
         return obj
     end
 
@@ -99,7 +99,7 @@ mutable struct CuDenseMatrixDescriptor
             cusparseCreateDnMat(desc_ref, size(A)..., stride(A,2), A, eltype(A), 'C')
         end
         obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnMat, obj)
+        resource_finalizer(cusparseDestroyDnMat, obj; blocking=false)
         obj
     end
 
@@ -113,7 +113,7 @@ mutable struct CuDenseMatrixDescriptor
             cusparseCreateDnMat(desc_ref, size(A,1), size(A,2), stride(A,2), A, eltype(A), 'C')
         end
         obj = new(desc_ref[])
-        finalizer(cusparseDestroyDnMat, obj)
+        resource_finalizer(cusparseDestroyDnMat, obj; blocking=false)
         obj
     end
 end
@@ -144,7 +144,7 @@ mutable struct CuSparseMatrixDescriptor
             )
         end
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
@@ -152,7 +152,7 @@ mutable struct CuSparseMatrixDescriptor
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCoo(desc_ref, m, n, Ti(0), CU_NULL, CU_NULL, CU_NULL, Ti, IndexBase, Tv)
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
@@ -174,7 +174,7 @@ mutable struct CuSparseMatrixDescriptor
             )
         end
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
@@ -196,7 +196,7 @@ mutable struct CuSparseMatrixDescriptor
             )
         end
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
@@ -204,7 +204,7 @@ mutable struct CuSparseMatrixDescriptor
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsr(desc_ref, m, n, Ti(0), rowPtr, CU_NULL, CU_NULL, Ti, Ti, IndexBase, Tv)
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
@@ -227,7 +227,7 @@ mutable struct CuSparseMatrixDescriptor
             )
         end
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
@@ -235,7 +235,7 @@ mutable struct CuSparseMatrixDescriptor
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsc(desc_ref, m, n, Ti(0), colPtr, CU_NULL, CU_NULL, Ti, Ti, IndexBase, Tv)
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
@@ -251,7 +251,7 @@ mutable struct CuSparseMatrixDescriptor
             eltype(A.nzVal), A.dir
         )
         obj = new(desc_ref[])
-        finalizer(cusparseDestroySpMat, obj)
+        resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 end
@@ -265,7 +265,7 @@ mutable struct CuSpGEMMDescriptor
         descr_ref = Ref{cusparseSpGEMMDescr_t}()
         cusparseSpGEMM_createDescr(descr_ref)
         obj = new(descr_ref[])
-        finalizer(cusparseSpGEMM_destroyDescr, obj)
+        resource_finalizer(cusparseSpGEMM_destroyDescr, obj)
         obj
     end
 end
@@ -279,7 +279,7 @@ mutable struct CuSpGEAMDescriptor
         descr_ref = Ref{cusparseSpGEAMDescr_t}()
         cusparseSpGEAM_createDescr(descr_ref)
         obj = new(descr_ref[])
-        finalizer(cusparseSpGEAM_destroyDescr, obj)
+        resource_finalizer(cusparseSpGEAM_destroyDescr, obj)
         obj
     end
 end
@@ -293,7 +293,7 @@ mutable struct CuSparseSpSVDescriptor
         descr_ref = Ref{cusparseSpSVDescr_t}()
         cusparseSpSV_createDescr(descr_ref)
         obj = new(descr_ref[])
-        finalizer(cusparseSpSV_destroyDescr, obj)
+        resource_finalizer(cusparseSpSV_destroyDescr, obj)
         obj
     end
 end
@@ -307,7 +307,7 @@ mutable struct CuSparseSpSMDescriptor
         descr_ref = Ref{cusparseSpSMDescr_t}()
         cusparseSpSM_createDescr(descr_ref)
         obj = new(descr_ref[])
-        finalizer(cusparseSpSM_destroyDescr, obj)
+        resource_finalizer(cusparseSpSM_destroyDescr, obj)
         obj
     end
 end
@@ -321,7 +321,8 @@ mutable struct IC0Info
         info_ref = Ref{csric02Info_t}()
         cusparseCreateCsric02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyCsric02Info, obj)
+        # destroying this information waits for running kernels to finish
+        resource_finalizer(cusparseDestroyCsric02Info, obj)
         obj
     end
 end
@@ -335,7 +336,8 @@ mutable struct IC0InfoBSR
         info_ref = Ref{bsric02Info_t}()
         cusparseCreateBsric02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyBsric02Info, obj)
+        # destroying this information waits for running kernels to finish
+        resource_finalizer(cusparseDestroyBsric02Info, obj)
         obj
     end
 end
@@ -349,7 +351,8 @@ mutable struct ILU0Info
         info_ref = Ref{csrilu02Info_t}()
         cusparseCreateCsrilu02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyCsrilu02Info, obj)
+        # destroying this information waits for running kernels to finish
+        resource_finalizer(cusparseDestroyCsrilu02Info, obj)
         obj
     end
 end
@@ -363,7 +366,8 @@ mutable struct ILU0InfoBSR
         info_ref = Ref{bsrilu02Info_t}()
         cusparseCreateBsrilu02Info(info_ref)
         obj = new(info_ref[])
-        finalizer(cusparseDestroyBsrilu02Info, obj)
+        # destroying this information waits for running kernels to finish
+        resource_finalizer(cusparseDestroyBsrilu02Info, obj)
         obj
     end
 end

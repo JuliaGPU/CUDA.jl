@@ -3,7 +3,7 @@ module cuFFT
 using CUDACore
 using GPUToolbox
 using CUDACore: CUstream, cuComplex, cuDoubleComplex, cudaDataType, libraryPropertyType
-using CUDACore: unsafe_free!, retry_reclaim, initialize_context
+using CUDACore: unsafe_free!, retry_reclaim, initialize_context, resource_finalizer
 
 using CEnum: @cenum
 
