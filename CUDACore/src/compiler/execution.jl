@@ -539,10 +539,11 @@ function managed_kernel_launch(backend, kernel, arguments, managed; kwargs...)
     end
 end
 
-# (not specialized, as it would be compiled for every kernel, but only used by tasks that
-# are part of a capture)
-@noinline function scoped_kernel_launch(@nospecialize(backend), @nospecialize(kernel),
-                                       @nospecialize(arguments), managed; kwargs...)
+# (not specialized, nor inferred for the arguments, as it would be compiled for every
+# kernel, but only used by tasks that are part of a capture)
+@noinline Base.@nospecializeinfer function scoped_kernel_launch(
+        @nospecialize(backend), @nospecialize(kernel), @nospecialize(arguments), managed;
+        kwargs...)
     target_stream = haskey(kwargs, :stream) ? kwargs[:stream] : stream()
     capture_submission(target_stream) do
         isempty(managed) && return kernel_launch(backend, kernel, arguments; kwargs...)
