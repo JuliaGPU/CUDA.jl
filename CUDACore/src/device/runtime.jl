@@ -37,7 +37,7 @@ struct ExceptionInfo_st
     # whether an exception has been encountered (0 -> 1)
     status::Int32
 
-    # whether an exception is in the process of being reported (0 -> 1 -> 2)
+    # whether an exception is being reported (see `lock_output!`)
     output_lock::Int32
 
     # who is reporting the exception
@@ -59,6 +59,8 @@ const ExceptionInfo = Ptr{ExceptionInfo_st}
 @inline function Base.getproperty(info::ExceptionInfo, sym::Symbol)
     if sym === :status
         unsafe_load(convert(Ptr{Int32}, info))
+    elseif sym === :status_ptr
+        reinterpret(LLVMPtr{Int32,AS.Generic}, info)
     elseif sym === :output_lock
         unsafe_load(convert(Ptr{Int32}, info + 4))
     elseif sym === :output_lock_ptr
@@ -106,20 +108,28 @@ end
 
 
 # it's not useful to have several threads report exceptions (interleaved output, can crash
-# CUDA), so use an output lock to only have a single thread write an exception message
+# CUDA), so use an output lock to only have a single thread write an exception message.
+# the lock goes from free (0) to claimed (1), to published (2) once the owner's index is
+# visible, to finished (3) after the last message.
 @inline function lock_output!(info::ExceptionInfo)
     # the lock lives in host-pinned memory, but only this GPU's threads contend for it, so
     # the default device scope is what we want (system scope is unavailable on some platforms)
-    if atomic_cas!(info.output_lock_ptr, Int32(0), Int32(1)) == Int32(0)
-        # we just took the lock, note our index
+    lock = info.output_lock_ptr
+    state = atomic_cas!(lock, Int32(0), Int32(1))
+    if state == Int32(0)
+        # we just took the lock: publish our index. a fence before a relaxed store, paired
+        # with a fence after a relaxed load, also orders memory before sm_70.
         info.threadIdx, info.blockIdx = threadIdx(), blockIdx()
         threadfence()
+        UnsafeAtomics.store!(lock, Int32(2), UnsafeAtomics.monotonic, UnsafeAtomics.device)
         return true
-    elseif info.output_lock == 1 && info.threadIdx == threadIdx() && info.blockIdx == blockIdx()
-        # we already have the lock
-        return true
+    elseif state == Int32(2)
+        # check whether we already have the lock
+        threadfence()
+        return info.threadIdx == threadIdx() && info.blockIdx == blockIdx()
     else
-        # somebody else has the lock
+        # somebody else has the lock, without having published their index yet, or the
+        # exception has been reported
         return false
     end
 end
@@ -176,11 +186,13 @@ end
     # finalize output
     if lock_output!(info)
         @cuprintf("\n")
-        info.output_lock = 2
+        UnsafeAtomics.store!(info.output_lock_ptr, Int32(3), UnsafeAtomics.monotonic,
+                             UnsafeAtomics.device)
     end
 
-    # inform the host
-    info.status = 1
+    # inform the host, which reads this after the kernel has finished
+    UnsafeAtomics.store!(info.status_ptr, Int32(1), UnsafeAtomics.monotonic,
+                         UnsafeAtomics.device)
     threadfence_system()
 
     # stop executing

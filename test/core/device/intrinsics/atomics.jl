@@ -418,6 +418,21 @@ end
         @test isnan(Array(a)[1])
     end
 
+    @testset "NaN payloads ($T)" for T in (Float32, Float16)
+        # the operation stores a NaN with another payload, as a racing thread could, so
+        # the compare-and-swap fails and the update has to be retried
+        other = reinterpret(T, reinterpret(Base.uinttype(T), T(NaN)) | one(Base.uinttype(T)))
+        function kernel(x, other)
+            g(old, new) = (unsafe_store!(pointer(x), other); new)
+            CUDA.@atomic x[1] = g(x[1], one(eltype(x)))
+            nothing
+        end
+
+        a = CuArray([T(NaN)])
+        @cuda kernel(a, other)
+        @test Array(a)[1] == one(T)
+    end
+
     @test_throws AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = 1
     end
@@ -493,9 +508,9 @@ system_scope_supported = dev_cap >= v"6.0" &&
 
 @testset "reflection" begin
     # what LLVM spells out depends on the target: sm_5x has no scope qualifiers at all,
-    # sm_6x adds them, and sm_70+ also adds acquire/release semantics.
+    # sm_6x adds them, and sm_70+ also spells out the (relaxed) semantics.
     function cas_pattern(cap, scope)
-        sem = cap >= v"7.0" ? ".acq_rel" : ""
+        sem = cap >= v"7.0" ? ".relaxed" : ""
         qual = cap >= v"6.0" ? ".$scope" : ""
         "atom$sem$qual.global.cas.b32"
     end
@@ -553,12 +568,12 @@ system_scope_supported = dev_cap >= v"6.0" &&
     if dev_cap >= v"7.0"
         # 16-bit CAS uses inline assembly, which spells out the scope too
         @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
-            @check "atom.acq_rel.gpu.global.cas.b16"
+            @check "atom.relaxed.gpu.global.cas.b16"
             CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1))
             return
         end
         @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int16,1}}) do a
-            @check "atom.acq_rel.cta.global.cas.b16"
+            @check "atom.relaxed.cta.global.cas.b16"
             CUDA.atomic_cas!(pointer(a), Int16(0), Int16(1), Val(:block))
             return
         end
@@ -592,7 +607,8 @@ end
     @test Array(a) == [1024, 2048 - 1024]
 end
 
-# system-scope atomics require sm_60, and are not available on Pascal under Windows
+# system-scope atomics require sm_60, and are not available on Pascal under Windows, nor on
+# Tegra before sm_72
 if system_scope_supported
 @testset "system scope" begin
     function add_kernel(a, scope)
@@ -717,12 +733,13 @@ end
         err
     end
     @test err isa CUDA.InvalidIRError
-    @test occursin("system-scope atomics require compute capability 6.0",
+    @test occursin("system-scope atomic operation (requires compute capability 6.0",
                    sprint(showerror, err))
     @test any(frame -> frame.func == :system_kernel,
               Iterators.flatten(e[2] for e in err.errors))
 
-    # RMW, 16-bit CAS emulation, and the inc/dec fallbacks must check the scope too.
+    # all atomic functions are checked, as are atomics used without them, e.g. through
+    # UnsafeAtomics (or Atomix, which uses it)
     function rmw_kernel(a)
         CUDA.atomic_add!(pointer(a), Int32(1), Val(:system))
         return
@@ -739,23 +756,33 @@ end
         CUDA.atomic_dec!(pointer(a), Int32(7), Val(:system))
         return
     end
+    function modify_kernel(a)
+        CUDACore.atomic_modify!(pointer(a), *, Int32(2), Val(:system))
+        return
+    end
+    function unsafe_atomics_kernel(a)
+        CUDACore.UnsafeAtomics.add!(pointer(a), Int32(1))
+        return
+    end
     for (f, tt) in ((rmw_kernel, T), (cas16_kernel, Tuple{CuDeviceVector{Int16,1}}),
-                    (inc_kernel, T), (dec_kernel, T))
-        @test_throws CUDA.InvalidIRError validate_kernel(f, tt; arch=sm"50")
-        validate_kernel(f, tt; arch=sm"70")
+                    (inc_kernel, T), (dec_kernel, T), (modify_kernel, T),
+                    (unsafe_atomics_kernel, T))
+        @test_throws "system-scope atomic operation" validate_kernel(f, tt; arch=sm"50")
+        validate_kernel(f, tt; arch=sm"75")
     end
 
     # the default scope, and shared memory, are fine everywhere
     validate_kernel(device_kernel, T; arch=sm"50")
     validate_kernel(shared_kernel, T; arch=sm"50")
 
-    # Windows rejects Pascal modules containing system-scope atomics (#3187).
-    if Sys.iswindows()
-        @test_throws CUDA.InvalidIRError validate_kernel(system_kernel, T; arch=sm"61")
+    # Windows rejects Pascal modules containing system-scope atomics (#3187), and Tegra
+    # GPUs only support them from sm_72
+    if Sys.iswindows() || CUDA.is_tegra()
+        @test_throws "system-scope atomic operation (not supported on this platform" validate_kernel(system_kernel, T; arch=sm"61")
     else
         validate_kernel(system_kernel, T; arch=sm"61")
     end
-    validate_kernel(system_kernel, T; arch=sm"70")
+    validate_kernel(system_kernel, T; arch=sm"75")
 end
 
 end

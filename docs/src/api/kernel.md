@@ -159,11 +159,43 @@ the CPU or another GPU concurrently accesses the same memory, requires compute c
 functions reject system scope at compile time on targets below 6.0 and on Pascal under
 Windows. Memory allocation and platform support must also permit system-wide atomicity.
 
-These scope choices match CUDA C, but the memory ordering is not identical: most CUDA.jl
-operations use acquire/release ordering, whereas CUDA C's legacy `atomicX` functions use
-relaxed ordering. The device-scope `atomic_inc!` and `atomic_dec!` intrinsics are relaxed.
-Ordering guarantees also depend on the target's support (compute capability 7.0+ for
-acquire/release instructions).
+### Memory ordering
+
+Like CUDA C's atomic functions, the low-level functions and `CUDA.@atomic` are relaxed: they
+are atomic, but don't order the memory accesses around them. To synchronize threads, use a
+fence (`threadfence_block`, `threadfence` or `threadfence_system`), or an ordered atomic
+from [UnsafeAtomics.jl](https://github.com/JuliaConcurrent/UnsafeAtomics.jl), which CUDA.jl
+uses to implement its atomics. UnsafeAtomics also provides atomic loads and stores, and
+operations CUDA.jl doesn't (e.g. `nand`, or floating-point `fmin`/`fmax`):
+
+```julia
+using UnsafeAtomics
+
+function kernel(data, flag)
+    if blockIdx().x == 1
+        unsafe_store!(pointer(data), 42)
+        # publish `data`
+        UnsafeAtomics.store!(pointer(flag), Int32(1), UnsafeAtomics.release, UnsafeAtomics.device)
+    else
+        # wait for `data`
+        while UnsafeAtomics.load(pointer(flag), UnsafeAtomics.acquire, UnsafeAtomics.device) == 0
+        end
+        @cuprintln(unsafe_load(pointer(data)))
+    end
+    return
+end
+```
+
+UnsafeAtomics defaults to the system scope; pass `UnsafeAtomics.workgroup` for CUDA's
+block scope, `UnsafeAtomics.device`, or `UnsafeAtomics.system`. Before compute capability
+7.0, which has no ordered atomic instructions, the back-end implements ordered atomics with
+fences. That requires NVPTX_LLVM_Backend_jll 23.1.2+1 or later (update your environment if
+needed): earlier builds reject ordered loads and stores there, and relax ordered
+read-modify-write operations.
+
+For atomic operations on array elements, [Atomix.jl](https://github.com/JuliaConcurrent/Atomix.jl)'s
+`@atomic`, which KernelAbstractions.jl uses, is preferred over `CUDA.@atomic`. It supports
+orderings (sequentially consistent by default) and uses the device scope.
 
 ```@docs
 CUDACore.atomic_cas!
