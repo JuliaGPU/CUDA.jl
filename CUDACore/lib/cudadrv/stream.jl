@@ -3,6 +3,25 @@
 export CuStream, default_stream, legacy_stream, per_thread_stream,
        unique_id, priority, priority_range, synchronize, device_synchronize
 
+# State used to order work on other streams after the work on a stream (see `stream_wait`).
+mutable struct StreamOrder
+    # an event to make other streams wait for this one, created when first needed. the lock
+    # is held from recording the event until the other stream waited for it. (a `CuEvent`,
+    # which is defined after streams.)
+    event::Any
+
+    # while `capture` is capturing on the stream, recording an event on it would only add a
+    # node to the graph. instead, other streams wait for an event that was recorded right
+    # before the capture began, which covers the work that was submitted to the stream
+    # before. it's set while holding the lock, so that no event is recorded on the stream
+    # after the capture began (see `capture(; stream)`). also a `CuEvent`, or `nothing`.
+    capture_event::Any
+
+    const lock::ReentrantLock
+
+    StreamOrder() = new(nothing, nothing, ReentrantLock())
+end
+
 """
     CuStream(; flags=STREAM_DEFAULT, priority=nothing)
 
@@ -22,6 +41,9 @@ mutable struct CuStream
     # happens when it is idle, so work submitted during earlier generations has finished.
     Base.@atomic generation::Int
 
+    # the special streams don't have one, as they implicitly synchronize with other streams
+    const order::Union{Nothing,StreamOrder}
+
     function CuStream(; flags::CUstream_flags=STREAM_DEFAULT,
                         priority::Union{Nothing,Integer}=nothing)
         handle_ref = Ref{CUstream}()
@@ -35,18 +57,18 @@ mutable struct CuStream
         ctx = current_context()
         # make sure memory last used on this stream can be released after destroying it
         disposal_stream(ctx)
-        obj = new(handle_ref[], true, ctx, nothing, 0)
+        obj = new(handle_ref[], true, ctx, nothing, 0, StreamOrder())
         # destroying a stream from a finalizer is deferred, as with all resources
         # (see `retire!`), also so that memory that was last used on it can be freed first
         resource_finalizer(obj)
         return obj
     end
 
-    global default_stream() = new(convert(CUstream, C_NULL), true, nothing, nothing, 0)
+    global default_stream() = new(convert(CUstream, C_NULL), true, nothing, nothing, 0, nothing)
 
-    global legacy_stream() = new(convert(CUstream, 1), true, nothing, nothing, 0)
+    global legacy_stream() = new(convert(CUstream, 1), true, nothing, nothing, 0, nothing)
 
-    global per_thread_stream() = new(convert(CUstream, 2), true, nothing, nothing, 0)
+    global per_thread_stream() = new(convert(CUstream, 2), true, nothing, nothing, 0, nothing)
 end
 
 """

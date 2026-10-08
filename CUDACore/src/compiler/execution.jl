@@ -411,64 +411,57 @@ function locking_order(managed::AbstractVector{<:Managed})
     return ordered
 end
 
-function lock_managed(managed::AbstractVector{<:Managed})
-    locked = locking_order(managed)
-    for memory in locked
-        lock(memory.lock)
-    end
-    return locked
-end
+"""
+    with_managed(f, managed::AbstractVector{<:Managed}; stream=stream())
 
-function unlock_managed(locked::AbstractVector{<:Managed})
-    for memory in Iterators.reverse(locked)
-        unlock(memory.lock)
-    end
-    return
-end
-
+Submit an operation on `managed` memory to `stream` by calling `f`. The memory is made
+ready for use on `stream`, and locked so that it can't move to another stream before the
+operation has been submitted. Pointers to memory that are taken within `f` (e.g., by
+converting an array) are assumed to be used by an operation on `stream` too, so they don't
+wait for other streams that used the memory before.
+"""
 function with_managed(f::F, managed::AbstractVector{<:Managed};
                       stream::CuStream=stream()) where {F}
-    # (taking ownership of the memory and using it is a single submission)
-    capture_submission(stream) do
-        state = active_state()
-        capturing = is_capturing(stream)
-        if length(managed) == 1
-            memory = @inbounds managed[1]
-            lock(memory.lock)
-            try
-                take_ownership!(memory; state, stream, capturing)
-                return f()
-            finally
-                unlock(memory.lock)
-            end
-        end
-        locked = lock_managed(managed)
-        try
-            for memory in locked
-                take_ownership!(memory; state, stream, capturing)
-            end
-            return f()
-        finally
-            unlock_managed(locked)
-        end
-    end
+    # (a single memory is trivially in locking order)
+    ordered = length(managed) == 1 ? managed : locking_order(managed)
+    with_ordered_managed(f, ordered; stream)
 end
 
 # like `with_managed`, but for memory that's already in locking order
-function with_ordered_managed(f::F, ordered::AbstractVector{<:Managed};
+function with_ordered_managed(f::F, ordered::Union{AbstractVector{<:Managed},
+                                                   Tuple{Vararg{Managed}}};
                               stream::CuStream=stream()) where {F}
-    state = active_state()
-    capturing = is_capturing(stream)
-    for memory in ordered
-        lock(memory.lock)
-    end
-    try
+    # (taking ownership of the memory and using it is a single submission)
+    capture_submission(stream) do
+        tls = task_local_state!()
+        state = active_state(tls)
+        capturing = is_capturing(stream)
         for memory in ordered
-            take_ownership!(memory; state, stream, capturing)
+            lock(memory.lock)
         end
+        try
+            for memory in ordered
+                take_ownership!(memory; state, stream, capturing)
+            end
+            return with_operation_stream(f, tls, stream, capturing)
+        finally
+            for memory in Iterators.reverse(ordered)
+                unlock(memory.lock)
+            end
+        end
+    end
+end
+
+# pointers taken during `f` are used by an operation that CUDA.jl submits to `stream` (see
+# `convert(::Type{CuPtr}, ::Managed)`)
+@inline function with_operation_stream(f::F, tls::TaskLocalState, stream::CuStream,
+                                       capturing::Bool) where {F}
+    old_stream, old_capturing = tls.operation_stream, tls.operation_capturing
+    tls.operation_stream, tls.operation_capturing = stream, capturing
+    try
         return f()
     finally
-        unlock_managed(ordered)
+        tls.operation_stream, tls.operation_capturing = old_stream, old_capturing
     end
 end
 

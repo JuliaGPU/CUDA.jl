@@ -370,6 +370,27 @@ end
     graph = capture(() -> a .+= 1; stream=s)
     instantiate(graph)()
     @test Array(a) == fill(4f0, 4)
+
+    # other tasks can use memory that was last used on the stream before capturing on it
+    for (use, expected) in ((x -> Array(x), 1f0), (x -> Array(x .+ 1), 2f0))
+        x = CUDA.zeros(Float32, 1 << 16)
+        stream!(s) do
+            x .+= 1
+        end
+        go = Base.Event()
+        other = @async (wait(go); use(x))
+        capture(; stream=s) do
+            notify(go)
+            wait(other)
+        end
+        @test fetch(other) == fill(expected, 1 << 16)
+
+        # but the capture itself can't wait for it, as it may have captured uses of it
+        @test_throws CaptureError capture(; stream=s) do
+            x .+= 1
+            Array(x)
+        end
+    end
 end
 
 @testset "using memory from a capturing task" begin

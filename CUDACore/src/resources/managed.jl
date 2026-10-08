@@ -47,6 +47,10 @@ mutable struct Managed{M}
   # (only for captures that CUDA.jl does not know about)
   captured::Bool
 
+  # whether `stream` waits on the device for operations on other streams that used the
+  # memory, which therefore haven't been synchronized either (implies `dirty`)
+  waiting::Bool
+
   # whether the memory was allocated by CUDA.jl, as opposed to imported using `unsafe_wrap`.
   # only such memory counts towards our memory usage, and can be reused once freed.
   const owned_allocation::Bool
@@ -66,7 +70,8 @@ mutable struct Managed{M}
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
-                     synchronizing, dirty, captured, owned_allocation, attachment, 0, nothing)
+                     synchronizing, dirty, captured, false, owned_allocation, attachment,
+                     0, nothing)
   end
 end
 
@@ -91,6 +96,7 @@ function synchronize(managed::Managed)
       end
     end
     managed.dirty = false
+    managed.waiting = false
   end
 end
 
@@ -100,12 +106,29 @@ end
 function pending_work(managed::Managed)
   @lock stream_disposal_lock begin
     recycled(managed) && return nothing
-    check_capture(managed.stream)
-    relaxed_capture_mode(() -> isdone(managed.stream)) && return nothing
-    event = CuEvent(EVENT_DISABLE_TIMING)
-    cuEventRecord(event, managed.stream)
-    return event
+    stream = managed.stream
+    order = stream.order
+    order === nothing && return record_pending_work(stream)
+    # a stream that `capture` is capturing on has an event that covers the work submitted
+    # to it before, including the last use of the memory (captured operations don't take
+    # ownership of memory). that's not enough for the capture itself, which may have
+    # captured operations on the memory. the lock keeps a capture from beginning meanwhile.
+    @lock order.lock begin
+      event = order.capture_event
+      if event === nothing || CUDACore.stream() == stream
+        record_pending_work(stream)
+      else
+        event::CuEvent
+      end
+    end
   end
+end
+function record_pending_work(stream::CuStream)
+  check_capture(stream)
+  relaxed_capture_mode(() -> isdone(stream)) && return nothing
+  event = CuEvent(EVENT_DISABLE_TIMING)
+  cuEventRecord(event, stream)
+  return event
 end
 function maybe_synchronize(managed::Managed)
   Base.@lock managed.lock begin
@@ -150,24 +173,42 @@ function prepare_host_access!(managed::Managed)
   if managed.attachment == GLOBALLY_ATTACHED && managed.synchronizing &&
      !managed.captured && managed.stream.ctx !== nothing
     event = @lock stream_disposal_lock begin
-      if !recycled(managed) && isvalid(managed.stream)
-        check_capture(managed.stream)
-      end
-      # this also handles owners that have been recycled or destroyed
-      stream, ctx = release_stream(managed.stream, managed.stream_ctx, managed.generation)
-      context!(ctx) do
-        # (attaching is prohibited while another thread captures in global mode)
-        relaxed_capture_mode() do
-          cuStreamAttachMemAsync(stream, managed.mem, 0, MEM_ATTACH_HOST)
+      # (holding the lock under which a capture on the stream begins, see `pending_work`)
+      order = managed.stream.order
+      order === nothing || lock(order.lock)
+      try
+        fence = order === nothing || recycled(managed) ? nothing : order.capture_event
+        if fence !== nothing && CUDACore.stream() != managed.stream
+          # the stream is being captured by another task, so attach on another stream,
+          # after the work that was submitted before the capture began
+          ctx = something(managed.stream.ctx)
+          stream = disposal_stream(ctx)
+        else
+          fence = nothing
+          if !recycled(managed) && isvalid(managed.stream)
+            check_capture(managed.stream)
+          end
+          # this also handles owners that have been recycled or destroyed
+          stream, ctx = release_stream(managed.stream, managed.stream_ctx, managed.generation)
         end
-        event = CuEvent(EVENT_DISABLE_TIMING)
-        cuEventRecord(event, stream)
-        event
+        context!(ctx) do
+          fence === nothing || cuStreamWaitEvent(stream, fence::CuEvent, 0)
+          # (attaching is prohibited while another thread captures in global mode)
+          relaxed_capture_mode() do
+            cuStreamAttachMemAsync(stream, managed.mem, 0, MEM_ATTACH_HOST)
+          end
+          event = CuEvent(EVENT_DISABLE_TIMING)
+          cuEventRecord(event, stream)
+          event
+        end
+      finally
+        order === nothing || unlock(order.lock)
       end
     end
     synchronize(event)
     managed.attachment = HOST_ATTACHED
     managed.dirty = false
+    managed.waiting = false
     check_exceptions()
   else
     maybe_synchronize(managed)
@@ -175,12 +216,50 @@ function prepare_host_access!(managed::Managed)
   return
 end
 
-# Transfer stream ownership of an allocation and mark it dirty in anticipation of a
-# device-side operation. The caller must hold `managed.lock` until that operation has been
-# submitted to `stream`, so the recorded owner cannot become visible before its submission.
+# Memory that moves to another stream needs to be ordered after the operations that used it
+# before. For an operation that CUDA.jl submits to that stream itself, it suffices to make
+# the stream wait for the previous one on the device. Other consumers, like a library that
+# is passed a pointer, may access the memory from the host or from streams we don't know
+# of, so for them the previous stream is synchronized from the host instead. Either way,
+# this relies on the previous operations having been submitted already.
+
+# whether memory can move from its stream to `stream` by waiting on the device. that needs
+# two ordinary streams in the same context. memory used during unknown captures may also be
+# used by graph launches we don't know of, and other kinds of memory can be accessed from the
+# CPU in ways that we don't see. (known captures don't take ownership, see `take_ownership!`)
+function can_handoff(managed::Managed{M}, stream::CuStream) where {M}
+  source = managed.stream
+  M == DeviceMemory && managed.synchronizing && !managed.captured &&
+    source.order !== nothing && stream.order !== nothing && source.ctx == stream.ctx
+end
+
+# make `stream` wait on the device for the operations on the memory's stream, returning
+# whether that was possible (see `stream_wait`)
+function handoff!(managed::Managed, stream::CuStream)
+  managed.dirty || return true
+  source = managed.stream
+  # (holding the lock that recycling streams takes, see `pending_work`)
+  @lock stream_disposal_lock begin
+    if recycled(managed)
+      # the stream was handed to another task, which only happens when it was idle
+      managed.dirty = false
+      managed.waiting = false
+      return true
+    end
+    isvalid(source) && stream_wait(stream, source) || return false
+  end
+  managed.waiting = true
+  return true
+end
+
+# Transfer stream ownership of an allocation and mark it dirty in anticipation of an
+# operation on it. The caller must hold `managed.lock` until that operation has been
+# submitted, so the recorded owner cannot become visible before its submission. Pass
+# `external=true` if the operation isn't submitted to `stream` by CUDA.jl (see above).
 function take_ownership!(managed::Managed{M}; state=active_state(),
                          stream::CuStream=state.stream,
-                         capturing::Bool=is_capturing(stream)) where {M}
+                         capturing::Bool=is_capturing(stream),
+                         external::Bool=false) where {M}
   sizeof(managed) == 0 && return managed
 
   M == UnifiedMemory && attach_globally!(managed, stream, capturing)
@@ -189,7 +268,8 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     capture = current_capture(stream)
     if capture !== nothing
       # captured operations don't execute until the graph is launched, so only record the
-      # use of the memory. the graph will take ownership of it when it is launched.
+      # use of the memory. the graph will take ownership of it when it is launched, which
+      # orders the launch after earlier uses of the memory.
       record!(capture, managed)
       return managed
     end
@@ -224,11 +304,20 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
   # accessing memory on another stream: ensure the data is ready and take ownership.
   # (the default streams are specific to a context, so also check that.)
   if managed.stream != stream || managed.stream_ctx != state.context
-    maybe_synchronize(managed)
+    if !(!external && can_handoff(managed, stream) && handoff!(managed, stream))
+      maybe_synchronize(managed)
+    end
     managed.stream = stream
     managed.stream_ctx = state.context
   end
   managed.generation = generation(managed.stream)
+
+  # an external consumer needs operations on other streams to have finished, also when the
+  # stream already waits for them. operations on the stream itself are, as before, assumed
+  # to be ordered by the consumer. (during an unknown capture, nothing is waited for)
+  if external && managed.waiting && !capturing
+    synchronize(managed)
+  end
 
   # prefetch unified memory as we're likely to use it on the GPU
   if M == UnifiedMemory
@@ -249,8 +338,16 @@ function Base.convert(::Type{CuPtr{T}}, managed::Managed{M}) where {T,M}
     ptr = convert(CuPtr{T}, managed.mem)
     ptr == CU_NULL && return ptr
 
-    state = active_state()
-    take_ownership!(managed; state, stream=state.stream)
+    # within an operation that CUDA.jl submits (see `with_managed`), the pointer is used on
+    # that operation's stream. otherwise, we don't know who is going to use it.
+    tls = task_local_state!()
+    state = active_state(tls)
+    stream = tls.operation_stream
+    if stream === nothing
+      take_ownership!(managed; state, stream=state.stream, external=true)
+    else
+      take_ownership!(managed; state, stream, capturing=tls.operation_capturing)
+    end
     return ptr
   end
 end

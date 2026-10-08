@@ -34,6 +34,12 @@ are listed as subsections of the minor release they belong to.
   each hold on to device memory and slow down memory allocation. Code that uses
   a task's stream after the task has finished should create its own stream with
   `CuStream()` instead.
+- Pointers that are taken from GPU memory inside the function passed to
+  `CUDA.with_managed` are assumed to be used by an operation on the stream
+  passed to `with_managed`, and no longer wait on the CPU for other streams
+  that used the memory before. Code that passes such pointers to libraries,
+  other streams or the CPU should take them outside of `with_managed`
+  ([#3329](https://github.com/JuliaGPU/CUDA.jl/pull/3329)).
 
 *New features*:
 
@@ -56,6 +62,13 @@ are listed as subsections of the minor release they belong to.
   perform them, instead of being executed right away. These tasks need to
   finish before the capture ends. Changing the stream of a task that takes part
   in a capture, using `stream!`, is not supported and throws an error.
+- Handing an array to another task no longer blocks the CPU until the stream
+  that last used the array has finished all of its work. For the operations
+  that CUDA.jl submits itself (kernel launches, including broadcasts and
+  KernelAbstractions kernels, copies, `fill!` and graph launches), the stream
+  of the new task now waits for the previous one on the GPU. Library calls and
+  pointers that are passed to other code still wait on the CPU
+  ([#3329](https://github.com/JuliaGPU/CUDA.jl/pull/3329)).
 
 *Bug fixes*:
 

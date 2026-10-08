@@ -49,7 +49,7 @@ Adapt.adapt_storage(::KA.CPU, a::Union{CuArray,GPUArrays.AbstractGPUSparseArray}
 ## memory operations
 
 function KA.copyto!(::CUDABackend, A, B)
-    GC.@preserve A B begin
+    GC.@preserve A B CUDACore.with_managed_arrays(A, B) do
         destptr = pointer(A)
         srcptr  = pointer(B)
         N       = length(A)
