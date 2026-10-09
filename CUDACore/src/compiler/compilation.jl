@@ -5,11 +5,17 @@ abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
 Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     sm::SMVersion
     ptx::VersionNumber
+    # the aliasing pattern of the kernel's array arguments, see `alias_key`
+    alias_key::UInt64 = 0
+    # whether to mark loads from arrays the kernel doesn't write to as invariant
+    alias_invariant::Bool = false
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.sm, h)
     h = hash(params.ptx, h)
+    h = hash(params.alias_key, h)
+    h = hash(params.alias_invariant, h)
 
     return h
 end
@@ -261,7 +267,9 @@ function select_llvm_sm(llvm_sms, ptxas_sm)
 end
 
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
-                                         arch=nothing, cap=nothing, ptx=nothing, kwargs...)
+                                         arch=nothing, cap=nothing, ptx=nothing,
+                                         alias_key::UInt64=UInt64(0), alias_invariant::Bool=false,
+                                         kwargs...)
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
     if cap !== nothing
         arch === nothing ||
@@ -325,7 +333,7 @@ end
     target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,
                                  feature_set=llvm_sm.feature_set, system_atomics,
                                  debuginfo=true, kwargs...)
-    params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
+    params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx, alias_key, alias_invariant)
     CompilerConfig(target, params; kernel, name, always_inline)
 end
 
