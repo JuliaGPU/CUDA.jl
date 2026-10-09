@@ -164,6 +164,12 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
     end
 end
 
+# The shadow of an array wrapping existing memory (e.g., `reshape` or `view` of a `CuArray`)
+# wraps the shadow memory.
+dataref_shadow(uval::EnzymeCore.Const, i) = uval.val
+dataref_shadow(uval::EnzymeCore.Duplicated, i) = uval.dval
+dataref_shadow(uval::EnzymeCore.BatchDuplicated, i) = uval.dval[i]
+
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
         ::Type{RT}, uval::EnzymeCore.Annotation{DR}, args...; kwargs...) where {CT <: CuArray, DR <: CUDACore.DataRef, RT}
     primargs = ntuple(Val(length(args))) do i
@@ -171,28 +177,26 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
         args[i].val
     end
 
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+    shadow = if EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
-            shadow = ofn.val(uval.val, primargs...; kwargs...)
-            Duplicated(ofn.val(uval.val, primargs...; kwargs...), shadow)
+            ofn.val(dataref_shadow(uval, 1), primargs...; kwargs...)
         else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
+            ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
-                ofn.val(uval.val, primargs...; kwargs...)
+                ofn.val(dataref_shadow(uval, i), primargs...; kwargs...)
             end
-            BatchDuplicated(ofn.val(uval.val, primargs...; kwargs...), tup)
+        end
+    end
+
+    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+        primal = ofn.val(uval.val, primargs...; kwargs...)
+        if EnzymeRules.width(config) == 1
+            Duplicated(primal, shadow)
+        else
+            BatchDuplicated(primal, shadow)
         end
     elseif EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            shadow = ofn.val(uval.val, primargs...; kwargs...)
-            shadow
-        else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                ofn.val(uval.val, primargs...; kwargs...)
-            end
-            tup
-        end
+        shadow
     elseif EnzymeRules.needs_primal(config)
         ofn.val(uval.val, primargs...; kwargs...)
     else
