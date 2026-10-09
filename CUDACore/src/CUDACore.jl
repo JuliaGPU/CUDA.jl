@@ -109,6 +109,7 @@ include("refpointer.jl")
 # compiler implementation
 include("compiler/compilation.jl")
 include("compiler/execution.jl")
+include("compiler/aliasing.jl")
 include("compiler/exceptions.jl")
 
 # graphs

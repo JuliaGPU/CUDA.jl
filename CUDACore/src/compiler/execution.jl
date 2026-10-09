@@ -155,6 +155,13 @@ with different compiler options.
     tt = argument_types(call.arguments)
     kernel_compile(call.backend, call.f, tt; kwargs...)
 end
+# specialize on how the arrays in the arguments alias (see `alias_key`)
+@inline function kernel_compile(call::KernelCall{LLVMBackend}; kwargs...)
+    tt = argument_types(call.arguments)
+    kernel_compile(call.backend, call.f, tt;
+                   alias_key=alias_key(call.f, call.arguments),
+                   alias_invariant=ARGUMENT_INVARIANT_LOADS[], kwargs...)
+end
 
 # `Tuple{map(Core.Typeof, args)...}`, without mapping or splatting
 @inline @generated function argument_types(args::Tuple)
@@ -258,7 +265,7 @@ end
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :alias_key, :alias_invariant, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
 const LAUNCH_KWARGS = [:cooperative, :dependent, :blocks, :threads, :clustersize, :shmem,
                        :stream]
 
@@ -726,6 +733,10 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
     fun::CuFunction
     state::KernelState
+    # the aliasing pattern of the arguments the kernel was compiled for (see `alias_key`),
+    # and the compiler options to compile it for others with
+    alias_key::UInt64
+    kwargs::Any
 end
 
 @doc (@doc AbstractKernel) HostKernel
@@ -736,8 +747,21 @@ end
 @inline Core.kwcall(kwargs::NamedTuple, kernel::HostKernel, args::Vararg{Any,N}) where {N} =
     kernel_launch(kernel, kernel_call(LLVMBackend(), kernel.f, args); kwargs...)
 
-@inline kernel_launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
+@inline function kernel_launch(::LLVMBackend, kernel::HostKernel{F,TT}, arguments::Tuple;
+                               kwargs...) where {F,TT}
+    # a kernel that is specialized on how its arguments alias may only be launched with
+    # arguments that alias the same way
+    if kernel.alias_key != 0
+        key = argument_types(arguments) === TT ? alias_key(kernel.f, arguments) : UInt64(0)
+        if key != kernel.alias_key
+            kernel = respecialize(kernel, key)
+        end
+    end
     launch_converted(kernel, arguments; kwargs...)
+end
+
+@noinline respecialize(kernel::HostKernel{F,TT}, key::UInt64) where {F,TT} =
+    cufunction(kernel.f, TT; kernel.kwargs..., alias_key=key)::HostKernel{F,TT}
 
 """
     version(k::HostKernel)
@@ -821,7 +845,8 @@ when function changes, or when different types or keyword arguments are provided
 function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
     source = methodinstance(F, tt)
     fun, state = cufunction_link(source; kwargs...)
-    return HostKernel{F,tt}(f, fun, state)
+    key = UInt64(get(kwargs, :alias_key, 0))
+    return HostKernel{F,tt}(f, fun, state, key, Base.structdiff(values(kwargs), NamedTuple{(:alias_key,)}))
 end
 
 # the parts of `cufunction` that don't depend on the type of the function, kept separate so
