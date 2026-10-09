@@ -70,8 +70,6 @@ const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:cuTensorNe
 function handle()
     cuda = CUDACore.active_state()
 
-    states = CUDACore.task_dict(state_cache)
-
     # get library state
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
@@ -80,7 +78,7 @@ function handle()
 
         (; handle=wrapped)
     end
-    state = get!(states, cuda.context) do
+    state = get!(state_cache, cuda.context) do
         new_state(cuda)
     end
 

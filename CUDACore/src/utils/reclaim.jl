@@ -86,8 +86,7 @@ Usage:
     end
 
     function handle()
-        states = CUDACore.task_dict(state_cache)
-        state = get!(() -> new_state(...), states, key)
+        state = get!(() -> new_state(...), state_cache, key)
         ...
     end
 
@@ -110,6 +109,27 @@ end
         tls[s.key] = d
     end
     return d::Dict{K,V}
+end
+
+"""
+    get!(f, s::TaskLocalCache{K,V}, key) -> V
+
+Return the current task's value for `key`, creating it with `f()` if there is none yet.
+
+`f()` runs outside of any `GPUArrays.@cached` region. The value is task-local state that
+outlives whatever call happened to create it, so any device memory it allocates (e.g. a
+workspace or `info` buffer) must not be owned by the caller's allocation cache: that cache
+would hand the memory out again once its region exits, and free it under the live state on
+`unsafe_free!`.
+"""
+@inline function Base.get!(f::Base.Callable, s::TaskLocalCache{K,V}, key) where {K,V}
+    d = task_dict(s)
+    v = get(d, key, nothing)
+    if v === nothing
+        v = GPUArrays.@uncached f()
+        d[key] = v
+    end
+    return v::V
 end
 
 function drop!(s::TaskLocalCache)
