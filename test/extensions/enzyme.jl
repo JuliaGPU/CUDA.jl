@@ -183,6 +183,30 @@ firstsum(x, y) = first(x .+ y)
     #@test res[2] ≈ 1.2
 end
 
+function reshape_square!(y, x)
+    y2 = reshape(y, 2, :)
+    y2 .= reshape(x, 2, :) .^ 2
+    return nothing
+end
+
+@testset "Forward reshape" begin
+    # the shadow of a reshaped array aliases the shadow, not the primal
+    x = CuArray(collect(1f0:8f0)); dx = CUDA.zeros(8)
+    s, p = autodiff(ForwardWithPrimal, x -> reshape(x, 2, :), Duplicated, Duplicated(x, dx))
+    @test pointer(s) == pointer(dx)
+    @test pointer(p) == pointer(x)
+
+    x = CuArray(collect(1f0:8f0)); y = CUDA.zeros(8)
+    dx = CUDA.ones(8); dy = CUDA.zeros(8)
+    autodiff(Forward, reshape_square!, Const, Duplicated(y, dy), Duplicated(x, dx))
+    @test Array(dy) ≈ 2 .* collect(1f0:8f0)
+
+    dxs = (CUDA.ones(8), CuArray(fill(2f0, 8))); dys = (CUDA.zeros(8), CUDA.zeros(8))
+    autodiff(Forward, reshape_square!, Const, BatchDuplicated(y, dys), BatchDuplicated(x, dxs))
+    @test Array(dys[1]) ≈ 2 .* collect(1f0:8f0)
+    @test Array(dys[2]) ≈ 4 .* collect(1f0:8f0)
+end
+
 @testset "Forward sum" begin
     x = CuArray([1.0, 2.0, 3.0, 4.0])
     dx = CuArray([100., 300.0, 500.0, 700.0])
