@@ -50,6 +50,37 @@ end
     end
 end
 
+@testset "gesvdj workspace limit, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    # the query only looks at the dimensions, so a small buffer can stand in for A
+    buf = CuVector{elty}(undef, 1)
+    fake(m, n) = unsafe_wrap(CuArray, pointer(buf), (m, n))
+    @test cuSOLVER.gesvdj_fits('V', 1, fake(64, 64))
+    @test cuSOLVER.gesvdj_fits('N', 1, fake(64, 64))
+    # the query fails outright
+    @test !cuSOLVER.gesvdj_fits('V', 1, fake(65536, 65536))
+    # the query succeeds, but reports a workspace size of 0
+    @test !cuSOLVER.gesvdj_fits('V', 1, fake(40000, 40000))
+    @test !cuSOLVER.gesvdj_fits('N', 1, fake(40000, 40000))
+    @test_throws ArgumentError cuSOLVER.gesvdj!('V', 1, fake(40000, 40000))
+end
+
+@testset "svd through Xgesvd, elty = $elty" for
+    elty in [Float32, Float64, ComplexF32, ComplexF64],
+    full in (false, true),
+    (_m, _n) in ((m, n), (n, m), (n, n))
+
+    A = rand(elty, _m, _n)
+    k = min(_m, _n)
+    F = cuSOLVER.svd_xgesvd!(CuArray(A), full)
+    @test size(F.U) == (_m, full ? _m : k)
+    @test size(F.Vt) == (full ? _n : k, _n)
+    @test collect(F.S) ≈ svdvals(A)
+    @test collect(F.U' * F.U) ≈ I
+    @test collect(F.Vt * F.Vt') ≈ I
+    @test collect(F.U[:, 1:k] * Diagonal(F.S) * F.Vt[1:k, :]) ≈ A
+    @test collect(cuSOLVER.svdvals_xgesvd!(CuArray(A))) ≈ svdvals(A)
+end
+
 # Check that constant propagation works
 let
     _svd(A) = svd(A; alg=cuSOLVER.QRAlgorithm())
