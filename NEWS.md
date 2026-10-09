@@ -15,6 +15,15 @@ are listed as subsections of the minor release they belong to.
 
 ## v6.5 (unreleased)
 
+CUDA.jl now requires GPUArrays.jl 12, which implements sorting, scans,
+reductions, `findall`, logical indexing and `reverse` once for every GPU back-end
+on top of AcceleratedKernels.jl. CUDA.jl's own implementations of these are
+removed. The functions follow Base's semantics more closely: `sort!` and
+`sortperm` are stable by default, `init` is applied once and no neutral element
+needs to be registered for custom operators, and empty inputs give Base's
+results and errors. Large reductions along a dimension and sorting are faster;
+small reductions along a dimension can be slower.
+
 *Technically breaking changes*:
 
 - GPU resources are no longer released from finalizers, as many of the CUDA calls
@@ -46,6 +55,17 @@ are listed as subsections of the minor release they belong to.
   CUDA.jl 6.4, didn't. Code that synchronizes threads through them needs an
   ordered atomic (e.g. `UnsafeAtomics.add!(ptr, val, UnsafeAtomics.acq_rel,
   UnsafeAtomics.device)`) or a fence (`threadfence()`).
+- `CUDA.QuickSort` and `CUDA.BitonicSort` are removed. Use the default
+  algorithm, Base's algorithm objects, or AcceleratedKernels' (e.g.
+  `sort!(x; alg=AcceleratedKernels.MergeSort())`).
+- The internal `CUDACore.scan!` is removed; use `accumulate!`.
+- `GPUArrays.neutral_element` is no longer consulted by reductions or scans, and
+  the `GPUArrays.mapreducedim!` method for `CuArray` is gone; use
+  `Base.mapreducedim!`.
+- Results and errors that differed from Base now match it, e.g.
+  `maximum(CuArray(Int[]))` throws an `ArgumentError` (it returned
+  `typemin(Int)`), and `sum(CuArray([1, 2]); init=Int8(0))` returns an `Int`
+  (it returned an `Int8`).
 
 *New features*:
 

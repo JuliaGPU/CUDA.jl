@@ -567,7 +567,6 @@ end
 
 # composition of affine maps x -> a*x + b: associative, but not commutative
 compose_affine(f, g) = (f[1]*g[1], f[2]*g[1] + g[2])
-GPUArrays.neutral_element(::typeof(compose_affine), ::Type{Tuple{Int,Int}}) = (1, 0)
 
 @testset "accumulate" begin
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
@@ -616,12 +615,12 @@ GPUArrays.neutral_element(::typeof(compose_affine), ::Type{Tuple{Int,Int}}) = (1
   let op(a, b) = a + b
     for n in (10_000, 3_000_000)
       x = CUDA.ones(Int, n)
-      @test Array(CUDACore.scan!(op, similar(x), x; dims=1, neutral=0)) == 1:n
+      @test Array(accumulate(op, x)) == 1:n
     end
     x = CUDA.ones(Int, 3, 5000, 2)
-    @test Array(CUDACore.scan!(op, similar(x), x; dims=2, neutral=0)) == cumsum(Array(x); dims=2)
+    @test Array(accumulate(op, x; dims=2)) == cumsum(Array(x); dims=2)
     x = CUDA.rand(Float32, 10_000)
-    @test Array(CUDACore.scan!(op, similar(x), x; dims=1, neutral=0)) ≈ cumsum(Array(x))
+    @test Array(accumulate(op, x; init=0)) ≈ cumsum(Array(x))
   end
 
   @test_throws ArgumentError("accumulate does not support the keyword arguments [:bad_kwarg]") accumulate(+, CuArray(rand(Float32, 1024)); bad_kwarg="bad")
@@ -833,7 +832,7 @@ end
 @testset "mapreduce inference" begin
   input = CUDA.ones(512)
   output = similar(input, 1)
-  @test @inferred(GPUArrays.mapreducedim!(identity, +, output, input; init=0f0)) === output
+  @test @inferred(Base.mapreducedim!(identity, +, output, input)) === output
 end
 
 @testset "issue 1202" begin
@@ -963,9 +962,8 @@ end
 end
 
 @testset "large map reduce" begin
-  dev = device()
-
-  big_size = CUDACore.serial_mapreduce_threshold(dev) + 5
+  # more independent slices than the GPU has threads
+  big_size = 2^17 + 5
   a = rand(Float32, big_size, 31)
   c = CuArray(a)
 
@@ -1294,7 +1292,7 @@ end
 @testset "mapreducedim! returning same type" begin
     R = transpose(CUDA.zeros(Float32, 2, 3))
     A = CUDA.rand(Float32, 3, 2, 10)
-    @test @inferred(GPUArrays.mapreducedim!(identity, +, R, A)) === R
+    @test @inferred(Base.mapreducedim!(identity, +, R, A)) === R
 end
 
 @testset "memory imported with unsafe_wrap(; own=true)" begin
