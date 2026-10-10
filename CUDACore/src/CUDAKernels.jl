@@ -1,7 +1,8 @@
 module CUDAKernels
 
 using ..CUDACore
-using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays, i32
+using ..CUDACore: @device_override, default_memory, UnifiedMemory, GPUArrays, i32, compute_capability
+using GPUToolbox: @sv_str
 
 import KernelInterface as KI
 
@@ -273,6 +274,28 @@ end
 
 # bit `i - 1` for the thread with (1-based) lane `i`
 @device_override KI.sub_group_ballot(pred::Bool) = UInt64(vote_ballot_sync(FULL_MASK, pred))
+
+# `redux.sync` reduces 32-bit integers from sm_80 on, over the threads of the warp (as for the
+# shuffles, lanes past a partial last warp don't exist and aren't waited for). not over
+# `activemask()`: all threads of the warp execute `sub_group_reduce` together, but needn't be
+# converged when they read the active mask.
+# the operators are commutative, so the order of the lanes doesn't matter. other operators,
+# types and devices use KernelInterface's fallback.
+for (op, T, name) in ((:+, Int32, "add"), (:+, UInt32, "add"),
+                      (:min, Int32, "min"), (:max, Int32, "max"),
+                      (:min, UInt32, "umin"), (:max, UInt32, "umax"),
+                      (:&, Int32, "and"), (:&, UInt32, "and"),
+                      (:|, Int32, "or"), (:|, UInt32, "or"),
+                      (:⊻, Int32, "xor"), (:⊻, UInt32, "xor"))
+    intr = "llvm.nvvm.redux.sync.$name"
+    @eval @device_override @inline function KI.sub_group_reduce(op::typeof($op), val::$T)
+        if compute_capability() >= sv"8.0"
+            return ccall($intr, llvmcall, $T, ($T, UInt32), val, FULL_MASK)
+        else
+            return invoke(KI.sub_group_reduce, Tuple{Any, Any}, op, val)
+        end
+    end
+end
 
 @device_override @inline function KI._print(args...)
     CUDACore._cuprint(args...)
