@@ -47,7 +47,7 @@ SpecialFunctionsExt = "SpecialFunctions"
 StaticArraysExt = "StaticArrays"
 
 [sources]
-KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "main", subdir = "lib/KernelInterface"}
+KernelInterface = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "vc/ki-subgroup-ops", subdir = "lib/KernelInterface"}
 
 [compat]
 Adapt = "4.4"

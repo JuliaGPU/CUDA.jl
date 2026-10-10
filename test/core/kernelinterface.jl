@@ -36,6 +36,24 @@ end
     @test Array(lane) == [rem(i, 32) + 1 for i in 0:n-1]
 end
 
+# `shfl.sync` only uses the low 5 bits of the offset; wider offsets have to be compared before
+# they are narrowed, so that they give the thread's own value
+function ki_wide_offset_kernel(down, up, offset)
+    i = KI.get_local_id().x
+    @inbounds down[i] = KI.shfl_down(Int32(i), offset)
+    @inbounds up[i] = KI.shfl_up(Int32(i), offset, 8)
+    return
+end
+
+@testset "wide shuffle offsets" begin
+    down, up = CuArray{Int32}(undef, 32), CuArray{Int32}(undef, 32)
+    for offset in (Int64(2)^32 + 1, (UInt128(1) << 64) + 1)
+        KI.@launch CUDABackend() workgroupsize=32 ki_wide_offset_kernel(down, up, offset)
+        @test Array(down) == 1:32
+        @test Array(up) == 1:32
+    end
+end
+
 @testset "copyto!" begin
     backend = CUDABackend()
 
