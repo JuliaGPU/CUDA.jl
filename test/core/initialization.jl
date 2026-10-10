@@ -322,12 +322,12 @@ end
         end)
     end
 
-    # KernelAbstractions uses the same task-local selection, without new streams on repeats
-    KA = CUDACore.CUDAKernels.KA
+    # KernelInterface uses the same task-local selection, without new streams on repeats
+    KI = CUDACore.CUDAKernels.KI
     fetch(Threads.@spawn begin
-        KA.priority!(CUDACore.CUDABackend(), :high)
+        KI.priority!(CUDACore.CUDABackend(), :high)
         s = stream()
-        KA.priority!(CUDACore.CUDABackend(), :high)
+        KI.priority!(CUDACore.CUDABackend(), :high)
         @test stream() === s
     end)
 
