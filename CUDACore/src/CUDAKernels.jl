@@ -42,8 +42,11 @@ KI.supports_subgroups(::CUDABackend) = true
 # warps are formed from consecutive linear thread indices, and are independent
 KI.supports_linear_subgroups(::CUDABackend) = true
 KI.supports_independent_subgroups(::CUDABackend) = true
+# the functions with a `width` only synchronize the caller's segment of the warp (the member
+# mask of the `.sync` intrinsics), which may diverge from the other segments
+KI.supports_partitionable_subgroups(::CUDABackend) = true
 # the primitive types CUDA's warp shuffles support (decomposing them into 32-bit shuffles);
-# KernelInterface shuffles other `isbits` types, e.g. `Complex`, field by field
+# KernelInterface shuffles other `isbits` types, e.g. `Complex`, as `UInt32` words
 const ShuffleTypes = Union{Bool, Base.BitInteger, Base.IEEEFloat}
 KI.supports_shuffle(::CUDABackend, ::Type{<:ShuffleTypes}) = true
 
@@ -226,6 +229,8 @@ end
     sync_warp()
 end
 
+@device_override @inline KI.sub_group_barrier(width::Integer) = sync_warp(segment_mask(width))
+
 # the lanes and offsets are truncated to the `UInt32` the intrinsics take, so that values out
 # of range don't throw an `InexactError` but give an unspecified value. `shfl_sync` takes a
 # 1-based lane and subtracts one from it, so wrap the lane to 1:32 (as PTX would wrap the
@@ -251,22 +256,34 @@ end
 @device_override @inline KI.shfl_xor(val::T, mask::Integer) where {T <: ShuffleTypes} =
     shfl_xor_sync(FULL_MASK, val, mask % UInt32)
 
+# the functions with a `width` only wait for the threads of the caller's segment of `width`
+# lanes, so that the segments of a warp can diverge. the width is a constant, so for a width
+# of 32 this folds to `FULL_MASK`.
+@inline function segment_mask(width)
+    w = width % UInt32
+    w >= 0x00000020 && return FULL_MASK
+    return (FULL_MASK >> (0x00000020 - w)) << (segment_base(width) % UInt32)
+end
+
+# the 0-based lane of the first thread of the caller's segment
+@inline segment_base(width) = (laneid() - 1i32) & ~(width % Int32 - 1i32)
+
 # the shuffles within segments of `width` lanes, a single `shfl.sync` (rather than KI's
 # fallbacks, a `shfl.sync` from a lane computed with a few integer operations). `shfl.sync`
 # takes the lane modulo `width`, and reads from the thread itself where the source lane is
 # past the end of the segment, or before its start for `shfl_up`. KernelInterface requires
 # the mask of `shfl_xor` to be below `width`, so it stays within the segment.
 @device_override @inline KI.shfl(val::T, lane::Integer, width::Integer) where {T <: ShuffleTypes} =
-    shfl_sync(FULL_MASK, val, shfl_lane(lane), width % UInt32)
+    shfl_sync(segment_mask(width), val, shfl_lane(lane), width % UInt32)
 
 @device_override @inline KI.shfl_down(val::T, offset::Integer, width::Integer) where {T <: ShuffleTypes} =
-    shfl_down_sync(FULL_MASK, val, shfl_offset(offset), width % UInt32)
+    shfl_down_sync(segment_mask(width), val, shfl_offset(offset), width % UInt32)
 
 @device_override @inline KI.shfl_up(val::T, offset::Integer, width::Integer) where {T <: ShuffleTypes} =
-    shfl_up_sync(FULL_MASK, val, shfl_offset(offset), width % UInt32)
+    shfl_up_sync(segment_mask(width), val, shfl_offset(offset), width % UInt32)
 
 @device_override @inline KI.shfl_xor(val::T, mask::Integer, width::Integer) where {T <: ShuffleTypes} =
-    shfl_xor_sync(FULL_MASK, val, mask % UInt32, width % UInt32)
+    shfl_xor_sync(segment_mask(width), val, mask % UInt32, width % UInt32)
 
 @device_override KI.sub_group_any(pred::Bool) = vote_any_sync(FULL_MASK, pred)
 
@@ -274,6 +291,18 @@ end
 
 # bit `i - 1` for the thread with (1-based) lane `i`
 @device_override KI.sub_group_ballot(pred::Bool) = UInt64(vote_ballot_sync(FULL_MASK, pred))
+
+@device_override @inline KI.sub_group_any(pred::Bool, width::Integer) =
+    vote_any_sync(segment_mask(width), pred)
+
+@device_override @inline KI.sub_group_all(pred::Bool, width::Integer) =
+    vote_all_sync(segment_mask(width), pred)
+
+# `vote.ballot.sync` also reports the active threads of other segments, which are masked out
+@device_override @inline function KI.sub_group_ballot(pred::Bool, width::Integer)
+    mask = segment_mask(width)
+    return UInt64((vote_ballot_sync(mask, pred) & mask) >> (segment_base(width) % UInt32))
+end
 
 # `redux.sync` reduces 32-bit integers from sm_80 on, over the threads of the warp (as for the
 # shuffles, lanes past a partial last warp don't exist and aren't waited for). not over
@@ -293,6 +322,15 @@ for (op, T, name) in ((:+, Int32, "add"), (:+, UInt32, "add"),
             return ccall($intr, llvmcall, $T, ($T, UInt32), val, FULL_MASK)
         else
             return invoke(KI.sub_group_reduce, Tuple{Any, Any}, op, val)
+        end
+    end
+    # within a segment, over the threads of the member mask
+    @eval @device_override @inline function KI.sub_group_reduce(op::typeof($op), val::$T,
+                                                                width::Integer)
+        if compute_capability() >= sv"8.0"
+            return ccall($intr, llvmcall, $T, ($T, UInt32), val, segment_mask(width))
+        else
+            return invoke(KI.sub_group_reduce, Tuple{Any, Any, Integer}, op, val, width)
         end
     end
 end
