@@ -29,9 +29,8 @@ kernels in Julia, and wrappers for various CUDA libraries.
 
 ## Quick start
 
-Before all, make sure you have a recent NVIDIA driver. On Windows, also make sure you have
-the [Visual C++ redistributable](https://aka.ms/vs/16/release/vc_redist.x64.exe) installed.
-You do not need to install the CUDA Toolkit.
+Before all, make sure you have a recent NVIDIA driver. You do not need to install the CUDA
+Toolkit.
 
 CUDA.jl can be installed with the Julia package manager. From the Julia REPL, type `]` to
 enter the Pkg REPL mode and run:

@@ -2,9 +2,7 @@
 
 The Julia CUDA stack only requires users to have a functional [NVIDIA
 driver](https://www.nvidia.com/Download/index.aspx). It is not necessary to install the
-[CUDA toolkit](https://developer.nvidia.com/cuda-downloads). On Windows, also make sure you
-have the [Visual C++ redistributable](https://aka.ms/vs/16/release/vc_redist.x64.exe)
-installed.
+[CUDA toolkit](https://developer.nvidia.com/cuda-downloads).
 
 
 
