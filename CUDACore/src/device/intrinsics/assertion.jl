@@ -35,44 +35,25 @@ macro cuassert(ex, msgs...)
                                         $(Val(__source__.line))))
 end
 
-assert_counter = 0
+@llvmgenerated builder function cuassert_fail(::Val{msg}, ::Val{file},
+                                              ::Val{line})::Nothing where {msg, file, line}
+    T_void = LLVM.VoidType()
+    T_int32 = LLVM.Int32Type()
+    T_pint8 = LLVM.PointerType(LLVM.Int8Type())
 
-@generated function cuassert_fail(::Val{msg}, ::Val{file}, ::Val{line}) where
-                                 {msg, file, line}
-    @dispose ctx=Context() begin
-        T_void = LLVM.VoidType()
-        T_int32 = LLVM.Int32Type()
-        T_pint8 = LLVM.PointerType(LLVM.Int8Type())
+    # the strings are private globals, whose names LLVM keeps unique
+    message = globalstring_ptr!(builder, String(msg), "assert_message")
+    file = globalstring_ptr!(builder, String(file), "assert_file")
+    line = ConstantInt(T_int32, line)
+    func = globalstring_ptr!(builder, "unknown", "assert_function")
+    charSize = ConstantInt(Csize_t(1))
 
-        # create function
-        llvm_f, _ = create_function(T_void)
-        mod = LLVM.parent(llvm_f)
-
-        # generate IR
-        @dispose builder=IRBuilder() begin
-            entry = BasicBlock(llvm_f, "entry")
-            position!(builder, entry)
-
-            global assert_counter
-            assert_counter += 1
-
-            message = globalstring_ptr!(builder, String(msg), "assert_message_$(assert_counter)")
-            file = globalstring_ptr!(builder, String(file), "assert_file_$(assert_counter)")
-            line = ConstantInt(T_int32, line)
-            func = globalstring_ptr!(builder, "unknown", "assert_function_$(assert_counter)")
-            charSize = ConstantInt(Csize_t(1))
-
-            # invoke __assertfail and return
-            # NOTE: we don't mark noreturn since that control flow might confuse ptxas
-            assertfail_typ =
-                LLVM.FunctionType(T_void,
-                                [T_pint8, T_pint8, T_int32, T_pint8, value_type(charSize)])
-            assertfail = LLVM.Function(mod, "__assertfail", assertfail_typ)
-            call!(builder, assertfail_typ, assertfail, [message, file, line, func, charSize])
-
-            ret!(builder)
-        end
-
-        call_function(llvm_f, Nothing, Tuple{})
-    end
+    # invoke __assertfail and return
+    # NOTE: we don't mark noreturn since that control flow might confuse ptxas
+    assertfail_typ =
+        LLVM.FunctionType(T_void,
+                        [T_pint8, T_pint8, T_int32, T_pint8, charSize.value_type])
+    assertfail = LLVM.Function(current_module(builder), "__assertfail", assertfail_typ)
+    call!(builder, assertfail_typ, assertfail, [message, file, line, func, charSize])
+    nothing
 end

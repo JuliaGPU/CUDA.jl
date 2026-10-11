@@ -13,7 +13,7 @@ using GPUArrays: allowscalar, @allowscalar
 using GPUToolbox
 @public i32
 
-using LLVM
+using LLVM, LLVM.IR, LLVM.Build
 using LLVM.Interop
 using Core: LLVMPtr
 
