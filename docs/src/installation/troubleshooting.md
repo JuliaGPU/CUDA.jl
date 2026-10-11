@@ -48,5 +48,7 @@ within it. You can add this folder to your `PATH` and check that `nvidia-smi` ru
 
 ## The specified module could not be found (on Windows)
 
-Ensure the [Visual C++ Redistributable](https://aka.ms/vs/16/release/vc_redist.x64.exe) is
-installed.
+Several CUDA libraries (cuSOLVER, CUPTI and cuTENSOR) need the Visual C++ runtime. CUDA.jl
+provides it through `MSVCRuntime_jll`, but if another library already loaded an older copy
+of the runtime into the Julia process, that copy is used instead. Updating the [Visual C++
+Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) fixes this.
