@@ -75,7 +75,7 @@ function cudnnRNNForwardWithDefaults(
     auxFlags::Integer = CUDNN_RNN_PADDED_IO_ENABLED, # When the padded I/O is enabled, layouts CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_UNPACKED and CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED are permitted in RNN data descriptors.
 
     # rnnDescriptor
-    rnnDesc::cudnnRNNDescriptor = cudnnRNNDescriptor(algo, cellMode, biasMode, dirMode, inputMode, cudnnDataType(dataType), cudnnDataType(mathPrec), mathType, Int32(inputSize), checkHidden(hiddenSize), Int32(projSize), Int32(numLayers), cudnnDropoutDescriptor(Cfloat(dropout)), UInt32(auxFlags)),
+    rnnDesc::Union{Nothing,cudnnRNNDescriptor} = nothing,
 
     # rnnData parameters:
     layout::cudnnRNNDataLayout_t = CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_UNPACKED, # padded [X,B,T] array
@@ -94,6 +94,13 @@ function cudnnRNNForwardWithDefaults(
     dhx = Ref{Any}(nothing),
     dcx = Ref{Any}(nothing),
 )
+    h = handle()
+    rnnDesc = if rnnDesc === nothing
+        rnn_descriptor(h, (algo, cellMode, biasMode, dirMode, inputMode, cudnnDataType(dataType), cudnnDataType(mathPrec), mathType, Int32(inputSize), checkHidden(hiddenSize), Int32(projSize), Int32(numLayers), dropout_descriptor(h, Cfloat(dropout)), UInt32(auxFlags)))
+    else
+        rnn_descriptor(h, rnnDesc)
+    end
+
     # Verify all inputs: they should be compatible with rnnDesc (in case it is supplied), not necessarily with kwargs:
     rd = cudnnGetRNNDescriptor_v8(rnnDesc)
     @assert rd.hiddenSize > 0  "hiddenSize > 0 must be provided"
@@ -167,7 +174,7 @@ function cudnnRNNForwardWithDefaults(
     # Backward called separately on each variable. We will calculate all gradients on first call. Use `dready` to avoid subsequent calls.
     dready = Ref{Bool}(false)   # this will be turned to `true` by the first backward call.
 
-    y_h_c = cudnnRNNForwardAD(w, x, hx, cx; rnnDesc, fwdMode, devSeqLengths, xDesc, yDesc, y, hDesc, hy=(hy isa Ref ? hy[] : hy), cDesc, cy=(cy isa Ref ? cy[] : cy), workspace, reserveSpace, dw, dx, dhx, dcx, dready)
+    y_h_c = cudnnRNNForwardAD(w, x, hx, cx; handle=h, rnnDesc, fwdMode, devSeqLengths, xDesc, yDesc, y, hDesc, hy=(hy isa Ref ? hy[] : hy), cDesc, cy=(cy isa Ref ? cy[] : cy), workspace, reserveSpace, dw, dx, dhx, dcx, dready)
     if hy isa Ref; hy[] = y_h_c[2]; end
     if cy isa Ref && rd.cellMode === CUDNN_LSTM; cy[] = y_h_c[3]; end
     return y_h_c[1]             # only return y; hy and cy can be accessed through keyword arguments. They still need to be in AutoGrad return value to be included in gradient calc.
@@ -176,15 +183,52 @@ end
 
 # AD method
 
-function cudnnRNNForwardAD(w, x, hx, cx; rnnDesc, fwdMode, devSeqLengths, xDesc, yDesc, y, hDesc, hy, cDesc, cy, workspace, reserveSpace, dw, dx, dhx, dcx, dready)
+function cudnnRNNForwardAD(w, x, hx, cx; handle, rnnDesc, fwdMode, devSeqLengths, xDesc, yDesc, y, hDesc, hy, cDesc, cy, workspace, reserveSpace, dw, dx, dhx, dcx, dready)
     (workspaceSize, reserveSpaceSize) = cudnnRNNTempSpaceSizes(rnnDesc, fwdMode, xDesc)
     if reserveSpaceSize > 0 && reserveSpace === nothing; reserveSpace = cudnnTempSpace(reserveSpaceSize); end
     @assert sizeof(reserveSpace) >= reserveSpaceSize  "reserveSpace should be at least $reserveSpaceSize bytes"
     # Cannot use @workspace here because it is shared between forw and back calls
     if workspaceSize > 0 && workspace === nothing; workspace = cudnnTempSpace(workspaceSize); end
     @assert sizeof(workspace) >= workspaceSize  "workspace should be at least $workspaceSize bytes"
-    cudnnRNNForward(handle(), rnnDesc, fwdMode, devSeqLengths, xDesc, x, yDesc, y, hDesc, something(hx, CU_NULL), something(hy, CU_NULL), cDesc, something(cx, CU_NULL), something(cy, CU_NULL), sizeof(w), w, sizeof(workspace), something(workspace, CU_NULL), sizeof(reserveSpace), something(reserveSpace, CU_NULL))
+    state = rnnDesc.dropout === nothing ? nothing : rnnDesc.dropout.state
+    GC.@preserve state begin
+        # training applies dropout, using the random number generator state that the
+        # descriptor hides from the operation (see `cudnnDropoutForwardAD`)
+        state === nothing || fwdMode != CUDNN_FWD_MODE_TRAINING || pointer(state)
+        cudnnRNNForward(handle, rnnDesc, fwdMode, devSeqLengths, xDesc, x, yDesc, y, hDesc, something(hx, CU_NULL), something(hy, CU_NULL), cDesc, something(cx, CU_NULL), something(cy, CU_NULL), sizeof(w), w, sizeof(workspace), something(workspace, CU_NULL), sizeof(reserveSpace), something(reserveSpace, CU_NULL))
+    end
     return (y, hy, cy)
+end
+
+
+# Descriptors
+
+function rnn_descriptor(h, args::Tuple)
+    args = map(a -> a isa cudnnDropoutDescriptor ? dropout_descriptor(h, a) : a, args)
+    cache = h.dropout.rnn_descriptors
+    d = get(cache, args, nothing)
+    d === nothing || return d
+
+    i = findfirst(a -> a isa cudnnDropoutDescriptor, args)
+    dropout = i === nothing ? nothing : args[i]
+    ptr = Ref{cudnnRNNDescriptor_t}()
+    cudnnCreateRNNDescriptor(ptr)
+    d = cudnnRNNDescriptor(ptr[], args, dropout)
+    # finalizers of objects that become unreachable together run in any order, so keep the
+    # dropout descriptor that this one refers to alive until it has been destroyed
+    resource_finalizer(d; blocking=false) do d
+        GC.@preserve dropout cudnnDestroyRNNDescriptor(d.ptr)
+    end
+    cudnnSetRNNDescriptor_v8(d, args...)
+    cache[args] = d
+    return d
+end
+
+# a descriptor that belongs to another handle is replaced by the current handle's
+# descriptor for the same arguments
+function rnn_descriptor(h, d::cudnnRNNDescriptor)
+    (isempty(d.args) || get(h.dropout.rnn_descriptors, d.args, nothing) === d) && return d
+    return rnn_descriptor(h, d.args)
 end
 
 

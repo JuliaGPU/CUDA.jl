@@ -73,11 +73,14 @@ end
 # shared by the handle's dropout descriptors. Initializing the state is expensive, so this
 # is done once, after which other descriptors are pointed at it.
 
+# RNN descriptors refer to a dropout descriptor, so they are cached per handle too.
 mutable struct DropoutCache
     state::Union{Nothing,CuVector{UInt8}}
     const descriptors::Dict{Cfloat,cudnnDropoutDescriptor}
+    const rnn_descriptors::Dict{Tuple,cudnnRNNDescriptor}
 end
-DropoutCache() = DropoutCache(nothing, Dict{Cfloat,cudnnDropoutDescriptor}())
+DropoutCache() = DropoutCache(nothing, Dict{Cfloat,cudnnDropoutDescriptor}(),
+                              Dict{Tuple,cudnnRNNDescriptor}())
 
 function dropout_descriptor(h, dropout::Cfloat)
     cache = h.dropout

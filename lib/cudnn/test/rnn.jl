@@ -141,3 +141,25 @@ rnntest(numLayers=2)
 rnntest(dropout=0.5)
 rnntest(auxFlags=CUDNN_RNN_PADDED_IO_DISABLED)
 rnntest(auxFlags=CUDNN_RNN_PADDED_IO_ENABLED)
+
+@testset "dropout" begin
+    # dropout between layers is only applied when training, using the random number
+    # generator state of the current task's handle (also when another task created the
+    # descriptor)
+    descriptor() = cudnnRNNDescriptor(CUDNN_RNN_ALGO_STANDARD, CUDNN_LSTM, CUDNN_RNN_DOUBLE_BIAS,
+                                      CUDNN_UNIDIRECTIONAL, CUDNN_LINEAR_INPUT,
+                                      cudnnDataType(Float32), cudnnDataType(Float32), math_mode(),
+                                      Int32(X), Int32(H), Int32(H), Int32(2),
+                                      cudnnDropoutDescriptor(0.5), UInt32(CUDNN_RNN_PADDED_IO_ENABLED))
+    d = descriptor()
+    y = cudnnRNNForward(w, x, d) |> Array
+    @test y == cudnnRNNForward(w, x, d) |> Array
+    @test y != cudnnRNNForward(w, x, d; fwdMode=CUDNN_FWD_MODE_TRAINING) |> Array
+    @test y != fetch(Threads.@spawn Array(cudnnRNNForward(w, x, d; fwdMode=CUDNN_FWD_MODE_TRAINING)))
+    # (the outer task keeps its handle, so that the inner task uses another one)
+    @test fetch(Threads.@spawn begin
+        h = cuDNN.handle()
+        d = descriptor()
+        fetch(Threads.@spawn cuDNN.rnn_descriptor(cuDNN.handle(), d).dropout.state) !== d.dropout.state
+    end)
+end

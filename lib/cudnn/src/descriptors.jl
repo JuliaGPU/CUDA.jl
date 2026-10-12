@@ -95,10 +95,27 @@ cudnnDropoutDescriptor(dropout::Real) = dropout_descriptor(handle(), Cfloat(drop
                        hiddenSize::Int32,
                        projSize::Int32,
                        numLayers::Int32,
-                       dropoutDesc::cudnnDropoutDescriptor_t,
+                       dropoutDesc::cudnnDropoutDescriptor,
                        auxFlags::UInt32)
+
+Return the current cuDNN handle's RNN descriptor for these arguments. As it refers to a dropout
+descriptor, it should only be used with that handle; the high-level wrappers substitute the
+handle's own descriptor when given another one.
 """
-@cudnnDescriptor(RNN, cudnnSetRNNDescriptor_v8)
+mutable struct cudnnRNNDescriptor
+    ptr::cudnnRNNDescriptor_t
+    # the arguments the descriptor was set with, or `()` for descriptors constructed from a
+    # raw pointer
+    args::Tuple
+    dropout::Union{Nothing,cudnnDropoutDescriptor}
+
+    cudnnRNNDescriptor(ptr::cudnnRNNDescriptor_t, args::Tuple, dropout) =
+        new(ptr, args, dropout)
+    cudnnRNNDescriptor(ptr::cudnnRNNDescriptor_t) = new(ptr, (), nothing)
+    cudnnRNNDescriptor(ptr::Ptr{Cvoid}) = new(ptr, (), nothing)
+end
+Base.unsafe_convert(::Type{<:Ptr}, d::cudnnRNNDescriptor) = d.ptr
+cudnnRNNDescriptor(args...) = rnn_descriptor(handle(), args)
 
 
 """
