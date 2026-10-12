@@ -105,7 +105,7 @@ function handle()
 
         (; handle=wrapped, cuda.stream)
     end
-    state = get!(states, cuda.context) do
+    state = get!(state_cache, cuda.context) do
         new_state(cuda)
     end
 

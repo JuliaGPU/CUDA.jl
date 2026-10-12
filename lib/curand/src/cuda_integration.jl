@@ -13,8 +13,7 @@ const native_state_cache = CUDACore.TaskLocalCache{CuContext, NativeRNG}(:cuRAND
 
 function native_rng()
     cuda = active_state()
-    states = CUDACore.task_dict(native_state_cache)
-    get!(() -> NativeRNG(), states, cuda.context)
+    get!(() -> NativeRNG(), native_state_cache, cuda.context)
 end
 
 
@@ -26,8 +25,7 @@ const gpuarrays_state_cache = CUDACore.TaskLocalCache{CuContext, GPUArrays.RNG{C
 
 function gpuarrays_rng()
     cuda = active_state()
-    states = CUDACore.task_dict(gpuarrays_state_cache)
-    get!(states, cuda.context) do
+    get!(gpuarrays_state_cache, cuda.context) do
         new_rng = GPUArrays.RNG{CuArray}()
         Random.seed!(new_rng)
         new_rng

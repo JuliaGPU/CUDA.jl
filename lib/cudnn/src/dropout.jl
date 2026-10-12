@@ -80,8 +80,9 @@ const cudnnDropoutSeed = Ref{Int}(-1)
 
 function cudnnSetDropoutDescriptorFromFloat(ptr::cudnnDropoutDescriptor_t, dropout::Real)
     h = handle()
+    # the state outlives this call, so it must not be owned by an active allocation cache
     hstate = get!(cudnnDropoutState, h.handle) do
-        cudnnTempSpace(cudnnDropoutGetStatesSize())
+        GPUArrays.@uncached cudnnTempSpace(cudnnDropoutGetStatesSize())
     end
     seed = floor(Culonglong,time())
     cudnnSetDropoutDescriptor(ptr, h, Cfloat(dropout), hstate, sizeof(hstate), seed)

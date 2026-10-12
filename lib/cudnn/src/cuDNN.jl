@@ -9,7 +9,7 @@ module cuDNN
 
 using CUDACore
 using CUDACore: CUstream, CUgraph, libraryPropertyType
-using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked, resource_finalizer
+using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked, resource_finalizer, GPUArrays
 
 using CEnum: @cenum
 
@@ -146,7 +146,7 @@ function handle()
 
         (; handle=wrapped, cuda.stream)
     end
-    state = get!(states, cuda.context) do
+    state = get!(state_cache, cuda.context) do
         new_state(cuda)
     end
 
