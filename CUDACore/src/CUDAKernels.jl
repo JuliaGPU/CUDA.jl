@@ -155,6 +155,8 @@ function launch_tuple(obj::KA.Kernel{CUDABackend}, args::Tuple;
             # XXX: Some kernels performs much better with all blocks active
             cu_blocks = max(cld(prod(ndrange), threads), config.blocks)
             threads = cld(prod(ndrange), cu_blocks)
+            # Round up to a multiple of the warp size, since partial warps leave lanes idle
+            threads = min(config.threads, CUDACore.nextwarp(CUDACore.device(), threads))
         else
             threads = config.threads
         end

@@ -33,6 +33,23 @@ for (PreferBlocks, AlwaysInline) in Iterators.product((true, false), (true, fals
                                  skip_tests=ka_skip_tests)
 end
 
+KA.@kernel function store_groupsize!(output)
+    index = KA.@index(Global)
+    @inbounds output[index] = prod(KA.@groupsize())
+end
+
+@testset "prefer_blocks uses warp multiples" begin
+    backend = CUDABackend(; prefer_blocks=true)
+    ws = warpsize(device())
+    for n in (100, 1000, 10_000, 100_000)
+        output = KA.zeros(backend, Int, n)
+        store_groupsize!(backend)(output; ndrange=n)
+        groupsize = Array(output)[1]
+        @test groupsize % ws == 0
+        @test all(==(groupsize), Array(output))
+    end
+end
+
 @testset "KA.functional" begin
     @test KA.functional(CUDABackend()) == CUDA.functional()
 end
