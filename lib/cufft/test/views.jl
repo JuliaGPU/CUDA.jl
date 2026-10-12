@@ -1,7 +1,6 @@
 @testset "out-of-place complex FFTs of strided views" begin
     CUDACore.allowscalar(false)
     @testset "$T" for T in (ComplexF16, ComplexF32, ComplexF64)
-        # Half-precision cuFFT requires power-of-two transform sizes.
         host = rand(T, 8, T == ComplexF16 ? 8 : 6)
         device = CuArray(host)
         layouts = (
@@ -18,7 +17,6 @@
             @test gpu_view isa SubArray
             @test gpu_view isa StridedCuArray
 
-            # setup.jl loads FFTW: these methods must still select cuFFT.
             @test which(plan_fft, (typeof(gpu_view),)).module === cuFFT
             @test which(plan_bfft, (typeof(gpu_view),)).module === cuFFT
             @test isapprox(Array(fft(gpu_view)), fft(cpu_input);
@@ -37,7 +35,6 @@
                     @test isapprox(Array(result), expected;
                                    rtol=rtol(T), atol=atol(T))
 
-                    # A plan created for a dense input also accepts a view.
                     dense_plan = planner(copy(gpu_view), region)
                     @test isapprox(Array(dense_plan * gpu_view), expected;
                                    rtol=rtol(T), atol=atol(T))
@@ -47,7 +44,6 @@
             @test Array(device) == host
         end
 
-        # Dense staging allows one plan to be reused across different strides.
         first_view = view(device, 1:4, :)
         second_view = view(device, 1:2:8, :)
         plan = plan_fft(first_view; flags=FFTW.ESTIMATE)

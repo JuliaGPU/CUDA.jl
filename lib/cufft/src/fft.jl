@@ -227,9 +227,8 @@ for f in (:plan_fft!, :plan_bfft!)
     end
 end
 
-# Out-of-place plans also accept strided views. Execution stages those views
-# into dense GPU storage, so planning only needs their size and element type.
-# Provide default dimensions here to keep GPU views away from FFTW's methods.
+# out-of-place for both dense and strided
+# Provide default dimensions to keep away from FFTW's methods when region is not specified.
 for f in (:plan_fft, :plan_bfft)
     @eval begin
         Base.@constprop :aggressive function $f(X::StridedCuArray{T,N}, region=1:ndims(X); kwargs...) where {T<:cufftComplexes,N}
