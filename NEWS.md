@@ -131,6 +131,10 @@ small reductions along a dimension can be slower.
   memory access error.
 - `add_rn` and `mul_rn` are no longer contracted into a fused multiply-add on
   Julia 1.10 and 1.11.
+- cuDNN dropout keeps a random number generator state per library handle, and
+  doesn't share it with other tasks or devices anymore. Dropout with
+  `cudnnDropoutSeed[]` set no longer fails in tasks other than the one that
+  first used dropout.
 
 *Minor changes*:
 

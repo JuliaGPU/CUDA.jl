@@ -52,8 +52,25 @@ end
 
 """
     cudnnDropoutDescriptor(dropout::Real)
+
+Return the current cuDNN handle's dropout descriptor for probability `dropout`. Its random
+number generator state belongs to that handle, so the descriptor should only be used with it;
+the high-level wrappers substitute the handle's own descriptor when given another one.
 """
-@cudnnDescriptor(Dropout, cudnnSetDropoutDescriptorFromFloat)
+mutable struct cudnnDropoutDescriptor
+    ptr::cudnnDropoutDescriptor_t
+    dropout::Cfloat
+    # the handle's random number generator state, or `nothing` for descriptors constructed
+    # from a raw pointer
+    state::Union{Nothing,CuVector{UInt8}}
+
+    cudnnDropoutDescriptor(ptr::cudnnDropoutDescriptor_t, dropout::Cfloat,
+                           state::CuVector{UInt8}) = new(ptr, dropout, state)
+    cudnnDropoutDescriptor(ptr::cudnnDropoutDescriptor_t) = new(ptr, NaN32, nothing)
+    cudnnDropoutDescriptor(ptr::Ptr{Cvoid}) = new(ptr, NaN32, nothing)
+end
+Base.unsafe_convert(::Type{<:Ptr}, d::cudnnDropoutDescriptor) = d.ptr
+cudnnDropoutDescriptor(dropout::Real) = dropout_descriptor(handle(), Cfloat(dropout))
 
 
 """
