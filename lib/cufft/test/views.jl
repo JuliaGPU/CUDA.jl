@@ -54,3 +54,48 @@
         @test Array(device) == host
     end
 end
+
+@testset "in-place complex FFTs of strided views" begin
+    CUDACore.allowscalar(false)
+    @testset "$T" for T in (ComplexF16, ComplexF32, ComplexF64)
+        host = rand(T, 8, 8, 4)
+        layouts = (
+            ("row", (2, :, 2), nothing),
+            ("stepped offset", (2:2:8, 2:5, 2), nothing),
+            ("contiguous", (:, :, 2), nothing),
+            ("external batches", (1:4, :, :), (2,)),
+        )
+        @testset "$name" for (name, indices, region) in layouts
+            outside = trues(size(host))
+            view(outside, indices...) .= false
+            input = Array(view(host, indices...))
+            dims = isnothing(region) ? ntuple(identity, ndims(input)) : region
+            for (transform, planner) in ((fft, plan_fft!), (bfft, plan_bfft!),
+                                         (ifft, plan_ifft!))
+                device = CuArray(host)
+                v = view(device, indices...)
+                @test which(plan_fft!, (typeof(v),)).module === cuFFT
+                @test which(plan_bfft!, (typeof(v),)).module === cuFFT
+                plan = isnothing(region) ? planner(v; flags=FFTW.ESTIMATE) :
+                                           planner(v, region; flags=FFTW.ESTIMATE)
+                @test plan * v === v
+                @test isapprox(Array(v), transform(input, dims);
+                               rtol=rtol(T), atol=atol(T))
+                @test Array(device)[outside] == host[outside]
+            end
+        end
+
+        # Reuse a dense-layout plan on a different stride, then invert it.
+        matrix = host[:, :, 1]
+        device = CuArray(matrix)
+        plan = plan_fft!(CuArray(matrix[1:4, :]))
+        v = view(device, 1:2:8, :)
+        @test plan * v === v
+        @test inv(plan) * v === v
+        @test isapprox(Array(device), matrix; rtol=rtol(T), atol=atol(T))
+        before = Array(device)
+        @test_throws ArgumentError plan * view(device, 1:2, :)
+        @test Array(device) == before
+        @test_throws ArgumentError plan_fft!(v, (1, 1))
+    end
+end
