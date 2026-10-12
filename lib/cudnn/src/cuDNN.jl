@@ -91,15 +91,16 @@ end
 
 ## handles
 
-# Execution plans are bound to their cuDNN handle.
+# Execution plans and dropout state are bound to their cuDNN handle.
 struct PooledHandle
     handle::cudnnHandle_t
     plans::Dict{Any,Any}
+    dropout::DropoutCache
 end
 
 function handle_ctor(ctx)
     context!(ctx) do
-        PooledHandle(cudnnCreate(), Dict{Any,Any}())
+        PooledHandle(cudnnCreate(), Dict{Any,Any}(), DropoutCache())
     end
 end
 function handle_dtor(ctx, pooled::PooledHandle)
@@ -121,11 +122,12 @@ mutable struct Handle
     const handle::cudnnHandle_t
     const ctx::CuContext
     const plans::Dict{Any,Any}
+    const dropout::DropoutCache
 end
 Base.unsafe_convert(::Type{cudnnHandle_t}, h::Handle) = h.handle
 
 function handle_finalizer(h::Handle)
-    push!(idle_handles, h.ctx, PooledHandle(h.handle, h.plans))
+    push!(idle_handles, h.ctx, PooledHandle(h.handle, h.plans, h.dropout))
 end
 
 const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
@@ -139,7 +141,7 @@ function handle()
     # get library state
     @noinline function new_state(cuda)
         pooled = pop!(idle_handles, cuda.context)
-        wrapped = Handle(pooled.handle, cuda.context, pooled.plans)
+        wrapped = Handle(pooled.handle, cuda.context, pooled.plans, pooled.dropout)
         resource_finalizer(handle_finalizer, wrapped; blocking=false)
 
         cudnnSetStream(pooled.handle, cuda.stream)
