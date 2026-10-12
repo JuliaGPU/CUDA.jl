@@ -217,9 +217,22 @@ end
 # try to constant-propagate the `region` argument when it is not a tuple. This helps with
 # inference of calls like plan_fft(X), which is translated by AbstractFFTs.jl into
 # plan_fft(X, 1:ndims(X)).
-for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
+for f in (:plan_fft!, :plan_bfft!)
     @eval begin
         Base.@constprop :aggressive function $f(X::DenseCuArray{T,N}, region; kwargs...) where {T<:cufftComplexes,N}
+            R = length(region)
+            region = NTuple{R,Int}(region)
+            $f(X, region; kwargs...)
+        end
+    end
+end
+
+# Out-of-place plans also accept strided views. Execution stages those views
+# into dense GPU storage, so planning only needs their size and element type.
+# Provide default dimensions here to keep GPU views away from FFTW's methods.
+for f in (:plan_fft, :plan_bfft)
+    @eval begin
+        Base.@constprop :aggressive function $f(X::StridedCuArray{T,N}, region=1:ndims(X); kwargs...) where {T<:cufftComplexes,N}
             R = length(region)
             region = NTuple{R,Int}(region)
             $f(X, region; kwargs...)
@@ -249,18 +262,8 @@ function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) wher
 end
 
 # out-of-place complex
-function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+function plan_fft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
-    inplace = false
-    region = ensure_increasing(ensure_unique(region))
-
-    handle = cufftGetPlan(T, T, size(X), region)
-
-    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
-end
-
-function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
-    K = CUFFT_INVERSE
     inplace = false
     region = ensure_increasing(ensure_unique(region))
 
@@ -269,18 +272,14 @@ function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
 end
 
-# A strided view is staged into a dense CuArray when the plan is executed. Plan
-# creation therefore only needs the view's size, not its strides or contents.
-# Define the one-argument methods too, so FFTW's StridedArray methods do not
-# intercept GPU views when both packages are loaded.
-for (f, K) in ((:plan_fft, CUFFT_FORWARD), (:plan_bfft, CUFFT_INVERSE))
-    @eval function $f(X::CUDACore.StridedSubCuArray{T,N}, region=1:ndims(X);
-                      kwargs...) where {T<:cufftComplexes,N}
-        R = length(region)
-        region = ensure_increasing(ensure_unique(NTuple{R,Int}(region)))
-        handle = cufftGetPlan(T, T, size(X), region)
-        CuFFTPlan{T,T,$K,false,N,R,Nothing}(handle, size(X), size(X), region, nothing)
-    end
+function plan_bfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+    K = CUFFT_INVERSE
+    inplace = false
+    region = ensure_increasing(ensure_unique(region))
+
+    handle = cufftGetPlan(T, T, size(X), region)
+
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
 end
 
 # out-of-place real-to-complex
@@ -507,15 +506,15 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::DenseCuArray{S}) where {T,S,K}
     x
 end
 
-function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::DenseCuArray{S1,M}) where {T,S,K,S1,M}
+function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::StridedCuArray{S1,M}) where {T,S,K,S1,M}
     if T<:Real
         # Out-of-place complex-to-real FFT will always overwrite input x.
         # We copy the input x in an auxiliary buffer.
         z = p.buffer
         copyto!(z, x)
     else
-        if S1 != S
-            # Convert to the expected input type.
+        if S1 != S || !(x isa DenseCuArray)
+            # Convert to the expected input type or stage a strided view.
             z = copy1(S, x)
         else
             z = x
@@ -525,11 +524,4 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::DenseCuArray{S1,M}) where {T,S,
     y = CuArray{T,M}(undef, p.output_size)
     unsafe_execute_external_batches!(p, z, y)
     y
-end
-
-# Only out-of-place complex transforms are supported here. Copying the view
-# keeps the existing dense execution path and leaves the parent array intact.
-function Base.:(*)(p::CuFFTPlan{T,T,K,false}, x::CUDACore.StridedSubCuArray{S}
-                   ) where {T<:cufftComplexes,S<:cufftComplexes,K}
-    p * copy1(T, x)
 end
