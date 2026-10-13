@@ -914,6 +914,11 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
         return out[]
     end
     with_workspace(bufferSize) do buffer
+        # cuSPARSE 12.0 and 12.1 (CUDA 12.0-12.2) read the workspace uninitialized when B
+        # is transposed, returning NaNs if it holds stale data from the memory pool
+        if transb != 'N' && version() < v"12.2"
+            fill!(buffer, 0x00)
+        end
         cusparseSpSM_analysis(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc, buffer)
         cusparseSpSM_solve(handle(), transa, transb, Ref{T}(alpha), descA, descB, descC, T, algo, spsm_desc)
     end
