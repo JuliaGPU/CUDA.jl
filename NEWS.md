@@ -103,6 +103,12 @@ small reductions along a dimension can be slower.
 
 *Bug fixes*:
 
+- cuDNN's `batchnorm_training!`, `batchnorm_inference!` and `batchnorm_gradient!`
+  are implemented with cuDNN's fixed-function batch normalization again. The
+  graph API has no engine for inference, `Float64`, inputs of rank 2 or 3, or
+  channel counts that are not a multiple of 4 (8 for 16-bit types), and is about
+  twice as slow where it does have one. The functions also accept `alpha` and
+  `beta` again ([#3380](https://github.com/JuliaGPU/CUDA.jl/issues/3380)).
 - `CUDA.@atomic` with an operation that has no native instruction no longer
   returns without updating the element when another thread stores a NaN with a
   different payload.

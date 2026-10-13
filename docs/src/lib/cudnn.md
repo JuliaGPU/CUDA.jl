@@ -4,8 +4,8 @@
 CurrentModule = cuDNN
 ```
 
-cuDNN.jl provides generated C bindings, a graph frontend, and graph-backed operations for
-`CuArray` values.
+cuDNN.jl provides generated C bindings, a graph frontend, and operations on `CuArray` values
+built on top of them.
 
 ## Structure
 
@@ -39,9 +39,11 @@ plan. `deterministic`, `math_mode`, and `max_workspace` constrain plan selection
   optional bias and residual inputs, and pointwise activation.
 - `maxpool!`, `meanpool!`, `∇maxpool!`, and `∇meanpool!` use graph resampling.
 - `batchnorm_training!`, `batchnorm_inference!`, and `batchnorm_gradient!` implement spatial
-  batch normalization.
+  batch normalization with the fixed-function API. The graph API only supports batch
+  normalization in fused, channels-last training patterns.
 
-Support predicates build and cache a plan without executing it.
+Support predicates report whether an operation can handle its arguments. For operations
+implemented with graphs, they build and cache a plan without executing it.
 
 ## Compatibility
 
