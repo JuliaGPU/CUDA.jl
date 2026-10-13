@@ -58,7 +58,7 @@ using LinearAlgebra, SparseArrays
                         dD = copy(dB)
                         ldiv!(triangle(opa(A)), opb(D))
                         ldiv!(triangle(opa(dA)), opb(dD))
-                        @test B ≈ collect(dB)
+                        @test D ≈ collect(dD)
                     end
                     if SparseMatrixType != CuSparseMatrixBSR
                         @testset "ldiv! -- (CuMatrix, CuMatrix)" begin
