@@ -135,6 +135,23 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
     return entry
 end
 
+function GPUCompiler.finish_ir!(@nospecialize(job::AnyCUDAJob),
+                                mod::LLVM.Module, entry::LLVM.Function)
+    entry = invoke(GPUCompiler.finish_ir!,
+                   Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, LLVM.Function},
+                   job, mod, entry)
+
+    # this needs to happen after the last instcombine, which would widen the narrowed index
+    # computations again
+    if job.config.kernel && job.config.toplevel && job.config.optimize
+        GPUCompiler.with_llvm_machine(job.config.target) do tm
+            IndexNarrowing.narrow_indices!(mod, tm)
+        end
+    end
+
+    return entry
+end
+
 # stamp `.version` with the ISA we want `ptxas` to validate against
 # and `.target` with the arch that `--gpu-name` will use
 function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
