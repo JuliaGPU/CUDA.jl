@@ -845,6 +845,56 @@ let md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
     end
 end
 
+# with static shared memory, the launch configuration depends on the cache configuration and
+# the shared memory carveout, so changing those must invalidate cached configurations
+let md = CuModule("""
+        .version 6.0
+        .target sm_50
+        .address_size 64
+
+        .visible .entry shmem(.param .u64 out)
+        {
+            .shared .align 4 .b8 buf[20000];
+            .reg .b32 %r<3>;
+            .reg .b64 %rd<3>;
+            mov.u32 %r1, %tid.x;
+            st.shared.u32 [buf], %r1;
+            bar.sync 0;
+            ld.shared.u32 %r2, [buf+19996];
+            ld.param.u64 %rd1, [out];
+            cvta.to.global.u64 %rd2, %rd1;
+            st.global.u32 [%rd2], %r2;
+            ret;
+        }
+        """)
+    fun = CuFunction(md, "shmem")
+
+    # passing `shmem` as a function bypasses the cache
+    function check()
+        for max_threads in (0, 1, 32, 100, 256, 1000, 1024, typemax(Cint))
+            @test launch_configuration(fun; max_threads) ==
+                  launch_configuration(fun; shmem=Returns(0), max_threads)
+        end
+    end
+    check()
+
+    config = cache_config()
+    try
+        cache_config!(CUDA.FUNC_CACHE_PREFER_L1)
+        check()
+    finally
+        cache_config!(config)
+    end
+    check()
+
+    # set through another object for the same function
+    other = CuFunction(md, "shmem")
+    for carveout in (0, 100, -1)
+        attributes(other)[CUDA.FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT] = carveout
+        check()
+    end
+end
+
 end
 
 ############################################################################################

@@ -12,14 +12,16 @@ mutable struct CuFunction
     const handle::CUfunction
     const mod::CuModule
 
-    # queried for every launch, so cached; see `max_threads_per_block`
-    Base.@atomic max_threads::Int  # 0 until queried
+    # queried for every launch, so cached; see `max_threads_per_block` and
+    # `launch_configuration`
+    Base.@atomic max_threads::Int    # 0 until queried
+    Base.@atomic launch_config::Any  # `nothing` or a `CachedLaunchConfiguration`
 
     "Get a handle to a kernel function in a CUDA module."
     function CuFunction(mod::CuModule, name::String)
         handle_ref = Ref{CUfunction}()
         cuModuleGetFunction(handle_ref, mod, name)
-        new(handle_ref[], mod, 0)
+        new(handle_ref[], mod, 0, nothing)
     end
 end
 
