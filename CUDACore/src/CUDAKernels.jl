@@ -112,8 +112,11 @@ struct CompiledKernel{K,F}
     f::F
 end
 
+# kernels are compiled before their arguments are known, so assume that the extents of the
+# arguments fit in an `Int32`. that is checked when launching (see `kernel_launch`).
 function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
-    kernel = cufunction(cudaconvert(f), tt; name, backend.always_inline, backend.fastmath, kwargs...)
+    kernel = cufunction(cudaconvert(f), tt; name, backend.always_inline, backend.fastmath,
+                        index_facts=true, kwargs...)
     KI.Kernel(backend, CompiledKernel(kernel, f))
 end
 
