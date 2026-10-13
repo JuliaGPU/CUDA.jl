@@ -342,8 +342,9 @@ function convolution_filter_gradient!(dw::DenseCuArray{T}, x::DenseCuArray{T},
     cmode = graph_conv_mode(mode)
     check_convolution_groups(size(x, ndims(x)-1), size(dw, ndims(dw)-1),
                              size(dw, ndims(dw)), groups)
-    if spatial_rank == 1 && pre != post
-        # cuDNN 9.24 ignores 1D bwd-filter post-padding.
+    if pre != post
+        # cuDNN proposes filter-gradient engines that return wrong values for asymmetric
+        # padding (e.g. global indices 1 and 20 with cuDNN 9.26), so never request it.
         padded_x, pad = padded_convolution_input(x, pre, post)
         return convolution_filter_gradient!(dw, padded_x, dy; padding=pad, stride=str,
                                             dilation=dil, groups, mode=cmode,
@@ -352,23 +353,13 @@ function convolution_filter_gradient!(dw::DenseCuArray{T}, x::DenseCuArray{T},
     end
     key = convolution_wgrad_key(dw, x, dy, pre, post, str, dil, cmode, ctype,
                                  alpha, beta, deterministic, math_mode, max_workspace)
-    try
-        g = cached_graph(key) do
-            build_convolution_wgrad_graph(dw, x, dy, pre, post, str, dil, cmode, ctype,
-                                           alpha, beta; deterministic, math_mode,
-                                           max_workspace)
-        end
-        execute!(g, tensor(g, "X")=>x, tensor(g, "dY")=>dy, tensor(g, "dW")=>dw)
-        return dw
-    catch e
-        graph_unsupported(e) || rethrow()
-        pre == post && rethrow()
+    g = cached_graph(key) do
+        build_convolution_wgrad_graph(dw, x, dy, pre, post, str, dil, cmode, ctype,
+                                       alpha, beta; deterministic, math_mode,
+                                       max_workspace)
     end
-    padded_x, pad = padded_convolution_input(x, pre, post)
-    convolution_filter_gradient!(dw, padded_x, dy; padding=pad, stride=str,
-                                 dilation=dil, groups, mode, alpha, beta,
-                                 compute_type=ctype, deterministic, math_mode,
-                                 max_workspace)
+    execute!(g, tensor(g, "X")=>x, tensor(g, "dY")=>dy, tensor(g, "dW")=>dw)
+    return dw
 end
 
 @doc raw"""
@@ -387,7 +378,8 @@ Computes `alpha * conv(x, w) + beta * z .+ bias` and applies `activation` (`:rel
 so plain calls compute `alpha * conv(x, w) + beta * y`.
 
 `padding` accepts a scalar, one value per spatial dimension, or per-side
-`(pre1, post1, pre2, post2, ...)` pairs; asymmetric padding is supported natively.
+`(pre1, post1, pre2, post2, ...)` pairs. Asymmetric padding is supported natively, except
+by the filter gradient, which first copies `x` into a zero-padded array.
 `mode=:convolution` flips the kernel. `compute_type` defaults to `Float32` for
 `Float16`/`BFloat16` data. Engine selection can be constrained with the `deterministic`,
 `math_mode`, and `max_workspace` keywords.
