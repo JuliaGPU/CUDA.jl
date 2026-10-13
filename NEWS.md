@@ -109,6 +109,11 @@ small reductions along a dimension can be slower.
   channel counts that are not a multiple of 4 (8 for 16-bit types), and is about
   twice as slow where it does have one. The functions also accept `alpha` and
   `beta` again ([#3380](https://github.com/JuliaGPU/CUDA.jl/issues/3380)).
+- cuDNN's `maxpool!`, `meanpool!`, `∇maxpool!` and `∇meanpool!` use cuDNN's
+  fixed-function pooling when the padding is symmetric, which is faster than a
+  graph (up to twice as fast for the `Float16` max-pooling gradient) and makes
+  1D pooling work. A new `nan_propagation` keyword selects whether max pooling
+  propagates NaNs (the default) or ignores them.
 - `CUDA.@atomic` with an operation that has no native instruction no longer
   returns without updating the element when another thread stores a NaN with a
   different payload.

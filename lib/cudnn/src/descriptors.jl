@@ -137,3 +137,14 @@ cudnnRNNDescriptor(args...) = rnn_descriptor(handle(), args)
                           dimA::Vector{Cint})
 """
 @cudnnDescriptor(Tensor, cudnnSetTensorNdDescriptorEx)
+
+
+"""
+    cudnnPoolingDescriptor(mode::cudnnPoolingMode_t,
+                           maxpoolingNanOpt::cudnnNanPropagation_t,
+                           nbDims::Cint,
+                           windowDimA::Vector{Cint},
+                           paddingA::Vector{Cint},
+                           strideA::Vector{Cint})
+"""
+@cudnnDescriptor(Pooling, cudnnSetPoolingNdDescriptor)

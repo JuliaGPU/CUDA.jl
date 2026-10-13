@@ -37,7 +37,8 @@ plan. `deterministic`, `math_mode`, and `max_workspace` constrain plan selection
   `(head_dim, heads, sequence, batch)` tensors, including causal and sequence-length masks.
 - `convolution!` and its gradient methods support grouped and asymmetric convolutions,
   optional bias and residual inputs, and pointwise activation.
-- `maxpool!`, `meanpool!`, `∇maxpool!`, and `∇meanpool!` use graph resampling.
+- `maxpool!`, `meanpool!`, `∇maxpool!`, and `∇meanpool!` use the fixed-function API, which
+  is faster, for symmetric padding, and graph resampling for asymmetric padding.
 - `batchnorm_training!`, `batchnorm_inference!`, and `batchnorm_gradient!` implement spatial
   batch normalization with the fixed-function API. The graph API only supports batch
   normalization in fused, channels-last training patterns.
