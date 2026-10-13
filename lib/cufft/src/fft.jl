@@ -131,16 +131,16 @@ end
 for f in (:fft, :bfft, :ifft)
     pf = Symbol("plan_", f)
     @eval begin
-        $f(x::DenseCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Real}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
+        $f(x::StridedCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
+        $pf(x::StridedCuArray{<:Real}, region=1:ndims(x); kwargs...) = $pf(complexfloat(x), region; kwargs...)
         $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
         $pf(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
     end
 end
-rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::DenseCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
+rfft(x::StridedCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
+plan_rfft(x::StridedCuArray{<:Real}, region=1:ndims(x); kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
 
-function irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x))
+function irfft(x::StridedCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x))
     irfft(complexfloat(x), d, region)
 end
 
@@ -278,13 +278,13 @@ function plan_bfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) whe
 end
 
 # out-of-place real-to-complex
-Base.@constprop :aggressive function plan_rfft(X::DenseCuArray{T,N}, region; kwargs...) where {T<:cufftReals,N}
+Base.@constprop :aggressive function plan_rfft(X::StridedCuArray{T,N}, region=1:ndims(X); kwargs...) where {T<:cufftReals,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_rfft(X, region; kwargs...)
 end
 
-function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftReals,N,R}
+function plan_rfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftReals,N,R}
     K = CUFFT_FORWARD
     inplace = false
     region = ensure_strictly_increasing(region)
@@ -303,13 +303,13 @@ function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where
 end
 
 # out-of-place complex-to-real
-Base.@constprop :aggressive function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region; kwargs...) where {T<:cufftComplexes,N}
+Base.@constprop :aggressive function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region=1:ndims(X); kwargs...) where {T<:cufftComplexes,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_brfft(X, d, region; kwargs...)
 end
 
-function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
     region = ensure_strictly_increasing(region)
@@ -349,7 +349,7 @@ end
 #       [...]. Out-of-place complex-to-real FFT will always overwrite input buffer."
 #       see # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055.
 
-function assert_applicable(p::CuFFTPlan{T,S}, X::StridedCuArray{S}) where {T,S}
+function assert_applicable(p::CuFFTPlan{T,S}, X::StridedCuArray) where {T,S}
     (size(X) == p.input_size) ||
         throw(ArgumentError("CuFFT plan applied to wrong-size input"))
 end
@@ -508,6 +508,7 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::StridedCuArray{S}) where {T,S,K}
 end
 
 function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::StridedCuArray{S1,M}) where {T,S,K,S1,M}
+    assert_applicable(p, x)
     if T<:Real
         # Out-of-place complex-to-real FFT will always overwrite input x.
         # We copy the input x in an auxiliary buffer.
@@ -521,7 +522,6 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::StridedCuArray{S1,M}) where {T,
             z = x
         end
     end
-    assert_applicable(p, z)
     y = CuArray{T,M}(undef, p.output_size)
     unsafe_execute_external_batches!(p, z, y)
     y

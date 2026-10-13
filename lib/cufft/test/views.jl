@@ -100,3 +100,82 @@ end
         @test_throws ArgumentError plan_fft!(v, (1, 1))
     end
 end
+
+@testset "out-of-place real FFTs of strided views" begin
+    CUDACore.allowscalar(false)
+    @testset "$T" for T in (Float16, Float32, Float64)
+        host = rand(T, 8, 8, 8)
+        device = CuArray(host)
+        layouts = (
+            ("row", (2, :, 1), nothing),
+            ("column gaps", (1:4, :, 1), nothing),
+            ("stepped offset", (2:2:8, 2:5, 1), (1,)),
+            ("external batches", (1:4, :, :), (2,)),
+            ("odd length", (2:6, :, 1), (1,)),
+        )
+        @testset "$name" for (name, indices, region) in layouts
+            # cuFFT half precision requires power-of-two sizes and unit real strides.
+            T == Float16 && name in ("external batches", "odd length") && continue
+            v = view(device, indices...)
+            input = Array(view(host, indices...))
+            dims = isnothing(region) ? ntuple(identity, ndims(v)) : region
+            d = size(v, first(dims))
+            expected = rfft(input, dims)
+            @test which(plan_rfft, (typeof(v),)).module === cuFFT
+            p = isnothing(region) ? plan_rfft(v; flags=FFTW.ESTIMATE) :
+                                   plan_rfft(v, region; flags=FFTW.ESTIMATE)
+            spectrum = p * v
+            @test spectrum isa CuArray{Complex{T}}
+            @test isapprox(Array(spectrum), expected; rtol=rtol(T), atol=atol(T))
+            @test isapprox(Array(rfft(v, dims)), expected; rtol=rtol(T), atol=atol(T))
+            @test isapprox(Array(plan_rfft(copy(v), dims) * v), expected;
+                           rtol=rtol(T), atol=atol(T))
+
+            # Store the half spectrum in a non-contiguous GPU view.
+            storage = CuArray(zeros(Complex{T}, 2size(spectrum, 1), size(spectrum)[2:end]...))
+            sv = view(storage, 2:2:size(storage, 1), ntuple(_ -> Colon(), ndims(storage)-1)...)
+            copyto!(sv, spectrum)
+            before = Array(storage)
+            @test which(plan_brfft, (typeof(sv), Int)).module === cuFFT
+            for (transform, planner) in ((brfft, plan_brfft), (irfft, plan_irfft))
+                q = isnothing(region) ? planner(sv, d; flags=FFTW.PRESERVE_INPUT) :
+                                       planner(sv, d, region; flags=FFTW.PRESERVE_INPUT)
+                cpu_spectrum = T == Float16 ? ComplexF32.(Array(spectrum)) : Array(spectrum)
+                reference = transform(cpu_spectrum, d, dims)
+                @test isapprox(Array(q * sv), reference; rtol=rtol(T), atol=atol(T))
+                @test isapprox(Array(transform(sv, d, dims)), reference;
+                               rtol=rtol(T), atol=atol(T))
+                @test isapprox(Array(planner(copy(sv), d, dims) * sv), reference;
+                               rtol=rtol(T), atol=atol(T))
+                @test Array(storage) == before
+            end
+            @test isapprox(Array(inv(p) * sv), input; rtol=rtol(T), atol=atol(T))
+            @test Array(storage) == before
+            @test Array(device) == host
+
+            q = plan_brfft(sv, d, dims)
+            fill!(q.buffer, Complex{T}(7))
+            buffer_before = Array(q.buffer)
+            @test_throws ArgumentError q * view(sv, 1:1, ntuple(_ -> Colon(), ndims(sv)-1)...)
+            @test Array(q.buffer) == buffer_before
+            @test_throws ArgumentError plan_rfft(v, (1, 1))
+            @test_throws ArgumentError plan_brfft(sv, d, (1, 1))
+        end
+        v = view(device, 1:4, :, 1)
+        @test_throws ArgumentError plan_rfft(v, (2, 1))
+        for (transform, planner) in ((fft, plan_fft), (bfft, plan_bfft), (ifft, plan_ifft))
+            expected = transform(complex.(Array(v)))
+            @test isapprox(Array(transform(v)), expected; rtol=rtol(T), atol=atol(T))
+            @test isapprox(Array(planner(v) * v), expected; rtol=rtol(T), atol=atol(T))
+        end
+        @test Array(device) == host
+    end
+
+    # Integer inputs use the GPU promotion helpers instead of CPU fallbacks.
+    host = rand(Int32(0):Int32(9), 8, 4)
+    device = CuArray(host)
+    v = view(device, 1:2:8, :)
+    @test Array(rfft(v)) ≈ rfft(Float64.(Array(v)))
+    @test Array(plan_rfft(v) * v) ≈ rfft(Float64.(Array(v)))
+    @test Array(device) == host
+end
