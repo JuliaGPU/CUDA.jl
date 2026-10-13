@@ -13,9 +13,7 @@ output_type(plan::ScaledPlan) = output_type(plan.p)
 
 function Base.:(*)(p::ScaledPlan, x::StridedCuArray)
     y = p.p * x
-    # Scale it on the GPU using broadcasting, `rmul!` is not available for `StridedCuArray`
-    # and it also performs worse than broadcasting for `DenseCuArray`, so broadcasting is 
-    # use for all the cases.
+    # Normalize dense arrays and strided views with GPU broadcast.
     y .*= p.scale
     y
 end
@@ -56,7 +54,7 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B} <: Plan{
     end
 end
 
-function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle, X::DenseCuArray{S,N},
+function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle, X::StridedCuArray{S,N},
                                         sizey::NTuple{N,Int}, region::NTuple{R,Int}, buffer::B
                                         ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B}
     CuFFTPlan{T,S,K,inplace,N,R,B}(handle, size(X), sizey, region, buffer)
@@ -139,8 +137,8 @@ for f in (:fft, :bfft, :ifft)
 end
 rfft(x::StridedCuArray{<:Union{Integer,Rational}}, region) = rfft(realfloat(x), region)
 plan_rfft(x::StridedCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
-# AbstractFFTs.jl provides input-promotion methods for `brfft` and `irfft`, but not for `plan_brfft` 
-# or `plan_irfft`, so the same convention is followed for GPU arrays.
+# AbstractFFTs.jl provides input promotion for `brfft` and `irfft`, but not their planners.
+# Follow the same convention for GPU arrays.
 for f in (:brfft, :irfft)
     @eval begin
         $f(x::StridedCuArray{<:Real}, d::Integer, region) = $f(complexfloat(x), d, region)
@@ -148,8 +146,7 @@ for f in (:brfft, :irfft)
     end
 end
 
-# Add GPU specific entry points for calls that omit transform dimensions. This help keep function call 
-# like `plan_fft(X)` away from FFTW's methods when it is loaded (which would cause error on GPU arrays).
+# Handle omitted transform dimensions directly for GPU arrays, including when FFTW is loaded.
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
         $f(x::StridedCuArray{<:cufftComplexes}; kwargs...) = $f(x, 1:ndims(x); kwargs...)

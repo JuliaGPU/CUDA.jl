@@ -19,8 +19,14 @@
 
             @test which(plan_fft, (typeof(gpu_view),)).module === cuFFT
             @test which(plan_bfft, (typeof(gpu_view),)).module === cuFFT
-            @test isapprox(Array(fft(gpu_view)), fft(cpu_input);
-                           rtol=rtol(T), atol=atol(T))
+            for (transform, planner) in ((fft, plan_fft), (bfft, plan_bfft), (ifft, plan_ifft))
+                expected = transform(cpu_input)
+                result = transform(gpu_view)
+                @test result isa CuArray{T}
+                @test isapprox(Array(result), expected; rtol=rtol(T), atol=atol(T))
+                @test isapprox(Array(planner(gpu_view; flags=FFTW.ESTIMATE) * gpu_view),
+                               expected; rtol=rtol(T), atol=atol(T))
+            end
 
             regions = ndims(gpu_view) == 1 ? (1, (1,), 1:1) :
                                             (1, 2, (1, 2), (2, 1), 1:2)
@@ -71,8 +77,9 @@ end
             view(outside, indices...) .= false
             input = Array(view(host, indices...))
             dims = isnothing(region) ? ntuple(identity, ndims(input)) : region
-            for (transform, planner) in ((fft, plan_fft!), (bfft, plan_bfft!),
-                                         (ifft, plan_ifft!))
+            for (transform, direct, planner) in ((fft, fft!, plan_fft!),
+                                                 (bfft, bfft!, plan_bfft!),
+                                                 (ifft, ifft!, plan_ifft!))
                 device = CuArray(host)
                 v = view(device, indices...)
                 @test which(plan_fft!, (typeof(v),)).module === cuFFT
@@ -82,6 +89,10 @@ end
                 @test plan * v === v
                 @test isapprox(Array(v), transform(input, dims);
                                rtol=rtol(T), atol=atol(T))
+                @test Array(device)[outside] == host[outside]
+                copyto!(device, host)
+                @test (isnothing(region) ? direct(v) : direct(v, region)) === v
+                @test isapprox(Array(v), transform(input, dims); rtol=rtol(T), atol=atol(T))
                 @test Array(device)[outside] == host[outside]
             end
         end
@@ -126,7 +137,9 @@ end
             spectrum = p * v
             @test spectrum isa CuArray{Complex{T}}
             @test isapprox(Array(spectrum), expected; rtol=rtol(T), atol=atol(T))
-            @test isapprox(Array(rfft(v, dims)), expected; rtol=rtol(T), atol=atol(T))
+            result = isnothing(region) ? rfft(v) : rfft(v, region)
+            @test result isa CuArray{Complex{T}}
+            @test isapprox(Array(result), expected; rtol=rtol(T), atol=atol(T))
             @test isapprox(Array(plan_rfft(copy(v), dims) * v), expected;
                            rtol=rtol(T), atol=atol(T))
 
@@ -140,9 +153,12 @@ end
                                        planner(sv, d, region; flags=FFTW.PRESERVE_INPUT)
                 cpu_spectrum = T == Float16 ? ComplexF32.(Array(spectrum)) : Array(spectrum)
                 reference = transform(cpu_spectrum, d, dims)
-                @test isapprox(Array(q * sv), reference; rtol=rtol(T), atol=atol(T))
-                @test isapprox(Array(transform(sv, d, dims)), reference;
-                               rtol=rtol(T), atol=atol(T))
+                result = q * sv
+                @test result isa CuArray{T}
+                @test isapprox(Array(result), reference; rtol=rtol(T), atol=atol(T))
+                result = isnothing(region) ? transform(sv, d) : transform(sv, d, region)
+                @test result isa CuArray{T}
+                @test isapprox(Array(result), reference; rtol=rtol(T), atol=atol(T))
                 @test isapprox(Array(planner(copy(sv), d, dims) * sv), reference;
                                rtol=rtol(T), atol=atol(T))
                 @test Array(storage) == before
@@ -155,7 +171,10 @@ end
             fill!(q.buffer, Complex{T}(7))
             buffer_before = Array(q.buffer)
             @test_throws ArgumentError q * view(sv, 1:1, ntuple(_ -> Colon(), ndims(sv)-1)...)
+            @test_throws ArgumentError q * storage
+            ndims(sv) > 1 && @test_throws ArgumentError q * reshape(copy(sv), length(sv))
             @test Array(q.buffer) == buffer_before
+            ndims(sv) > 1 && @test_throws ArgumentError plan_brfft(sv, d, (2, 1))
             @test_throws ArgumentError plan_rfft(v, (1, 1))
             @test_throws ArgumentError plan_brfft(sv, d, (1, 1))
         end
@@ -168,12 +187,45 @@ end
         end
         @test Array(device) == host
     end
+end
 
-    # Integer inputs use the GPU promotion helpers instead of CPU fallbacks.
-    host = rand(Int32(0):Int32(9), 8, 4)
-    device = CuArray(host)
-    v = view(device, 1:2:8, :)
-    @test Array(rfft(v)) ≈ rfft(Float64.(Array(v)))
-    @test Array(plan_rfft(v) * v) ≈ rfft(Float64.(Array(v)))
-    @test Array(device) == host
+@testset "GPU input promotion" begin
+    @testset "$T" for T in (Int32, Rational{Int32}, Complex{Int32}, Complex{Rational{Int32}})
+        host = reshape(T.(1:32), 8, 4)
+        T <: Complex && (host .+= T(0, 1))
+        T <: Union{Rational,Complex{<:Rational}} && (host ./= 3)
+        device = CuArray(host)
+        v = view(device, 1:2:8, :)
+        input = ComplexF64.(Array(v))
+        for (transform, planner) in ((fft, plan_fft), (bfft, plan_bfft), (ifft, plan_ifft))
+            result = transform(v)
+            @test result isa CuArray{ComplexF64}
+            @test Array(result) ≈ transform(input)
+            result = planner(v; flags=FFTW.ESTIMATE) * v
+            @test result isa CuArray{ComplexF64}
+            @test Array(result) ≈ transform(input)
+        end
+        if T <: Real
+            for result in (rfft(v), plan_rfft(v; flags=FFTW.ESTIMATE) * v)
+                @test result isa CuArray{ComplexF64}
+                @test Array(result) ≈ rfft(real.(input))
+            end
+            @test Array(rfft(v, 1)) ≈ rfft(real.(input), 1)
+        end
+        @test Array(device) == host
+
+        # Keep DC and Nyquist values real so the half spectrum is valid.
+        spectrum = T[1, 2, 3]
+        T <: Complex && (spectrum[2] = T(2, 1))
+        storage = zeros(T, 6)
+        storage[1:2:6] = spectrum
+        device = CuArray(storage)
+        sv = view(device, 1:2:6)
+        for transform in (brfft, irfft)
+            result = transform(sv, 4)
+            @test result isa CuArray{Float64}
+            @test Array(result) ≈ transform(ComplexF64.(spectrum), 4)
+        end
+        @test Array(device) == storage
+    end
 end
