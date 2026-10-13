@@ -25,7 +25,7 @@ if :NVPTX in LLVM.backends() && CUDA_Compiler.is_available()
             llvm_ptx, ptxas_ptx = default_ptx_versions(llvm_support, ptxas_support)
 
             target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx, debuginfo=true)
-            params = CUDACompilerParams(; sm=llvm_sm, ptx=ptxas_ptx)
+            params = CUDACompilerParams(; sm=llvm_sm, ptx=ptxas_ptx, index_facts=true)
             config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false)
 
             tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}

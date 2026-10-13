@@ -1,5 +1,6 @@
 using CUDACore: LLVM
 using .LLVM: Context, supports_typed_pointers, run!, verify
+using KernelAbstractions
 
 # the narrowing pass itself, on hand-written IR
 @testset "IR" begin
@@ -260,4 +261,120 @@ end
     end
 end
 
+end
+
+function copy3d!(B, A)
+    i = (blockIdx().x-1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y-1)*blockDim().y + threadIdx().y
+    k = (blockIdx().z-1)*blockDim().z + threadIdx().z
+    if i <= size(A,1) && j <= size(A,2) && k <= size(A,3)
+        @inbounds B[i,j,k] = A[i,j,k]
+    end
+    return
+end
+
+@testset "kernels" begin
+    tt = Tuple{CuDeviceArray{Float32,3,AS.Global}, CuDeviceArray{Float32,3,AS.Global}}
+
+    # with facts about the extents of the arguments, indices are computed in 32 bits
+    @test @filecheck begin
+        @check "call void @llvm.assume"
+        @check "[[IDX:%nidx[0-9]*]] = zext nneg i32"
+        @check "getelementptr float, {{.*}} i64 [[IDX]]"
+        CUDA.code_llvm(copy3d!, tt; kernel=true, index_facts=true)
+    end
+    @test @filecheck begin
+        @check_not "%nidx"
+        CUDA.code_llvm(copy3d!, tt; kernel=true, index_facts=false)
+    end
+
+    # `@cuda` derives the facts from the arguments
+    A = CUDA.rand(Float32, 7, 5, 3)
+    B = similar(A)
+    k = @cuda threads=(7, 5, 3) copy3d!(B, A)
+    @test k.index_facts
+    @test Array(B) == Array(A)
+end
+
+# with facts, `last(r) > typemax(Int32)` is folded to `false`
+function exceeds(out, r)
+    out[1] = last(r) > typemax(Int32)
+    return
+end
+
+@kernel function ka_exceeds(out, r)
+    out[1] = last(r) > typemax(Int32)
+end
+
+# other `Int`s are bounded to the range of an `Int32`, as scalars or as fields
+function exceeds_signed(out, x, r)
+    out[1] = x > typemax(Int32) || first(r) < typemin(Int32)
+    return
+end
+
+world_helper() = 1
+function world_kernel(out, r)
+    out[1] = world_helper() + (last(r) > typemax(Int32))
+    return
+end
+
+@testset "launch" begin
+    small = Base.OneTo(10)
+    huge = Base.OneTo(2^40)
+    out = CuArray([false])
+
+    k = @cuda exceeds(out, huge)
+    @test !k.index_facts
+    @test Array(out) == [true]
+
+    # compiled with facts, and launched with arguments that don't fit them
+    k = @cuda launch=false exceeds(out, small)
+    @test k.index_facts
+    k(out, small)
+    @test Array(out) == [false]
+    k(out, huge)
+    @test Array(out) == [true]
+
+    # the facts belong to the compiled function, also when reconstructing the kernel
+    k′ = typeof(k)(k.f, k.fun, k.state)
+    @test k′.index_facts
+    k′(out, huge)
+    @test Array(out) == [true]
+
+    # captured by the kernel function, and replaced after compilation
+    captured(r) = out -> exceeds(out, r)
+    k = @cuda launch=false captured(small)(out)
+    @test k.index_facts
+    k′ = typeof(k)(captured(huge), k.fun, k.state)
+    k′(out)
+    @test Array(out) == [true]
+
+    # captured by the kernel function
+    k = @cuda (out -> exceeds(out, huge))(out)
+    @test !k.index_facts
+
+    # kernels compiled from types assume that the arguments fit, and check them on launch
+    fill!(out, false)
+    ka_exceeds(CUDABackend())(out, huge; ndrange=1)
+    @test Array(out) == [true]
+    ka_exceeds(CUDABackend())(out, small; ndrange=1)
+    @test Array(out) == [false]
+
+    # scalar arguments and other fields are checked in signed 32 bits
+    k = @cuda launch=false exceeds_signed(out, -1, -1:1)
+    @test k.index_facts
+    k(out, 1, -1:1)
+    @test Array(out) == [false]
+    k(out, 2^40, -1:1)
+    @test Array(out) == [true]
+    k(out, 1, -2^40:1)
+    @test Array(out) == [true]
+    @test !(@cuda exceeds_signed(out, -2^40, 1:1)).index_facts
+
+    # the fallback is compiled in the world of the original kernel
+    out = CuArray([0])
+    k = @cuda launch=false world_kernel(out, small)
+    @eval world_helper() = 2
+    Base.invokelatest(k, out, huge)
+    @test Array(out) == [2]
 end
