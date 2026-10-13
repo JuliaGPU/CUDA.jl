@@ -158,6 +158,17 @@ end
     end
 end
 
+@testset "debug_level" begin
+    # only debug level 2 marks the module as debuggable, which makes ptxas compile it as
+    # with `--device-debug`. `raw` keeps the debug info that reflection otherwise strips.
+    for debug_level in 0:2
+        asm = sprint(io -> CUDA.code_ptx(io, (a, i) -> (a[i] = 0; nothing),
+                                         Tuple{CuDeviceArray{Int,1,AS.Global},Int};
+                                         debug_level, raw=true))
+        @test occursin(r"\.target .+, debug", asm) == (debug_level >= 2)
+    end
+end
+
 @testset "local memory stores due to byval" begin
     # JuliaGPU/GPUCompiler.jl#92
     @test @filecheck CUDA.code_ptx(NTuple{2,CuDeviceArray{Float32,1,AS.Global}}) do y1, y2

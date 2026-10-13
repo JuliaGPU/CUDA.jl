@@ -100,6 +100,9 @@ small reductions along a dimension can be slower.
   orderings, or other operations, use UnsafeAtomics.jl directly; for atomic
   operations on arrays, Atomix.jl's `@atomic` (as used by KernelAbstractions.jl)
   is now preferred over `CUDA.@atomic`.
+- `@cuda debug_level=N` compiles a single kernel at debug level `N` instead of
+  the session's `-g` level, e.g., `debug_level=2` to get a device-side stack
+  trace of a failing kernel without restarting Julia.
 
 *Bug fixes*:
 

@@ -147,7 +147,7 @@ end
         if info.reason != C_NULL
             @cuprintf("%s\n", info.reason)
         end
-        @cuprintf("Stacktrace not available, run Julia on debug level 2 for more details (by passing -g2 to the executable).\n")
+        @cuprintf("Stacktrace not available, launch the kernel with `@cuda debug_level=2` or run Julia with -g2 for more details.\n")
     end
     return
 end

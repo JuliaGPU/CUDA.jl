@@ -258,7 +258,7 @@ end
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
 const LAUNCH_KWARGS = [:cooperative, :dependent, :blocks, :threads, :clustersize, :shmem,
                        :stream]
 
@@ -806,6 +806,10 @@ The following keyword arguments are supported:
   supported on LLVM 4.0+)
 - `name`: override the name that the kernel will have in the generated code
 - `always_inline`: inline all function calls in the kernel
+- `debug_level`: the debug level to compile the kernel at, defaulting to the session's
+  `-g` level. `0` only reports that an exception was thrown, `1` also prints its type and
+  emits line number information, and `2` also prints a device-side stack trace and emits
+  full debug info (like `nvcc -G`).
 - `fastmath`: use less precise square roots and flush denormals
 - `arch` and `ptx`: override the GPU architecture (matching nvcc/ptxas `-arch`) and the
   PTX ISA version to compile for. `arch` accepts either an [`SMVersion`](@ref) via the
