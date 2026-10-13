@@ -57,7 +57,9 @@ bn_rtol(::Type{Float32}) = 1f-4
 bn_rtol(::Type{Float16}) = 1f-2
 bn_rtol(::Type{BFloat16}) = 5f-2
 
-@testset "batchnorm $T, size $sz" for T in (Float16, BFloat16, Float32, Float64),
+bn_types = capability(device()) >= v"8.0" ? (Float16, BFloat16, Float32, Float64) :
+                                            (Float16, Float32, Float64)
+@testset "batchnorm $T, size $sz" for T in bn_types,
                                        sz in ((3, 5), (4, 3, 5), (4, 3, 3, 5), (4, 3, 2, 3, 5))
     S = T === Float64 ? Float64 : Float32
     C = sz[end-1]
@@ -129,6 +131,13 @@ bn_rtol(::Type{BFloat16}) = 5f-2
     batchnorm_inference!(yi, x, scale, bias, CuArray(rm0), CuArray(rv0); epsilon, alpha=2,
                          beta=0.5)
     @test S.(Array(yi)) ≈ 2 .* yi_ref .+ 0.5 .* S.(Array(yi0)) rtol=rtol atol=4atol
+end
+
+if capability(device()) < v"8.0"
+    let x = CuArray(rand(BFloat16, 4, 4, 3, 2)), p = CuArray(ones(Float32, 3))
+        @test !batchnorm_training_supported(similar(x), x, p, p)
+        @test_throws ArgumentError batchnorm_training!(similar(x), x, p, p)
+    end
 end
 
 let x = CuArray(rand(Float32, 2, 2, 2, 2, 2, 3, 4)), p = CuArray(ones(Float32, 3))

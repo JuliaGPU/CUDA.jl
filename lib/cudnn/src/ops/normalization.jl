@@ -15,11 +15,15 @@ end
 bn_stat_type(::Type{Float64}) = Float64
 bn_stat_type(::Type) = Float32
 
-bn_supported_eltype(::Type{T}) where {T} = T in (Float16, BFloat16, Float32, Float64)
+# cuDNN only ships BFloat16 batch normalization kernels for compute capability 8.0+, and
+# fails with CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH on older devices.
+bn_supported_eltype(::Type{T}) where {T} =
+    T in (Float16, Float32, Float64) ||
+    (T === BFloat16 && capability(device()) >= v"8.0")
 
 function check_bn_input(y::DenseCuArray{T}, x::DenseCuArray{T}) where {T}
     bn_supported_eltype(T) ||
-        throw(ArgumentError("batchnorm does not support $T inputs"))
+        throw(ArgumentError("batchnorm does not support $T inputs on this device"))
     2 <= ndims(x) <= 5 ||
         throw(ArgumentError("batchnorm input must have rank 2 to 5, got $(ndims(x))"))
     size(y) == size(x) ||
@@ -183,7 +187,8 @@ dimension (the second-to-last). `x` must have rank 2 to 5. Parameters may be vec
 length `C` or shaped `(1, ..., C, 1)`.
 
 `Float16` and `BFloat16` inputs use `Float32` parameters and statistics. `Float32` and
-`Float64` inputs use parameters and statistics of the same type.
+`Float64` inputs use parameters and statistics of the same type. `BFloat16` requires a
+device with compute capability 8.0 or newer.
 
 Training returns the saved batch statistics that the gradient consumes, with
 `saved_invvar = 1 / sqrt(var + epsilon)`, and updates `running_mean`/`running_var` in
