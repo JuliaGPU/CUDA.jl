@@ -94,7 +94,13 @@ end
     end
 end
 
+# the accessors are only called with in-bounds indices, which we tell LLVM so that it can
+# perform the index computations using 32-bit integers when the length fits (see `facts.jl`).
+# a single assumption, because each `llvmcall` adds to the cost of inlining the caller.
+@inline assume_inbounds(A::CuDeviceArray, index::Integer) = assume(in_bounds(index, length(A)))
+
 @inline function arrayref_bits(A::CuDeviceArray{T}, index::Integer) where {T}
+    assume_inbounds(A, index)
     align = alignment(A)
     unsafe_load(pointer(A), index, Val(align))
 end
@@ -140,6 +146,7 @@ end
 end
 
 @inline function arrayset_bits(A::CuDeviceArray{T}, x::T, index::Integer) where {T}
+    assume_inbounds(A, index)
     align = alignment(A)
     unsafe_store!(pointer(A), x, index, Val(align))
 end
@@ -166,6 +173,7 @@ end
     if Base.isbitsunion(T)
         arrayref_union(A, index, unsafe_cached_load)
     else
+        assume_inbounds(A, index)
         align = alignment(A)
         unsafe_cached_load(pointer(A), index, Val(align))
     end
