@@ -371,3 +371,14 @@ end
 
 Base.setindex!(dict::AttributeDict, val::Integer, attr::CUfunction_attribute) =
     cuFuncSetAttribute(dict.f, attr, val)
+
+# the maximum number of threads per block is fixed when the function is loaded, so it can be
+# cached without invalidation
+function max_threads_per_block(fun::CuFunction)
+    threads = Base.@atomic :monotonic fun.max_threads
+    if threads == 0
+        threads = Int(attributes(fun)[FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK])
+        Base.@atomic :monotonic fun.max_threads = threads
+    end
+    return threads
+end
