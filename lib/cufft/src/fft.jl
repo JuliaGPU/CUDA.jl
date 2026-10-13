@@ -13,12 +13,10 @@ output_type(plan::ScaledPlan) = output_type(plan.p)
 
 function Base.:(*)(p::ScaledPlan, x::StridedCuArray)
     y = p.p * x
-    if y isa DenseCuArray
-        rmul!(y, p.scale)
-    else
-        # In-place plans return the view itself; scale it on the GPU.
-        y .*= p.scale
-    end
+    # Scale it on the GPU using broadcasting, `rmul!` is not available for `StridedCuArray`
+    # and it also performs worse than broadcasting for `DenseCuArray`, so broadcasting is 
+    # use for all the cases.
+    y .*= p.scale
     y
 end
 
@@ -223,11 +221,10 @@ end
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
 
-# try to constant-propagate the `region` argument when it is not a tuple. This helps with
-# inference of calls like plan_fft(X), which is translated by AbstractFFTs.jl into
-# plan_fft(X, 1:ndims(X)).
-# complex plans for both dense and strided
-# Provide default dimensions to keep away from FFTW's methods when region is not specified.
+# Try to constant-propagate the `region` argument when it is not a tuple. Default dimensions
+# are provided to keep away from FFTW's methods (which would cause error on GPU arrays). This
+# new implementation would not go through the generic AbstractFFTs.jl methods when `region` 
+# is not specified like `plan_fft(X)`.
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
         Base.@constprop :aggressive function $f(X::StridedCuArray{T,N}, region=1:ndims(X); kwargs...) where {T<:cufftComplexes,N}

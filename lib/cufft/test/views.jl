@@ -44,6 +44,7 @@
             @test Array(device) == host
         end
 
+        # Dense staging allows one plan to be reused across different strides.
         first_view = view(device, 1:4, :)
         second_view = view(device, 1:2:8, :)
         plan = plan_fft(first_view; flags=FFTW.ESTIMATE)
