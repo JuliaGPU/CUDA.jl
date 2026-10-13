@@ -3,7 +3,7 @@
 @reexport using AbstractFFTs
 
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
-    plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft, irfft,
+    plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft, brfft, irfft,
     Plan, ScaledPlan
 
 using LinearAlgebra
@@ -126,23 +126,37 @@ end
 # keyword arguments is not considered for a call that passes some, which then ends up in a
 # less specific method that does, e.g., FFTW's or the generic ones from AbstractFFTs.jl.
 
-# promote to a complex floating-point type (out-of-place only),
-# so implementations only need Complex{Float} methods
+# Promote to a complex floating-point type (out-of-place only),
+# so implementations only need Complex{Float} methods.
 for f in (:fft, :bfft, :ifft)
     pf = Symbol("plan_", f)
     @eval begin
-        $f(x::StridedCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::StridedCuArray{<:Real}, region=1:ndims(x); kwargs...) = $pf(complexfloat(x), region; kwargs...)
-        $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
+        $f(x::StridedCuArray{<:Real}, region) = $f(complexfloat(x), region)
+        $pf(x::StridedCuArray{<:Real}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
+        $f(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, region) = $f(complexfloat(x), region)
+        $pf(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
     end
 end
-rfft(x::StridedCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::StridedCuArray{<:Real}, region=1:ndims(x); kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
-
-function irfft(x::StridedCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x))
-    irfft(complexfloat(x), d, region)
+rfft(x::StridedCuArray{<:Union{Integer,Rational}}, region) = rfft(realfloat(x), region)
+plan_rfft(x::StridedCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
+# AbstractFFTs.jl provides input-promotion methods for `brfft` and `irfft`, but not for `plan_brfft` 
+# or `plan_irfft`, so the same convention is followed for GPU arrays.
+for f in (:brfft, :irfft)
+    @eval begin
+        $f(x::StridedCuArray{<:Real}, d::Integer, region) = $f(complexfloat(x), d, region)
+        $f(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region) = $f(complexfloat(x), d, region)
+    end
 end
+
+# Add GPU specific entry points for calls that omit transform dimensions. This help keep function call 
+# like `plan_fft(X)` away from FFTW's methods when it is loaded (which would cause error on GPU arrays).
+for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
+    @eval begin
+        $f(x::StridedCuArray{<:cufftComplexes}; kwargs...) = $f(x, 1:ndims(x); kwargs...)
+    end
+end
+plan_rfft(x::StridedCuArray{<:cufftReals}; kwargs...) = plan_rfft(x, 1:ndims(x); kwargs...)
+plan_brfft(x::StridedCuArray{<:cufftComplexes}, d::Integer; kwargs...) = plan_brfft(x, d, 1:ndims(x); kwargs...)
 
 """
     get_batch_dims(region, sz)
@@ -221,13 +235,10 @@ end
 # region is an iterable subset of dimensions
 # spec. an integer, range, tuple, or array
 
-# Try to constant-propagate the `region` argument when it is not a tuple. Default dimensions
-# are provided to keep away from FFTW's methods (which would cause error on GPU arrays). This
-# new implementation would not go through the generic AbstractFFTs.jl methods when `region` 
-# is not specified like `plan_fft(X)`.
+# Try to constant-propagate the `region` argument when it is not a tuple.
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
-        Base.@constprop :aggressive function $f(X::StridedCuArray{T,N}, region=1:ndims(X); kwargs...) where {T<:cufftComplexes,N}
+        Base.@constprop :aggressive function $f(X::StridedCuArray{T,N}, region; kwargs...) where {T<:cufftComplexes,N}
             R = length(region)
             region = NTuple{R,Int}(region)
             $f(X, region; kwargs...)
@@ -278,7 +289,7 @@ function plan_bfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) whe
 end
 
 # out-of-place real-to-complex
-Base.@constprop :aggressive function plan_rfft(X::StridedCuArray{T,N}, region=1:ndims(X); kwargs...) where {T<:cufftReals,N}
+Base.@constprop :aggressive function plan_rfft(X::StridedCuArray{T,N}, region; kwargs...) where {T<:cufftReals,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_rfft(X, region; kwargs...)
@@ -303,7 +314,7 @@ function plan_rfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) whe
 end
 
 # out-of-place complex-to-real
-Base.@constprop :aggressive function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region=1:ndims(X); kwargs...) where {T<:cufftComplexes,N}
+Base.@constprop :aggressive function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region; kwargs...) where {T<:cufftComplexes,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_brfft(X, d, region; kwargs...)
@@ -508,6 +519,7 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::StridedCuArray{S}) where {T,S,K}
 end
 
 function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::StridedCuArray{S1,M}) where {T,S,K,S1,M}
+    # Check the input shape before copying or converting it.
     assert_applicable(p, x)
     if T<:Real
         # Out-of-place complex-to-real FFT will always overwrite input x.

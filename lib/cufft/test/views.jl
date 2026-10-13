@@ -114,7 +114,6 @@ end
             ("odd length", (2:6, :, 1), (1,)),
         )
         @testset "$name" for (name, indices, region) in layouts
-            # cuFFT half precision requires power-of-two sizes and unit real strides.
             T == Float16 && name in ("external batches", "odd length") && continue
             v = view(device, indices...)
             input = Array(view(host, indices...))
@@ -131,7 +130,6 @@ end
             @test isapprox(Array(plan_rfft(copy(v), dims) * v), expected;
                            rtol=rtol(T), atol=atol(T))
 
-            # Store the half spectrum in a non-contiguous GPU view.
             storage = CuArray(zeros(Complex{T}, 2size(spectrum, 1), size(spectrum)[2:end]...))
             sv = view(storage, 2:2:size(storage, 1), ntuple(_ -> Colon(), ndims(storage)-1)...)
             copyto!(sv, spectrum)
