@@ -31,8 +31,7 @@ using LinearAlgebra, SparseArrays
                     ldiv!(triangle(opa(dA)), dz)
                     @test z ≈ collect(dz)
                 end
-                # seems to be a library bug in CUDAs 12.0-12.2, only fp64 types are supported
-                if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || v"12.2" < cuSPARSE.version())
+                if SparseMatrixType != CuSparseMatrixBSR
                     @testset "ldiv! -- (CuVector, CuVector)" begin
                         z  = rand(elty, m)
                         dz = CuArray(z)
@@ -59,9 +58,9 @@ using LinearAlgebra, SparseArrays
                         dD = copy(dB)
                         ldiv!(triangle(opa(A)), opb(D))
                         ldiv!(triangle(opa(dA)), opb(dD))
-                        @test B ≈ collect(dB)
+                        @test D ≈ collect(dD)
                     end
-                    if SparseMatrixType != CuSparseMatrixBSR && (elty ∈ (Float64, ComplexF64) || v"12.2" < cuSPARSE.version())
+                    if SparseMatrixType != CuSparseMatrixBSR
                         @testset "ldiv! -- (CuMatrix, CuMatrix)" begin
                             C = rand(elty, m, nB)
                             dC = CuArray(C)
@@ -79,4 +78,21 @@ using LinearAlgebra, SparseArrays
             end
         end
     end
+end
+
+@testset "ldiv! with a transposed B and a stale workspace" for elty in [Float32, Float64]
+    m = 20
+    nB = 2
+    A  = sparse(tril(rand(elty, m, m)) + I)
+    B  = rand(elty, nB, m)
+    dA = CuSparseMatrixCSR(A)
+    dB = CuArray(B)
+    dC = CuMatrix{elty}(undef, m, nB)
+    # free NaN-filled buffers to the memory pool, from which the solver's workspace is
+    # allocated next
+    for len in (2^10, 2^12, 2^14)
+        CUDACore.unsafe_free!(CUDACore.fill(elty(NaN), len))
+    end
+    ldiv!(dC, LowerTriangular(dA), transpose(dB))
+    @test LowerTriangular(A) \ transpose(B) ≈ collect(dC)
 end
