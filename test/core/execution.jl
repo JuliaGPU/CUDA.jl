@@ -1625,3 +1625,33 @@ end
 end
 
 ############################################################################################
+
+@testset "argument aliasing" begin
+    function store_then_load(y, x)
+        i = threadIdx().x
+        @inbounds begin
+            y[i] = 1f0
+            v = x[i]
+            y[i] = v + 1f0
+        end
+        return
+    end
+
+    a = CUDA.zeros(Float32, 32)
+    b = CUDA.zeros(Float32, 32)
+    alias_key(args...) = CUDACore.alias_key(store_then_load, cudaconvert(args))
+    @test alias_key(a, b) != 0
+    @test alias_key(a, a) == 0
+    @test alias_key(view(a, 1:16), view(a, 17:32)) == alias_key(a, b)
+    @test alias_key(view(a, 1:17), view(a, 17:32)) == 0
+
+    # a kernel specialized for disjoint arguments is respecialized for aliased ones
+    k = @cuda launch=false store_then_load(a, b)
+    @test k.alias_key != 0
+    k(a, b; threads=32)
+    @test all(==(1f0), Array(a))
+    k(a, a; threads=32)
+    @test all(==(2f0), Array(a))
+    @cuda threads=32 store_then_load(b, b)
+    @test all(==(2f0), Array(b))
+end
