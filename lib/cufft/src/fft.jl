@@ -365,8 +365,8 @@ function assert_applicable(p::CuFFTPlan{T,S}, X::StridedCuArray) where {T,S}
         throw(ArgumentError("CuFFT plan applied to wrong-size input"))
 end
 
-function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::DenseCuArray{S},
-                           Y::DenseCuArray{T}) where {T,S,K,inplace}
+function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::StridedCuArray{S},
+                           Y::StridedCuArray{T}) where {T,S,K,inplace}
     assert_applicable(p, X)
     if size(Y) != p.output_size
         throw(ArgumentError("CuFFT plan applied to wrong-size output"))
@@ -376,6 +376,8 @@ function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::DenseCuArray{S},
                                    " plan applied to ",
                                    inplace ? "out-of-place" : "in-place",
                                    " data")))
+    elseif inplace && strides(X) != strides(Y)
+        throw(ArgumentError("CuFFT in-place plan applied to arrays with different strides"))
     end
 end
 
@@ -491,31 +493,44 @@ end
 
 ## high-level integrations
 
-function LinearAlgebra.mul!(y::DenseCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x::DenseCuArray{S}
+function LinearAlgebra.mul!(y::StridedCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x::StridedCuArray{S}
                            ) where {T,S,K,inplace}
     assert_applicable(p, x, y)
-    if !inplace && T<:Real
-        # Out-of-place complex-to-real FFT will always overwrite input x.
-        # We copy the input x in an auxiliary buffer.
-        z = p.buffer
-        copyto!(z, x)
+    if inplace
+        if x isa DenseCuArray && y isa DenseCuArray
+            z, w = x, y
+        else
+            z = copy1(S, x)
+            w = z
+        end
     else
-        z = x
+        if T<:Real
+            # Out-of-place complex-to-real FFT will always overwrite input x.
+            # We copy the input x in an auxiliary buffer.
+            z = p.buffer
+            copyto!(z, x)
+        elseif !(x isa DenseCuArray) || Base.mightalias(x, y)
+            # Stage strided inputs and snapshot potentially overlapping storage.
+            z = copy1(S, x)
+        else
+            z = x
+        end
+        w = y isa DenseCuArray ? y : CuArray{T}(undef, p.output_size)
     end
-    unsafe_execute_external_batches!(p, z, y)
+    unsafe_execute_external_batches!(p, z, w)
+    w === y || copyto!(y, w)
+    y
+end
+
+function LinearAlgebra.mul!(y::StridedCuArray, p::ScaledPlan{T,P}, x::StridedCuArray
+                           ) where {T,P<:CuFFTPlan}
+    mul!(y, p.p, x)
+    y .*= p.scale
     y
 end
 
 function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::StridedCuArray{S}) where {T,S,K}
-    assert_applicable(p, x)
-    if x isa DenseCuArray
-        unsafe_execute_external_batches!(p, x, x)
-    else
-        z = copy1(S, x)
-        unsafe_execute_external_batches!(p, z, z)
-        copyto!(x, z)
-    end
-    x
+    mul!(x, p, x)
 end
 
 function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::StridedCuArray{S1,M}) where {T,S,K,S1,M}
