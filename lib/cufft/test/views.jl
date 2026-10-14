@@ -112,6 +112,8 @@ end
     x = view(device, 1:4, :)
     y, _ = strided_destination(ComplexF32, size(x))
     p = plan_fft(x)
+
+    # Reject invalid shapes, dimensions, and input/output layouts without modifying data.
     @test_throws ArgumentError p * view(x, 1:2, :)
     @test_throws ArgumentError p * reshape(copy(x), length(x))
     @test_throws ArgumentError mul!(view(y, 1:2, :), p, x)
@@ -121,6 +123,8 @@ end
     @test_throws ArgumentError mul!(view(device, 1:2:8, :), plan_fft!(x), x)
     @test Array(device) == host
     @test all(==(1), Array(parent(y)))
+
+    # Support dense outputs on strided inputs.
     @test view_matches(mul!(similar(x), p, x), fft(host[1:4, :]))
     @test view_matches(plan_fft(copy(x)) * view(device, 1:2:8, :), fft(host[1:2:8, :]))
 
