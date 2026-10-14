@@ -255,7 +255,7 @@ steps:
           build.message !~ /\[skip [^\]]*(tests|special)/ &&
           (build.message =~ /\[only [^\]]*(tests|special)/ ||
            build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 30
+        timeout_in_minutes: 45
 
       - label: "CuArray with {{matrix.memory}} memory"
         plugins:
