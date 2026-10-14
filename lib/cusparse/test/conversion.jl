@@ -154,6 +154,30 @@ end
         x = spzeros(Bool, m, n)
         @test collect(CuSparseMatrixCSR(CuSparseMatrixCSC(x))) == collect(x)
     end
+
+    for (fmt, T) in [(:coo, CuSparseMatrixCOO),
+                     (:csc, CuSparseMatrixCSC),
+                     (:csr, CuSparseMatrixCSR)]
+        # the values are widened to Float32 for these
+        dense_conversion(Float32, fmt) || continue
+        @testset "Dense(::$T) and $T(::Dense)" begin
+            x = sprand(Bool, m, n, 0.2)
+            @test Array(CuMatrix(T(x))) == Array(x)
+            d_x = T(CuArray(Array(x)))
+            @test d_x isa T{Bool}
+            @test nnz(d_x) == nnz(x)
+            @test collect(d_x) == collect(x)
+            @test sparse(CuArray(Array(x)); fmt=fmt) isa T{Bool}
+
+            # a stored `false` stays `false`
+            x = SparseMatrixCSC(4, 4, Cint[1, 2, 3, 4, 4], Cint[1, 3, 4], [true, false, true])
+            @test Array(CuMatrix(T(x))) == Array(x)
+
+            x = spzeros(Bool, m, n)
+            @test Array(CuMatrix(T(x))) == Array(x)
+            @test nnz(T(CuArray(Array(x)))) == 0
+        end
+    end
 end
 
 @testset "sparse" begin
