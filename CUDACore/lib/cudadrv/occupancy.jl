@@ -52,12 +52,59 @@ be constrained using `max_threads`.
 In the case of a variable amount of shared memory, pass a callable object for `shmem`
 instead, taking a single integer representing the block size and returning the amount of
 dynamic shared memory for that configuration.
+
+Without dynamic shared memory, the result is cached in `fun`, and reused for every
+`max_threads` that admits the unconstrained number of threads. Setting a function attribute
+with `attributes` or the cache configuration with `cache_config!` invalidates
+the cache, but changing the configuration through the driver API directly (e.g.
+`cuFuncSetCacheConfig`) does not.
 """
 function launch_configuration(fun::CuFunction; shmem::Union{Integer,Base.Callable}=0,
                               max_threads::Integer=0)
+    max_threads = clamp(max_threads, Cint)
+    if shmem isa Integer && shmem == 0
+        config = cached_launch_configuration(fun)
+        # the driver picks the largest block size with the best occupancy, so a limit that
+        # admits the unconstrained choice doesn't change the result
+        if max_threads == 0 || max_threads >= config.threads
+            return (blocks=config.blocks, threads=config.threads)
+        end
+    end
+    return query_launch_configuration(fun, shmem, max_threads)
+end
+
+# incremented whenever something that affects launch configurations changes, invalidating
+# the cached ones. global rather than per function, because the context's cache configuration
+# applies to all functions, and several `CuFunction` objects can share a handle.
+const launch_config_generation = Threads.Atomic{Int}(0)
+
+# to be called after making the change, so that a configuration cached under the new
+# generation reflects it
+invalidate_launch_configurations() = (Threads.atomic_add!(launch_config_generation, 1); nothing)
+
+struct CachedLaunchConfiguration
+    generation::Int
+    blocks::Int
+    threads::Int
+end
+
+function cached_launch_configuration(fun::CuFunction)
+    # read the generation before querying, so that a change concurrent with the query makes
+    # the result stale instead of getting cached as current
+    generation = launch_config_generation[]
+    config = Base.@atomic :acquire fun.launch_config
+    if !(config isa CachedLaunchConfiguration && config.generation == generation)
+        (; blocks, threads) = query_launch_configuration(fun, 0, Cint(0))
+        config = CachedLaunchConfiguration(generation, blocks, threads)
+        Base.@atomic :release fun.launch_config = config
+    end
+    return config::CachedLaunchConfiguration
+end
+
+function query_launch_configuration(fun::CuFunction, shmem::Union{Integer,Base.Callable},
+                                    max_threads::Cint)
     blocks_ref = Ref{Cint}()
     threads_ref = Ref{Cint}()
-    max_threads = clamp(max_threads, Cint)
     if isa(shmem, Integer)
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
     elseif Sys.ARCH == :x86 || Sys.ARCH == :x86_64

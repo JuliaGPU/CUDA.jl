@@ -332,6 +332,9 @@ end
 
 function cache_config!(config::CUfunc_cache)
     cuCtxSetCacheConfig(config)
+    # functions without a cache preference of their own inherit the context's, which affects
+    # their launch configuration
+    invalidate_launch_configurations()
 end
 
 

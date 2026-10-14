@@ -132,14 +132,12 @@ end
 # these queries are compiled for every kernel, so they forward to functions of the
 # `CuFunction` that are compiled only once
 KI.max_work_group_size(kernel::KI.Kernel{CUDABackend})::Int =
-    max_threads_per_block(kernel.kern.kernel.fun)
+    CUDACore.max_threads_per_block(kernel.kern.kernel.fun)
 KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; nitems::Union{Integer,Nothing}=nothing,
                         max_work_group_size::Integer=typemax(Int)) =
     (; workgroupsize=launch_threads(kernel.kern.kernel.fun, kernel.backend.prefer_blocks,
                                     nitems, max_work_group_size))
 
-max_threads_per_block(fun::CuFunction) =
-    Int(attributes(fun)[CUDACore.FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK])
 function launch_threads(fun::CuFunction, prefer_blocks::Bool, nitems, max_work_group_size)
     max_threads = min(max_work_group_size, something(nitems, typemax(Int)), typemax(Int32))
     config = launch_configuration(fun; max_threads)
