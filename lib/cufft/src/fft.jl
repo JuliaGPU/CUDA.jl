@@ -13,7 +13,9 @@ output_type(plan::ScaledPlan) = output_type(plan.p)
 
 function Base.:(*)(p::ScaledPlan, x::StridedCuArray)
     y = p.p * x
-    # Normalize dense arrays and strided views with GPU broadcast.
+    # Scale it on the GPU using broadcasting, `rmul!` is not available for `StridedCuArray`
+    # and it also performs worse than broadcasting for `DenseCuArray`, so broadcasting is 
+    # use for both cases.
     y .*= p.scale
     y
 end
@@ -137,8 +139,8 @@ for f in (:fft, :bfft, :ifft)
 end
 rfft(x::StridedCuArray{<:Union{Integer,Rational}}, region) = rfft(realfloat(x), region)
 plan_rfft(x::StridedCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
-# AbstractFFTs.jl provides input promotion for `brfft` and `irfft`, but not their planners.
-# Follow the same convention for GPU arrays.
+# AbstractFFTs.jl provides input-promotion methods for `brfft` and `irfft`, but not for `plan_brfft` 
+# or `plan_irfft`, so the same convention is followed for GPU arrays.
 for f in (:brfft, :irfft)
     @eval begin
         $f(x::StridedCuArray{<:Real}, d::Integer, region) = $f(complexfloat(x), d, region)
@@ -146,7 +148,8 @@ for f in (:brfft, :irfft)
     end
 end
 
-# Handle omitted transform dimensions directly for GPU arrays, including when FFTW is loaded.
+# Add GPU specific entry points for calls that omit transform dimensions. This help keep function call 
+# like `plan_fft(X)` away from FFTW's methods when it is loaded (which would cause error on GPU arrays).
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
         $f(x::StridedCuArray{<:cufftComplexes}; kwargs...) = $f(x, 1:ndims(x); kwargs...)
@@ -251,7 +254,7 @@ function plan_fft!(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) whe
 
     handle = cufftGetPlan(T, T, size(X), region)
 
-    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
 function plan_bfft!(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
@@ -261,7 +264,7 @@ function plan_bfft!(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) wh
 
     handle = cufftGetPlan(T, T, size(X), region)
 
-    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
 # out-of-place complex
@@ -272,7 +275,7 @@ function plan_fft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) wher
 
     handle = cufftGetPlan(T, T, size(X), region)
 
-    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
 function plan_bfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
@@ -282,7 +285,7 @@ function plan_bfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) whe
 
     handle = cufftGetPlan(T, T, size(X), region)
 
-    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, size(X), size(X), region, nothing)
+    CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
 # out-of-place real-to-complex
@@ -307,7 +310,7 @@ function plan_rfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) whe
     buffer = CuArray{complex(T)}(undef, ydims...)
     B = typeof(buffer)
 
-    CuFFTPlan{complex(T),T,K,inplace,N,R,B}(handle, size(X), (ydims...,), region, buffer)
+    CuFFTPlan{complex(T),T,K,inplace,N,R,B}(handle, X, (ydims...,), region, buffer)
 end
 
 # out-of-place complex-to-real
@@ -329,7 +332,7 @@ function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region::NTuple{R,Int}; k
     buffer = CuArray{T}(undef, size(X))
     B = typeof(buffer)
 
-    CuFFTPlan{real(T),T,K,inplace,N,R,B}(handle, size(X), ydims, region, buffer)
+    CuFFTPlan{real(T),T,K,inplace,N,R,B}(handle, X, ydims, region, buffer)
 end
 
 
