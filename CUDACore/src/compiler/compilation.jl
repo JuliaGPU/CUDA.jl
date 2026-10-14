@@ -150,7 +150,7 @@ function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, for
                  job, mod, format)
 
     # remove extraneous debug info on lower debug levels
-    if Base.JLOptions().debug_level < 2
+    if job.config.debug_level < 2
         # LLVM sets `.target debug` as soon as the debug emission kind isn't NoDebug. this
         # is unwanted, as the flag makes `ptxas` behave as if `--device-debug` were set.
         # ideally, we'd need something like LocTrackingOnly/EmitDebugInfo from D4234, but
@@ -261,6 +261,7 @@ function select_llvm_sm(llvm_sms, ptxas_sm)
 end
 
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
+                                         debug_level=Base.JLOptions().debug_level,
                                          arch=nothing, cap=nothing, ptx=nothing, kwargs...)
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
     if cap !== nothing
@@ -326,7 +327,7 @@ end
                                  feature_set=llvm_sm.feature_set, system_atomics,
                                  debuginfo=true, kwargs...)
     params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
-    CompilerConfig(target, params; kernel, name, always_inline)
+    CompilerConfig(target, params; kernel, name, always_inline, debug_level)
 end
 
 # does the host-side layout of an argument type match the device-side one?
@@ -413,9 +414,9 @@ function compile(@nospecialize(job::CompilerJob))
     ptxas_opts = String[]
     nvlink_opts = String[]
     ## debug flags
-    if Base.JLOptions().debug_level == 1
+    if job.config.debug_level == 1
         push!(ptxas_opts, "--generate-line-info")
-    elseif Base.JLOptions().debug_level >= 2
+    elseif job.config.debug_level >= 2
         push!(ptxas_opts, "--device-debug")
         push!(nvlink_opts, "--debug")
     end
