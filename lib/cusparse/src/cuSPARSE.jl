@@ -105,7 +105,7 @@ function handle()
 
         (; handle=wrapped, cuda.stream)
     end
-    state = get!(states, cuda.context) do
+    state = get!(state_cache, cuda.context) do
         new_state(cuda)
     end
 
@@ -193,11 +193,11 @@ function __init__()
     _initialized[] = true
 end
 
-# KernelAbstractions integration
-import KernelAbstractions as KA
-KA.get_backend(::CuSparseVector)    = CUDACore.CUDAKernels.CUDABackend()
-KA.get_backend(::CuSparseMatrixCSC) = CUDACore.CUDAKernels.CUDABackend()
-KA.get_backend(::CuSparseMatrixCSR) = CUDACore.CUDAKernels.CUDABackend()
+# KernelInterface integration
+import KernelInterface as KI
+KI.get_backend(::CuSparseVector)    = CUDABackend()
+KI.get_backend(::CuSparseMatrixCSC) = CUDABackend()
+KI.get_backend(::CuSparseMatrixCSR) = CUDABackend()
 
 include("precompile.jl")
 

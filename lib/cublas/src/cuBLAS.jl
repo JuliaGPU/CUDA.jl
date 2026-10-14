@@ -131,7 +131,7 @@ function handle()
 
         (; handle=wrapped, cuda.stream, cuda.math_mode, cuda.math_precision)
     end
-    state = get!(states, cuda.context) do
+    state = get!(state_cache, cuda.context) do
         new_state(cuda)
     end
 
@@ -197,8 +197,6 @@ const xt_state_cache = CUDACore.TaskLocalCache{UInt, XtLibraryState}(:CUBLASxt)
 function xt_handle()
     cuda = CUDACore.active_state()
 
-    states = CUDACore.task_dict(xt_state_cache)
-
     # for performance, don't use a tuple of contexts to index the TLS
     key = zero(UInt)
     for dev in devices()
@@ -236,7 +234,7 @@ function xt_handle()
 
         (; handle=wrapped)
     end
-    state = get!(states, key) do
+    state = get!(xt_state_cache, key) do
         new_state(cuda)
     end
 

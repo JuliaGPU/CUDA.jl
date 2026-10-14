@@ -2,8 +2,8 @@
 
 module StaticArraysExt
 
-using ..CUDACore
-using ..CUDACore: @device_override, @gputhrow
+using CUDACore
+using CUDACore: @device_override, @gputhrow
 
 import StaticArrays
 

@@ -75,8 +75,6 @@ const library_state_cache = CUDACore.TaskLocalCache{CuContext, BorrowedLibraryRN
 function library_rng()
     cuda = CUDACore.active_state()
 
-    states = CUDACore.task_dict(library_state_cache)
-
     @noinline function new_state(cuda)
         new_rng = pop!(idle_library_rngs, cuda.context)
         wrapped = BorrowedLibraryRNG(new_rng, cuda.context)
@@ -84,7 +82,7 @@ function library_rng()
         Random.seed!(new_rng)
         wrapped
     end
-    borrowed = get!(states, cuda.context) do
+    borrowed = get!(library_state_cache, cuda.context) do
         new_state(cuda)
     end
 

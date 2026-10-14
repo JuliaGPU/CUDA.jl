@@ -115,7 +115,7 @@ function dense_handle()
 
         (; handle=fat_handle, cuda.stream)
     end
-    state = get!(states, cuda.context) do
+    state = get!(dense_state_cache, cuda.context) do
         new_state(cuda)
     end
 
@@ -178,7 +178,7 @@ function sparse_handle()
 
         (; handle=wrapped, cuda.stream)
     end
-    state = get!(states, cuda.context) do
+    state = get!(sparse_state_cache, cuda.context) do
         new_state(cuda)
     end
 
@@ -232,8 +232,6 @@ const mg_state_cache = CUDACore.TaskLocalCache{UInt, MgLibraryState}(:CUSOLVERmg
 function mg_handle()
     cuda = CUDACore.active_state()
 
-    states = CUDACore.task_dict(mg_state_cache)
-
     # derive a key from the active and selected devices
     key = hash(cuda.context)
     for dev in devices()
@@ -253,7 +251,7 @@ function mg_handle()
 
         (; handle=wrapped)
     end
-    state = get!(states, key) do
+    state = get!(mg_state_cache, key) do
         new_state(cuda)
     end
 

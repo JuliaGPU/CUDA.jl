@@ -306,6 +306,7 @@ end
 end
 
 
+
 @testset "launch failure: register pressure" begin
     # Force ptxas to keep N live values across a barrier. The stores into
     # `out` are the observable side effect that prevents the optimizer from

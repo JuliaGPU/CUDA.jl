@@ -85,6 +85,21 @@ end
         end
         CUDACore.flush_logs()
     end
+
+    # at exit, finalizers run newest first, so objects created before logging was set up
+    # are finalized after the queue's condition. their callbacks must not crash.
+    script = """
+        using CUDACore
+        using Base.CoreLogging: Debug
+        mutable struct LogsWhenFinalized end
+        const obj = finalizer(LogsWhenFinalized()) do _
+            CUDACore.enqueue_log(CUDACore, Debug, "finalized")
+        end
+        CUDACore.init_logging()
+    """
+    # JULIA_DEBUG could set up logging when loading CUDACore, reversing the order
+    proc, _, _ = julia_exec(`-e $script`, "JULIA_DEBUG" => nothing)
+    @test success(proc)
 end
 
 struct BlockingLibraryLogger <: Base.CoreLogging.AbstractLogger

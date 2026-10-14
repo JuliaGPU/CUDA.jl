@@ -1,5 +1,5 @@
 using GPUArrays
-using CUDACore: resource_finalizer
+using CUDACore: resource_finalizer, TaskLocalCache
 
 @testset "reclaim frees memory that just became unreachable" begin
     # (in a function, so that the array isn't kept alive by the test scope)
@@ -136,6 +136,20 @@ end
     @test !cached.freed
     GPUArrays.unsafe_free!(cache)
     @test cached.freed
+end
+
+@testset "task-local state created in an allocation cache" begin
+    # task-local state, like a library handle's workspace, outlives the call that happens to
+    # create it, so it must not be owned by the allocation cache active at that time
+    state_cache = TaskLocalCache{CuContext,CuVector{Cint}}(:CUDA_test_uncached_state)
+    cache = GPUArrays.AllocCache()
+    state = fetch(Threads.@spawn begin
+        GPUArrays.@cached cache get!(() -> CuVector{Cint}(undef, 1), state_cache, context())
+        GPUArrays.unsafe_free!(cache)
+        get!(() -> error("task-local state was not kept"), state_cache, context())
+    end)
+    @test !state.data.freed
+    CUDA.unsafe_free!(state)
 end
 
 @testset "handle caches" begin

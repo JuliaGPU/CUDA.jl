@@ -43,7 +43,9 @@ Run Julia on debug level 2 for device stack traces.
 ```
 
 As the message suggests, we can have CUDA.jl emit more rich stack trace information by
-setting Julia's debug level to 2 or higher by passing `-g2` to the `julia` invocation:
+compiling the kernel at debug level 2. Either pass `debug_level=2` to `@cuda`, which only
+affects that kernel and doesn't require restarting Julia, or set Julia's debug level for the
+whole session by passing `-g2` to the `julia` invocation:
 
 ```
 ERROR: a exception was thrown during kernel execution.
@@ -57,7 +59,7 @@ Stacktrace:
 
 Note that these messages are embedded in the module (CUDA does not support stack unwinding),
 and thus bloat its size. To avoid any overhead, you can disable these messages by setting
-the debug level to 0 (passing `-g0` to `julia`). This disabled any device-side message, but
+the debug level to 0 (`@cuda debug_level=0`, or passing `-g0` to `julia`). This disables any device-side message, but
 retains the host-side detection:
 
 ```
@@ -77,8 +79,8 @@ CUDA.jl emits line number information corresponding to `nvcc -lineinfo`. This in
 does not hurt performance, and is used by a variety of tools to improve the debugging
 experience.
 
-To emit actual debug info as `nvcc -G` does, you need to start Julia on debug level 2 by
-passing the flag `-g2`. Support for emitting PTX-compatible debug info is a recent addition
+To emit actual debug info as `nvcc -G` does, compile the kernel at debug level 2, by passing
+`debug_level=2` to `@cuda` or by starting Julia with the flag `-g2`. Support for emitting PTX-compatible debug info is a recent addition
 to the NVPTX LLVM back-end, so it's possible this information is incorrect or otherwise
 affects compilation.
 
@@ -86,7 +88,7 @@ affects compilation.
 
     Due to bugs in `ptxas`, you need CUDA 11.5 or higher for debug info support.
 
-To disable all debug info emission, start Julia with the flag `-g0`.
+To disable all debug info emission, use `debug_level=0` or start Julia with the flag `-g0`.
 
 
 ## `compute-sanitizer`

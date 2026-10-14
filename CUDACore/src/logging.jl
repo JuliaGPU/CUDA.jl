@@ -56,7 +56,11 @@ function enqueue_log(mod::Module, level::LogLevel, message::AbstractString)
     # NOTE: uv_async_send is thread-safe, but coalesces wake-ups, so the handler drains the
     #       entire queue rather than processing a single message.
     if isassigned(log_condition)
-        ccall(:uv_async_send, Cint, (Ptr{Cvoid},), log_condition[].handle)
+        # at exit, the condition can be finalized before objects whose finalizers still
+        # call into a library (e.g. destroying a descriptor), which then logs. nothing can
+        # deliver the message by then.
+        handle = log_condition[].handle
+        handle == C_NULL || ccall(:uv_async_send, Cint, (Ptr{Cvoid},), handle)
     end
     return
 end

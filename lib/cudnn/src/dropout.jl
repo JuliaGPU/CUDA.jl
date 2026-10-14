@@ -12,10 +12,10 @@ The user can set the global seed `cudnnDropoutSeed[]` to a positive number to al
 the same values deterministically for debugging. Note that this slows down the operation by
 about 40x.
 
-The global constant `cudnnDropoutState::Dict` holds the random number generator state for
-each cuDNN handle.
+Each cuDNN handle has its own random number generator state, which is shared by the dropout
+descriptors of that handle.
 """
-cudnnDropoutForward, cudnnDropoutForward!, cudnnDropoutSeed, cudnnDropoutState
+cudnnDropoutForward, cudnnDropoutForward!, cudnnDropoutSeed
 
 
 # Public methods
@@ -30,20 +30,20 @@ function cudnnDropoutForwardWithDefaults(
     x;
     y = similar(x),
     dropout::Real = 0.5,
-    dropoutDesc::cudnnDropoutDescriptor = cudnnDropoutDescriptor(Cfloat(dropout)),
+    dropoutDesc::Union{Nothing,cudnnDropoutDescriptor} = nothing,
     xDesc::cudnnTensorDescriptor = cudnnTensorDescriptor(x),
     yDesc::cudnnTensorDescriptor = xDesc,
     reserveSpace::CuArray = cudnnDropoutReserveSpace(xDesc)
 )
-    if cudnnDropoutSeed[] >= 0
-        dropout, states, seed = cudnnGetDropoutDescriptor(dropoutDesc)
-        h = handle()
-        hstate = cudnnDropoutState[h.handle]
-        @assert states == pointer(hstate)
-        cudnnSetDropoutDescriptor(dropoutDesc, h, dropout, hstate, sizeof(hstate),
+    h = handle()
+    dropoutDesc = dropoutDesc === nothing ? dropout_descriptor(h, Cfloat(dropout)) :
+                                            dropout_descriptor(h, dropoutDesc)
+    if cudnnDropoutSeed[] >= 0 && dropoutDesc.state !== nothing
+        state = dropoutDesc.state
+        cudnnSetDropoutDescriptor(dropoutDesc, h, dropoutDesc.dropout, state, sizeof(state),
                                   cudnnDropoutSeed[])
     end
-    cudnnDropoutForwardAD(x; xDesc, y, yDesc, dropoutDesc, reserveSpace)
+    cudnnDropoutForwardAD(x; handle=h, xDesc, y, yDesc, dropoutDesc, reserveSpace)
 end
 
 function cudnnDropoutReserveSpace(td::cudnnTensorDescriptor)
@@ -54,38 +54,78 @@ end
 
 
 # AD method
-function cudnnDropoutForwardAD(x; xDesc, y, yDesc, dropoutDesc, reserveSpace)
-    cudnnDropoutForward(handle(), dropoutDesc, xDesc, x, yDesc, y, reserveSpace, sizeof(reserveSpace))
+function cudnnDropoutForwardAD(x; handle, xDesc, y, yDesc, dropoutDesc, reserveSpace)
+    state = dropoutDesc.state
+    GC.@preserve state begin
+        # the descriptor hides the state from the operation, so take its pointer to make it
+        # ready for use on the current stream (like the operation's own arguments)
+        state === nothing || pointer(state)
+        cudnnDropoutForward(handle, dropoutDesc, xDesc, x, yDesc, y, reserveSpace,
+                            sizeof(reserveSpace))
+    end
     return y
 end
 
 
-# Global RNG state: This should NOT be reallocated for each descriptor! However
-# cudnnDropoutForward() doc says: "This function should not be running concurrently with
-# another cudnnDropoutForward() function using the same states."  So I am going to assume
-# using a single buffer per handle is ok.
+# Random number generator state: cuDNN docs for cudnnDropoutForward() say "This function
+# should not be running concurrently with another cudnnDropoutForward() function using the
+# same states", so each handle (which is used by a single task at a time) has its own state,
+# shared by the handle's dropout descriptors. Initializing the state is expensive, so this
+# is done once, after which other descriptors are pointed at it.
 
-const cudnnDropoutState = Dict{Ptr,CuArray}() # handle -> state
+# RNN descriptors refer to a dropout descriptor, so they are cached per handle too.
+mutable struct DropoutCache
+    state::Union{Nothing,CuVector{UInt8}}
+    const descriptors::Dict{Cfloat,cudnnDropoutDescriptor}
+    const rnn_descriptors::Dict{Tuple,cudnnRNNDescriptor}
+end
+DropoutCache() = DropoutCache(nothing, Dict{Cfloat,cudnnDropoutDescriptor}(),
+                              Dict{Tuple,cudnnRNNDescriptor}())
+
+function dropout_descriptor(h, dropout::Cfloat)
+    cache = h.dropout
+    d = get(cache.descriptors, dropout, nothing)
+    d === nothing || return d
+
+    state = cache.state
+    if state === nothing && is_capturing()
+        throw(CaptureError("""cannot initialize the cuDNN dropout state while capturing a graph.
+                              Perform a dropout operation before capturing."""))
+    end
+
+    initialized = state !== nothing
+    if !initialized
+        # the state lives as long as the handle, so it should not be owned by an active
+        # allocation cache
+        state = GPUArrays.@uncached CuVector{UInt8}(undef, cudnnDropoutGetStatesSize(h))
+    end
+
+    ptr = Ref{cudnnDropoutDescriptor_t}()
+    cudnnCreateDropoutDescriptor(ptr)
+    d = cudnnDropoutDescriptor(ptr[], dropout, state)
+    resource_finalizer(x->cudnnDestroyDropoutDescriptor(x.ptr), d; blocking=false)
+    if initialized
+        cudnnRestoreDropoutDescriptor(d, h, dropout, state, sizeof(state), 0)
+    else
+        cudnnSetDropoutDescriptor(d, h, dropout, state, sizeof(state), time_ns())
+        cache.state = state
+    end
+    cache.descriptors[dropout] = d
+    return d
+end
+
+# a descriptor that belongs to another handle (e.g. created by another task, or on another
+# device) is replaced by the current handle's descriptor for the same probability
+function dropout_descriptor(h, d::cudnnDropoutDescriptor)
+    (d.state === nothing || d.state === h.dropout.state) && return d
+    return dropout_descriptor(h, d.dropout)
+end
+
 
 # Global dropout seed: To debug gradients set cudnnDropoutSeed[] >= 0 which makes all
 # dropout operations deterministic but about 40x more expensive.
 
 const cudnnDropoutSeed = Ref{Int}(-1)
-
-
-# Helper for cudnnDropoutDescriptor constructor from float:
-# Calls to cudnnDropoutDescriptor with identical Cfloats will return the same object thanks
-# to caching. If the user wants to set the seed to replicate an experiment, that is taken
-# care of during the forward call.
-
-function cudnnSetDropoutDescriptorFromFloat(ptr::cudnnDropoutDescriptor_t, dropout::Real)
-    h = handle()
-    hstate = get!(cudnnDropoutState, h.handle) do
-        cudnnTempSpace(cudnnDropoutGetStatesSize())
-    end
-    seed = floor(Culonglong,time())
-    cudnnSetDropoutDescriptor(ptr, h, Cfloat(dropout), hstate, sizeof(hstate), seed)
-end
 
 
 function cudnnGetDropoutDescriptor(d::cudnnDropoutDescriptor)
@@ -94,9 +134,9 @@ function cudnnGetDropoutDescriptor(d::cudnnDropoutDescriptor)
     return (dropout[], states[], seed[])
 end
 
-function cudnnDropoutGetStatesSize()
+function cudnnDropoutGetStatesSize(h=handle())
     ssize = Ref{Csize_t}(0)
-    cudnnDropoutGetStatesSize(handle(), ssize)
+    cudnnDropoutGetStatesSize(h, ssize)
     @assert ssize[] > 0
     return ssize[]
 end

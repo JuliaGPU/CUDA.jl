@@ -100,9 +100,23 @@ small reductions along a dimension can be slower.
   orderings, or other operations, use UnsafeAtomics.jl directly; for atomic
   operations on arrays, Atomix.jl's `@atomic` (as used by KernelAbstractions.jl)
   is now preferred over `CUDA.@atomic`.
+- `@cuda debug_level=N` compiles a single kernel at debug level `N` instead of
+  the session's `-g` level, e.g., `debug_level=2` to get a device-side stack
+  trace of a failing kernel without restarting Julia.
 
 *Bug fixes*:
 
+- cuDNN's `batchnorm_training!`, `batchnorm_inference!` and `batchnorm_gradient!`
+  are implemented with cuDNN's fixed-function batch normalization again. The
+  graph API has no engine for inference, `Float64`, inputs of rank 2 or 3, or
+  channel counts that are not a multiple of 4 (8 for 16-bit types), and is about
+  twice as slow where it does have one. The functions also accept `alpha` and
+  `beta` again ([#3380](https://github.com/JuliaGPU/CUDA.jl/issues/3380)).
+- cuDNN's `maxpool!`, `meanpool!`, `∇maxpool!` and `∇meanpool!` use cuDNN's
+  fixed-function pooling when the padding is symmetric, which is faster than a
+  graph (up to twice as fast for the `Float16` max-pooling gradient) and makes
+  1D pooling work. A new `nan_propagation` keyword selects whether max pooling
+  propagates NaNs (the default) or ignores them.
 - `CUDA.@atomic` with an operation that has no native instruction no longer
   returns without updating the element when another thread stores a NaN with a
   different payload.
@@ -131,6 +145,10 @@ small reductions along a dimension can be slower.
   memory access error.
 - `add_rn` and `mul_rn` are no longer contracted into a fused multiply-add on
   Julia 1.10 and 1.11.
+- cuDNN dropout, and RNNs with dropout, keep a random number generator state
+  per library handle, and don't share it with other tasks or devices anymore. Dropout with
+  `cudnnDropoutSeed[]` set no longer fails in tasks other than the one that
+  first used dropout.
 
 *Minor changes*:
 
