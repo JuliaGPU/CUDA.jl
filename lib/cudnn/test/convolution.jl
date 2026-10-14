@@ -239,3 +239,33 @@ let W=5, C=2, N=1, K=3
         @test Array(dw) ≈ ref rtol=1e-12 atol=1e-12
     end
 end
+
+# some engines get asymmetric padding wrong, depending on the GPU (#3378), so compare
+# against the same convolution of an input that is padded by hand
+@testset "asymmetric $(nd)D padding $T" for nd in (2, 3), T in (Float32, Float64)
+    C, K, N = 3, 4, 2
+    for padding in (nd == 2 ? ((1, 0, 3, 2), (0, 1, 2, 3)) :
+                              ((1, 0, 3, 2, 5, 4), (0, 1, 2, 3, 4, 5), (2, 3, 4, 5, 6, 7)))
+        pre, post = padding[1:2:end], padding[2:2:end]
+        xsize = ntuple(_ -> 6, nd)
+        psize = xsize .+ pre .+ post
+        ysize = psize .- 1
+        interior = ntuple(i -> pre[i] .+ (1:xsize[i]), nd)
+
+        x = CuArray(rand(T, xsize..., C, N))
+        xp = CUDACore.zeros(T, psize..., C, N)
+        xp[interior..., :, :] .= x
+        w = CuArray(rand(T, ntuple(_ -> 2, nd)..., C, K))
+        dy = CuArray(rand(T, ysize..., K, N))
+
+        y = convolution!(similar(dy), x, w; padding)
+        @test Array(y) ≈ Array(convolution!(similar(dy), xp, w))
+
+        dx = convolution_data_gradient!(similar(x), dy, w; padding)
+        dxp = convolution_data_gradient!(similar(xp), dy, w)
+        @test Array(dx) ≈ Array(dxp)[interior..., :, :]
+
+        dw = convolution_filter_gradient!(similar(w), x, dy; padding)
+        @test Array(dw) ≈ Array(convolution_filter_gradient!(similar(w), xp, dy))
+    end
+end
