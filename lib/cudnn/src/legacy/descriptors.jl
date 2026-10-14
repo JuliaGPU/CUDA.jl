@@ -72,17 +72,6 @@ cudnnConvolutionDescriptor(pad::Vector{Cint},
 
 
 """
-    cudnnPoolingDescriptor(mode::cudnnPoolingMode_t,
-                           maxpoolingNanOpt::cudnnNanPropagation_t,
-                           nbDims::Cint,
-                           windowDimA::Vector{Cint},
-                           paddingA::Vector{Cint},
-                           strideA::Vector{Cint})
-"""
-@cudnnDescriptor(Pooling, cudnnSetPoolingNdDescriptor)
-
-
-"""
     cudnnReduceTensorDescriptor(reduceTensorOp::cudnnReduceTensorOp_t,
                                 reduceTensorCompType::cudnnDataType_t,
                                 reduceTensorNanOpt::cudnnNanPropagation_t,
