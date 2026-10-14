@@ -277,7 +277,7 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   Xavier sees from cuDNN, whose Jetson build stops at sm_75.
 
 
-### v6.4.1 (unreleased)
+### v6.4.1 (September 2026)
 
 - Added support for CUDA 13.4 Update 1: the cuBLASLt and cuSOLVER wrappers
   were regenerated (batch-invariance flags, the two-stage `Xsyevd` selector).
