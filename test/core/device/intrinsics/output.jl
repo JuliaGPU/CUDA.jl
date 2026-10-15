@@ -161,14 +161,16 @@ end
     # (compile ahead of time, as loading the module flushes too)
     kernel() = (@cuprintln("Hello, World"); nothing)
     @cuda launch=false kernel()
-    out = mktemp() do fname, fout
-        redirect_stdout(fout) do
-            @cuda kernel()
-            while !CUDA.isdone(stream()) end
-            synchronize()
+    for sync in (synchronize, device_synchronize)
+        out = mktemp() do fname, fout
+            redirect_stdout(fout) do
+                @cuda kernel()
+                while !CUDA.isdone(stream()) end
+                sync()
+            end
+            close(fout)
+            read(fname, String)
         end
-        close(fout)
-        read(fname, String)
+        @test out == "Hello, World$endline"
     end
-    @test out == "Hello, World$endline"
 end
