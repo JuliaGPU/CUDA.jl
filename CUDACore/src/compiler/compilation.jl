@@ -389,7 +389,13 @@ device_compatible_layout(@nospecialize(T)) =
 
 # compile to executable machine code
 function compile(@nospecialize(job::CompilerJob))
-    # lower to PTX
+    ptx = emit_ptx(job)
+    image = assemble(job, ptx.asm, ptx.needs_cudadevrt)
+    return (; image, ptx.entry, ptx.relocations)
+end
+
+# lower to PTX, and check that the kernel can be launched
+function emit_ptx(@nospecialize(job::CompilerJob))
     # TODO: on 1.9, this actually creates a context. cache those.
     # the IR is ours: inspect it in here, and dispose of it so that it does not leak
     asm, entry, relocations, needs_cudadevrt = JuliaContext() do ctx
@@ -410,27 +416,17 @@ function compile(@nospecialize(job::CompilerJob))
         asm, entry, meta.relocations, needs_cudadevrt
     end
 
-    # prepare invocations of CUDA compiler tools
-    ptxas_opts = String[]
-    nvlink_opts = String[]
-    ## debug flags
-    if job.config.debug_level == 1
-        push!(ptxas_opts, "--generate-line-info")
-    elseif job.config.debug_level >= 2
-        push!(ptxas_opts, "--device-debug")
-        push!(nvlink_opts, "--debug")
-    end
-    ## relocatable device code
-    if needs_cudadevrt
-        push!(ptxas_opts, "--compile-only")
-    end
+    check_parameter_memory(job)
 
+    return (; asm, entry, relocations, needs_cudadevrt)
+end
+
+function check_parameter_memory(@nospecialize(job::CompilerJob))
     sm_param = job.config.params.sm
     ptx_param = job.config.params.ptx
     cap = base_version(sm_param)
     arch = cpu_name(sm_param)
 
-    # validate use of parameter memory
     argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
         !isghosttype(dt) && !Core.Compiler.isconstType(dt)
     end
@@ -477,8 +473,27 @@ function compile(@nospecialize(job::CompilerJob))
         end
         error(msg)
     end
+end
 
-    # compile to machine code
+# assemble PTX code into a cubin, linking the device runtime if needed. this only runs
+# external tools on private temporary files, so it does not need `cufunction_lock`.
+function assemble(@nospecialize(job::CompilerJob), asm::String, needs_cudadevrt::Bool)
+    arch = cpu_name(job.config.params.sm)
+
+    ptxas_opts = String[]
+    nvlink_opts = String[]
+    ## debug flags
+    if job.config.debug_level == 1
+        push!(ptxas_opts, "--generate-line-info")
+    elseif job.config.debug_level >= 2
+        push!(ptxas_opts, "--device-debug")
+        push!(nvlink_opts, "--debug")
+    end
+    ## relocatable device code
+    if needs_cudadevrt
+        push!(ptxas_opts, "--compile-only")
+    end
+
     # NOTE: we use tempname since mktemp doesn't support suffixes, and mktempdir is slow
     ptx_input = tempname(cleanup=false) * ".ptx"
     ptxas_output = tempname(cleanup=false) * ".cubin"
@@ -498,7 +513,6 @@ function compile(@nospecialize(job::CompilerJob))
         ptx_input
     ])
     proc, log = run_and_collect(`$(CUDA_Compiler.ptxas()) $ptxas_opts`)
-    log = strip(log)
     if !success(proc)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
                                        "ptxas exited with code $(proc.exitcode)"
@@ -523,41 +537,39 @@ function compile(@nospecialize(job::CompilerJob))
     # hurts performance. as such, we only do so when absolutely necessary.
     # TODO: try LTO, `--link-time-opt --nvvmpath /opt/cuda/nvvm`.
     #       fails with `Ignoring -lto option because no LTO objects found`
-    if needs_cudadevrt
-        nvlink_output = tempname(cleanup=false) * ".cubin"
-        append!(nvlink_opts, [
-            "--verbose", "--extra-warnings",
-            "--arch", arch,
-            "--library-path", dirname(CUDA_Compiler.libcudadevrt),
-            "--library", "cudadevrt",
-            "--output-file", nvlink_output,
-            ptxas_output
-        ])
-        proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()) $nvlink_opts`)
-        log = strip(log)
-        if !success(proc)
-            reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
-                                           "nvlink exited with code $(proc.exitcode)"
-            msg = "Failed to link PTX code ($reason)"
-            msg *= "\nInvocation arguments: $(join(nvlink_opts, ' '))"
-            if !isempty(log)
-                msg *= "\n" * log
-            end
-            msg *= "\nIf you think this is a bug, please file an issue and attach $(ptxas_output)"
-            error(msg)
-        elseif !isempty(log)
-            @debug "PTX linker info log:\n" * log _group=:CUDA
-        end
-        rm(ptxas_output)
-
-        image = read(nvlink_output)
-        rm(nvlink_output)
-    else
+    if !needs_cudadevrt
         image = read(ptxas_output)
         rm(ptxas_output)
+        return image
     end
+    nvlink_output = tempname(cleanup=false) * ".cubin"
+    append!(nvlink_opts, [
+        "--verbose", "--extra-warnings",
+        "--arch", arch,
+        "--library-path", dirname(CUDA_Compiler.libcudadevrt),
+        "--library", "cudadevrt",
+        "--output-file", nvlink_output,
+        ptxas_output
+    ])
+    proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()) $nvlink_opts`)
+    if !success(proc)
+        reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
+                                       "nvlink exited with code $(proc.exitcode)"
+        msg = "Failed to link PTX code ($reason)"
+        msg *= "\nInvocation arguments: $(join(nvlink_opts, ' '))"
+        if !isempty(log)
+            msg *= "\n" * log
+        end
+        msg *= "\nIf you think this is a bug, please file an issue and attach $(ptxas_output)"
+        error(msg)
+    elseif !isempty(log)
+        @debug "PTX linker info log:\n" * log _group=:CUDA
+    end
+    rm(ptxas_output)
 
-    return (; image, entry, relocations)
+    image = read(nvlink_output)
+    rm(nvlink_output)
+    return image
 end
 
 # link a compiled image into a session-local `CuFunction` on the active context
@@ -606,22 +618,58 @@ end
 # `image === nothing` identifies a freshly-created `CUDACompilerResults` that hasn't been
 # compiled yet. Every lookup is reported to the `@device_code_*` hook, so reflection
 # observes cached kernels without recompiling them.
+#
+# Must be called with `cufunction_lock` held. Code generation happens under that lock, but
+# it is released while `ptxas` and `nvlink` run, so that other tasks can generate or look
+# up other kernels in the meantime. Concurrent requests for a job that is being assembled
+# wait for that result instead of compiling the job again.
+#
 # Specialize on the target/parameter types so callers can avoid boxing CompilerJob.
 # Keep the body out of callers that specialize per kernel.
 @noinline function compile_or_lookup(job::CompilerJob)::CUDACompilerResults
     GPUCompiler.run_compile_hook(job)
-    res = GPUCompiler.cached_results(CUDACompilerResults, job)
-    if res === nothing || res.image === nothing
-        compiled = compile(job)
+    while true
+        res = GPUCompiler.cached_results(CUDACompilerResults, job)
+        if res !== nothing && res.image !== nothing
+            return res
+        end
+        assembled = get(assembling_jobs, job, nothing)
+        assembled === nothing && return compile_and_store(job)
+        # the other task may fail, in which case we compile the job ourselves
+        Base.wait(assembled)
+    end
+end
+
+# kept separate so that the cache-hit path above stays cheap
+@noinline function compile_and_store(job::CompilerJob)::CUDACompilerResults
+    ptx = emit_ptx(job)
+    assembled = Threads.Condition(cufunction_lock)
+    assembling_jobs[job] = assembled
+    try
+        # when the lock is held reentrantly, this keeps it held and assembles under it
+        unlock(cufunction_lock)
+        image = try
+            assemble(job, ptx.asm, ptx.needs_cudadevrt)
+        finally
+            # an interrupt here would leave us without the lock, unable to wake waiters
+            Base.disable_sigint(() -> lock(cufunction_lock))
+        end
+
         # GPUCompiler selects persistent or session-local storage from the relocation
         # strategy and the Julia runtime's relocation support.
-        res = @something res GPUCompiler.cached_results(CUDACompilerResults, job)
-        res.image = compiled.image
-        res.entry = compiled.entry
-        res.relocations = compiled.relocations
+        res = GPUCompiler.cached_results(CUDACompilerResults, job)::CUDACompilerResults
+        res.entry = ptx.entry
+        res.relocations = ptx.relocations
+        res.image = image
+        return res
+    finally
+        delete!(assembling_jobs, job)
+        notify(assembled)
     end
-    return res
 end
+
+# jobs whose PTX code is being assembled, see `compile_or_lookup`
+const assembling_jobs = Dict{CompilerJob,Threads.Condition}()
 
 
 ## helpers
