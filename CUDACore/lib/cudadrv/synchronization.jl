@@ -108,7 +108,30 @@ function flush_output(ctx::CuContext)
 end
 
 function device_synchronize(; blocking::Bool=false, spin::Bool=true)
-    synchronize_object(context(); blocking, spin)
+    ctx = context()
+    if !blocking && use_nonblocking_synchronization && driver_version() >= v"12.5"
+        # a context can't be polled, so it always has to be synchronized on a worker
+        # thread. an event that captures all of its work can be, avoiding that round trip
+        # when the device is idle.
+        check_capture(ctx)
+        # waiting for an event spins unless the event says otherwise, while waiting for the
+        # context follows its scheduling policy.
+        ctx_flags = Ref{Cuint}()
+        cuCtxGetFlags(ctx_flags)
+        event_flags = EVENT_DISABLE_TIMING
+        if ctx_flags[] & CTX_SCHED_MASK == CTX_SCHED_BLOCKING_SYNC
+            event_flags |= EVENT_BLOCKING_SYNC
+        end
+        event = CuEvent(event_flags)
+        try
+            cuCtxRecordEvent(ctx, event)
+            synchronize_object(event; blocking, spin)
+        finally
+            finalize(event)
+        end
+    else
+        synchronize_object(ctx; blocking, spin)
+    end
     check_exceptions()
 end
 

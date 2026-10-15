@@ -1031,8 +1031,10 @@ end
 
 # the entire context, including streams that do not synchronize with the legacy stream
 let s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
-    @test gated(s) do
-        open_gate_during(device_synchronize)
+    for spin in (true, false)
+        @test gated(s) do
+            open_gate_during(() -> device_synchronize(; spin))
+        end
     end
 end
 
