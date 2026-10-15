@@ -199,6 +199,29 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
     return B
 end
 
+# cuSPARSE has no data type for Bool, so widen the values to one it supports.
+# TODO: cuSPARSE 12 supports CUDA_R_8I, which could carry Bool without widening.
+for (fmt, ptr, ind) in ((:CuSparseMatrixCSC, :colPtr, :rowVal),
+                        (:CuSparseMatrixCSR, :rowPtr, :colVal),
+                        (:CuSparseMatrixCOO, :rowInd, :colInd))
+    @eval function sparsetodense(A::$fmt{Bool}, index::SparseChar, algo::cusparseSparseToDenseAlg_t=CUSPARSE_SPARSETODENSE_ALG_DEFAULT)
+        wide = $fmt(A.$ptr, A.$ind, Float32.(nonzeros(A)), size(A))
+        return sparsetodense(wide, index, algo) .!= 0
+    end
+end
+
+function densetosparse(A::CuMatrix{Bool}, fmt::Symbol, index::SparseChar, algo::cusparseDenseToSparseAlg_t=CUSPARSE_DENSETOSPARSE_ALG_DEFAULT)
+    wide = densetosparse(Float32.(A), fmt, index, algo)
+    nzVal = nonzeros(wide) .!= 0
+    if fmt == :coo
+        CuSparseMatrixCOO(wide.rowInd, wide.colInd, nzVal, size(wide))
+    elseif fmt == :csr
+        CuSparseMatrixCSR(wide.rowPtr, wide.colVal, nzVal, size(wide))
+    else
+        CuSparseMatrixCSC(wide.colPtr, wide.rowVal, nzVal, size(wide))
+    end
+end
+
 """
     gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
 
