@@ -103,6 +103,12 @@ small reductions along a dimension can be slower.
 - `@cuda debug_level=N` compiles a single kernel at debug level `N` instead of
   the session's `-g` level, e.g., `debug_level=2` to get a device-side stack
   trace of a failing kernel without restarting Julia.
+- Added support for CUDA 13.4 Update 2, which CUDA_Runtime_jll 0.25.0+3
+  picks up without a compat change. Its cuSOLVER again exports versioned
+  symbols, which 13.4 Update 1 had dropped.
+- Added support for cuDNN 9.27 (requires CUDNN_jll 9.27). It no longer unloads
+  runtime-compiled kernels while a CUDA graph can still launch them, which
+  could give incorrect results or illegal-address faults.
 
 *Bug fixes*:
 
@@ -277,7 +283,7 @@ CUDA_Runtime_jll 0.24.4 and CUDA_Compiler_jll 0.6.2.
   Xavier sees from cuDNN, whose Jetson build stops at sm_75.
 
 
-### v6.4.1 (unreleased)
+### v6.4.1 (September 2026)
 
 - Added support for CUDA 13.4 Update 1: the cuBLASLt and cuSOLVER wrappers
   were regenerated (batch-invariance flags, the two-stage `Xsyevd` selector).

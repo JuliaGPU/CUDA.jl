@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.13.0"
+julia_version = "1.13.1"
 manifest_format = "2.1"
 project_hash = "5a83d62eeab8c5071d89af0280b4eadc267f7dbe"
 
@@ -44,7 +44,7 @@ uuid = "4ee394cb-3365-5eb0-8335-949819d2adfc"
 version = "13.3.4+0"
 
 [[deps.CUDA_Runtime_jll]]
-deps = ["Artifacts", "CUDA_Compiler_jll", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
+deps = ["Artifacts", "CUDA_Compiler_jll", "CUDA_Driver_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MSVCRuntime_jll", "TOML"]
 git-tree-sha1 = "a133e37158728f8cb7af37b62cc2a8e633d52edf"
 registries = "General"
 uuid = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
@@ -52,20 +52,20 @@ version = "0.25.0+0"
 
 [[deps.CUDA_SDK_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "3f1d93be997a577677549616e2db22136dfe43e7"
+git-tree-sha1 = "725f5f448571fba244d745c7d21173b64ca453d8"
 registries = "General"
 uuid = "6cbf2f2e-7e60-5632-ac76-dca2274e0be0"
-version = "13.4.2+0"
+version = "13.4.3+0"
 
 [[deps.CUDNN_jll]]
 deps = ["Artifacts", "CUDA_Runtime_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
-git-tree-sha1 = "a98b6d326aab729353d707507162804b6d256a3e"
+git-tree-sha1 = "df3a4d933856ab06570cb1626ad629e3356e3012"
 registries = "General"
 uuid = "62b44479-cb7b-5706-934f-f13b2eb2e645"
-version = "9.26.0+0"
+version = "9.27.0+0"
 
 [[deps.CUTENSOR_jll]]
-deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "TOML"]
+deps = ["Artifacts", "CUDA_Runtime_jll", "CompilerSupportLibraries_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "MSVCRuntime_jll", "TOML"]
 git-tree-sha1 = "a43565fde843ebe4a6408f3e690adf8409b10241"
 registries = "General"
 uuid = "35b6c64b-1ee1-5834-92a3-3f624899209a"
@@ -183,7 +183,7 @@ version = "1.9.1+0"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl", "OpenSSL_jll", "Zlib_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
-version = "1.11.103+0"
+version = "1.11.104+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -199,6 +199,13 @@ version = "1.7.1+1"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
+
+[[deps.MSVCRuntime_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "9670d7b2dbc92652a250e88eaa80861892d453e2"
+registries = "General"
+uuid = "ce32ce21-2cee-52aa-a084-5c6dad4fa7db"
+version = "14.51.36247+0"
 
 [[deps.Markdown]]
 deps = ["Base64", "JuliaSyntaxHighlighting", "StyledStrings"]
@@ -362,7 +369,7 @@ version = "26.9.0+0"
 [[deps.libLLVM_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl", "Zlib_jll", "Zstd_jll"]
 uuid = "8f36deef-c2a5-5394-99ed-8e07531fb29a"
-version = "20.1.8+1"
+version = "20.1.8+2"
 
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
