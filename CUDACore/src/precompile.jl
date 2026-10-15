@@ -39,7 +39,7 @@ if :NVPTX in LLVM.backends() && CUDA_Compiler.is_available()
                 # Enroll the foreign CodeInstance in the package image, then populate it
                 # through the same cache path used by kernel launches.
                 precompile(job)
-                compile_or_lookup(job)
+                Base.@lock cufunction_lock compile_or_lookup(job)
             end
         end
     end

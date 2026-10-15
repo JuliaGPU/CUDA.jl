@@ -831,20 +831,20 @@ end
 # the parts of `cufunction` that don't depend on the type of the function, kept separate so
 # that they are compiled once rather than for every kernel
 function cufunction_link(source::Core.MethodInstance; kwargs...)
-    Base.@lock cufunction_lock begin
-        cuda = active_state()
+    cuda = active_state()
+    config = compiler_config(cuda.device; kwargs...)::CUDACompilerConfig
+    # Target selection may retain a PTX-compatible target for reflection, but
+    # executing a kernel requires a cubin that loads on this device.
+    sm = config.params.sm
+    cubin_compatible(sm, capability(cuda.device)) ||
+        error("Cannot execute code compiled for $(cpu_name(sm)) on $(cuda.device): " *
+              "the cubin would not load on compute capability " *
+              "$(capability(cuda.device)). Use a CUDA toolkit that supports " *
+              "this device, or select a compatible target with `arch=`.")
+    job = CompilerJob(source, config)
 
+    Base.@lock cufunction_lock begin
         # look up (or generate) the compilation artifacts for this function
-        config = compiler_config(cuda.device; kwargs...)::CUDACompilerConfig
-        # Target selection may retain a PTX-compatible target for reflection, but
-        # executing a kernel requires a cubin that loads on this device.
-        sm = config.params.sm
-        cubin_compatible(sm, capability(cuda.device)) ||
-            error("Cannot execute code compiled for $(cpu_name(sm)) on $(cuda.device): " *
-                  "the cubin would not load on compute capability " *
-                  "$(capability(cuda.device)). Use a CUDA toolkit that supports " *
-                  "this device, or select a compatible target with `arch=`.")
-        job = CompilerJob(source, config)
         res = compile_or_lookup(job)::CUDACompilerResults
 
         # resolve the `CuFunction` for the active context. this is a session-local handle,

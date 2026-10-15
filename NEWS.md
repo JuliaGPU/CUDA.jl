@@ -103,6 +103,9 @@ small reductions along a dimension can be slower.
 - `@cuda debug_level=N` compiles a single kernel at debug level `N` instead of
   the session's `-g` level, e.g., `debug_level=2` to get a device-side stack
   trace of a failing kernel without restarting Julia.
+- Kernels that are compiled from several tasks are assembled by `ptxas`
+  concurrently, and launching an already-compiled kernel no longer waits for
+  other tasks' compilations to finish assembling.
 - Added support for CUDA 13.4 Update 2, which CUDA_Runtime_jll 0.25.0+3
   picks up without a compat change. Its cuSOLVER again exports versioned
   symbols, which 13.4 Update 1 had dropped.
