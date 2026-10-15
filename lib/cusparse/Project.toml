@@ -26,7 +26,7 @@ SparseMatricesCSRExt = "SparseMatricesCSR"
 
 [compat]
 Adapt = "4.4"
-CEnum = "0.2, 0.3, 0.4, 0.5"
+CEnum = "0.5, 1"
 CUDACore = "=6.4.2"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.25"

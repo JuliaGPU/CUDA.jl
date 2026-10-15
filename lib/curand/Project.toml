@@ -17,7 +17,7 @@ Random123 = "74087812-796a-5b5d-8853-05524746bad3"
 RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 
 [compat]
-CEnum = "0.2, 0.3, 0.4, 0.5"
+CEnum = "0.5, 1"
 CUDACore = "=6.4.2"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.25"
