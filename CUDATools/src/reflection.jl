@@ -84,28 +84,33 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
 
     prepare_sass_generation()
 
+    # the callback runs while the driver holds locks, so it must not yield to tasks that
+    # may call into the driver. only copy the cubin, and disassemble it afterwards.
+    cubins = Vector{Cchar}[]
     cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
         # only process relevant callbacks
         id == CUPTI.CUPTI_CBID_RESOURCE_MODULE_LOADED || return
         resourceDescriptor =
             unsafe_load(convert(Ptr{CUpti_ModuleResourceData}, data.resourceDescriptor))
-
-        cubin = unsafe_wrap(Vector{Cchar}, pointer(resourceDescriptor.pCubin),
-                            resourceDescriptor.cubinSize)
-        disassemble_cubin(io, cubin; raw)
+        push!(cubins, copy_cubin(resourceDescriptor))
     end
 
     compiled = CUDACore.compile(job)
     CUPTI.@enable! cfg CUDACore.link_kernel(compiled.image, compiled.entry,
                                             compiled.relocations)
 
+    for cubin in cubins
+        disassemble_cubin(io, cubin; raw)
+    end
     return
 end
 
 function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
     prepare_sass_generation()
 
+    # as above, only copy the cubins in the callback
     seen_modules = Set{UInt32}()
+    cubins = Vector{Cchar}[]
     cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
         # only process relevant callbacks
         id == CUPTI.CUPTI_CBID_RESOURCE_MODULE_PROFILED || return
@@ -118,15 +123,21 @@ function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
         end
         push!(seen_modules, resourceDescriptor.moduleId)
 
-        cubin = unsafe_wrap(Vector{Cchar}, pointer(resourceDescriptor.pCubin),
-                            resourceDescriptor.cubinSize)
-        disassemble_cubin(io, cubin; raw)
+        push!(cubins, copy_cubin(resourceDescriptor))
     end
 
-    CUPTI.@enable! cfg f()
-
+    try
+        CUPTI.@enable! cfg f()
+    finally
+        for cubin in cubins
+            disassemble_cubin(io, cubin; raw)
+        end
+    end
     return
 end
+
+copy_cubin(desc::CUpti_ModuleResourceData) =
+    copy(unsafe_wrap(Vector{Cchar}, pointer(desc.pCubin), desc.cubinSize))
 
 # disassemble a cubin to SASS
 function disassemble_cubin(io::IO, cubin::Vector{Cchar}; raw::Bool)
