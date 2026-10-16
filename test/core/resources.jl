@@ -68,6 +68,28 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_E
         @test context() == original
         CUDA.unsafe_destroy!(foreign)
     end
+
+    @testset "resources of a destroyed context" begin
+        CUDA.reclaim()
+        used = CUDA.used_memory()
+        CuContext(device()) do ctx
+            context!(ctx) do
+                a = CuArray{UInt8}(undef, 64 * 2^20)
+                synchronize()
+                # retired, and only released after the context has been destroyed.
+                # (allocating would release them, so do that first)
+                finalize(CuStream())
+                finalize(CuEvent())
+                finalize(CuGraph())
+                # memory from a pool outlives the context, so still needs to be freed
+                finalize(a)
+            end
+        end
+        @test_logs CUDA.reclaim()
+        if used !== missing
+            @test CUDA.used_memory() <= used
+        end
+    end
 end
 
 @testset "arrays" begin
