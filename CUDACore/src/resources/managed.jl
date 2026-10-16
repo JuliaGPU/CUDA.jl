@@ -220,11 +220,17 @@ function prepare_host_access!(managed::Managed)
           stream = disposal_stream(ctx)
         else
           fence = nothing
-          if !recycled(managed) && isvalid(managed.stream)
+          # this also handles owners that have been recycled or destroyed
+          released = release_stream(managed.stream, managed.stream_ctx, managed.generation)
+          if released === nothing
+            # the stream's context was destroyed, so attach in the one the memory lives in
+            # (memory that was freed along with it can't be accessed anymore)
+            ctx = @something(free_context(managed.mem), throw(UndefRefError()))
+            released = (disposal_stream(ctx), ctx)
+          elseif !recycled(managed) && isvalid(managed.stream)
             check_capture(managed.stream)
           end
-          # this also handles owners that have been recycled or destroyed
-          stream, ctx = release_stream(managed.stream, managed.stream_ctx, managed.generation)
+          stream, ctx = released
         end
         context!(ctx) do
           fence === nothing || cuStreamWaitEvent(stream, fence::CuEvent, 0)

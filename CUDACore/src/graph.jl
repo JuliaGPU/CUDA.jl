@@ -209,7 +209,10 @@ end
 Base.unsafe_convert(::Type{CUgraph}, graph::CuGraph) = graph.handle
 
 function release_now(graph::CuGraph; destroy=cuGraphDestroy)
-    context!(graph.ctx) do
+    # graphs outlive the context they were created in
+    if isvalid(graph.ctx)
+        context!(() -> destroy(graph), graph.ctx)
+    else
         destroy(graph)
     end
     # (not reached when destroying failed: the resource coordinator then retains the object,
@@ -809,7 +812,12 @@ end
 function free_allocations(graph_allocations::GraphAllocations)
     (; ctx, allocations, stream, generation) = graph_allocations
     @lock stream_disposal_lock begin
-        stream, ctx = release_stream(stream, ctx, generation)
+        released = release_stream(stream, ctx, generation)
+        # XXX: graph allocations outlive the context they were made in, like allocations
+        #      from a memory pool (see `free_context`), but the device to free them on
+        #      isn't known here, so they leak when that context has been destroyed
+        released === nothing && return
+        stream, ctx = released
         context!(ctx) do
             for ptr in allocations
                 cuMemFreeAsync(ptr, stream)
@@ -820,10 +828,13 @@ function free_allocations(graph_allocations::GraphAllocations)
 end
 
 function release_now(exec::CuGraphExec; destroy=cuGraphExecDestroy)
-    context!(exec.ctx) do
-        allocations = launched_allocations(exec)
-        allocations === nothing || release_now(allocations)
-        # (destroying an executable graph that is still executing is allowed)
+    allocations = launched_allocations(exec)
+    allocations === nothing || release_now(allocations)
+    # (destroying an executable graph that is still executing is allowed)
+    if isvalid(exec.ctx)
+        context!(() -> destroy(exec), exec.ctx)
+    else
+        # executable graphs outlive the context they were instantiated in
         destroy(exec)
     end
     # (not reached when destroying failed: the resource coordinator then retains the object,

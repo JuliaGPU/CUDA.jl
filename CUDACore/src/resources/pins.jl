@@ -17,15 +17,15 @@ const pending_registration_bytes = Threads.Atomic{Int}(0)
 
 function release_now(reg::RetiredRegistration)
   Threads.atomic_add!(pending_registration_bytes, sizeof(reg.mem))
-  hold!(ReleaseAction(unregister_retired!, reg, reg.mem.ctx, true))
+  hold!(ReleaseAction(unregister_retired!, reg, nothing, true))
 end
 release_registration(reg::RetiredRegistration) = discard(reg)
 
 function unregister_retired!(reg::RetiredRegistration)
   if reg.counted
     __unpin(pointer(reg.mem), reg.mem.ctx)
-  else
-    unregister(reg.mem)
+  elseif isvalid(reg.mem.ctx)   # (a destroyed context has no registrations left)
+    context!(() -> unregister(reg.mem), reg.mem.ctx)
   end
   Threads.atomic_sub!(pending_registration_bytes, sizeof(reg.mem))
   return
@@ -193,7 +193,8 @@ function __unpin(ptr::Ptr, ctx::CuContext)
         pop!(__pinned_memory, key)
     end
     try
-        context!(ctx) do
+        # (a destroyed context has no registrations left)
+        isvalid(ctx) && context!(ctx) do
             unregister(mem)
         end
     catch

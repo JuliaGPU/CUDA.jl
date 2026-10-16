@@ -113,7 +113,8 @@ without calling `f` from the garbage collector. Many CUDA API calls that release
 wait for all running kernels to finish, which can stall or deadlock the thread the garbage
 collector happens to run on. Instead, the finalizer only queues `obj`, and a regular task
 calls `f(obj)` later on, in the context `ctx` that was active when registering. Pass
-`ctx=nothing` if `f` activates the right context itself.
+`ctx=nothing` if `f` activates the right context itself. If `ctx` has been destroyed by
+then, `f` is not called, as destroying a context releases its resources.
 
 With `blocking=true` (the default), `f` is only called when CUDA.jl reclaims memory, i.e.,
 when an allocation runs out of memory, or when calling `CUDA.reclaim()`. Only use
@@ -148,10 +149,12 @@ end
 
 destroy_later(f, obj) = defer_release(f, obj; blocking=true)
 
+# destroying a context releases its resources, and their handles may be reused afterwards,
+# so resources of a destroyed context are dropped instead of released
 function run_release(action::ReleaseAction)
   if action.ctx === nothing
     Base.invokelatest(action.f, action.obj)
-  else
+  elseif isvalid(action.ctx)
     context!(action.ctx) do
       Base.invokelatest(action.f, action.obj)
     end
@@ -238,7 +241,8 @@ function release_held!(; reclaim=false, select=Returns(true))
       continue
     end
     try
-      if gate !== nothing && !isdone(gate)
+      # (the work of a destroyed context has ended)
+      if gate !== nothing && isvalid(gate.ctx) && !isdone(gate)
         hold!(held)
         continue
       end
