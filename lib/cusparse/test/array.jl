@@ -11,7 +11,8 @@ using Adapt
     dense_d_x = CuVector(x)
     ctx = :module => @__MODULE__
     CUDACore.@allowscalar begin
-        @test sprint(show, d_x; context=ctx) == replace(sprint(show, x; context=ctx), "SparseVector{Float64, Int64}"=>"cuSPARSE.CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
+        inds, vals = findnz(x)
+        @test sprint(show, d_x; context=ctx) == "sparsevec(CuArray($(Int32.(inds))), CuArray($vals), $m)"
         @test sprint(show, MIME"text/plain"(), d_x; context=ctx) == replace(sprint(show, MIME"text/plain"(), x; context=ctx), "SparseVector{Float64, Int64}"=>"CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
