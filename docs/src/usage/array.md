@@ -181,7 +181,7 @@ julia> findmin(b)
 (11, CartesianIndex(1, 1))
 
 julia> findmax(b; dims=2)
-([13; 23;;], CartesianIndex{2}[CartesianIndex(1, 3); CartesianIndex(2, 3);;])
+(CuArray([13; 23;;]), CuArray(CartesianIndex{2}[CartesianIndex(1, 3); CartesianIndex(2, 3);;]))
 ```
 
 
