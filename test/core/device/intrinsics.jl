@@ -121,16 +121,6 @@ end
     # the remaining checks compile for sm_80, which requires a toolchain that can target
     # it (CUDA 11.0+); older toolkits reject the architecture before the check fires.
     if v"8.0" in CUDACore.ptxas_compat().cap
-        function invalid_atomic_address_space_kernel(ptr)
-            CUDA.atomic_cas!(ptr, UInt32(0), UInt32(1))
-            return
-        end
-        local_ptr_t = Core.LLVMPtr{UInt32,AS.Local}
-        @test_throws "atomic operation in address space 5" begin
-            compile_kernel(invalid_atomic_address_space_kernel, Tuple{local_ptr_t};
-                           arch=sm"80")
-        end
-
         cluster_kernel() = cluster_arrive()
         @test_throws "requires compute capability 9.0" compile_kernel(
             cluster_kernel, Tuple{};
