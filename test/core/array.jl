@@ -855,6 +855,20 @@ struct Issue3181 end
   @test length(copyto!(similar(a), a)) == 10
 end
 
+@testset "copyto! between device arrays of different eltypes" begin
+  # device-to-device copies with mismatched eltypes go through GPUArrays' generic
+  # copy kernel; this is how e.g. cuSOLVER promotes its inputs to a BLAS type
+  for S in (Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64,
+            Int32, Int64, Complex{Int32}, Complex{Int64}),
+      T in (Float32, Float64, ComplexF32, ComplexF64)
+    promote_type(S, T) == T || continue
+    src = CuArray(rand(S, 4, 3))
+    dst = copyto!(similar(src, T), src)
+    @test eltype(dst) == T
+    @test Array(dst) == T.(Array(src))
+  end
+end
+
 @testset "isbits unions" begin
   # test that the selector bytes are preserved when up and downloading
   let a = [1, nothing, 3]
