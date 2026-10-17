@@ -9,6 +9,7 @@ n = 10
     d_A = CuMatrix(A)
     U, Σ, Vt = cuSOLVER.gesvd!('A', 'A', d_A)
     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
+    @test LAPACK.gesvd!('N', 'N', CuMatrix(A))[2] ≈ Σ
 
     for jobu in ('A', 'S', 'N', 'O')
         for jobvt in ('A', 'S', 'N', 'O')
@@ -17,16 +18,13 @@ n = 10
             d_A = CuMatrix(A)
             U2, Σ2, Vt2 = cuSOLVER.gesvd!(jobu, jobvt, d_A)
             @test Σ ≈ Σ2
-            d_A = CuMatrix(A)
-            U2, Σ2, Vt2 = LAPACK.gesvd!(jobu, jobvt, d_A)
-            @test Σ ≈ Σ2
         end
     end
 end
 
-@testset "$svd_f with $alg algorithm, elty = $elty" for
+# `svd` is `svd!` on a copy, and is exercised below via `svd(d_A; alg)`
+@testset "svd! with $alg algorithm, elty = $elty" for
     elty in [Float32, Float64, ComplexF32, ComplexF64],
-    svd_f in (svd, svd!),
     alg in (cuSOLVER.QRAlgorithm(), cuSOLVER.JacobiAlgorithm()),
     (_m, _n) in ((m, n), (n, m))
 
@@ -35,7 +33,7 @@ end
     d_A            = CuArray(A)
 
     if _m > _n || alg == cuSOLVER.JacobiAlgorithm()
-        d_U, d_S, d_V  = svd_f(copy(d_A); full=true, alg=alg)
+        d_U, d_S, d_V  = svd!(copy(d_A); full=true, alg=alg)
         h_S            = collect(d_S)
         h_U            = collect(d_U)
         h_V            = collect(d_V)
@@ -58,9 +56,8 @@ let
     @inferred _svd(CuArray(rand(Float32, 4, 4)))
 end
 
-@testset "batched $svd_f with $alg algorithm, elty = $elty" for
+@testset "batched svd! with $alg algorithm, elty = $elty" for
     elty in [Float32, Float64, ComplexF32, ComplexF64],
-    svd_f in (svd, svd!),
     alg in (cuSOLVER.JacobiAlgorithm(), cuSOLVER.ApproximateAlgorithm()),
     (_m, _n, _b) in ((m, n, n), (n, m, n), (33, 33, 1))
 
@@ -69,7 +66,7 @@ end
     r = min(_m, _n)
 
     if (_m >= _n && alg == cuSOLVER.ApproximateAlgorithm()) || (_m <= 32 && _n <= 32 && alg == cuSOLVER.JacobiAlgorithm())
-        d_U, d_S, d_V  = svd_f(copy(d_A); full=true, alg=alg)
+        d_U, d_S, d_V  = svd!(copy(d_A); full=true, alg=alg)
         h_S            = collect(d_S)
         h_U            = collect(d_U)
         h_V            = collect(d_V)
