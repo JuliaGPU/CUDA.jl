@@ -28,6 +28,8 @@ end
 # check the exception flags on every API call, similarly to how CUDA handles errors
 function check_exceptions()
     for (ctx,mem) in exception_infos
+        # destroying a context frees its exception flag
+        isvalid(ctx) || continue
         exception_info = convert(ExceptionInfo, mem)
         if exception_info.status != 0
             # restore the structure
