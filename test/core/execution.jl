@@ -572,6 +572,17 @@ end
 dims = (16, 16)
 len = prod(dims)
 
+@testset "CPU array argument" begin
+    kernel(a) = return
+    a = CuArray([1f0])
+    b = [1f0]
+    for f in (() -> @cuda(kernel(b)), () -> a .+ b)
+        err = try f(); nothing catch err; err end
+        @test err isa ArgumentError
+        @test occursin("CuArray", sprint(showerror, err))
+    end
+end
+
 @testset "manually allocated" begin
     function kernel(input, output)
         i = (blockIdx().x-1i32) * blockDim().x + threadIdx().x
