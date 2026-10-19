@@ -14,6 +14,20 @@ using LinearAlgebra
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
     end
 
+    @testset "negative strides" begin # JuliaGPU/CUDA.jl#3410
+        rev(a) = view(a, lastindex(a):-2:1)
+        fwd(a) = view(a, 1:2:lastindex(a))
+        x, y = rand(T, m), rand(T, m)
+        c, s = rand(real(T)), rand(T)
+        for f! in (rotate!, reflect!)
+            a, b, da, db = copy(x), copy(y), CuArray(x), CuArray(y)
+            f!(rev(a), fwd(b), c, s)
+            f!(rev(da), fwd(db), c, s)
+            @test Array(da) ≈ a
+            @test Array(db) ≈ b
+        end
+    end
+
     @testset "rotg!" begin
         a = rand(T)
         b = rand(T)

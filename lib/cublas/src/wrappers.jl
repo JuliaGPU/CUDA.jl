@@ -85,6 +85,14 @@ end
 # define a union matching arrays with only a non-unit stride in the first dimension.
 const StridedCuVecOrDenseMat{T} = Union{StridedCuVector{T}, DenseCuArray{T}}
 
+# BLAS walks a vector with a negative increment backwards from its lowest address, while a
+# reversed view points at its first element, the highest one. like LinearAlgebra.BLAS, pass
+# a pointer to the lowest address of the `n` elements accessed, along with the increment.
+function vec_pointer_stride(n::Integer, x::StridedCuVecOrDenseMat)
+    st = stride(x, 1)
+    pointer(x) + min(st, 0) * sizeof(eltype(x)) * (n - 1), st
+end
+
 ## copy
 for (fname, fname_64, elty) in ((:cublasDcopy_v2, :cublasDcopy_v2_64, :Float64),
                                 (:cublasScopy_v2, :cublasScopy_v2_64, :Float32),
@@ -94,10 +102,14 @@ for (fname, fname_64, elty) in ((:cublasDcopy_v2, :cublasDcopy_v2_64, :Float64),
         function copy!(n::Integer,
                        x::StridedCuVecOrDenseMat{$elty},
                        y::StridedCuVecOrDenseMat{$elty},)
-            if cuBLAS.version() >= v"12.0"
-              $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1))
-            else
-              $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
+            GC.@preserve x y begin
+                px, incx = vec_pointer_stride(n, x)
+                py, incy = vec_pointer_stride(n, y)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, px, incx, py, incy)
+                else
+                    $fname(handle(), n, px, incx, py, incy)
+                end
             end
             y
         end
@@ -117,32 +129,39 @@ for (fname, fname_64, elty) in ((:cublasDscal_v2, :cublasDscal_v2_64, :Float64),
         function scal!(n::Integer,
                        alpha,
                        x::StridedCuVecOrDenseMat{$elty})
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, alpha, x, stride(x, 1))
-            else
-                $fname(handle(), n, alpha, x, stride(x, 1))
+            GC.@preserve x begin
+                px, incx = vec_pointer_stride(n, x)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, alpha, px, abs(incx))
+                else
+                    $fname(handle(), n, alpha, px, abs(incx))
+                end
             end
             x
         end
     end
 end
 function scal!(n::Integer, alpha, x::StridedCuVecOrDenseMat{Float16})
-    cublasScalEx(handle(), n, alpha, Float32, x, Float16, stride(x, 1), Float32)
+    GC.@preserve x begin
+        px, incx = vec_pointer_stride(n, x)
+        cublasScalEx(handle(), n, alpha, Float32, px, Float16, abs(incx), Float32)
+    end
     return x
 end
-function scal!(n::Integer, alpha::Number, x::StridedCuVecOrDenseMat{Float16})
-    cublasScalEx(handle(), n, CuRef{Float32}(alpha), Float32, x, Float16, stride(x, 1), Float32)
-    return x
-end
+scal!(n::Integer, alpha::Number, x::StridedCuVecOrDenseMat{Float16}) =
+    scal!(n, CuRef{Float32}(alpha), x)
 # specific variants in case x is complex and alpha is real
 for (fname, fname_64, elty, celty) in ((:cublasCsscal_v2, :cublasCsscal_v2_64, :Float32, :ComplexF32),
                                        (:cublasZdscal_v2, :cublasZdscal_v2_64, :Float64, :ComplexF64))
     @eval begin
         function scal!(n::Integer, alpha::Union{Ref{$elty}, $elty, AbstractArray{$elty}}, x::StridedCuVecOrDenseMat{$celty})
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, alpha, x, stride(x, 1))
-            else
-                $fname(handle(), n, alpha, x, stride(x, 1))
+            GC.@preserve x begin
+                px, incx = vec_pointer_stride(n, x)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, alpha, px, abs(incx))
+                else
+                    $fname(handle(), n, alpha, px, abs(incx))
+                end
             end
             x
         end
@@ -166,10 +185,14 @@ for (jname, fname, fname_64, elty) in ((:dot, :cublasDdot_v2, :cublasDdot_v2_64,
                         x::StridedCuVecOrDenseMat{$elty},
                         y::StridedCuVecOrDenseMat{$elty},
                         result)
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), result)
-            else
-                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), result)
+            GC.@preserve x y begin
+                px, incx = vec_pointer_stride(n, x)
+                py, incy = vec_pointer_stride(n, y)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, px, incx, py, incy, result)
+                else
+                    $fname(handle(), n, px, incx, py, incy, result)
+                end
             end
             return result
         end
@@ -207,7 +230,11 @@ function dotu(
 end
 
 function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDenseMat{Float16}, result)
-    cublasDotEx(handle(), n, x, Float16, stride(x, 1), y, Float16, stride(y, 1), result, Float16, Float32)
+    GC.@preserve x y begin
+        px, incx = vec_pointer_stride(n, x)
+        py, incy = vec_pointer_stride(n, y)
+        cublasDotEx(handle(), n, px, Float16, incx, py, Float16, incy, result, Float16, Float32)
+    end
     return result
 end
 function dot(n::Integer, x::StridedCuVecOrDenseMat{Float16}, y::StridedCuVecOrDenseMat{Float16})
@@ -232,10 +259,13 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDnrm2_v2, :cublasDnrm2_v2_64, 
                 X::StridedCuVecOrDenseMat{$elty},
                 result,
             )
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, X, stride(X, 1), result)
-            else
-                $fname(handle(), n, X, stride(X, 1), result)
+            GC.@preserve X begin
+                px, incx = vec_pointer_stride(n, X)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, px, abs(incx), result)
+                else
+                    $fname(handle(), n, px, abs(incx), result)
+                end
             end
             return result
         end
@@ -254,7 +284,10 @@ nrm2(x::StridedCuVecOrDenseMat) = nrm2(length(x), x)
 nrm2(x::StridedCuVecOrDenseMat, result) = nrm2(length(x), x, result)
 
 function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16}, result)
-    cublasNrm2Ex(handle(), n, x, Float16, stride(x, 1), result, Float16, Float32)
+    GC.@preserve x begin
+        px, incx = vec_pointer_stride(n, x)
+        cublasNrm2Ex(handle(), n, px, Float16, abs(incx), result, Float16, Float32)
+    end
     return result
 end
 function nrm2(n::Integer, x::StridedCuVecOrDenseMat{Float16})
@@ -279,10 +312,13 @@ for (fname, fname_64, elty, ret_type) in ((:cublasDasum_v2, :cublasDasum_v2_64, 
                 x::StridedCuVecOrDenseMat{$elty},
                 result,
             )
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, x, stride(x, 1), result)
-            else
-                $fname(handle(), n, x, stride(x, 1), result)
+            GC.@preserve x begin
+                px, incx = vec_pointer_stride(n, x)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, px, abs(incx), result)
+                else
+                    $fname(handle(), n, px, abs(incx), result)
+                end
             end
             return result
         end
@@ -307,10 +343,14 @@ for (fname, fname_64, elty) in ((:cublasDaxpy_v2, :cublasDaxpy_v2_64, :Float64),
                        alpha,
                        dx::StridedCuVecOrDenseMat{$elty},
                        dy::StridedCuVecOrDenseMat{$elty})
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, alpha, dx, stride(dx, 1), dy, stride(dy, 1))
-            else
-                $fname(handle(), n, alpha, dx, stride(dx, 1), dy, stride(dy, 1))
+            GC.@preserve dx dy begin
+                px, incx = vec_pointer_stride(n, dx)
+                py, incy = vec_pointer_stride(n, dy)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, alpha, px, incx, py, incy)
+                else
+                    $fname(handle(), n, alpha, px, incx, py, incy)
+                end
             end
             dy
         end
@@ -323,7 +363,11 @@ function axpy!(
         dy::StridedCuVecOrDenseMat{Float16}
     )
     # Float16 scalar inputs are not supported, so widen to Float32
-    cublasAxpyEx(handle(), n, CuRef{Float32}(alpha), Float32, dx, Float16, stride(dx, 1), dy, Float16, stride(dy, 1), Float32)
+    GC.@preserve dx dy begin
+        px, incx = vec_pointer_stride(n, dx)
+        py, incy = vec_pointer_stride(n, dy)
+        cublasAxpyEx(handle(), n, CuRef{Float32}(alpha), Float32, px, Float16, incx, py, Float16, incy, Float32)
+    end
     return dy
 end
 
@@ -352,10 +396,14 @@ for (fname, fname_64, elty, sty) in (
                       s::S,
                      ) where {C<:Union{Ref{Real}, Real, AbstractArray{Real}},
                               S<:Union{Ref{$sty}, $sty, AbstractArray{$sty}}}
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), c, s)
-            else
-                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), c, s)
+            GC.@preserve x y begin
+                px, incx = vec_pointer_stride(n, x)
+                py, incy = vec_pointer_stride(n, y)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, px, incx, py, incy, c, s)
+                else
+                    $fname(handle(), n, px, incx, py, incy, c, s)
+                end
             end
             x, y
         end
@@ -389,10 +437,14 @@ for (fname, fname_64, elty) in ((:cublasSrotm_v2, :cublasSrotm_v2_64, :Float32),
                        x::StridedCuVecOrDenseMat{$elty},
                        y::StridedCuVecOrDenseMat{$elty},
                        param::CuVector{$elty})
-            if cuBLAS.version() >= v"12.0"
-                $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1), param)
-            else
-                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), param)
+            GC.@preserve x y begin
+                px, incx = vec_pointer_stride(n, x)
+                py, incy = vec_pointer_stride(n, y)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, px, incx, py, incy, param)
+                else
+                    $fname(handle(), n, px, incx, py, incy, param)
+                end
             end
             x, y
         end
@@ -427,10 +479,14 @@ for (fname, fname_64, elty) in ((:cublasSswap_v2, :cublasSswap_v2_64, :Float32),
         function swap!(n::Integer,
                        x::StridedCuVecOrDenseMat{$elty},
                        y::StridedCuVecOrDenseMat{$elty})
-            if cuBLAS.version() >= v"12.0"
-               $fname_64(handle(), n, x, stride(x, 1), y, stride(y, 1))
-            else
-                $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
+            GC.@preserve x y begin
+                px, incx = vec_pointer_stride(n, x)
+                py, incy = vec_pointer_stride(n, y)
+                if cuBLAS.version() >= v"12.0"
+                    $fname_64(handle(), n, px, incx, py, incy)
+                else
+                    $fname(handle(), n, px, incx, py, incy)
+                end
             end
             x, y
         end
