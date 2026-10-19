@@ -176,6 +176,42 @@ CUDA.HostKernel for my_outer_kernel2(typeof(id), CuDeviceMatrix{Int64, 1})
 
 More cases and details on specialization can be found in [the Julia manual](https://docs.julialang.org/en/v1/manual/performance-tips/#Be-aware-of-when-Julia-avoids-specializing).
 
+Third, global constants used by a kernel must be isbits values (numbers, and tuples or
+structs of them), which are copied into the kernel, or `Symbol`s and types, which can be
+compared and passed along but not inspected. Any other object lives in CPU memory, so using
+it from a kernel is an error. That includes mutable objects like a `const` array or `Ref`,
+but also a tuple that holds a `Symbol` or a `String`:
+
+```julia-repl
+julia> const units = ((:hour, 3600), (:minute, 60), (:second, 1));
+
+julia> seconds(i) = units[i][2];
+
+julia> function kernel(a)
+           i = threadIdx().x
+           a[i] = seconds(i)
+           return
+       end
+
+julia> @cuda threads=3 kernel(CuArray{Int}(undef, 3))
+ERROR: InvalidIRError: compiling MethodInstance for kernel(::CuDeviceVector{Int64, 1}) resulted in invalid LLVM IR
+Reason: unsupported use of a constant that is not isbits, a Symbol or a type (of type Tuple{Tuple{Symbol, Int64}, Tuple{Symbol, Int64}, Tuple{Symbol, Int64}})
+Stacktrace:
+ [1] getindex
+   @ ./tuple.jl:33
+ [2] seconds
+   @ ./REPL[2]:1
+ [3] kernel
+   @ ./REPL[3]:3
+```
+
+Either keep the data the kernel reads isbits, here by only storing the numbers
+`(3600, 60, 1)`, or pass it as an argument, e.g. a `CuArray` instead of a `const` array.
+
+On Julia 1.10 this is not detected: the kernel compiles, and only works on systems where
+the GPU can access pageable host memory (HMM). Elsewhere it fails with an illegal address
+error when it runs.
+
 ## Synchronization
 
 To synchronize threads in a block, use the `sync_threads()` function. More advanced variants

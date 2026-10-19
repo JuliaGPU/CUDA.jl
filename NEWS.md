@@ -55,6 +55,13 @@ small reductions along a dimension can be slower.
   CUDA.jl 6.4, didn't. Code that synchronizes threads through them needs an
   ordered atomic (e.g. `UnsafeAtomics.add!(ptr, val, UnsafeAtomics.acq_rel,
   UnsafeAtomics.device)`) or a fence (`threadfence()`).
+- Kernels can only use global constants that are isbits values, `Symbol`s or
+  types. Other constants, e.g. a `const` array or `Ref`, or a tuple holding
+  `Symbol`s, live in CPU memory: reading them from a kernel only worked on systems
+  where the GPU can access pageable host memory (HMM), and failed with an illegal
+  address error elsewhere. On Julia 1.11 and later, such kernels now fail to
+  compile with an `InvalidIRError`; pass the data as an argument instead
+  ([#2795](https://github.com/JuliaGPU/CUDA.jl/issues/2795)).
 - `CUDA.QuickSort` and `CUDA.BitonicSort` are removed. Use the default
   algorithm, Base's algorithm objects, or AcceleratedKernels' (e.g.
   `sort!(x; alg=AcceleratedKernels.MergeSort())`).
