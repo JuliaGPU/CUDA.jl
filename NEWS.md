@@ -100,6 +100,10 @@ small reductions along a dimension can be slower.
   orderings, or other operations, use UnsafeAtomics.jl directly; for atomic
   operations on arrays, Atomix.jl's `@atomic` (as used by KernelAbstractions.jl)
   is now preferred over `CUDA.@atomic`.
+- `CUDA.@atomic` supports values of other types, like `Complex`, that are 1, 2,
+  4, 8 or 16 bytes large, with a compare-and-swap loop on their bits. 16-byte
+  values, like `ComplexF64`, require compute capability 9.0
+  ([#1994](https://github.com/JuliaGPU/CUDA.jl/issues/1994)).
 - `@cuda debug_level=N` compiles a single kernel at debug level `N` instead of
   the session's `-g` level, e.g., `debug_level=2` to get a device-side stack
   trace of a failing kernel without restarting Julia.

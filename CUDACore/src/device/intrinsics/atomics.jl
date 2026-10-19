@@ -118,26 +118,65 @@ end
 # promote (e.g. `/` on integers).
 @inline function atomic_modify!(ptr::LLVMPtr{T}, op::Function, val,
                                 scope::AtomicScope=Val(:device)) where {T}
-    sizeof(T) == 2 && return atomic_modify_b16!(ptr, op, val, scope)
+    (sizeof(T) == 2 || !isprimitivetype(T)) && return atomic_modify_bits!(ptr, op, val, scope)
     old, new = UnsafeAtomics.modify!(ptr, (old, val) -> convert(T, op(old, val)),
                                      convert(T, val), atomic_order,
                                      unsafe_atomics_scope(scope))
     return old, new
 end
 
-# loop on `atomic_cas!`, which uses the native 16-bit instruction where available (see
-# `atomic_cas_b16`), instead of on LLVM's emulation of it like `UnsafeAtomics.modify!` does
-@inline function atomic_modify_b16!(ptr::LLVMPtr{T}, op::Function, val,
-                                    scope::AtomicScope) where {T}
-    old = UnsafeAtomics.load(ptr, atomic_order, unsafe_atomics_scope(scope))
+# Loop on a compare-and-swap of the integer with the bits of the value, for values that LLVM
+# has no atomics on (e.g. `Complex`), and for 16-bit values, to use the native 16-bit
+# instruction where available (see `atomic_cas_b16`) instead of LLVM's emulation of it like
+# `UnsafeAtomics.modify!` does. The integer has to be aligned to its size, which can exceed
+# the alignment of `T`: e.g. a `ComplexF32` aligned to 4 but not 8 bytes faults. 128-bit
+# compare-and-swap, as used for `ComplexF64`, requires compute capability 9.0, which
+# GPUCompiler checks.
+@inline function atomic_modify_bits!(ptr::LLVMPtr{T,A}, op::Function, val,
+                                     scope::AtomicScope) where {T,A}
+    U = bits_type(Val(sizeof(T)))
+    if U === Nothing
+        GPUCompiler.@static_assert(false,
+            "atomic operations require values of 1, 2, 4, 8 or 16 bytes")
+        old = unsafe_load(ptr)
+        return old, old
+    end
+    bits_ptr = reinterpret(LLVMPtr{U,A}, ptr)
+    old = UnsafeAtomics.load(bits_ptr, atomic_order, unsafe_atomics_scope(scope))
     while true
-        new = convert(T, op(old, val))
-        cur = atomic_cas!(ptr, old, new, scope)
-        # compare bits, so that a NaN with another payload doesn't count as success
-        reinterpret(UInt16, cur) == reinterpret(UInt16, old) && return old, new
+        new = convert(T, op(reinterpret_bits(T, old), val))
+        # comparing bits also means that a NaN with another payload doesn't count as success
+        cur = atomic_cas_bits!(bits_ptr, old, reinterpret_bits(U, new), scope)
+        cur == old && return reinterpret_bits(T, old), new
         old = cur
     end
 end
+
+# `reinterpret` for values of types that aren't primitive, which Base can't do in device code
+# (it computes their padding at run time)
+@llvmgenerated builder function reinterpret_bits(::Type{U}, x::T)::U where {U,T}
+    slot = alloca!(builder, LLVM.value_type(x))
+    slot.alignment = sizeof(U)
+    store!(builder, x, slot)
+    ty = convert(LLVMType, U)
+    if supports_typed_pointers(LLVM.context())
+        slot = bitcast!(builder, slot, LLVM.PointerType(ty))
+    end
+    load!(builder, ty, slot)
+end
+
+bits_type(::Val{1}) = UInt8
+bits_type(::Val{2}) = UInt16
+bits_type(::Val{4}) = UInt32
+bits_type(::Val{8}) = UInt64
+bits_type(::Val{16}) = UInt128
+bits_type(::Val) = Nothing
+
+@inline atomic_cas_bits!(ptr::LLVMPtr{UInt16}, cmp::UInt16, val::UInt16, scope::AtomicScope) =
+    atomic_cas!(ptr, cmp, val, scope)
+@inline atomic_cas_bits!(ptr::LLVMPtr{U}, cmp::U, val::U, scope::AtomicScope) where {U} =
+    UnsafeAtomics.cas!(ptr, cmp, val, atomic_order, atomic_order,
+                       unsafe_atomics_scope(scope)).old
 
 @inline atomic_op!(ptr::LLVMPtr, op::Function, val, scope::AtomicScope=Val(:device)) =
     last(atomic_modify!(ptr, op, val, scope))
@@ -346,6 +385,11 @@ and not induce any side-effects.
 
 Like the lower-level `atomic_...!` functions, these operations are relaxed and atomic with
 respect to the threads of the device.
+
+Operations without a native instruction, and values of types other than integers and
+floating-point numbers (e.g. `Complex`), use a compare-and-swap loop. That requires the
+value to be 1, 2, 4, 8 or 16 bytes large, and aligned to its size; 16-byte values, like
+`ComplexF64`, require compute capability 9.0.
 
 !!! warn
     This interface is experimental, and might change without warning. Prefer Atomix.jl's
