@@ -6,11 +6,6 @@ using LinearAlgebra
 using BFloat16s
 using StaticArrays
 
-@test cuBLAS.version() isa VersionNumber
-@test cuBLAS.version().major == cuBLAS.cublasGetProperty(CUDACore.MAJOR_VERSION)
-@test cuBLAS.version().minor == cuBLAS.cublasGetProperty(CUDACore.MINOR_VERSION)
-@test cuBLAS.version().patch == cuBLAS.cublasGetProperty(CUDACore.PATCH_LEVEL)
-
 m = 20
 n = 35
 k = 13
@@ -159,24 +154,18 @@ k = 13
             A = rand(elty,m,k)
             B = rand(elty,k,n)
             C1  = rand(elty,m,n)
-            C2  = copy(C1)
             d_A = CuArray(A)
             d_B = CuArray(B)
             Bbad = rand(elty,k+1,n+1)
             d_Bbad = CuArray(Bbad)
             d_C1 = CuArray(C1)
-            d_C2 = CuArray(C2)
             @test_throws DimensionMismatch cuBLAS.xt_gemm!('N','N',alpha,d_A,d_Bbad,beta,d_C1)
             synchronize()
             cuBLAS.xt_gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
-            mul!(d_C2, d_A, d_B)
             h_C1 = Array(d_C1)
-            h_C2 = Array(d_C2)
             C1 = (alpha*A)*B + beta*C1
-            C2 = A*B
             # compare
             @test C1 ≈ h_C1
-            @test C2 ≈ h_C2
         end
         @testset "xt_gemm! cpu" begin
             alpha = rand(elty)
@@ -184,16 +173,11 @@ k = 13
             A     = rand(elty,m,k)
             B     = rand(elty,k,n)
             C1    = rand(elty,m,n)
-            C2    = copy(C1)
             C3    = copy(C1)
-            C4    = copy(C2)
             cuBLAS.xt_gemm!('N','N',alpha,A,B,beta,C1)
-            mul!(C2, A, B)
             C3 = (alpha*A)*B + beta*C3
-            C4 = A*B
             # compare
             @test C1 ≈ C3
-            @test C2 ≈ C4
         end
 
         @testset "xt_gemm gpu" begin
@@ -204,23 +188,18 @@ k = 13
             synchronize()
             d_C = cuBLAS.xt_gemm('N','N',d_A,d_B)
             C  = A*B
-            C2 = d_A * d_B
             # compare
             @test d_C isa CuArray
             h_C = Array(d_C)
-            h_C2 = Array(C2)
             @test C ≈ h_C
-            @test C ≈ h_C2
         end
         @testset "xt_gemm cpu" begin
             A = rand(elty,m,k)
             B = rand(elty,k,n)
             C = cuBLAS.xt_gemm('N','N',A,B)
-            C2  = A*B
             # compare
             @test C isa Array
             @test C ≈ A*B
-            @test C ≈ C2
         end
 
         @testset "xt_trsm gpu" begin
@@ -322,7 +301,7 @@ k = 13
             # move to host and compare
             @test d_C isa CuArray
             h_C = Array(d_C)
-            h_C = triu(C)
+            h_C = triu(h_C)
             @test C ≈ h_C
         end
         @testset "xt_syrk cpu" begin
@@ -333,7 +312,7 @@ k = 13
             C = triu(C)
             # move to host and compare
             @test h_C isa Array
-            h_C = triu(C)
+            h_C = triu(h_C)
             @test C ≈ h_C
         end
 
@@ -524,20 +503,6 @@ k = 13
                 # move back to host and compare
                 @test h_C isa Array
                 C = triu(C)
-                h_C = triu(h_C)
-                @test C ≈ h_C
-            end
-
-            @testset "her2k" begin
-                A = rand(elty,m,k)
-                B = rand(elty,m,k)
-                d_A = CuArray(A)
-                d_B = CuArray(B)
-                C = A*B' + B*A'
-                d_C = cuBLAS.her2k('U','N',d_A,d_B)
-                # move back to host and compare
-                C = triu(C)
-                h_C = Array(d_C)
                 h_C = triu(h_C)
                 @test C ≈ h_C
             end

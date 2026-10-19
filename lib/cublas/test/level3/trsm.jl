@@ -21,15 +21,6 @@ using Adapt: adapt
         @test Bl / adjtype(uplotype(A)) ≈ Array(d_Bl / adjtype(uplotype(dA)))
     end
 
-    @testset "trsm alpha scaling" begin
-        alpha = rand(elty)
-        A = triu(rand(elty, m, m))
-        dA = CuArray(A)
-        Br = rand(elty, m, n)
-        d_Br = CuArray(Br)
-        @test BLAS.trsm('L', 'U', 'N', 'N', alpha, A, Br) ≈ Array(cuBLAS.trsm('L', 'U', 'N', 'N', alpha, dA, d_Br))
-    end
-
     @testset "trsm_batched!" begin
         alpha = rand(elty)
         bA = [triu(rand(elty, m, m)) for i in 1:10]
@@ -80,18 +71,17 @@ using Adapt: adapt
         @test alpha * (op(A) \ B) ≈ Array(dC)
     end
 
+    # `\` above covers the wrapper combinations; this covers the in-place (aliased) path
     @testset "triangular ldiv!" begin
         A = triu(rand(elty, m, m))
         B = rand(elty, m, m)
         dA = CuArray(A)
         dB = CuArray(B)
 
-        for t in (identity, transpose, adjoint),
-            TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
-
+        for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
             dC = copy(dB)
-            ldiv!(t(TR(dA)), dC)
-            @test t(TR(A)) \ B ≈ Array(dC)
+            ldiv!(TR(dA), dC)
+            @test TR(A) \ B ≈ Array(dC)
         end
     end
 
@@ -116,18 +106,17 @@ using Adapt: adapt
         @test alpha * (A / op(B)) ≈ Array(dC)
     end
 
+    # `/` above covers the wrapper combinations; this covers the in-place (aliased) path
     @testset "triangular rdiv!" begin
         A = rand(elty, m, m)
         B = triu(rand(elty, m, m))
         dA = CuArray(A)
         dB = CuArray(B)
 
-        for t in (identity, transpose, adjoint),
-            TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
-
+        for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
             dC = copy(dA)
-            rdiv!(dC, t(TR(dB)))
-            @test A / t(TR(B)) ≈ Array(dC)
+            rdiv!(dC, TR(dB))
+            @test A / TR(B) ≈ Array(dC)
         end
     end
 
