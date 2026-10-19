@@ -43,6 +43,24 @@ end
     end
 end
 
+# Julia 1.10 lacks `@consistent_overlay`, so code reaching any overlay is never folded
+VERSION >= v"1.11" && @testset "concrete evaluation" begin
+    # code reachable from the throw overlays must not form an inference cycle with them,
+    # which taints Base conversions like `Int32(::UInt64)` and keeps foldable code using
+    # them from being evaluated at compile time (JuliaGPU/Metal.jl#567)
+    Base.@assume_effects :foldable function foldable_sum(n::UInt64)
+        s = Int32(0)
+        i = UInt64(1)
+        while i <= n
+            s += Int32(i)
+            i += UInt64(1)
+        end
+        return s
+    end
+    ci, rt = only(CUDA.code_typed(() -> foldable_sum(UInt64(100)), Tuple{}; kernel=false))
+    @test ci.code[end] == Core.ReturnNode(Int32(5050))
+end
+
 @testset "assume" begin
     @test @filecheck CUDA.code_llvm(Tuple{Int}) do i
         @check "@gpu_report_exception"
