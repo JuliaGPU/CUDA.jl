@@ -115,6 +115,63 @@ end
     end
 end
 
+@testset "views BLAS can't address as a vector" begin
+    A = rand(Float32, 3, 4)
+    dA = CuArray(A)
+    rmul!(view(dA, 1:2, :), 2f0)
+    rmul!(view(A, 1:2, :), 2f0)
+    @test Array(dA) ≈ A
+
+    # ComplexF16 is computed in ComplexF32 and written back
+    x, y = rand(ComplexF16, 20), rand(ComplexF16, 20)
+    dx, dy = CuArray(x), CuArray(y)
+    axpy!(ComplexF16(2), view(dx, 1:2:20), view(dy, 1:2:20))
+    axpy!(ComplexF16(2), view(x, 1:2:20), view(y, 1:2:20))
+    @test Array(dy) ≈ y
+    cuBLAS.scal!(10, 3f0, view(dx, 1:2:20))
+    rmul!(view(x, 1:2:20), 3f0)
+    @test Array(dx) ≈ x
+end
+
+# BLAS walks a negative increment from the lowest address (JuliaGPU/CUDA.jl#3410)
+@testset "negative strides $T" for T in [Float16, ComplexF16, Float32, Float64, ComplexF32, ComplexF64]
+    m = 20
+    rev(a) = view(a, lastindex(a):-2:1)
+    fwd(a) = view(a, 1:2:lastindex(a))
+    x, y = rand(T, m), rand(T, m)
+    dx, dy = CuArray(x), CuArray(y)
+
+    @test norm(rev(dx)) ≈ norm(rev(x))
+    @test dot(rev(dx), fwd(dy)) ≈ dot(rev(x), fwd(y))
+    @test dot(rev(dx), rev(dy)) ≈ dot(rev(x), rev(y))
+    if T <: cuBLAS.CublasFloat
+        @test BLAS.asum(rev(dx)) ≈ BLAS.asum(rev(x))
+    end
+
+    for f! in ((x, y) -> T <: cuBLAS.CublasFloat ? rmul!(rev(y), T(3)) : y,
+               (x, y) -> axpy!(T(2), rev(x), fwd(y)),
+               (x, y) -> axpy!(T(2), fwd(x), rev(y)),
+               (x, y) -> axpby!(T(2), rev(x), T(3), rev(y)))
+        a, da = copy(y), copy(dy)
+        f!(x, a)
+        f!(dx, da)
+        @test Array(da) ≈ a
+    end
+
+    if T <: cuBLAS.CublasFloat
+        a, da = copy(y), copy(dy)
+        copyto!(fwd(a), rev(x))
+        cuBLAS.copy!(m ÷ 2, rev(dx), fwd(da))
+        @test Array(da) == a
+
+        a, b, da, db = copy(x), copy(y), copy(dx), copy(dy)
+        a[1:2:end], b[end:-2:1] = b[end:-2:1], a[1:2:end]
+        cuBLAS.swap!(m ÷ 2, fwd(da), rev(db))
+        @test Array(da) == a
+        @test Array(db) == b
+    end
+end
+
 @testset "dot with mixed types" begin
     m = 20
     T1 = Float32

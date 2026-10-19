@@ -106,6 +106,11 @@ end
     C64 = CuArray(zeros(Float64, 4, 3))
     mul!(C64, 'S', 'N', CuArray(S32), CuArray(B64), true, false)
     @test Array(C64) ≈ Symmetric(S32) * B64
+
+    # an empty inner dimension only scales C, which needn't be addressable by cuBLAS
+    C = CuArray(fill(NaN32, 3, 2))
+    mul!(view(C, :, 2:-1:1), 'N', 'N', CuArray(zeros(Float32, 3, 0)), CuArray(zeros(Float32, 0, 2)), true, false)
+    @test all(iszero, Array(C))
 end
 
 @testset "triangular products and solves with reversed views" begin
