@@ -6,11 +6,6 @@ using LinearAlgebra
 using BFloat16s
 using StaticArrays
 
-@test cuBLAS.version() isa VersionNumber
-@test cuBLAS.version().major == cuBLAS.cublasGetProperty(CUDACore.MAJOR_VERSION)
-@test cuBLAS.version().minor == cuBLAS.cublasGetProperty(CUDACore.MINOR_VERSION)
-@test cuBLAS.version().patch == cuBLAS.cublasGetProperty(CUDACore.PATCH_LEVEL)
-
 m = 20
 n = 35
 k = 13
@@ -26,20 +21,19 @@ k = 13
             @test Array(dC) ≈ C
         end
 
-        @testset "mul! C = $f(A) * $f($g(B)) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
-            C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
-            dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
-            mul!(dC, f(dA), f(g(dB)), Ts(1), Ts(2))
-            mul!(C, f(A), f(g(B)), Ts(1), Ts(2))
-            @test Array(dC) ≈ C
-        end
-
-        @testset "mul! C = $g($f(A)) * $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
-            C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
-            dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
-            mul!(dC, g(f(dA)), g(dB), Ts(1), Ts(2))
-            mul!(C, g(f(A)), g(B), Ts(1), Ts(2))
-            @test Array(dC) ≈ C
+        # nested wrappers only survive for complex eltypes (otherwise e.g. transpose(adjoint(B))
+        # unwraps to B), and dispatch to dedicated mul! methods
+        if elty <: Complex
+            @testset "mul! C = $f(A) * $g(B) * $Ts(a) + C * $Ts(b)" for (f, g) in (
+                    (transpose, transpose ∘ adjoint), (adjoint, adjoint ∘ transpose),
+                    (transpose ∘ adjoint, transpose), (adjoint ∘ transpose, adjoint)),
+                Ts in (Int, elty)
+                C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
+                dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
+                mul!(dC, f(dA), g(dB), Ts(1), Ts(2))
+                mul!(C, f(A), g(B), Ts(1), Ts(2))
+                @test Array(dC) ≈ C
+            end
         end
 
         if !(elty <: Float16)

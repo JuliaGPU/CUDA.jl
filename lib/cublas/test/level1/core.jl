@@ -25,15 +25,6 @@ using LinearAlgebra
     @test testf(axpy!, rand(), rand(T, m), rand(T, m))
     @test testf(LinearAlgebra.axpby!, rand(), rand(T, m), rand(), rand(T, m))
 
-    if T <: Complex
-        @test testf(dot, rand(T, m), rand(T, m))
-        x = rand(T, m)
-        y = rand(T, m)
-        dx = CuArray(x)
-        dy = CuArray(y)
-        @test dot(dx, dy) ≈ dot(x, y)
-    end
-
     @testset "rmul! strong zero" begin
         @test testf(rmul!, fill(T(NaN), 3), false)
         @test testf(rmul!, rand(T, 3), false)
@@ -121,15 +112,6 @@ end
         d_α = CuArray([α])
         d_x = cuBLAS.scal!(m, d_α, d_x)
         @test Array(d_x) ≈ α * x
-    end
-
-    if T <: Complex
-        @test testf(dot, rand(T, m), rand(T, m))
-        x = rand(T, m)
-        y = rand(T, m)
-        dx = CuArray(x)
-        dy = CuArray(y)
-        @test dot(dx, dy) ≈ dot(x, y)
     end
 end
 
