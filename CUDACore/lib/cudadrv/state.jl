@@ -177,8 +177,15 @@ end
 
 @inline function context!(f::F, ctx::CuContext) where {F<:Function}
     state = task_local_state()
-    if state === nothing || state.context == ctx
-        state === nothing && context!(ctx)
+    if state === nothing
+        context!(ctx)
+        try
+            return f()
+        finally
+            # the task didn't use CUDA before, so let it start over
+            delete!(task_local_storage(), :CUDA)
+        end
+    elseif state.context == ctx
         return f()
     end
 

@@ -94,6 +94,16 @@ if !exclusive
         end)
         @test after.ctx == ctx
     end
+
+    # a task that didn't use CUDA before doesn't stay in the other context
+    after = fetch(@async begin
+        CuContext(dev) do ctx2
+            context!(synchronize, ctx2)
+        end
+        synchronize()
+        context()
+    end)
+    @test after == ctx
 end
 
 end
