@@ -816,7 +816,7 @@ CuSparseVector{T}(Mat::SparseMatrixCSC) where {T} =
         CuSparseVector(CuVector{Cint}(Mat.rowval), CuVector{T}(Mat.nzval), size(Mat)[1]) :
         throw(ArgumentError("The input argument must have a single column"))
 CuSparseMatrixCSC{T}(Vec::SparseVector) where {T} =
-    CuSparseMatrixCSC{T}(CuVector{Cint}([1]), CuVector{Cint}(Vec.nzind),
+    CuSparseMatrixCSC{T}(CuVector{Cint}([1, nnz(Vec)+1]), CuVector{Cint}(Vec.nzind),
                          CuVector{T}(Vec.nzval), (length(Vec), 1))
 CuSparseMatrixCSR{T}(Vec::SparseVector) where {T} = CuSparseMatrixCSR(CuSparseMatrixCSC{T}(Vec))
 CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =

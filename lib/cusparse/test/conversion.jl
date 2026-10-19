@@ -275,6 +275,15 @@ end
     end
 end
 
+@testset "CuSparseMatrix(::SparseVector)" begin
+    x = sparsevec([2, 4], [1.0, 2.0], 5)
+    for T in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+        dA = T(x)
+        @test size(dA) == (5, 1)
+        @test SparseMatrixCSC(dA) == SparseMatrixCSC(x)
+    end
+end
+
 @testset "CuSparseMatrix(::Adjoint/::Transpose) from CPU" begin
     for typ in (Float32, ComplexF32, Float64, ComplexF64)
         A = sprand(typ, 5, 5, 0.2)
