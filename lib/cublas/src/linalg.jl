@@ -5,6 +5,16 @@ using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!,
     # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
     using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
 end
+
+# cuBLAS addresses a matrix, or a vector passed as one, through its leading dimension
+# `stride(X, 2)`, which must be at least the number of rows. Reversed views fail this.
+column_major(X::StridedCuVecOrMat) = stride(X, 1) == 1 && stride(X, 2) >= max(1, size(X, 1))
+
+# BLAS walks a vector with a negative increment backwards from its end, while a reversed
+# view points at its first element, so vector operands need a positive stride.
+blas_layout(x::StridedCuVector) = stride(x, 1) > 0
+blas_layout(A::StridedCuMatrix) = column_major(A)
+
 #
 # BLAS 1
 #
@@ -275,7 +285,8 @@ function LinearAlgebra.mul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMa
 
     T = eltype(Y)
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        if T <: CublasFloat && eltype(A) == eltype(B) == T && stride(A, 1) == 1
+        if T <: CublasFloat && eltype(A) == eltype(B) == T &&
+           blas_layout(A) && blas_layout(B) && blas_layout(Y)
             if tA in ('N', 'T', 'C')
                 return gemv!(tA, alpha, A, B, beta, Y)
             elseif tA in ('S', 's')
@@ -360,8 +371,8 @@ function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, 
         return LinearAlgebra.rmul!(C, beta)
     end
 
-    unit_stride = stride(A, 1) == stride(B, 1) == stride(C, 1) == 1
-    if unit_stride && all(in(('N', 'T', 'C')), (tA, tB))
+    cublas_layout = column_major(A) && column_major(B) && column_major(C)
+    if cublas_layout && all(in(('N', 'T', 'C')), (tA, tB))
         if A isa StridedCuArray && B isa StridedCuArray &&
         gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
             return gemmEx!(tA, tB, alpha, A, B, beta, C)
@@ -369,7 +380,7 @@ function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, 
             return gemm!(tA, tB, alpha, A, B, beta, C)
         end
     end
-    if unit_stride && T <: CublasFloat && eltype(A) == eltype(B) == T &&
+    if cublas_layout && T <: CublasFloat && eltype(A) == eltype(B) == T &&
        alpha isa Union{Bool,T} && beta isa Union{Bool,T}
         # TODO: should the gemm part above be included in this branch?
         if (tA == 'S' || tA == 's') && tB == 'N'

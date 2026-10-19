@@ -76,6 +76,27 @@ end
     mul!(y, 'N', view(dA, 1:2:8, :), dx, true, false)
     @test Array(y) ≈ A[1:2:8, :] * x
 
+    # reversed views, which cuBLAS would get as a negative leading dimension or increment
+    C = CuArray(zeros(Float32, 8, 5))
+    mul!(C, 'N', 'N', view(dA, :, 6:-1:1), dB, true, false)
+    @test Array(C) ≈ A[:, 6:-1:1] * B
+    y = CuArray(zeros(Float32, 8))
+    mul!(y, 'N', view(dA, :, 6:-1:1), dx, true, false)
+    @test Array(y) ≈ A[:, 6:-1:1] * x
+    mul!(y, 'N', dA, view(dx, 6:-1:1), true, false)
+    @test Array(y) ≈ A * reverse(x)
+    mul!(view(y, 8:-1:1), 'N', dA, dx, true, false)
+    @test Array(y) ≈ reverse(A * x)
+    S = rand(ComplexF32, 6, 6); dS = CuArray(S)
+    for (tA, wrapper) in (('S', Symmetric), ('H', Hermitian))
+        Cc = CuArray(zeros(ComplexF32, 6, 5))
+        mul!(Cc, tA, 'N', view(dS, :, 6:-1:1), CuArray{ComplexF32}(dB), true, false)
+        @test Array(Cc) ≈ wrapper(S[:, 6:-1:1]) * B
+        yc = CuArray(zeros(ComplexF32, 6))
+        mul!(yc, tA, dS, view(CuArray{ComplexF32}(dx), 6:-1:1), true, false)
+        @test Array(yc) ≈ wrapper(S) * reverse(x)
+    end
+
     # element types cuBLAS has no symm/hemm for
     S = rand(Float16, 4, 4); B16 = rand(Float16, 2, 3)
     C16 = CuArray(zeros(Float16, 2, 3))
