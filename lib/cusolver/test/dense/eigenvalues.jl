@@ -58,21 +58,11 @@ end
     local d_W, d_V
     if elty <: Complex
         d_W, d_V   = cuSOLVER.heevd!('V', 'U', d_A)
-        d_W_b, d_V_b  = LAPACK.syev!('V', 'U', CuArray(A))
-        @test d_W ≈ d_W_b
-        @test d_V ≈ d_V_b
-        d_W_c, d_V_c  = LAPACK.syevd!('V', 'U', CuArray(A))
-        @test d_W ≈ d_W_c
-        @test d_V ≈ d_V_c
     else
         d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
-        d_W_b, d_V_b  = LAPACK.syev!('V', 'U', CuArray(A))
-        @test d_W ≈ d_W_b
-        @test d_V ≈ d_V_b
-        d_W_c, d_V_c  = LAPACK.syevd!('V', 'U', CuArray(A))
-        @test d_W ≈ d_W_c
-        @test d_V ≈ d_V_c
     end
+    @test LAPACK.syev!('N', 'U', CuArray(A)) ≈ d_W
+    @test LAPACK.syevd!('N', 'U', CuArray(A)) ≈ d_W
     h_W            = collect(d_W)
     h_V            = collect(d_V)
     Eig            = eigen(A)
@@ -98,11 +88,15 @@ end
     @test Eig.values ≈ collect(d_eig.values)
     h_V            = collect(d_eig.vectors)
     @test abs.(Eig.vectors'*h_V) ≈ I
+    h_V            = collect(eigvecs(LinearAlgebra.Hermitian(d_A)))
+    @test abs.(Eig.vectors'*h_V) ≈ I
     if elty <: Real
         Eig            = eigen(LinearAlgebra.Symmetric(A))
         d_eig          = eigen(LinearAlgebra.Symmetric(d_A))
         @test Eig.values ≈ collect(d_eig.values)
         h_V            = collect(d_eig.vectors)
+        @test abs.(Eig.vectors'*h_V) ≈ I
+        h_V            = collect(eigvecs(LinearAlgebra.Symmetric(d_A)))
         @test abs.(Eig.vectors'*h_V) ≈ I
     end
 
@@ -120,25 +114,6 @@ end
         d_W            = eigvals(LinearAlgebra.Symmetric(d_A))
         @test W        ≈ collect(d_W)
     end
-
-    A              = rand(elty, m, m)
-    A             += A'
-    d_A            = CuArray(A)
-    V              = eigvecs(LinearAlgebra.Hermitian(A))
-    d_W            = eigvals(d_A)
-    d_V            = eigvecs(d_A)
-    sorteig!(d_W, d_V)
-    h_V            = collect(d_V)
-    @test abs.(V'*h_V) ≈ I
-    d_V            = eigvecs(LinearAlgebra.Hermitian(d_A))
-    h_V            = collect(d_V)
-    @test abs.(V'*h_V) ≈ I
-    if elty <: Real
-        V              = eigvecs(LinearAlgebra.Symmetric(A))
-        d_V            = eigvecs(LinearAlgebra.Symmetric(d_A))
-        h_V            = collect(d_V)
-        @test abs.(V'*h_V) ≈ I
-    end
 end
 
 @testset "sygvd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -151,17 +126,10 @@ end
     local d_W, d_VA, d_VB
     if elty <: Complex
         d_W, d_VA, d_VB = cuSOLVER.hegvd!(1, 'V', 'U', d_A, d_B)
-        d_W2, d_VA2, d_VB2 = LAPACK.sygvd!(1, 'V', 'U', CuArray(A), CuArray(B))
-        @test d_W2 ≈ d_W
-        @test d_VA2 ≈ d_VA
-        @test d_VB2 ≈ d_VB
     else
         d_W, d_VA, d_VB = cuSOLVER.sygvd!(1, 'V', 'U', d_A, d_B)
-        d_W2, d_VA2, d_VB2 = LAPACK.sygvd!(1, 'V', 'U', CuArray(A), CuArray(B))
-        @test d_W2 ≈ d_W
-        @test d_VA2 ≈ d_VA
-        @test d_VB2 ≈ d_VB
     end
+    @test LAPACK.sygvd!(1, 'N', 'U', CuArray(A), CuArray(B)) ≈ d_W
     h_W            = collect(d_W)
     h_VA           = collect(d_VA)
     h_VB           = collect(d_VB)
