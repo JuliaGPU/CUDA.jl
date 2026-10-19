@@ -107,3 +107,45 @@ end
     mul!(C64, 'S', 'N', CuArray(S32), CuArray(B64), true, false)
     @test Array(C64) ≈ Symmetric(S32) * B64
 end
+
+@testset "triangular products and solves with reversed views" begin
+    S = rand(Float32, 4, 4) + 4I; B = rand(Float32, 4, 5); x = rand(Float32, 4)
+    dS = CuArray(S)
+    U, dU = UpperTriangular(S[:, 4:-1:1]), UpperTriangular(view(dS, :, 4:-1:1))
+
+    # reversed vectors
+    z = CuArray(x)
+    lmul!(UpperTriangular(dS), view(z, 4:-1:1))
+    @test Array(z) ≈ reverse(UpperTriangular(S) * reverse(x))
+    z = CuArray(x)
+    ldiv!(UpperTriangular(dS), view(z, 4:-1:1))
+    @test Array(z) ≈ reverse(UpperTriangular(S) \ reverse(x))
+
+    # reversed triangular matrix
+    z = CuArray(x)
+    @test Array(lmul!(dU, z)) ≈ U * x
+    z = CuArray(x)
+    @test Array(ldiv!(dU, z)) ≈ U \ x
+    Z = CuArray(B)
+    @test Array(lmul!(dU, Z)) ≈ U * B
+    Z = CuArray(B)
+    @test Array(ldiv!(dU, Z)) ≈ U \ B
+    Z = CuArray(copy(B'))
+    @test Array(rmul!(Z, dU)) ≈ B' * U
+    Z = CuArray(copy(B'))
+    @test Array(rdiv!(Z, dU)) ≈ B' / U
+
+    # reversed right-hand side
+    Z = CuArray(B)
+    lmul!(UpperTriangular(dS), view(Z, :, 5:-1:1))
+    @test Array(Z) ≈ (UpperTriangular(S) * B[:, 5:-1:1])[:, 5:-1:1]
+    Z = CuArray(B)
+    ldiv!(UpperTriangular(dS), view(Z, :, 5:-1:1))
+    @test Array(Z) ≈ (UpperTriangular(S) \ B[:, 5:-1:1])[:, 5:-1:1]
+    Z = CuArray(copy(B'))
+    rmul!(view(Z, 5:-1:1, :), UpperTriangular(dS))
+    @test Array(Z) ≈ (B'[5:-1:1, :] * UpperTriangular(S))[5:-1:1, :]
+    Z = CuArray(copy(B'))
+    rdiv!(view(Z, 5:-1:1, :), UpperTriangular(dS))
+    @test Array(Z) ≈ (B'[5:-1:1, :] / UpperTriangular(S))[5:-1:1, :]
+end

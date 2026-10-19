@@ -15,6 +15,10 @@ column_major(X::StridedCuVecOrMat) = stride(X, 1) == 1 && stride(X, 2) >= max(1,
 blas_layout(x::StridedCuVector) = stride(x, 1) > 0
 blas_layout(A::StridedCuMatrix) = column_major(A)
 
+# run a cuBLAS routine on contiguous copies of operands it can't address
+blas_input(X) = blas_layout(X) ? X : copy(X)
+blas_output(f, C) = blas_layout(C) ? f(C) : copyto!(C, f(similar(C)))
+
 #
 # BLAS 1
 #
@@ -303,11 +307,15 @@ end
 
 ## multiplication
 LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, b::StridedCuVector{T}) where {T<:CublasFloat} =
-    trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, c === b ? c : copyto!(c, b))
+    blas_output(c) do c
+        trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, blas_input(A), c === b ? c : copyto!(c, b))
+    end
 
 ## division
 LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuVector{T}) where {T<:CublasFloat} =
-    trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, C === B ? C : copyto!(C, B))
+    blas_output(C) do C
+        trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, blas_input(A), C === B ? C : copyto!(C, B))
+    end
 
 # work around upstream breakage from JuliaLang/julia#55547
 @static if VERSION >= v"1.11.2"
@@ -422,9 +430,13 @@ LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Transpose{T, <:Adjoint{T, <:Strid
 # triangular
 
 LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    trmm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, B, C)
+    blas_output(C) do C
+        trmm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(A), blas_input(B), C)
+    end
 LinearAlgebra.generic_mattrimul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, A, C)
+    blas_output(C) do C
+        trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(B), blas_input(A), C)
+    end
 
 ## tri-tri-mul!
 function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::StridedCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
@@ -460,9 +472,13 @@ function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitc
 end
 
 LinearAlgebra.generic_trimatdiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::AdjOrTransOrCuMatrix{T}) where {T<:CublasFloat} =
-    trsm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, C === B ? C : copyto!(C, B))
+    blas_output(C) do C
+        trsm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(A), C === B ? C : copyto!(C, B))
+    end
 LinearAlgebra.generic_mattridiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::AdjOrTransOrCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, C === A ? C : copyto!(C, A))
+    blas_output(C) do C
+        trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(B), C === A ? C : copyto!(C, A))
+    end
 
 # Matrix inverse
 for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
