@@ -171,6 +171,22 @@ svalloc(x) = CuArray{SVector{3, Float64}, 1, CUDA.DeviceMemory}(undef, (x,))
     @test all(iszero, Array(shad))
 end
 
+# an isbits struct without a `zero` method
+struct FloatPair
+    a::Float64
+    b::Float64
+end
+pairalloc(x) = CuArray{FloatPair, 1, CUDA.DeviceMemory}(undef, (x,))
+
+@testset "Allocate struct" begin
+    dup = Enzyme.autodiff(ForwardWithPrimal, pairalloc, Duplicated, Const(10))
+    @test all(==(FloatPair(0, 0)), Array(dup[1]))
+
+    fwd, rev = Enzyme.autodiff_thunk(ReverseSplitWithPrimal, Const{typeof(pairalloc)}, Duplicated, Const{Int})
+    tape, prim, shad = fwd(Const(pairalloc), Const(10))
+    @test all(==(FloatPair(0, 0)), Array(shad))
+end
+
 firstsum(x, y) = first(x .+ y)
 @testset "Forward broadcast" begin
     x = CuArray(5*ones(5))
