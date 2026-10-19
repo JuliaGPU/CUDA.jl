@@ -210,4 +210,63 @@ using LinearAlgebra, SparseArrays
             end
         end
     end
+
+    @testset "products with HermOrSym operands (CUDA.jl#2572)" begin
+        # non-symmetric, so that ignoring the wrapper changes the result
+        A = sprand(elty, n, n, 0.3)
+        D = rand(elty, n, n)
+        x = rand(elty, n)
+        X = rand(elty, n, nB)
+        Xr = rand(elty, nB, n)
+        s = sprand(elty, n, 0.5)
+        dD, dx, dX, dXr, ds = CuArray(D), CuArray(x), CuArray(X), CuArray(Xr), CuSparseVector(s)
+        @testset "$SparseMatrixType" for SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+            dA = SparseMatrixType(A)
+            for wrap in (Symmetric, Hermitian), uplo in (:U, :L)
+                # SparseArrays on 1.10 can't multiply some wrapped sparse matrices
+                Aw = Matrix(wrap(A, uplo))
+                @test collect(wrap(dA, uplo) * dx) ≈ Aw * x
+                @test collect(wrap(dA, uplo) * ds) ≈ Aw * s
+                @test collect(wrap(dA, uplo) * dX) ≈ Aw * X
+                y = rand(elty, n)
+                dy = CuArray(y)
+                mul!(y, Aw, x, alpha, beta)
+                mul!(dy, wrap(dA, uplo), dx, alpha, beta)
+                @test collect(dy) ≈ y
+                Y = rand(elty, n, nB)
+                dY = CuArray(Y)
+                mul!(Y, Aw, X, alpha, beta)
+                mul!(dY, wrap(dA, uplo), dX, alpha, beta)
+                @test collect(dY) ≈ Y
+                if elty <: Real && cuSPARSE.version() >= v"11"
+                    # the materialized operand still needs eltype promotion
+                    Xc = rand(complex(elty), n, nB)
+                    @test collect(wrap(dA, uplo) * CuArray(Xc)) ≈ Aw * Xc
+                end
+
+                # symmetric dense operands
+                @test collect(dA * wrap(dD, uplo)) ≈ A * wrap(D, uplo)
+                @test collect(wrap(dD, uplo) * ds) ≈ wrap(D, uplo) * s
+
+                if cuSPARSE.version() >= v"11" # row-major SpMM
+                    @test collect(dXr * wrap(dA, uplo)) ≈ Xr * Aw
+                    @test collect(wrap(dD, uplo) * dA) ≈ wrap(D, uplo) * A
+                end
+
+                # comparing sparse results against the CPU requires densifying them
+                if dense_conversion(elty, SparseMatrixType)
+                    @test collect(wrap(dA, uplo) * dA) ≈ Aw * A
+                    @test collect(dA * wrap(dA, uplo)) ≈ A * Aw
+                end
+            end
+        end
+        @testset "CuSparseMatrixBSR" begin
+            dA = CuSparseMatrixBSR(CuSparseMatrixCSR(A), 2)
+            for wrap in (Symmetric, Hermitian), uplo in (:U, :L)
+                Aw = Matrix(wrap(A, uplo))
+                @test collect(wrap(dA, uplo) * dx) ≈ Aw * x
+                @test collect(wrap(dA, uplo) * dX) ≈ Aw * X
+            end
+        end
+    end
 end
