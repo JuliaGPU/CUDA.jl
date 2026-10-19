@@ -1,423 +1,47 @@
-# Commit message tags select what to run: `[only X]` runs only the listed steps, `[skip X]`
-# skips them, where X is a comma-separated list of: `tests` (everything but docs and
-# benchmarks), `julia` (released Julia versions), `nightly`, `cuda` (CUDA toolkits),
-# `downstream`, `special`, `docs`, `benchmarks`. To limit the load on the shared GPU runners,
-# pull requests only test the oldest and newest supported Julia release, and the oldest and
-# newest toolkit of each CUDA major version; the other Julia versions (including nightly)
-# and toolkits are tested on branch builds, or when selected explicitly with `[only X]`.
-# Draft pull requests only test the newest Julia release. See also GPUCompiler.jl's CI,
-# which uses the same tags.
-#
-# Julia versions run the `julia` group of tests and CUDA toolkits the `cuda` group (see
-# test/runtests.jl). The newest toolkit of each CUDA major version also runs the tests that
-# depend on the compiler, and the newest toolkit overall runs all tests.
+# Diagnostic pipeline for cuSOLVERMg failing on the MultiGPU agent in JuliaGPU/CUDA.jl#3358.
+# Not meant to be merged.
 steps:
-  # first, test supported Julia versions (using local CUDA as installed on the system)
-  - group: ":julia: Julia"
-    key: "julia"
-    steps:
-      # Julia 1.10 doesn't support [sources] in Project.toml,
-      # so we need to manually dev workspace packages before instantiating.
-      - label: "Julia 1.10"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.10"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-        commands: |
-          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
-          julia --project=. -e '
-            using Pkg
-            Pkg.develop([PackageSpec(; path) for path in (
-              "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
-              "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
-              "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
-            )])
-            Pkg.test(; test_args=["--quickfail", "julia"])'
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|julia)/ &&
-          (build.message =~ /\[only [^\]]*(tests|julia)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 90
-
-      # the newest release, also tested on draft pull requests
-      - &julia
-        label: "Julia {{matrix.julia}}"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "{{matrix.julia}}"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail julia"
-              allow_reresolve: false
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-        commands: |
-          echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|julia)/ &&
-          (build.message =~ /\[only [^\]]*(tests|julia)/ || build.message !~ /\[only /)
-        timeout_in_minutes: 90
-        matrix:
-          setup:
-            julia:
-              - "1.13"
-
-      # intermediate releases, not tested on pull requests
-      - <<: *julia
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|julia)/ &&
-          (build.message =~ /\[only [^\]]*(tests|julia)/ ||
-           build.message !~ /\[only / && build.pull_request.id == null)
-        matrix:
-          setup:
-            julia:
-              - "1.11"
-              - "1.12"
-
-      - <<: *julia
-        # not tested on pull requests
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
-          (build.message =~ /\[only [^\]]*(tests|nightly)/ ||
-           build.message !~ /\[only / && build.pull_request.id == null)
-        soft_fail: true
-        matrix:
-          setup:
-            julia:
-              - "nightly"
-
-  # then, test supported CUDA toolkits (installed through the artifact system)
-  - group: "CUDA"
-    key: "cuda"
-    depends_on: "julia"
-    steps:
-      # every toolkit of a major version uses the compiler of its newest toolkit (see
-      # below), so only that toolkit runs the tests that depend on the compiler. the newest
-      # one is tested with the newest Julia release, and runs all tests.
-      - &cuda
-        label: "CUDA {{matrix.cuda}}"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.13"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail --all"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|cuda)/ &&
-          (build.message =~ /\[only [^\]]*(tests|cuda)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 120
-        matrix:
-          setup:
-            cuda:
-              - "13.4"
-        commands: |
-          # use the newest compiler in each major, including the EA compiler for CUDA 13
-          case "{{matrix.cuda}}" in
-            13.*) compiler="13.4" ;;
-            12.*) compiler="12.9" ;;
-            *) exit 1 ;;
-          esac
-          echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"\n\n[CUDA_Compiler_jll]\nversion = \"$${compiler}\"" >LocalPreferences.toml
-
-      # the newest CUDA 12 toolkit, without the GPUArrays testsuite (which is unlikely to
-      # depend on the toolkit)
-      - <<: *cuda
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core tools libraries"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        matrix:
-          setup:
-            cuda:
-              - "12.9"
-
-      # the other toolkits only differ in their runtime and libraries, so they only run the
-      # tests that depend on those. together with the above, this tests the oldest and
-      # newest toolkit of each major version on pull requests.
-      - &cuda_runtime
-        <<: *cuda
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail cuda"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        timeout_in_minutes: 90
-        matrix:
-          setup:
-            cuda:
-              - "13.0"
-              - "12.0"
-
-      # intermediate toolkits, not tested on pull requests
-      - <<: *cuda_runtime
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|cuda)/ &&
-          (build.message =~ /\[only [^\]]*(tests|cuda)/ ||
-           build.message !~ /\[only / && build.pull_request.id == null)
-        matrix:
-          setup:
-            cuda:
-              - "13.3"
-              - "13.2"
-              - "13.1"
-              - "12.8"
-              - "12.6"
-              - "12.5"
-              - "12.4"
-              - "12.3"
-              - "12.2"
-              - "12.1"
-
-  - group: ":telescope: Downstream"
-    depends_on: "cuda"
-    steps:
-      - label: "Enzyme.jl"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.11"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        commands: |
-          julia -e '
-            using Pkg
-
-            println("--- :julia: Instantiating project")
-            withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
-              # add Enzyme to the test deps
-              Pkg.activate("test")
-              Pkg.add(["Enzyme", "EnzymeCore"])
-
-              # to check compatibility, also add Enzyme to the main environment
-              # (or Pkg.test, which merges both environments, could fail)
-              Pkg.activate(".")
-              # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
-              try
-                Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
-              catch err
-                try
-                  Pkg.develop([PackageSpec("Enzyme")])
-                catch err
-                  @error "Could not install Enzyme" exception=(err,catch_backtrace())
-                  exit(3)
-                end
-              end
-            end
-
-            println("+++ :julia: Running tests")
-            Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
-        agents:
-          queue: "cuda"
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|downstream)/ &&
-          (build.message =~ /\[only [^\]]*(tests|downstream)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 60
-        soft_fail: true
-
-  # the GPU-less step runs on a different, often busy queue, so start it right away instead
-  # of after the GPU tests: it would otherwise delay the documentation and benchmarks
-  - group: ":eyes: GPU-less"
-    steps:
-      - label: "GPU-less environment"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.11"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-          - JuliaCI/julia-test#v1:
-              run_tests: false
-        command: |
-          julia --project -e '
-            using CUDA
-            @assert !CUDA.functional()
-            @assert !CUDACore.CUDA_Runtime.is_available()
-            @assert !CUDACore.CUDA_Compiler.is_available()
-            @assert !isdefined(CUDACore, :libcudart)
-            CUDA.set_runtime_version!(v"12.0")'
-          julia --project -e '
-            using CUDA
-            @assert !CUDA.functional()
-            @assert CUDACore.CUDA_Runtime.is_available()
-            @assert CUDACore.CUDA_Compiler.is_available()
-            @assert isdefined(CUDACore, :libcudart)'
-        agents:
-          queue: "oneapi"
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|special)/ &&
-          (build.message =~ /\[only [^\]]*(tests|special)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 5
-
-  - group: ":eyes: Special"
-    depends_on: "cuda"
-    steps:
-      - label: "Compute sanitizer"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--sanitize core"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|special)/ &&
-          (build.message =~ /\[only [^\]]*(tests|special)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 60
-
-      # only the tests that allocate and free memory in interesting ways
-      - label: "Legacy memory allocator"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-        env:
-          JULIA_CUDA_MEMORY_POOL: 'none'
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|special)/ &&
-          (build.message =~ /\[only [^\]]*(tests|special)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 45
-
-      # only the tests that allocate arrays or pass them to kernels
-      - label: "CuArray with {{matrix.memory}} memory"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach core/device/array core/execution core/kernelabstractions core/kernelinterface core/pointer core/texture"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|special)/ &&
-          (build.message =~ /\[only [^\]]*(tests|special)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 45
-        matrix:
-          setup:
-            memory:
-              - "unified"
-              - "host"
-        commands: |
-          echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
-
-      # only the tests that use multiple devices
-      - label: "MultiGPU"
-        plugins:
-          - JuliaCI/julia#v1:
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core/array core/cudadrv core/initialization core/pool core/threading core/kernelabstractions core/kernelinterface libraries/cublas/xt libraries/cusolver/multigpu"
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-          multigpu: "*"
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|special)/ &&
-          (build.message =~ /\[only [^\]]*(tests|special)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 45
-
-      - label: ":older_man: Old dependencies"
-        plugins:
-          - JuliaCI/julia#v1:
-              # the resolver needs a workspace-aware Pkg (Julia 1.12+) to keep
-              # the workspace's packages fixed at their local versions instead
-              # of resolving them from the registry (and update below)
-              version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core tools"
-              allow_reresolve: false
-          - JuliaCI/julia-coverage#v1:
-              dirs: ["."]
-        agents:
-          queue: "cuda"
-        commands: |
-          git clone https://github.com/StefanKarpinski/Resolver.jl /tmp/Resolver
-          julia -e 'using Pkg; Pkg.activate("/tmp/Resolver/bin"); Pkg.instantiate()'
-          julia /tmp/Resolver/bin/resolve.jl . --min=@alldeps --julia="1.12"
-        if: |
-          build.message !~ /\[skip [^\]]*(tests|special)/ &&
-          (build.message =~ /\[only [^\]]*(tests|special)/ ||
-           build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 45
-
-  - wait: ~
-    continue_on_failure: true
-
-  - label: ":books: Documentation"
+  - label: "MultiGPU (as in #3358)"
     plugins:
       - JuliaCI/julia#v1:
           version: "1.12"
-    commands: |
-      julia --project -e '
-        println("--- :julia: Instantiating project")
-        using Pkg
-        Pkg.instantiate()
-        Pkg.activate("docs")
-        Pkg.instantiate()
-        push!(LOAD_PATH, @__DIR__)
-
-        println("+++ :julia: Building documentation")
-        include("docs/make.jl")'
+      - JuliaCI/julia-test#v1:
+          test_args: "--quickfail core/array core/cudadrv core/initialization core/pool core/threading core/kernelabstractions core/kernelinterface libraries/cublas/xt libraries/cusolver/multigpu"
+      - JuliaCI/julia-coverage#v1:
+          dirs: ["."]
     agents:
       queue: "cuda"
-    if: |
-      build.message !~ /\[skip [^\]]*(docs)/ &&
-      (build.message =~ /\[only [^\]]*(docs)/ ||
-       build.message !~ /\[only / && !build.pull_request.draft)
-    timeout_in_minutes: 15
+      multigpu: "*"
+    timeout_in_minutes: 45
 
-  # the label determines the commit status context .github/workflows/Benchmark.yml reacts to
-  - label: ":racehorse: Benchmarks"
+  - &mg
+    label: "MultiGPU, only cuSOLVERMg (CUDA 13.4)"
     plugins:
       - JuliaCI/julia#v1:
           version: "1.12"
-    commands: |
-      julia --project=perf -e '
-        using Pkg
-
-        println("--- :julia: Instantiating project")
-        Pkg.develop([PackageSpec(path=pwd())])
-
-        println("+++ :julia: Benchmarking")
-        include("perf/runbenchmarks.jl")'
-    artifact_paths:
-      - "benchmarkresults.json"
+      - JuliaCI/julia-test#v1:
+          test_args: "libraries/cusolver/multigpu"
     agents:
       queue: "cuda"
-      benchmark: "*"
-      gpu: "rtx2070"
-    if: |
-      build.message !~ /\[skip [^\]]*(benchmarks)/ &&
-      (build.message =~ /\[only [^\]]*(benchmarks)/ ||
-       build.message !~ /\[only / && !build.pull_request.draft)
-    timeout_in_minutes: 30
-    soft_fail: true
+      multigpu: "*"
+    timeout_in_minutes: 45
+
+  - <<: *mg
+    label: "MultiGPU, only cuSOLVERMg (CUDA 13.0)"
+    commands: |
+      echo -e "[CUDA_Runtime_jll]\nversion = \"13.0\"" >LocalPreferences.toml
+
+  - label: "cuSOLVERMg diagnostics"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.12"
+    agents:
+      queue: "cuda"
+      multigpu: "*"
+    commands: |
+      julia --project=lib/cusolver -e 'using Pkg; Pkg.instantiate()'
+      julia --project=lib/cusolver .buildkite/cusolvermg.jl
+    timeout_in_minutes: 45
 
 env:
-  JULIA_PKG_SERVER_REGISTRY_PREFERENCE: "eager" # OK to downloading JLLs from GitHub
-  SECRET_DOCUMENTER_KEY: "S8anhJOWaY9lHcH/G1W5QI80qOg6oR0boF7LdbseDhb8PpMjKWrWA0s2FEqcxq1euftXpgKf3Q434bJvwoh0iKX0DZxRDuuKcQ7UDDqskOxcznliL9yQS8cInVYXir02iAnDROYQbpD2r5Ek4W9AxZUy6/mPJJkfZYz8W0b1SSPMpzsq88FkF4h4/ZxXiXLWluwQT+lyknExQ487wj2S5CnWszIRVJDX/eHQLW/WCOAh9gQsoTj/Xu+CfI1/TqwbTcpiceo5WuPz7CZ1cJolRW68CSuwnRv7q5MBrOytSdtvHu7E9CHk3WFCYlnLN5S8i4SMtg5NmYYqVmz/oUn9ag==;U2FsdGVkX18zXT1707mRUuq6XpFYflo+ipW/gjoNB5r6rS+AR3431nlCE3FVq5NvARfPqptiiZfvmPfB7AvF0RUgA0gnYEpA3Ma8Km1jURvCGZ0jSS6AXJ88Iss3H5T7PSOlDfhOBTEWeL1Tz8BL64cCBSUMrhgznYNoa77Onz6XZHBnkWGNF9FGQaoMa8wQ+zTTwb6qCgY/q6627F3DHVgp38G67psVY0zpYCMkwkvZDrlexKfbhFNbUoyTJqcdzRAameKmAOiB9C4uoWaNIZvTxJ7Ce+cHDJDpEG97enIYQn9uQJr8zr0wb4UYcvjMiucc8JjU88Z2kwFiokMiOLOEfuMZGIdGQ73T9TdGnSjDEGYKFZ3sgiqowWK7AGpm+O/wKvgsNMz+GbgSvM0eZ7MwGPGDYQdk46amsLjfPTYEw3SVQKFjjc7VBY/p4vK6kKYMzBqYUaDfiQKDqCvt87uvk6nNeViTGs14k/kNSbqQeQog3aZq7UIkxAWSZOqwSn/C2PukuXam2YtE7xOBFvOBg10+UwmDzywbPgdfMRTBXCLUCZjofVJ5UWFXC+tNim2kz095p9t/1toK3db63PMQhoQOJ7+bN71+d+lw41YRQg1ntFET9DNSNs9Fh1iqYZquI6JutnwYkj/V6suzoiXVmONMHGjPtH1OCRW3fkhRpFX77tgJ5fUjx+4mVfoCc8mHpvaGx+46a4UBV2bcksFNRevTbO9OhkJ4SSl4PGkpIE2Iek64zJePFLMkAgajE/bcHRh1lEtA8kNqUWu3PqOc1CqOyZYk0Npy68IyriSfeUjJWD3sNELawg2k12jBukYgvu1vLjPfu4z3qvzTULIvWf+3gRNrrrveN4QMpLbD8H46rRl9s6EbPIjEAiwVvO0gjLJ8Nl1lILkZLHewvS9M9yjoi3mbt5kYhQuph1Ey+tI3ldQsjDhoePxCe1uOd+11qoqRGncYDUJKhHEQoakyL6/3z3cbQ6s6lYWimbHDwks/ETshADS5QXWEUaQ8epQWpeHiQtVv9UiWCrDZP2q+dCfVlvmP+Drqo2IRzPenuJu9uy0oT+mSwL3mY83rYvOSBbQBbO9/zTk1nUCOX0KElWRWO/no0IyE8qmJylJ2zhST1kfKBe9qIyb/ed35cxXdOl2x5u6aTHgdEdaqsg7AhXn37TlQvIG0USxPPcbRNWlT2VqiJacC+/WZexxcI4/Vp0BENDv9rh1OE1OEEqfm4X0Y9rZ9nMbKUSQ8zmNJsaDEgrFdWtIRiIB7H5oJtFN4nVAHjo81OwoaqT2fa9oVy2JvZq24j3W+fzhqaIyiT85S/xz71o0ahtV9xjqLzTBIRGBuwP1K8X4eLoDx/RUpeqcuhVnCPHotBWIsxVGPV/n9RHzjSMcC1KIwzR0OiN2tRBnbrkeYKqKhptbVWndSXXzeD51THkUDiz1VEUyVwzaRhHQkSNUXKzzai+Gc21/jpRtkr7v3laLMqhy/3oWD8S+bTMl/t/Wz3B3fgfJjCUqjQg9EvOvVZ1pEWtSnCjnltExP6mR7yabsoB+NbHiUoynLJ/n5kNqUtQ5oRevAX4WMyRBGRrcGOFP/4bhHN/+7ikrIXYmBC8KLlJQZm2VOvZfXc5xSgFoLebXb5xbzmph50hw3erQMeMx7nmNlIhDg2EixcajcduT2BjQT/if+oifu9SopZyCSdtytO/x3PCVDS4H5+yOUZ8jCFW/LRNYo6uI7YKht2SiCwccNcA4vwlSnlWWjgyvEoZp074NdM8NljL9U1WZcdbLcVcgJ69L+0IwaUfuz3x6GHr12Yxvn+LGbk18BMpkdpF06M77KxFrOK0R843wwQ82Ipq78PTB0q3LhKoCBK5pL+0JFq4ZXOkJMJtqeDJhR4tM+hBX2l5sTPyYCZHrPDuhSZhurw4DhhbUpr059hZyc/MftDnQeb2Hw++GHd6HpRSkiLs8y0hSJkIJJxvMQg73j129t8/GJC2YISVff9QEIfwdC/Qo4cpuVaxvRGDXFcMm86gprwVPOdL64p1xla36hWZF4E7S0dvAgLeFUFVOjVIYtn4QsXcqoyGXLiCiKKNq+pS3eILeqcTVSgtUpoeFtAXtJgcm6c0YzRHwMOvW+pFIGM1D9zri60gLFecK3CjaBG0pgfIZdjtMHrCfUnX/IdZWY+gZskbaJaTGjm6sTBF2rIdJQsTymIP1dUJvWzagMNvZRbYykxVoMQM54w7d5x8ROHuOPDbC4DRkzzpxtK68mk+fL66NlYWn1fBKWXdgNE1sYtEm1l3eixgnmBGYNzrWZdsXp/M9Yl23ygZpu4Wj1VZJXw/SrjJgtmaPh0M56oBfXFNSifmUtK85y8j8fbmepY+r0yOwqsVStlXHWBhN8p2XvlrRHbPtGM+Vbeo/SCpFMN9/ssmckbieJO5/yIkXRWPCPJlqiCyF584k0ZYwGcdDqQFf8h8JwTQcE3C+o5LTPpiXAOteVyQEiiu7MHZjhRcFxHF8Tzz0HbRa4rC0DXhOlG9LYAFBGET9KjXB/lEVwr/Rx9tm2/X7uD9uiWxjKkg8dJVxPXf6/2Bu6vm3GsnKH0CFcWdtDZjCCCIFOd2cbhQaEcppA4BZz97fZqc7IIGTOEiO0mPLfFQ1vsOYrJ7XRe3ZWlEJ/4DNR8LrpNCInmTVudl6vfyhs10pTvmBnyWffEfma748hsl5h35BFroYV+FYp77LtTTSsGpFOzgphPmthfW6OmrOS3rYxdMx8G9RIqwWiOdc/bSffOH8IuXejh2Tx6s1sQbHDt//q8ty3ftQnN+rQ6TsGv15tYytj6+qwGgZWEn8CGeappB6H8aA9xs0aRBOYJWo+FJ9oPut8F8QtzulYIl2rRt8GYn/RTGrifwnHcI5tYKqx/LxKaZhHxzedUxNOLiH19FcpQsw6+MZJEYC7kmN4NoBDVzhFgIywwpDuLkB0nXLkasP2IqYOgV1y8wuJXk+VIcIFuoPWnbzJMjScH5PF4dWJidbY4UXWKsUup/8lgeABsPzVgCe1e7OLEiPqa/cqTn9DdOKoTk/qEAQttU6+j2cUULEnpxIrSnYe+xDPl8MEXE86zJse6l06ct2kjPVaU+mAVWkQMJ+htoz4xFyjXWbmAuh0MOkcGIjKCqNzPWwfOPjam9/hqo63LFvfMhtQns2iZ+5QHADA0tX7eDgiBkKqOaZt3TdexqRal2NXv5dvEmVBt6GA07+xfLH0+XHsRkXBfvVWvCldobmzd3Rl50gK3r6Yptr6g5Vh+hY0cWOm8tHykcQvUPma7O/WRghe+9rIRC6Qto/uKjwBgRnrSJjMVg0NqEj/ckpZYpaSImAwNQwcWZIzjBCGamzFKSVZrKbmUTNIfkC1/arWgsmeE/73eduiczN7luZbseIBKHzJTFahlJ7125CQeCaGXWzbQOBGU8lBN+UQL9RLbIJxFS28OlU5yZb92bep25e4unSFINY+uW+fi18ZOAYw+W4krbnFKgTIZHV16nYugPXbnKk0JwirU4H0jhA4TclwG1t8KOrPLCKU2wMr2CiTkgx2FPeu06eX8Eix/9bn964aJhvQt+Lz/ljWZLlWykWyaiLeP3mEHERujJVDzR7aAPmZ1t7lmWtULRGRiqWuLXD4W1Wa34zr6H1LrFI4tkokngaWusuq3tcjyuyM5pKyzCCpKXQAVvxuIRu6E5/Qr/n8UaNZfjp233RPjY1EYMkMKDLbtYABcZa2S9YmIEgikCnJd5PEDovPAB3Uez/DdOVqz5O3hgUxapQlKImgfmEHtm82Zl4txhRVTdQh3dGsvUgH0UkUl0rMd2BOWz0Edtb+yG1cJu2eZ13pkQEn3QDAPOnNIh54iDLf4Il03mSia9QMM4TM+9+daQVwus/KlkovW1IdE7TJY8xcW/5JHFAdjWCa1BurE++nRmM5y5o2AbFcYXq2WwkWp2WLZ8zzl6uG9UU8Y8Hps5ajCL47KeBrl42BWaxogG64DG+vxgNuFYNoeSxCpYwrsG50KaAvorWUF8webiSJI90T9R9WKIXCYOwmpZyWtErJvBThzl9ZRXaxznUyw06ty5Blh06a6CB/DUhQx4cCXl3HgOcCtsIcL0RAnjE+PZUoC4EIIgFGnwi3eQpoggNasdV3M3nQfFDCxtsYofZayc7cQLryfd55N8ddwAtE/HXOtWRif/5Q+lkhzbLz0e5jKM+yEnQWokjQkqnjI/MWlbsTgv1tAAG0EFr8xDQx28gzAnkHBmP5uZOfbEh5gp90iIHL5H7s+6de1pZNmB6eG4Z+108IkBzJvOcKKHyGwDCTq5MshPBHmJ1w19vYX94LTLMpKF+ML6Few7akgbmGxN/ZiMfc5gSEb+BN77FuA7RnKoj6o8cqUM8SX/rFg6XpWhnqqigMtSHuSi0b1SzqvpHkNxElIDa/J55giQF117Igu7Z27BZadjmvc2JBCDQhh6a7VQ7MGIw9OqaoiV3Rckqn7T5LKGNeYWVCc4UnotbcDTr4Y3xtzFGzVi2ZqioWwepmSS54RPsmOqHSkgdGs0mlTq5mA8Y13oJjZv7toVo0eui5gbHK00PvDzEqblJA5PozXLTeZv0mvkVbkK/NzKUZ6zgGE2WW/T9VfOaotjsPYPIHlo7N1H6P0iw0yH4="
+  JULIA_PKG_SERVER_REGISTRY_PREFERENCE: "eager"
