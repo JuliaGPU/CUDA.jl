@@ -385,8 +385,16 @@ end
 @public @atomic, AtomicError, atomic_add!, atomic_sub!, atomic_and!, atomic_or!, atomic_xor!, atomic_min!, atomic_max!, atomic_inc!, atomic_dec!, atomic_cas!, atomic_xchg!
 
 # FIXME: make this respect the indexing style
-@inline atomic_arrayset(A::AbstractArray{T}, Is::Tuple, op::Function, val) where {T} =
+@inline function atomic_arrayset(A::AbstractArray{T}, Is::Tuple, op::Function, val) where {T}
+    @boundscheck atomic_checkbounds(A, Is)
     atomic_arrayset(A, Base._to_linear_index(A, Is...), op, convert(T, val))
+end
+
+# check the indices like `getindex` does, so that `@inbounds` elides the check
+@inline atomic_checkbounds(A::AbstractArray, I::Tuple) = checkbounds(A, I...)
+@inline atomic_checkbounds(A::CuDeviceArray, I::Tuple{Integer}) =
+    in_bounds(I[1], length(A)) || Base.throw_boundserror(A, I[1])
+@inline atomic_checkbounds(A::CuDeviceArray, I::Tuple) = checkbounds_nd(A, to_indices(A, I))
 
 # native atomics
 for (op,impl,typ) in [(:(+), :(atomic_add!), [:UInt32,:Int32,:UInt64,:Int64,:Float32]),
