@@ -417,7 +417,47 @@ for (n_loc, bd, p_loc) in [(100, 5, 0.02), (5, 1, 0.8), (4, 2, 0.5), (0, 1, 0.0)
     end
 end
 
-@testset "sort CuSparseMatrix" begin
+# cuSPARSE's conversion routines only support 32-bit indices; others are narrowed around them
+@testset "conversions with $Ti indices" for Ti in (Int32, Int64)
+    with_indices(A::CuSparseMatrixCSC{Tv}) where {Tv} =
+        CuSparseMatrixCSC{Tv, Ti}(A.colPtr, rowvals(A), nonzeros(A), size(A))
+    with_indices(A::CuSparseMatrixCSR{Tv}) where {Tv} =
+        CuSparseMatrixCSR{Tv, Ti}(A.rowPtr, A.colVal, nonzeros(A), size(A))
+    with_indices(A::CuSparseMatrixCOO{Tv}) where {Tv} =
+        CuSparseMatrixCOO{Tv, Ti}(A.rowInd, A.colInd, nonzeros(A), size(A), nnz(A))
+    with_indices(A::CuSparseMatrixBSR{Tv}) where {Tv} =
+        CuSparseMatrixBSR{Tv, Ti}(A.rowPtr, A.colVal, nonzeros(A), size(A), A.blockDim, A.dir, A.nnzb)
+    convert_to(T, A) = T == CuSparseMatrixBSR ? T(A, 2) : T(A)
+
+    for elty in (Float32, ComplexF64, ComplexF16, Bool, Int64)
+        A = sprand(elty, 10, 8, 0.3)
+        formats = (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        if elty in (Float32, ComplexF64, Int64)
+            formats = (formats..., CuSparseMatrixBSR)
+        end
+        for T1 in formats, T2 in formats
+            T1 == T2 && continue
+            dA = with_indices(convert_to(T1, A))
+            dB = convert_to(T2, dA)
+            @test dB isa T2{elty, Ti}
+            T2 == CuSparseMatrixBSR && (dB = CuSparseMatrixCSR(dB))
+            @test SparseMatrixCSC(dB) == A
+        end
+    end
+
+    A = sprand(Float32, 10, 8, 0.7)
+    for T in (CuSparseMatrixCSC, CuSparseMatrixCSR)
+        dC = cuSPARSE.prune(with_indices(T(A)), 0.5f0, 'O')
+        @test dC isa T{Float32, Ti}
+        @test collect(dC) ≈ droptol!(copy(A), 0.5f0)
+    end
+
+    # sizes beyond the 32-bit routines are rejected instead of truncated
+    coo = CuSparseMatrixCOO{Float32, Ti}(CuVector{Ti}(), CuVector{Ti}(), CuVector{Float32}(), (2^32, 1))
+    @test_throws ArgumentError CuSparseMatrixCSR(coo)
+end
+
+@testset "sort CuSparseMatrix with $Ti indices" for Ti in (Int32, Int64)
     #     [5 7 0]
     # A = [8 0 6]
     #     [0 4 9]
@@ -425,9 +465,10 @@ end
         rows = [3, 1, 2, 3, 2, 1] |> cu
         cols = [3, 2, 1, 2, 3, 1] |> cu
         vals = [9, 7, 8, 4, 6, 5] |> cu
-        coo = CuSparseMatrixCOO(rows, cols, vals, (3,3))
+        coo = CuSparseMatrixCOO{Int, Ti}(rows, cols, vals, (3,3))
 
         sorted_coo_R = sort_coo(coo, 'R')
+        @test sorted_coo_R isa CuSparseMatrixCOO{Int, Ti}
         @test collect(sorted_coo_R.rowInd) ≈ [1, 1, 2, 2, 3, 3]
         @test collect(sorted_coo_R.colInd) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_coo_R.nzVal)  ≈ [5, 7, 8, 6, 4, 9]
@@ -441,9 +482,10 @@ end
         rows = [2, 1, 3, 1, 2, 3] |> cu
         ccols = [1, 3, 5, 7] |> cu
         vals = [8, 5, 4, 7, 6, 9] |> cu
-        csc = CuSparseMatrixCSC(ccols, rows, vals, (3,3))
+        csc = CuSparseMatrixCSC{Int, Ti}(ccols, rows, vals, (3,3))
 
         sorted_csc = sort_csc(csc)
+        @test sorted_csc isa CuSparseMatrixCSC{Int, Ti}
         @test collect(sorted_csc.colPtr) ≈ [1, 3, 5, 7]
         @test collect(sorted_csc.rowVal) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_csc.nzVal)  ≈ [5, 8, 7, 4, 6, 9]
@@ -452,9 +494,10 @@ end
         crows = [1, 3, 5, 7] |> cu
         cols = [2, 1, 1, 3, 3, 2] |> cu
         vals = [7, 5, 8, 6, 9, 4] |> cu
-        csr = CuSparseMatrixCSR(crows, cols, vals, (3,3))
+        csr = CuSparseMatrixCSR{Int, Ti}(crows, cols, vals, (3,3))
 
         sorted_csr = sort_csr(csr)
+        @test sorted_csr isa CuSparseMatrixCSR{Int, Ti}
         @test collect(sorted_csr.rowPtr) ≈ [1, 3, 5, 7]
         @test collect(sorted_csr.colVal) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_csr.nzVal)  ≈ [5, 7, 8, 6, 4, 9]
