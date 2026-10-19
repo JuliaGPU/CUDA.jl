@@ -15,8 +15,9 @@ function LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Bool)
     return x
 end
 
+# cuBLAS can only scale arrays that it can address as a vector
 LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
-  scal!(length(x), k, x)
+  x isa StridedCuVecOrDenseMat ? scal!(length(x), k, x) : (x .*= k)
 
 # Work around ambiguity with GPUArrays wrapper
 LinearAlgebra.rmul!(x::DenseCuArray{<:CublasFloat}, k::Real) =

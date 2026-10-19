@@ -151,8 +151,7 @@ end
 function scal!(n::Integer, alpha, x::StridedCuVecOrDenseMat{ComplexF16})
     wide_x = widen.(x)
     scal!(n, alpha, wide_x)
-    thin_x = convert(typeof(x), wide_x)
-    copyto!(x, thin_x)
+    x .= wide_x
     return x
 end
 
@@ -332,8 +331,7 @@ function axpy!(n::Integer, alpha, dx::StridedCuVecOrDenseMat{ComplexF16}, dy::St
     wide_x = widen.(dx)
     wide_y = widen.(dy)
     axpy!(n, alpha, wide_x, wide_y)
-    thin_y = convert(typeof(dy), wide_y)
-    copyto!(dy, thin_y)
+    dy .= wide_y
     return dy
 end
 

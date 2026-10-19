@@ -133,6 +133,24 @@ end
     end
 end
 
+@testset "views BLAS can't address as a vector" begin
+    A = rand(Float32, 3, 4)
+    dA = CuArray(A)
+    rmul!(view(dA, 1:2, :), 2f0)
+    rmul!(view(A, 1:2, :), 2f0)
+    @test Array(dA) ≈ A
+
+    # ComplexF16 is computed in ComplexF32 and written back
+    x, y = rand(ComplexF16, 20), rand(ComplexF16, 20)
+    dx, dy = CuArray(x), CuArray(y)
+    axpy!(ComplexF16(2), view(dx, 1:2:20), view(dy, 1:2:20))
+    axpy!(ComplexF16(2), view(x, 1:2:20), view(y, 1:2:20))
+    @test Array(dy) ≈ y
+    cuBLAS.scal!(10, 3f0, view(dx, 1:2:20))
+    rmul!(view(x, 1:2:20), 3f0)
+    @test Array(dx) ≈ x
+end
+
 @testset "dot with mixed types" begin
     m = 20
     T1 = Float32
