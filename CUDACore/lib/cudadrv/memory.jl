@@ -806,18 +806,15 @@ device_pointer(x::Ptr{T}) where {T} =
     attribute(CuPtr{T}, x, POINTER_ATTRIBUTE_HOST_POINTER)
 
 function is_pinned(ptr::Ptr)
-    # unpinned memory makes cuPointerGetAttribute return ERROR_INVALID_VALUE; but instead of
-    # calling `memory_type` with an expensive try/catch we perform low-level API calls.
-    ptr = reinterpret(CuPtr{Nothing}, ptr)
-    data_ref = Ref{Cuint}()
-    res = unchecked_cuPointerGetAttribute(data_ref, POINTER_ATTRIBUTE_MEMORY_TYPE, ptr)
-    if res == ERROR_INVALID_VALUE
-        false
-    elseif res == SUCCESS
-        data_ref[] == CU_MEMORYTYPE_HOST
-    else
-        throw_api_error(res)
+    # unlike `cuPointerGetAttribute`, this doesn't fail for memory unknown to CUDA (which
+    # takes a slow error path), but returns a null memory type instead
+    attr = Ref(POINTER_ATTRIBUTE_MEMORY_TYPE)
+    memory_type = Ref{Cuint}(0)
+    GC.@preserve memory_type begin
+        data = Ref(Base.unsafe_convert(Ptr{Cvoid}, memory_type))
+        cuPointerGetAttributes(1, attr, data, reinterpret(CuPtr{Nothing}, ptr))
     end
+    return memory_type[] == CU_MEMORYTYPE_HOST
 end
 
 
