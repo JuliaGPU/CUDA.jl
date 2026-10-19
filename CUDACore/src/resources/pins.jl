@@ -92,7 +92,9 @@ const __pinned_objects = Dict{Tuple{CuContext,Ptr{Cvoid}}, PinnedObject}()
     pin(ref::Base.RefValue)
 
 Page-lock (pin) the host memory backing `a`, which makes copies between it and the GPU
-faster, and makes it possible to perform them asynchronously.
+faster. As the GPU then reads `a` directly, copying it to the GPU with `copyto!` waits for
+the copy to finish (or while capturing a graph, copies `a` to memory the graph owns), so
+that `a` can be modified right after.
 
 The memory stays pinned for the lifetime of `a`. Unpinning memory waits for all running
 kernels to finish, so once `a` has been garbage collected, its memory is only unpinned (and

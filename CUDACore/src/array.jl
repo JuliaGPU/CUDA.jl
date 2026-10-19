@@ -665,21 +665,29 @@ Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::Array{T}, soffs, n) where T
+  n == 0 && return dest
   # (taking ownership of the memory and copying is a single submission, see `CaptureScope`)
   context!(context(dest)) do
-    capture_submission() do
-      # the copy below may block in `libcuda`, so it'd be good to perform a nonblocking
-      # synchronization here, but the exact cases are hard to know and detect (e.g.,
-      # unpinned memory normally blocks, but not for all sizes, and not on all memory
-      # architectures).
-      GC.@preserve src dest with_managed_arrays(dest) do
-        # semantically, it is not safe for this operation to execute asynchronously, because
-        # the Array may be collected before the copy starts executing. However, when using
-        # unpinned memory, CUDA first stages a copy to a pinned buffer that will outlive
-        # the source array, making this operation safe.
-        unsafe_copyto!(unmanaged_pointer(dest, doffs), pointer(src, soffs), n; async=true)
-        if Base.isbitsunion(T)
-          unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+    s = stream()
+    capture_submission(s) do
+      GC.@preserve src dest begin
+        with_managed_arrays(dest) do
+          unsafe_copyto!(unmanaged_pointer(dest, doffs), pointer(src, soffs), n;
+                         stream=s, async=true)
+          if Base.isbitsunion(T)
+            unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n;
+                           stream=s, async=true)
+          end
+        end
+
+        # the caller may modify or free `src` as soon as we return. the driver reads
+        # pinned memory when the copy executes, so wait for it to finish then. pageable
+        # memory is copied to a staging buffer before returning (which isn't documented,
+        # but avoids waiting for an operation this common). while capturing, the copy
+        # reads from a snapshot of `src` (see `stage_host_memory`).
+        if !in_capture(s) && (is_pinned(pointer(src, soffs)) ||
+                              Base.isbitsunion(T) && is_pinned(typetagdata(src, soffs)))
+          synchronize(s)
         end
       end
     end

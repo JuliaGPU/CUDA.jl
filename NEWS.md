@@ -158,6 +158,11 @@ small reductions along a dimension can be slower.
   per library handle, and don't share it with other tasks or devices anymore. Dropout with
   `cudnnDropoutSeed[]` set no longer fails in tasks other than the one that
   first used dropout.
+- Copying a pinned `Array` to the GPU, with `copyto!`, `CuArray(::Array)`, `cu`
+  and friends, waits for the copy to finish (or while capturing a graph, copies
+  the `Array` to memory the graph owns). The copy used to read the `Array`
+  asynchronously, so modifying it right after could change what ended up on the
+  GPU ([#2510](https://github.com/JuliaGPU/CUDA.jl/issues/2510)).
 
 *Minor changes*:
 
