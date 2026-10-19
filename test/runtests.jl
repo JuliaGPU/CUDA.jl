@@ -16,7 +16,8 @@ using Base.Filesystem: path_separator
 include(joinpath(@__DIR__, "setup.jl"))
 
 # parse command-line arguments (--sanitize[=tool] and --all are CUDA-specific)
-args = parse_args(ARGS; custom = ["sanitize", "all"])
+const custom_flags = ["sanitize", "all"]
+args = parse_args(ARGS; custom = custom_flags)
 
 # check that CI is using the requested toolkit
 label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
@@ -146,10 +147,7 @@ memory_jobs = max(1, memory_free ÷ memory_per_worker)
 
 if args.jobs === nothing
     default_jobs = min(ParallelTestRunner.default_njobs(), memory_jobs)
-    args = ParallelTestRunner.ParsedArgs(
-        Some(default_jobs), args.verbose, args.quickfail, args.list,
-        args.custom, args.positionals,
-    )
+    args = parse_args([ARGS; "--jobs=$default_jobs"]; custom = custom_flags)
 end
 
 
