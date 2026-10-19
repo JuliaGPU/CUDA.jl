@@ -18,6 +18,5 @@ complexfloat(x::DenseCuArray{T}) where {T} = error("type $T not supported")
 
 function copy1(::Type{T}, x) where T
     y = CuArray{T}(undef, map(length, axes(x)))
-    #copy!(y, x)
-    y .= broadcast(xi->convert(T,xi),x)
+    y .= convert.(T, x)
 end
