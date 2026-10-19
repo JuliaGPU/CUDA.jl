@@ -375,14 +375,32 @@ macro atomic(ex)
 
     # decode array expression
     Meta.isexpr(ref, :ref) || throw(AtomicError("@atomic should be applied to an array reference expression"))
-    array = ref.args[1]
-    indices = Expr(:tuple, ref.args[2:end]...)
 
-    esc(quote
-        $atomic_arrayset($array, $indices, $op, $val)
+    # lower `begin` and `end` like `@view` does, which binds the array to a temporary when
+    # it's not a plain variable, and replace the resulting reference by the atomic update.
+    ref = @static if VERSION >= v"1.13.0-DEV.924"
+        Base.replace_ref_begin_end!(__module__, ref)
+    else
+        Base.replace_ref_begin_end!(ref)
+    end
+    esc(replace_atomic_ref(ref) do ref
+        array = ref.args[1]
+        indices = Expr(:tuple, ref.args[2:end]...)
+        :($atomic_arrayset($array, $indices, $op, $val))
     end)
 end
 @public @atomic, AtomicError, atomic_add!, atomic_sub!, atomic_and!, atomic_or!, atomic_xor!, atomic_min!, atomic_max!, atomic_inc!, atomic_dec!, atomic_cas!, atomic_xchg!
+
+function replace_atomic_ref(f, ex::Expr)
+    if Meta.isexpr(ex, :ref)
+        f(ex)
+    elseif Meta.isexpr(ex, :let) || Meta.isexpr(ex, :block)
+        # `let S = array; S[...] end` (Julia < 1.13) or `begin local S = array; S[...] end`
+        Expr(ex.head, ex.args[1:end-1]..., replace_atomic_ref(f, ex.args[end]))
+    else
+        error("unsupported replace_ref_begin_end! result")
+    end
+end
 
 # FIXME: make this respect the indexing style
 @inline function atomic_arrayset(A::AbstractArray{T}, Is::Tuple, op::Function, val) where {T}

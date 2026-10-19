@@ -466,6 +466,22 @@ end
         end
     end
 
+    @testset "begin and end" begin
+        function kernel(a, b)
+            @atomic a[end] += 1
+            @atomic a[begin] = a[begin] + 2
+            @atomic a[max(begin, end - 1)] -= 1
+            @atomic (b.x)[end, begin] += 1
+            return
+        end
+
+        a = CUDA.zeros(Int32, 3)
+        b = CUDA.zeros(Int32, 2, 2)
+        @cuda kernel(a, (; x=b))
+        @test Array(a) == [2, -1, 1]
+        @test Array(b) == [0 0; 1 0]
+    end
+
     @test_throws AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = 1
     end
