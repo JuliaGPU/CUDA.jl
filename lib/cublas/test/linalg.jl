@@ -76,6 +76,27 @@ end
     mul!(y, 'N', view(dA, 1:2:8, :), dx, true, false)
     @test Array(y) ≈ A[1:2:8, :] * x
 
+    # reversed views, which cuBLAS would get as a negative leading dimension or increment
+    C = CuArray(zeros(Float32, 8, 5))
+    mul!(C, 'N', 'N', view(dA, :, 6:-1:1), dB, true, false)
+    @test Array(C) ≈ A[:, 6:-1:1] * B
+    y = CuArray(zeros(Float32, 8))
+    mul!(y, 'N', view(dA, :, 6:-1:1), dx, true, false)
+    @test Array(y) ≈ A[:, 6:-1:1] * x
+    mul!(y, 'N', dA, view(dx, 6:-1:1), true, false)
+    @test Array(y) ≈ A * reverse(x)
+    mul!(view(y, 8:-1:1), 'N', dA, dx, true, false)
+    @test Array(y) ≈ reverse(A * x)
+    S = rand(ComplexF32, 6, 6); dS = CuArray(S)
+    for (tA, wrapper) in (('S', Symmetric), ('H', Hermitian))
+        Cc = CuArray(zeros(ComplexF32, 6, 5))
+        mul!(Cc, tA, 'N', view(dS, :, 6:-1:1), CuArray{ComplexF32}(dB), true, false)
+        @test Array(Cc) ≈ wrapper(S[:, 6:-1:1]) * B
+        yc = CuArray(zeros(ComplexF32, 6))
+        mul!(yc, tA, dS, view(CuArray{ComplexF32}(dx), 6:-1:1), true, false)
+        @test Array(yc) ≈ wrapper(S) * reverse(x)
+    end
+
     # element types cuBLAS has no symm/hemm for
     S = rand(Float16, 4, 4); B16 = rand(Float16, 2, 3)
     C16 = CuArray(zeros(Float16, 2, 3))
@@ -85,4 +106,46 @@ end
     C64 = CuArray(zeros(Float64, 4, 3))
     mul!(C64, 'S', 'N', CuArray(S32), CuArray(B64), true, false)
     @test Array(C64) ≈ Symmetric(S32) * B64
+end
+
+@testset "triangular products and solves with reversed views" begin
+    S = rand(Float32, 4, 4) + 4I; B = rand(Float32, 4, 5); x = rand(Float32, 4)
+    dS = CuArray(S)
+    U, dU = UpperTriangular(S[:, 4:-1:1]), UpperTriangular(view(dS, :, 4:-1:1))
+
+    # reversed vectors
+    z = CuArray(x)
+    lmul!(UpperTriangular(dS), view(z, 4:-1:1))
+    @test Array(z) ≈ reverse(UpperTriangular(S) * reverse(x))
+    z = CuArray(x)
+    ldiv!(UpperTriangular(dS), view(z, 4:-1:1))
+    @test Array(z) ≈ reverse(UpperTriangular(S) \ reverse(x))
+
+    # reversed triangular matrix
+    z = CuArray(x)
+    @test Array(lmul!(dU, z)) ≈ U * x
+    z = CuArray(x)
+    @test Array(ldiv!(dU, z)) ≈ U \ x
+    Z = CuArray(B)
+    @test Array(lmul!(dU, Z)) ≈ U * B
+    Z = CuArray(B)
+    @test Array(ldiv!(dU, Z)) ≈ U \ B
+    Z = CuArray(copy(B'))
+    @test Array(rmul!(Z, dU)) ≈ B' * U
+    Z = CuArray(copy(B'))
+    @test Array(rdiv!(Z, dU)) ≈ B' / U
+
+    # reversed right-hand side
+    Z = CuArray(B)
+    lmul!(UpperTriangular(dS), view(Z, :, 5:-1:1))
+    @test Array(Z) ≈ (UpperTriangular(S) * B[:, 5:-1:1])[:, 5:-1:1]
+    Z = CuArray(B)
+    ldiv!(UpperTriangular(dS), view(Z, :, 5:-1:1))
+    @test Array(Z) ≈ (UpperTriangular(S) \ B[:, 5:-1:1])[:, 5:-1:1]
+    Z = CuArray(copy(B'))
+    rmul!(view(Z, 5:-1:1, :), UpperTriangular(dS))
+    @test Array(Z) ≈ (B'[5:-1:1, :] * UpperTriangular(S))[5:-1:1, :]
+    Z = CuArray(copy(B'))
+    rdiv!(view(Z, 5:-1:1, :), UpperTriangular(dS))
+    @test Array(Z) ≈ (B'[5:-1:1, :] / UpperTriangular(S))[5:-1:1, :]
 end

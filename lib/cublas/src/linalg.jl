@@ -5,6 +5,20 @@ using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!,
     # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
     using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
 end
+
+# cuBLAS addresses a matrix, or a vector passed as one, through its leading dimension
+# `stride(X, 2)`, which must be at least the number of rows. Reversed views fail this.
+column_major(X::StridedCuVecOrMat) = stride(X, 1) == 1 && stride(X, 2) >= max(1, size(X, 1))
+
+# BLAS walks a vector with a negative increment backwards from its end, while a reversed
+# view points at its first element, so vector operands need a positive stride.
+blas_layout(x::StridedCuVector) = stride(x, 1) > 0
+blas_layout(A::StridedCuMatrix) = column_major(A)
+
+# run a cuBLAS routine on contiguous copies of operands it can't address
+blas_input(X) = blas_layout(X) ? X : copy(X)
+blas_output(f, C) = blas_layout(C) ? f(C) : copyto!(C, f(similar(C)))
+
 #
 # BLAS 1
 #
@@ -275,7 +289,8 @@ function LinearAlgebra.mul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMa
 
     T = eltype(Y)
     if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        if T <: CublasFloat && eltype(A) == eltype(B) == T && stride(A, 1) == 1
+        if T <: CublasFloat && eltype(A) == eltype(B) == T &&
+           blas_layout(A) && blas_layout(B) && blas_layout(Y)
             if tA in ('N', 'T', 'C')
                 return gemv!(tA, alpha, A, B, beta, Y)
             elseif tA in ('S', 's')
@@ -292,11 +307,15 @@ end
 
 ## multiplication
 LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, b::StridedCuVector{T}) where {T<:CublasFloat} =
-    trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, c === b ? c : copyto!(c, b))
+    blas_output(c) do c
+        trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, blas_input(A), c === b ? c : copyto!(c, b))
+    end
 
 ## division
 LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuVector{T}) where {T<:CublasFloat} =
-    trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, A, C === B ? C : copyto!(C, B))
+    blas_output(C) do C
+        trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, blas_input(A), C === B ? C : copyto!(C, B))
+    end
 
 # work around upstream breakage from JuliaLang/julia#55547
 @static if VERSION >= v"1.11.2"
@@ -360,8 +379,8 @@ function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, 
         return LinearAlgebra.rmul!(C, beta)
     end
 
-    unit_stride = stride(A, 1) == stride(B, 1) == stride(C, 1) == 1
-    if unit_stride && all(in(('N', 'T', 'C')), (tA, tB))
+    cublas_layout = column_major(A) && column_major(B) && column_major(C)
+    if cublas_layout && all(in(('N', 'T', 'C')), (tA, tB))
         if A isa StridedCuArray && B isa StridedCuArray &&
         gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
             return gemmEx!(tA, tB, alpha, A, B, beta, C)
@@ -369,7 +388,7 @@ function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, 
             return gemm!(tA, tB, alpha, A, B, beta, C)
         end
     end
-    if unit_stride && T <: CublasFloat && eltype(A) == eltype(B) == T &&
+    if cublas_layout && T <: CublasFloat && eltype(A) == eltype(B) == T &&
        alpha isa Union{Bool,T} && beta isa Union{Bool,T}
         # TODO: should the gemm part above be included in this branch?
         if (tA == 'S' || tA == 's') && tB == 'N'
@@ -411,9 +430,13 @@ LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Transpose{T, <:Adjoint{T, <:Strid
 # triangular
 
 LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    trmm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, B, C)
+    blas_output(C) do C
+        trmm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(A), blas_input(B), C)
+    end
 LinearAlgebra.generic_mattrimul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, A, C)
+    blas_output(C) do C
+        trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(B), blas_input(A), C)
+    end
 
 ## tri-tri-mul!
 function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::StridedCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
@@ -449,9 +472,13 @@ function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitc
 end
 
 LinearAlgebra.generic_trimatdiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::AdjOrTransOrCuMatrix{T}) where {T<:CublasFloat} =
-    trsm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), A, C === B ? C : copyto!(C, B))
+    blas_output(C) do C
+        trsm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(A), C === B ? C : copyto!(C, B))
+    end
 LinearAlgebra.generic_mattridiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::AdjOrTransOrCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), B, C === A ? C : copyto!(C, A))
+    blas_output(C) do C
+        trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(B), C === A ? C : copyto!(C, A))
+    end
 
 # Matrix inverse
 for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
