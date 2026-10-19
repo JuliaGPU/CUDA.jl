@@ -389,10 +389,14 @@ using Adapt
             @test Adapt.adapt(CuSparseMatrixCSC{Float32}, A) isa CuSparseMatrixCSC{Float32}
             @test Adapt.adapt(CuSparseMatrixCSR{Float32}, A) isa CuSparseMatrixCSR{Float32}
             @test Adapt.adapt(CuSparseMatrixCOO{Float32}, A) isa CuSparseMatrixCOO{Float32}
+            @test Adapt.adapt(CuSparseMatrixCSC{Float32, Int64}, A) isa CuSparseMatrixCSC{Float32, Int64}
+            @test Adapt.adapt(CuSparseMatrixCSR{Float32, Int64}, A) isa CuSparseMatrixCSR{Float32, Int64}
+            @test Adapt.adapt(CuSparseMatrixCOO{Float32, Int64}, A) isa CuSparseMatrixCOO{Float32, Int64}
         end
         let v = sprand(Float64, m, 0.2)
             @test Adapt.adapt(CuSparseVector, v) isa CuSparseVector{Float64}
             @test Adapt.adapt(CuSparseVector{Float32}, v) isa CuSparseVector{Float32}
+            @test Adapt.adapt(CuSparseVector{Float32, Int64}, v) isa CuSparseVector{Float32, Int64}
         end
 
         # CuArray target keeps defaults

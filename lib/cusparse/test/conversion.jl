@@ -284,6 +284,66 @@ end
     end
 end
 
+@testset "conversions between element and index types" begin
+    x = sprand(Float64, 10, 0.5)
+    A = sprand(Float64, 10, 8, 0.3)
+
+    # from the CPU, the index type defaults to Cint
+    @test CuSparseVector{Float32}(x) isa CuSparseVector{Float32, Cint}
+    for T in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+        @test T{Float32}(A) isa T{Float32, Cint}
+        for f in (identity, transpose, adjoint)
+            dA = T{Float32, Int64}(f(A))
+            @test dA isa T{Float32, Int64}
+            @test SparseMatrixCSC(dA) ≈ f(A)
+        end
+    end
+    @test CuSparseVector{Float32, Int64}(x) isa CuSparseVector{Float32, Int64}
+    @test SparseVector(CuSparseVector{Float32, Int64}(x)) ≈ x
+    @test CuSparseMatrixCSC{Float32, Int64}(x) isa CuSparseMatrixCSC{Float32, Int64}
+    @test SparseMatrixCSC(CuSparseMatrixCSC{Float32, Int64}(x)) ≈ SparseMatrixCSC(x)
+    dA = CuSparseMatrixBSR{Float32, Int64}(A, 2)
+    @test dA isa CuSparseMatrixBSR{Float32, Int64}
+    @test SparseMatrixCSC(dA) ≈ A
+
+    dx = CuSparseVector(x)
+    @test CuSparseVector{Float64, Cint}(dx) === dx
+    @test CuSparseVector{Float32}(dx) isa CuSparseVector{Float32, Cint}
+    dx64 = CuSparseVector{Float32, Int64}(dx)
+    @test dx64 isa CuSparseVector{Float32, Int64}
+    @test CuSparseVector{Float64}(dx64) isa CuSparseVector{Float64, Int64}
+    @test SparseVector(dx64) ≈ x
+
+    formats = (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO, CuSparseMatrixBSR)
+    convert_to(T, A) = T == CuSparseMatrixBSR ? T(A, 2) : T(A)
+    for T1 in formats, T2 in formats
+        dA = convert_to(T1, A)
+        if T1 == T2
+            # matching types return the input, others copy every buffer
+            @test T2{Float64, Cint}(dA) === dA
+            @test convert(T2{Float64, Cint}, dA) === dA
+            @test T2{Float64}(dA) === dA
+            dB = T2{Float32}(dA)
+            @test dB isa T2{Float32, Cint}
+            dC = convert(T2{Float64, Int64}, dA)
+            @test dC isa T2{Float64, Int64}
+            @test T2{Float32}(dC) isa T2{Float32, Int64}
+
+            # buffers that keep their type are copied too
+            dD = T2{Float32, Cint}(dA)
+            @test all(f -> getfield(dD, f) !== getfield(dA, f),
+                      filter(f -> getfield(dA, f) isa CuArray, fieldnames(T2)))
+        elseif T2 == CuSparseMatrixBSR
+            dB = T2{Float32, Int64}(dA, 2)
+        else
+            dB = T2{Float32, Int64}(dA)
+            @test dB isa T2{Float32, Int64}
+        end
+        T2 == CuSparseMatrixBSR && (dB = CuSparseMatrixCSR(dB))
+        @test SparseMatrixCSC(dB) ≈ A
+    end
+end
+
 @testset "CuSparseMatrix(::Adjoint/::Transpose) from CPU" begin
     for typ in (Float32, ComplexF32, Float64, ComplexF64)
         A = sprand(typ, 5, 5, 0.2)
