@@ -132,6 +132,11 @@ using LinearAlgebra, SparseArrays
                                 mul!(dC, opa(dA), opb(dB), 3, 3.2)
                                 C = 3.2 * C + 3 * opa(A) * opb(B)
                                 @test collect(dC) ≈ C
+
+                                # the output's number of non-zeros changes
+                                dD = SparseMatrixType(spzeros(elty, m, n))
+                                mul!(dD, dA, dB)
+                                @test collect(dD) ≈ A * B
                             end
                         end
                     end
