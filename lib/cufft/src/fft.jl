@@ -11,7 +11,12 @@ using LinearAlgebra
 input_type(plan::ScaledPlan) = input_type(plan.p)
 output_type(plan::ScaledPlan) = output_type(plan.p)
 
-Base.:(*)(p::ScaledPlan, x::DenseCuArray) = rmul!(p.p * x, p.scale)
+# broadcast instead of `rmul!`, which falls back to scalar indexing when the in-place plan
+# was applied to a view
+function Base.:(*)(p::ScaledPlan, x::StridedCuArray)
+    y = p.p * x
+    y .*= p.scale
+end
 
 ## plan structure
 
@@ -49,7 +54,7 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B} <: Plan{
     end
 end
 
-function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle, X::DenseCuArray{S,N},
+function CuFFTPlan{T,S,K,inplace,N,R,B}(handle::cufftHandle, X::StridedCuArray{S,N},
                                         sizey::NTuple{N,Int}, region::NTuple{R,Int}, buffer::B
                                         ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N,R,B}
     CuFFTPlan{T,S,K,inplace,N,R,B}(handle, size(X), sizey, region, buffer)
@@ -124,19 +129,19 @@ end
 for f in (:fft, :bfft, :ifft)
     pf = Symbol("plan_", f)
     @eval begin
-        $f(x::DenseCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Real}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
-        $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
+        $f(x::StridedCuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
+        $pf(x::StridedCuArray{<:Real}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
+        $f(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
+        $pf(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, region; kwargs...) = $pf(complexfloat(x), region; kwargs...)
     end
 end
-rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::DenseCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
+rfft(x::StridedCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
+plan_rfft(x::StridedCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
 
 for f in (:brfft, :irfft)
     @eval begin
-        $f(x::DenseCuArray{<:Real}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
-        $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
+        $f(x::StridedCuArray{<:Real}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
+        $f(x::StridedCuArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
     end
 end
 
@@ -222,7 +227,7 @@ end
 # plan_fft(X, 1:ndims(X)).
 for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
     @eval begin
-        Base.@constprop :aggressive function $f(X::DenseCuArray{T,N}, region; kwargs...) where {T<:cufftComplexes,N}
+        Base.@constprop :aggressive function $f(X::StridedCuArray{T,N}, region; kwargs...) where {T<:cufftComplexes,N}
             R = length(region)
             region = NTuple{R,Int}(region)
             $f(X, region; kwargs...)
@@ -231,7 +236,7 @@ for f in (:plan_fft!, :plan_bfft!, :plan_fft, :plan_bfft)
 end
 
 # inplace complex
-function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+function plan_fft!(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = true
     region = ensure_increasing(ensure_unique(region))
@@ -241,7 +246,7 @@ function plan_fft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
-function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+function plan_bfft!(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = true
     region = ensure_increasing(ensure_unique(region))
@@ -252,7 +257,7 @@ function plan_bfft!(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) wher
 end
 
 # out-of-place complex
-function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+function plan_fft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_FORWARD
     inplace = false
     region = ensure_increasing(ensure_unique(region))
@@ -262,7 +267,7 @@ function plan_fft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where 
     CuFFTPlan{T,T,K,inplace,N,R,Nothing}(handle, X, size(X), region, nothing)
 end
 
-function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+function plan_bfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
     region = ensure_increasing(ensure_unique(region))
@@ -273,13 +278,13 @@ function plan_bfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where
 end
 
 # out-of-place real-to-complex
-Base.@constprop :aggressive function plan_rfft(X::DenseCuArray{T,N}, region; kwargs...) where {T<:cufftReals,N}
+Base.@constprop :aggressive function plan_rfft(X::StridedCuArray{T,N}, region; kwargs...) where {T<:cufftReals,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_rfft(X, region; kwargs...)
 end
 
-function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftReals,N,R}
+function plan_rfft(X::StridedCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where {T<:cufftReals,N,R}
     K = CUFFT_FORWARD
     inplace = false
     region = ensure_strictly_increasing(region)
@@ -298,13 +303,13 @@ function plan_rfft(X::DenseCuArray{T,N}, region::NTuple{R,Int}; kwargs...) where
 end
 
 # out-of-place complex-to-real
-Base.@constprop :aggressive function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region; kwargs...) where {T<:cufftComplexes,N}
+Base.@constprop :aggressive function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region; kwargs...) where {T<:cufftComplexes,N}
     R = length(region)
     region = NTuple{R,Int}(region)
     plan_brfft(X, d, region; kwargs...)
 end
 
-function plan_brfft(X::DenseCuArray{T,N}, d::Integer, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
+function plan_brfft(X::StridedCuArray{T,N}, d::Integer, region::NTuple{R,Int}; kwargs...) where {T<:cufftComplexes,N,R}
     K = CUFFT_INVERSE
     inplace = false
     region = ensure_strictly_increasing(region)
@@ -344,13 +349,13 @@ end
 #       [...]. Out-of-place complex-to-real FFT will always overwrite input buffer."
 #       see # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055.
 
-function assert_applicable(p::CuFFTPlan{T,S}, X::DenseCuArray{S}) where {T,S}
+function assert_applicable(p::CuFFTPlan{T,S}, X::StridedCuArray) where {T,S}
     (size(X) == p.input_size) ||
         throw(ArgumentError("CuFFT plan applied to wrong-size input"))
 end
 
-function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::DenseCuArray{S},
-                           Y::DenseCuArray{T}) where {T,S,K,inplace}
+function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::StridedCuArray{S},
+                           Y::StridedCuArray{T}) where {T,S,K,inplace}
     assert_applicable(p, X)
     if size(Y) != p.output_size
         throw(ArgumentError("CuFFT plan applied to wrong-size output"))
@@ -360,6 +365,8 @@ function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::DenseCuArray{S},
                                    " plan applied to ",
                                    inplace ? "out-of-place" : "in-place",
                                    " data")))
+    elseif inplace && strides(X) != strides(Y)
+        throw(ArgumentError("CuFFT in-place plan applied to arrays with different strides"))
     end
 end
 
@@ -475,42 +482,57 @@ end
 
 ## high-level integrations
 
-function LinearAlgebra.mul!(y::DenseCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x::DenseCuArray{S}
+# cuFFT plans describe dense arrays, so strided views are staged through dense buffers.
+
+function LinearAlgebra.mul!(y::StridedCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x::StridedCuArray{S}
                            ) where {T,S,K,inplace}
     assert_applicable(p, x, y)
-    if !inplace && T<:Real
-        # Out-of-place complex-to-real FFT will always overwrite input x.
-        # We copy the input x in an auxiliary buffer.
-        z = p.buffer
-        copyto!(z, x)
+    if inplace
+        z = x isa DenseCuArray ? x : copy1(S, x)
+        w = z
     else
-        z = x
+        if T<:Real
+            # Out-of-place complex-to-real FFT will always overwrite input x.
+            # We copy the input x in an auxiliary buffer.
+            z = p.buffer
+            copyto!(z, x)
+        elseif !(x isa DenseCuArray) || Base.mightalias(x, y)
+            # snapshot inputs that may overlap the output
+            z = copy1(S, x)
+        else
+            z = x
+        end
+        w = y isa DenseCuArray ? y : CuArray{T}(undef, p.output_size)
     end
-    unsafe_execute_external_batches!(p, z, y)
+    unsafe_execute_external_batches!(p, z, w)
+    w === y || copyto!(y, w)
     y
 end
 
-function Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::DenseCuArray{S}) where {T,S,K}
-    assert_applicable(p, x)
-    unsafe_execute_external_batches!(p, x, x)
-    x
+# AbstractFFTs.jl scales with `lmul!`, which falls back to scalar indexing on views
+function LinearAlgebra.mul!(y::StridedCuArray, p::ScaledPlan{T,P}, x::StridedCuArray
+                           ) where {T,P<:CuFFTPlan}
+    mul!(y, p.p, x)
+    y .*= p.scale
 end
 
-function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::DenseCuArray{S1,M}) where {T,S,K,S1,M}
+Base.:(*)(p::CuFFTPlan{T,S,K,true}, x::StridedCuArray{S}) where {T,S,K} = mul!(x, p, x)
+
+function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::StridedCuArray{S1,M}) where {T,S,K,S1,M}
+    assert_applicable(p, x)
     if T<:Real
         # Out-of-place complex-to-real FFT will always overwrite input x.
         # We copy the input x in an auxiliary buffer.
         z = p.buffer
         copyto!(z, x)
     else
-        if S1 != S
-            # Convert to the expected input type.
+        if S1 != S || !(x isa DenseCuArray)
+            # Convert to the expected input type, or stage a strided view.
             z = copy1(S, x)
         else
             z = x
         end
     end
-    assert_applicable(p, z)
     y = CuArray{T,M}(undef, p.output_size)
     unsafe_execute_external_batches!(p, z, y)
     y
