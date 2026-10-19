@@ -3,7 +3,7 @@
 @reexport using AbstractFFTs
 
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
-    plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft, irfft,
+    plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft, brfft, irfft,
     Plan, ScaledPlan
 
 using LinearAlgebra
@@ -133,8 +133,11 @@ end
 rfft(x::DenseCuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
 plan_rfft(x::DenseCuArray{<:Real}, region; kwargs...) = plan_rfft(realfloat(x), region; kwargs...)
 
-function irfft(x::DenseCuArray{<:Union{Real,Integer,Rational}}, d::Integer, region=1:ndims(x))
-    irfft(complexfloat(x), d, region)
+for f in (:brfft, :irfft)
+    @eval begin
+        $f(x::DenseCuArray{<:Real}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
+        $f(x::DenseCuArray{<:Complex{<:Union{Integer,Rational}}}, d::Integer, region=1:ndims(x)) = $f(complexfloat(x), d, region)
+    end
 end
 
 """

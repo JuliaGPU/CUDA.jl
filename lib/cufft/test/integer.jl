@@ -47,3 +47,25 @@ end
 end
 
 end
+
+
+## complex-to-real promotion
+
+function complex_to_real(X::AbstractArray{T,N}) where {T,N}
+    d = 2size(X, 1) - 2
+    d_X = CuArray(X)
+    for f in (brfft, irfft)
+        d_Y = f(d_X, d)
+        @test d_Y isa CuArray
+        @test isapprox(collect(d_Y), f(X, d), rtol = rtol(T), atol = atol(T))
+    end
+end
+
+@testset for T in [Complex{Int32}, Complex{Int64}, Float32]
+
+@testset "1D" begin
+    X = rand(T, N1)
+    complex_to_real(X)
+end
+
+end
