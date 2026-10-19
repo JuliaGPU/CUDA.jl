@@ -180,6 +180,9 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
             return mapreduce(identity, +, bc)
         end
 
+        # a grid without blocks can't be launched
+        mA == 0 && return zero(T)
+
         res = CUDACore.zeros(T, 1)
 
         # be conservative about using shuffle instructions
