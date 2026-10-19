@@ -32,6 +32,10 @@ n = 10
     A    = zeros(elty, n, n)
     d_A  = CuArray(A)
     @test_throws LinearAlgebra.PosDefException cholesky(d_A)
+    for uplo in (:U, :L)
+        @test_throws LinearAlgebra.PosDefException cholesky(Hermitian(d_A, uplo))
+        @test !issuccess(cholesky(Hermitian(d_A, uplo); check=false))
+    end
 end
 
 @testset "Cholesky inverse (potri) elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]

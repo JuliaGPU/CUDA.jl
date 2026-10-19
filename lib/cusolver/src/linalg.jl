@@ -474,12 +474,6 @@ end
 
 ## cholesky
 
-function LinearAlgebra.cholesky(A::LinearAlgebra.RealHermSymComplexHerm{<:Real,<:CuMatrix},
-                                ::Val{false}=Val(false); check::Bool = true)
-    C, info = LinearAlgebra._chol!(copy(parent(A)), A.uplo == 'U' ? UpperTriangular : LowerTriangular)
-    return Cholesky(C.data, A.uplo, info)
-end
-
 LinearAlgebra.cholcopy(A::LinearAlgebra.RealHermSymComplexHerm{<:Any,<:CuArray}) =
     copyto!(similar(A, LinearAlgebra.choltype(A)), A)
 
