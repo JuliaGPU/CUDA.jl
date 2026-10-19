@@ -227,8 +227,9 @@ steps:
         timeout_in_minutes: 60
         soft_fail: true
 
-  - group: ":eyes: Special"
-    depends_on: "cuda"
+  # the GPU-less step runs on a different, often busy queue, so start it right away instead
+  # of after the GPU tests: it would otherwise delay the documentation and benchmarks
+  - group: ":eyes: GPU-less"
     steps:
       - label: "GPU-less environment"
         plugins:
@@ -260,6 +261,9 @@ steps:
            build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 5
 
+  - group: ":eyes: Special"
+    depends_on: "cuda"
+    steps:
       - label: "Compute sanitizer"
         plugins:
           - JuliaCI/julia#v1:
