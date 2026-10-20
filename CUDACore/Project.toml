@@ -46,6 +46,9 @@ KernelAbstractionsExt = "KernelAbstractions"
 SpecialFunctionsExt = "SpecialFunctions"
 StaticArraysExt = "StaticArrays"
 
+[sources]
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "a2812250fc08314d6382c2f3a2b7be265eca2382"}
+
 [compat]
 Adapt = "4.4"
 BFloat16s = "0.5, 0.6"
@@ -59,7 +62,7 @@ ChainRulesCore = "1"
 EnzymeCore = "0.8.2"
 ExprTools = "0.1"
 GPUArrays = "12.1"
-GPUCompiler = "2.13"
+GPUCompiler = "2.15.1"
 GPUToolbox = "3.3.1"
 KernelAbstractions = "0.10"
 KernelInterface = "0.4"
