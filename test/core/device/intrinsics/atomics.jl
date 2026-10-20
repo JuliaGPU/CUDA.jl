@@ -399,6 +399,35 @@ end
     end
 end
 
+# other types are modified with a compare-and-swap loop on an integer of the same size
+@testset "complex" begin
+    types = [ComplexF16, ComplexF32]
+    # 128-bit compare-and-swap requires sm_90
+    capability(device()) >= v"9.0" && push!(types, ComplexF64)
+
+    @testset for T in types
+        a = CuArray([zero(T)])
+
+        function add_kernel(a, b)
+            @atomic a[1] = a[1] + b
+            @atomic a[1] += b
+            return
+        end
+
+        @cuda threads=256 add_kernel(a, T(1, -2))
+        @test Array(a)[1] == T(512, -1024)
+
+        function mul_kernel(a)
+            @atomic a[1] *= im
+            return
+        end
+
+        a = CuArray([one(T)])
+        @cuda threads=3 mul_kernel(a)
+        @test Array(a)[1] == -im
+    end
+end
+
 @testset "macro" begin
 
     @testset "NaN" begin
@@ -783,6 +812,23 @@ end
         validate_kernel(system_kernel, T; arch=sm"61")
     end
     validate_kernel(system_kernel, T; arch=sm"75")
+
+    # 128-bit values, like ComplexF64, require 128-bit compare-and-swap
+    function complex_kernel(a)
+        @atomic a[1] += 1
+        return
+    end
+    TC = Tuple{CuDeviceVector{ComplexF64,1}}
+    @test_throws "128-bit atomic operation (requires compute capability 9.0" validate_kernel(complex_kernel, TC; arch=sm"75")
+    validate_kernel(complex_kernel, TC; arch=sm"90")
+
+    # there are no atomics on values of other sizes
+    add(x, y) = (x[1] + y[1], x[2] + y[2], x[3] + y[3])
+    function tuple_kernel(a)
+        @atomic a[1] = add(a[1], (1f0, 2f0, 3f0))
+        return
+    end
+    @test_throws "atomic operations require values of 1, 2, 4, 8 or 16 bytes" validate_kernel(tuple_kernel, Tuple{CuDeviceVector{NTuple{3,Float32},1}}; arch=sm"90")
 end
 
 end
