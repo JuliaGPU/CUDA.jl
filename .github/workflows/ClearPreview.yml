@@ -1,0 +1,34 @@
+name: Doc Preview Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: doc-preview-cleanup
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  doc-preview-cleanup:
+    # pull requests from forks don't get previews, nor a token that can remove them
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+      - name: Delete preview and push changes
+        run: |
+            if [ -d "previews/PR$PRNUM" ]; then
+              git config user.name "Documenter.jl"
+              git config user.email "documenter@juliadocs.github.io"
+              git rm -rf "previews/PR$PRNUM"
+              git commit -m "delete preview"
+              git push origin gh-pages:gh-pages
+            fi
+        env:
+            PRNUM: ${{ github.event.number }}
