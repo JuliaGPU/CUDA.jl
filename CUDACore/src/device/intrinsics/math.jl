@@ -11,43 +11,164 @@
 @public fma_rn, fma_rz, fma_rm, fma_rp
 
 using Base: FastMath, @assume_effects
+import BFloat16s
 
 ## helpers
 
 within(lower, upper) = (val) -> lower <= val <= upper
 
+@inline @generated function llvm_math(::Val{operation}, ::Val{approximate},
+                                     args::Vararg{typ,count}) where {operation,approximate,typ,count}
+    element = typ === Float16 ? "half" : typ === Float32 ? "float" :
+              typ === Float64 ? "double" : "bfloat"
+    suffix = typ === Float16 ? "f16" : typ === Float32 ? "f32" :
+             typ === Float64 ? "f64" : "bf16"
+    name = "llvm.$operation.$suffix"
+    parameter_types = join(fill(element, count), ", ")
+    parameters = join(("$element %arg$index" for index in 1:count), ", ")
+    flags = approximate ? "afn " : ""
+    if operation === :sincos
+        result_type = NTuple{2,typ}
+        ir = """
+            declare {$element, $element} @$name($element)
+            define [2 x $element] @entry($parameters) {
+                %pair = call $flags{$element, $element} @$name($parameters)
+                %sine = extractvalue {$element, $element} %pair, 0
+                %cosine = extractvalue {$element, $element} %pair, 1
+                %first = insertvalue [2 x $element] undef, $element %sine, 0
+                %result = insertvalue [2 x $element] %first, $element %cosine, 1
+                ret [2 x $element] %result
+            }
+            """
+    else
+        result_type = typ
+        ir = """
+            declare $element @$name($parameter_types)
+            define $element @entry($parameters) {
+                %result = call $flags$element @$name($parameters)
+                ret $element %result
+            }
+            """
+    end
+    argument_types = Tuple{ntuple(_ -> typ, count)...}
+    :(Base.llvmcall(($ir, "entry"), $result_type, $argument_types, args...))
+end
+
+for (op, minimum_llvm) in ((:exp, 15), (:exp2, 15), (:exp10, 18),
+                           (:log, 15), (:log2, 15), (:log10, 15),
+                           (:sin, 15), (:cos, 15), (:tan, 19), (:asin, 19),
+                           (:acos, 19), (:atan, 19), (:sinh, 19), (:cosh, 19),
+                           (:tanh, 19))
+    for (typ, suffix) in ((Float16, "f16"), (BFloat16, "bf16"))
+        typ === Float16 && op in (:exp, :exp2, :exp10, :log, :log2, :log10) && continue
+        if Base.libllvm_version >= VersionNumber(minimum_llvm) &&
+           (typ !== BFloat16 || BFloat16s.llvm_arithmetic)
+            intrinsic = "llvm.$op.$suffix"
+            @eval @device_override Base.$op(value::$typ) =
+                ccall($intrinsic, llvmcall, $typ, ($typ,), value)
+        else
+            implementation = Symbol(:h, op)
+            if isdefined(HalfMath, implementation) &&
+               hasmethod(getfield(HalfMath, implementation), Tuple{typ})
+                @eval @device_override Base.$op(value::$typ) =
+                    HalfMath.$implementation(value)
+            else
+                @eval @device_override Base.$op(value::$typ) = $typ(Base.$op(Float32(value)))
+            end
+        end
+    end
+end
+
+for (op, minimum_llvm) in ((:exp, 15), (:exp10, 18), (:log, 15), (:log2, 15),
+                           (:log10, 15), (:sin, 15), (:cos, 15), (:tan, 19),
+                           (:asin, 19), (:acos, 19), (:atan, 19), (:sinh, 19),
+                           (:cosh, 19), (:tanh, 19))
+    fast_op = Symbol(op, :_fast)
+    isdefined(FastMath, fast_op) || continue
+    Base.libllvm_version >= VersionNumber(minimum_llvm) || continue
+    for typ in (Float16, Float32, Float64, BFloat16)
+        typ === Float32 && op ∉ (:asin, :acos, :atan, :sinh, :cosh, :tanh) && continue
+        typ === Float16 && op === :tanh && continue
+        typ === BFloat16 && !BFloat16s.llvm_arithmetic && continue
+        @eval @device_override FastMath.$fast_op(value::$typ) =
+            llvm_math(Val($(QuoteNode(op))), Val(true), value)
+    end
+end
+
+@device_function rsqrt(value::BFloat16) = HalfMath.hrsqrt(value)
+@device_override Base.inv(value::BFloat16) = HalfMath.hrcp(value)
+
+for typ in (Float16, BFloat16)
+    typ === BFloat16 && !BFloat16s.llvm_arithmetic && continue
+    @eval @device_override Base.:(^)(value::$typ, power::$typ) =
+        llvm_math(Val(:pow), Val(false), value, power)
+    @eval @device_override FastMath.pow_fast(value::$typ, power::$typ) =
+        llvm_math(Val(:pow), Val(true), value, power)
+    if Base.libllvm_version >= v"20"
+        @eval @device_override Base.atan(value::$typ, other::$typ) =
+            llvm_math(Val(:atan2), Val(false), value, other)
+        @eval @device_override Base.sincos(value::$typ) =
+            llvm_math(Val(:sincos), Val(false), value)
+    end
+end
+
+@device_override FastMath.pow_fast(value::Float64, power::Float64) =
+    llvm_math(Val(:pow), Val(true), value, power)
+
 
 ## trigonometric
 
-@device_override Base.cos(x::Float64) = ccall("extern __nv_cos", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.cos(x::Float32) = ccall("extern __nv_cosf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.cos_fast(x::Float32) = ccall("extern __nv_fast_cosf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.cos(x::Float64) = ccall("llvm.cos.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.cos(x::Float32) = ccall("llvm.cos.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override FastMath.cos_fast(x::Float32) = llvm_math(Val(:cos), Val(true), x)
 
 @device_override Base.cospi(x::Float64) = ccall("extern __nv_cospi", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.cospi(x::Float32) = ccall("extern __nv_cospif", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.sin(x::Float64) = ccall("extern __nv_sin", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sin(x::Float32) = ccall("extern __nv_sinf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.sin_fast(x::Float32) = ccall("extern __nv_fast_sinf", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.sin(x::Float64) = ccall("llvm.sin.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.sin(x::Float32) = ccall("llvm.sin.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override FastMath.sin_fast(x::Float32) = llvm_math(Val(:sin), Val(true), x)
 
 @device_override Base.sinpi(x::Float64) = ccall("extern __nv_sinpi", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.sinpi(x::Float32) = ccall("extern __nv_sinpif", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.tan(x::Float64) = ccall("extern __nv_tan", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.tan(x::Float32) = ccall("extern __nv_tanf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override FastMath.tan_fast(x::Float32) = ccall("extern __nv_fast_tanf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override function Base.sincos(x::Float64)
-    s = Ref{Cdouble}()
-    c = Ref{Cdouble}()
-    ccall("extern __nv_sincos", llvmcall, Cvoid, (Cdouble, Ptr{Cdouble}, Ptr{Cdouble}), x, s, c)
-    return (s[], c[])
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.tan(x::Float64) = ccall("llvm.tan.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.tan(x::Float64) = ccall("extern __nv_tan", llvmcall, Cdouble, (Cdouble,), x)
 end
-@device_override function Base.sincos(x::Float32)
-    s = Ref{Cfloat}()
-    c = Ref{Cfloat}()
-    ccall("extern __nv_sincosf", llvmcall, Cvoid, (Cfloat, Ptr{Cfloat}, Ptr{Cfloat}), x, s, c)
-    return (s[], c[])
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.tan(x::Float32) = ccall("llvm.tan.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.tan(x::Float32) = ccall("extern __nv_tanf", llvmcall, Cfloat, (Cfloat,), x)
+end
+@static if Base.libllvm_version >= v"19"
+    @device_override FastMath.tan_fast(x::Float32) = llvm_math(Val(:tan), Val(true), x)
+else
+    @device_override FastMath.tan_fast(x::Float32) = ccall("extern __nv_fast_tanf", llvmcall, Cfloat, (Cfloat,), x)
+end
+
+@static if Base.libllvm_version >= v"20"
+    @device_override Base.sincos(x::Float64) =
+        llvm_math(Val(:sincos), Val(false), x)
+else
+    @device_override function Base.sincos(x::Float64)
+        s = Ref{Cdouble}()
+        c = Ref{Cdouble}()
+        ccall("extern __nv_sincos", llvmcall, Cvoid, (Cdouble, Ptr{Cdouble}, Ptr{Cdouble}), x, s, c)
+        return (s[], c[])
+    end
+end
+@static if Base.libllvm_version >= v"20"
+    @device_override Base.sincos(x::Float32) =
+        llvm_math(Val(:sincos), Val(false), x)
+else
+    @device_override function Base.sincos(x::Float32)
+        s = Ref{Cfloat}()
+        c = Ref{Cfloat}()
+        ccall("extern __nv_sincosf", llvmcall, Cvoid, (Cfloat, Ptr{Cfloat}, Ptr{Cfloat}), x, s, c)
+        return (s[], c[])
+    end
 end
 # Base has sincos_fast fall back to the native implementation which is presumed faster,
 # but that is not the case compared to CUDA's intrinsics
@@ -69,33 +190,89 @@ end
 
 ## inverse trigonometric
 
-@device_override Base.acos(x::Float64) = ccall("extern __nv_acos", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.acos(x::Float32) = ccall("extern __nv_acosf", llvmcall, Cfloat, (Cfloat,), x)
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.acos(x::Float64) = ccall("llvm.acos.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.acos(x::Float64) = ccall("extern __nv_acos", llvmcall, Cdouble, (Cdouble,), x)
+end
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.acos(x::Float32) = ccall("llvm.acos.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.acos(x::Float32) = ccall("extern __nv_acosf", llvmcall, Cfloat, (Cfloat,), x)
+end
 
-@device_override Base.asin(x::Float64) = ccall("extern __nv_asin", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.asin(x::Float32) = ccall("extern __nv_asinf", llvmcall, Cfloat, (Cfloat,), x)
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.asin(x::Float64) = ccall("llvm.asin.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.asin(x::Float64) = ccall("extern __nv_asin", llvmcall, Cdouble, (Cdouble,), x)
+end
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.asin(x::Float32) = ccall("llvm.asin.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.asin(x::Float32) = ccall("extern __nv_asinf", llvmcall, Cfloat, (Cfloat,), x)
+end
 
-@device_override Base.atan(x::Float64) = ccall("extern __nv_atan", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.atan(x::Float32) = ccall("extern __nv_atanf", llvmcall, Cfloat, (Cfloat,), x)
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.atan(x::Float64) = ccall("llvm.atan.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.atan(x::Float64) = ccall("extern __nv_atan", llvmcall, Cdouble, (Cdouble,), x)
+end
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.atan(x::Float32) = ccall("llvm.atan.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.atan(x::Float32) = ccall("extern __nv_atanf", llvmcall, Cfloat, (Cfloat,), x)
+end
 
-@device_override Base.atan(x::Float64, y::Float64) = ccall("extern __nv_atan2", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-@device_override Base.atan(x::Float32, y::Float32) = ccall("extern __nv_atan2f", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@static if Base.libllvm_version >= v"20"
+    @device_override Base.atan(x::Float64, y::Float64) = ccall("llvm.atan2.f64", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+else
+    @device_override Base.atan(x::Float64, y::Float64) = ccall("extern __nv_atan2", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+end
+@static if Base.libllvm_version >= v"20"
+    @device_override Base.atan(x::Float32, y::Float32) = ccall("llvm.atan2.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+else
+    @device_override Base.atan(x::Float32, y::Float32) = ccall("extern __nv_atan2f", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+end
 
 ## hyperbolic
 
-@device_override Base.cosh(x::Float64) = ccall("extern __nv_cosh", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.cosh(x::Float32) = ccall("extern __nv_coshf", llvmcall, Cfloat, (Cfloat,), x)
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.cosh(x::Float64) = ccall("llvm.cosh.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.cosh(x::Float64) = ccall("extern __nv_cosh", llvmcall, Cdouble, (Cdouble,), x)
+end
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.cosh(x::Float32) = ccall("llvm.cosh.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.cosh(x::Float32) = ccall("extern __nv_coshf", llvmcall, Cfloat, (Cfloat,), x)
+end
 
-@device_override Base.sinh(x::Float64) = ccall("extern __nv_sinh", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sinh(x::Float32) = ccall("extern __nv_sinhf", llvmcall, Cfloat, (Cfloat,), x)
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.sinh(x::Float64) = ccall("llvm.sinh.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.sinh(x::Float64) = ccall("extern __nv_sinh", llvmcall, Cdouble, (Cdouble,), x)
+end
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.sinh(x::Float32) = ccall("llvm.sinh.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.sinh(x::Float32) = ccall("extern __nv_sinhf", llvmcall, Cfloat, (Cfloat,), x)
+end
 
-@device_override Base.tanh(x::Float64) = ccall("extern __nv_tanh", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.tanh(x::Float32) = ccall("extern __nv_tanhf", llvmcall, Cfloat, (Cfloat,), x)
-# Base.tanh(::Float16) is inherited from Julia (computes in Float32, which routes
-# through __nv_tanhf). Hardware `tanh.approx.f16` is approximate, so it lives in
-# FastMath — matching cuda_fp16.hpp where __htanh_approx is separate from __htanh.
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.tanh(x::Float64) = ccall("llvm.tanh.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.tanh(x::Float64) = ccall("extern __nv_tanh", llvmcall, Cdouble, (Cdouble,), x)
+end
+@static if Base.libllvm_version >= v"19"
+    @device_override Base.tanh(x::Float32) = ccall("llvm.tanh.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.tanh(x::Float32) = ccall("extern __nv_tanhf", llvmcall, Cfloat, (Cfloat,), x)
+end
 @device_override function FastMath.tanh_fast(x::Float16)
-    if compute_capability() >= sv"7.5"
+    @static if Base.libllvm_version >= v"19"
+        return llvm_math(Val(:tanh), Val(true), x)
+    end
+    if compute_capability() >= sv"7.5" && ptx_isa_version() >= sv"7.0"
         @asmcall("tanh.approx.f16 \$0, \$1;", "=h,h", Float16, Tuple{Float16}, x)
     else
         Float16(FastMath.tanh_fast(Float32(x)))
@@ -125,51 +302,23 @@ end
 # so Julia semantics are preserved while still using the fast lg2.approx/ex2.approx
 # hardware instead of libdevice's full-precision __nv_log*/__nv_exp*.
 
-@device_override Base.log(x::Float64) = ccall("extern __nv_log", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.log(x::Float32) = ccall("extern __nv_logf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.log(h::Float16)
-    f = @fastmath log(Float32(h))
-    r = Float16(f)
+@device_override Base.log(x::Float64) = ccall("llvm.log.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.log(x::Float32) = ccall("llvm.log.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.log(h::Float16) = ccall("llvm.log.f16", llvmcall, Float16, (Float16,), h)
+@device_override FastMath.log_fast(x::Float32) = llvm_math(Val(:log), Val(true), x)
 
-    r = fma(Float16(h == reinterpret(Float16, 0x160D)), reinterpret(Float16, 0x9C00), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x3BFE)), reinterpret(Float16, 0x8010), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x3C0B)), reinterpret(Float16, 0x8080), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x6051)), reinterpret(Float16, 0x1C00), r)
-
-    return r
-end
-@device_override FastMath.log_fast(x::Float32) = ccall("extern __nv_fast_logf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.log10(x::Float64) = ccall("extern __nv_log10", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.log10(x::Float32) = ccall("extern __nv_log10f", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.log10(h::Float16)
-    f = @fastmath log10(Float32(h))
-    r = Float16(f)
-
-    r = fma(Float16(h == reinterpret(Float16, 0x338F)), reinterpret(Float16, 0x1000), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x33F8)), reinterpret(Float16, 0x9000), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x57E1)), reinterpret(Float16, 0x9800), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x719D)), reinterpret(Float16, 0x9C00), r)
-
-    return r
-end
-@device_override FastMath.log10_fast(x::Float32) = ccall("extern __nv_fast_log10f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.log10(x::Float64) = ccall("llvm.log10.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.log10(x::Float32) = ccall("llvm.log10.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.log10(h::Float16) = ccall("llvm.log10.f16", llvmcall, Float16, (Float16,), h)
+@device_override FastMath.log10_fast(x::Float32) = llvm_math(Val(:log10), Val(true), x)
 
 @device_override Base.log1p(x::Float64) = ccall("extern __nv_log1p", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.log1p(x::Float32) = ccall("extern __nv_log1pf", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.log2(x::Float64) = ccall("extern __nv_log2", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.log2(x::Float32) = ccall("extern __nv_log2f", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.log2(h::Float16)
-    r = Float16(@fastmath log2(Float32(h)))
-
-    # NB: log2 checks the *output* against the special-case pattern, not the input
-    r = fma(Float16(r == reinterpret(Float16, 0xA2E2)), reinterpret(Float16, 0x8080), r)
-    r = fma(Float16(r == reinterpret(Float16, 0xBF46)), reinterpret(Float16, 0x9400), r)
-
-    return r
-end
-@device_override FastMath.log2_fast(x::Float32) = ccall("extern __nv_fast_log2f", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.log2(x::Float64) = ccall("llvm.log2.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.log2(x::Float32) = ccall("llvm.log2.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.log2(h::Float16) = ccall("llvm.log2.f16", llvmcall, Float16, (Float16,), h)
+@device_override FastMath.log2_fast(x::Float32) = llvm_math(Val(:log2), Val(true), x)
 
 @device_function logb(x::Float64) = ccall("extern __nv_logb", llvmcall, Cdouble, (Cdouble,), x)
 @device_function logb(x::Float32) = ccall("extern __nv_logbf", llvmcall, Cfloat, (Cfloat,), x)
@@ -180,63 +329,40 @@ end
 
 ## exponential
 
-@device_override Base.exp(x::Float64) = ccall("extern __nv_exp", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.exp(x::Float32) = ccall("extern __nv_expf", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.exp(h::Float16)
-    # exp(x) = exp2(x * log2(e)); the negative-zero addend keeps the fma from
-    # collapsing into a plain multiply (matches cuda_fp16.hpp's hexp).
-    f = fma(Float32(h), log2(Float32(ℯ)), -0f0)
-    r = Float16(@fastmath exp2(f))
+@device_override Base.exp(x::Float64) = ccall("llvm.exp.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.exp(x::Float32) = ccall("llvm.exp.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.exp(h::Float16) = ccall("llvm.exp.f16", llvmcall, Float16, (Float16,), h)
+@device_override FastMath.exp_fast(x::Float32) = llvm_math(Val(:exp), Val(true), x)
 
-    r = fma(Float16(h == reinterpret(Float16, 0x1F79)), reinterpret(Float16, 0x9400), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x25CF)), reinterpret(Float16, 0x9400), r)
-    r = fma(Float16(h == reinterpret(Float16, 0xC13B)), reinterpret(Float16, 0x0400), r)
-    r = fma(Float16(h == reinterpret(Float16, 0xC1EF)), reinterpret(Float16, 0x0200), r)
-
-    return r
-end
-@device_override FastMath.exp_fast(x::Float32) = ccall("extern __nv_fast_expf", llvmcall, Cfloat, (Cfloat,), x)
-
-@device_override Base.exp2(x::Float64) = ccall("extern __nv_exp2", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.exp2(x::Float32) = ccall("extern __nv_exp2f", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.exp2(h::Float16)
-    f = @fastmath exp2(Float32(h))
-    # one-ULP nudge: ex2.approx.ftz.f32 underestimates by ~½ ULP on average, so
-    # bump up by 2^-24 of the result before rounding back to Float16
-    return Float16(muladd(f, 2f0^-24, f))
-end
-@device_override FastMath.exp2_fast(x::Float64) = exp2(x)
+@device_override Base.exp2(x::Float64) = ccall("llvm.exp2.f64", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.exp2(x::Float32) = ccall("llvm.exp2.f32", llvmcall, Cfloat, (Cfloat,), x)
+@device_override Base.exp2(h::Float16) = ccall("llvm.exp2.f16", llvmcall, Float16, (Float16,), h)
+@device_override FastMath.exp2_fast(x::Float64) = llvm_math(Val(:exp2), Val(true), x)
 @device_override function FastMath.exp2_fast(x::Float32)
-    # LLVM 21 made `ex2.approx` an overloaded intrinsic
-    @static if Base.libllvm_version >= v"21"
-        ccall("llvm.nvvm.ex2.approx.f32", llvmcall, Float32, (Float32,), x)
-    else
-        ccall("llvm.nvvm.ex2.approx.f", llvmcall, Float32, (Float32,), x)
-    end
+    llvm_math(Val(:exp2), Val(true), x)
 end
-@device_override function FastMath.exp2_fast(x::Float16)
-    if compute_capability() >= sv"7.5"
-        ccall("llvm.nvvm.ex2.approx.f16", llvmcall, Float16, (Float16,), x)
-    else
-        Float16(FastMath.exp2_fast(Float32(x)))
-    end
+@device_override FastMath.exp2_fast(x::Float16) = llvm_math(Val(:exp2), Val(true), x)
+
+@static if Base.libllvm_version >= v"18"
+    @device_override Base.exp10(x::Float64) = ccall("llvm.exp10.f64", llvmcall, Cdouble, (Cdouble,), x)
+else
+    @device_override Base.exp10(x::Float64) = ccall("extern __nv_exp10", llvmcall, Cdouble, (Cdouble,), x)
 end
-
-@device_override Base.exp10(x::Float64) = ccall("extern __nv_exp10", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.exp10(x::Float32) = ccall("extern __nv_exp10f", llvmcall, Cfloat, (Cfloat,), x)
-@device_override function Base.exp10(h::Float16)
-    f = fma(Float32(h), log2(10f0), -0f0)
-    r = Float16(@fastmath exp2(f))
-
-    r = fma(Float16(h == reinterpret(Float16, 0x34DE)), reinterpret(Float16, 0x9800), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x9766)), reinterpret(Float16, 0x9000), r)
-    r = fma(Float16(h == reinterpret(Float16, 0x9972)), reinterpret(Float16, 0x1000), r)
-    r = fma(Float16(h == reinterpret(Float16, 0xA5C4)), reinterpret(Float16, 0x1000), r)
-    r = fma(Float16(h == reinterpret(Float16, 0xBF0A)), reinterpret(Float16, 0x8100), r)
-
-    return r
+@static if Base.libllvm_version >= v"18"
+    @device_override Base.exp10(x::Float32) = ccall("llvm.exp10.f32", llvmcall, Cfloat, (Cfloat,), x)
+else
+    @device_override Base.exp10(x::Float32) = ccall("extern __nv_exp10f", llvmcall, Cfloat, (Cfloat,), x)
 end
-@device_override FastMath.exp10_fast(x::Float32) = ccall("extern __nv_fast_exp10f", llvmcall, Cfloat, (Cfloat,), x)
+@static if Base.libllvm_version >= v"18"
+    @device_override Base.exp10(h::Float16) = ccall("llvm.exp10.f16", llvmcall, Float16, (Float16,), h)
+else
+    @device_override Base.exp10(h::Float16) = HalfMath.hexp10(h)
+end
+@static if Base.libllvm_version >= v"18"
+    @device_override FastMath.exp10_fast(x::Float32) = llvm_math(Val(:exp10), Val(true), x)
+else
+    @device_override FastMath.exp10_fast(x::Float32) = ccall("extern __nv_fast_exp10f", llvmcall, Cfloat, (Cfloat,), x)
+end
 
 @device_override Base.expm1(x::Float64) = ccall("extern __nv_expm1", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.expm1(x::Float32) = ccall("extern __nv_expm1f", llvmcall, Cfloat, (Cfloat,), x)
@@ -381,9 +507,9 @@ end
 @device_function rcbrt(x::Float64) = ccall("extern __nv_rcbrt", llvmcall, Cdouble, (Cdouble,), x)
 @device_function rcbrt(x::Float32) = ccall("extern __nv_rcbrtf", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.:(^)(x::Float64, y::Float64) = ccall("extern __nv_pow", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-@device_override Base.:(^)(x::Float32, y::Float32) = ccall("extern __nv_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-@device_override FastMath.pow_fast(x::Float32, y::Float32) = ccall("extern __nv_fast_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override Base.:(^)(x::Float64, y::Float64) = ccall("llvm.pow.f64", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
+@device_override Base.:(^)(x::Float32, y::Float32) = ccall("llvm.pow.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@device_override FastMath.pow_fast(x::Float32, y::Float32) = llvm_math(Val(:pow), Val(true), x, y)
 # pow_fast: Base methods call llvm.powi which NVPTX cannot lower (#3065)
 @device_override @assume_effects :foldable @inline function FastMath.pow_fast(x::Float64, y::Integer)
     y == -1 && return inv(x)

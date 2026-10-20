@@ -1,4 +1,5 @@
 [deps]
+SIMD = "fdea26ae-647d-5447-a871-4b548cad5224"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 BFloat16s = "ab4f0b2a-ad5b-11e8-123f-65d77653426b"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
@@ -45,6 +46,7 @@ cuTENSOR = "011b41b2-24ef-40a8-b3eb-fa098493e9e1"
 cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 
 [sources]
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "75afb4859e8152755e44c74ca440dd9e86e1261d"}
 CUDA = {path = ".."}
 CUDACore = {path = "../CUDACore"}
 CUDATools = {path = "../CUDATools"}
