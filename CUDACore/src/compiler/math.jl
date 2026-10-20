@@ -107,11 +107,8 @@ function lower_math_intrinsics!(job, mod)
     return
 end
 
-function GPUCompiler.lower_intrinsics!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module,
-                                       entry::LLVM.Function)
+GPUCompiler.lower_intrinsics!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module) =
     lower_math_intrinsics!(job, mod)
-    entry
-end
 
 function GPUCompiler.validate_ir(job::AnyCUDAJob, mod::LLVM.Module)
     errors = invoke(GPUCompiler.validate_ir,
