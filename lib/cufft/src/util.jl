@@ -7,17 +7,16 @@ _cufftfloat(::Type{T}) where {T<:cufftNumber} = T
 _cufftfloat(::Type{T}) where {T} = error("type $T not supported")
 _cufftfloat(x::T) where {T} = _cufftfloat(T)(x)
 
-realfloat(x::DenseCuArray{<:cufftReals}) = x
-realfloat(x::DenseCuArray{T}) where {T<:Real} = copy1(cufftfloat(T), x)
-realfloat(x::DenseCuArray{T}) where {T} = error("type $T not supported")
+realfloat(x::StridedCuArray{<:cufftReals}) = x
+realfloat(x::StridedCuArray{T}) where {T<:Real} = copy1(cufftfloat(T), x)
+realfloat(x::StridedCuArray{T}) where {T} = error("type $T not supported")
 
-complexfloat(x::DenseCuArray{<:cufftComplexes}) = x
-complexfloat(x::DenseCuArray{T}) where {T<:Complex} = copy1(cufftfloat(T), x)
-complexfloat(x::DenseCuArray{T}) where {T<:Real} = copy1(cufftfloat(complex(T)), x)
-complexfloat(x::DenseCuArray{T}) where {T} = error("type $T not supported")
+complexfloat(x::StridedCuArray{<:cufftComplexes}) = x
+complexfloat(x::StridedCuArray{T}) where {T<:Complex} = copy1(cufftfloat(T), x)
+complexfloat(x::StridedCuArray{T}) where {T<:Real} = copy1(cufftfloat(complex(T)), x)
+complexfloat(x::StridedCuArray{T}) where {T} = error("type $T not supported")
 
 function copy1(::Type{T}, x) where T
     y = CuArray{T}(undef, map(length, axes(x)))
-    #copy!(y, x)
-    y .= broadcast(xi->convert(T,xi),x)
+    y .= convert.(T, x)
 end
