@@ -96,7 +96,8 @@ function KI.device!(backend::CUDABackend, id::Int)
     if !(0 < id <= KI.ndevices(backend))
         throw(ArgumentError("Device id $id out of bounds."))
     end
-    device!(id - 1)
+    # only switch the calling task: `device!` would also change the default for new tasks
+    context!(context(CuDevice(id - 1)))
     return
 end
 

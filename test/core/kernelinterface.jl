@@ -106,6 +106,20 @@ end
     @test_throws ArgumentError kernel(A; ndrange=4, blocks=2)
 end
 
+# unlike `device!`, `KI.device!` leaves the device that new tasks start on alone
+@testset "task-local device!" begin
+    backend = CUDABackend()
+    # on a task that hasn't used CUDA yet
+    @test fetch(Threads.@spawn (KI.device!(backend, 1); KI.device(backend))) == 1
+
+    if length(devices()) > 1
+        fresh = fetch(Threads.@spawn KI.device(backend))
+        switched = mod1(fresh + 1, KI.ndevices(backend))
+        @test fetch(Threads.@spawn (KI.device!(backend, switched); KI.device(backend))) == switched
+        @test fetch(Threads.@spawn KI.device(backend)) == fresh
+    end
+end
+
 @testset "versioninfo" begin
     @test occursin("CUDA toolchain", sprint(KI.versioninfo, CUDABackend()))
 end
