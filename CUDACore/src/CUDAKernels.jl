@@ -112,11 +112,13 @@ struct CompiledKernel{K,F}
     f::F
 end
 
-# kernels are compiled before their arguments are known, so assume that the extents of the
-# arguments fit in an `Int32`. that is checked when launching (see `kernel_launch`).
+# Warm the bounded candidate before values are available. This does not establish its
+# facts: kernel_launch checks the stored descriptor before executing this variant.
 function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
-    kernel = cufunction(cudaconvert(f), tt; name, backend.always_inline, backend.fastmath,
-                        index_facts=true, kwargs...)
+    converted_f = cudaconvert(f)
+    specialization = CUDACore.GPUCompiler.candidate_specialization(typeof(converted_f), tt)
+    kernel = cufunction(converted_f, tt; name, backend.always_inline, backend.fastmath,
+                        argument_specialization=specialization, kwargs...)
     KI.Kernel(backend, CompiledKernel(kernel, f))
 end
 

@@ -5,14 +5,11 @@ abstract type AbstractCUDACompilerParams <: AbstractCompilerParams end
 Base.@kwdef struct CUDACompilerParams <: AbstractCUDACompilerParams
     sm::SMVersion
     ptx::VersionNumber
-    # the extents of the kernel's arguments fit in an `Int32` (see `facts.jl`)
-    index_facts::Bool = false
 end
 
 function Base.hash(params::CUDACompilerParams, h::UInt)
     h = hash(params.sm, h)
     h = hash(params.ptx, h)
-    h = hash(params.index_facts, h)
 
     return h
 end
@@ -59,11 +56,6 @@ GPUCompiler.kernel_state_type(job::AnyCUDAJob) = KernelState
 
 function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
                                     mod::LLVM.Module, entry::LLVM.Function)
-    # only for kernels launched from the host, whose arguments have been checked
-    if job.config.kernel && job.config.toplevel && job.config.params.index_facts
-        emit_index_facts!(job, mod, entry)
-    end
-
     entry = invoke(GPUCompiler.finish_module!,
                    Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, LLVM.Function},
                    job, mod, entry)
@@ -141,23 +133,6 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
         # XXX: put some of the above behind GPUCompiler abstractions
         #      (e.g., a compile-time version of `deferred_codegen`)
     end
-    return entry
-end
-
-function GPUCompiler.finish_ir!(@nospecialize(job::AnyCUDAJob),
-                                mod::LLVM.Module, entry::LLVM.Function)
-    entry = invoke(GPUCompiler.finish_ir!,
-                   Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, LLVM.Function},
-                   job, mod, entry)
-
-    # this needs to happen after the last instcombine, which would widen the narrowed index
-    # computations again
-    if job.config.kernel && job.config.toplevel && job.config.optimize
-        GPUCompiler.with_llvm_machine(job.config.target) do tm
-            IndexNarrowing.narrow_indices!(mod, tm)
-        end
-    end
-
     return entry
 end
 
@@ -290,7 +265,7 @@ end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
                                          debug_level=Base.JLOptions().debug_level,
                                          arch=nothing, cap=nothing, ptx=nothing,
-                                         index_facts=false, kwargs...)
+                                         argument_specialization=nothing, kwargs...)
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
     if cap !== nothing
         arch === nothing ||
@@ -354,8 +329,9 @@ end
     target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,
                                  feature_set=llvm_sm.feature_set, system_atomics,
                                  debuginfo=true, kwargs...)
-    params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx, index_facts)
-    CompilerConfig(target, params; kernel, name, always_inline, debug_level)
+    params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
+    CompilerConfig(target, params; kernel, name, always_inline, debug_level,
+                   argument_specialization, narrow_indices=true)
 end
 
 # does the host-side layout of an argument type match the device-side one?

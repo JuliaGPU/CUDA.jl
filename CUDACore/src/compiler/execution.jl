@@ -156,12 +156,15 @@ with different compiler options.
     kernel_compile(call.backend, call.f, tt; kwargs...)
 end
 
-# compile with facts about the arguments if they fit (see `facts.jl`)
-@inline function kernel_compile(call::KernelCall{LLVMBackend}; index_facts::Bool=true,
-                                kwargs...)
+# Classify the actual converted values; only explicit index carriers contribute bounds.
+@inline function kernel_compile(call::KernelCall{LLVMBackend}; specialize_indices::Bool=true,
+                               argument_specialization=nothing, kwargs...)
     tt = argument_types(call.arguments)
-    index_facts &= arguments_fit(tt, call.arguments)
-    cufunction(call.f, tt; index_facts, kwargs...)
+    specialization = argument_specialization
+    if specialization === nothing && specialize_indices
+        specialization = GPUCompiler.argument_specialization(call.f, call.arguments)
+    end
+    cufunction(call.f, tt; argument_specialization=specialization, kwargs...)
 end
 
 # `Tuple{map(Core.Typeof, args)...}`, without mapping or splatting
@@ -266,7 +269,7 @@ end
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx, :index_facts]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx, :specialize_indices, :argument_specialization]
 const LAUNCH_KWARGS = [:cooperative, :dependent, :blocks, :threads, :clustersize, :shmem,
                        :stream]
 
@@ -288,6 +291,10 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
   kernel object should be launched by calling it and passing arguments again. That later
   call converts the supplied host arguments independently.
+- `specialize_indices`: for host-launched LLVM kernels, specialize on array extents and
+  explicit indexing ranges fitting in 32 bits (default: `true`). Every launch checks the
+  bounds and falls back to an unbounded variant when needed. Plain integer data is not
+  constrained. Set this to `false` to disable automatic range specialization.
 - `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
 - `backend`: which compiler backend to use, defaults to [`LLVMBackend`](@ref). Either an
   [`AbstractBackend`](@ref) instance or a module that defines `DefaultBackend()` (e.g.
@@ -734,12 +741,15 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
     fun::CuFunction
     state::KernelState
-    # compiled assuming that the arguments satisfy the facts (see `facts.jl`)
-    index_facts::Bool
+    # The exact facts used by this compiled function, checked before every launch.
+    specialization::Union{Nothing,GPUCompiler.ArgumentSpecialization}
 end
 # the facts are a property of the compiled function, so recover them
-HostKernel{F,TT}(f::F, fun::CuFunction, state::KernelState) where {F,TT} =
-    HostKernel{F,TT}(f, fun, state, Base.@lock(cufunction_lock, haskey(_factless_jobs, fun)))
+function HostKernel{F,TT}(f::F, fun::CuFunction, state::KernelState) where {F,TT}
+    job = Base.@lock cufunction_lock get(_specialized_jobs, fun, nothing)
+    specialization = job === nothing ? nothing : job.config.argument_specialization
+    HostKernel{F,TT}(f, fun, state, specialization)
+end
 
 @doc (@doc AbstractKernel) HostKernel
 
@@ -753,7 +763,7 @@ HostKernel{F,TT}(f::F, fun::CuFunction, state::KernelState) where {F,TT} =
                                kwargs...) where {F,TT}
     # a kernel compiled with facts about its arguments can be launched with other ones
     # (e.g., when compiled ahead of time, or with placeholder arguments); check them again
-    if kernel.index_facts && !(values_fit(kernel.f) & arguments_fit(TT, arguments))
+    if !GPUCompiler.check_specialization(kernel.specialization, kernel.f, TT, arguments)
         kernel = factless_kernel(kernel)
     end
     launch_converted(kernel, arguments; kwargs...)
@@ -831,6 +841,9 @@ The following keyword arguments are supported:
   emits line number information, and `2` also prints a device-side stack trace and emits
   full debug info (like `nvcc -G`).
 - `fastmath`: use less precise square roots and flush denormals
+- `argument_specialization`: a descriptor from `GPUCompiler.argument_specialization`
+  (default: `nothing`). The returned kernel checks its bounds on every call. Type-only
+  precompilation may use `GPUCompiler.candidate_specialization` to warm a guarded variant.
 - `arch` and `ptx`: override the GPU architecture (matching nvcc/ptxas `-arch`) and the
   PTX ISA version to compile for. `arch` accepts either an [`SMVersion`](@ref) via the
   `sm"..."` string macro (e.g. `arch=sm"103a"` for architecture-accelerated codegen on
@@ -842,12 +855,10 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; index_facts::Bool=false, kwargs...) where {F,TT}
+function cufunction(f::F, tt::TT=Tuple{}; argument_specialization=nothing, kwargs...) where {F,TT}
     source = methodinstance(F, tt)
-    # the function is passed as an argument too, so may capture arrays
-    index_facts &= values_fit(f)
-    fun, state = cufunction_link(source; index_facts, kwargs...)
-    return HostKernel{F,tt}(f, fun, state, index_facts)
+    fun, state = cufunction_link(source; argument_specialization, kwargs...)
+    return HostKernel{F,tt}(f, fun, state, argument_specialization)
 end
 
 # the parts of `cufunction` that don't depend on the type of the function, kept separate so
@@ -894,8 +905,8 @@ function cufunction_link(job::CUDACompilerJob)
             end
 
             # remember how to compile this kernel without facts (see `factless_kernel`)
-            if job.config.params.index_facts
-                _factless_jobs[fun] = factless_job(job)
+            if job.config.argument_specialization !== nothing
+                _specialized_jobs[fun] = job
             end
         end
 
@@ -911,20 +922,20 @@ end
 # the state of every kernel, which is created when the kernel is first used
 const _kernel_states = Dict{CuFunction, KernelState}()
 
-# for kernels compiled with facts, the job compiling them without. it keeps the world of the
-# original job, so that the fallback doesn't pick up method redefinitions.
-const _factless_jobs = Dict{CuFunction, CUDACompilerJob}()
+# Retain the original descriptor and world for reconstruction and fallback compilation.
+const _specialized_jobs = Dict{CuFunction, CUDACompilerJob}()
+const _unbounded_kernels = Dict{CuFunction, Tuple{CuFunction,KernelState}}()
 
 function factless_job(job::CUDACompilerJob)
-    params = CUDACompilerParams(; job.config.params.sm, job.config.params.ptx,
-                                  index_facts=false)
-    CompilerJob(job.source, CompilerConfig(job.config; params), job.world)
+    CompilerJob(job.source, CompilerConfig(job.config; argument_specialization=nothing), job.world)
 end
 
 @noinline function factless_kernel(kernel::HostKernel{F,TT}) where {F,TT}
-    job = Base.@lock cufunction_lock _factless_jobs[kernel.fun]
-    fun, state = cufunction_link(job)
-    return HostKernel{F,TT}(kernel.f, fun, state, false)
+    fun, state = Base.@lock cufunction_lock get!(_unbounded_kernels, kernel.fun) do
+        job = _specialized_jobs[kernel.fun]
+        cufunction_link(factless_job(job))
+    end
+    return HostKernel{F,TT}(kernel.f, fun, state, nothing)
 end
 
 # task-local RNG for kernel launch seeds, so that launching a kernel does not
