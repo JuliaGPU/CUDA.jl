@@ -139,8 +139,10 @@ end
       # free in stream order. `cuMemFree` would wait for all work on the device to finish,
       # blocking kernel launches from other threads in the meantime. that also works for
       # memory that wasn't allocated from a pool.
-      @lock stream_disposal_lock begin
-        handle, ctx = release_stream(stream, stream_ctx, generation)
+      free_ctx = free_context(mem)
+      free_ctx === nothing || @lock stream_disposal_lock begin
+        handle, ctx = @something(release_stream(stream, stream_ctx, generation),
+                                 (disposal_stream(free_ctx), free_ctx))
         context!(ctx) do
           free_stream = if !mem.async
             # when memory that wasn't allocated from a pool is freed in stream order,
@@ -156,11 +158,7 @@ end
     else
       # without support for freeing memory in stream order, `cuMemFree` is the only option,
       # which waits for all running kernels. defer that until memory is reclaimed.
-      destroy_later(mem) do mem
-        context!(mem.ctx) do
-          free(mem)
-        end
-      end
+      defer_release(free, mem; ctx=mem.ctx, blocking=true)
     end
     owned_allocation && account!(memory_stats(mem.dev), -sizeof(mem))
 end
@@ -168,8 +166,10 @@ end
                             stream_ctx::CuContext, generation::Int, owned_allocation::Bool,
                             attachment::Attachment)
   if mem.pooled
-    @lock stream_disposal_lock begin
-      stream, ctx = release_stream(stream, stream_ctx, generation)
+    free_ctx = free_context(mem)
+    free_ctx === nothing || @lock stream_disposal_lock begin
+      stream, ctx = @something(release_stream(stream, stream_ctx, generation),
+                               (disposal_stream(free_ctx), free_ctx))
       context!(ctx) do
         cuMemFreeAsync(convert(CuPtr{Cvoid}, mem), stream)
       end
@@ -185,6 +185,21 @@ end
     defer_release(free, mem; ctx=mem.ctx, blocking=true)
   end
   owned_allocation && account!(_host_stats, -sizeof(mem))
+end
+
+# the context to free memory in, or `nothing` if it was freed along with the context it was
+# allocated in. allocations from a memory pool outlive that context, so are freed in another.
+function free_context(mem::DeviceMemory)
+  isvalid(mem.ctx) && return mem.ctx
+  mem.async || return nothing
+  ctx = context(mem.dev)
+  return isvalid(ctx) ? ctx : nothing
+end
+function free_context(mem::Union{UnifiedMemory,HostMemory})
+  isvalid(mem.ctx) && return mem.ctx
+  mem.pooled || return nothing
+  ctx = context(device())
+  return isvalid(ctx) ? ctx : nothing
 end
 
 # freed memory may only be released when reclaiming memory, so do so when running out
@@ -291,8 +306,11 @@ cached_size(sz) = sz <= 1<<20 ? nextpow(2, max(sz, 512)) : cld(sz, 1<<20) << 20
 
 function cache_put!(cache::BlockCache{M}, mem::M, stream::CuStream,
                     stream_ctx::CuContext, generation::Int; attach_host::Bool=false) where {M}
+  # (freed along with its context)
+  isvalid(mem.ctx) || return
   idle = @lock stream_disposal_lock begin
-    stream, ctx = release_stream(stream, stream_ctx, generation)
+    stream, ctx = @something(release_stream(stream, stream_ctx, generation),
+                             (disposal_stream(mem.ctx), mem.ctx))
     # (the event needs to be created in the context of the stream it is recorded on)
     context!(ctx) do
       if attach_host
@@ -318,7 +336,10 @@ function cache_take!(cache::BlockCache{M}, ctx::CuContext, sz::Int) where {M}
   block = @lock cache.lock begin
     blocks = get(cache.blocks, (ctx, sz), nothing)
     blocks === nothing && return nothing
-    i = findlast(block -> isdone(block.idle), blocks)
+    # (memory may have been last used in another context, whose destruction ended the work)
+    i = findlast(blocks) do block
+      block.idle.ctx == ctx || isvalid(block.idle.ctx) ? isdone(block.idle) : true
+    end
     i === nothing && return nothing
     Base.@atomic cache.bytes -= sz
     popat!(blocks, i)
@@ -343,7 +364,9 @@ function cache_release!(cache::BlockCache)
     end
     block === nothing && break
     attempt_release(ReleaseAction(block, nothing, true) do block
-      synchronize(block.idle)
+      # (freed along with its context, whose work has ended too)
+      isvalid(block.mem.ctx) || return
+      isvalid(block.idle.ctx) && synchronize(block.idle)
       context!(block.mem.ctx) do
         free(block.mem)
       end

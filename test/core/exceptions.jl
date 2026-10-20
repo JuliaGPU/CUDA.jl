@@ -155,3 +155,17 @@ end
 end
 
 end
+
+if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS
+    @testset "kernels launched in a destroyed context" begin
+        CuContext(device()) do ctx
+            context!(ctx) do
+                s = CuStream()
+                @cuda stream=s identity(nothing)
+                synchronize(s)
+            end
+        end
+        # (checks the exception flags of all contexts)
+        @test synchronize() === nothing
+    end
+end

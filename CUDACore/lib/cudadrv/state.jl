@@ -153,22 +153,51 @@ function context!(ctx::CuContext)
         old_ctx = state.context
         if old_ctx != ctx
             activate(ctx)
-            dev = current_device()
-            state.device = dev
-            state.context = ctx
-            disposal_stream(ctx)    # see `prepare_cuda_state`
+            switch_context!(state, current_device(), ctx)
         end
     end
 
     return old_ctx
 end
 
+function switch_context!(state::TaskLocalState, dev::CuDevice, ctx::CuContext)
+    state.device = dev
+    state.context = ctx
+
+    # the task's stream is cached per device, but belongs to a context. after switching
+    # back, the task claims its pooled stream of that context again (see `claim_stream!`).
+    devidx = deviceid(dev)+1
+    current = state.streams[devidx]
+    if current !== nothing && current.ctx !== nothing && current.ctx != ctx
+        state.streams[devidx] = nothing
+    end
+
+    disposal_stream(ctx)    # see `prepare_cuda_state`
+end
+
 @inline function context!(f::F, ctx::CuContext) where {F<:Function}
-    old_ctx = context!(ctx)::Union{CuContext,Nothing}
+    state = task_local_state()
+    if state === nothing
+        context!(ctx)
+        try
+            return f()
+        finally
+            # the task didn't use CUDA before, so let it start over
+            delete!(task_local_storage(), :CUDA)
+        end
+    elseif state.context == ctx
+        return f()
+    end
+
+    # restore the task's stream too, which may not be a pooled one (see `stream!`)
+    devidx = deviceid(state.device)+1
+    old_stream = state.streams[devidx]
+    old_ctx = context!(ctx)::CuContext
     try
         f()
     finally
-        old_ctx !== nothing && old_ctx != ctx && context!(old_ctx)
+        context!(old_ctx)
+        state.streams[devidx] = old_stream
     end
 end
 
@@ -251,9 +280,7 @@ function device!(dev::CuDevice, flags=nothing)
     if state === nothing
         task_local_state!(dev)
     else
-        state.device = dev
-        state.context = ctx
-        disposal_stream(ctx)        # see `prepare_cuda_state`
+        switch_context!(state, dev, ctx)
     end
     activate(ctx)
 

@@ -1,4 +1,8 @@
-release_now(event::CuEvent) = unsafe_destroy!(event)
+function release_now(event::CuEvent)
+  # (resources of a destroyed context are dropped, see `run_release`)
+  isvalid(event.ctx) && unsafe_destroy!(event)
+  return
+end
 
 # memory that was last used on a stream may be retired after that stream, and released
 # after the stream has been destroyed. it then needs to wait for the work that was submitted
@@ -7,6 +11,11 @@ const stream_disposal_lock = ReentrantLock()
 function release_now(stream::CuStream)
   @lock stream_disposal_lock begin
     isvalid(stream) || return
+    if !isvalid(stream.ctx)
+      # destroyed along with its context, which also ended its work
+      Base.@atomic stream.valid = false
+      return
+    end
     context!(stream.ctx) do
       event = CuEvent(EVENT_DISABLE_TIMING)
       cuEventRecord(event, stream)
@@ -32,6 +41,8 @@ function disposal_stream(ctx::CuContext)
   @lock disposal_streams_lock get!(disposal_streams, ctx) do
     # this is also when CUDA is first used, so start releasing retired resources periodically
     start_retired_drainer()
+    # forget the streams of destroyed contexts, which were destroyed along with them
+    filter!(((other, _),) -> isvalid(other), disposal_streams)
     context!(ctx) do
       handle = Ref{CUstream}()
       cuStreamCreate(handle, STREAM_NON_BLOCKING)
@@ -41,9 +52,11 @@ function disposal_stream(ctx::CuContext)
 end
 
 # a stream to release memory on that was last used on `stream` (during `generation`), along
-# with its context. needs to be called with `stream_disposal_lock` held, which also keeps
-# the stream from being handed to another task (see `claim_stream!`).
+# with its context, or `nothing` if that context has been destroyed, which ended the work.
+# needs to be called with `stream_disposal_lock` held, which also keeps the stream from
+# being handed to another task (see `claim_stream!`).
 function release_stream(stream::CuStream, ctx::CuContext, generation::Int)
+  isvalid(something(stream.ctx, ctx)) || return nothing
   if generation != CUDACore.generation(stream)
     # the stream has been handed to another task, so the work has finished. don't use the
     # stream, which would wait for the new owner's work, or end up in its capture.
@@ -81,7 +94,8 @@ end
 on_per_thread_stream(stream::CuStream) = stream.handle == CU_STREAM_PER_THREAD
 function synchronize_and(f, ctx::CuContext)
   return x -> begin
-    context!(device_synchronize, ctx)
+    # (the work of a destroyed context has ended)
+    isvalid(ctx) && context!(device_synchronize, ctx)
     f(x)
   end
 end
@@ -106,7 +120,10 @@ function release_now(retired::RetiredOwner)
   end
   event = try
     @lock stream_disposal_lock begin
-      handle, ctx = release_stream(stream, ctx, retired.managed.generation)
+      released = release_stream(stream, ctx, retired.managed.generation)
+      # (the work of a destroyed context has ended)
+      released === nothing && return
+      handle, ctx = released
       context!(ctx) do
         event = CuEvent(EVENT_DISABLE_TIMING)
         cuEventRecord(event, handle)

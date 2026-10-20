@@ -42,6 +42,68 @@ if !exclusive
         @test current_device() == dev
         device_synchronize()
     end
+
+    @testset "task streams of other contexts" begin
+        # a task's stream isn't used in, or kept after, another context on the same device
+        inner, before, after = fetch(@async begin
+            before = stream()
+            inner = CuContext(dev) do ctx2
+                context!(ctx2) do
+                    synchronize()
+                    stream().ctx == ctx2
+                end
+            end
+            synchronize()
+            inner, before, stream()
+        end)
+        @test inner
+        @test after === before
+
+        # (also when the task first needed a stream in the other context)
+        after = fetch(@async begin
+            device()    # initialize the task's state, but don't create a stream yet
+            CuContext(dev) do ctx2
+                context!(synchronize, ctx2)
+            end
+            synchronize()
+            stream()
+        end)
+        @test after.ctx == ctx
+
+        # (also with a stream of the user's)
+        s = CuStream()
+        after = fetch(@async begin
+            stream!(s)
+            CuContext(dev) do ctx2
+                context!(synchronize, ctx2)
+            end
+            stream()
+        end)
+        @test after === s
+
+        # (also when switching back without a do-block)
+        after = fetch(@async begin
+            device()
+            ctx2 = CuContext(dev)
+            context!(ctx2)
+            synchronize()
+            device!(dev)
+            CUDA.unsafe_destroy!(ctx2)
+            synchronize()
+            stream()
+        end)
+        @test after.ctx == ctx
+    end
+
+    # a task that didn't use CUDA before doesn't stay in the other context
+    after = fetch(@async begin
+        CuContext(dev) do ctx2
+            context!(synchronize, ctx2)
+        end
+        synchronize()
+        context()
+    end)
+    @test after == ctx
 end
 
 end
