@@ -100,6 +100,9 @@ function main()
         ("one device with peer access enabled", Dict("MG_PRE" => "peer")),
         ("both GPUs, cuSOLVER logging",
          Dict("MG_DEVICES" => "all", "CUSOLVER_LOG_LEVEL" => "5", "CUSOLVER_LOG_MASK" => "31")),
+        # the cuSolverMG docs (3.1.8) leave enabling peer access to the user; our wrappers
+        # never do, so a grid on two real GPUs may need it
+        ("both GPUs with peer access enabled", Dict("MG_DEVICES" => "all", "MG_PRE" => "peer")),
     ]
     for (name, env) in variants
         println("\n--- $name")
@@ -110,6 +113,7 @@ function main()
     for (name, env) in [
             ("one device after creating a context on GPU 1", Dict("MG_PRE" => "touch")),
             ("both GPUs", Dict("MG_DEVICES" => "all")),
+            ("both GPUs with peer access enabled", Dict("MG_DEVICES" => "all", "MG_PRE" => "peer")),
         ]
         println("\n--- $name, under compute-sanitizer (reporting API errors)")
         run(ignorestatus(addenv(`$cs --tool=memcheck --launch-timeout=0 --report-api-errors=all $julia child`, env)))
