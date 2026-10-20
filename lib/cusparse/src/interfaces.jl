@@ -42,14 +42,15 @@ end
 const SpMatMulFloat = Union{Float16, ComplexF16, BlasFloat}
 
 # convert the element type of a CuSparseMatrix/Vector (issue #3128: mixed-eltype matmul)
-sparse_with_eltype(A::CuSparseMatrixCSC, ::Type{T}) where {T} =
-    CuSparseMatrixCSC(A.colPtr, A.rowVal, convert(CuVector{T}, nonzeros(A)), size(A))
-sparse_with_eltype(A::CuSparseMatrixCSR, ::Type{T}) where {T} =
-    CuSparseMatrixCSR(A.rowPtr, A.colVal, convert(CuVector{T}, nonzeros(A)), size(A))
-sparse_with_eltype(A::CuSparseMatrixCOO, ::Type{T}) where {T} =
-    CuSparseMatrixCOO(A.rowInd, A.colInd, convert(CuVector{T}, nonzeros(A)), size(A), nnz(A))
-sparse_with_eltype(A::CuSparseVector, ::Type{T}) where {T} =
-    CuSparseVector(nonzeroinds(A), convert(CuVector{T}, nonzeros(A)), length(A))
+# (sharing the index buffers, unlike the conversion constructors)
+sparse_with_eltype(A::CuSparseMatrixCSC{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixCSC{T, Ti}(A.colPtr, A.rowVal, convert(CuVector{T}, nonzeros(A)), size(A))
+sparse_with_eltype(A::CuSparseMatrixCSR{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixCSR{T, Ti}(A.rowPtr, A.colVal, convert(CuVector{T}, nonzeros(A)), size(A))
+sparse_with_eltype(A::CuSparseMatrixCOO{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixCOO{T, Ti}(A.rowInd, A.colInd, convert(CuVector{T}, nonzeros(A)), size(A), nnz(A))
+sparse_with_eltype(A::CuSparseVector{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseVector{T, Ti}(nonzeroinds(A), convert(CuVector{T}, nonzeros(A)), length(A))
 
 # LinearAlgebra's storage-level `mul!` passes a `Symmetric` or `Hermitian` operand as its
 # parent plus 'S'/'s'/'H'/'h'. cuSPARSE has no symmetric or Hermitian products, so
