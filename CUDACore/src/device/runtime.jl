@@ -21,7 +21,11 @@ function precompile_runtime()
             params = CUDACompilerParams(; sm, ptx)
             config = CompilerConfig(target, params)
             job = CompilerJob(mi, config)
-            GPUCompiler.load_runtime(job)
+            for library in GPUCompiler.selected_device_libraries(job)
+                library.bitcode === nothing || continue
+                mod, _ = GPUCompiler.load_device_library(library, job)
+                dispose(mod)
+            end
         end
     end
     return
