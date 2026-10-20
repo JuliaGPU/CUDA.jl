@@ -17,6 +17,8 @@ import BFloat16s
 
 within(lower, upper) = (val) -> lower <= val <= upper
 
+# call an LLVM math intrinsic, optionally with the `afn` flag (which `ccall` cannot emit).
+# the entry function needs to be marked `alwaysinline`, or it remains an out-of-line call.
 @inline @generated function llvm_math(::Val{operation}, ::Val{approximate},
                                      args::Vararg{typ,count}) where {operation,approximate,typ,count}
     element = typ === Float16 ? "half" : typ === Float32 ? "float" :
@@ -24,14 +26,14 @@ within(lower, upper) = (val) -> lower <= val <= upper
     suffix = typ === Float16 ? "f16" : typ === Float32 ? "f32" :
              typ === Float64 ? "f64" : "bf16"
     name = "llvm.$operation.$suffix"
-    parameter_types = join(fill(element, count), ", ")
+    parameter_types = join(Base.fill(element, count), ", ")
     parameters = join(("$element %arg$index" for index in 1:count), ", ")
     flags = approximate ? "afn " : ""
     if operation === :sincos
         result_type = NTuple{2,typ}
         ir = """
             declare {$element, $element} @$name($element)
-            define [2 x $element] @entry($parameters) {
+            define [2 x $element] @entry($parameters) #0 {
                 %pair = call $flags{$element, $element} @$name($parameters)
                 %sine = extractvalue {$element, $element} %pair, 0
                 %cosine = extractvalue {$element, $element} %pair, 1
@@ -39,15 +41,17 @@ within(lower, upper) = (val) -> lower <= val <= upper
                 %result = insertvalue [2 x $element] %first, $element %cosine, 1
                 ret [2 x $element] %result
             }
+            attributes #0 = { alwaysinline }
             """
     else
         result_type = typ
         ir = """
             declare $element @$name($parameter_types)
-            define $element @entry($parameters) {
+            define $element @entry($parameters) #0 {
                 %result = call $flags$element @$name($parameters)
                 ret $element %result
             }
+            attributes #0 = { alwaysinline }
             """
     end
     argument_types = Tuple{ntuple(_ -> typ, count)...}
