@@ -13,6 +13,30 @@ function run_operations()
     if length(devs) > 1
         println("can_access_peer: ", CUDACore.can_access_peer(devs[1], devs[2]))
     end
+    # state left behind by tests that ran earlier in the same worker (core/array's
+    # "multigpu" testset creates a context on the second device and copies across devices)
+    pre = get(ENV, "MG_PRE", "none")
+    if pre != "none" && length(devs) > 1
+        d0, d1 = devs
+        if pre == "touch"
+            device!(d1); CuArray([1]); synchronize(); device!(d0)
+        elseif pre == "dev1"
+            device!(d1)
+        elseif pre == "copy"
+            data = rand(5, 5)
+            device!(d0); a = CuArray(data)
+            device!(d1); b = similar(a); copyto!(b, a); synchronize()
+            device!(d0); copyto!(a, b); synchronize()
+            println("cross-device copy: ", Array(a) == Array(b) == data)
+            u = CuArray{Float64, 2, CUDACore.UnifiedMemory}(undef, 5, 5)
+            copyto!(u, a); synchronize()
+            println("unified copy: ", Array(u) == data)
+        elseif pre == "peer"
+            println("peer: ", CUDACore.maybe_enable_peer_access(d0, d1), " ",
+                    CUDACore.maybe_enable_peer_access(d1, d0))
+        end
+        println("current device after MG_PRE=$pre: ", device())
+    end
     # the test only doubles the device when a single GPU is visible; on the MultiGPU agent
     # it leaves cuSOLVERMg at its default, a one-device grid on the first GPU.
     mg = get(ENV, "MG_DEVICES", "default")
@@ -67,26 +91,29 @@ function main()
 
     julia = `$(Base.julia_cmd()) --project=$(Base.active_project()) $(@__FILE__)`
     variants = [
-        # what the test does on this agent (two GPUs visible)
-        ("one device (default), all GPUs visible", Dict()),
-        ("one device (default), only GPU 0 visible", Dict("CUDA_VISIBLE_DEVICES" => "0")),
-        ("one device (default), only GPU 1 visible", Dict("CUDA_VISIBLE_DEVICES" => "1")),
-        # what the test does on single-GPU agents
-        ("same device twice, all GPUs visible", Dict("MG_DEVICES" => "same")),
-        ("same device twice, only GPU 0 visible",
-         Dict("MG_DEVICES" => "same", "CUDA_VISIBLE_DEVICES" => "0")),
-        ("both GPUs", Dict("MG_DEVICES" => "all")),
-        ("one device (default), cuSOLVER logging",
-         Dict("CUSOLVER_LOG_LEVEL" => "5", "CUSOLVER_LOG_MASK" => "31")),
+        # what the test does on this agent (two GPUs visible); passed in build 8234
+        ("one device (default), fresh process", Dict()),
+        # state left behind by core/array, which precedes the test in the same worker
+        ("one device after creating a context on GPU 1", Dict("MG_PRE" => "touch")),
+        ("one device with GPU 1 current", Dict("MG_PRE" => "dev1")),
+        ("one device after cross-device and unified copies", Dict("MG_PRE" => "copy")),
+        ("one device with peer access enabled", Dict("MG_PRE" => "peer")),
+        ("both GPUs, cuSOLVER logging",
+         Dict("MG_DEVICES" => "all", "CUSOLVER_LOG_LEVEL" => "5", "CUSOLVER_LOG_MASK" => "31")),
     ]
     for (name, env) in variants
         println("\n--- $name")
         run(ignorestatus(addenv(`$julia child`, env)))
     end
 
-    println("\n--- one device (default), under compute-sanitizer (reporting API errors)")
     cs = sanitizer()
-    run(ignorestatus(`$cs --tool=memcheck --launch-timeout=0 --report-api-errors=all $julia child`))
+    for (name, env) in [
+            ("one device after creating a context on GPU 1", Dict("MG_PRE" => "touch")),
+            ("both GPUs", Dict("MG_DEVICES" => "all")),
+        ]
+        println("\n--- $name, under compute-sanitizer (reporting API errors)")
+        run(ignorestatus(addenv(`$cs --tool=memcheck --launch-timeout=0 --report-api-errors=all $julia child`, env)))
+    end
 end
 
 if isempty(ARGS)

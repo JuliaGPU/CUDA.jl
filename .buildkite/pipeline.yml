@@ -1,35 +1,25 @@
 # Diagnostic pipeline for cuSOLVERMg failing on the MultiGPU agent in JuliaGPU/CUDA.jl#3358.
 # Not meant to be merged.
 steps:
-  - label: "MultiGPU (as in #3358)"
-    plugins:
-      - JuliaCI/julia#v1:
-          version: "1.12"
-      - JuliaCI/julia-test#v1:
-          test_args: "--quickfail core/array core/cudadrv core/initialization core/pool core/threading core/kernelabstractions core/kernelinterface libraries/cublas/xt libraries/cusolver/multigpu"
-      - JuliaCI/julia-coverage#v1:
-          dirs: ["."]
-    agents:
-      queue: "cuda"
-      multigpu: "*"
-    timeout_in_minutes: 45
-
   - &mg
-    label: "MultiGPU, only cuSOLVERMg (CUDA 13.4)"
+    label: "MultiGPU, core/array then cuSOLVERMg in one worker"
     plugins:
       - JuliaCI/julia#v1:
           version: "1.12"
       - JuliaCI/julia-test#v1:
-          test_args: "libraries/cusolver/multigpu"
+          test_args: "--jobs=1 core/array libraries/cusolver/multigpu"
     agents:
       queue: "cuda"
       multigpu: "*"
     timeout_in_minutes: 45
 
   - <<: *mg
-    label: "MultiGPU, only cuSOLVERMg (CUDA 13.0)"
-    commands: |
-      echo -e "[CUDA_Runtime_jll]\nversion = \"13.0\"" >LocalPreferences.toml
+    label: "MultiGPU, core/kernelinterface then cuSOLVERMg in one worker"
+    plugins:
+      - JuliaCI/julia#v1:
+          version: "1.12"
+      - JuliaCI/julia-test#v1:
+          test_args: "--jobs=1 core/kernelinterface libraries/cusolver/multigpu"
 
   - label: "cuSOLVERMg diagnostics"
     plugins:
