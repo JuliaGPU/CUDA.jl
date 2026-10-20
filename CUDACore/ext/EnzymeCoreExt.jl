@@ -122,6 +122,8 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(cudaconvert)},
 end
 
 
+# The shadow of a freshly allocated array is zeroed bytewise, like Enzyme zeroes the
+# shadows of CPU allocations: `zero(T)` is not defined for an arbitrary isbits struct.
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
         ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args...) where {CT <: CuArray, RT}
     primargs = ntuple(Val(length(args))) do i
@@ -132,13 +134,13 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
     if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
             shadow = ofn.val(uval.val, primargs...)::CT
-            fill!(shadow, zero(eltype(shadow)))
+            fill!(reinterpret(UInt8, vec(shadow)), 0x00)
             Duplicated(ofn.val(uval.val, primargs...), shadow)
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
                 shadow = ofn.val(uval.val, primargs...)::CT
-                fill!(shadow, zero(eltype(shadow)))
+                fill!(reinterpret(UInt8, vec(shadow)), 0x00)
                 shadow::CT
             end
             BatchDuplicated(ofn.val(uval.val, primargs...), tup)
@@ -146,13 +148,13 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
     elseif EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
             shadow = ofn.val(uval.val, primargs...)::CT
-            fill!(shadow, zero(eltype(shadow)))
+            fill!(reinterpret(UInt8, vec(shadow)), 0x00)
 	    shadow::shadow_type(config, RT)
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
                 shadow = ofn.val(uval.val, primargs...)::CT
-                fill!(shadow, zero(eltype(shadow)))
+                fill!(reinterpret(UInt8, vec(shadow)), 0x00)
                 shadow::CT
             end
 	    tup::shadow_type(config, RT)
@@ -515,13 +517,13 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, :
     shadow = if EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
             subshadow = ofn.val(uval.val, primargs...)::CT
-            fill!(subshadow, zero(eltype(subshadow)))
+            fill!(reinterpret(UInt8, vec(subshadow)), 0x00)
             subshadow
         else
           ntuple(Val(EnzymeRules.width(config))) do i
               Base.@_inline_meta
               subshadow = ofn.val(uval.val, primargs...)::CT
-              fill!(subshadow, zero(eltype(subshadow)))
+              fill!(reinterpret(UInt8, vec(subshadow)), 0x00)
               subshadow
           end
         end
