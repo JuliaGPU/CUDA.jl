@@ -20,6 +20,9 @@ end
     end
 
     @test testf(dot, rand(Bool, 1024, 1024), rand(Float64, 1024, 1024))
+    for T in (Int16, Int32, Float32), (m, n) in ((0, 0), (0, 3), (3, 0))
+        @test dot(CUDA.zeros(T, m), CUDA.zeros(T, m, n), CUDA.zeros(T, n)) === zero(T)
+    end
 
     # https://discourse.julialang.org/t/result-of-inner-product-of-two-cuarray-with-views-is-incorrect/121539
     @test testf(dot, view(rand(Float32, 100, 100), 2:99, 2:99),

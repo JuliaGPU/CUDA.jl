@@ -121,7 +121,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
         compiled = CUDACore.kernel_compile(call)
         config = launch_configuration(compiled.fun; shmem=compute_shmem∘compute_threads)
         threads = compute_threads(config.threads)
-        blocks = min(config.blocks, cld(n, config.blocks))
+        blocks = min(config.blocks, cld(n, threads))
         shmem = compute_shmem(threads)
         CUDACore.kernel_launch(compiled, call; threads, blocks, shmem)
 
@@ -181,6 +181,9 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
             return mapreduce(identity, +, bc)
         end
 
+        # a grid without blocks can't be launched
+        mA == 0 && return zero(T)
+
         res = CUDACore.zeros(T, 1)
 
         # be conservative about using shuffle instructions
@@ -207,7 +210,7 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
         compiled = CUDACore.kernel_compile(call)
         config = launch_configuration(compiled.fun; shmem=compute_shmem∘compute_threads)
         threads = compute_threads(config.threads)
-        blocks = min(config.blocks, cld(mA, config.blocks))
+        blocks = min(config.blocks, cld(mA, threads))
         shmem = compute_shmem(threads)
         CUDACore.kernel_launch(compiled, call; threads, blocks, shmem)
 
