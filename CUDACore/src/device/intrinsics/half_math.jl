@@ -1,9 +1,13 @@
 module HalfMath
 
-using ..CUDACore: @asmcall, compute_capability, ptx_isa_version, BFloat16, @sv_str
+using ..CUDACore: @asmcall, @device_function, @device_functions, compute_capability,
+                  ptx_isa_version, BFloat16, @sv_str
 using LLVM.Interop
 using GPUCompiler
 using Base: @assume_effects
+
+# these contain inline PTX, so they must not be compiled for the host
+@device_functions begin
 
 @inline approx_exp2_ftz(value::Float32) =
     @asmcall("ex2.approx.ftz.f32 \$0, \$1;", "=f,f", Float32, Tuple{Float32}, value)
@@ -166,6 +170,8 @@ end
 @inline hrcp(value::BFloat16) =
     BFloat16(@asmcall("rcp.approx.f32 \$0, \$1;", "=f,f",
                      Float32, Tuple{Float32}, Float32(value)))
+
+end # @device_functions
 
 const METHODS = Tuple(
     GPUCompiler.DeviceLibraryMethod(getfield(@__MODULE__, Symbol(:h, op)), typ, (typ,);
