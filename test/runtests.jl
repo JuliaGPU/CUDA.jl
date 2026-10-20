@@ -15,8 +15,22 @@ using Base.Filesystem: path_separator
 # below; the record type must exist on both sides of the Malt boundary.
 include(joinpath(@__DIR__, "setup.jl"))
 
+# named groups of tests, which can be passed as positional arguments. CI tests each Julia
+# version with the `julia` group and each CUDA toolkit with the `cuda` group, so they hold
+# the tests likely to be affected by changes to either. The groups overlap, and without
+# positional arguments the `julia` group is run.
+const test_groups = Dict(
+    # everything but the library tests, which mostly exercise the toolkit
+    "julia" => ["core", "tools", "gpuarrays", "shim"],
+    # what depends on the toolkit beyond its compiler: the libraries, CUPTI (profiling and
+    # SASS reflection), toolkit discovery, and loading and linking modules
+    "cuda" => ["libraries", "tools", "core/initialization", "core/cudadrv", "core/codegen"],
+)
+test_args = mapreduce(arg -> get(test_groups, arg, [arg]), vcat, ARGS; init = String[])
+
 # parse command-line arguments (--sanitize[=tool] and --all are CUDA-specific)
-args = parse_args(ARGS; custom = ["sanitize", "all"])
+const custom_flags = ["sanitize", "all"]
+args = parse_args(test_args; custom = custom_flags)
 
 # check that CI is using the requested toolkit
 label_match = match(r"^CUDA ([\d.]+)$", get(ENV, "BUILDKITE_LABEL", ""))
@@ -38,6 +52,7 @@ Pkg.precompile()
 # core tests from the top-level test directory, plus GPUArrays' testsuite.
 testsuite = find_tests(@__DIR__)
 delete!(testsuite, "setup")
+delete!(testsuite, "helpers")
 
 # scalar-indexing tests only make sense when device memory supports it
 for name in keys(TestSuite.tests)
@@ -95,16 +110,11 @@ end
 # default filter (no positionals given): package extensions require extra
 # deps not in test/Project.toml, and subpackages are opt-in via `--all`.
 if isempty(args.positionals)
-    want_all = args.custom["all"] !== nothing
-    filter!(testsuite) do (name, _)
-        if startswith(name, "extensions")
-            return false
-        end
-        if startswith(name, "libraries/") && !want_all
-            return false
-        end
-        return true
+    selection = test_groups["julia"]
+    if args.custom["all"] !== nothing
+        selection = [selection; "libraries"]
     end
+    filter!(((name, _),) -> any(prefix -> startswith(name, prefix), selection), testsuite)
 end
 
 
@@ -146,10 +156,7 @@ memory_jobs = max(1, memory_free ÷ memory_per_worker)
 
 if args.jobs === nothing
     default_jobs = min(ParallelTestRunner.default_njobs(), memory_jobs)
-    args = ParallelTestRunner.ParsedArgs(
-        Some(default_jobs), args.verbose, args.quickfail, args.list,
-        args.custom, args.positionals,
-    )
+    args = parse_args([test_args; "--jobs=$default_jobs"]; custom = custom_flags)
 end
 
 
