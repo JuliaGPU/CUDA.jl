@@ -1161,6 +1161,36 @@ end
   end
 end
 
+@testset "copies to the GPU don't read the source after returning" begin
+  # keep the stream busy, so that the copies are queued behind a kernel
+  busy = CUDA.zeros(Int, 1)
+  @cuda slow_fill(busy, 0, 1)
+  can_pin = attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
+  for pinned in (can_pin ? (false, true) : (false,))
+    h = [1, 2, 3, 4]
+    pinned && CUDA.pin(h)
+
+    @cuda slow_fill(busy, 0, 100_000_000)
+    d = CuArray(h)
+    h .= 0
+    @test Array(d) == [1, 2, 3, 4]
+
+    h .= [1, 2, 3, 4]
+    d = CUDA.zeros(Int, 4)
+    @cuda slow_fill(busy, 0, 100_000_000)
+    copyto!(d, 2, h, 3, 2)
+    h .= 0
+    @test Array(d) == [0, 3, 4, 0]
+  end
+
+  h = Union{Int,Nothing}[1, nothing, 3, nothing]
+  CuArray(h)  # so that compiling doesn't delay the copy below
+  @cuda slow_fill(busy, 0, 100_000_000)
+  d = CuArray(h)
+  h .= 0
+  @test Array(d) == [1, nothing, 3, nothing]
+end
+
 if length(devices()) > 1
 @testset "multigpu" begin
   dev = device()
