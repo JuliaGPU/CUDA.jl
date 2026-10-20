@@ -462,6 +462,55 @@ end
         @test Array(a)[1] == one(T)
     end
 
+    @testset "bounds checking" begin
+        function kernel(a, I...)
+            @atomic a[I...] += 1
+            return
+        end
+        function kernel_inbounds(a, I...)
+            @inbounds @atomic a[I...] += 1
+            return
+        end
+
+        a = CUDA.zeros(Int32, 2, 2)
+        @cuda kernel(a, 4)
+        @cuda kernel(a, 1, 2)
+        @test Array(a) == [0 1; 0 1]
+
+        @test_throws CUDACore.KernelException begin
+            @cuda kernel(a, 5)
+            synchronize()
+        end
+        # the linear index is in bounds, but the first index isn't
+        @test_throws CUDACore.KernelException begin
+            @cuda kernel(a, 3, 1)
+            synchronize()
+        end
+
+        # `@inbounds` elides the check, so (3, 1) updates a[1, 2], which it linearizes to.
+        # `--check-bounds=yes`, which `Pkg.test` passes on Julia 1.10 and 1.11, keeps it.
+        if Base.JLOptions().check_bounds != 1
+            @cuda kernel_inbounds(a, 3, 1)
+            @test Array(a) == [0 2; 0 1]
+        end
+    end
+
+    @testset "begin and end" begin
+        function kernel(a, b)
+            @atomic a[end] += 1
+            @atomic a[begin] = a[begin] + 2
+            @atomic a[max(begin, end - 1)] -= 1
+            @atomic (b.x)[end, begin] += 1
+            return
+        end
+
+        a = CUDA.zeros(Int32, 3)
+        b = CUDA.zeros(Int32, 2, 2)
+        @cuda kernel(a, (; x=b))
+        @test Array(a) == [2, -1, 1]
+        @test Array(b) == [0 0; 1 0]
+    end
+
     @test_throws AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
         @atomic a[1] = 1
     end
