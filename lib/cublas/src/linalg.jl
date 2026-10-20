@@ -66,8 +66,9 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     function kernel(x, y, res::AbstractArray{T}, shuffle) where {T}
         local_val = zero(T)
 
-        # grid-stride loop
-        i = threadIdx().x + (blockIdx().x - 1i32)*blockDim().x
+        # grid-stride loop. The index is an `Int`, as an `Int32` one would wrap around
+        # (and keep looping, or read out of bounds) for arrays near `typemax(Int32)`.
+        i = Int(threadIdx().x + (blockIdx().x - 1i32)*blockDim().x)
         while i <= length(x)
             @inbounds local_val += LinearAlgebra.dot(x[i], y[i])
             i += blockDim().x * gridDim().x
@@ -142,8 +143,8 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
     function kernel(x, A, y, res::AbstractArray{T}, shuffle) where {T}
         local_val = zero(T)
 
-        # grid-stride loop over rows
-        i = threadIdx().x + (blockIdx().x - 1i32)*blockDim().x
+        # grid-stride loop over rows, with an `Int` index as above
+        i = Int(threadIdx().x + (blockIdx().x - 1i32)*blockDim().x)
         while i <= mA
             row_val = zero(T)
             for j in 1:nA
