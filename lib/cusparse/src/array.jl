@@ -920,9 +920,16 @@ SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMat
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixBSR) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion (gpu_BSR -> gpu_CSR -> gpu_CSC -> cpu_CSC)
 SparseArrays.SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion (gpu_COO -> gpu_CSC -> cpu_CSC)
 
-# GPU array adaptor
-Adapt.adapt_storage(::Type{CuArray}, xs::SparseVector) = CuSparseVector(xs)
-Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs)
+# GPU array adaptor, preserving the element and memory type of the target like the dense one
+function Adapt.adapt_storage(::Type{A}, xs::SparseVector) where {A<:CuArray}
+  T, M = CUDACore.adapt_eltype(A, xs), CUDACore.adapt_memory(A, xs)
+  CuSparseVector(CuArray{Cint, 1, M}(xs.nzind), CuArray{T, 1, M}(xs.nzval), length(xs))
+end
+function Adapt.adapt_storage(::Type{A}, xs::SparseMatrixCSC) where {A<:CuArray}
+  T, M = CUDACore.adapt_eltype(A, xs), CUDACore.adapt_memory(A, xs)
+  CuSparseMatrixCSC{T}(CuArray{Cint, 1, M}(xs.colptr), CuArray{Cint, 1, M}(xs.rowval),
+                       CuArray{T, 1, M}(xs.nzval), size(xs))
+end
 
 # Explicit sparse formats
 Adapt.adapt_storage(::Type{<:CuSparseVector}, xs::AbstractSparseVector) = CuSparseVector(xs)
@@ -939,16 +946,6 @@ Adapt.adapt_storage(::Type{<:CuSparseVector{Tv, Ti}}, xs::AbstractSparseVector) 
 Adapt.adapt_storage(::Type{<:CuSparseMatrixCSC{Tv, Ti}}, xs::AbstractSparseMatrix) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(xs)
 Adapt.adapt_storage(::Type{<:CuSparseMatrixCSR{Tv, Ti}}, xs::AbstractSparseMatrix) where {Tv, Ti} = CuSparseMatrixCSR{Tv, Ti}(xs)
 Adapt.adapt_storage(::Type{<:CuSparseMatrixCOO{Tv, Ti}}, xs::AbstractSparseMatrix) where {Tv, Ti} = CuSparseMatrixCOO{Tv, Ti}(xs)
-
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
-Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::SparseVector) where {T, N} = CuSparseVector{T}(xs)
-Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::SparseMatrixCSC) where {T, N} = CuSparseMatrixCSC{T}(xs)
-Adapt.adapt_storage(::Type{<:CuArray{T, N, M}}, xs::SparseVector) where {T, N, M} =
-  CuSparseVector(CuArray{Cint, 1, M}(xs.nzind), CuArray{T, 1, M}(xs.nzval), length(xs))
-Adapt.adapt_storage(::Type{<:CuArray{T, N, M}}, xs::SparseMatrixCSC) where {T, N, M} =
-  CuSparseMatrixCSC{T}(CuArray{Cint, 1, M}(xs.colptr), CuArray{Cint, 1, M}(xs.rowval),
-                       CuArray{T, 1, M}(xs.nzval), size(xs))
 
 # opinionated adaptor
 Adapt.adapt_storage(::CUDACore.CuArrayKernelAdaptor{M}, xs::AbstractSparseArray{Tv}) where {M, Tv} =

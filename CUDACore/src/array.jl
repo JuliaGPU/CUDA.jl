@@ -827,16 +827,22 @@ end
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
 
-Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray, xs)
+# Type parameters that are specified are preserved, the others are taken from the source
+# array (or the default memory type). Any subset can be given, e.g. `CuArray{<:Any,<:Any,M}`.
+adapt_eltype(::Type{<:CuArray{T}}, xs) where {T} = T
+adapt_eltype(::Type{<:CuArray}, xs) = eltype(xs)
+adapt_ndims(::Type{<:CuArray{<:Any,N}}, xs) where {N} = N
+adapt_ndims(::Type{<:CuArray}, xs) = ndims(xs)
+adapt_memory(::Type{<:CuArray{<:Any,<:Any,M}}, xs) where {M} = M
+adapt_memory(::Type{<:CuArray}, xs) = xs isa CuArray ? memory_type(xs) : default_memory
 
-# if specific type parameters are specified, preserve those
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray{T}, xs)
-Adapt.adapt_storage(::Type{<:CuArray{T, N}}, xs::AT) where {T, N, AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray{T,N}, xs)
-Adapt.adapt_storage(::Type{<:CuArray{T, N, M}}, xs::AT) where {T, N, M, AT<:AbstractArray} =
-  isbitstype(AT) ? xs : convert(CuArray{T,N,M}, xs)
+function Adapt.adapt_storage(::Type{A}, xs::AT) where {A<:CuArray, AT<:AbstractArray}
+  isbitstype(AT) && return xs
+  B = CuArray{adapt_eltype(A, xs), adapt_ndims(A, xs), adapt_memory(A, xs)}
+  # parameters taken from the source may violate bounds in `A`, e.g. `CuArray{<:Real}`
+  B <: A || throw(ArgumentError("cannot adapt a $AT to $A"))
+  return convert(B, xs)
+end
 
 
 ## opinionated gpu array adaptor

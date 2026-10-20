@@ -408,6 +408,24 @@ using Adapt
             @test Adapt.adapt(CuArray, v) isa CuSparseVector{Float64}
             @test Adapt.adapt(CuArray{Float32}, v) isa CuSparseVector{Float32}
         end
+
+        # partially specified CuArray targets also produce sparse arrays
+        let A = sprand(Float64, m, n, 0.2)
+            dA = Adapt.adapt(CuMatrix, A)
+            @test dA isa CuSparseMatrixCSC{Float64}
+            @test dA.nzVal isa CuArray{Float64, 1, CUDACore.default_memory}
+            dA = Adapt.adapt(CuArray{<:Any, <:Any, CUDACore.UnifiedMemory}, A)
+            @test dA isa CuSparseMatrixCSC{Float64}
+            @test dA.nzVal isa CuArray{Float64, 1, CUDACore.UnifiedMemory}
+            dA = Adapt.adapt(CuArray{Float32, <:Any, CUDACore.UnifiedMemory}, A)
+            @test dA isa CuSparseMatrixCSC{Float32}
+            @test dA.nzVal isa CuArray{Float32, 1, CUDACore.UnifiedMemory}
+        end
+        let v = sprand(Float64, m, 0.2)
+            dv = Adapt.adapt(CuArray{<:Any, <:Any, CUDACore.UnifiedMemory}, v)
+            @test dv isa CuSparseVector{Float64}
+            @test dv.nzVal isa CuArray{Float64, 1, CUDACore.UnifiedMemory}
+        end
     end
 
     @testset "similar (out-of-shape) — $SparseT" for SparseT in

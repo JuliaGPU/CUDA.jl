@@ -339,6 +339,27 @@ end
   @test Adapt.adapt(CuArray{Float64}, A) isa CuArray{Float64}
   @test Adapt.adapt(CuArray{Float64,2}, A) isa CuArray{Float64,2}
   @test Adapt.adapt(CuArray{Float64,2, CUDA.UnifiedMemory}, A) isa CuArray{Float64,2, CUDA.UnifiedMemory}
+
+  # unspecified type parameters are taken from the source array (JuliaGPU/Metal.jl#363)
+  M = CUDACore.default_memory
+  @test Adapt.adapt(CuMatrix, [1 2;3 4]) isa CuArray{Int, 2, M}
+  @test Adapt.adapt(CuArray{<:Any, <:Any, CUDA.UnifiedMemory}, [1 2;3 4]) isa CuArray{Int, 2, CUDA.UnifiedMemory}
+  @test Adapt.adapt(CuVector{<:Any, CUDA.UnifiedMemory}, [1, 2]) isa CuArray{Int, 1, CUDA.UnifiedMemory}
+  @test Adapt.adapt(CuArray{Float32, <:Any, CUDA.UnifiedMemory}, [1 2;3 4]) isa CuArray{Float32, 2, CUDA.UnifiedMemory}
+  @test Adapt.adapt(CuArray{Float32, 2, CUDA.UnifiedMemory}, [1 2;3 4]) isa CuArray{Float32, 2, CUDA.UnifiedMemory}
+  let xs = Adapt.adapt(CuArray{<:Any, <:Any, CUDA.UnifiedMemory}, (Float32[1], Int32[1 2]))
+    @test xs[1] isa CuArray{Float32, 1, CUDA.UnifiedMemory}
+    @test xs[2] isa CuArray{Int32, 2, CUDA.UnifiedMemory}
+  end
+  @test_throws MethodError Adapt.adapt(CuVector{Float32}, [1 2;3 4])
+  @test_throws ArgumentError Adapt.adapt(CuArray{<:Real}, ComplexF32[1])
+  let xs = CuArray{Float32, 1, CUDA.UnifiedMemory}([1])
+    @test Adapt.adapt(CuArray, xs) === xs
+    @test Adapt.adapt(CuArray{Float32}, xs) === xs
+    @test Adapt.adapt(CuArray{Int32}, xs) isa CuArray{Int32, 1, CUDA.UnifiedMemory}
+    @test Adapt.adapt(typeof(xs), xs) === xs
+    @test Adapt.adapt(CuArray{<:Any, <:Any, CUDA.DeviceMemory}, xs) isa CuArray{Float32, 1, CUDA.DeviceMemory}
+  end
 end
 
 @testset "view" begin
