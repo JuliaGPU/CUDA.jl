@@ -50,7 +50,7 @@ CUDA = {path = ".."}
 CUDACore = {path = "../CUDACore"}
 CUDATools = {path = "../CUDATools"}
 CUPTI = {path = "../lib/cupti"}
-GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "75afb4859e8152755e44c74ca440dd9e86e1261d"}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "ac61eb658b35a33e72f04ed7f30342609f6c3768"}
 NVML = {path = "../lib/nvml"}
 cuBLAS = {path = "../lib/cublas"}
 cuDNN = {path = "../lib/cudnn"}
