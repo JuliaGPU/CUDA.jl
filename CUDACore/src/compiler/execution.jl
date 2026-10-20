@@ -567,6 +567,12 @@ function Adapt.adapt_storage(to::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,
                                xs.maxsize - xs.offset)
 end
 
+# CPU arrays would otherwise only be rejected by the compiler, with an error that dumps the
+# full argument type
+Adapt.adapt_storage(::KernelAdaptor, xs::Array) =
+    throw(ArgumentError("""cannot use a CPU array ($(typeof(xs))) in a CUDA kernel.
+                           Convert it to a GPU array first, e.g. using `CuArray(x)`."""))
+
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative.
 # Note that it isn't safe to use unified or heterogeneous memory to support a
 # mutable Ref, because there's no guarantee that the memory would be kept alive
