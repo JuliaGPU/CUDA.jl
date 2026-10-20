@@ -47,7 +47,7 @@ SpecialFunctionsExt = "SpecialFunctions"
 StaticArraysExt = "StaticArrays"
 
 [sources]
-GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "a2812250fc08314d6382c2f3a2b7be265eca2382"}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "cc06987e05968adc7098d166e3d6534ac5c05c5a"}
 
 [compat]
 Adapt = "4.4"

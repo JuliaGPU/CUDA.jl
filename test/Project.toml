@@ -48,7 +48,7 @@ cuTensorNet = "448d79b3-4b49-4e06-a5ea-00c62c0dc3db"
 CUDA = {path = ".."}
 CUDACore = {path = "../CUDACore"}
 CUDATools = {path = "../CUDATools"}
-GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "a2812250fc08314d6382c2f3a2b7be265eca2382"}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "cc06987e05968adc7098d166e3d6534ac5c05c5a"}
 CUPTI = {path = "../lib/cupti"}
 NVML = {path = "../lib/nvml"}
 cuBLAS = {path = "../lib/cublas"}
