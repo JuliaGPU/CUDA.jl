@@ -93,7 +93,8 @@ function __init__()
 
                Try running with `JULIA_DEBUG=CUDA_Runtime_Discovery` in
                your environment and re-loading CUDA.jl for more details."""
-        elseif !Sys.iswindows() && !Sys.islinux() && !in(Sys.ARCH, [:x86_64, :aarch64])
+        elseif !(Sys.islinux() && Sys.ARCH in (:x86_64, :aarch64)) &&
+               !(Sys.iswindows() && Sys.ARCH == :x86_64)
             """You are using an unsupported platform: this version of CUDA.jl
                only supports Linux (x86_64, aarch64) and Windows (x86_64).
 
