@@ -285,7 +285,7 @@ end
 else
     @device_override Base.tanh(x::Float32) = ccall("extern __nv_tanhf", llvmcall, Cfloat, (Cfloat,), x)
 end
-@device_override function FastMath.tanh_fast(x::Float16)
+@device_override @inline function FastMath.tanh_fast(x::Float16)
     @static if Base.libllvm_version >= v"19"
         return llvm_math(Val(:tanh), Val(true), x)
     end
