@@ -116,9 +116,9 @@ end
 # facts: kernel_launch checks the stored descriptor before executing this variant.
 function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
     converted_f = cudaconvert(f)
-    specialization = CUDACore.GPUCompiler.candidate_specialization(typeof(converted_f), tt)
+    specialization = CUDACore.candidate_index_ranges(typeof(converted_f), tt)
     kernel = cufunction(converted_f, tt; name, backend.always_inline, backend.fastmath,
-                        argument_specialization=specialization, kwargs...)
+                        argument_ranges=specialization, kwargs...)
     KI.Kernel(backend, CompiledKernel(kernel, f))
 end
 

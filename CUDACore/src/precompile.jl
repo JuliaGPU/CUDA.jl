@@ -27,9 +27,9 @@ if :NVPTX in LLVM.backends() && CUDA_Compiler.is_available()
             target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx, debuginfo=true)
             params = CUDACompilerParams(; sm=llvm_sm, ptx=ptxas_ptx)
             tt = Tuple{CuDeviceArray{Float32,1,AS.Global}}
-            specialization = GPUCompiler.candidate_specialization(typeof(_precompile_vadd), tt)
+            specialization = CUDACore.candidate_index_ranges(typeof(_precompile_vadd), tt)
             config = CompilerConfig(target, params; kernel=true, name=nothing, always_inline=false,
-                                    argument_specialization=specialization)
+                                    argument_ranges=specialization)
             source = methodinstance(typeof(_precompile_vadd), tt)
             job = CompilerJob(source, config)
 

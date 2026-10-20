@@ -205,12 +205,12 @@ end
 # cache of compiler configurations, per device (but additionally configurable via kwargs)
 const _compiler_configs = Dict{UInt, CUDACompilerConfig}()
 const compiler_config_lock = ReentrantLock()
-function compiler_config(dev; kwargs...)
+function compiler_config(dev; argument_ranges=(), kwargs...)
     # (as a `NamedTuple`: hashing the `Pairs` boxes each value, on every launch)
     h = hash(dev, hash(values(kwargs)))
     Base.@lock compiler_config_lock begin
-        get!(_compiler_configs, h) do
-            _compiler_config(dev; kwargs...)
+        get!(_compiler_configs, GPUCompiler.hash_argument_ranges(argument_ranges, h)) do
+            _compiler_config(dev; argument_ranges, kwargs...)
         end
     end
 end
@@ -265,7 +265,7 @@ end
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
                                          debug_level=Base.JLOptions().debug_level,
                                          arch=nothing, cap=nothing, ptx=nothing,
-                                         argument_specialization=nothing, kwargs...)
+                                         argument_ranges=(), kwargs...)
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
     if cap !== nothing
         arch === nothing ||
@@ -331,7 +331,7 @@ end
                                  debuginfo=true, kwargs...)
     params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
     CompilerConfig(target, params; kernel, name, always_inline, debug_level,
-                   argument_specialization, narrow_indices=true)
+                   argument_ranges, narrow_indices=true)
 end
 
 # does the host-side layout of an argument type match the device-side one?

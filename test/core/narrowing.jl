@@ -19,18 +19,18 @@ end
         @check "call void @llvm.assume"
         @check "[[IDX:%nidx[0-9]*]] = zext nneg i32"
         @check "getelementptr float, {{.*}} i64 [[IDX]]"
-        CUDA.code_llvm(copy3d!, tt; kernel=true, argument_specialization=GPUCompiler.candidate_specialization(typeof(copy3d!), tt))
+        CUDA.code_llvm(copy3d!, tt; kernel=true, argument_ranges=CUDACore.candidate_index_ranges(typeof(copy3d!), tt))
     end
     @test @filecheck begin
         @check_not "%nidx"
-        CUDA.code_llvm(copy3d!, tt; kernel=true, argument_specialization=nothing)
+        CUDA.code_llvm(copy3d!, tt; kernel=true, argument_ranges=())
     end
 
     # `@cuda` derives the facts from the arguments
     A = CUDA.rand(Float32, 7, 5, 3)
     B = similar(A)
     k = @cuda threads=(7, 5, 3) copy3d!(B, A)
-    @test k.specialization !== nothing
+    @test !isempty(k.specialization)
     @test Array(B) == Array(A)
 end
 
@@ -68,12 +68,12 @@ end
     out = CuArray([false])
 
     k = @cuda exceeds(out, huge)
-    @test k.specialization === nothing
+    @test isempty(k.specialization)
     @test Array(out) == [true]
 
     # compiled with facts, and launched with arguments that don't fit them
     k = @cuda launch=false exceeds(out, small)
-    @test k.specialization !== nothing
+    @test !isempty(k.specialization)
     k(out, small)
     @test Array(out) == [false]
     k(out, huge)
@@ -85,21 +85,21 @@ end
 
     # the facts belong to the compiled function, also when reconstructing the kernel
     k′ = typeof(k)(k.f, k.fun, k.state)
-    @test k′.specialization !== nothing
+    @test !isempty(k′.specialization)
     k′(out, huge)
     @test Array(out) == [true]
 
     # captured by the kernel function, and replaced after compilation
     captured(r) = out -> exceeds(out, r)
     k = @cuda launch=false captured(small)(out)
-    @test k.specialization !== nothing
+    @test !isempty(k.specialization)
     k′ = typeof(k)(captured(huge), k.fun, k.state)
     k′(out)
     @test Array(out) == [true]
 
     # captured by the kernel function
     k = @cuda (out -> exceeds(out, huge))(out)
-    @test k.specialization === nothing
+    @test isempty(k.specialization)
 
     # kernels compiled from types assume that the arguments fit, and check them on launch
     fill!(out, false)
@@ -110,21 +110,24 @@ end
 
     # Scalar data does not force fallback; range endpoints are checked in signed 32 bits.
     k = @cuda launch=false exceeds_signed(out, -1, -1:1)
-    @test k.specialization !== nothing
+    @test !isempty(k.specialization)
     k(out, 1, -1:1)
     @test Array(out) == [false]
     k(out, 2^40, -1:1)
     @test Array(out) == [true]
     k(out, 1, -2^40:1)
     @test Array(out) == [true]
-    @test (@cuda exceeds_signed(out, -2^40, 1:1)).specialization !== nothing
+    @test (@cuda exceeds_signed(out, -2^40, 1:1)).specialization !== ()
 
     # Unrelated Int fields add no guard work or allocations.
     many = ntuple(identity, 100)
     k = @cuda launch=false store_first(out, many)
-    @test k.specialization !== nothing
+    @test !isempty(k.specialization)
     k′ = @cuda launch=false specialize_indices=false store_first(out, many)
     @test launch_allocations(k, out, many) <= launch_allocations(k′, out, many)
+
+    # An explicitly empty set of facts suppresses automatic classification too.
+    @test isempty((@cuda launch=false argument_ranges=() exceeds(out, small)).specialization)
 
     # the fallback is compiled in the world of the original kernel
     out = CuArray([0])
@@ -142,7 +145,7 @@ end
 @testset "type-valued arguments" begin
     out = CuArray([0f0])
     k = @cuda typed_index(out, Float32, Base.OneTo(10))
-    @test k.specialization !== nothing
+    @test !isempty(k.specialization)
     @test Array(out) == [10f0]
 end
 
@@ -159,12 +162,12 @@ end
     v = view(parent, 1:2:7, :)
     converted = cudaconvert(v)
     @test converted isa SubArray
-    paths = first.(GPUCompiler.specialization_ranges(typeof(converted)))
+    paths = first.(CUDACore.index_ranges(typeof(converted)))
     @test (:offset1,) in paths
     @test (:stride1,) in paths
     @test (:indices, 1, :step) in paths
     out = similar(parent, size(v))
     k = @cuda threads=length(v) copy_view!(out, v)
-    @test k.specialization !== nothing
+    @test !isempty(k.specialization)
     @test Array(out) == Array(v)
 end
