@@ -77,11 +77,15 @@ const ExceptionInfo = Ptr{ExceptionInfo_st}
         getfield(info, sym)
     end
 end
+# the field values are type-asserted rather than converted: this method is also inferred
+# without a constant `sym`, where a checked conversion of e.g. the `Ptr{UInt8}` stored by
+# `@gputhrow` would close an inference cycle through the `throw_inexacterror` overlay,
+# pessimizing the effects of Base conversions like `Int32(::UInt64)`.
 @inline function Base.setproperty!(info::ExceptionInfo, sym::Symbol, value)
     if sym === :status
-        unsafe_store!(convert(Ptr{Int32}, info), value)
+        unsafe_store!(convert(Ptr{Int32}, info), value::Int32)
     elseif sym === :output_lock
-        unsafe_store!(convert(Ptr{Int32}, info + 4), value)
+        unsafe_store!(convert(Ptr{Int32}, info + 4), value::Int32)
     elseif sym === :threadIdx
         unsafe_store!(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 8), value)
     elseif sym === :blockIdx
