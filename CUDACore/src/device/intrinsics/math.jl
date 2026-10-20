@@ -17,6 +17,16 @@ import BFloat16s
 
 within(lower, upper) = (val) -> lower <= val <= upper
 
+# Most math functions are implemented as LLVM intrinsics, which `lower_intrinsics!` turns
+# into libdevice calls after optimization. Some functions call libdevice directly instead
+# (marked "COST MODEL" below), because going through the intrinsic regresses them: LLVM
+# costs intrinsics it lowers to calls as a single instruction (`isLoweredToCall` in
+# TargetTransformInfoImpl.h), so loops calling them get unrolled before the much larger
+# implementation is substituted, and that implementation is then not optimized along with
+# the kernel (e.g. the slow-path reduction of `sin` keeps its local-memory array). Remove
+# these once LLVM accounts for the cost of lowered math intrinsics; the late lowering
+# supports all of them (tested in test/core/device/intrinsics/llvm_math.jl).
+
 # call an LLVM math intrinsic, optionally with the `afn` flag (which `ccall` cannot emit).
 # the entry function needs to be marked `alwaysinline`, or it remains an out-of-line call.
 @inline @generated function llvm_math(::Val{operation}, ::Val{approximate},
@@ -65,6 +75,10 @@ for (op, minimum_llvm) in ((:exp, 15), (:exp2, 15), (:exp10, 18),
                            (:tanh, 19))
     for (typ, suffix) in ((Float16, "f16"), (BFloat16, "bf16"))
         typ === Float16 && op in (:exp, :exp2, :exp10, :log, :log2, :log10) && continue
+        # COST MODEL: these are computed in Float32 instead, through the libdevice-calling
+        # implementations (or the Payne-Hanek reduction of the slow path spills)
+        typ === Float16 && op in (:sin, :tan) && continue
+        typ === BFloat16 && op in (:sin, :cos, :tan) && continue
         if Base.libllvm_version >= VersionNumber(minimum_llvm) &&
            (typ !== BFloat16 || BFloat16s.llvm_arithmetic)
             intrinsic = "llvm.$op.$suffix"
@@ -92,6 +106,12 @@ for (op, minimum_llvm) in ((:exp, 15), (:exp10, 18), (:log, 15), (:log2, 15),
     Base.libllvm_version >= VersionNumber(minimum_llvm) || continue
     for typ in (Float16, Float32, Float64, BFloat16)
         typ === Float32 && op ∉ (:asin, :acos, :atan, :sinh, :cosh, :tanh) && continue
+        # Base falls back to `sin` and `cos` (see COST MODEL), and to Julia's own `exp`
+        # and `exp10`, which are faster than libdevice's (that lacks fast Float64 variants)
+        typ === Float64 && op in (:sin, :cos, :exp, :exp10) && continue
+        # computed in Float32 instead (see COST MODEL above)
+        typ === Float16 && op === :sin && continue
+        typ === BFloat16 && op in (:sin, :cos) && continue
         typ === Float16 && op === :tanh && continue
         typ === BFloat16 && !BFloat16s.llvm_arithmetic && continue
         @eval @device_override FastMath.$fast_op(value::$typ) =
@@ -108,7 +128,8 @@ for typ in (Float16, BFloat16)
         llvm_math(Val(:pow), Val(false), value, power)
     @eval @device_override FastMath.pow_fast(value::$typ, power::$typ) =
         llvm_math(Val(:pow), Val(true), value, power)
-    if Base.libllvm_version >= v"20"
+    # COST MODEL: Float16 is computed in Float32 instead
+    if Base.libllvm_version >= v"20" && typ === BFloat16
         @eval @device_override Base.atan(value::$typ, other::$typ) =
             llvm_math(Val(:atan2), Val(false), value, other)
         @eval @device_override Base.sincos(value::$typ) =
@@ -122,15 +143,17 @@ end
 
 ## trigonometric
 
-@device_override Base.cos(x::Float64) = ccall("llvm.cos.f64", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.cos(x::Float32) = ccall("llvm.cos.f32", llvmcall, Cfloat, (Cfloat,), x)
+# COST MODEL
+@device_override Base.cos(x::Float64) = ccall("extern __nv_cos", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.cos(x::Float32) = ccall("extern __nv_cosf", llvmcall, Cfloat, (Cfloat,), x)
 @device_override FastMath.cos_fast(x::Float32) = llvm_math(Val(:cos), Val(true), x)
 
 @device_override Base.cospi(x::Float64) = ccall("extern __nv_cospi", llvmcall, Cdouble, (Cdouble,), x)
 @device_override Base.cospi(x::Float32) = ccall("extern __nv_cospif", llvmcall, Cfloat, (Cfloat,), x)
 
-@device_override Base.sin(x::Float64) = ccall("llvm.sin.f64", llvmcall, Cdouble, (Cdouble,), x)
-@device_override Base.sin(x::Float32) = ccall("llvm.sin.f32", llvmcall, Cfloat, (Cfloat,), x)
+# COST MODEL
+@device_override Base.sin(x::Float64) = ccall("extern __nv_sin", llvmcall, Cdouble, (Cdouble,), x)
+@device_override Base.sin(x::Float32) = ccall("extern __nv_sinf", llvmcall, Cfloat, (Cfloat,), x)
 @device_override FastMath.sin_fast(x::Float32) = llvm_math(Val(:sin), Val(true), x)
 
 @device_override Base.sinpi(x::Float64) = ccall("extern __nv_sinpi", llvmcall, Cdouble, (Cdouble,), x)
@@ -141,11 +164,8 @@ end
 else
     @device_override Base.tan(x::Float64) = ccall("extern __nv_tan", llvmcall, Cdouble, (Cdouble,), x)
 end
-@static if Base.libllvm_version >= v"19"
-    @device_override Base.tan(x::Float32) = ccall("llvm.tan.f32", llvmcall, Cfloat, (Cfloat,), x)
-else
-    @device_override Base.tan(x::Float32) = ccall("extern __nv_tanf", llvmcall, Cfloat, (Cfloat,), x)
-end
+# COST MODEL
+@device_override Base.tan(x::Float32) = ccall("extern __nv_tanf", llvmcall, Cfloat, (Cfloat,), x)
 @static if Base.libllvm_version >= v"19"
     @device_override FastMath.tan_fast(x::Float32) = llvm_math(Val(:tan), Val(true), x)
 else
@@ -163,16 +183,12 @@ else
         return (s[], c[])
     end
 end
-@static if Base.libllvm_version >= v"20"
-    @device_override Base.sincos(x::Float32) =
-        llvm_math(Val(:sincos), Val(false), x)
-else
-    @device_override function Base.sincos(x::Float32)
-        s = Ref{Cfloat}()
-        c = Ref{Cfloat}()
-        ccall("extern __nv_sincosf", llvmcall, Cvoid, (Cfloat, Ptr{Cfloat}, Ptr{Cfloat}), x, s, c)
-        return (s[], c[])
-    end
+# COST MODEL
+@device_override function Base.sincos(x::Float32)
+    s = Ref{Cfloat}()
+    c = Ref{Cfloat}()
+    ccall("extern __nv_sincosf", llvmcall, Cvoid, (Cfloat, Ptr{Cfloat}, Ptr{Cfloat}), x, s, c)
+    return (s[], c[])
 end
 # Base has sincos_fast fall back to the native implementation which is presumed faster,
 # but that is not the case compared to CUDA's intrinsics
@@ -232,11 +248,8 @@ end
 else
     @device_override Base.atan(x::Float64, y::Float64) = ccall("extern __nv_atan2", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 end
-@static if Base.libllvm_version >= v"20"
-    @device_override Base.atan(x::Float32, y::Float32) = ccall("llvm.atan2.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-else
-    @device_override Base.atan(x::Float32, y::Float32) = ccall("extern __nv_atan2f", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
-end
+# COST MODEL
+@device_override Base.atan(x::Float32, y::Float32) = ccall("extern __nv_atan2f", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
 ## hyperbolic
 
@@ -512,7 +525,8 @@ end
 @device_function rcbrt(x::Float32) = ccall("extern __nv_rcbrtf", llvmcall, Cfloat, (Cfloat,), x)
 
 @device_override Base.:(^)(x::Float64, y::Float64) = ccall("llvm.pow.f64", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-@device_override Base.:(^)(x::Float32, y::Float32) = ccall("llvm.pow.f32", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+# COST MODEL
+@device_override Base.:(^)(x::Float32, y::Float32) = ccall("extern __nv_powf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override FastMath.pow_fast(x::Float32, y::Float32) = llvm_math(Val(:pow), Val(true), x, y)
 # pow_fast: Base methods call llvm.powi which NVPTX cannot lower (#3065)
 @device_override @assume_effects :foldable @inline function FastMath.pow_fast(x::Float64, y::Integer)

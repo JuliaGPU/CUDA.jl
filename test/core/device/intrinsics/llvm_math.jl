@@ -128,6 +128,100 @@ end
     end
 end
 
+# Some scalar functions call libdevice directly instead of going through the intrinsic (see
+# "COST MODEL" in CUDACore's math.jl). Make sure the late lowering of the scalar intrinsic
+# keeps working for every operation, and matches what those functions compute.
+@generated function raw_scalar_math(value::typ, ::Val{operation},
+                                    ::Val{approximate}) where {typ,operation,approximate}
+    element = typ === Float16 ? "half" : typ === Float32 ? "float" : "double"
+    suffix = typ === Float16 ? "f16" : typ === Float32 ? "f32" : "f64"
+    name = "llvm.$operation.$suffix"
+    flags = approximate ? "afn " : ""
+    ir = if operation === :sincos
+        """
+        declare {$element, $element} @$name($element)
+        define $element @entry($element %value) #0 {
+            %pair = call $flags{$element, $element} @$name($element %value)
+            %sine = extractvalue {$element, $element} %pair, 0
+            %cosine = extractvalue {$element, $element} %pair, 1
+            %result = fadd $element %sine, %cosine
+            ret $element %result
+        }
+        attributes #0 = { alwaysinline }
+        """
+    elseif operation === :powi
+        """
+        declare $element @$name.i32($element, i32)
+        define $element @entry($element %value) #0 {
+            %result = call $flags$element @$name.i32($element %value, i32 3)
+            ret $element %result
+        }
+        attributes #0 = { alwaysinline }
+        """
+    else
+        binary = operation in (:pow, :atan2)
+        """
+        declare $element @$name($element$(binary ? ", $element" : ""))
+        define $element @entry($element %value) #0 {
+            %result = call $flags$element @$name($element %value$(binary ? ", $element %value" : ""))
+            ret $element %result
+        }
+        attributes #0 = { alwaysinline }
+        """
+    end
+    :(Base.llvmcall(($ir, "entry"), $typ, Tuple{$typ}, value))
+end
+
+function raw_scalar_math_kernel!(output, input, operation, approximate)
+    i = threadIdx().x
+    @inbounds output[i] = raw_scalar_math(input[i], operation, approximate)
+    return
+end
+
+@inline function scalar_math_reference(::Val{operation}, value) where {operation}
+    operation === :pow && return value^value
+    operation === :atan2 && return atan(value, value)
+    operation === :sincos && return +(sincos(value)...)
+    operation === :powi &&
+        return CUDACore.powi(value isa Float16 ? Float32(value) : value, Int32(3))
+    getfield(Base, operation)(value)
+end
+
+function scalar_math_kernel!(output, input, operation)
+    i = threadIdx().x
+    @inbounds output[i] = scalar_math_reference(operation, input[i])
+    return
+end
+
+@testset "scalar math intrinsics" begin
+    for operation in values(CUDACore.MATH_INTRINSICS)
+        tryparse(CUDACore.LLVM.Intrinsic, "llvm.$operation") === nothing && continue
+        for typ in (Float32, Float64, Float16)
+            values = typ[0.25, 0.5, 0.75]
+            # exercise the slow path of the trigonometric functions' argument reduction
+            if typ !== Float16 && operation in (:sin, :cos, :tan, :sincos)
+                push!(values, typ(123456.7))
+            end
+            input = CuArray(values)
+            reference = similar(input)
+            @cuda threads=length(input) scalar_math_kernel!(reference, input, Val(operation))
+            reference = Array(reference)
+
+            output = similar(input)
+            @cuda threads=length(input) raw_scalar_math_kernel!(output, input, Val(operation),
+                                                                Val(false))
+            @test isequal(Array(output), reference)
+
+            # approximate implementations
+            @cuda threads=length(input) raw_scalar_math_kernel!(output, input, Val(operation),
+                                                                Val(true))
+            approximate = Array(output)
+            accurate = abs.(values) .< 1
+            @test isapprox(approximate[accurate], reference[accurate]; rtol=typ === Float16 ? 1e-2 : 1e-4)
+        end
+    end
+end
+
 function vector_math_kernel!(output, input, operation, ::Val{width}) where {width}
     value = Vec(ntuple(lane -> @inbounds(input[lane]), Val(width)))
     result = operation(value)
@@ -160,6 +254,13 @@ end
                 if typ === BFloat16 && operation === exp10 &&
                    reinterpret(UInt16, value) == 0xbc95
                     return reinterpret(BFloat16, 0x3f75)
+                end
+                # Float16 `sin` is computed in Float32, which rounds these inputs (and
+                # their negations) incorrectly, unlike the lowered `llvm.sin.f16`
+                if typ === Float16 && operation === sin
+                    bits = reinterpret(UInt16, value)
+                    bits & 0x7fff == 0x32b3 && return reinterpret(Float16, 0x32a6 ⊻ (bits & 0x8000))
+                    bits & 0x7fff == 0x5cb0 && return reinterpret(Float16, 0xbc00 ⊻ (bits & 0x8000))
                 end
                 promoted = BigFloat(value)
                 operation in (log, log2, log10) && promoted < 0 && return typ(NaN)
