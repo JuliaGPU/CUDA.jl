@@ -1,0 +1,44 @@
+name: Documentation preview link
+
+# Buildkite posts a commit status for every step, so we can react to the documentation step
+# finishing. Status events always run this workflow as it exists on the default branch; it
+# never checks out or runs code from the commit.
+on: status
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  link:
+    if: |
+      github.event.context == 'buildkite/cuda-dot-jl/books-documentation' &&
+      github.event.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const {data: prs} = await github.rest.repos.listPullRequestsAssociatedWithCommit(
+              {owner, repo, commit_sha: context.payload.sha});
+            const marker = '<!-- documentation-preview -->';
+            for (const pr of prs) {
+              // pull requests from forks don't get a preview
+              if (pr.state !== 'open' || pr.head.repo?.full_name !== `${owner}/${repo}`) {
+                continue;
+              }
+              const files = await github.paginate(github.rest.pulls.listFiles,
+                                                  {owner, repo, pull_number: pr.number, per_page: 100});
+              if (!files.some(file => file.filename.startsWith('docs/'))) {
+                continue;
+              }
+              const comments = await github.paginate(github.rest.issues.listComments,
+                                                     {owner, repo, issue_number: pr.number, per_page: 100});
+              if (comments.some(comment => comment.body?.startsWith(marker))) {
+                continue;
+              }
+              const url = `https://cuda.juliagpu.org/previews/PR${pr.number}/`;
+              await github.rest.issues.createComment({owner, repo, issue_number: pr.number,
+                                                     body: `${marker}\nDocumentation preview: ${url}`});
+            }
