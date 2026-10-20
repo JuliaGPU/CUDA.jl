@@ -205,11 +205,18 @@ end
 # cache of compiler configurations, per device (but additionally configurable via kwargs)
 const _compiler_configs = Dict{UInt, CUDACompilerConfig}()
 const compiler_config_lock = ReentrantLock()
+# The bins are precomputed values. Hash their descriptions once, independently of the
+# device/options seed, instead of visiting every selected field on each cache lookup.
+# The seed must not be zero: on Julia 1.13, `hash(0, zero(UInt)) == 0`, so the markers
+# for leading fact-less arguments would not change the hash.
+Base.@assume_effects :foldable range_hash(ranges::Tuple) =
+    GPUCompiler.hash_argument_ranges(ranges, 0x9b2c6e4f1d7a3085 % UInt)
+
 function compiler_config(dev; argument_ranges=(), kwargs...)
     # (as a `NamedTuple`: hashing the `Pairs` boxes each value, on every launch)
     h = hash(dev, hash(values(kwargs)))
     Base.@lock compiler_config_lock begin
-        get!(_compiler_configs, GPUCompiler.hash_argument_ranges(argument_ranges, h)) do
+        get!(_compiler_configs, hash(range_hash(argument_ranges), h)) do
             _compiler_config(dev; argument_ranges, kwargs...)
         end
     end

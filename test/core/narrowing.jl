@@ -137,6 +137,24 @@ end
     @test Array(out) == [2]
 end
 
+function store_one(out)
+    out[1] = 1
+    return
+end
+function store_value(value, out)
+    out[1] = value
+    return
+end
+
+@testset "fact-less leading arguments" begin
+    # same facts, differing only in the number of fact-less arguments before them
+    out = CuArray([0])
+    @cuda store_value(2, out)
+    @test Array(out) == [2]
+    @cuda store_one(out)
+    @test Array(out) == [1]
+end
+
 function typed_index(out, ::Type{T}, r) where {T}
     out[1] = T(last(r))
     return
