@@ -108,6 +108,8 @@ include("array.jl")
 include("refpointer.jl")
 
 # compiler implementation
+include("compiler/narrowing.jl")
+include("compiler/facts.jl")
 include("compiler/compilation.jl")
 include("compiler/execution.jl")
 include("compiler/exceptions.jl")

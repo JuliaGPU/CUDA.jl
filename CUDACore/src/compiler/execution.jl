@@ -156,6 +156,14 @@ with different compiler options.
     kernel_compile(call.backend, call.f, tt; kwargs...)
 end
 
+# compile with facts about the arguments if they fit (see `facts.jl`)
+@inline function kernel_compile(call::KernelCall{LLVMBackend}; index_facts::Bool=true,
+                                kwargs...)
+    tt = argument_types(call.arguments)
+    index_facts &= arguments_fit(tt, call.arguments)
+    cufunction(call.f, tt; index_facts, kwargs...)
+end
+
 # `Tuple{map(Core.Typeof, args)...}`, without mapping or splatting
 @inline @generated function argument_types(args::Tuple)
     :(Tuple{$((:(Core.Typeof(args[$i])) for i in 1:fieldcount(args))...)})
@@ -258,7 +266,7 @@ end
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx, :index_facts]
 const LAUNCH_KWARGS = [:cooperative, :dependent, :blocks, :threads, :clustersize, :shmem,
                        :stream]
 
@@ -726,7 +734,12 @@ struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     f::F
     fun::CuFunction
     state::KernelState
+    # compiled assuming that the arguments satisfy the facts (see `facts.jl`)
+    index_facts::Bool
 end
+# the facts are a property of the compiled function, so recover them
+HostKernel{F,TT}(f::F, fun::CuFunction, state::KernelState) where {F,TT} =
+    HostKernel{F,TT}(f, fun, state, Base.@lock(cufunction_lock, haskey(_factless_jobs, fun)))
 
 @doc (@doc AbstractKernel) HostKernel
 
@@ -736,8 +749,15 @@ end
 @inline Core.kwcall(kwargs::NamedTuple, kernel::HostKernel, args::Vararg{Any,N}) where {N} =
     kernel_launch(kernel, kernel_call(LLVMBackend(), kernel.f, args); kwargs...)
 
-@inline kernel_launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
+@inline function kernel_launch(::LLVMBackend, kernel::HostKernel{F,TT}, arguments::Tuple;
+                               kwargs...) where {F,TT}
+    # a kernel compiled with facts about its arguments can be launched with other ones
+    # (e.g., when compiled ahead of time, or with placeholder arguments); check them again
+    if kernel.index_facts && !(values_fit(kernel.f) & arguments_fit(TT, arguments))
+        kernel = factless_kernel(kernel)
+    end
     launch_converted(kernel, arguments; kwargs...)
+end
 
 """
     version(k::HostKernel)
@@ -822,26 +842,31 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
+function cufunction(f::F, tt::TT=Tuple{}; index_facts::Bool=false, kwargs...) where {F,TT}
     source = methodinstance(F, tt)
-    fun, state = cufunction_link(source; kwargs...)
-    return HostKernel{F,tt}(f, fun, state)
+    # the function is passed as an argument too, so may capture arrays
+    index_facts &= values_fit(f)
+    fun, state = cufunction_link(source; index_facts, kwargs...)
+    return HostKernel{F,tt}(f, fun, state, index_facts)
 end
 
 # the parts of `cufunction` that don't depend on the type of the function, kept separate so
 # that they are compiled once rather than for every kernel
 function cufunction_link(source::Core.MethodInstance; kwargs...)
+    config = compiler_config(device(); kwargs...)::CUDACompilerConfig
+    cufunction_link(CompilerJob(source, config))
+end
+
+function cufunction_link(job::CUDACompilerJob)
     cuda = active_state()
-    config = compiler_config(cuda.device; kwargs...)::CUDACompilerConfig
     # Target selection may retain a PTX-compatible target for reflection, but
     # executing a kernel requires a cubin that loads on this device.
-    sm = config.params.sm
+    sm = job.config.params.sm
     cubin_compatible(sm, capability(cuda.device)) ||
         error("Cannot execute code compiled for $(cpu_name(sm)) on $(cuda.device): " *
               "the cubin would not load on compute capability " *
               "$(capability(cuda.device)). Use a CUDA toolkit that supports " *
               "this device, or select a compatible target with `arch=`.")
-    job = CompilerJob(source, config)
 
     Base.@lock cufunction_lock begin
         # look up (or generate) the compilation artifacts for this function
@@ -867,6 +892,11 @@ function cufunction_link(source::Core.MethodInstance; kwargs...)
             if ccall(:jl_generating_output, Cint, ()) != 1
                 push!(res.kernels, (ctx, fun))
             end
+
+            # remember how to compile this kernel without facts (see `factless_kernel`)
+            if job.config.params.index_facts
+                _factless_jobs[fun] = factless_job(job)
+            end
         end
 
         state = get(_kernel_states, fun, nothing)
@@ -880,6 +910,22 @@ end
 
 # the state of every kernel, which is created when the kernel is first used
 const _kernel_states = Dict{CuFunction, KernelState}()
+
+# for kernels compiled with facts, the job compiling them without. it keeps the world of the
+# original job, so that the fallback doesn't pick up method redefinitions.
+const _factless_jobs = Dict{CuFunction, CUDACompilerJob}()
+
+function factless_job(job::CUDACompilerJob)
+    params = CUDACompilerParams(; job.config.params.sm, job.config.params.ptx,
+                                  index_facts=false)
+    CompilerJob(job.source, CompilerConfig(job.config; params), job.world)
+end
+
+@noinline function factless_kernel(kernel::HostKernel{F,TT}) where {F,TT}
+    job = Base.@lock cufunction_lock _factless_jobs[kernel.fun]
+    fun, state = cufunction_link(job)
+    return HostKernel{F,TT}(kernel.f, fun, state, false)
+end
 
 # task-local RNG for kernel launch seeds, so that launching a kernel does not
 # perturb the user-visible `rand()` stream
