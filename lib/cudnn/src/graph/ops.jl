@@ -1030,6 +1030,7 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     hq % hk == 0 || throw(DimensionMismatch("q head count must be a multiple of k/v heads"))
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
     check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
+    check_sdpa_ragged(seq_len_q !== nothing, q, k, v, o)
 
     o === nothing && (o = tensor!(g; dims=(d, hq, sq, b), dtype=q.dtype, virtual=true,
                                   name="O"))
@@ -1081,15 +1082,40 @@ function check_sdpa_bwd_io(name, t::Tensor, dims)
     return t
 end
 
-# engine spill buffers assume this packing; other strides are accepted at
-# build time and corrupt gradients silently
-function check_sdpa_bwd_workspace(name, t::Tensor, dims)
+# engine spill buffers assume this packing, or that of the ragged gradient they
+# accumulate; other strides are accepted at build time and corrupt gradients silently
+function check_sdpa_bwd_workspace(name, t::Tensor, dims; like=nothing)
     check_sdpa_bwd_shape(name, t, dims)
-    t.strides == dense_strides(t.dims) ||
-        throw(ArgumentError(
-            "$name must be densely packed as $(Tuple(dims)); the fMHA backward " *
-            "engines silently corrupt gradients for other layouts"))
+    if t.ragged_offset === nothing
+        t.strides == dense_strides(t.dims) ||
+            throw(ArgumentError(
+                "$name must be densely packed as $(Tuple(dims)); the fMHA backward " *
+                "engines silently corrupt gradients for other layouts"))
+    elseif like === nothing
+        throw(ArgumentError("$name must not be ragged"))
+    else
+        t.ragged_offset === like.ragged_offset && t.strides == like.strides ||
+            throw(ArgumentError(
+                "a ragged $name must have the strides and ragged offset of $(like.name)"))
+    end
     return t
+end
+
+# ragged workspaces keep the token layout of their gradient, widened to dims' heads
+function sdpa_bwd_spill!(g::Graph, grad::Tensor, dims, dtype, name, offset)
+    offset === nothing && return tensor!(g; dims, dtype, output=true, name)
+    groups = dims[3] ÷ grad.dims[3]
+    s = grad.strides
+    # a lone head has a canonical stride, not its stride within a token
+    sh = grad.dims[3] == 1 ? grad.dims[1] * s[1] : s[3]
+    tensor!(g; dims, strides=(s[1], s[2] * groups, sh, s[4] * groups), dtype,
+            output=true, name, ragged_offset=offset)
+end
+
+function check_sdpa_ragged(padded, ts...)
+    padded || all(t -> t === nothing || t.ragged_offset === nothing, ts) ||
+        throw(ArgumentError("ragged tensors require seq_len_q and seq_len_kv"))
+    return
 end
 
 function check_sdpa_bwd_dtype(name, t::Tensor, dtype)
@@ -1109,6 +1135,7 @@ end
 # the composite spelling the fMHA backward engines pattern-match (the unified
 # SDPA_BWD op has no engines anywhere); dims are (d, s, h, b), unlike sdpa_fwd!.
 # Mutates k/v into their transposes; grouped queries add fullhead workspaces.
+# Ragged gradients get ragged workspaces, sized by the token count.
 function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Tensor,
                    stats::Tensor;
                    dQ::Union{Nothing,Tensor}=nothing,
@@ -1144,19 +1171,23 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     check_sdpa_bwd_dtype("stats", stats, CUDNN_DATA_FLOAT)
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
     check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
+    check_sdpa_ragged(seq_len_q !== nothing, q, k, v, o, dO, dQ, dK, dV)
 
+    # gradients default to dense, or to the layout of a ragged input
+    like(t) = t.ragged_offset === nothing ? (;) :
+              (; strides=t.strides, ragged_offset=t.ragged_offset)
     dQ === nothing && (dQ = tensor!(g; dims=(d, sq, h, b), dtype=iodt, output=true,
-                                    name="dQ"))
+                                    name="dQ", like(q)...))
     dK === nothing && (dK = tensor!(g; dims=(d, skv, hk, b), dtype=iodt, output=true,
-                                    name="dK"))
+                                    name="dK", like(k)...))
     dV === nothing && (dV = tensor!(g; dims=(d, skv, hk, b), dtype=iodt, output=true,
-                                    name="dV"))
+                                    name="dV", like(v)...))
     softmax_sum === nothing &&
         (softmax_sum = tensor!(g; dims=(1, sq, h, b), dtype=Float32, output=true,
                                name="SoftmaxSum"))
     dQ_accum === nothing &&
-        (dQ_accum = tensor!(g; dims=(d, sq, h, b), dtype=Float32, output=true,
-                            name="dQAccum"))
+        (dQ_accum = sdpa_bwd_spill!(g, dQ, (d, sq, h, b), Float32, "dQAccum",
+                                    dQ.ragged_offset))
     for (name, t, dims) in (("dQ", dQ, (d, sq, h, b)), ("dK", dK, (d, skv, hk, b)),
                             ("dV", dV, (d, skv, hk, b)))
         check_sdpa_bwd_io(name, t, dims)
@@ -1164,7 +1195,7 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     end
     check_sdpa_bwd_workspace("softmax_sum", softmax_sum, (1, sq, h, b))
     check_sdpa_bwd_dtype("softmax_sum", softmax_sum, CUDNN_DATA_FLOAT)
-    check_sdpa_bwd_workspace("dQ_accum", dQ_accum, (d, sq, h, b))
+    check_sdpa_bwd_workspace("dQ_accum", dQ_accum, (d, sq, h, b); like=dQ)
     check_sdpa_bwd_dtype("dQ_accum", dQ_accum, CUDNN_DATA_FLOAT)
     scale === nothing && (scale = scalar!(g, Float32; rank=4, name="Scale"))
     one_t = scalar!(g, Float32; rank=4, name="One")
@@ -1259,10 +1290,15 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     # workspaces, then fold onto the shared k/v heads by reduction
     dK_fullhead = dV_fullhead = nothing
     if hk != h
-        dK_fullhead = tensor!(g; dims=(d, skv, h, b), dtype=iodt, output=true,
-                              name="dKFullhead")
-        dV_fullhead = tensor!(g; dims=(d, skv, h, b), dtype=iodt, output=true,
-                              name="dVFullhead")
+        # the engines don't scale dK/dV's offsets by the head groups, so ragged
+        # full-head workspaces take their own: the K/V token offsets times d * h
+        kvoff = something(dK.ragged_offset, dV.ragged_offset, Some(nothing))
+        offset = kvoff === nothing ? nothing :
+                 tensor!(g; dims=kvoff.dims, dtype=kvoff.dtype, name="FullheadRaggedOffset")
+        dK_fullhead = sdpa_bwd_spill!(g, dK, (d, skv, h, b), iodt, "dKFullhead",
+                                      dK.ragged_offset === nothing ? nothing : offset)
+        dV_fullhead = sdpa_bwd_spill!(g, dV, (d, skv, h, b), iodt, "dVFullhead",
+                                      dV.ragged_offset === nothing ? nothing : offset)
     end
 
     # dV = Pᵀ dO
@@ -1295,6 +1331,7 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     # dQ = dS K, accumulated in Float32 and cast to the io dtype
     kview = reshape!(g, k; dims=(d, skv, hk, b), strides=kstrides, dtype=iodt,
                      name="Kview")
+    kview.ragged_offset = k.ragged_offset
     mm!(ds, kview, dQ_accum; m=slq, k=slkv)
     pointwise!(g, CUDNN_POINTWISE_IDENTITY, dQ_accum; y=dQ, name="identity_dQ")
 

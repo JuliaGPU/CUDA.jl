@@ -229,7 +229,8 @@ make_descriptor(f, type::Symbol) = make_descriptor(f, descriptor_types[type])
 
 function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
                         is_virtual::Bool=false, by_value::Bool=false, alignment::Integer=16,
-                        reordering::cudnnBackendTensorReordering_t=CUDNN_TENSOR_REORDERING_NONE)
+                        reordering::cudnnBackendTensorReordering_t=CUDNN_TENSOR_REORDERING_NONE,
+                        ragged_offset::Union{Nothing,BackendDescriptor}=nothing)
     make_descriptor(:tensor) do d
         d[:unique_id] = Int64(uid)
         d[:data_type] = dtype
@@ -239,6 +240,7 @@ function backend_tensor(; uid::Integer, dims, strides, dtype::cudnnDataType_t,
         is_virtual && (d[:is_virtual] = true)
         by_value && (d[:is_by_value] = true)
         reordering == CUDNN_TENSOR_REORDERING_NONE || (d[:reordering_mode] = reordering)
+        ragged_offset === nothing || (d[:ragged_offset_desc] = ragged_offset)
     end
 end
 

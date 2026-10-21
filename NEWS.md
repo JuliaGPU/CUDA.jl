@@ -122,6 +122,14 @@ small reductions along a dimension can be slower.
   chunked prefill). Under padding masks the alignment follows each batch
   element's `seq_len_q` and `seq_len_kv`
   ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
+- cuDNN's attention functions accept packed variable-length sequences:
+  `(head_dim, heads, tokens)` arrays holding the sequences back to back, located
+  by Int32 `cu_seq_len_q` and `cu_seq_len_kv` token offsets, with bounds
+  `max_seq_len_q` and `max_seq_len_kv`. The inputs, outputs and gradients, the
+  backward's dQ accumulator and its grouped-query workspaces are packed, sized by
+  the token count; `stats` stays padded to `max_seq_len_q`. Bottom-right causal
+  masks align with each sequence's own lengths
+  ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
 
 *Bug fixes*:
 

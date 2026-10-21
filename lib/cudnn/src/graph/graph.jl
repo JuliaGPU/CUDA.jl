@@ -12,6 +12,7 @@ mutable struct Tensor
     output::Bool
     alignment::Int
     reordering::cudnnBackendTensorReordering_t
+    ragged_offset::Union{Nothing,Tensor}
 end
 
 mutable struct Graph
@@ -56,14 +57,15 @@ function tensor!(g::Graph; dims, strides=dense_strides(dims), dtype=nothing,
                  virtual::Bool=false, by_value::Bool=false, name::String="",
                  uid::Integer=0, alignment::Integer=16, output::Bool=false,
                  backend_order=nothing,
-                 reordering::cudnnBackendTensorReordering_t=CUDNN_TENSOR_REORDERING_NONE)
+                 reordering::cudnnBackendTensorReordering_t=CUDNN_TENSOR_REORDERING_NONE,
+                 ragged_offset::Union{Nothing,Tensor}=nothing)
     dims_v = collect(Int64, dims)
     order = backend_order === nothing ? collect(length(dims_v):-1:1) : collect(Int, backend_order)
     sort(order) == collect(1:length(dims_v)) ||
         throw(ArgumentError("backend_order must be a permutation of tensor dimensions"))
     t = Tensor(name, Int64(uid), dims_v, canonical_strides(dims_v, strides), order,
                dtype === nothing ? nothing : graph_dtype(dtype), virtual, by_value, output,
-               Int(alignment), reordering)
+               Int(alignment), reordering, ragged_offset)
     push!(g.tensors, t)
     return t
 end

@@ -113,6 +113,69 @@ mdq, mdk, mdv, _, _, mdkf, mdvf = sdpa_bwd!(ggqa, mq, mk, mv, mo, mdO, mstats)
 @test mdkf.dims == [64, 48, 4, 2]
 @test mdvf.dims == [64, 48, 4, 2]
 
+# ragged tensors need padding masks; ragged gradients accumulate in ragged workspaces
+function ragged_bwd_graph(; hk=2)
+    g = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+    offq = tensor!(g; dims=(1, 1, 1, 3), dtype=Int64, name="OffQ")
+    offkv = tensor!(g; dims=(1, 1, 1, 3), dtype=Int64, name="OffKV")
+    ragged(name, s, nh, off) = tensor!(g; dims=(64, s, nh, 2), dtype=Float16, name,
+                                       strides=(1, 64nh, 64, 64nh), ragged_offset=off)
+    io = (ragged("Q", 32, 4, offq), ragged("K", 48, hk, offkv), ragged("V", 48, hk, offkv),
+          ragged("O", 32, 4, offq), ragged("dO", 32, 4, offq),
+          tensor!(g; dims=(1, 32, 4, 2), dtype=Float32, name="Stats"))
+    grads = (; dQ=ragged("dQ", 32, 4, offq), dK=ragged("dK", 48, hk, offkv),
+             dV=ragged("dV", 48, hk, offkv))
+    lens = (; seq_len_q=tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenQ"),
+            seq_len_kv=tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenKV"))
+    return g, io, grads, lens
+end
+let (g, io, grads, lens) = ragged_bwd_graph()
+    @test_throws ArgumentError sdpa_bwd!(g, io...; grads...)
+end
+let (g, io, grads, lens) = ragged_bwd_graph()
+    _, _, _, rsum, racc, rdkf, rdvf = sdpa_bwd!(g, io...; grads..., lens...)
+    @test rsum.ragged_offset === nothing
+    @test racc.ragged_offset === grads.dQ.ragged_offset
+    @test racc.strides == grads.dQ.strides
+    # the full-head workspaces take offsets of their own, over 4 heads per token
+    @test rdkf.ragged_offset === rdvf.ragged_offset ===
+          cuDNN.tensor(g, "FullheadRaggedOffset")
+    @test rdkf.strides == [1, 256, 64, 256]
+end
+let (g, io, grads, lens) = ragged_bwd_graph(; hk=1)
+    rdkf = sdpa_bwd!(g, io...; grads..., lens...)[6]
+    @test rdkf.strides == [1, 256, 64, 256]   # not the lone K head's canonical stride
+end
+let (g, io, grads, lens) = ragged_bwd_graph()
+    rdq, rdk = sdpa_bwd!(g, io...; lens...)   # default gradients follow ragged inputs
+    @test rdq.ragged_offset === io[1].ragged_offset
+    @test rdq.strides == io[1].strides
+    @test rdk.ragged_offset === io[2].ragged_offset
+end
+let (g, io, grads, lens) = ragged_bwd_graph()
+    acc = tensor!(g; dims=(64, 32, 4, 2), strides=(1, 64, 2048, 8192), dtype=Float32,
+                  name="dQAccum", ragged_offset=grads.dQ.ragged_offset)
+    @test_throws ArgumentError sdpa_bwd!(g, io...; grads..., lens..., dQ_accum=acc)
+end
+let (g, io, grads, lens) = ragged_bwd_graph()
+    stats = tensor!(g; dims=(1, 32, 4, 2), strides=(1, 4, 1, 128), dtype=Float32,
+                    name="RaggedStats", ragged_offset=grads.dQ.ragged_offset)
+    @test_throws ArgumentError sdpa_bwd!(g, io[1:5]..., stats; grads..., lens...)
+end
+
+# a ragged binding is checked within a token only: the offsets place the tokens
+let g = Graph(io_dtype=Float16)
+    off = tensor!(g; dims=(1, 1, 1, 3), dtype=Int64, name="Off")
+    t = tensor!(g; dims=(64, 4, 32, 2), strides=(1, 64, 256, 256), dtype=Float16,
+                name="Q", ragged_offset=off)
+    @test cuDNN.checked_array_pointer(t, CUDACore.zeros(Float16, 64, 4, 77)) != C_NULL
+    @test_throws DimensionMismatch cuDNN.checked_array_pointer(
+        t, CUDACore.zeros(Float16, 64, 2, 77))
+    @test_throws DimensionMismatch cuDNN.checked_array_pointer(
+        t, CUDACore.zeros(Float16, 256, 77))
+    @test_throws ArgumentError sdpa_fwd!(g, t, t, t)    # without padding masks
+end
+
 # io strides are free: a (d, h, s, b)-packed buffer binds through transposed strides
 gbshd = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
 tq = tensor!(gbshd; dims=(64, 32, 4, 2), strides=(1, 256, 64, 8192),

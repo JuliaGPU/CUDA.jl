@@ -189,6 +189,54 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
           zero_padded_queries!(refdv, seq_len_kv) rtol=rtol
 end
 
+# the valid prefix of each batch element, back to back along the token dimension
+pack(a, lens) = cat((a[:, :, 1:n, bb] for (bb, n) in enumerate(lens))...; dims=3)
+
+function sdpa_packed_test(T; d=64, h=4, hk=h, qlens=[5, 17, 64], kvlens=[9, 17, 70],
+                          causal=false, slack=0, scale=1/sqrt(d), rtol=3e-2)
+    b = length(qlens)
+    sq, skv = maximum(qlens) + slack, maximum(kvlens) + slack
+    q = cuRAND.randn(T, d, h, sq, b) ./ 4
+    k = cuRAND.randn(T, d, hk, skv, b) ./ 4
+    v = cuRAND.randn(T, d, hk, skv, b) ./ 4
+    dO = cuRAND.randn(T, d, h, sq, b) ./ 4
+    seq_len_q = CuArray(reshape(Int32.(qlens), 1, 1, 1, b))
+    seq_len_kv = CuArray(reshape(Int32.(kvlens), 1, 1, 1, b))
+    ref, refstats = sdpa_ref(q, k, v; scale, causal, stats=true, seq_len_q, seq_len_kv)
+    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal, seq_len_q, seq_len_kv)
+
+    pq, pdO = CuArray(pack(Array(q), qlens)), CuArray(pack(Array(dO), qlens))
+    pk, pv = CuArray(pack(Array(k), kvlens)), CuArray(pack(Array(v), kvlens))
+    kw = (; cu_seq_len_q=CuArray(Int32[0; cumsum(qlens)]),
+          cu_seq_len_kv=CuArray(Int32[0; cumsum(kvlens)]),
+          max_seq_len_q=sq, max_seq_len_kv=skv, causal)
+    out = similar(pq)
+    stats = CUDACore.zeros(Float32, 1, sq, h, b)
+    if !cuDNN.attention_supported(out, pq, pk, pv; stats, kw...)
+        @test_skip "packed SDPA is unsupported on this device"
+        return
+    end
+    attention!(out, pq, pk, pv; scale, stats, kw...)
+    @test Array(out) ≈ pack(ref, qlens) rtol=rtol
+    valid(s) = reduce(vcat, vec(s[:, 1:n, :, bb]) for (bb, n) in enumerate(qlens))
+    @test valid(Array(stats)) ≈ valid(permutedims(refstats, (1, 3, 2, 4))) rtol=2e-3
+    @test Array(attention(pq, pk, pv; scale, kw...)) == Array(out)
+
+    dq, dk, dv = similar(pq), similar(pk), similar(pv)
+    if !cuDNN.attention_backward_supported(dq, dk, dv, pdO, pq, pk, pv, out, stats; kw...)
+        @test_skip "packed SDPA backward is unsupported on this device"
+        return
+    end
+    attention_backward!(dq, dk, dv, pdO, pq, pk, pv, out, stats; scale, kw...)
+    @test Array(dq) ≈ pack(refdq, qlens) rtol=rtol
+    @test Array(dk) ≈ pack(refdk, kvlens) rtol=rtol
+    @test Array(dv) ≈ pack(refdv, kvlens) rtol=rtol
+    a_dq, a_dk, a_dv = attention_backward(pdO, pq, pk, pv, out, stats; scale, kw...)
+    @test Array(a_dq) ≈ Array(dq) rtol=1e-2
+    @test Array(a_dk) ≈ Array(dk) rtol=1e-2
+    @test Array(a_dv) ≈ Array(dv) rtol=1e-2
+end
+
 if capability(device()) >= v"8.0"
     for T in (Float16, BFloat16)
         sdpatest(T)                                  # default square case
@@ -218,6 +266,49 @@ if capability(device()) >= v"8.0"
         # the diagonal shifts by each batch element's own lengths, not the sizes'
         sdpa_padding_test(T; sq=16, skv=64, qlens=[4, 16], kvlens=[20, 64],
                           causal=:bottom_right)
+
+        # packed sequences
+        sdpa_packed_test(T)
+        sdpa_packed_test(T; causal=true)
+        sdpa_packed_test(T; h=8, hk=2, causal=:bottom_right)   # per-sequence diagonals
+        sdpa_packed_test(T; d=128, hk=1, qlens=[100, 3, 30, 1],
+                         kvlens=[100, 50, 30, 200])            # multi-query attention
+        sdpa_packed_test(T; qlens=[1, 1, 1], kvlens=[30, 100, 7],
+                         causal=:bottom_right)                 # decoding against caches
+        sdpa_packed_test(T; qlens=[5, 0, 64], kvlens=[9, 0, 70],
+                         slack=13)                             # empty sequence, loose max
+    end
+
+    let q = cuRAND.randn(Float16, 64, 4, 30) ./ 4
+        cu = CuArray(Int32[0, 10, 30])
+        kw = (; cu_seq_len_q=cu, cu_seq_len_kv=cu, max_seq_len_q=20, max_seq_len_kv=20)
+        @test_throws DimensionMismatch attention(q, q, q; kw...,
+                                                 cu_seq_len_kv=CuArray(Int32[0, 30]))
+        @test_throws ArgumentError attention(q, q, q; kw..., max_seq_len_q=0)
+        @test_throws UndefKeywordError attention(q, q, q; cu_seq_len_q=cu, cu_seq_len_kv=cu)
+        stats_bad = CUDACore.zeros(Float32, 1, 30, 4, 2)    # padded to max_seq_len_q
+        @test_throws DimensionMismatch attention(q, q, q; kw..., stats=stats_bad)
+
+        # the token count does not shape the plan
+        stats = CUDACore.zeros(Float32, 1, 20, 4, 2)
+        o = attention(q, q, q; kw..., stats)
+        attention_backward(q, q, q, q, o, stats; kw...)
+        n = length(cuDNN.handle().plans)
+        q40 = cuRAND.randn(Float16, 64, 4, 40) ./ 4
+        kw40 = (; kw..., cu_seq_len_q=CuArray(Int32[0, 20, 40]),
+                cu_seq_len_kv=CuArray(Int32[0, 20, 40]))
+        o40 = attention(q40, q40, q40; kw40..., stats)
+        attention_backward(q40, q40, q40, q40, o40, stats; kw40...)
+        @test length(cuDNN.handle().plans) == n
+
+        # cudnn-frontend refuses deterministic packed backward on these GPUs
+        if capability(device()).major in (8, 12)
+            @test !cuDNN.attention_backward_supported(similar(q), similar(q), similar(q), q,
+                                                      q, q, q, o, stats; kw...,
+                                                      deterministic=true)
+            @test_throws cuDNN.UnsupportedGraphError attention_backward(
+                q, q, q, q, o, stats; kw..., deterministic=true)
+        end
     end
 
     let q = CuArray(Float16.(randn(Float32, 64, 4, 64, 2)))
@@ -279,6 +370,8 @@ if capability(device()) >= v"8.0"
         @test_throws ArgumentError cuDNN.attention_supported(out, q, q, q; causal=:diagonal)
         q60 = cuRAND.randn(Float16, 60, 4, 32, 2)
         @test !cuDNN.attention_supported(similar(q60), q60, q60, q60)
+        q0 = CuArray{Float16}(undef, 60, 4, 0, 2)    # empty: nothing to reject
+        @test isempty(attention(q0, q0, q0))
         qf32 = cuRAND.randn(Float32, 64, 4, 32, 2)
         @test !cuDNN.attention_supported(similar(qf32), qf32, qf32, qf32)
     end

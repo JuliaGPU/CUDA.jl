@@ -11,10 +11,13 @@ end
 cudnn_order(t::Tensor, v) = Int64[v[i] for i in t.backend_order]
 
 function lower_tensor!(ctx::LoweringContext, t::Tensor)
+    haskey(ctx.tensor_descs, t) && return ctx.tensor_descs[t]
+    ragged = t.ragged_offset === nothing ? nothing : lower_tensor!(ctx, t.ragged_offset)
     d = track!(ctx, backend_tensor(uid=t.uid, dims=cudnn_order(t, t.dims),
                                    strides=cudnn_order(t, t.strides), dtype=t.dtype,
                                    is_virtual=t.virtual, by_value=t.by_value,
-                                   alignment=t.alignment, reordering=t.reordering))
+                                   alignment=t.alignment, reordering=t.reordering,
+                                   ragged_offset=ragged))
     ctx.tensor_descs[t] = d
     return d
 end
