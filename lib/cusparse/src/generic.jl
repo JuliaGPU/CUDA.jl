@@ -653,9 +653,10 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         # retrieve the size of the output matrix and the number of non-zero elements
         nnzC = Ref{Int64}()
         cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
+        GPUArrays.check_sparse_nnz(Cint, nnzC[])
         ## allocate the memory to store the result of αAB
-        colVal = CuVector{Cint}(undef, nnzC[])
-        nzVal = CuVector{T}(undef, nnzC[])
+        colVal = GPUArrays.sparse_similar(rowPtr, Cint, nnzC[])
+        nzVal = GPUArrays.sparse_similar(rowPtr, T, nnzC[])
         ## update the descriptor while the output still consists of private buffers
         descC.storage = (rowPtr,colVal,nzVal)
         cusparseCsrSetPointers(descC, rowPtr, colVal, nzVal)
@@ -664,8 +665,17 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(0),
                             descC, T, algo, spgemm_desc)
         CUDACore.unsafe_free!(buffer2)
-        C = canonical_csr(rowPtr,colVal,nzVal,(m,n),promote_type(SparseArrays.indtype(A),SparseArrays.indtype(B)),
-                          GPUArrays.promote_pointer_type(A,B))
+        if version() >= v"12.6"
+            # SpGEMM accumulates contributions into unique coordinates and documents
+            # sorted output. Publish these completed, owned Int32 buffers directly;
+            # other native producers still need canonical_csr's assembly boundary.
+            # The library-version gate is conservative, not the first supporting release.
+            iszero(nnzC[]) && fill!(rowPtr, one(Cint))
+            C = CuSparseMatrixCSR(rowPtr, colVal, nzVal, (m,n))
+        else
+            C = canonical_csr(rowPtr,colVal,nzVal,(m,n),promote_type(SparseArrays.indtype(A),SparseArrays.indtype(B)),
+                              GPUArrays.promote_pointer_type(A,B))
+        end
     end
 
     return C
