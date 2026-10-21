@@ -98,6 +98,20 @@ sdpa_bwd!(gbwdbr, brq, brk, brv, bro, brdO, brstats; causal=:bottom_right)
 @test cuDNN.tensor(gbwdbr, "MaskSeqLenQ").by_value
 @test cuDNN.tensor(gbwdbr, "MaskSeqLenKV").by_value
 
+# a deterministic backward writes dQ directly, without the Float32 accumulator
+let g = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+    io = (tensor!(g; dims=(64, 32, 4, 2), dtype=Float16, name="Q"),
+          tensor!(g; dims=(64, 48, 4, 2), dtype=Float16, name="K"),
+          tensor!(g; dims=(64, 48, 4, 2), dtype=Float16, name="V"),
+          tensor!(g; dims=(64, 32, 4, 2), dtype=Float16, name="O"),
+          tensor!(g; dims=(64, 32, 4, 2), dtype=Float16, name="dO"),
+          tensor!(g; dims=(1, 32, 4, 2), dtype=Float32, name="Stats"))
+    acc = tensor!(g; dims=(64, 32, 4, 2), dtype=Float32, name="Accum")
+    @test_throws ArgumentError sdpa_bwd!(g, io...; dQ_accum=acc, deterministic=true)
+    @test sdpa_bwd!(g, io...; deterministic=true)[5] === nothing
+    @test !any(t -> t.name == "dQAccum", g.tensors)
+end
+
 # grouped queries add fullhead workspaces folded onto the shared k/v heads
 ggqa = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
 mq = tensor!(ggqa; dims=(64, 32, 4, 2), dtype=Float16, name="Q")

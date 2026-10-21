@@ -205,7 +205,7 @@ function build_attention_backward_graph(seqs, (d, h, hk, sq, skv, b), dq, dk, dv
     ts = scalar!(g, Float32; rank=4, name="Scale")
     tseqq, tseqkv = sequence_tensors!(g, seqs, b)
     sdpa_bwd!(g, tq, tk, tv, to, tdO, tstats; dQ=tdq, dK=tdk, dV=tdv, scale=ts,
-              seq_len_q=tseqq, seq_len_kv=tseqkv, causal)
+              seq_len_q=tseqq, seq_len_kv=tseqkv, causal, deterministic)
     build!(g; deterministic, math_mode, max_workspace)
 end
 
@@ -240,17 +240,21 @@ function attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, causal
 end
 
 # the scratch outputs the composite pattern requires: dense in sdpa_bwd!'s (d, s, h, b)
-# order when padded, in the token layout of the gradients when packed
-function bind_backward_workspaces!(bindings, g, seqs, (d, h, hk, sq, skv, b), q, k)
+# order when padded, in the token layout of the gradients when packed. A deterministic
+# graph has no dQ accumulator.
+function bind_backward_workspaces!(bindings, g, seqs, (d, h, hk, sq, skv, b), q, k,
+                                   deterministic)
     T = eltype(q)
     bindings[tensor(g, "SoftmaxSum")] = CUDACore.zeros(Float32, 1, sq, h, b)
     if seqs isa PaddedSequences
-        bindings[tensor(g, "dQAccum")] = CUDACore.zeros(Float32, d, sq, h, b)
+        deterministic ||
+            (bindings[tensor(g, "dQAccum")] = CUDACore.zeros(Float32, d, sq, h, b))
         hk == h && return
         bindings[tensor(g, "dKFullhead")] = CUDACore.zeros(T, d, skv, h, b)
         bindings[tensor(g, "dVFullhead")] = CUDACore.zeros(T, d, skv, h, b)
     else
-        bindings[tensor(g, "dQAccum")] = CUDACore.zeros(Float32, d, h, size(q, 3))
+        deterministic ||
+            (bindings[tensor(g, "dQAccum")] = CUDACore.zeros(Float32, d, h, size(q, 3)))
         hk == h && return
         bindings[tensor(g, "dKFullhead")] = CUDACore.zeros(T, d, h, size(k, 3))
         bindings[tensor(g, "dVFullhead")] = CUDACore.zeros(T, d, h, size(k, 3))
@@ -320,7 +324,7 @@ function run_attention_backward!(seqs, dq::DenseCuArray{T}, dk::DenseCuArray{T},
         tensor(g, "Scale") => Float32(scale),
         tensor(g, "One") => 1f0,
     )
-    bind_backward_workspaces!(bindings, g, seqs, dims, q, k)
+    bind_backward_workspaces!(bindings, g, seqs, dims, q, k, deterministic)
     (causal !== :none || masked(seqs)) &&
         (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
     bind_sequences!(bindings, g, seqs, dims, causal)
@@ -500,7 +504,10 @@ ignored. `deterministic=true` is unsupported for the packed backward on compute
 capability 8.x and 12.x.
 
 The backward pass builds the composite graph of `sdpa_bwd!` and allocates its
-workspace buffers per call (two more under grouped-query attention).
+workspace buffers per call: a Float32 dQ accumulator and a softmax sum, and two more
+under grouped-query attention. `deterministic=true` replaces the dQ accumulator, which
+sums in arbitrary order, with a plan workspace of about `2 * batch_size * heads *
+seq_len_q * seq_len_kv` bytes; `max_workspace` bounds it.
 
 The support predicates build and cache a plan without executing it.
 """

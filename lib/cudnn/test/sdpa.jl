@@ -118,7 +118,7 @@ function sdpa_stats_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
 end
 
 function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
-                            scale=1/sqrt(d), causal=false, rtol=3e-2)
+                            scale=1/sqrt(d), causal=false, deterministic=false, rtol=3e-2)
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
     k = cuRAND.randn(T, d, hk, skv, b) ./ 4
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
@@ -129,25 +129,29 @@ function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
 
     refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal)
     dq, dk, dv = similar(q), similar(k), similar(v)
-    if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, o, stats; causal)
+    if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, o, stats; causal,
+                                           deterministic)
         @test_skip "SDPA backward engine is unsupported on this device"
         return
     end
-    attention_backward!(dq, dk, dv, dO, q, k, v, o, stats; scale, causal)
+    attention_backward!(dq, dk, dv, dO, q, k, v, o, stats; scale, causal, deterministic)
     @test Array(dq) ≈ refdq rtol=rtol
     @test Array(dk) ≈ refdk rtol=rtol
     @test Array(dv) ≈ refdv rtol=rtol
 
-    # dQ is accumulated in arbitrary order, so repeated calls agree only closely
-    a_dq, a_dk, a_dv = attention_backward(dO, q, k, v, o, stats; scale, causal)
-    @test Array(a_dq) ≈ Array(dq) rtol=1e-2
-    @test Array(a_dk) ≈ Array(dk) rtol=1e-2
-    @test Array(a_dv) ≈ Array(dv) rtol=1e-2
+    # dQ is accumulated in arbitrary order unless deterministic, so repeated calls
+    # otherwise agree only closely
+    agree(a, b) = deterministic ? a == b : isapprox(a, b; rtol=1e-2)
+    a_dq, a_dk, a_dv = attention_backward(dO, q, k, v, o, stats; scale, causal,
+                                          deterministic)
+    @test agree(Array(a_dq), Array(dq))
+    @test agree(Array(a_dk), Array(dk))
+    @test agree(Array(a_dv), Array(dv))
 end
 
 function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
                            qlens=[32, 48], kvlens=[40, 56], causal=false,
-                           scale=1/sqrt(d), rtol=3e-2)
+                           deterministic=false, scale=1/sqrt(d), rtol=3e-2)
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
     k = cuRAND.randn(T, d, hk, skv, b) ./ 4
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
@@ -175,12 +179,12 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
     dk = CUDACore.zeros(T, d, hk, skv, b)
     dv = CUDACore.zeros(T, d, hk, skv, b)
     if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, out, stats;
-                                           causal, seq_len_q, seq_len_kv)
+                                           causal, seq_len_q, seq_len_kv, deterministic)
         @test_skip "SDPA padded backward engine is unsupported on this device"
         return
     end
     attention_backward!(dq, dk, dv, dO, q, k, v, out, stats; scale, causal,
-                        seq_len_q, seq_len_kv)
+                        seq_len_q, seq_len_kv, deterministic)
     @test zero_padded_queries!(Array(dq), seq_len_q) ≈
           zero_padded_queries!(refdq, seq_len_q) rtol=rtol
     @test zero_padded_queries!(Array(dk), seq_len_kv) ≈
@@ -267,6 +271,12 @@ if capability(device()) >= v"8.0"
         sdpa_padding_test(T; sq=16, skv=64, qlens=[4, 16], kvlens=[20, 64],
                           causal=:bottom_right)
 
+        # deterministic backward: dQ without the out-of-order accumulator
+        sdpa_backward_test(T; deterministic=true)
+        sdpa_backward_test(T; sq=24, skv=100, h=4, hk=2, causal=:bottom_right,
+                           deterministic=true)
+        sdpa_padding_test(T; deterministic=true)
+
         # packed sequences
         sdpa_packed_test(T)
         sdpa_packed_test(T; causal=true)
@@ -277,6 +287,21 @@ if capability(device()) >= v"8.0"
                          causal=:bottom_right)                 # decoding against caches
         sdpa_packed_test(T; qlens=[5, 0, 64], kvlens=[9, 0, 70],
                          slack=13)                             # empty sequence, loose max
+    end
+
+    # long enough for the default plan's dQ to vary between runs
+    let q = cuRAND.randn(Float16, 64, 4, 512, 2) ./ 4
+        dO = cuRAND.randn(Float16, size(q)) ./ 4
+        stats = CUDACore.zeros(Float32, 1, 512, 4, 2)
+        o = attention(q, q, q; stats)
+        if cuDNN.attention_backward_supported(similar(q), similar(q), similar(q), dO, q, q,
+                                              q, o, stats; deterministic=true)
+            runs = [Array.(attention_backward(dO, q, q, q, o, stats; deterministic=true))
+                    for _ in 1:3]
+            @test all(==(runs[1]), runs)
+        else
+            @test_skip "deterministic SDPA backward is unsupported on this device"
+        end
     end
 
     let q = cuRAND.randn(Float16, 64, 4, 30) ./ 4

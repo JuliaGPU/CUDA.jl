@@ -133,6 +133,12 @@ small reductions along a dimension can be slower.
 
 *Bug fixes*:
 
+- cuDNN's `attention_backward!` with `deterministic=true` gives reproducible
+  gradients. The flag only skipped engines that report themselves as
+  nondeterministic, which the fused attention backward engines don't, so dQ,
+  accumulated in arbitrary order, varied between runs. Deterministic plans now
+  hold dP in a workspace instead, as cudnn-frontend does
+  ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
 - cuDNN's `batchnorm_training!`, `batchnorm_inference!` and `batchnorm_gradient!`
   are implemented with cuDNN's fixed-function batch normalization again. The
   graph API has no engine for inference, `Float64`, inputs of rank 2 or 3, or

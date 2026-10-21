@@ -1135,7 +1135,9 @@ end
 # the composite spelling the fMHA backward engines pattern-match (the unified
 # SDPA_BWD op has no engines anywhere); dims are (d, s, h, b), unlike sdpa_fwd!.
 # Mutates k/v into their transposes; grouped queries add fullhead workspaces.
-# Ragged gradients get ragged workspaces, sized by the token count.
+# Ragged gradients get ragged workspaces, sized by the token count. A deterministic
+# graph writes dQ = dS K directly, as cudnn-frontend does: the engines then hold dP in
+# their workspace instead of accumulating dQ out of order in dQ_accum.
 function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Tensor,
                    stats::Tensor;
                    dQ::Union{Nothing,Tensor}=nothing,
@@ -1146,7 +1148,8 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                    scale::Union{Nothing,Tensor}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
-                   causal::Union{Bool,Symbol}=false, dropout_p::Real=0, bias=nothing)
+                   causal::Union{Bool,Symbol}=false, deterministic::Bool=false,
+                   dropout_p::Real=0, bias=nothing)
     dropout_p == 0 || throw(ArgumentError("sdpa_bwd! does not support dropout"))
     bias === nothing || throw(ArgumentError("sdpa_bwd! does not support bias"))
     causal = sdpa_causal(causal)
@@ -1185,7 +1188,9 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     softmax_sum === nothing &&
         (softmax_sum = tensor!(g; dims=(1, sq, h, b), dtype=Float32, output=true,
                                name="SoftmaxSum"))
-    dQ_accum === nothing &&
+    deterministic && dQ_accum !== nothing &&
+        throw(ArgumentError("a deterministic sdpa_bwd! has no dQ_accum"))
+    dQ_accum === nothing && !deterministic &&
         (dQ_accum = sdpa_bwd_spill!(g, dQ, (d, sq, h, b), Float32, "dQAccum",
                                     dQ.ragged_offset))
     for (name, t, dims) in (("dQ", dQ, (d, sq, h, b)), ("dK", dK, (d, skv, hk, b)),
@@ -1195,8 +1200,10 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     end
     check_sdpa_bwd_workspace("softmax_sum", softmax_sum, (1, sq, h, b))
     check_sdpa_bwd_dtype("softmax_sum", softmax_sum, CUDNN_DATA_FLOAT)
-    check_sdpa_bwd_workspace("dQ_accum", dQ_accum, (d, sq, h, b); like=dQ)
-    check_sdpa_bwd_dtype("dQ_accum", dQ_accum, CUDNN_DATA_FLOAT)
+    if dQ_accum !== nothing
+        check_sdpa_bwd_workspace("dQ_accum", dQ_accum, (d, sq, h, b); like=dQ)
+        check_sdpa_bwd_dtype("dQ_accum", dQ_accum, CUDNN_DATA_FLOAT)
+    end
     scale === nothing && (scale = scalar!(g, Float32; rank=4, name="Scale"))
     one_t = scalar!(g, Float32; rank=4, name="One")
 
@@ -1328,12 +1335,16 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                                  g.compute_dtype, false))
     end
 
-    # dQ = dS K, accumulated in Float32 and cast to the io dtype
+    # dQ = dS K, accumulated in Float32 and cast to the io dtype unless deterministic
     kview = reshape!(g, k; dims=(d, skv, hk, b), strides=kstrides, dtype=iodt,
                      name="Kview")
     kview.ragged_offset = k.ragged_offset
-    mm!(ds, kview, dQ_accum; m=slq, k=slkv)
-    pointwise!(g, CUDNN_POINTWISE_IDENTITY, dQ_accum; y=dQ, name="identity_dQ")
+    if deterministic
+        mm!(ds, kview, dQ; m=slq, k=slkv)
+    else
+        mm!(ds, kview, dQ_accum; m=slq, k=slkv)
+        pointwise!(g, CUDNN_POINTWISE_IDENTITY, dQ_accum; y=dQ, name="identity_dQ")
+    end
 
     return dQ, dK, dV, softmax_sum, dQ_accum, dK_fullhead, dV_fullhead
 end
