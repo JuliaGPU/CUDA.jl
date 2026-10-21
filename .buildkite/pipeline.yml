@@ -28,14 +28,7 @@ steps:
           queue: "cuda"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
-          julia --project=. -e '
-            using Pkg
-            Pkg.develop([PackageSpec(; path) for path in (
-              "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
-              "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
-              "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
-            )])
-            Pkg.test(; test_args=["--quickfail", "julia"])'
+          julia --project .buildkite/sparse-v13-stack.jl --quickfail julia
         if: |
           build.message !~ /\[skip [^\]]*(tests|julia)/ &&
           (build.message =~ /\[only [^\]]*(tests|julia)/ ||
@@ -48,15 +41,16 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "{{matrix.julia}}"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail julia"
-              allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
           queue: "cuda"
+        env:
+          GPUARRAYS_V13_STACK_TEST_ARGS: "--quickfail julia"
+          GPUARRAYS_V13_STACK_ALLOW_RERESOLVE: "false"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          julia --project .buildkite/sparse-v13-stack.jl
         if: |
           build.message !~ /\[skip [^\]]*(tests|julia)/ &&
           (build.message =~ /\[only [^\]]*(tests|julia)/ || build.message !~ /\[only /)
@@ -84,7 +78,6 @@ steps:
           build.message !~ /\[skip [^\]]*(tests|nightly)/ &&
           (build.message =~ /\[only [^\]]*(tests|nightly)/ ||
            build.message !~ /\[only / && build.pull_request.id == null)
-        soft_fail: true
         matrix:
           setup:
             julia:
@@ -103,12 +96,12 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "1.13"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail --all"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
           queue: "cuda"
+        env:
+          GPUARRAYS_V13_STACK_TEST_ARGS: "--quickfail --all"
         if: |
           build.message !~ /\[skip [^\]]*(tests|cuda)/ &&
           (build.message =~ /\[only [^\]]*(tests|cuda)/ ||
@@ -126,6 +119,7 @@ steps:
             *) exit 1 ;;
           esac
           echo -e "[CUDA_Runtime_jll]\nversion = \"{{matrix.cuda}}\"\n\n[CUDA_Compiler_jll]\nversion = \"$${compiler}\"" >LocalPreferences.toml
+          julia --project .buildkite/sparse-v13-stack.jl
 
       # the newest CUDA 12 toolkit, without the GPUArrays testsuite (which is unlikely to
       # depend on the toolkit)
@@ -133,10 +127,10 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core tools libraries"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
+        env:
+          GPUARRAYS_V13_STACK_TEST_ARGS: "--quickfail core tools libraries"
         matrix:
           setup:
             cuda:
@@ -150,10 +144,10 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail cuda"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
+        env:
+          GPUARRAYS_V13_STACK_TEST_ARGS: "--quickfail cuda"
         timeout_in_minutes: 90
         matrix:
           setup:
@@ -193,16 +187,20 @@ steps:
         commands: |
           julia -e '
             using Pkg
+            ENV["GPUARRAYS_V13_STACK_PREPARE_TESTS"]="true"
+            push!(ARGS,"--setup-only")
+            include(".buildkite/sparse-v13-stack.jl")
 
             println("--- :julia: Instantiating project")
             withenv("JULIA_PKG_PRECOMPILE_AUTO" => 0) do
               # add Enzyme to the test deps
-              Pkg.activate("test")
+              Pkg.activate(joinpath(package,"test"))
               Pkg.add(["Enzyme", "EnzymeCore"])
 
               # to check compatibility, also add Enzyme to the main environment
               # (or Pkg.test, which merges both environments, could fail)
-              Pkg.activate(".")
+              Pkg.activate(package)
+              Pkg.develop(filter(spec->normpath(spec.path)!=package,specs))
               # Try to co-develop Enzyme and KA, if that fails, try just to dev Enzyme
               try
                 Pkg.develop([PackageSpec("Enzyme"), PackageSpec("KernelAbstractions")])
@@ -217,7 +215,7 @@ steps:
             end
 
             println("+++ :julia: Running tests")
-            Pkg.test(; coverage=true, test_args=`extensions/enzyme`)'
+            stack_run_tests(["extensions/enzyme"])'
         agents:
           queue: "cuda"
         if: |
@@ -225,7 +223,6 @@ steps:
           (build.message =~ /\[only [^\]]*(tests|downstream)/ ||
            build.message !~ /\[only / && !build.pull_request.draft)
         timeout_in_minutes: 60
-        soft_fail: true
 
   # the GPU-less step runs on a different, often busy queue, so start it right away instead
   # of after the GPU tests: it would otherwise delay the documentation and benchmarks
@@ -237,17 +234,16 @@ steps:
               version: "1.11"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
-          - JuliaCI/julia-test#v1:
-              run_tests: false
         command: |
-          julia --project -e '
+          julia --project .buildkite/sparse-v13-stack.jl --setup-project=.buildkite/stack-env
+          julia --project=.buildkite/stack-env -e '
             using CUDA
             @assert !CUDA.functional()
             @assert !CUDACore.CUDA_Runtime.is_available()
             @assert !CUDACore.CUDA_Compiler.is_available()
             @assert !isdefined(CUDACore, :libcudart)
             CUDA.set_runtime_version!(v"12.0")'
-          julia --project -e '
+          julia --project=.buildkite/stack-env -e '
             using CUDA
             @assert !CUDA.functional()
             @assert CUDACore.CUDA_Runtime.is_available()
@@ -259,7 +255,7 @@ steps:
           build.message !~ /\[skip [^\]]*(tests|special)/ &&
           (build.message =~ /\[only [^\]]*(tests|special)/ ||
            build.message !~ /\[only / && !build.pull_request.draft)
-        timeout_in_minutes: 5
+        timeout_in_minutes: 15
 
   - group: ":eyes: Special"
     depends_on: "cuda"
@@ -268,12 +264,11 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--sanitize core"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
           queue: "cuda"
+        command: julia --project .buildkite/sparse-v13-stack.jl --sanitize core
         if: |
           build.message !~ /\[skip [^\]]*(tests|special)/ &&
           (build.message =~ /\[only [^\]]*(tests|special)/ ||
@@ -285,14 +280,13 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
           queue: "cuda"
         env:
           JULIA_CUDA_MEMORY_POOL: 'none'
+        command: julia --project .buildkite/sparse-v13-stack.jl --quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach
         if: |
           build.message !~ /\[skip [^\]]*(tests|special)/ &&
           (build.message =~ /\[only [^\]]*(tests|special)/ ||
@@ -304,8 +298,6 @@ steps:
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach core/device/array core/execution core/kernelabstractions core/kernelinterface core/pointer core/texture"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
@@ -321,20 +313,20 @@ steps:
               - "unified"
               - "host"
         commands: |
-          echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
+          echo -e "[CUDACore]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
+          julia --project .buildkite/sparse-v13-stack.jl --quickfail core/pool core/array core/broadcast core/cudadrv core/iterator core/threading core/graph core/resources core/resource_graph core/unified_attach core/device/array core/execution core/kernelabstractions core/kernelinterface core/pointer core/texture
 
       # only the tests that use multiple devices
       - label: "MultiGPU"
         plugins:
           - JuliaCI/julia#v1:
               version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core/array core/cudadrv core/initialization core/pool core/threading core/kernelabstractions core/kernelinterface libraries/cublas/xt libraries/cusolver/multigpu"
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
           queue: "cuda"
           multigpu: "*"
+        command: julia --project .buildkite/sparse-v13-stack.jl --quickfail core/array core/cudadrv core/initialization core/pool core/threading core/kernelabstractions core/kernelinterface libraries/cublas/xt libraries/cusolver/multigpu
         if: |
           build.message !~ /\[skip [^\]]*(tests|special)/ &&
           (build.message =~ /\[only [^\]]*(tests|special)/ ||
@@ -348,17 +340,23 @@ steps:
               # the workspace's packages fixed at their local versions instead
               # of resolving them from the registry (and update below)
               version: "1.12"
-          - JuliaCI/julia-test#v1:
-              test_args: "--quickfail core tools"
-              allow_reresolve: false
           - JuliaCI/julia-coverage#v1:
               dirs: ["."]
         agents:
           queue: "cuda"
+        env:
+          GPUARRAYS_V13_STACK_ALLOW_RERESOLVE: "false"
         commands: |
           git clone https://github.com/StefanKarpinski/Resolver.jl /tmp/Resolver
           julia -e 'using Pkg; Pkg.activate("/tmp/Resolver/bin"); Pkg.instantiate()'
-          julia /tmp/Resolver/bin/resolve.jl . --min=@alldeps --julia="1.12"
+          julia -e '
+            using Pkg
+            ENV["GPUARRAYS_V13_STACK_PREPARE_TESTS"]="true"
+            push!(ARGS,"--setup-only")
+            include(".buildkite/sparse-v13-stack.jl")
+            run(Cmd(vcat(Base.julia_cmd().exec,["/tmp/Resolver/bin/resolve.jl",package,"--min=@alldeps","--julia=1.12"])))
+            Pkg.activate(package)
+            stack_run_tests(["--quickfail","core","tools"])'
         if: |
           build.message !~ /\[skip [^\]]*(tests|special)/ &&
           (build.message =~ /\[only [^\]]*(tests|special)/ ||
@@ -373,12 +371,8 @@ steps:
       - JuliaCI/julia#v1:
           version: "1.12"
     commands: |
-      julia --project -e '
-        println("--- :julia: Instantiating project")
-        using Pkg
-        Pkg.instantiate()
-        Pkg.activate("docs")
-        Pkg.instantiate()
+      julia --project .buildkite/sparse-v13-stack.jl --setup-project=docs
+      julia --project=docs -e '
         push!(LOAD_PATH, @__DIR__)
 
         println("+++ :julia: Building documentation")
@@ -397,12 +391,8 @@ steps:
       - JuliaCI/julia#v1:
           version: "1.12"
     commands: |
+      julia --project .buildkite/sparse-v13-stack.jl --setup-project=perf
       julia --project=perf -e '
-        using Pkg
-
-        println("--- :julia: Instantiating project")
-        Pkg.develop([PackageSpec(path=pwd())])
-
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
     artifact_paths:
@@ -416,7 +406,6 @@ steps:
       (build.message =~ /\[only [^\]]*(benchmarks)/ ||
        build.message !~ /\[only / && !build.pull_request.draft)
     timeout_in_minutes: 30
-    soft_fail: true
 
 env:
   JULIA_PKG_SERVER_REGISTRY_PREFERENCE: "eager" # OK to downloading JLLs from GitHub
