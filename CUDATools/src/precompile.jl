@@ -16,41 +16,55 @@ end
 using PrecompileTools
 
 @compile_workload begin
-    # exercise the @profile display path with a dummy result (no GPU needed).
-    # the show method expects at least two cuCtxSynchronize entries in the host trace
-    # to delimit the profiled region, and at least one event between them.
-    dummy = Profile.ProfileResults(;
-        host = (
-            id      = Int[1, 2, 3, 4],
-            start   = Float64[0.0, 0.001, 0.002, 0.010],
-            stop    = Float64[0.001, 0.002, 0.009, 0.011],
-            name    = String["cuCtxSynchronize", "cuCtxSynchronize",
-                             "cuLaunchKernel", "cuCtxSynchronize"],
-            tid     = Int[1, 1, 1, 1],
-        ),
-        device = (
-            id      = Int[3],
-            start   = Float64[0.003],
-            stop    = Float64[0.008],
-            name    = String["kernel"],
-            device  = Int[0],
-            context = Int[1],
-            stream  = Int[1],
-            grid            = Union{Missing,CUDACore.CuDim3}[CUDACore.CuDim3(1,1,1)],
-            block           = Union{Missing,CUDACore.CuDim3}[CUDACore.CuDim3(1,1,1)],
-            registers       = Union{Missing,Int64}[32],
-            shared_mem      = Union{Missing,@NamedTuple{static::Int64,dynamic::Int64}}[(static=0,dynamic=0)],
-            local_mem       = Union{Missing,@NamedTuple{thread::Int64,total::Int64}}[(thread=0,total=0)],
-            size            = Union{Missing,Int64}[missing],
-        ),
-        nvtx = (
-            id      = Int[],
-            start   = Float64[],
-            type    = Symbol[],
-            tid     = Int[],
-            name    = Union{Missing,String}[],
-            domain  = Union{Missing,String}[],
-        ),
+    # displaying results takes seconds to compile, and each table's columns depend on the
+    # data (e.g. a distribution column for repeated calls, sizes for memory operations),
+    # so cover the common variants. the tables need to match what `capture` produces.
+    # the profiled region is delimited by the first and last cuCtxSynchronize.
+    Opt{T} = Union{Missing,T}
+    host = (
+        id      = Int[1, 2, 3, 4, 5, 6, 7],
+        start   = Float64[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0] .* 1e-3,
+        stop    = Float64[0.1, 1.1, 2.1, 3.1, 4.1, 5.1, 6.1] .* 1e-3,
+        name    = String["cuCtxSynchronize", "cuMemAllocFromPoolAsync", "cuMemcpyHtoDAsync_v2",
+                         "cuLaunchKernelEx", "cuLaunchKernelEx", "cuMemcpyDtoHAsync_v2",
+                         "cuCtxSynchronize"],
+        tid     = Int[1, 1, 1, 1, 1, 1, 1],
+        details = Opt{String}[missing, "4.000 KiB, device memory", missing, missing,
+                              missing, missing, missing],
     )
-    show(devnull, dummy)
+    device = (
+        id      = Int[3, 4, 5, 6],
+        start   = Float64[2.2, 3.2, 4.2, 5.2] .* 1e-3,
+        stop    = Float64[2.8, 3.8, 4.8, 5.8] .* 1e-3,
+        name    = String["[copy pageable to device memory]", "kernel", "kernel",
+                         "[copy device to pageable memory]"],
+        device  = Int[0, 0, 0, 0],
+        context = Int[1, 1, 1, 1],
+        stream  = Int[1, 1, 1, 1],
+        grid       = Opt{CUDACore.CuDim3}[missing, CUDACore.CuDim3(1,1,1), CUDACore.CuDim3(1,1,1), missing],
+        block      = Opt{CUDACore.CuDim3}[missing, CUDACore.CuDim3(1,1,1), CUDACore.CuDim3(1,1,1), missing],
+        registers  = Opt{Int64}[missing, 32, 32, missing],
+        shared_mem = Opt{@NamedTuple{static::Int64,dynamic::Int64}}[missing, (static=0,dynamic=0), (static=0,dynamic=0), missing],
+        local_mem  = Opt{@NamedTuple{thread::Int64,total::Int64}}[missing, (thread=0,total=0), (thread=0,total=0), missing],
+        size       = Opt{Int64}[4096, missing, missing, 4096],
+        details    = Opt{String}[missing, missing, missing, missing],
+    )
+    nvtx = (
+        id       = Int[1, 1],
+        start    = Float64[3.0, 5.0] .* 1e-3,
+        type     = Symbol[:start, :end],
+        tid      = Int[1, 1],
+        name     = Opt{String}["range", missing],
+        domain   = Opt{String}["Main", missing],
+        payload  = Any[UInt64(0), UInt64(0)],
+        color    = Union{Nothing,UInt32}[0x01c318af, 0x01c318af],
+        category = Opt{UInt32}[0, 0],
+    )
+    # a single kernel launch, without allocations, copies or NVTX ranges
+    single_kernel = (map(col -> col[[1, 4, 7]], host), map(col -> col[2:2], device),
+                     map(col -> col[1:0], nvtx))
+    for (host, device, nvtx) in ((host, device, nvtx), single_kernel), trace in (false, true)
+        results = Profile.ProfileResults(; host, device, nvtx, trace)
+        show(IOContext(IOBuffer(), :limit => true), MIME"text/plain"(), results)
+    end
 end
