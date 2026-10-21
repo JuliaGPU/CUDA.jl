@@ -23,6 +23,7 @@ for (fname, subty, elty) in ((:cusparseScsrcolor, :Float32, :Float32),
                              (:cusparseZcsrcolor, :Float64, :ComplexF64))
     @eval begin
         function color(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}, index::SparseChar; percentage::Number=1.0)
+            require_cint_storage(A)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m, n = size(A)
             (m != n) && throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))

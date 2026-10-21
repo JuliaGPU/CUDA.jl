@@ -35,6 +35,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                                  (:cusparseZcsric02_bufferSize, :cusparseZcsric02_analysis, :cusparseZcsric02, :ComplexF64))
     @eval begin
         function ic02!(A::CuSparseMatrixCSR{$elty}, index::SparseChar='O')
+            require_cint_storage(A)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -73,6 +74,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                                  (:cusparseZcsric02_bufferSize, :cusparseZcsric02_analysis, :cusparseZcsric02, :ComplexF64))
     @eval begin
         function ic02!(A::CuSparseMatrixCSC{$elty}, index::SparseChar='O')
+            require_cint_storage(A)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -111,6 +113,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                                  (:cusparseZcsrilu02_bufferSize, :cusparseZcsrilu02_analysis, :cusparseZcsrilu02, :ComplexF64))
     @eval begin
         function ilu02!(A::CuSparseMatrixCSR{$elty}, index::SparseChar='O')
+            require_cint_storage(A)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -150,6 +153,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                                  (:cusparseZcsrilu02_bufferSize, :cusparseZcsrilu02_analysis, :cusparseZcsrilu02, :ComplexF64))
     @eval begin
         function ilu02!(A::CuSparseMatrixCSC{$elty}, index::SparseChar='O')
+            require_cint_storage(A)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -189,6 +193,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                                  (:cusparseZbsric02_bufferSize, :cusparseZbsric02_analysis, :cusparseZbsric02, :ComplexF64))
     @eval begin
         function ic02!(A::CuSparseMatrixBSR{$elty}, index::SparseChar='O')
+            require_cint_storage(A)
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -228,6 +233,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                                  (:cusparseZbsrilu02_bufferSize, :cusparseZbsrilu02_analysis, :cusparseZbsrilu02, :ComplexF64))
     @eval begin
         function ilu02!(A::CuSparseMatrixBSR{$elty}, index::SparseChar='O')
+            require_cint_storage(A)
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n

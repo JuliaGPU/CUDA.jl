@@ -68,6 +68,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                            tol::$relty,
                            reorder::Cint,
                            inda::Char)
+            cuSPARSE.require_cint_storage(A)
             n = size(A,1)
             if size(A,2) != n
                 throw(DimensionMismatch("QR factorization is only possible for square matrices!"))
@@ -81,7 +82,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
 
             desca = CuMatrixDescriptor('G', 'L', 'N', inda)
             singularity = Ref{Cint}(1)
-            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+            $fname(sparse_handle(), n, nnz(A), desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
             if singularity[] != -1
                 throw(SingularException(singularity[]))
@@ -104,6 +105,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                              tol::$relty,
                              reorder::Cint,
                              inda::Char)
+            cuSPARSE.require_cint_storage(A)
             n      = size(A,1)
             if size(A,2) != n
                 throw(DimensionMismatch("Cholesky factorization is only possible for square matrices!"))
@@ -117,7 +119,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
 
             desca = CuMatrixDescriptor('G', 'L', 'N', inda)
             singularity = zeros(Cint,1)
-            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+            $fname(sparse_handle(), n, nnz(A), desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
             if singularity[1] != -1
                 throw(SingularException(singularity[1]))
@@ -177,6 +179,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                            tol::$relty,
                            maxite::Cint,
                            inda::Char)
+            cuSPARSE.require_cint_storage(A)
             m,n    = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square!"))
@@ -188,7 +191,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
             desca = CuMatrixDescriptor('G', 'L', 'N', inda)
             x       = copy(x_0)
             μ       = CUDACore.zeros($elty,1)
-            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal,
+            $fname(sparse_handle(), n, nnz(A), desca, A.nzVal, A.rowPtr, A.colVal,
                    μ_0, x_0, maxite, tol, μ, x)
 
             collect(μ)[1], x

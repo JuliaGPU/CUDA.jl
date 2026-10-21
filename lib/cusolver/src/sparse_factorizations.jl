@@ -11,6 +11,7 @@ mutable struct SparseQR{T <: BlasFloat} <: Factorization{T}
 end
 
 function SparseQR(A::CuSparseMatrixCSR{T,Cint}, index::Char='O') where T <: BlasFloat
+    cuSPARSE.require_cint_storage(A)
     m,n = size(A)
     nnzA = nnz(A)
     mu = zero(T)
@@ -35,6 +36,7 @@ end
 # const int *              csrColIndA,
 # csrqrInfo_t              info);
 function spqr_analyse(F::SparseQR{T}, A::CuSparseMatrixCSR{T,Cint}) where T <: BlasFloat
+    cuSPARSE.require_cint_storage(A)
     cusolverSpXcsrqrAnalysis(sparse_handle(), F.m, F.n, F.nnzA, F.descA, A.rowPtr, A.colVal, F.info)
     return F
 end
@@ -60,6 +62,7 @@ for (bname, iname, fname, sname, pname, elty, relty) in
         # size_t *                 internalDataInBytes,
         # size_t *                 workspaceInBytes);
         function spqr_buffer(F::SparseQR{$elty}, A::CuSparseMatrixCSR{$elty,Cint})
+            cuSPARSE.require_cint_storage(A)
             internalDataInBytes = Ref{Csize_t}(0)
             workspaceInBytes = Ref{Csize_t}(0)
             $bname(sparse_handle(), F.m, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.info, internalDataInBytes, workspaceInBytes)
@@ -101,6 +104,7 @@ for (bname, iname, fname, sname, pname, elty, relty) in
         # double             tol,
         # int *              position);
         function spqr_factorise(F::SparseQR{$elty}, A::CuSparseMatrixCSR{$elty,Cint}, tol::$relty)
+            cuSPARSE.require_cint_storage(A)
             $iname(sparse_handle(), F.m, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.mu, F.info)
             $fname(sparse_handle(), F.m, F.n, F.nnzA, CU_NULL, CU_NULL, F.info, F.buffer)
             singularity = Ref{Cint}(0)
@@ -110,6 +114,7 @@ for (bname, iname, fname, sname, pname, elty, relty) in
         end
 
         function spqr_factorise_solve(F::SparseQR{$elty}, A::CuSparseMatrixCSR{$elty,Cint}, b::CuVector{$elty}, x::CuVector{$elty}, tol::$relty)
+            cuSPARSE.require_cint_storage(A)
             $iname(sparse_handle(), F.m, F.n, F.nnzA, F.descA, A.nzVal, A.rowPtr, A.colVal, F.mu, F.info)
             $fname(sparse_handle(), F.m, F.n, F.nnzA, b, x, F.info, F.buffer)
             singularity = Ref{Cint}(0)
@@ -154,6 +159,7 @@ mutable struct SparseCholesky{T <: BlasFloat} <: Factorization{T}
 end
 
 function SparseCholesky(A::Union{CuSparseMatrixCSC{T,Cint},CuSparseMatrixCSR{T,Cint}}, index::Char='O') where T <: BlasFloat
+    cuSPARSE.require_cint_storage(A)
     n = checksquare(A)
     nnzA = nnz(A)
     descA = CuMatrixDescriptor('G', 'L', 'N', index)
@@ -176,6 +182,7 @@ end
 #   const int *              csrColIndA,
 #   csrcholInfo_t            info);
 function spcholesky_analyse(F::SparseCholesky{T}, A::Union{CuSparseMatrixCSC{T,Cint},CuSparseMatrixCSR{T,Cint}}) where T <: BlasFloat
+    cuSPARSE.require_cint_storage(A)
     if A isa CuSparseMatrixCSC
         cusolverSpXcsrcholAnalysis(sparse_handle(), F.n, F.nnzA, F.descA, A.colPtr, A.rowVal, F.info)
     else
@@ -204,6 +211,7 @@ for (bname, fname, pname, elty, relty) in
         #   size_t *                 internalDataInBytes,
         #   size_t *                 workspaceInBytes);
         function spcholesky_buffer(F::SparseCholesky{$elty}, A::Union{CuSparseMatrixCSC{$elty,Cint},CuSparseMatrixCSR{$elty,Cint}})
+            cuSPARSE.require_cint_storage(A)
             internalDataInBytes = Ref{Csize_t}(0)
             workspaceInBytes = Ref{Csize_t}(0)
             if A isa CuSparseMatrixCSC
@@ -236,6 +244,7 @@ for (bname, fname, pname, elty, relty) in
         #   float              tol,
         #   int *              position);
         function spcholesky_factorise(F::SparseCholesky{$elty}, A::Union{CuSparseMatrixCSC{$elty,Cint},CuSparseMatrixCSR{$elty,Cint}}, tol::$relty)
+            cuSPARSE.require_cint_storage(A)
             if A isa CuSparseMatrixCSC
                 nzval = $elty <: Complex ? conj(A.nzVal) : A.nzVal
                 $fname(sparse_handle(), F.n, F.nnzA, F.descA, nzval, A.colPtr, A.rowVal, F.info, F.buffer)

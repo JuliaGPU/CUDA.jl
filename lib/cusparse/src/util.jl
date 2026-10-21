@@ -1,5 +1,18 @@
 # utility functions for the CUSPARSE wrappers
 
+# Legacy ABIs interpret both buffers as int*. The public coordinate parameter alone
+# no longer establishes the pointer width.
+function require_cint_storage(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC,CuSparseMatrixCOO})
+    ptr_ok = A isa CuSparseMatrixCSR ? eltype(A.rowPtr) === Cint :
+             A isa CuSparseMatrixCSC ? eltype(A.colPtr) === Cint : true
+    SparseArrays.indtype(A) === Cint && ptr_ok ||
+        throw(ArgumentError("this legacy vendor operation requires uniform Int32 coordinate and pointer storage; convert explicitly"))
+    return A
+end
+require_cint_storage(A::CuSparseMatrixBSR) =
+    (eltype(A.rowPtr) === Cint && eltype(A.colVal) === Cint ? A :
+     throw(ArgumentError("legacy BSR operation requires Int32 indices")))
+
 """
 check that the dimensions of matrix `X` and vector `Y` make sense for a multiplication
 """
