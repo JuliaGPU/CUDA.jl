@@ -513,7 +513,7 @@ function assemble(@nospecialize(job::CompilerJob), asm::String, needs_cudadevrt:
         "--output-file", ptxas_output,
         ptx_input
     ])
-    proc, log = run_and_collect(`$(CUDA_Compiler.ptxas()) $ptxas_opts`)
+    proc, log = run_and_collect(`$(CUDA_Compiler.ptxas()::Cmd) $ptxas_opts`)
     if !success(proc)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
                                        "ptxas exited with code $(proc.exitcode)"
@@ -552,7 +552,7 @@ function assemble(@nospecialize(job::CompilerJob), asm::String, needs_cudadevrt:
         "--output-file", nvlink_output,
         ptxas_output
     ])
-    proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()) $nvlink_opts`)
+    proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()::Cmd) $nvlink_opts`)
     if !success(proc)
         reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
                                        "nvlink exited with code $(proc.exitcode)"
