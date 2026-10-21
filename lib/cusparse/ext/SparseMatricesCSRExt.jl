@@ -22,6 +22,10 @@ cuSPARSE.CuSparseMatrixCSR{T}(Mat::SparseMatrixCSR) where {T} = CuSparseMatrixCS
 cuSPARSE.CuSparseMatrixCSR(Mat::SparseMatrixCSR{Bi,T}) where {Bi,T} = CuSparseMatrixCSR{T}(Mat)
 cuSPARSE.CuSparseMatrixCSC{T}(Mat::SparseMatrixCSR) where {T} = CuSparseMatrixCSC(CuSparseMatrixCSR{T}(Mat))
 cuSPARSE.CuSparseMatrixCOO{T}(Mat::SparseMatrixCSR) where {T} = CuSparseMatrixCOO(CuSparseMatrixCSR{T}(Mat))
+for format in (:CuSparseMatrixCSC,:CuSparseMatrixCOO)
+    @eval cuSPARSE.$format{T,Ti}(Mat::SparseMatrixCSR) where {T,Ti} =
+        $format{T,Ti}(CuSparseMatrixCSR{T,Ti}(Mat))
+end
 cuSPARSE.CuSparseMatrixBSR{T}(Mat::SparseMatrixCSR, blockdim) where {T} = CuSparseMatrixBSR(CuSparseMatrixCSR{T}(Mat), blockdim)
 cuSPARSE.CuSparseMatrixBSR(Mat::SparseMatrixCSR,blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(Mat),blockdim)
 
