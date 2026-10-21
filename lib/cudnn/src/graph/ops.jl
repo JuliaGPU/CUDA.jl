@@ -2,6 +2,8 @@ struct SDPAMaskSubgraph
     input::Tensor
     fill::Tensor
     output::Tensor
+    seq_len_q::Union{Nothing,Tensor}
+    seq_len_kv::Union{Nothing,Tensor}
 end
 
 struct SDPAFwdOp <: Operation
@@ -209,12 +211,40 @@ function check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
     return
 end
 
-function sdpa_causal_subgraph!(g::Graph, skv, sq, hq, b)
+function sdpa_causal(causal)
+    causal === false && return :none
+    causal === true && return :top_left
+    causal in (:none, :top_left, :bottom_right) ||
+        throw(ArgumentError(
+            "causal must be a Bool, :top_left or :bottom_right, got $(repr(causal))"))
+    return causal
+end
+
+# cudnn-frontend refuses this for forward and backward alike
+function check_sdpa_bottom_right(causal, padded, sq, skv)
+    causal === :bottom_right && !padded && sq > skv &&
+        throw(UnsupportedGraphError(
+            "cuDNN: bottom-right causal masking does not support more queries than keys " *
+            "($sq > $skv) without seq_len_q and seq_len_kv"))
+    return
+end
+
+# bottom-right alignment keeps row + seq_len_kv - seq_len_q >= col: per batch element
+# under padding masks, otherwise from by-value scalars bound to the sequence lengths
+function sdpa_diagonal_lengths!(g::Graph, seq_len_q, seq_len_kv)
+    seq_len_q === nothing || return seq_len_q, seq_len_kv
+    return scalar!(g, Int32; rank=4, name="MaskSeqLenQ"),
+           scalar!(g, Int32; rank=4, name="MaskSeqLenKV")
+end
+
+function sdpa_causal_subgraph!(g::Graph, skv, sq, hq, b, causal, seq_len_q, seq_len_kv)
     score_dims = (skv, sq, hq, b)
     input = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name="Score")
     fill = scalar!(g, Float32; rank=4, name="MaskValue")
     output = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name="MaskedScore")
-    return SDPAMaskSubgraph(input, fill, output)
+    lengths = causal === :bottom_right ? sdpa_diagonal_lengths!(g, seq_len_q, seq_len_kv) :
+              (nothing, nothing)
+    return SDPAMaskSubgraph(input, fill, output, lengths...)
 end
 
 alphabeta_type(dtype::cudnnDataType_t) =
@@ -980,10 +1010,11 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
                    stats::Union{Nothing,Tensor,Bool}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
-                   causal::Bool=false, dropout_p::Real=0,
+                   causal::Union{Bool,Symbol}=false, dropout_p::Real=0,
                    bias=nothing)
     dropout_p == 0 || throw(ArgumentError("sdpa_fwd! does not support dropout"))
     bias === nothing || throw(ArgumentError("sdpa_fwd! does not support bias"))
+    causal = sdpa_causal(causal)
 
     length(q.dims) == 4 || throw(ArgumentError("q must be rank 4"))
     length(k.dims) == 4 || throw(ArgumentError("k must be rank 4"))
@@ -998,6 +1029,7 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     bk == b && bv == b || throw(DimensionMismatch("q, k, and v batch sizes must match"))
     hq % hk == 0 || throw(DimensionMismatch("q head count must be a multiple of k/v heads"))
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
+    check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
 
     o === nothing && (o = tensor!(g; dims=(d, hq, sq, b), dtype=q.dtype, virtual=true,
                                   name="O"))
@@ -1010,7 +1042,8 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     stats === nothing || sdpa_tensor!(stats)
     seq_len_q === nothing || foreach(sdpa_tensor!, (seq_len_q, seq_len_kv))
 
-    mask_subgraph = causal ? sdpa_causal_subgraph!(g, skv, sq, hq, b) : nothing
+    mask_subgraph = causal === :none ? nothing :
+                    sdpa_causal_subgraph!(g, skv, sq, hq, b, causal, seq_len_q, seq_len_kv)
 
     push!(g.ops, SDPAFwdOp(q, k, v, o, scale, stats, seq_len_q, seq_len_kv,
                            mask_subgraph))
@@ -1086,9 +1119,10 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                    scale::Union{Nothing,Tensor}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
-                   causal::Bool=false, dropout_p::Real=0, bias=nothing)
+                   causal::Union{Bool,Symbol}=false, dropout_p::Real=0, bias=nothing)
     dropout_p == 0 || throw(ArgumentError("sdpa_bwd! does not support dropout"))
     bias === nothing || throw(ArgumentError("sdpa_bwd! does not support bias"))
+    causal = sdpa_causal(causal)
 
     length(q.dims) == 4 || throw(ArgumentError("q must be rank 4"))
     length(k.dims) == 4 || throw(ArgumentError("k must be rank 4"))
@@ -1109,6 +1143,7 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     check_sdpa_bwd_workspace("stats", stats, (1, sq, h, b))
     check_sdpa_bwd_dtype("stats", stats, CUDNN_DATA_FLOAT)
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
+    check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
 
     dQ === nothing && (dQ = tensor!(g; dims=(d, sq, h, b), dtype=iodt, output=true,
                                     name="dQ"))
@@ -1158,7 +1193,8 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
 
     slq, slkv = seq_len_q, seq_len_kv
     padded = slq !== nothing
-    ninf = causal || padded ? scalar!(g, Float32; rank=4, name="MaskValue") : nothing
+    ninf = causal !== :none || padded ? scalar!(g, Float32; rank=4, name="MaskValue") :
+           nothing
 
     # P = exp(scale · QKᵀ − stats), padding/causally masked on request
     s = mm!(q, k, virt("S", (skv, sq, h, b)); m=slq, n=slkv)
@@ -1189,7 +1225,7 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
         sm = pointwise!(g, CUDNN_POINTWISE_BINARY_SELECT, sm, ninf, pmask,
                         name="select_padding")
     end
-    if causal
+    if causal !== :none
         score_dims = (skv, sq, h, b)
         row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
                       name="row_idx")
@@ -1199,6 +1235,17 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                    compute_dtype=CUDNN_DATA_INT32, name="gen_row_idx")
         pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=col, axis=3,
                    compute_dtype=CUDNN_DATA_INT32, name="gen_col_idx")
+        if causal === :bottom_right
+            lq, lkv = sdpa_diagonal_lengths!(g, slq, slkv)
+            row_kv = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                             name="row_add_skv")
+            pointwise!(g, CUDNN_POINTWISE_ADD, row, lkv; y=row_kv,
+                       compute_dtype=CUDNN_DATA_INT32, name="row+skv")
+            row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                          name="row_add_skv_sub_sq")
+            pointwise!(g, CUDNN_POINTWISE_SUB, row_kv, lq; y=row,
+                       compute_dtype=CUDNN_DATA_INT32, name="row+skv-sq")
+        end
         mask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
                        name="causal_mask")
         pointwise!(g, CUDNN_POINTWISE_CMP_GE, row, col; y=mask,
@@ -1395,9 +1442,12 @@ function lower(op::NormBwdOp, ctx::LoweringContext)
 end
 
 function lower_sdpa_mask_subgraph!(d, ctx, mask)
+    optdesc(t) = t === nothing ? nothing : desc(ctx, t)
     mask_op = track!(ctx, diagonal_band_mask_operation(desc(ctx, mask.input),
                                                        desc(ctx, mask.fill),
                                                        desc(ctx, mask.output);
+                                                       seq_len_q=optdesc(mask.seq_len_q),
+                                                       seq_len_kv=optdesc(mask.seq_len_kv),
                                                        comparison_mode=CUDNN_POINTWISE_CMP_GE))
     d[:subgraph] = track!(ctx, operation_graph([mask_op]))
     d[:subgraph_input_uid] = mask.input.uid

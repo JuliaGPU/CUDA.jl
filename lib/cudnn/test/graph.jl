@@ -33,6 +33,17 @@ o = sdpa_fwd!(g, q, k, v; scale)
 oc = sdpa_fwd!(g, q, k, v; scale, causal=true)
 @test oc.dims == [64, 4, 32, 2]
 
+# without padding, bottom-right alignment takes the lengths as by-value scalars
+gbr = Graph(io_dtype=Float16)
+brq = tensor!(gbr; dims=(64, 4, 16, 2), dtype=Float16, name="Q")
+brkv = tensor!(gbr; dims=(64, 4, 32, 2), dtype=Float16, name="KV")
+sdpa_fwd!(gbr, brq, brkv, brkv; causal=:bottom_right)
+@test cuDNN.tensor(gbr, "MaskSeqLenQ").by_value
+@test cuDNN.tensor(gbr, "MaskSeqLenKV").dtype == cuDNN.CUDNN_DATA_INT32
+@test_throws cuDNN.UnsupportedGraphError sdpa_fwd!(gbr, brkv, brq, brq;
+                                                  causal=:bottom_right)
+@test_throws ArgumentError sdpa_fwd!(gbr, brq, brkv, brkv; causal=:diagonal)
+
 seqq = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenQ")
 seqkv = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenKV")
 opad = sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq, seq_len_kv=seqkv)
@@ -75,6 +86,17 @@ cstats = tensor!(gbwdc; dims=(1, 32, 4, 2), dtype=Float32, name="Stats")
 cdq, _ = sdpa_bwd!(gbwdc, cq, ck, cv, co, cdO, cstats; causal=true)
 @test cdq.dims == [64, 32, 4, 2]
 @test cuDNN.tensor(gbwdc, "MaskValue").by_value
+
+gbwdbr = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)
+brq = tensor!(gbwdbr; dims=(64, 32, 4, 2), dtype=Float16, name="Q")
+brk = tensor!(gbwdbr; dims=(64, 48, 4, 2), dtype=Float16, name="K")
+brv = tensor!(gbwdbr; dims=(64, 48, 4, 2), dtype=Float16, name="V")
+bro = tensor!(gbwdbr; dims=(64, 32, 4, 2), dtype=Float16, name="O")
+brdO = tensor!(gbwdbr; dims=(64, 32, 4, 2), dtype=Float16, name="dO")
+brstats = tensor!(gbwdbr; dims=(1, 32, 4, 2), dtype=Float32, name="Stats")
+sdpa_bwd!(gbwdbr, brq, brk, brv, bro, brdO, brstats; causal=:bottom_right)
+@test cuDNN.tensor(gbwdbr, "MaskSeqLenQ").by_value
+@test cuDNN.tensor(gbwdbr, "MaskSeqLenKV").by_value
 
 # grouped queries add fullhead workspaces folded onto the shared k/v heads
 ggqa = Graph(io_dtype=Float16, intermediate_dtype=Float32, compute_dtype=Float32)

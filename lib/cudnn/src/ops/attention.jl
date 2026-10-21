@@ -42,6 +42,14 @@ end
 attention_optional_key(a) =
     a === nothing ? nothing : (eltype(a), size(a), strides(a), pointer_alignment(a))
 
+# the by-value scalars of sdpa_diagonal_lengths!
+function bind_diagonal_lengths!(bindings, g, causal, padded, sq, skv)
+    causal === :bottom_right && !padded || return
+    bindings[tensor(g, "MaskSeqLenQ")] = Int32(sq)
+    bindings[tensor(g, "MaskSeqLenKV")] = Int32(skv)
+    return
+end
+
 # By-value scale does not affect plan selection.
 function attention_key(out, q, k, v, stats, seq_len_q, seq_len_kv, causal,
                         deterministic, math_mode, max_workspace)
@@ -124,7 +132,7 @@ end
 function attention!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::DenseCuArray{T,4},
                     v::DenseCuArray{T,4};
                     scale::Real=1/sqrt(size(q, 1)),
-                    causal::Bool=false, dropout_p::Real=0, bias=nothing,
+                    causal::Union{Bool,Symbol}=false, dropout_p::Real=0, bias=nothing,
                     stats::Union{Nothing,DenseCuArray{Float32,4}}=nothing,
                     seq_len_q::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
                     seq_len_kv::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
@@ -135,6 +143,7 @@ function attention!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::DenseCuArra
         throw(ArgumentError("cuDNN attention! only supports Float16/BFloat16, got $T"))
     dropout_p == 0 || throw(ArgumentError("attention! does not support dropout"))
     bias === nothing || throw(ArgumentError("attention! does not support bias"))
+    causal = sdpa_causal(causal)
     isempty(out) && return out
     d, h, sq, skv, b = attention_dims(q, k, v, out)
     attention_stats_dims(stats, h, sq, b)
@@ -159,7 +168,8 @@ function attention!(out::DenseCuArray{T,4}, q::DenseCuArray{T,4}, k::DenseCuArra
     stats === nothing || (bindings[tensor(g, "Stats")] = stats)
     seq_len_q === nothing || (bindings[tensor(g, "SeqLenQ")] = seq_len_q)
     seq_len_kv === nothing || (bindings[tensor(g, "SeqLenKV")] = seq_len_kv)
-    causal && (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    causal === :none || (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    bind_diagonal_lengths!(bindings, g, causal, seq_len_q !== nothing, sq, skv)
     execute!(g, bindings)
     return out
 end
@@ -170,7 +180,8 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
                              v::DenseCuArray{T,4}, o::DenseCuArray{T,4},
                              stats::DenseCuArray{Float32,4};
                              scale::Real=1/sqrt(size(q, 1)),
-                             causal::Bool=false, dropout_p::Real=0, bias=nothing,
+                             causal::Union{Bool,Symbol}=false, dropout_p::Real=0,
+                             bias=nothing,
                              seq_len_q::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
                              seq_len_kv::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
                              deterministic::Bool=false,
@@ -182,6 +193,7 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
         throw(ArgumentError("attention_backward! does not support dropout"))
     bias === nothing ||
         throw(ArgumentError("attention_backward! does not support bias"))
+    causal = sdpa_causal(causal)
     isempty(dq) && isempty(dk) && isempty(dv) && return dq, dk, dv
     d, h, sq, skv, b = attention_dims(q, k, v, o)
     hk = size(k, 2)
@@ -226,8 +238,9 @@ function attention_backward!(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,4},
         tensor(g, "Scale") => Float32(scale),
         tensor(g, "One") => 1f0,
     )
-    (causal || seq_len_q !== nothing) &&
+    (causal !== :none || seq_len_q !== nothing) &&
         (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    bind_diagonal_lengths!(bindings, g, causal, seq_len_q !== nothing, sq, skv)
     if seq_len_q !== nothing
         bindings[tensor(g, "SeqLenQ")] = seq_len_q
         bindings[tensor(g, "SeqLenKV")] = seq_len_kv
@@ -256,13 +269,14 @@ end
 
 function attention_supported(out::DenseCuArray{T,4}, q::DenseCuArray{T,4},
                              k::DenseCuArray{T,4}, v::DenseCuArray{T,4};
-                             causal::Bool=false,
+                             causal::Union{Bool,Symbol}=false,
                              stats::Union{Nothing,DenseCuArray{Float32,4}}=nothing,
                              seq_len_q::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
                              seq_len_kv::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
                              deterministic::Bool=false,
                              math_mode=CUDACore.math_mode(),
                              max_workspace::Union{Nothing,Integer}=nothing) where {T}
+    causal = sdpa_causal(causal)
     T in (Float16, BFloat16) || return false
     d = size(q, 1)
     (d % 8 == 0 && d <= 256) || return false
@@ -289,12 +303,13 @@ function attention_backward_supported(dq::DenseCuArray{T,4}, dk::DenseCuArray{T,
                                       q::DenseCuArray{T,4}, k::DenseCuArray{T,4},
                                       v::DenseCuArray{T,4}, o::DenseCuArray{T,4},
                                       stats::DenseCuArray{Float32,4};
-                                      causal::Bool=false,
+                                      causal::Union{Bool,Symbol}=false,
                                       seq_len_q::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
                                       seq_len_kv::Union{Nothing,DenseCuArray{Int32,4}}=nothing,
                                       deterministic::Bool=false,
                                       math_mode=CUDACore.math_mode(),
                                       max_workspace::Union{Nothing,Integer}=nothing) where {T}
+    causal = sdpa_causal(causal)
     T in (Float16, BFloat16) || return false
     d = size(q, 1)
     (d % 8 == 0 && d <= 256) || return false
@@ -332,10 +347,18 @@ shaped `(1, sequence_length, heads, batch_size)`.
 
 Supported inputs are `Float16` and `BFloat16` `DenseCuArray`s. `scale` defaults to
 `1 / sqrt(head_dim)`. Forward can write the Float32 `stats` tensor needed by backward.
-Set `causal=true` for top-left causal masking. Dense padding masks are enabled by
-passing Int32 `seq_len_q` and `seq_len_kv` tensors shaped `(1, 1, 1, batch_size)`;
-padded backward gradients are defined inside the valid region only.
-`dropout_p` must be zero and `bias` must be `nothing`.
+Dense padding masks are enabled by passing Int32 `seq_len_q` and `seq_len_kv` tensors
+shaped `(1, 1, 1, batch_size)`; padded backward gradients are defined inside the valid
+region only. `dropout_p` must be zero and `bias` must be `nothing`.
+
+`causal=false` (or `:none`) disables causal masking. `causal=true` (or `:top_left`)
+aligns the causal diagonal with the top-left corner of the score matrix: query `i`
+attends to keys `j ≤ i`. `causal=:bottom_right` aligns it with the bottom-right corner,
+for queries that are the last positions of the key sequence (KV-cache decoding, chunked
+prefill): query `i` attends to keys `j ≤ i + seq_len_kv - seq_len_q`, with the lengths
+taken per batch element when they are passed and from the array sizes otherwise. Without
+`seq_len_q` and `seq_len_kv`, it is unsupported when there are more queries than keys;
+with them, the output of queries that see no key is undefined.
 
 The backward pass builds the composite graph of `sdpa_bwd!` and allocates its
 workspace buffers per call (two more under grouped-query attention).

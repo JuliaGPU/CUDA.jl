@@ -116,6 +116,12 @@ small reductions along a dimension can be slower.
 - Added support for cuDNN 9.27 (requires CUDNN_jll 9.27). It no longer unloads
   runtime-compiled kernels while a CUDA graph can still launch them, which
   could give incorrect results or illegal-address faults.
+- cuDNN's `attention!`, `attention_backward!` and their support predicates
+  accept `causal=:bottom_right`, which aligns the causal mask with the end of
+  the key sequence, for queries that are its last positions (KV-cache decoding,
+  chunked prefill). Under padding masks the alignment follows each batch
+  element's `seq_len_q` and `seq_len_kv`
+  ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
 
 *Bug fixes*:
 

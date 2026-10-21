@@ -34,7 +34,8 @@ plan. `deterministic`, `math_mode`, and `max_workspace` constrain plan selection
 ## Operations
 
 - `attention!` and `attention_backward!` implement fused SDPA for
-  `(head_dim, heads, sequence, batch)` tensors, including causal and sequence-length masks.
+  `(head_dim, heads, sequence, batch)` tensors, including causal masks (top-left or
+  bottom-right aligned) and sequence-length masks.
 - `convolution!` and its gradient methods support grouped and asymmetric convolutions,
   optional bias and residual inputs, and pointwise activation.
 - `maxpool!`, `meanpool!`, `∇maxpool!`, and `∇meanpool!` use the fixed-function API, which

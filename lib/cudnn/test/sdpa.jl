@@ -17,6 +17,16 @@ function zero_padded_queries!(a, seq_len_q)
     return a
 end
 
+# key j is visible to query i when j <= i, shifted by kvlen - qlen when bottom-right
+function causal_mask!(S, causal, qlen, kvlen)
+    causal === false && return S
+    shift = causal === :bottom_right ? kvlen - qlen : 0
+    for i in axes(S, 1), j in axes(S, 2)
+        j > i + shift && (S[i, j] = Float32(-Inf))
+    end
+    return S
+end
+
 function sdpa_ref(q, k, v; scale, causal=false, stats=false, seq_len_q=nothing,
                   seq_len_kv=nothing)
     d, h, sq, b = size(q); hk = size(k, 2); skv = size(k, 3)
@@ -30,11 +40,7 @@ function sdpa_ref(q, k, v; scale, causal=false, stats=false, seq_len_q=nothing,
         kvh = (hh - 1) ÷ groups + 1
         Q, K, V = qh[:, hh, :, bb], kh[:, kvh, :, bb], vh[:, kvh, :, bb]
         S = scale .* (Q' * K)                       # sq x skv
-        if causal
-            for i in 1:sq, j in i+1:skv
-                S[i, j] = Float32(-Inf)
-            end
-        end
+        causal_mask!(S, causal, qlens[bb], kvlens[bb])
         kvlens[bb] < skv && (S[:, kvlens[bb]+1:end] .= Float32(-Inf))
         m = maximum(S; dims=2)
         e = exp.(S .- m)
@@ -64,11 +70,7 @@ function sdpa_bwd_ref(q, k, v, dO; scale, causal=false, seq_len_q=nothing,
         kvh = (hh - 1) ÷ groups + 1
         Q, K, V = qh[:, hh, :, bb], kh[:, kvh, :, bb], vh[:, kvh, :, bb]
         S = scale .* (Q' * K)                       # sq x skv
-        if causal
-            for i in 1:sq, j in i+1:skv
-                S[i, j] = Float32(-Inf)
-            end
-        end
+        causal_mask!(S, causal, qlens[bb], kvlens[bb])
         kvlens[bb] < skv && (S[:, kvlens[bb]+1:end] .= Float32(-Inf))
         m = maximum(S; dims=2)
         A = exp.(S .- m)
@@ -136,28 +138,30 @@ function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
     @test Array(dk) ≈ refdk rtol=rtol
     @test Array(dv) ≈ refdv rtol=rtol
 
+    # dQ is accumulated in arbitrary order, so repeated calls agree only closely
     a_dq, a_dk, a_dv = attention_backward(dO, q, k, v, o, stats; scale, causal)
-    @test Array(a_dq) == Array(dq)
-    @test Array(a_dk) == Array(dk)
-    @test Array(a_dv) == Array(dv)
+    @test Array(a_dq) ≈ Array(dq) rtol=1e-2
+    @test Array(a_dk) ≈ Array(dk) rtol=1e-2
+    @test Array(a_dv) ≈ Array(dv) rtol=1e-2
 end
 
 function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
+                           qlens=[32, 48], kvlens=[40, 56], causal=false,
                            scale=1/sqrt(d), rtol=3e-2)
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
     k = cuRAND.randn(T, d, hk, skv, b) ./ 4
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
-    seq_len_q = CuArray(reshape(Int32[32, 48], 1, 1, 1, b))
-    seq_len_kv = CuArray(reshape(Int32[40, 56], 1, 1, 1, b))
+    seq_len_q = CuArray(reshape(Int32.(qlens), 1, 1, 1, b))
+    seq_len_kv = CuArray(reshape(Int32.(kvlens), 1, 1, 1, b))
 
-    ref = sdpa_ref(q, k, v; scale, seq_len_q, seq_len_kv)
+    ref = sdpa_ref(q, k, v; scale, causal, seq_len_q, seq_len_kv)
     out = similar(q)
     stats = CUDACore.zeros(Float32, 1, sq, h, b)
-    if !cuDNN.attention_supported(out, q, k, v; stats, seq_len_q, seq_len_kv)
+    if !cuDNN.attention_supported(out, q, k, v; causal, stats, seq_len_q, seq_len_kv)
         @test_skip "SDPA sequence-length engine is unsupported on this device"
         return
     end
-    attention!(out, q, k, v; scale, stats, seq_len_q, seq_len_kv)
+    attention!(out, q, k, v; scale, causal, stats, seq_len_q, seq_len_kv)
     got = zero_padded_queries!(Array(out), seq_len_q)
     expected = zero_padded_queries!(copy(ref), seq_len_q)
     @test got ≈ expected rtol=rtol
@@ -165,17 +169,18 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
     # padded backward: gradients compare inside the valid region; out-of-range
     # rows are clamped away by the GEMM overrides and stay zero
     dO = cuRAND.randn(T, d, h, sq, b) ./ 4
-    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, seq_len_q, seq_len_kv)
+    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal, seq_len_q,
+                                       seq_len_kv)
     dq = CUDACore.zeros(T, d, h, sq, b)
     dk = CUDACore.zeros(T, d, hk, skv, b)
     dv = CUDACore.zeros(T, d, hk, skv, b)
     if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, out, stats;
-                                           seq_len_q, seq_len_kv)
+                                           causal, seq_len_q, seq_len_kv)
         @test_skip "SDPA padded backward engine is unsupported on this device"
         return
     end
-    attention_backward!(dq, dk, dv, dO, q, k, v, out, stats; scale, seq_len_q,
-                        seq_len_kv)
+    attention_backward!(dq, dk, dv, dO, q, k, v, out, stats; scale, causal,
+                        seq_len_q, seq_len_kv)
     @test zero_padded_queries!(Array(dq), seq_len_q) ≈
           zero_padded_queries!(refdq, seq_len_q) rtol=rtol
     @test zero_padded_queries!(Array(dk), seq_len_kv) ≈
@@ -201,6 +206,18 @@ if capability(device()) >= v"8.0"
         sdpa_backward_test(T; causal=true)
         sdpa_backward_test(T; h=4, hk=2, causal=true)
         sdpa_padding_test(T)
+
+        # bottom-right causal mask: the queries are the last positions of the keys
+        sdpatest(T; causal=:bottom_right)                       # square: as top-left
+        sdpatest(T; sq=16, skv=48, causal=:bottom_right)        # chunked prefill
+        sdpatest(T; sq=1, skv=40, h=4, hk=2, causal=:bottom_right)  # GQA decoding
+        sdpa_stats_test(T; sq=16, skv=48, causal=:bottom_right)
+        sdpa_backward_test(T; sq=16, skv=48, causal=:bottom_right)
+        sdpa_backward_test(T; sq=24, skv=100, h=4, hk=2, causal=:bottom_right)
+        sdpa_padding_test(T; causal=:bottom_right)
+        # the diagonal shifts by each batch element's own lengths, not the sizes'
+        sdpa_padding_test(T; sq=16, skv=64, qlens=[4, 16], kvlens=[20, 64],
+                          causal=:bottom_right)
     end
 
     let q = CuArray(Float16.(randn(Float32, 64, 4, 64, 2)))
@@ -253,6 +270,13 @@ if capability(device()) >= v"8.0"
         out = similar(q)
         @test cuDNN.attention_supported(out, q, q, q)
         @test cuDNN.attention_supported(out, q, q, q; causal=true)
+        @test cuDNN.attention_supported(out, q, q, q; causal=:bottom_right)
+        k16 = cuRAND.randn(Float16, 64, 4, 16, 2) ./ 4   # more queries than keys
+        @test !cuDNN.attention_supported(out, q, k16, k16; causal=:bottom_right)
+        @test_throws cuDNN.UnsupportedGraphError attention(q, k16, k16;
+                                                           causal=:bottom_right)
+        @test_throws ArgumentError attention(q, q, q; causal=:diagonal)
+        @test_throws ArgumentError cuDNN.attention_supported(out, q, q, q; causal=:diagonal)
         q60 = cuRAND.randn(Float16, 60, 4, 32, 2)
         @test !cuDNN.attention_supported(similar(q60), q60, q60, q60)
         qf32 = cuRAND.randn(Float32, 64, 4, 32, 2)
