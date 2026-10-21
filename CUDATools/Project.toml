@@ -1,7 +1,7 @@
 name = "CUDATools"
 uuid = "9ec180c6-1c07-47c7-9e6e-ebefa4d1f6d0"
 authors = ["Tim Besard <tim.besard@gmail.com>"]
-version = "6.4.2"
+version = "7.0.0"
 
 [deps]
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
@@ -25,14 +25,14 @@ CUPTI = {path = "../lib/cupti"}
 NVML = {path = "../lib/nvml"}
 
 [compat]
-CUDACore = "=6.4.2"
+CUDACore = "=7.0.0"
 CUDA_Compiler_jll = "0.6"
-CUPTI = "=6.4.2"
+CUPTI = "=7.0.0"
 Crayons = "4"
 GPUCompiler = "2.12"
 KernelInterface = "0.4"
 LLVM = "10"
-NVML = "=6.4.2"
+NVML = "=7.0.0"
 NVTX = "1"
 PrecompileTools = "1"
 Preferences = "1"
