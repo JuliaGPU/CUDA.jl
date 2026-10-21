@@ -181,8 +181,9 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                                           index::SparseChar='O', indc::SparseChar='O') where {Ti}
             index==indc=='O' || throw(ArgumentError("canonical arrays use one-based indices"))
             m,n = size(bsr)
+            check_cint_indices("BSR to CSR conversion",m,n,nnz(bsr)+1)
             if iszero(bsr.nnzb)
-                return CuSparseMatrixCSR(fill!(CuVector{Ti}(undef,m+1),one(Ti)),
+                return CuSparseMatrixCSR(fill!(CuVector{Ti}(undef,Base.checked_add(m,1)),one(Ti)),
                     CuVector{Ti}(undef,0),CuVector{$elty}(undef,0),size(bsr))
             end
             mb = cld(m, bsr.blockDim)

@@ -1,4 +1,5 @@
 using cuSPARSE
+import GPUArrays
 using LinearAlgebra, SparseArrays
 
 @testset "T = $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
@@ -99,14 +100,15 @@ end
     @test Array(diag(transpose(B), Int8(-128))) ≈ diag(Matrix(transpose(b)), -128)
     @test Array(diag(adjoint(B), Int8(-128))) ≈ diag(Matrix(adjoint(b)), -128)
 
-    # duplicate entries are permitted and sum (see `sum_duplicate`); the CPU
-    # `sparse` constructor sums them too, so it provides the reference
+    # Duplicates enter through assembly, not raw canonical storage.
     rows = [1, 1, 2, 3, 3, 1, 1]
     cols = [1, 1, 2, 1, 1, 3, 3]
     vals = elty <: Complex ? elty[1 + 1im, 2 - 3im, 5 + 2im, 3, 4im, 1 - 1im, 2im] :
                              elty[1, 2, 5, 3, 4, 1, 2]
     a = sparse(rows, cols, vals, 4, 4)
     coo = CuSparseMatrixCOO(CuVector{Cint}(rows), CuVector{Cint}(cols), CuVector(vals), (4, 4))
+    @test_throws ArgumentError GPUArrays.check_structure(coo)
+    coo=sparse(coo.rowInd,coo.colInd,coo.nzVal,4,4;fmt=:coo)
     A = typ === CuSparseMatrixCOO ? coo : typ(coo)
     for k in (0, -2, 2)
         @test Array(diag(A, k)) == diag(Matrix(a), k)
@@ -121,6 +123,8 @@ end
     # true/false duplicates in both orders, so that overwriting gives a different result
     coo = CuSparseMatrixCOO(CuVector(Cint[1, 1, 2, 2, 3]), CuVector(Cint[1, 1, 2, 2, 3]),
                             CuVector([true, false, false, true, false]), (3, 3))
+    @test_throws ArgumentError GPUArrays.check_structure(coo)
+    coo=sparse(coo.rowInd,coo.colInd,coo.nzVal,3,3;fmt=:coo)
     A = typ === CuSparseMatrixCOO ? coo : typ(coo)
     @test Array(diag(A)) == [true, true, false]
 end
