@@ -2,6 +2,7 @@ module SparseMatricesCSRExt
 
 using CUDACore
 using cuSPARSE
+using GPUArrays
 import cuSPARSE:
     CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO, CuSparseMatrixBSR
 using SparseMatricesCSR
@@ -9,17 +10,26 @@ import SparseMatricesCSR: SparseMatrixCSR
 import Adapt
 
 # CPU → GPU
-cuSPARSE.CuSparseMatrixCSR{T}(Mat::SparseMatrixCSR) where {T} =
-    cuSPARSE.CuSparseMatrixCSR{T}(
-    CuVector{Cint}(Mat.rowptr), CuVector{Cint}(Mat.colval),
-    CuVector{T}(Mat.nzval), size(Mat)
-)
+function cuSPARSE.CuSparseMatrixCSR{T,Ti}(Mat::SparseMatrixCSR{Bi}) where {T,Ti,Bi}
+    Bi==1 || throw(ArgumentError("canonical arrays require one-based SparseMatrixCSR input"))
+    GPUArrays.check_sparse_dims(Ti,size(Mat))
+    GPUArrays.check_sparse_nnz(Ti,length(Mat.nzval))
+    GPUArrays.check_sparse_values(T,Mat.nzval)
+    cuSPARSE.CuSparseMatrixCSR(CuVector{Ti}(Mat.rowptr),CuVector{Ti}(Mat.colval),
+                             CuVector{T}(Mat.nzval),size(Mat))
+end
+cuSPARSE.CuSparseMatrixCSR{T}(Mat::SparseMatrixCSR) where {T} = CuSparseMatrixCSR{T,Cint}(Mat)
+cuSPARSE.CuSparseMatrixCSR(Mat::SparseMatrixCSR{Bi,T}) where {Bi,T} = CuSparseMatrixCSR{T}(Mat)
 cuSPARSE.CuSparseMatrixCSC{T}(Mat::SparseMatrixCSR) where {T} = CuSparseMatrixCSC(CuSparseMatrixCSR{T}(Mat))
 cuSPARSE.CuSparseMatrixCOO{T}(Mat::SparseMatrixCSR) where {T} = CuSparseMatrixCOO(CuSparseMatrixCSR{T}(Mat))
 cuSPARSE.CuSparseMatrixBSR{T}(Mat::SparseMatrixCSR, blockdim) where {T} = CuSparseMatrixBSR(CuSparseMatrixCSR{T}(Mat), blockdim)
+cuSPARSE.CuSparseMatrixBSR(Mat::SparseMatrixCSR,blockdim) = CuSparseMatrixBSR(CuSparseMatrixCSR(Mat),blockdim)
 
 # GPU → CPU
-SparseMatricesCSR.SparseMatrixCSR(A::cuSPARSE.CuSparseMatrixCSR) = SparseMatrixCSR{1}(size(A)..., Array(A.rowPtr), Array(A.colVal), Array(A.nzVal))
+function SparseMatricesCSR.SparseMatrixCSR(A::cuSPARSE.CuSparseMatrixCSR)
+    Ti=promote_type(eltype(A.rowPtr),eltype(A.colVal))
+    SparseMatrixCSR{1}(size(A)...,Vector{Ti}(Array(A.rowPtr)),Vector{Ti}(Array(A.colVal)),Array(A.nzVal))
+end
 SparseMatricesCSR.SparseMatrixCSR(A::cuSPARSE.CuSparseMatrixCOO) = SparseMatrixCSR(CuSparseMatrixCSR(A))
 SparseMatricesCSR.SparseMatrixCSR(A::cuSPARSE.CuSparseMatrixCSC) = SparseMatrixCSR(CuSparseMatrixCSR(A))
 SparseMatricesCSR.SparseMatrixCSR(A::cuSPARSE.CuSparseMatrixBSR) = SparseMatrixCSR(CuSparseMatrixCSR(A))
