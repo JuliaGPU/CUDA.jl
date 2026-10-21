@@ -250,7 +250,7 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
             0, # minMipmapLevelClamp::Cfloat
             0, # maxMipmapLevelClamp::Cfloat
             ntuple(_->Cfloat(zero(eltype(T))), 4), # borderColor::NTuple{4, Cfloat}
-            ntuple(_->Cint(0), 12)))
+            ntuple(_->Cint(0), Val(12))))
 
         texObject_ref = Ref{CUtexObject}(0)
         cuTexObjectCreate(texObject_ref, resDesc_ref, texDesc_ref, C_NULL)
@@ -272,7 +272,7 @@ function CUDA_RESOURCE_DESC(texarr::CuTextureArray)
     # ))
     resDesc_ref = Ref((CU_RESOURCE_TYPE_ARRAY, # resType::CUresourcetype
                        pointer(texarr), # 1 x UInt64
-                       ntuple(_->Int64(0), 15), # 15 x UInt64
+                       ntuple(_->Int64(0), Val(15)), # 15 x UInt64
                        UInt32(0)))
     return resDesc_ref
 end
@@ -292,7 +292,7 @@ function CUDA_RESOURCE_DESC(arr::CuArray{T,N}) where {T,N}
                        (N == 2 ? size(arr, 1) : size(arr, 1) * sizeof(T)), # 1 x UInt64 nx
                        (N == 2 ? size(arr, 2) : 0), # 1 x UInt64 ny
                        (N == 2 ? size(arr, 1) * sizeof(T) : 0), # 1 x UInt64 pitch
-                       ntuple(_->Int64(0), 11), # 11 x UInt64
+                       ntuple(_->Int64(0), Val(11)), # 11 x UInt64
                        UInt32(0)))
     return resDesc_ref
 end

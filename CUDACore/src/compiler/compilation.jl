@@ -401,9 +401,10 @@ function emit_ptx(@nospecialize(job::CompilerJob))
     # the IR is ours: inspect it in here, and dispose of it so that it does not leak
     asm, entry, relocations, needs_cudadevrt = JuliaContext() do ctx
         asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
+        ir = meta.ir::LLVM.Module
 
         # check if we'll need the device runtime
-        undefined_fs = filter(collect(meta.ir.functions)) do f
+        undefined_fs = filter(collect(ir.functions)) do f
             isdeclaration(f) && !LLVM.isintrinsic(f) &&
             # intrinsics unknown to the in-process LLVM are still lowered by the back-end
             !startswith(f.name, "llvm.")
@@ -413,7 +414,7 @@ function emit_ptx(@nospecialize(job::CompilerJob))
         needs_cudadevrt = !isempty(setdiff(map(f -> f.name, undefined_fs), intrinsic_fns))
 
         entry = meta.entry.name
-        dispose(meta.ir)
+        dispose(ir)
         asm, entry, meta.relocations, needs_cudadevrt
     end
 
