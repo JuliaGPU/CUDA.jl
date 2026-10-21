@@ -447,7 +447,7 @@ if cuSPARSE.version() >= v"11"
                         G = sprand(T, 25, 35, 0.4)
                         dG = SparseMatrixType(G)
                         @test_throws ErrorException("AB and C must have the same sparsity pattern.") gemm!(transa, transb, gamma, dA, dB, beta, dG, 'O', algo)
-                        dG = gemm!(transa, transb, gamma, dA, dB, zero(T), dG, 'O', algo)
+                        gemm!(transa, transb, gamma, dA, dB, zero(T), dG, 'O', algo)
                         H = gamma * opa(A) * opa(B) + zero(T) * G
                         @test H ≈ SparseMatrixCSC(dG)
                     end

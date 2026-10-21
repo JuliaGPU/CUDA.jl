@@ -655,9 +655,11 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
     Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, reverse(size(B)))
     Cᵀ = CuSparseMatrixCSR(C.colPtr, C.rowVal, C.nzVal, reverse(size(C)))
     gemm!(transb, transa, alpha, Bᵀ, Aᵀ, beta, Cᵀ, index, algo)
-    # If BᵀAᵀ and Cᵀ have the same sparsity pattern, C is already updated after the gemm! call.
-    # If BᵀAᵀ and Cᵀ don't have the same sparsity pattern, Cᵀ is reallocated and C must be updated.
-    C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, size(C))
+    # if the number of non-zeros changed, Cᵀ's arrays were reallocated (freeing C's)
+    C.colPtr = Cᵀ.rowPtr
+    C.rowVal = Cᵀ.colVal
+    C.nzVal = Cᵀ.nzVal
+    C.nnz = Cᵀ.nnz
     return C
 end
 

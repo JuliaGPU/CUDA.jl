@@ -32,6 +32,65 @@ using LinearAlgebra, SparseArrays
         end
     end
 
+    # integer and Bool inputs are converted to the output eltype (CUDA.jl#2072)
+    if elty <: Real && cuSPARSE.version() >= v"11"
+        @testset "$eltya inputs, $SparseMatrixType" for eltya in (Int, Bool),
+            SparseMatrixType in (CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO)
+
+            vals = eltya == Bool ? [true] : [-3:-1; 1:3]
+            function sprand_vals(dims...)
+                S = similar(sprand(dims..., 0.5), eltya)
+                nonzeros(S) .= rand(vals, nnz(S))
+                return S
+            end
+            A = sprand_vals(n, m)
+            B = rand(elty, m, k)
+            b = rand(elty, m)
+            dA = SparseMatrixType(A)
+            @test collect(dA * CuArray(B)) ≈ A * B
+            @test collect(dA * CuArray(b)) ≈ A * b
+
+            C = rand(elty, n, k)
+            dC = CuArray(C)
+            mul!(dC, dA, CuArray(B), alpha, beta)
+            @test collect(dC) ≈ alpha * A * B + beta * C
+
+            Br = rand(elty, k, n)
+            @test collect(CuArray(Br) * dA) ≈ Br * A
+
+            # a non-float dense operand
+            Af = sprand(elty, n, m, 0.5)
+            Bi = Matrix{eltya}(rand(vals, m, k))
+            dC = CuArray(zeros(elty, n, k))
+            mul!(dC, SparseMatrixType(Af), CuArray(Bi))
+            @test collect(dC) ≈ Af * Bi
+
+            c = zeros(elty, n)
+            b_spvec = sprand_vals(m)
+            mul!(c, A, b_spvec)
+            dc = CuArray(zeros(elty, n))
+            mul!(dc, dA, CuSparseVector(b_spvec))
+            @test collect(dc) ≈ c
+            dc = CuArray(zeros(elty, k))
+            mul!(dc, CuArray(transpose(B)), CuSparseVector(b_spvec))
+            @test collect(dc) ≈ transpose(B) * b_spvec
+
+            A2 = sprand_vals(m, k)
+            dD = SparseMatrixType(spzeros(elty, n, k))
+            mul!(dD, dA, SparseMatrixType(A2))
+            @test collect(dD) ≈ A * A2
+        end
+
+        if cuSPARSE.version() >= v"12.5.1"
+            @testset "Int inputs, CuSparseMatrixBSR" begin
+                A = sparse([1, 2, 3, 3], [1, 2, 1, 3], [1, -2, 3, 1])
+                B = rand(elty, 3, 2)
+                dA = CuSparseMatrixBSR(A, 1)
+                @test collect(dA * CuArray(B)) ≈ A * B
+            end
+        end
+    end
+
     @testset "CuMatrix ops opa = $opa" for opa in (identity, transpose, adjoint)
         A_mv  = opa == identity ? rand(elty, n, m) : rand(elty, m, n)
         dA_mv = CuArray(A_mv)
@@ -132,6 +191,11 @@ using LinearAlgebra, SparseArrays
                                 mul!(dC, opa(dA), opb(dB), 3, 3.2)
                                 C = 3.2 * C + 3 * opa(A) * opb(B)
                                 @test collect(dC) ≈ C
+
+                                # the output's number of non-zeros changes
+                                dD = SparseMatrixType(spzeros(elty, m, n))
+                                mul!(dD, dA, dB)
+                                @test collect(dD) ≈ A * B
                             end
                         end
                     end

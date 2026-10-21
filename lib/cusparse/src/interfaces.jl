@@ -49,6 +49,9 @@ sparse_with_eltype(A::CuSparseMatrixCSR{<:Any, Ti}, ::Type{T}) where {T, Ti} =
     CuSparseMatrixCSR{T, Ti}(A.rowPtr, A.colVal, convert(CuVector{T}, nonzeros(A)), size(A))
 sparse_with_eltype(A::CuSparseMatrixCOO{<:Any, Ti}, ::Type{T}) where {T, Ti} =
     CuSparseMatrixCOO{T, Ti}(A.rowInd, A.colInd, convert(CuVector{T}, nonzeros(A)), size(A), nnz(A))
+sparse_with_eltype(A::CuSparseMatrixBSR{<:Any, Ti}, ::Type{T}) where {T, Ti} =
+    CuSparseMatrixBSR{T, Ti}(A.rowPtr, A.colVal, convert(CuVector{T}, nonzeros(A)), size(A),
+                             A.blockDim, A.dir, A.nnzb)
 sparse_with_eltype(A::CuSparseVector{<:Any, Ti}, ::Type{T}) where {T, Ti} =
     CuSparseVector{T, Ti}(nonzeroinds(A), convert(CuVector{T}, nonzeros(A)), length(A))
 
@@ -106,20 +109,27 @@ op_wrappers = ((identity, T -> 'N', identity),
                (T -> :(Adjoint{T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))),
                (T -> :(HermOrSym{T, <:$T}), T -> 'N', A -> :(parent($A))))
 
-# mv! tolerates A.eltype ≠ X.eltype, but requires X.eltype == Y.eltype, so only B may need promotion.
-function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::DenseCuVector{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+# The products below accept inputs of any numeric eltype (e.g. integer or Bool matrices,
+# issue #2072), converting those cuSPARSE doesn't support to the eltype of the output.
+
+# mv! tolerates A.eltype ≠ X.eltype for floating-point eltypes, but requires
+# X.eltype == Y.eltype.
+function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::DenseCuVector{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
+    A′ = Ta <: SpMatMulFloat ? A : sparse_with_eltype(A, Tc)
     B′ = Tb === Tc ? B : convert(CuVector{Tc}, B)
-    mv_wrapper(tA, alpha, A, B′, beta, C)
+    mv_wrapper(tA, alpha, A′, B′, beta, C)
 end
 
-function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::CuSparseVector{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::CuSparseVector{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
-    mv_wrapper(tA, alpha, A, CuVector{Tc}(B), beta, C)
+    A′ = Ta <: SpMatMulFloat ? A : sparse_with_eltype(A, Tc)
+    B′ = Tb <: SpMatMulFloat ? B : sparse_with_eltype(B, Tc)
+    mv_wrapper(tA, alpha, A′, CuVector{Tc}(B′), beta, C)
 end
 
 # mm! requires all three operands to share an eltype, so promote A and B to match C.
-function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::CuSparseMatrix{Ta}, B::DenseCuMatrix{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::CuSparseMatrix{Ta}, B::DenseCuMatrix{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
     tB, B = unwrap_symmherm(tB, B)
     A′ = Ta === Tc ? A : sparse_with_eltype(A, Tc)
@@ -139,7 +149,7 @@ for (wrapa, transa, unwrapa) in op_wrappers
 end
 
 # gemvi! requires matching eltypes, so promote A and B to match C.
-function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::DenseCuMatrix{Ta}, B::CuSparseVector{Tb}, alpha::Number, beta::Number) where {Tc <: BlasFloat, Ta <: BlasFloat, Tb <: BlasFloat}
+function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::DenseCuMatrix{Ta}, B::CuSparseVector{Tb}, alpha::Number, beta::Number) where {Tc <: BlasFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
     A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
     B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
@@ -147,21 +157,21 @@ function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::DenseCuMatrix{
 end
 
 # mm! requires matching eltypes, so promote A and B to match C.
-function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSC{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSC{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
     tB, B = unwrap_symmherm(tB, B)
     A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
     B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
     mm!(tA, tB, alpha, A′, B′, beta, C, 'O')
 end
-function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSR{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCSR{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
     tB, B = unwrap_symmherm(tB, B)
     A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
     B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
     mm!(tA, tB, alpha, A′, B′, beta, C, 'O')
 end
-function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCOO{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: SpMatMulFloat, Tb <: SpMatMulFloat}
+function LinearAlgebra.mul!(C::CuMatrix{Tc}, tA, tB, A::DenseCuMatrix{Ta}, B::CuSparseMatrixCOO{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
     tB, B = unwrap_symmherm(tB, B)
     A′ = Ta === Tc ? A : convert(CuMatrix{Tc}, A)
@@ -194,21 +204,21 @@ for (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
-function LinearAlgebra.mul!(C::CuSparseMatrixCSC{T}, tA, tB, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-    tA, A = unwrap_symmherm(tA, A)
-    tB, B = unwrap_symmherm(tB, B)
-    gemm!(tA, tB, alpha, A, B, beta, C, 'O')
+# gemm! requires matching eltypes, so promote A and B to match C.
+for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
+    @eval function LinearAlgebra.mul!(C::$SparseMatrixType{Tc}, tA, tB, A::$SparseMatrixType{Ta}, B::$SparseMatrixType{Tb}, alpha::Number, beta::Number) where {Tc <: BlasFloat, Ta <: Number, Tb <: Number}
+        tA, A = unwrap_symmherm(tA, A)
+        tB, B = unwrap_symmherm(tB, B)
+        A′ = Ta === Tc ? A : sparse_with_eltype(A, Tc)
+        B′ = Tb === Tc ? B : sparse_with_eltype(B, Tc)
+        gemm!(tA, tB, alpha, A′, B′, beta, C, 'O')
+    end
 end
-function LinearAlgebra.mul!(C::CuSparseMatrixCSR{T}, tA, tB, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
+function LinearAlgebra.mul!(C::CuSparseMatrixCOO{Tc}, tA, tB, A::CuSparseMatrixCOO{Ta}, B::CuSparseMatrixCOO{Tb}, alpha::Number, beta::Number) where {Tc <: BlasFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
     tB, B = unwrap_symmherm(tB, B)
-    gemm!(tA, tB, alpha, A, B, beta, C, 'O')
-end
-function LinearAlgebra.mul!(C::CuSparseMatrixCOO{T}, tA, tB, A::CuSparseMatrixCOO{T}, B::CuSparseMatrixCOO{T}, alpha::Number, beta::Number) where {T <: BlasFloat}
-    tA, A = unwrap_symmherm(tA, A)
-    tB, B = unwrap_symmherm(tB, B)
-    A_csr = CuSparseMatrixCSR(A)
-    B_csr = CuSparseMatrixCSR(B)
+    A_csr = CuSparseMatrixCSR(Ta === Tc ? A : sparse_with_eltype(A, Tc))
+    B_csr = CuSparseMatrixCSR(Tb === Tc ? B : sparse_with_eltype(B, Tc))
     C_csr = CuSparseMatrixCSR(C)
     LinearAlgebra.mul!(C_csr, tA, tB, A_csr, B_csr, alpha, beta)
     copyto!(C, CuSparseMatrixCOO(C_csr))
@@ -224,9 +234,9 @@ end
                             (:(CuVector{Tc}), :(CuSparseMatrix{Ta}), :(CuSparseVector{Tb}), :SpMatMulFloat),
                             (:(CuVector{Tc}), :(DenseCuMatrix{Ta}), :(CuSparseVector{Tb}), :BlasFloat))
         @eval begin
-            LinearAlgebra.generic_matvecmul!(C::$TC, tA::AbstractChar, A::$TA, B::$TB, alpha::Number, beta::Number) where {Tc <: $F, Ta <: $F, Tb <: $F} =
+            LinearAlgebra.generic_matvecmul!(C::$TC, tA::AbstractChar, A::$TA, B::$TB, alpha::Number, beta::Number) where {Tc <: $F, Ta <: Number, Tb <: Number} =
                 mul!(C, tA, A, B, alpha, beta)
-            LinearAlgebra.generic_matvecmul!(C::$TC, tA::AbstractChar, A::$TA, B::$TB, _add::MulAddMul) where {Tc <: $F, Ta <: $F, Tb <: $F} =
+            LinearAlgebra.generic_matvecmul!(C::$TC, tA::AbstractChar, A::$TA, B::$TB, _add::MulAddMul) where {Tc <: $F, Ta <: Number, Tb <: Number} =
                 mul!(C, tA, A, B, _add.alpha, _add.beta)
         end
     end
@@ -235,17 +245,17 @@ end
                             (:(CuMatrix{Tc}), :(DenseCuMatrix{Ta}), :(CuSparseMatrixCSR{Tb}), :SpMatMulFloat),
                             (:(CuMatrix{Tc}), :(DenseCuMatrix{Ta}), :(CuSparseMatrixCOO{Tb}), :SpMatMulFloat))
         @eval begin
-            LinearAlgebra.generic_matmatmul!(C::$TC, tA, tB, A::$TA, B::$TB, alpha::Number, beta::Number) where {Tc <: $F, Ta <: $F, Tb <: $F} =
+            LinearAlgebra.generic_matmatmul!(C::$TC, tA, tB, A::$TA, B::$TB, alpha::Number, beta::Number) where {Tc <: $F, Ta <: Number, Tb <: Number} =
                 mul!(C, tA, tB, A, B, alpha, beta)
-            LinearAlgebra.generic_matmatmul!(C::$TC, tA, tB, A::$TA, B::$TB, _add::MulAddMul) where {Tc <: $F, Ta <: $F, Tb <: $F} =
+            LinearAlgebra.generic_matmatmul!(C::$TC, tA, tB, A::$TA, B::$TB, _add::MulAddMul) where {Tc <: $F, Ta <: Number, Tb <: Number} =
                 mul!(C, tA, tB, A, B, _add.alpha, _add.beta)
         end
     end
     for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixCOO)
         @eval begin
-            LinearAlgebra.generic_matmatmul!(C::$SparseMatrixType{T}, tA, tB, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}, alpha::Number, beta::Number) where {T <: BlasFloat} =
+            LinearAlgebra.generic_matmatmul!(C::$SparseMatrixType{Tc}, tA, tB, A::$SparseMatrixType{Ta}, B::$SparseMatrixType{Tb}, alpha::Number, beta::Number) where {Tc <: BlasFloat, Ta <: Number, Tb <: Number} =
                 mul!(C, tA, tB, A, B, alpha, beta)
-            LinearAlgebra.generic_matmatmul!(C::$SparseMatrixType{T}, tA, tB, A::$SparseMatrixType{T}, B::$SparseMatrixType{T}, _add::MulAddMul) where {T <: BlasFloat} =
+            LinearAlgebra.generic_matmatmul!(C::$SparseMatrixType{Tc}, tA, tB, A::$SparseMatrixType{Ta}, B::$SparseMatrixType{Tb}, _add::MulAddMul) where {Tc <: BlasFloat, Ta <: Number, Tb <: Number} =
                 mul!(C, tA, tB, A, B, _add.alpha, _add.beta)
         end
     end
