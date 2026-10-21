@@ -35,11 +35,12 @@ end
 
 mutable struct CuDenseVectorDescriptor
     handle::cusparseDnVecDescr_t
+    storage::Any
 
     function CuDenseVectorDescriptor(T::DataType, n::Integer)
         desc_ref = Ref{cusparseDnVecDescr_t}()
         cusparseCreateDnVec(desc_ref, n, CU_NULL, T)
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],nothing)
         resource_finalizer(cusparseDestroyDnVec, obj; blocking=false)
         return obj
     end
@@ -47,7 +48,7 @@ mutable struct CuDenseVectorDescriptor
     function CuDenseVectorDescriptor(x::DenseCuVector)
         desc_ref = Ref{cusparseDnVecDescr_t}()
         cusparseCreateDnVec(desc_ref, length(x), x, eltype(x))
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],x)
         resource_finalizer(cusparseDestroyDnVec, obj; blocking=false)
         obj
     end
@@ -60,12 +61,14 @@ Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, desc::CuDenseVectorDescriptor)
 
 mutable struct CuSparseVectorDescriptor
     handle::cusparseSpVecDescr_t
+    storage::Any
 
     function CuSparseVectorDescriptor(x::CuSparseVector, IndexBase::Char)
+        IndexBase == 'O' || throw(ArgumentError("canonical sparse input uses one-based indices"))
         desc_ref = Ref{cusparseSpVecDescr_t}()
         cusparseCreateSpVec(desc_ref, length(x), nnz(x), nonzeroinds(x), nonzeros(x),
                             eltype(nonzeroinds(x)), IndexBase, eltype(x))
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],x)
         resource_finalizer(cusparseDestroySpVec, obj; blocking=false)
         obj
     end
@@ -78,6 +81,7 @@ Base.unsafe_convert(::Type{cusparseSpVecDescr_t}, desc::CuSparseVectorDescriptor
 
 mutable struct CuDenseMatrixDescriptor
     handle::cusparseDnMatDescr_t
+    storage::Any
 
     function CuDenseMatrixDescriptor(T::DataType, m::Integer, n::Integer; transposed::Bool=false)
         desc_ref = Ref{cusparseDnMatDescr_t}()
@@ -86,7 +90,7 @@ mutable struct CuDenseMatrixDescriptor
         else
             cusparseCreateDnMat(desc_ref, m, n, m, CU_NULL, T, 'C')
         end
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],nothing)
         resource_finalizer(cusparseDestroyDnMat, obj; blocking=false)
         return obj
     end
@@ -98,7 +102,7 @@ mutable struct CuDenseMatrixDescriptor
         else
             cusparseCreateDnMat(desc_ref, size(A)..., stride(A,2), A, eltype(A), 'C')
         end
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],A)
         resource_finalizer(cusparseDestroyDnMat, obj; blocking=false)
         obj
     end
@@ -112,7 +116,7 @@ mutable struct CuDenseMatrixDescriptor
         else
             cusparseCreateDnMat(desc_ref, size(A,1), size(A,2), stride(A,2), A, eltype(A), 'C')
         end
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],A)
         resource_finalizer(cusparseDestroyDnMat, obj; blocking=false)
         obj
     end
@@ -125,8 +129,10 @@ Base.unsafe_convert(::Type{cusparseDnMatDescr_t}, desc::CuDenseMatrixDescriptor)
 
 mutable struct CuSparseMatrixDescriptor
     handle::cusparseSpMatDescr_t
+    storage::Any
 
     function CuSparseMatrixDescriptor(A::CuSparseMatrixCOO, IndexBase::Char; transposed::Bool=false)
+        IndexBase == 'O' || throw(ArgumentError("canonical sparse input uses one-based indices"))
         desc_ref = Ref{cusparseSpMatDescr_t}()
         if transposed
             cusparseCreateCoo(
@@ -143,7 +149,7 @@ mutable struct CuSparseMatrixDescriptor
                 eltype(A.rowInd), IndexBase, eltype(nonzeros(A))
             )
         end
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],A)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
@@ -151,7 +157,7 @@ mutable struct CuSparseMatrixDescriptor
     function CuSparseMatrixDescriptor(::Type{CuSparseMatrixCOO}, Tv::DataType, Ti::DataType, m::Integer, n::Integer, IndexBase::Char)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCoo(desc_ref, m, n, Ti(0), CU_NULL, CU_NULL, CU_NULL, Ti, IndexBase, Tv)
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],nothing)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
@@ -173,12 +179,13 @@ mutable struct CuSparseMatrixDescriptor
                 eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
             )
         end
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],A)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
     function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR, IndexBase::Char; transposed::Bool=false)
+        IndexBase == 'O' || throw(ArgumentError("canonical sparse input uses one-based indices"))
         desc_ref = Ref{cusparseSpMatDescr_t}()
         if transposed
             cusparseCreateCsc(
@@ -195,7 +202,7 @@ mutable struct CuSparseMatrixDescriptor
                 eltype(A.rowPtr), eltype(A.colVal), IndexBase, eltype(nonzeros(A))
             )
         end
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],A)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
@@ -203,12 +210,13 @@ mutable struct CuSparseMatrixDescriptor
     function CuSparseMatrixDescriptor(::Type{CuSparseMatrixCSR}, rowPtr::CuVector, Tv::DataType, Ti::DataType, m::Integer, n::Integer, IndexBase::Char)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsr(desc_ref, m, n, Ti(0), rowPtr, CU_NULL, CU_NULL, Ti, Ti, IndexBase, Tv)
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],rowPtr)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
 
     function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC, IndexBase::Char; transposed::Bool=false)
+        IndexBase == 'O' || throw(ArgumentError("canonical sparse input uses one-based indices"))
         desc_ref = Ref{cusparseSpMatDescr_t}()
         if transposed
             # many algorithms, e.g. mv!, mm!, sv! and sm! do not support CSC matrices but we can use CSR matrices that model their transposed.
@@ -226,7 +234,7 @@ mutable struct CuSparseMatrixDescriptor
                 eltype(A.colPtr), eltype(rowvals(A)), IndexBase, eltype(nonzeros(A))
             )
         end
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],A)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
@@ -234,7 +242,7 @@ mutable struct CuSparseMatrixDescriptor
     function CuSparseMatrixDescriptor(::Type{CuSparseMatrixCSC}, colPtr::CuVector, Tv::DataType, Ti::DataType, m::Integer, n::Integer, IndexBase::Char)
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsc(desc_ref, m, n, Ti(0), colPtr, CU_NULL, CU_NULL, Ti, Ti, IndexBase, Tv)
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],colPtr)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
@@ -250,7 +258,7 @@ mutable struct CuSparseMatrixDescriptor
             eltype(A.rowPtr), eltype(A.colVal), IndexBase,
             eltype(A.nzVal), A.dir
         )
-        obj = new(desc_ref[])
+        obj = new(desc_ref[],A)
         resource_finalizer(cusparseDestroySpMat, obj; blocking=false)
         return obj
     end
