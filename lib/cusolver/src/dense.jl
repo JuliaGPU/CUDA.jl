@@ -300,6 +300,14 @@ end
 
 const HOUSEHOLDER_BLOCKSIZE = 128
 
+# whether to prefer the blocked implementation even when cuSOLVER accepts the problem. For
+# tall matrices the legacy routines' workspace grows with the number of rows rather than
+# with the number of reflectors (to about 5x the size of A for k = 64), and they are slower:
+# on an RTX 5080 the blocked ormqr is 1.5-4x faster from 2^15 rows and m >= 8k, while orgqr
+# is up to 3.7x faster for small k and on par otherwise. Smaller problems are dominated by
+# the blocked implementation's launch overhead.
+prefer_blocked(m, k) = m >= max(2^15, 8k)
+
 # compute R for the panel V with reflector coefficients τ. V1 receives the leading jb×jb
 # block of V in explicit unit lower triangular form.
 function householder_ut!(R, V1, V, tau)
@@ -501,7 +509,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
 
             lwork = Ref{Cint}(0)
             if blocksize === nothing
-                if max(m, n, lda, ldc) > typemax(Cint)
+                if max(m, n, lda, ldc) > typemax(Cint) || prefer_blocked(mA, k)
                     blocksize = HOUSEHOLDER_BLOCKSIZE
                 else
                     status = $(Symbol(:unchecked_, bname))(dh, side, trans, m, n, k, A, lda,
@@ -550,7 +558,7 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
             # lower-order terms, so bounding `lda * n` rules out the latter.
             lwork = Ref{Cint}(0)
             if blocksize === nothing
-                if lda * n > typemax(Cint)
+                if lda * n > typemax(Cint) || prefer_blocked(m, k)
                     blocksize = HOUSEHOLDER_BLOCKSIZE
                 else
                     status = $(Symbol(:unchecked_, bname))(dh, m, n, k, A, lda, tau, lwork)

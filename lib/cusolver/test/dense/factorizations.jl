@@ -95,6 +95,15 @@ end
         end
     end
 
+    # tall matrices take the blocked path by default
+    A = rand(elty, 2^15, 8)
+    τ = rand(elty, 8)
+    B = rand(elty, 2^15, 2)
+    trans = elty <: Real ? 'T' : 'C'
+    @test Array(cuSOLVER.ormqr!('L', trans, CuArray(A), CuArray(τ), CuArray(B))) ≈
+          LAPACK.ormqr!('L', trans, copy(A), τ, copy(B))
+    @test Array(cuSOLVER.orgqr!(CuArray(A), CuArray(τ))) ≈ LAPACK.orgqr!(copy(A), τ)
+
     # strided inputs and outputs
     A = rand(elty, m + 2, n + 1)
     τ = rand(elty, n)
