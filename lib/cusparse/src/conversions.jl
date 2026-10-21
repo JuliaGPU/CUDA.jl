@@ -137,6 +137,8 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
         function CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty, Ti}, blockDim::Integer;
                                           dir::SparseChar='R', index::SparseChar='O',
                                           indc::SparseChar='O') where {Ti}
+            index==indc=='O' || throw(ArgumentError("canonical arrays use one-based indices"))
+            blockDim>0 || throw(ArgumentError("block dimension must be positive"))
             m,n = size(csr)
             mb = cld(m, blockDim)
             nb = cld(n, blockDim)
@@ -177,7 +179,12 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
     @eval begin
         function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty, Ti};
                                           index::SparseChar='O', indc::SparseChar='O') where {Ti}
+            index==indc=='O' || throw(ArgumentError("canonical arrays use one-based indices"))
             m,n = size(bsr)
+            if iszero(bsr.nnzb)
+                return CuSparseMatrixCSR(fill!(CuVector{Ti}(undef,m+1),one(Ti)),
+                    CuVector{Ti}(undef,0),CuVector{$elty}(undef,0),size(bsr))
+            end
             mb = cld(m, bsr.blockDim)
             nb = cld(n, bsr.blockDim)
             check_cint_indices("BSR to CSR conversion", widemul(mb, bsr.blockDim),
