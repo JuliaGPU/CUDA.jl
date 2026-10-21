@@ -1,5 +1,21 @@
 import GPUArrays
 
+@testset "dense sparse entrypoint policy" begin
+    host=Float32[1 0 2;0 3 0]
+    A=CuArray(host)
+    @test GPUArrays.default_sparse_indtype(A)===Cint
+    for fmt in (:csc,:csr,:coo)
+        B=sparse(A;fmt)
+        @test SparseArrays.indtype(B)===Cint
+        fmt===:coo || @test eltype(GPUArrays.compressed_ptr(B))===Cint
+        @test Array(B)==host
+    end
+    B=sparse(A;fmt=:bsr)
+    @test B isa CuSparseMatrixBSR{Float32,Cint}
+    @test Array(CuArray(B))==host
+    @test_throws ArgumentError sparse(A;fmt=:unknown_format)
+end
+
 @testset "conversion" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "CSC(::CSR)" begin

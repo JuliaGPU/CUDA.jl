@@ -286,9 +286,6 @@ CuSparseMatrixCOO{T,Ti}(A::CuSparseMatrixBSR) where {T,Ti} = GPUArrays.with_elty
 function CuSparseMatrixBSR(A::CuMatrix,b::Integer=max(gcd(size(A)...),1);index::SparseChar='O')
     CuSparseMatrixBSR(CuSparseMatrixCSR(A),b;index)
 end
-function SparseArrays.sparse(A::CuMatrix;fmt::Symbol=:csc)
-    fmt===:bsr ? CuSparseMatrixBSR(A) : GPUArrays.sparse_format(fmt){eltype(A),Cint}(A)
-end
 CUDACore.CuMatrix{T}(A::CuSparseMatrixBSR;index::SparseChar='O',indc::SparseChar='O') where {T} =
     CuMatrix{T}(CuSparseMatrixCSR{T}(A;index,indc))
 
