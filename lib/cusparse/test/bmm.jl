@@ -20,7 +20,7 @@ if cuSPARSE.version() >= v"11.7.2"
     @testset "Dimension checks" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, k, n, 2))
@@ -39,7 +39,7 @@ if cuSPARSE.version() >= v"11.7.2"
     @testset "C = αAB + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, k, n, 2))
@@ -57,7 +57,7 @@ if cuSPARSE.version() >= v"11.7.2"
     @testset "C = αAᵀB + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, k, n, 2))
@@ -75,7 +75,7 @@ if cuSPARSE.version() >= v"11.7.2"
     @testset "C = αABᵀ + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, n, k, 2))
@@ -93,7 +93,7 @@ if cuSPARSE.version() >= v"11.7.2"
     @testset "C = αAᵀBᵀ + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, n, k, 2))
@@ -111,7 +111,7 @@ if cuSPARSE.version() >= v"11.7.2"
     @testset "extended batch-dims" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A3 = cat(A1, A2; dims=3)
 
         A4 = copy(A3)
@@ -151,7 +151,7 @@ end
     @testset "C = αAB + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, k, n, 2))
@@ -169,7 +169,7 @@ end
     @testset "C = αAᵀB + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, k, n, 2))
@@ -187,7 +187,7 @@ end
     @testset "C = αABᵀ + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, n, k, 2))
@@ -205,7 +205,7 @@ end
     @testset "C = αAᵀBᵀ + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, k, m, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, n, k, 2))
@@ -223,7 +223,7 @@ end
     @testset "extended batch-dims" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A3 = cat(A1, A2; dims=3)
 
         A4 = copy(A3)
@@ -267,7 +267,7 @@ if !(v"12.7" <= cuSPARSE.version() < v"12.8")
     @testset "C = αAB + βC" begin
         A1 = CuSparseMatrixCSR{elty}(sprand(elty, m, k, p))
         A2 = copy(A1)
-        A2.nzVal = CuArray(rand(elty, size(A2.nzVal)...))
+        copyto!(A2.nzVal,rand(elty,size(A2.nzVal)...))
         A = cat(A1, A2; dims=3)
 
         B = CuArray(rand(elty, k, n, 2))

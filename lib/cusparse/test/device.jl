@@ -1,35 +1,35 @@
 using cuSPARSE
 using SparseArrays
 using SparseArrays: nonzeros, nnz, rowvals
-using CUDACore.GPUArrays: GPUSparseDeviceVector, GPUSparseDeviceMatrixCSC, GPUSparseDeviceMatrixCSR,
-                      GPUSparseDeviceMatrixBSR, GPUSparseDeviceMatrixCOO
+using GPUArrays: GPUSparseVector,GPUSparseMatrixCSC,GPUSparseMatrixCSR,GPUSparseMatrixCOO
 
 @testset "cudaconvert" begin
-    @test isbitstype(GPUSparseDeviceVector{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCSC{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCSR{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixBSR{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-    @test isbitstype(GPUSparseDeviceMatrixCOO{Float32, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float32, AS.Global}, AS.Global})
-
-    V = sprand(10, 0.5)
-    cuV = CuSparseVector(V)
-    @test cudaconvert(cuV) isa GPUSparseDeviceVector{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
-
-    A = sprand(10, 10, 0.5)
-    cuA = CuSparseMatrixCSC(A)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCSC{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
-
-    cuA = CuSparseMatrixCSR(A)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCSR{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
-
-    cuA = CuSparseMatrixCOO(A)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixCOO{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
-
-    cuA = CuSparseMatrixBSR(A, 2)
-    @test cudaconvert(cuA) isa GPUSparseDeviceMatrixBSR{Float64, Cint, CuDeviceVector{Cint, AS.Global}, CuDeviceVector{Float64, AS.Global}, AS.Global}
+    V=sprand(10,0.5)
+    for (host,constructor,format) in ((V,CuSparseVector,GPUSparseVector),
+        (sprand(10,10,0.5),CuSparseMatrixCSC,GPUSparseMatrixCSC),
+        (sprand(10,10,0.5),CuSparseMatrixCSR,GPUSparseMatrixCSR),
+        (sprand(10,10,0.5),CuSparseMatrixCOO,GPUSparseMatrixCOO))
+        dev=cudaconvert(constructor(host))
+        @test dev isa format
+        @test isbitstype(typeof(dev))
+        @test nonzeros(dev) isa CuDeviceVector{Float64,AS.Global}
+    end
+    bsr=cudaconvert(CuSparseMatrixBSR(sprand(10,10,0.5),2))
+    @test bsr isa cuSPARSE.CuSparseDeviceMatrixBSR
+    @test isbitstype(typeof(bsr))
 end
 
 @testset "device SparseArrays api" begin
+    @testset "BSR stored scalar count" begin
+        function count_bsr_kernel(out,A)
+            out[1]=nnz(A)
+            nothing
+        end
+        A=CuSparseMatrixBSR(sparse(Float32[1 0;0 2]),2)
+        out=CuVector{Int}(undef,1)
+        @cuda threads=1 count_bsr_kernel(out,A)
+        @test only(Array(out))==nnz(A)==4
+    end
     @testset "nnz per column" begin
         function nnz_per_column(A::CuSparseMatrixCSC{Tv, Ti}) where {Tv, Ti}
             function nnz_per_column_kernel(out, A)

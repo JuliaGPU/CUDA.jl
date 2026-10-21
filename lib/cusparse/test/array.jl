@@ -1,4 +1,17 @@
 using Adapt
+using GPUArrays
+
+function assemble_raw(A::cuSPARSE.CuCanonicalSparse)
+    @test_throws ArgumentError GPUArrays.check_structure(A)
+    if A isa CuSparseVector
+        return GPUArrays.check_structure(sparsevec(SparseArrays.nonzeroinds(A),nonzeros(A),length(A)))
+    end
+    rows,cols=GPUArrays.entry_coordinates(A)
+    fmt=A isa CuSparseMatrixCSC ? :csc : A isa CuSparseMatrixCSR ? :csr : :coo
+    result=GPUArrays.assemble_matrix(rows,cols,nonzeros(A),size(A)...,GPUArrays.default_combine(eltype(A)),fmt;
+                              pointer_type=Int32)
+    GPUArrays.check_structure(result)
+end
 
 @testset "array" begin
     x = sprand(m,0.2)
@@ -12,8 +25,8 @@ using Adapt
     ctx = :module => @__MODULE__
     CUDACore.@allowscalar begin
         inds, vals = findnz(x)
-        @test sprint(show, d_x; context=ctx) == "sparsevec(CuArray($(Int32.(inds))), CuArray($vals), $m)"
-        @test sprint(show, MIME"text/plain"(), d_x; context=ctx) == replace(sprint(show, MIME"text/plain"(), x; context=ctx), "SparseVector{Float64, Int64}"=>"CuSparseVector{Float64, Int32}", "sparsevec(["=>"sparsevec(Int32[")
+        @test sprint(show, d_x; context=ctx) == "sparsevec($(Int32.(inds)), $vals, $m)"
+        @test sprint(show, MIME"text/plain"(), d_x; context=ctx) == replace(sprint(show, MIME"text/plain"(), x; context=ctx), "SparseVector{Float64, Int64}"=>"GPUSparseVector{Float64, Int32}", " stored entries:"=>" stored entries in CuArray:", "sparsevec(["=>"sparsevec(Int32[")
         @test Array(d_x[:])        == x[:]
         @test d_x[firstindex(d_x)] == x[firstindex(x)]
         @test d_x[div(end, 2)]     == x[div(end, 2)]
@@ -45,7 +58,7 @@ using Adapt
     d_ax = CuSparseMatrixCSC(adjoint(x))
     @test size(d_tx) == (n,m)
     @test size(d_ax) == (n,m)
-    @test CuSparseMatrixCSC(d_x) === d_x
+    @test !Base.mightalias(CuSparseMatrixCSC(d_x),d_x)
     @test length(d_x) == m*n
     @test size(d_x)   == (m,n)
     @test size(d_x,1) == m
@@ -54,7 +67,7 @@ using Adapt
     @test ndims(d_x)  == 2
     CUDACore.@allowscalar begin
         @test sprint(show, d_x; context=ctx) == sprint(show, SparseMatrixCSC(d_x); context=ctx)
-        @test sprint(show, MIME"text/plain"(), d_x; context=ctx) == replace(sprint(show, MIME"text/plain"(), x; context=ctx), "SparseMatrixCSC{Float64, Int64}"=>"CuSparseMatrixCSC{Float64, Int32}")
+        @test sprint(show, MIME"text/plain"(), d_x; context=ctx) == replace(sprint(show, MIME"text/plain"(), x; context=ctx), "SparseMatrixCSC{Float64, Int64}"=>"GPUSparseMatrixCSC{Float64, Int32}", " stored entries:"=>" stored entries in CuArray:")
         @test Array(d_x[:])        == x[:]
         @test d_x[:, :]            == x[:, :]
         @test d_tx[:, :]           == transpose(x)[:, :]
@@ -92,7 +105,7 @@ using Adapt
     CUDACore.unsafe_free!(d_y)
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCSC(y)
-    @test_throws ArgumentError copyto!(d_y,d_x)
+    @test_throws DimensionMismatch copyto!(d_y,d_x)
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCOO(x)
     d_tx = CuSparseMatrixCOO(transpose(x))
@@ -100,8 +113,8 @@ using Adapt
     d_tcx = CuSparseMatrixCOO(transpose(CuSparseMatrixCSC(x)))
     d_acx = CuSparseMatrixCOO(adjoint(CuSparseMatrixCSC(x)))
     # reordered I, J to test other indexing path
-    d_rx = CuSparseMatrixCOO{eltype(d_x), Int32}(copy(d_x.colInd), copy(d_x.rowInd), copy(d_x.nzVal))
-    @test CuSparseMatrixCOO(d_x) === d_x
+    d_rx = GPUArrays.assemble_matrix(copy(d_x.colInd),copy(d_x.rowInd),copy(d_x.nzVal),n,m,+,:coo)
+    @test !Base.mightalias(CuSparseMatrixCOO(d_x),d_x)
     @test length(d_x) == m*n
     @test size(d_x)   == (m,n)
     @test size(d_rx)  == (n,m)
@@ -153,14 +166,15 @@ using Adapt
             end
         end
     end
-    # COO sorted by row but not by column within each row — cuSPARSE's
-    # documented invariant is row-sorted only, so getindex must handle this.
+    # Vendor data may be noncanonical. Raw v13 constructors borrow canonical buffers;
+    # validate and explicitly assemble these inputs before numerical operations.
     let dense = sparse(reshape(1:16, 4, 4)),
         d_scrambled = CuSparseMatrixCOO(
             CuArray(Int32[1,1,1,1, 2,2,2,2, 3,3,3,3, 4,4,4,4]),
             CuArray(Int32[4,2,1,3, 2,4,3,1, 3,1,4,2, 1,4,2,3]),
             CuArray([13,5,1,9, 6,14,10,2, 11,3,15,7, 4,16,8,12]),
             (4, 4))
+        d_scrambled=assemble_raw(d_scrambled)
         CUDACore.@allowscalar begin
             for j in axes(dense, 2), i in axes(dense, 1)
                 @test d_scrambled[i, j] == dense[i, j]
@@ -175,6 +189,7 @@ using Adapt
             CuArray(Int32[4,2,1,3, 2,4,3,1, 3,1,4,2, 1,4,2,3]),
             CuArray([13,5,1,9, 6,14,10,2, 11,3,15,7, 4,16,8,12]),
             (4, 4))
+        d_scrambled=assemble_raw(d_scrambled)
         CUDACore.@allowscalar begin
             for j in axes(dense, 2), i in axes(dense, 1)
                 @test d_scrambled[i, j] == dense[i, j]
@@ -188,6 +203,7 @@ using Adapt
             CuArray(Int32[4,2,1,3, 2,4,3,1, 3,1,4,2, 1,4,2,3]),
             CuArray([4,2,1,3, 6,8,7,5, 11,9,12,10, 13,16,14,15]),
             (4, 4))
+        d_scrambled=assemble_raw(d_scrambled)
         CUDACore.@allowscalar begin
             for j in axes(dense, 2), i in axes(dense, 1)
                 @test d_scrambled[i, j] == dense[i, j]
@@ -202,6 +218,7 @@ using Adapt
                 CuArray(Int32[1, 1, 1]),
                 CuArray([10, -3, -4]),
                 (2, 2))
+            d_csr=assemble_raw(d_csr)
             @test d_csr[1, 1] == 3
             @test d_csr[2, 2] == 0
             @test d_csr[1, 2] == 0
@@ -211,6 +228,7 @@ using Adapt
                 CuArray(Int32[1, 1, 1]),
                 CuArray([10, -3, -4]),
                 (2, 2))
+            d_csc=assemble_raw(d_csc)
             @test d_csc[1, 1] == 3
             @test d_csc[2, 2] == 0
             @test d_csc[2, 1] == 0
@@ -220,11 +238,13 @@ using Adapt
                 CuArray(Int32[1, 1, 1]),
                 CuArray([10, -3, -4]),
                 (2, 2))
+            d_coo=assemble_raw(d_coo)
             @test d_coo[1, 1] == 3
             @test d_coo[2, 2] == 0
             @test d_coo[1, 2] == 0
         end
         let d_vec = CuSparseVector{Int}(CuArray(Int32[3, 1, 3]), CuArray([10, 7, -4]), 4)
+            d_vec=assemble_raw(d_vec)
             @test d_vec[1] == 7
             @test d_vec[3] == 6
             @test d_vec[2] == 0
@@ -236,18 +256,19 @@ using Adapt
                 CuArray(Int32[1, 1]),
                 CuArray([true, true]),
                 (2, 2))
+            d_bool=assemble_raw(d_bool)
             @test d_bool[1, 1] === true
             @test d_bool[2, 2] === false
         end
     end
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCOO(y)
-    @test_throws ArgumentError copyto!(d_y,d_x)
+    @test_throws DimensionMismatch copyto!(d_y,d_x)
     d_y = CuSparseMatrixCSR(d_y)
     d_x = CuSparseMatrixCSR(d_x)
     d_z = copy(d_x)
     CUDACore.unsafe_free!(d_z)
-    @test CuSparseMatrixCSR(d_x) === d_x
+    @test !Base.mightalias(CuSparseMatrixCSR(d_x),d_x)
     @test reshape(d_x, :, :, 1, 1, 1) isa CuSparseArrayCSR
     @test_throws ArgumentError("Cannot repeat matrix dimensions of CuSparseCSR") repeat(d_x, 2, 1, 3)
     @test repeat(d_x, 1, 1, 3) isa CuSparseArrayCSR
@@ -258,7 +279,7 @@ using Adapt
         @test startswith(sprint(show, MIME"text/plain"(), repeat(d_x, 1, 1, 2); context=ctx), "$m×$n×2 CuSparseArrayCSR{Float64, Int32, 3} with $(2*nnz(d_x)) stored entries:\n")
     end
     @test length(d_x) == m*n
-    @test_throws ArgumentError copyto!(d_y,d_x)
+    @test_throws DimensionMismatch copyto!(d_y,d_x)
     CUDACore.@allowscalar begin
         for i in 1:size(y, 1)
           @test d_y[i, :] ≈ y[i, :]
@@ -286,7 +307,7 @@ using Adapt
     @test_throws ArgumentError size(d_x, 0)
     y = sprand(n,0.2)
     d_y = CuSparseVector(y)
-    @test_throws ArgumentError copyto!(d_y,d_x)
+    @test_throws DimensionMismatch copyto!(d_y,d_x)
     x = sprand(m,m,0.2)
     d_x = Symmetric(CuSparseMatrixCSC(x + transpose(x)))
     @test issymmetric(d_x)
@@ -339,7 +360,7 @@ using Adapt
     d_vals = CuArray(vals)
     v = sparsevec(i, vals, n)
     d_v = sparsevec(d_i, d_vals, n)
-    @test Array(d_v.iPtr) == v.nzind
+    @test Array(d_v.nzInd) == v.nzind
     @test Array(d_v.nzVal) == v.nzval
     @test d_v.len == v.n
 
@@ -366,7 +387,7 @@ using Adapt
     let v = sprand(Float64, m, 0.2)
         d_v = cu(v; unified=true)
         @test d_v isa CuSparseVector{Float32}
-        @test d_v.iPtr  isa CuArray{Int32, 1, CUDACore.UnifiedMemory}
+        @test d_v.nzInd  isa CuArray{Int32, 1, CUDACore.UnifiedMemory}
         @test d_v.nzVal isa CuArray{Float32, 1, CUDACore.UnifiedMemory}
     end
     # Float16 should be preserved (matching dense `cu` semantics)

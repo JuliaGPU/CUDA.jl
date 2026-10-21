@@ -44,7 +44,10 @@
                 @test size(similar(d_x, (3, 4))) == (3, 4)
                 @test size(similar(d_x, Float64, (3, 4))) == (3, 4)
                 @test similar(d_x, Float32) isa CuSparseMatrixCOO{Float32}
-                @test CuSparseMatrixCOO(d_x) === d_x
+                owned = CuSparseMatrixCOO(d_x)
+                @test Array(owned) == Array(d_x)
+                @test !Base.mightalias(owned,d_x)
+                @test convert(typeof(d_x),d_x) === d_x
             end
         end
 

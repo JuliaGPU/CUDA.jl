@@ -67,7 +67,7 @@ end
 
     d_B = copy(d_A)
     nnz_B = rand(elty, nnz(d_B))
-    d_B.nzVal = CuVector{elty}(nnz_B)
+    copyto!(nonzeros(d_B),nnz_B)
     b = rand(elty, m)
     d_b = CuVector(b)
     x = zeros(elty, n)

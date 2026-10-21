@@ -8,6 +8,8 @@ Performs `C = alpha * A + beta * B`. `A` and `B` are sparse matrices defined in 
 geam(alpha::Number, A::CuSparseMatrixCSR, beta::Number, B::CuSparseMatrixCSR, index::SparseChar)
 
 function geam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::CuSparseMatrixCSR{T}, index::SparseChar) where {T <: BlasFloat}
+    require_cint_storage(A); require_cint_storage(B)
+    index == 'O' || throw(ArgumentError("canonical sparse arrays use one-based indices"))
     # the generic SpGEAM API was added in cuSPARSE 12.8.1 (CUDA 13.3); use the
     # legacy csrgeam2 path on older versions.
     version() >= v"12.8.1" ? geam_spgeam(alpha, A, beta, B, index) :
@@ -27,7 +29,7 @@ function geam_spgeam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::Cu
     descC = CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtrC, T, Cint, m, n, index)
     spgeam_desc = CuSpGEAMDescriptor()
 
-    local C
+    local colValC, nzValC
     GC.@preserve rowPtrC begin
         function bufferSize()
             out = Ref{Csize_t}()
@@ -44,14 +46,14 @@ function geam_spgeam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::Cu
 
             colValC = CuVector{Cint}(undef, nnzC[])
             nzValC  = CuVector{T}(undef, nnzC[])
-            C = CuSparseMatrixCSR{T, Cint}(rowPtrC, colValC, nzValC, (m, n))
-            cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
+            descC.storage = (rowPtrC,colValC,nzValC)
+            cusparseCsrSetPointers(descC, rowPtrC, colValC, nzValC)
 
             cusparseSpGEAM(handle(), 'N', 'N', alpha_ref, descA, beta_ref, descB,
                            descC, T, CUSPARSE_SPGEAM_ALG_DEFAULT, spgeam_desc, buffer)
         end
     end
-    return C
+    return canonical_csr(rowPtrC,colValC,nzValC,(m,n),Cint,Cint)
 end
 
 for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2, :Float32),
@@ -97,7 +99,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                     buffer)
             end
 
-            C = CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
+            C = canonical_csr(rowPtrC,colValC,nzValC,(m,n),Cint,Cint)
             return C
         end
     end
@@ -128,11 +130,11 @@ function axpby(alpha::Number, x::CuSparseVector{T}, beta::Number, y::CuSparseVec
 
     # we model x as a CuSparseMatrixCSR with one row.
     rowPtrA = CuVector{Int32}([1; nnz(x)+1])
-    A = CuSparseMatrixCSR(rowPtrA, x.iPtr, nonzeros(x), (1,n))
+    A = CuSparseMatrixCSR(rowPtrA, x.nzInd, nonzeros(x), (1,n))
 
     # we model y as a CuSparseMatrixCSR with one row.
     rowPtrB = CuVector{Int32}([1; nnz(y)+1])
-    B = CuSparseMatrixCSR(rowPtrB, y.iPtr, nonzeros(y), (1,n))
+    B = CuSparseMatrixCSR(rowPtrB, y.nzInd, nonzeros(y), (1,n))
 
     C = geam(alpha, A, beta, B, index)
     z = CuSparseVector(C.colVal, C.nzVal, n)

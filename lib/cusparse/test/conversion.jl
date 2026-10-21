@@ -1,3 +1,5 @@
+import GPUArrays
+
 @testset "conversion" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "CSC(::CSR)" begin
@@ -215,8 +217,8 @@ end
             end
         end
     end
-    @test_throws ArgumentError("Format :bad not available, use :csc, :csr, :bsr or :coo.") sparse(dense; fmt=:bad)
-    @test_throws ArgumentError("Format :bad not available, use :csc, :csr, or :coo.") sparse(I, J, V; fmt=:bad)
+    @test_throws ArgumentError("unknown sparse format :bad, expected :csc, :csr or :coo") sparse(dense; fmt=:bad)
+    @test_throws ArgumentError("unknown sparse format :bad, expected :csc, :csr or :coo") sparse(I, J, V; fmt=:bad)
 end
 
 @testset "sparse -- empty matrix" begin
@@ -307,7 +309,8 @@ end
     @test SparseMatrixCSC(dA) ≈ A
 
     dx = CuSparseVector(x)
-    @test CuSparseVector{Float64, Cint}(dx) === dx
+    dx_copy = CuSparseVector{Float64, Cint}(dx)
+    @test dx_copy == dx && !Base.mightalias(dx_copy,dx)
     @test CuSparseVector{Float32}(dx) isa CuSparseVector{Float32, Cint}
     dx64 = CuSparseVector{Float32, Int64}(dx)
     @test dx64 isa CuSparseVector{Float32, Int64}
@@ -319,10 +322,10 @@ end
     for T1 in formats, T2 in formats
         dA = convert_to(T1, A)
         if T1 == T2
-            # matching types return the input, others copy every buffer
-            @test T2{Float64, Cint}(dA) === dA
+            # Allocating constructors copy; convert may retain matching storage.
+            @test T2{Float64, Cint}(dA) !== dA
             @test convert(T2{Float64, Cint}, dA) === dA
-            @test T2{Float64}(dA) === dA
+            @test T2{Float64}(dA) !== dA
             dB = T2{Float32}(dA)
             @test dB isa T2{Float32, Cint}
             dC = convert(T2{Float64, Int64}, dA)
@@ -513,8 +516,16 @@ end
     end
 
     # sizes beyond the 32-bit routines are rejected instead of truncated
-    coo = CuSparseMatrixCOO{Float32, Ti}(CuVector{Ti}(), CuVector{Ti}(), CuVector{Float32}(), (2^32, 1))
-    @test_throws ArgumentError CuSparseMatrixCSR(coo)
+    if Ti === Int32
+        @test_throws ArgumentError CuSparseMatrixCOO{Float32,Ti}(
+            CuVector{Ti}(),CuVector{Ti}(),CuVector{Float32}(),(2^32,1))
+    else
+        # Canonical constructors reject metadata overflow. Portable COO can still
+        # represent this shape without allocating a huge compressed pointer array.
+        coo=CuSparseMatrixCOO{Float32,Ti}(
+            CuVector{Ti}(),CuVector{Ti}(),CuVector{Float32}(),(2^32,1))
+        @test_throws ArgumentError CuSparseMatrixCSR{Float32,Int32}(coo)
+    end
 end
 
 @testset "sort CuSparseMatrix with $Ti indices" for Ti in (Int32, Int64)
@@ -527,16 +538,16 @@ end
         vals = [9, 7, 8, 4, 6, 5] |> cu
         coo = CuSparseMatrixCOO{Int, Ti}(rows, cols, vals, (3,3))
 
+        @test_throws ArgumentError GPUArrays.check_structure(coo)
+        coo=GPUArrays.assemble_matrix(coo.rowInd,coo.colInd,coo.nzVal,3,3,+,:coo)
         sorted_coo_R = sort_coo(coo, 'R')
+        @test GPUArrays.check_structure(sorted_coo_R) === sorted_coo_R
         @test sorted_coo_R isa CuSparseMatrixCOO{Int, Ti}
         @test collect(sorted_coo_R.rowInd) ≈ [1, 1, 2, 2, 3, 3]
         @test collect(sorted_coo_R.colInd) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_coo_R.nzVal)  ≈ [5, 7, 8, 6, 4, 9]
 
-        sorted_coo_C = sort_coo(coo, 'C')
-        @test collect(sorted_coo_C.rowInd) ≈ [1, 2, 1, 3, 2, 3]
-        @test collect(sorted_coo_C.colInd) ≈ [1, 1, 2, 2, 3, 3]
-        @test collect(sorted_coo_C.nzVal)  ≈ [5, 8, 7, 4, 6, 9]
+        @test_throws ArgumentError sort_coo(coo,'C')
     end
     @testset "sort_csc" begin
         rows = [2, 1, 3, 1, 2, 3] |> cu
@@ -544,7 +555,11 @@ end
         vals = [8, 5, 4, 7, 6, 9] |> cu
         csc = CuSparseMatrixCSC{Int, Ti}(ccols, rows, vals, (3,3))
 
+        @test_throws ArgumentError GPUArrays.check_structure(csc)
+        csc=GPUArrays.assemble_matrix(csc.rowVal,GPUArrays.expand_ptr(csc.colPtr,nnz(csc),Ti),
+                                     csc.nzVal,3,3,+,:csc;pointer_type=Ti)
         sorted_csc = sort_csc(csc)
+        @test GPUArrays.check_structure(sorted_csc) === sorted_csc
         @test sorted_csc isa CuSparseMatrixCSC{Int, Ti}
         @test collect(sorted_csc.colPtr) ≈ [1, 3, 5, 7]
         @test collect(sorted_csc.rowVal) ≈ [1, 2, 1, 3, 2, 3]
@@ -556,7 +571,11 @@ end
         vals = [7, 5, 8, 6, 9, 4] |> cu
         csr = CuSparseMatrixCSR{Int, Ti}(crows, cols, vals, (3,3))
 
+        @test_throws ArgumentError GPUArrays.check_structure(csr)
+        csr=GPUArrays.assemble_matrix(GPUArrays.expand_ptr(csr.rowPtr,nnz(csr),Ti),csr.colVal,
+                                     csr.nzVal,3,3,+,:csr;pointer_type=Ti)
         sorted_csr = sort_csr(csr)
+        @test GPUArrays.check_structure(sorted_csr) === sorted_csr
         @test sorted_csr isa CuSparseMatrixCSR{Int, Ti}
         @test collect(sorted_csr.rowPtr) ≈ [1, 3, 5, 7]
         @test collect(sorted_csr.colVal) ≈ [1, 2, 1, 3, 2, 3]
@@ -618,54 +637,16 @@ if !(v"12.0" <= cuSPARSE.version() < v"12.1")
             @test coo_to_csc_O.nzVal  ≈ csc_O.nzVal
         end
 
-        @testset "0-based indexing" begin
-            # COO format
-            rows_Z = [0, 1, 1] |> cu
-            cols_Z = [2, 1, 2] |> cu
-            vals_Z = [5, 6, 7] |> cu
-            coo_Z  = CuSparseMatrixCOO{Float64}(rows_Z, cols_Z, vals_Z, (2,3))
-
-            # CSC format
-            rows_Z  = [1, 0, 1]    |> cu
-            ccols_Z = [0, 0, 1, 3] |> cu
-            vals_Z  = [6, 5, 7]    |> cu
-            csc_Z   = CuSparseMatrixCSC{Float64}(ccols_Z, rows_Z, vals_Z, (2,3))
-
-            # CSR format
-            crows_Z = [0, 1, 3] |> cu
-            cols_Z  = [2, 1, 2] |> cu
-            vals_Z  = [5, 6, 7] |> cu
-            csr_Z   = CuSparseMatrixCSR{Float64}(crows_Z, cols_Z, vals_Z, (2,3))
-
-            csr_to_csc_Z = CuSparseMatrixCSC{Float64}(csr_Z, index='Z')
-            @test csr_to_csc_Z.colPtr ≈ csc_Z.colPtr
-            @test csr_to_csc_Z.rowVal ≈ csc_Z.rowVal
-            @test csr_to_csc_Z.nzVal  ≈ csc_Z.nzVal
-
-            csc_to_csr_Z = CuSparseMatrixCSR{Float64}(csc_Z, index='Z')
-            @test csc_to_csr_Z.rowPtr ≈ csr_Z.rowPtr
-            @test csc_to_csr_Z.colVal ≈ csr_Z.colVal
-            @test csc_to_csr_Z.nzVal  ≈ csr_Z.nzVal
-
-            csr_to_coo_Z = CuSparseMatrixCOO{Float64}(csr_Z, index='Z')
-            @test csr_to_coo_Z.rowInd ≈ coo_Z.rowInd
-            @test csr_to_coo_Z.colInd ≈ coo_Z.colInd
-            @test csr_to_coo_Z.nzVal  ≈ coo_Z.nzVal
-
-            coo_to_csr_Z = CuSparseMatrixCSR{Float64}(coo_Z, index='Z')
-            @test coo_to_csr_Z.rowPtr ≈ csr_Z.rowPtr
-            @test coo_to_csr_Z.colVal ≈ csr_Z.colVal
-            @test coo_to_csr_Z.nzVal  ≈ csr_Z.nzVal
-
-            csc_to_coo_Z = CuSparseMatrixCOO{Float64}(csc_Z, index='Z')
-            @test csc_to_coo_Z.rowInd ≈ coo_Z.rowInd
-            @test csc_to_coo_Z.colInd ≈ coo_Z.colInd
-            @test csc_to_coo_Z.nzVal  ≈ coo_Z.nzVal
-
-            coo_to_csc_Z = CuSparseMatrixCSC{Float64}(coo_Z, index='Z')
-            @test coo_to_csc_Z.colPtr ≈ csc_Z.colPtr
-            @test coo_to_csc_Z.rowVal ≈ csc_Z.rowVal
-            @test coo_to_csc_Z.nzVal  ≈ csc_Z.nzVal
+        @testset "canonical conversions reject zero-based interpretation" begin
+            host=sparse(Float64[0 0 5;0 6 7])
+            formats=(CuSparseMatrixCSR,CuSparseMatrixCSC,CuSparseMatrixCOO)
+            for Src in formats, Dst in formats
+                Src===Dst && continue
+                A=Src(host)
+                before=map(Array,GPUArrays.sparse_buffers(A))
+                @test_throws ArgumentError Dst{Float64}(A;index='Z')
+                @test map(Array,GPUArrays.sparse_buffers(A))==before
+            end
         end
     end
 end

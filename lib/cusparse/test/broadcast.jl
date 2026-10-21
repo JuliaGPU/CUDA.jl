@@ -51,8 +51,8 @@ using cuSPARSE, SparseArrays
         y  = x .* elty(1)
         dy = dx .* elty(1)
         @test dy isa typ{elty}
-        @test collect(dy.iPtr) == collect(dx.iPtr)
-        @test collect(dy.iPtr) == y.nzind
+        @test collect(dy.nzInd) == collect(dx.nzInd)
+        @test collect(dy.nzInd) == y.nzind
         @test collect(dy.nzVal) == y.nzval
         @test y  == SparseVector(dy)
 
@@ -119,8 +119,8 @@ using cuSPARSE, SparseArrays
         dy = dx .* 1
         y = x .* 1
         @test dy isa typ{promote_type(elty, Int)}
-        @test collect(dy.iPtr) == collect(dx.iPtr)
-        @test collect(dy.iPtr) == y.nzind
+        @test collect(dy.nzInd) == collect(dx.nzInd)
+        @test collect(dy.nzInd) == y.nzind
         @test collect(dy.nzVal) == y.nzval
         @test y == SparseVector(dy)
     end

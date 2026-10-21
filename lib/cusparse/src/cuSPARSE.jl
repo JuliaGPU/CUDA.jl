@@ -39,7 +39,6 @@ include("error.jl")
 include("array.jl")
 include("util.jl")
 include("types.jl")
-include("linalg.jl")
 
 
 # low-level wrappers
@@ -54,7 +53,7 @@ include("conversions.jl")
 include("generic.jl")
 
 # high-level integrations
-include("interfaces.jl")
+# Public sparse integrations live in GPUArrays' cuSPARSE extension.
 
 include("batched.jl")
 
