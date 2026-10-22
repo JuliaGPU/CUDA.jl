@@ -41,11 +41,24 @@ function create_exceptions!(mod::CuModule)
     return exception_info
 end
 
+# destroying a context frees its exception flag
+function forget_exceptions!(ctx::CuContext)
+    @lock exception_flags_lock begin
+        entries = filter(((other, _),) -> other != ctx, exception_flags())
+        Base.@atomic _exception_flags.entries = entries
+    end
+    return
+end
+
 # check the exception flags on every API call, similarly to how CUDA handles errors
 function check_exceptions()
     for (ctx,mem) in exception_flags()
-        # destroying a context frees its exception flag
-        isvalid(ctx) || continue
+        # (how the driver reports a destroyed context's handle can change over time, so
+        #  stop checking it)
+        if !isvalid(ctx)
+            forget_exceptions!(ctx)
+            continue
+        end
         exception_info = convert(ExceptionInfo, mem)
         if exception_info.status != 0
             # restore the structure

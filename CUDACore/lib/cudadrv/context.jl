@@ -71,7 +71,10 @@ function isvalid(ctx::CuContext)
     if driver_version() >= v"12"
         id_ref = Ref{Culonglong}()
         res = unchecked_cuCtxGetId(ctx, id_ref)
-        res == ERROR_CONTEXT_IS_DESTROYED && return false
+        # the handle was valid when we got it, so either error means it was destroyed. which
+        # one is reported isn't guaranteed: some drivers eventually report a destroyed
+        # context's handle as a green context, i.e., an invalid one.
+        (res == ERROR_CONTEXT_IS_DESTROYED || res == ERROR_INVALID_CONTEXT) && return false
         res != SUCCESS && throw_api_error(res)
 
         # detect handle reuse, which happens when destroying and re-creating a context, by
