@@ -1056,6 +1056,28 @@ end
 
 @testset "stream" begin
 
+# streams created elsewhere can be handed to CUDA.jl
+let handle = Ref{CUDACore.CUstream}(), a = CUDA.zeros(Int, 1)
+    CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+    @test_throws ArgumentError unsafe_wrap(CuStream, handle[])
+    s = unsafe_wrap(CuStream, handle[]; own=true)
+    stream!(s) do
+        a .+= 1
+    end
+    @test Array(a) == [1]
+    finalize(s)
+    @test_logs min_level=Base.CoreLogging.Warn CUDA.reclaim()
+end
+@test_throws ArgumentError unsafe_wrap(CuStream, CUDACore.CU_STREAM_LEGACY; own=true)
+let handle = Ref{CUDACore.CUstream}(), graph = Ref{CUDACore.CUgraph}()
+    CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+    CUDACore.cuStreamBeginCapture_v2(handle[], CUDACore.CU_STREAM_CAPTURE_MODE_RELAXED)
+    @test_throws ArgumentError unsafe_wrap(CuStream, handle[]; own=true)
+    CUDACore.cuStreamEndCapture(handle[], graph)
+    CUDACore.cuGraphDestroy(graph[])
+    CUDACore.cuStreamDestroy_v2(handle[])
+end
+
 s = CuStream()
 synchronize(s)
 @test CUDA.isdone(s)
