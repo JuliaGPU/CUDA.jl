@@ -7,15 +7,41 @@ else
 using LinearAlgebra
 import LinearAlgebra: BlasInt
 
-m = 256
-n = 512
+# the wrappers can be called from a device that is not part of the grid.
+# test this first, before the grid below makes the pools of all devices accessible.
+if ndevices() > 1
+    @testset "calling device outside the grid" begin
+        m = 256
+        device!(last(collect(devices())))
+        cuSOLVER.devices!([first(devices())])
+        try
+            for elty in [Float32, ComplexF64]
+                A = rand(elty, m, m)
+                A += A'
+                W, _ = cuSOLVER.mg_syevd!('V', 'L', copy(A))
+                @test W ≈ eigvals(Hermitian(A))
 
-# our wrappers set up CUSOLVERMG for use with all available devices.
-# on CI, if we only have a single device, set up multiple devices
-# so that we properly cover the multigpu code paths.
+                A = rand(elty, m, m)
+                F, ipiv = cuSOLVER.mg_getrf!(copy(A))
+                alu = LinearAlgebra.LU(F, convert(Vector{BlasInt}, ipiv), zero(BlasInt))
+                @test A ≈ Array(alu)
+            end
+        finally
+            device!(first(devices()))
+        end
+    end
+end
+
+# use a grid of all available devices, or of the same device twice on single-GPU systems,
+# so that the multi-device code paths are covered either way.
 if ndevices() == 1
     cuSOLVER.devices!([device(), device()])
+else
+    cuSOLVER.devices!(collect(devices()))
 end
+
+# the wrappers split columns evenly across the grid, without a remainder
+m = 128 * cuSOLVER.ndevices()
 
 @testset "mg_syevd!" begin
     @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
