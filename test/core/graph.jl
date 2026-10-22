@@ -896,3 +896,27 @@ end
     CUDACore.cuGraphCreate(handle, 0)
     @test (@test_deprecated CuGraph(handle[])) isa CuGraph
 end
+
+@testset "streams that CUDA.jl doesn't own" begin
+    handle = Ref{CUDACore.CUstream}()
+    CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+    s = unsafe_wrap(CuStream, handle[])
+
+    @test_throws ArgumentError capture(() -> nothing; stream=s)
+
+    # graphs can be launched on it, as long as they don't use CUDA.jl memory
+    exec = instantiate(capture(() -> nothing))
+    exec(s)
+    synchronize(s)
+    a = CUDA.zeros(Int, 1)
+    exec = instantiate(capture(() -> (a .+= 1)))
+    @test_throws ArgumentError exec(s)
+    if CUDACore.driver_version() >= v"11.4" && CUDACore.memory_pools_supported(device())
+        ptr = Ref{CUDACore.CUdeviceptr}()
+        exec = instantiate(capture(() -> CUDACore.cuMemAllocAsync(ptr, 4096, stream())))
+        @test_throws ArgumentError exec(s)
+    end
+    synchronize()
+
+    CUDACore.cuStreamDestroy_v2(handle[])
+end

@@ -113,8 +113,12 @@ small reductions along a dimension can be slower.
   trace of a failing kernel without restarting Julia.
 - `unsafe_wrap(T, handle; own=false)` wraps a context, stream, event, module,
   memory pool or graph that was created elsewhere. CUDA.jl only releases the
-  handle with `own=true`; streams can only be wrapped that way. This replaces
-  `CuContext(::CUcontext)` and `CuGraph(::CUgraph, ctx)`, which are deprecated.
+  handle with `own=true`. This replaces `CuContext(::CUcontext)` and
+  `CuGraph(::CUgraph, ctx)`, which are deprecated.
+- A stream that CUDA.jl doesn't own, like the one XLA runs a callback on, can
+  be ordered with the task's stream using events. It can't be used with CUDA.jl
+  memory, as that may outlive it, so doing so throws an `ArgumentError`, as
+  does making it the task's stream with `stream!`.
 - Kernels that are compiled from several tasks are assembled by `ptxas`
   concurrently, and launching an already-compiled kernel no longer waits for
   other tasks' compilations to finish assembling.

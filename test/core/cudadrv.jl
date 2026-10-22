@@ -488,6 +488,23 @@ let
         c = Array(c_d)
         @test c ≈ a./b
     end
+
+    # arrays are used on the stream the function is launched on
+    let s = CuStream(), c_d = CUDA.zeros(Float32, 10)
+        cudacall(vadd,
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, c_d;
+                 threads=10, stream=s)
+        @test Array(c_d) ≈ a+b
+    end
+    let handle = Ref{CUDACore.CUstream}(), c_d = CUDA.zeros(Float32, 10)
+        CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+        s = unsafe_wrap(CuStream, handle[])
+        @test_throws ArgumentError cudacall(vadd,
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, c_d;
+                 threads=10, stream=s)
+        synchronize()
+        CUDACore.cuStreamDestroy_v2(handle[])
+    end
 end
 
 end
@@ -1059,7 +1076,6 @@ end
 # streams created elsewhere can be handed to CUDA.jl
 let handle = Ref{CUDACore.CUstream}(), a = CUDA.zeros(Int, 1)
     CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
-    @test_throws ArgumentError unsafe_wrap(CuStream, handle[])
     s = unsafe_wrap(CuStream, handle[]; own=true)
     stream!(s) do
         a .+= 1
@@ -1069,6 +1085,31 @@ let handle = Ref{CUDACore.CUstream}(), a = CUDA.zeros(Int, 1)
     @test_logs min_level=Base.CoreLogging.Warn CUDA.reclaim()
 end
 @test_throws ArgumentError unsafe_wrap(CuStream, CUDACore.CU_STREAM_LEGACY; own=true)
+@test_throws ArgumentError unsafe_wrap(CuStream, CUDACore.CU_STREAM_LEGACY)
+
+# streams that CUDA.jl doesn't own can only be used for work that doesn't involve its memory
+borrowed_noop() = return
+borrowed_store(a) = (a[1] = 1; return)
+let handle = Ref{CUDACore.CUstream}(), a = CUDA.zeros(Int, 1)
+    CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+    let s = unsafe_wrap(CuStream, handle[]), e = CuEvent()
+        record(e, s)
+        CUDA.wait(e, s)
+        @cuda stream=s borrowed_noop()
+        synchronize(s)
+        @test CUDA.isdone(s)
+
+        @test_throws ArgumentError @cuda stream=s borrowed_store(a)
+        @test_throws ArgumentError stream!(s)
+        @test_throws ArgumentError stream!(() -> nothing, s)
+        @test_throws ArgumentError CUDA.unsafe_destroy!(s)
+    end
+    @test Array(a) == [0]
+    GC.gc(true)
+    CUDA.reclaim()
+    @test CUDACore.unchecked_cuStreamQuery(handle[]) == CUDA.SUCCESS
+    CUDACore.cuStreamDestroy_v2(handle[])
+end
 let handle = Ref{CUDACore.CUstream}(), graph = Ref{CUDACore.CUgraph}()
     CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
     CUDACore.cuStreamBeginCapture_v2(handle[], CUDACore.CU_STREAM_CAPTURE_MODE_RELAXED)
@@ -1491,6 +1532,55 @@ let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), u = cu([0]; unified=true),
     end
     synchronize(other)
     @test Array(u) == [4]
+end
+
+# work can be ordered with streams that CUDA.jl doesn't own, e.g., of another library
+let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), s = stream(), other = CuStream(),
+    e1 = CuEvent(CUDA.EVENT_DISABLE_TIMING), e2 = CuEvent(CUDA.EVENT_DISABLE_TIMING)
+    handle = Ref{CUDACore.CUstream}()
+    CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+    borrowed = unsafe_wrap(CuStream, handle[])
+    # warm up, as compiling kernels waits for the GPU to become idle
+    a .+= 1
+    fetch(Threads.@spawn (stream!(other); a .*= 2))
+    synchronize(other)
+    a .= 0
+    src, dst = pointer(a), pointer(b)
+    synchronize()
+
+    # the borrowed stream waits for the task's stream, and another stream for it
+    @test gated(s) do
+        a .+= 1
+        record(e1)
+        CUDA.wait(e1, borrowed)
+        CUDACore.cuMemcpyDtoDAsync_v2(dst, src, sizeof(Int), borrowed)
+        record(e2, borrowed)
+        CUDA.wait(e2, other)
+        !CUDA.isdone(e2)
+    end
+    synchronize(other)
+    @test Array(b) == [1]
+
+    # recording an event on a borrowed stream replaces what it covered, so waiting for it
+    # doesn't imply that the work on the task's stream has finished
+    # (memory without escaped pointers, whose last use could otherwise be known to be done)
+    c = CUDA.zeros(Int, 1)
+    c .+= 1
+    fetch(Threads.@spawn (stream!(other); c .*= 2))
+    synchronize(other)
+    c .= 0
+    @test gated(s) do
+        c .+= 1
+        record(e1)
+        record(e1, borrowed)
+        synchronize(e1)
+        fetch(Threads.@spawn (stream!(other); c .*= 2))
+        true
+    end
+    synchronize(other)
+    @test Array(c) == [2]
+
+    CUDACore.cuStreamDestroy_v2(handle[])
 end
 
 # memory whose last use is known to have completed doesn't need to be waited for. as the
