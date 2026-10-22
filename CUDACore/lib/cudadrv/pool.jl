@@ -11,6 +11,9 @@ mutable struct CuMemoryPool
     handle::CUmemoryPool
     ctx::CuContext
 
+    # whether the pool may be destroyed (see `unsafe_wrap`)
+    const owned::Bool
+
     function CuMemoryPool(dev::CuDevice;
                           alloc_type::CUmemAllocationType=ALLOCATION_TYPE_PINNED,
                           handle_type::CUmemAllocationHandleType=HANDLE_TYPE_NONE,
@@ -39,29 +42,41 @@ mutable struct CuMemoryPool
         end
 
         ctx = current_context()
-        new(handle_ref[], ctx)
+        new(handle_ref[], ctx, true)
         # NOTE: we cannot attach a finalizer to this object, as the pool can be active
         #       without any references to it (similar to how contexts work).
     end
 
-    global function default_memory_pool(dev::CuDevice)
-        handle_ref = Ref{CUmemoryPool}()
-        cuDeviceGetDefaultMemPool(handle_ref, dev)
-
-        ctx = current_context()
-        new(handle_ref[], ctx)
-    end
-
-    global function memory_pool(dev::CuDevice)
-        handle_ref = Ref{CUmemoryPool}()
-        cuDeviceGetMemPool(handle_ref, dev)
-
-        ctx = current_context()
-        new(handle_ref[], ctx)
+    global function Base.unsafe_wrap(::Type{CuMemoryPool}, handle::CUmemoryPool;
+                                     ctx::CuContext, own::Bool=false)
+        new(handle, ctx, own)
     end
 end
 
+"""
+    unsafe_wrap(CuMemoryPool, handle::CUmemoryPool; ctx::CuContext, own=false)
+
+Wrap a memory pool that was created outside of CUDA.jl. Pools are never destroyed
+implicitly: with `own=true`, ownership moves to the caller, and the pool may be destroyed
+with [`CUDACore.unsafe_destroy!`](@ref) (in context `ctx`). Otherwise, the handle needs to
+remain valid for as long as the returned object is used.
+"""
+unsafe_wrap(::Type{CuMemoryPool}, ::CUmemoryPool)
+
+function default_memory_pool(dev::CuDevice)
+    handle_ref = Ref{CUmemoryPool}()
+    cuDeviceGetDefaultMemPool(handle_ref, dev)
+    unsafe_wrap(CuMemoryPool, handle_ref[]; ctx=current_context())
+end
+
+function memory_pool(dev::CuDevice)
+    handle_ref = Ref{CUmemoryPool}()
+    cuDeviceGetMemPool(handle_ref, dev)
+    unsafe_wrap(CuMemoryPool, handle_ref[]; ctx=current_context())
+end
+
 function unsafe_destroy!(pool::CuMemoryPool)
+    pool.owned || throw(ArgumentError("Cannot destroy a memory pool that CUDA.jl doesn't own"))
     context!(pool.ctx) do
         cuMemPoolDestroy(pool)
     end

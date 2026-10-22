@@ -23,19 +23,43 @@ mutable struct CuEvent
     source::Union{Nothing,Tuple{StreamOrder,UInt64}}
     const lock::ReentrantLock
 
+    # whether CUDA.jl destroys the event (see `unsafe_wrap`). other events may be recorded
+    # by their owner without taking `lock`, so they aren't tracked.
+    const owned::Bool
+
     function CuEvent(flags=EVENT_DEFAULT)
         handle_ref = Ref{CUevent}()
         cuEventCreate(handle_ref, flags)
 
         ctx = current_context()
-        obj = new(handle_ref[], ctx, nothing, ReentrantLock())
+        obj = new(handle_ref[], ctx, nothing, ReentrantLock(), true)
         # destroying an event from a finalizer is deferred, as with all resources
         resource_finalizer(obj)
         return obj
     end
+
+    global function Base.unsafe_wrap(::Type{CuEvent}, handle::CUevent; ctx::CuContext,
+                                     own::Bool=false)
+        obj = new(handle, ctx, nothing, ReentrantLock(), own)
+        own && resource_finalizer(obj)
+        return obj
+    end
 end
 
+"""
+    unsafe_wrap(CuEvent, handle::CUevent; ctx::CuContext, own=false)
+
+Wrap an event that was created outside of CUDA.jl, in context `ctx`. With `own=true`, CUDA.jl
+takes ownership of the event and destroys it when the returned object is garbage collected.
+Otherwise, the handle needs to remain valid for as long as the returned object is used.
+
+Timing information is only available if the event was created without
+`EVENT_DISABLE_TIMING`.
+"""
+unsafe_wrap(::Type{CuEvent}, ::CUevent)
+
 function unsafe_destroy!(e::CuEvent)
+    e.owned || throw(ArgumentError("Cannot destroy an event that CUDA.jl doesn't own"))
     context!(e.ctx) do
         cuEventDestroy_v2(e)
     end
@@ -58,7 +82,8 @@ function record_tracked(e::CuEvent, stream::CuStream)
         # recording during capture only adds a node to the graph, which neither completes
         # nor orders anything before the graph is launched
         order = stream.order
-        epoch = order === nothing || is_capturing(stream) ? nothing : close_epoch!(order)
+        epoch = !e.owned || order === nothing || is_capturing(stream) ? nothing :
+                close_epoch!(order)
         e.source = nothing
         cuEventRecord(e, stream)
         epoch === nothing || (e.source = (order, epoch))

@@ -772,7 +772,7 @@ end
 Identify the context memory was allocated in.
 """
 context(ptr::Union{Ptr,CuPtr}) =
-    CuContext(attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
+    unsafe_wrap(CuContext, attribute(CUcontext, ptr, POINTER_ATTRIBUTE_CONTEXT))
 
 """
     device(ptr)

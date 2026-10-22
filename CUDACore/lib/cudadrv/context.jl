@@ -25,7 +25,7 @@ struct CuContext
     handle::CUcontext
     id::UInt64
 
-    function CuContext(handle::CUcontext)
+    global function Base.unsafe_wrap(::Type{CuContext}, handle::CUcontext; own::Bool=false)
         handle == C_NULL && throw(UndefRefError())
 
         id = if driver_version() >= v"12"
@@ -42,10 +42,24 @@ struct CuContext
     end
 end
 
+"""
+    unsafe_wrap(CuContext, handle::CUcontext; own=false)
+
+Wrap a context that was created outside of CUDA.jl. The handle needs to remain valid for as
+long as the returned object, or anything created in the context, is used.
+
+Contexts are never destroyed implicitly, so `own` only documents whether ownership moves to
+the caller of `unsafe_wrap`: with `own=true`, the context may be destroyed with
+[`CUDACore.unsafe_destroy!`](@ref). It has no effect otherwise, and in particular doesn't
+keep a context that is not owned from being destroyed. That doesn't apply to primary contexts, which are
+released through [`CuPrimaryContext`](@ref), nor to contexts derived from green contexts.
+"""
+unsafe_wrap(::Type{CuContext}, ::CUcontext)
+
 function CuContext(dev::CuDevice, flags=0)
     handle_ref = Ref{CUcontext}()
     cuCtxCreate_v2(handle_ref, flags, dev)
-    CuContext(handle_ref[])
+    unsafe_wrap(CuContext, handle_ref[]; own=true)
 end
 
 """
@@ -63,7 +77,7 @@ function current_context()
     handle_ref = Ref{CUcontext}()
     cuCtxGetCurrent(handle_ref)
     handle_ref[] == C_NULL && throw(UndefRefError())
-    CuContext(handle_ref[])
+    unsafe_wrap(CuContext, handle_ref[])
 end
 
 function isvalid(ctx::CuContext)
@@ -195,7 +209,7 @@ by using the `do`-block syntax.
 function CuContext(pctx::CuPrimaryContext)
     handle_ref = Ref{CUcontext}()
     cuDevicePrimaryCtxRetain(handle_ref, pctx.dev)
-    CuContext(handle_ref[])
+    unsafe_wrap(CuContext, handle_ref[])
 end
 
 function CuContext(f::Function, pctx::CuPrimaryContext)
