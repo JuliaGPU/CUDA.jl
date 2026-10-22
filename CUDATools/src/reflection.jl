@@ -153,7 +153,7 @@ function disassemble_cubin(io::IO, cubin::Vector{Cchar}; raw::Bool)
         write(cubin_io, cubin)
         flush(cubin_io)
 
-        cmd = `$(CUDACore.CUDA_Compiler.nvdisasm()) --print-code $lineinfo $cubin_path`
+        cmd = `$(CUDACore.CUDA_Compiler.nvdisasm()::Cmd) --print-code $lineinfo $cubin_path`
         if raw
             for line in readlines(cmd)
                 println(io, line)

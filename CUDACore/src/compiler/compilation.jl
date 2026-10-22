@@ -401,9 +401,10 @@ function emit_ptx(@nospecialize(job::CompilerJob))
     # the IR is ours: inspect it in here, and dispose of it so that it does not leak
     asm, entry, relocations, needs_cudadevrt = JuliaContext() do ctx
         asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
+        ir = meta.ir::LLVM.Module
 
         # check if we'll need the device runtime
-        undefined_fs = filter(collect(meta.ir.functions)) do f
+        undefined_fs = filter(collect(ir.functions)) do f
             isdeclaration(f) && !LLVM.isintrinsic(f) &&
             # intrinsics unknown to the in-process LLVM are still lowered by the back-end
             !startswith(f.name, "llvm.")
@@ -413,7 +414,7 @@ function emit_ptx(@nospecialize(job::CompilerJob))
         needs_cudadevrt = !isempty(setdiff(map(f -> f.name, undefined_fs), intrinsic_fns))
 
         entry = meta.entry.name
-        dispose(meta.ir)
+        dispose(ir)
         asm, entry, meta.relocations, needs_cudadevrt
     end
 
@@ -513,7 +514,7 @@ function assemble(@nospecialize(job::CompilerJob), asm::String, needs_cudadevrt:
         "--output-file", ptxas_output,
         ptx_input
     ])
-    proc, log = run_and_collect(`$(CUDA_Compiler.ptxas()) $ptxas_opts`)
+    proc, log = run_and_collect(`$(CUDA_Compiler.ptxas()::Cmd) $ptxas_opts`)
     if !success(proc)
         reason = proc.termsignal > 0 ? "ptxas received signal $(proc.termsignal)" :
                                        "ptxas exited with code $(proc.exitcode)"
@@ -552,7 +553,7 @@ function assemble(@nospecialize(job::CompilerJob), asm::String, needs_cudadevrt:
         "--output-file", nvlink_output,
         ptxas_output
     ])
-    proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()) $nvlink_opts`)
+    proc, log = run_and_collect(`$(CUDA_Compiler.nvlink()::Cmd) $nvlink_opts`)
     if !success(proc)
         reason = proc.termsignal > 0 ? "nvlink received signal $(proc.termsignal)" :
                                        "nvlink exited with code $(proc.exitcode)"
