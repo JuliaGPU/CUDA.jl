@@ -395,6 +395,36 @@ end
     # in the process (`jl_as_global_root`), so there is nothing kernel-local to assert
 end
 
+@testset "non-isbits constants" begin
+    # only isbits constants are copied to the device; reading others would dereference a
+    # host address, which only works where the GPU can access pageable host memory
+    mod = @eval module $(gensym())
+        using ..CUDACore
+        const ref = Ref(42)
+        const units = ((:hour, 3600), (:minute, 60), (:second, 1))
+        const seconds = (3600, 60, 1)
+        read_ref(a) = (a[1] = ref[]; return)
+        read_units(a) = (i = threadIdx().x; a[i] = units[i][2]; return)
+        read_seconds(a) = (i = threadIdx().x; a[i] = seconds[i]; return)
+        narrow(a, b) = (i = threadIdx().x; a[i] = Int16(b[i]); return)
+    end
+
+    a = CUDA.zeros(Int, 3)
+    # Julia 1.10 embeds the addresses of constants itself, so they cannot be checked
+    if VERSION >= v"1.11"
+        @test_throws CUDA.InvalidIRError @cuda launch=false mod.read_ref(a)
+        @test_throws CUDA.InvalidIRError @cuda launch=false mod.read_units(a)
+    end
+
+    @cuda threads=3 mod.read_seconds(a)
+    @test Array(a) == [3600, 60, 1]
+
+    # the `InexactError` path references a Symbol
+    b = CUDA.zeros(Int16, 3)
+    @cuda threads=3 mod.narrow(b, a)
+    @test Array(b) == [3600, 60, 1]
+end
+
 ############################################################################################
 
 @testset "SASS" begin
