@@ -66,6 +66,10 @@ small reductions along a dimension can be slower.
   `maximum(CuArray(Int[]))` throws an `ArgumentError` (it returned
   `typemin(Int)`), and `sum(CuArray([1, 2]); init=Int8(0))` returns an `Int`
   (it returned an `Int8`).
+- The memory pools that `default_memory_pool` and `memory_pool` return are
+  borrowed, as CUDA.jl doesn't know who owns them, so destroying them with
+  `unsafe_destroy!` throws. Destroy a pool through the object it was created
+  with instead.
 
 *New features*:
 
@@ -107,6 +111,10 @@ small reductions along a dimension can be slower.
 - `@cuda debug_level=N` compiles a single kernel at debug level `N` instead of
   the session's `-g` level, e.g., `debug_level=2` to get a device-side stack
   trace of a failing kernel without restarting Julia.
+- `unsafe_wrap(T, handle; own=false)` wraps a context, stream, event, module,
+  memory pool or graph that was created elsewhere. CUDA.jl only releases the
+  handle with `own=true`; streams can only be wrapped that way. This replaces
+  `CuContext(::CUcontext)` and `CuGraph(::CUgraph, ctx)`, which are deprecated.
 - Kernels that are compiled from several tasks are assembled by `ptxas`
   concurrently, and launching an already-compiled kernel no longer waits for
   other tasks' compilations to finish assembling.
