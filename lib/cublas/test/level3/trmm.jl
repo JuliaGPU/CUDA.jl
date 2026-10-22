@@ -23,6 +23,21 @@ end
         @test alpha * A * B ≈ Array(dC)
     end
 
+    # the blocked fallback of `cuSOLVER.ormqr!` and `orgqr!` relies on in-place TRMM (C === B)
+    @testset "trmm! in place" begin
+        alpha = rand(elty)
+        A = triu(rand(elty, m, m))
+        dA = CuArray(A)
+        for (side, trans) in Iterators.product(('L', 'R'), ('N', 'T', 'C'))
+            B = side == 'L' ? rand(elty, m, n) : rand(elty, n, m)
+            opA = trans == 'N' ? A : trans == 'T' ? transpose(A) : adjoint(A)
+            dB = CuArray(B)
+            dC = cuBLAS.trmm!(side, 'U', trans, 'N', alpha, dA, dB, dB)
+            @test dC === dB
+            @test Array(dB) ≈ (side == 'L' ? alpha * opA * B : alpha * B * opA)
+        end
+    end
+
     @testset "trmm" begin
         alpha = rand(elty)
         A = triu(rand(elty, m, m))

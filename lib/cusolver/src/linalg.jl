@@ -381,8 +381,37 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     return SVD(U, S, Vt)
 end
 function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
+    gesvdj_fits('V', Int(!full), A) || return svd_xgesvd!(A, full)
     U, S, V = gesvdj!('V', Int(!full), A)
     return SVD(U, S, V')
+end
+
+# gesvdj is only available in the 32-bit API, whose workspace size overflows for
+# large matrices. Use the QR algorithm of the 64-bit API instead, which requires
+# m ≥ n, so decompose Aᴴ when A is wide. Vt is returned as is: at these sizes
+# every extra copy of a factor matters.
+function svd_xgesvd!(A::CuMatrix{T}, full::Bool) where T
+    job = full ? 'A' : 'S'
+    if size(A, 1) >= size(A, 2)
+        U, S, Vt = Xgesvd!(job, job, A)
+    else
+        Ah = copy(A')
+        U2, S, Vt2 = Xgesvd!(job, job, Ah)
+        unsafe_free!(Ah)
+        U = copy(Vt2')
+        unsafe_free!(Vt2)
+        Vt = copy(U2')
+        unsafe_free!(U2)
+    end
+    return SVD(U, S, Vt)
+end
+
+function svdvals_xgesvd!(A::CuMatrix{T}) where T
+    size(A, 1) >= size(A, 2) && return Xgesvd!('N', 'N', A)[2]
+    Ah = copy(A')
+    S = Xgesvd!('N', 'N', Ah)[2]
+    unsafe_free!(Ah)
+    return S
 end
 function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
     U, S, V = gesvdj!('V', A)
@@ -414,7 +443,8 @@ LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=JacobiAlgorithm()) =
 _svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
-_svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T = gesvdj!('N', 1, A::CuMatOrBatched{T})[2]
+_svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
+    gesvdj_fits('N', 1, A) ? gesvdj!('N', 1, A)[2] : svdvals_xgesvd!(A)
 _svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
 _svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
 
