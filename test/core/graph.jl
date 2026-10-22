@@ -860,3 +860,39 @@ end
     end
 end
 end
+
+@testset "wrapped graphs" begin
+    handle = Ref{CUDACore.CUgraph}()
+
+    # a graph that CUDA.jl doesn't own can be launched, but not captured into
+    CUDACore.cuGraphCreate(handle, 0)
+    let graph = unsafe_wrap(CuGraph, handle[]; ctx=context())
+        @test length(graph) == 0
+        @test_throws ArgumentError capture!(() -> nothing, graph)
+        instantiate(graph)()
+        synchronize()
+    end
+    GC.gc(true)
+    CUDA.reclaim()
+    count = Ref{Csize_t}()
+    CUDACore.cuGraphGetNodes(handle[], C_NULL, count)
+    @test count[] == 0
+    CUDACore.cuGraphDestroy(handle[])
+
+    # ownership can be handed to CUDA.jl, after which operations can be captured into it
+    if CUDA.driver_version() >= v"12.3"
+        a = CUDA.zeros(Int, 1)
+        a .+= 1
+        synchronize()
+        CUDACore.cuGraphCreate(handle, 0)
+        graph = unsafe_wrap(CuGraph, handle[]; ctx=context(), own=true)
+        capture!(graph) do
+            a .+= 1
+        end
+        instantiate(graph)()
+        @test Array(a) == [2]
+    end
+
+    CUDACore.cuGraphCreate(handle, 0)
+    @test (@test_deprecated CuGraph(handle[])) isa CuGraph
+end

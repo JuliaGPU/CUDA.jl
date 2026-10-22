@@ -193,17 +193,41 @@ mutable struct CuGraph
     # the driver requires graphs to be used by one thread at a time
     const lock::ReentrantLock
 
-    function CuGraph(handle::CUgraph, ctx::CuContext=context())
-        obj = new(handle, ctx, Base.IdSet{Managed}(), ReentrantLock())
-        resource_finalizer(obj)
+    # whether CUDA.jl destroys the graph (see `unsafe_wrap`)
+    const owned::Bool
+
+    global function Base.unsafe_wrap(::Type{CuGraph}, handle::CUgraph; ctx::CuContext,
+                                     own::Bool=false)
+        obj = new(handle, ctx, Base.IdSet{Managed}(), ReentrantLock(), own)
+        own && resource_finalizer(obj)
         return obj
     end
 end
 
+"""
+    unsafe_wrap(CuGraph, handle::CUgraph; ctx::CuContext, own=false)
+
+Wrap a graph that was created outside of CUDA.jl, to be instantiated in context `ctx`. With
+`own=true`, CUDA.jl takes ownership of the graph and destroys it when the returned object is
+garbage collected. Otherwise, the handle needs to remain valid for as long as the returned
+object is used, and operations cannot be captured into the graph with [`capture!`](@ref),
+as the graph would need to keep the memory they use alive.
+
+The caller remains responsible for the memory used by operations that the graph already
+contains, for as long as the graph or an executable graph instantiated from it is used.
+"""
+unsafe_wrap(::Type{CuGraph}, ::CUgraph)
+
 function CuGraph()
     handle_ref = Ref{CUgraph}()
     cuGraphCreate(handle_ref, 0)
-    return CuGraph(handle_ref[])
+    return unsafe_wrap(CuGraph, handle_ref[]; ctx=context(), own=true)
+end
+
+function CuGraph(handle::CUgraph, ctx::CuContext=context())
+    Base.depwarn("`CuGraph(handle, ctx)` is deprecated, use `unsafe_wrap(CuGraph, handle; ctx, own=true)` instead.",
+                 :CuGraph)
+    return unsafe_wrap(CuGraph, handle; ctx, own=true)
 end
 
 Base.unsafe_convert(::Type{CUgraph}, graph::CuGraph) = graph.handle
@@ -497,7 +521,7 @@ function capture_on(f, stream::CuStream, ctx::CuContext, graph::Union{Nothing,Cu
             end
 
             if graph === nothing
-                graph = CuGraph(handle[], ctx)
+                graph = unsafe_wrap(CuGraph, handle[]; ctx, own=true)
             end
             adopt!(graph, capture)
             return graph, frontier
@@ -670,6 +694,8 @@ This functionality requires CUDA 12.3 or higher.
 function capture!(f::Function, graph::CuGraph; after::AbstractVector{CuGraphNode}=CuGraphNode[],
                   stream::Union{Nothing,CuStream}=nothing,
                   mode::CUstreamCaptureMode=STREAM_CAPTURE_MODE_RELAXED)
+    graph.owned ||
+        throw(ArgumentError("Cannot capture into a graph that CUDA.jl doesn't own, as it couldn't keep the memory used by the captured operations alive"))
     driver_version() >= v"12.3" ||
         error("Capturing into an existing graph requires CUDA 12.3 or higher")
     all(node -> node.graph === graph, after) ||

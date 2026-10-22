@@ -860,6 +860,30 @@ end
 
 @test_throws Exception CuModule("foobar")
 
+# modules loaded elsewhere can be wrapped
+let ptx = push!(read(joinpath(@__DIR__, "ptx/dummy.ptx")), 0x00),
+    handle = Ref{CUDACore.CUmodule}(), fun = Ref{CUDACore.CUfunction}()
+    CUDACore.cuModuleLoadData(handle, ptx)
+    let md = unsafe_wrap(CuModule, handle[]; ctx=context())
+        cudacall(CuFunction(md, "dummy"), Tuple{})
+        synchronize()
+        @test_throws ArgumentError CUDACore.unsafe_unload!(md)
+    end
+    GC.gc(true)
+    CUDA.reclaim()
+    CUDACore.cuModuleGetFunction(fun, handle[], "dummy")
+    CUDACore.cuModuleUnload(handle[])
+
+    # ownership can be handed to CUDA.jl
+    CUDACore.cuModuleLoadData(handle, ptx)
+    let md = unsafe_wrap(CuModule, handle[]; ctx=context(), own=true)
+        cudacall(CuFunction(md, "dummy"), Tuple{})
+        synchronize()
+        finalize(md)
+    end
+    @test_logs min_level=Base.CoreLogging.Warn CUDA.reclaim()
+end
+
 @testset "globals" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
 
