@@ -116,9 +116,29 @@ small reductions along a dimension can be slower.
 - Added support for cuDNN 9.27 (requires CUDNN_jll 9.27). It no longer unloads
   runtime-compiled kernels while a CUDA graph can still launch them, which
   could give incorrect results or illegal-address faults.
+- cuDNN's `attention!`, `attention_backward!` and their support predicates
+  accept `causal=:bottom_right`, which aligns the causal mask with the end of
+  the key sequence, for queries that are its last positions (KV-cache decoding,
+  chunked prefill). Under padding masks the alignment follows each batch
+  element's `seq_len_q` and `seq_len_kv`
+  ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
+- cuDNN's attention functions accept packed variable-length sequences:
+  `(head_dim, heads, tokens)` arrays holding the sequences back to back, located
+  by Int32 `cu_seq_len_q` and `cu_seq_len_kv` token offsets, with bounds
+  `max_seq_len_q` and `max_seq_len_kv`. The inputs, outputs and gradients, the
+  backward's dQ accumulator and its grouped-query workspaces are packed, sized by
+  the token count; `stats` stays padded to `max_seq_len_q`. Bottom-right causal
+  masks align with each sequence's own lengths
+  ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
 
 *Bug fixes*:
 
+- cuDNN's `attention_backward!` with `deterministic=true` gives reproducible
+  gradients. The flag only skipped engines that report themselves as
+  nondeterministic, which the fused attention backward engines don't, so dQ,
+  accumulated in arbitrary order, varied between runs. Deterministic plans now
+  hold dP in a workspace instead, as cudnn-frontend does
+  ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
 - cuDNN's `batchnorm_training!`, `batchnorm_inference!` and `batchnorm_gradient!`
   are implemented with cuDNN's fixed-function batch normalization again. The
   graph API has no engine for inference, `Float64`, inputs of rank 2 or 3, or

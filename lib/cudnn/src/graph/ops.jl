@@ -2,6 +2,8 @@ struct SDPAMaskSubgraph
     input::Tensor
     fill::Tensor
     output::Tensor
+    seq_len_q::Union{Nothing,Tensor}
+    seq_len_kv::Union{Nothing,Tensor}
 end
 
 struct SDPAFwdOp <: Operation
@@ -209,12 +211,40 @@ function check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
     return
 end
 
-function sdpa_causal_subgraph!(g::Graph, skv, sq, hq, b)
+function sdpa_causal(causal)
+    causal === false && return :none
+    causal === true && return :top_left
+    causal in (:none, :top_left, :bottom_right) ||
+        throw(ArgumentError(
+            "causal must be a Bool, :top_left or :bottom_right, got $(repr(causal))"))
+    return causal
+end
+
+# cudnn-frontend refuses this for forward and backward alike
+function check_sdpa_bottom_right(causal, padded, sq, skv)
+    causal === :bottom_right && !padded && sq > skv &&
+        throw(UnsupportedGraphError(
+            "cuDNN: bottom-right causal masking does not support more queries than keys " *
+            "($sq > $skv) without seq_len_q and seq_len_kv"))
+    return
+end
+
+# bottom-right alignment keeps row + seq_len_kv - seq_len_q >= col: per batch element
+# under padding masks, otherwise from by-value scalars bound to the sequence lengths
+function sdpa_diagonal_lengths!(g::Graph, seq_len_q, seq_len_kv)
+    seq_len_q === nothing || return seq_len_q, seq_len_kv
+    return scalar!(g, Int32; rank=4, name="MaskSeqLenQ"),
+           scalar!(g, Int32; rank=4, name="MaskSeqLenKV")
+end
+
+function sdpa_causal_subgraph!(g::Graph, skv, sq, hq, b, causal, seq_len_q, seq_len_kv)
     score_dims = (skv, sq, hq, b)
     input = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name="Score")
     fill = scalar!(g, Float32; rank=4, name="MaskValue")
     output = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name="MaskedScore")
-    return SDPAMaskSubgraph(input, fill, output)
+    lengths = causal === :bottom_right ? sdpa_diagonal_lengths!(g, seq_len_q, seq_len_kv) :
+              (nothing, nothing)
+    return SDPAMaskSubgraph(input, fill, output, lengths...)
 end
 
 alphabeta_type(dtype::cudnnDataType_t) =
@@ -980,10 +1010,11 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
                    stats::Union{Nothing,Tensor,Bool}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
-                   causal::Bool=false, dropout_p::Real=0,
+                   causal::Union{Bool,Symbol}=false, dropout_p::Real=0,
                    bias=nothing)
     dropout_p == 0 || throw(ArgumentError("sdpa_fwd! does not support dropout"))
     bias === nothing || throw(ArgumentError("sdpa_fwd! does not support bias"))
+    causal = sdpa_causal(causal)
 
     length(q.dims) == 4 || throw(ArgumentError("q must be rank 4"))
     length(k.dims) == 4 || throw(ArgumentError("k must be rank 4"))
@@ -998,6 +1029,8 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     bk == b && bv == b || throw(DimensionMismatch("q, k, and v batch sizes must match"))
     hq % hk == 0 || throw(DimensionMismatch("q head count must be a multiple of k/v heads"))
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
+    check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
+    check_sdpa_ragged(seq_len_q !== nothing, q, k, v, o)
 
     o === nothing && (o = tensor!(g; dims=(d, hq, sq, b), dtype=q.dtype, virtual=true,
                                   name="O"))
@@ -1010,7 +1043,8 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     stats === nothing || sdpa_tensor!(stats)
     seq_len_q === nothing || foreach(sdpa_tensor!, (seq_len_q, seq_len_kv))
 
-    mask_subgraph = causal ? sdpa_causal_subgraph!(g, skv, sq, hq, b) : nothing
+    mask_subgraph = causal === :none ? nothing :
+                    sdpa_causal_subgraph!(g, skv, sq, hq, b, causal, seq_len_q, seq_len_kv)
 
     push!(g.ops, SDPAFwdOp(q, k, v, o, scale, stats, seq_len_q, seq_len_kv,
                            mask_subgraph))
@@ -1048,15 +1082,40 @@ function check_sdpa_bwd_io(name, t::Tensor, dims)
     return t
 end
 
-# engine spill buffers assume this packing; other strides are accepted at
-# build time and corrupt gradients silently
-function check_sdpa_bwd_workspace(name, t::Tensor, dims)
+# engine spill buffers assume this packing, or that of the ragged gradient they
+# accumulate; other strides are accepted at build time and corrupt gradients silently
+function check_sdpa_bwd_workspace(name, t::Tensor, dims; like=nothing)
     check_sdpa_bwd_shape(name, t, dims)
-    t.strides == dense_strides(t.dims) ||
-        throw(ArgumentError(
-            "$name must be densely packed as $(Tuple(dims)); the fMHA backward " *
-            "engines silently corrupt gradients for other layouts"))
+    if t.ragged_offset === nothing
+        t.strides == dense_strides(t.dims) ||
+            throw(ArgumentError(
+                "$name must be densely packed as $(Tuple(dims)); the fMHA backward " *
+                "engines silently corrupt gradients for other layouts"))
+    elseif like === nothing
+        throw(ArgumentError("$name must not be ragged"))
+    else
+        t.ragged_offset === like.ragged_offset && t.strides == like.strides ||
+            throw(ArgumentError(
+                "a ragged $name must have the strides and ragged offset of $(like.name)"))
+    end
     return t
+end
+
+# ragged workspaces keep the token layout of their gradient, widened to dims' heads
+function sdpa_bwd_spill!(g::Graph, grad::Tensor, dims, dtype, name, offset)
+    offset === nothing && return tensor!(g; dims, dtype, output=true, name)
+    groups = dims[3] ÷ grad.dims[3]
+    s = grad.strides
+    # a lone head has a canonical stride, not its stride within a token
+    sh = grad.dims[3] == 1 ? grad.dims[1] * s[1] : s[3]
+    tensor!(g; dims, strides=(s[1], s[2] * groups, sh, s[4] * groups), dtype,
+            output=true, name, ragged_offset=offset)
+end
+
+function check_sdpa_ragged(padded, ts...)
+    padded || all(t -> t === nothing || t.ragged_offset === nothing, ts) ||
+        throw(ArgumentError("ragged tensors require seq_len_q and seq_len_kv"))
+    return
 end
 
 function check_sdpa_bwd_dtype(name, t::Tensor, dtype)
@@ -1076,6 +1135,9 @@ end
 # the composite spelling the fMHA backward engines pattern-match (the unified
 # SDPA_BWD op has no engines anywhere); dims are (d, s, h, b), unlike sdpa_fwd!.
 # Mutates k/v into their transposes; grouped queries add fullhead workspaces.
+# Ragged gradients get ragged workspaces, sized by the token count. A deterministic
+# graph writes dQ = dS K directly, as cudnn-frontend does: the engines then hold dP in
+# their workspace instead of accumulating dQ out of order in dQ_accum.
 function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Tensor,
                    stats::Tensor;
                    dQ::Union{Nothing,Tensor}=nothing,
@@ -1086,9 +1148,11 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                    scale::Union{Nothing,Tensor}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
-                   causal::Bool=false, dropout_p::Real=0, bias=nothing)
+                   causal::Union{Bool,Symbol}=false, deterministic::Bool=false,
+                   dropout_p::Real=0, bias=nothing)
     dropout_p == 0 || throw(ArgumentError("sdpa_bwd! does not support dropout"))
     bias === nothing || throw(ArgumentError("sdpa_bwd! does not support bias"))
+    causal = sdpa_causal(causal)
 
     length(q.dims) == 4 || throw(ArgumentError("q must be rank 4"))
     length(k.dims) == 4 || throw(ArgumentError("k must be rank 4"))
@@ -1109,19 +1173,26 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     check_sdpa_bwd_workspace("stats", stats, (1, sq, h, b))
     check_sdpa_bwd_dtype("stats", stats, CUDNN_DATA_FLOAT)
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
+    check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
+    check_sdpa_ragged(seq_len_q !== nothing, q, k, v, o, dO, dQ, dK, dV)
 
+    # gradients default to dense, or to the layout of a ragged input
+    like(t) = t.ragged_offset === nothing ? (;) :
+              (; strides=t.strides, ragged_offset=t.ragged_offset)
     dQ === nothing && (dQ = tensor!(g; dims=(d, sq, h, b), dtype=iodt, output=true,
-                                    name="dQ"))
+                                    name="dQ", like(q)...))
     dK === nothing && (dK = tensor!(g; dims=(d, skv, hk, b), dtype=iodt, output=true,
-                                    name="dK"))
+                                    name="dK", like(k)...))
     dV === nothing && (dV = tensor!(g; dims=(d, skv, hk, b), dtype=iodt, output=true,
-                                    name="dV"))
+                                    name="dV", like(v)...))
     softmax_sum === nothing &&
         (softmax_sum = tensor!(g; dims=(1, sq, h, b), dtype=Float32, output=true,
                                name="SoftmaxSum"))
-    dQ_accum === nothing &&
-        (dQ_accum = tensor!(g; dims=(d, sq, h, b), dtype=Float32, output=true,
-                            name="dQAccum"))
+    deterministic && dQ_accum !== nothing &&
+        throw(ArgumentError("a deterministic sdpa_bwd! has no dQ_accum"))
+    dQ_accum === nothing && !deterministic &&
+        (dQ_accum = sdpa_bwd_spill!(g, dQ, (d, sq, h, b), Float32, "dQAccum",
+                                    dQ.ragged_offset))
     for (name, t, dims) in (("dQ", dQ, (d, sq, h, b)), ("dK", dK, (d, skv, hk, b)),
                             ("dV", dV, (d, skv, hk, b)))
         check_sdpa_bwd_io(name, t, dims)
@@ -1129,8 +1200,10 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     end
     check_sdpa_bwd_workspace("softmax_sum", softmax_sum, (1, sq, h, b))
     check_sdpa_bwd_dtype("softmax_sum", softmax_sum, CUDNN_DATA_FLOAT)
-    check_sdpa_bwd_workspace("dQ_accum", dQ_accum, (d, sq, h, b))
-    check_sdpa_bwd_dtype("dQ_accum", dQ_accum, CUDNN_DATA_FLOAT)
+    if dQ_accum !== nothing
+        check_sdpa_bwd_workspace("dQ_accum", dQ_accum, (d, sq, h, b); like=dQ)
+        check_sdpa_bwd_dtype("dQ_accum", dQ_accum, CUDNN_DATA_FLOAT)
+    end
     scale === nothing && (scale = scalar!(g, Float32; rank=4, name="Scale"))
     one_t = scalar!(g, Float32; rank=4, name="One")
 
@@ -1158,7 +1231,8 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
 
     slq, slkv = seq_len_q, seq_len_kv
     padded = slq !== nothing
-    ninf = causal || padded ? scalar!(g, Float32; rank=4, name="MaskValue") : nothing
+    ninf = causal !== :none || padded ? scalar!(g, Float32; rank=4, name="MaskValue") :
+           nothing
 
     # P = exp(scale · QKᵀ − stats), padding/causally masked on request
     s = mm!(q, k, virt("S", (skv, sq, h, b)); m=slq, n=slkv)
@@ -1189,7 +1263,7 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
         sm = pointwise!(g, CUDNN_POINTWISE_BINARY_SELECT, sm, ninf, pmask,
                         name="select_padding")
     end
-    if causal
+    if causal !== :none
         score_dims = (skv, sq, h, b)
         row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
                       name="row_idx")
@@ -1199,6 +1273,17 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                    compute_dtype=CUDNN_DATA_INT32, name="gen_row_idx")
         pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=col, axis=3,
                    compute_dtype=CUDNN_DATA_INT32, name="gen_col_idx")
+        if causal === :bottom_right
+            lq, lkv = sdpa_diagonal_lengths!(g, slq, slkv)
+            row_kv = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                             name="row_add_skv")
+            pointwise!(g, CUDNN_POINTWISE_ADD, row, lkv; y=row_kv,
+                       compute_dtype=CUDNN_DATA_INT32, name="row+skv")
+            row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                          name="row_add_skv_sub_sq")
+            pointwise!(g, CUDNN_POINTWISE_SUB, row_kv, lq; y=row,
+                       compute_dtype=CUDNN_DATA_INT32, name="row+skv-sq")
+        end
         mask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
                        name="causal_mask")
         pointwise!(g, CUDNN_POINTWISE_CMP_GE, row, col; y=mask,
@@ -1212,10 +1297,15 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     # workspaces, then fold onto the shared k/v heads by reduction
     dK_fullhead = dV_fullhead = nothing
     if hk != h
-        dK_fullhead = tensor!(g; dims=(d, skv, h, b), dtype=iodt, output=true,
-                              name="dKFullhead")
-        dV_fullhead = tensor!(g; dims=(d, skv, h, b), dtype=iodt, output=true,
-                              name="dVFullhead")
+        # the engines don't scale dK/dV's offsets by the head groups, so ragged
+        # full-head workspaces take their own: the K/V token offsets times d * h
+        kvoff = something(dK.ragged_offset, dV.ragged_offset, Some(nothing))
+        offset = kvoff === nothing ? nothing :
+                 tensor!(g; dims=kvoff.dims, dtype=kvoff.dtype, name="FullheadRaggedOffset")
+        dK_fullhead = sdpa_bwd_spill!(g, dK, (d, skv, h, b), iodt, "dKFullhead",
+                                      dK.ragged_offset === nothing ? nothing : offset)
+        dV_fullhead = sdpa_bwd_spill!(g, dV, (d, skv, h, b), iodt, "dVFullhead",
+                                      dV.ragged_offset === nothing ? nothing : offset)
     end
 
     # dV = Pᵀ dO
@@ -1245,11 +1335,16 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                                  g.compute_dtype, false))
     end
 
-    # dQ = dS K, accumulated in Float32 and cast to the io dtype
+    # dQ = dS K, accumulated in Float32 and cast to the io dtype unless deterministic
     kview = reshape!(g, k; dims=(d, skv, hk, b), strides=kstrides, dtype=iodt,
                      name="Kview")
-    mm!(ds, kview, dQ_accum; m=slq, k=slkv)
-    pointwise!(g, CUDNN_POINTWISE_IDENTITY, dQ_accum; y=dQ, name="identity_dQ")
+    kview.ragged_offset = k.ragged_offset
+    if deterministic
+        mm!(ds, kview, dQ; m=slq, k=slkv)
+    else
+        mm!(ds, kview, dQ_accum; m=slq, k=slkv)
+        pointwise!(g, CUDNN_POINTWISE_IDENTITY, dQ_accum; y=dQ, name="identity_dQ")
+    end
 
     return dQ, dK, dV, softmax_sum, dQ_accum, dK_fullhead, dV_fullhead
 end
@@ -1395,9 +1490,12 @@ function lower(op::NormBwdOp, ctx::LoweringContext)
 end
 
 function lower_sdpa_mask_subgraph!(d, ctx, mask)
+    optdesc(t) = t === nothing ? nothing : desc(ctx, t)
     mask_op = track!(ctx, diagonal_band_mask_operation(desc(ctx, mask.input),
                                                        desc(ctx, mask.fill),
                                                        desc(ctx, mask.output);
+                                                       seq_len_q=optdesc(mask.seq_len_q),
+                                                       seq_len_kv=optdesc(mask.seq_len_kv),
                                                        comparison_mode=CUDNN_POINTWISE_CMP_GE))
     d[:subgraph] = track!(ctx, operation_graph([mask_op]))
     d[:subgraph_input_uid] = mask.input.uid

@@ -12,7 +12,17 @@ function checked_array_pointer(t::Tensor, a::DenseCuArray)
         throw(ArgumentError("binding for $(t.name) has eltype $(eltype(a)), expected $(t.dtype)"))
     memory_layout(dims, strides) =
         sort!([(Int64(d), Int64(s)) for (d, s) in zip(dims, strides) if d != 1]; by=last)
-    if t.reordering == CUDNN_TENSOR_REORDERING_NONE
+    if t.ragged_offset !== nothing
+        # the offsets locate each token run on the device: check the layout within a token
+        token = maximum(last, memory_layout(t.dims, t.strides); init=1)
+        within(dims, strides) = filter(x -> last(x) < token, memory_layout(dims, strides))
+        within(size(a), strides(a)) == within(t.dims, t.strides) &&
+            length(a) % token == 0 ||
+            throw(DimensionMismatch(
+                "binding for ragged $(t.name) has size $(size(a)), which does not hold " *
+                "tokens laid out as the tensor's $(Tuple(t.dims)) with strides " *
+                "$(Tuple(t.strides))"))
+    elseif t.reordering == CUDNN_TENSOR_REORDERING_NONE
         memory_layout(size(a), strides(a)) == memory_layout(t.dims, t.strides) ||
             throw(DimensionMismatch(
                 "binding for $(t.name) has size $(size(a)) with strides $(strides(a)), " *

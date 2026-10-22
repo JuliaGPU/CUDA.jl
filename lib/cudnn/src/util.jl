@@ -14,6 +14,7 @@ cudnnDataType(::Type{BFloat16})=CUDNN_DATA_BFLOAT16
 cudnnDataType(::Type{Int8}) = CUDNN_DATA_INT8
 cudnnDataType(::Type{UInt8}) = CUDNN_DATA_UINT8
 cudnnDataType(::Type{Int32}) = CUDNN_DATA_INT32
+cudnnDataType(::Type{Int64}) = CUDNN_DATA_INT64
 # The following are 32-bit elements each composed of 4 8-bit integers, only supported with CUDNN_TENSOR_NCHW_VECT_C
 # CUDNN_DATA_INT8x4,
 # CUDNN_DATA_UINT8x4,
@@ -24,7 +25,8 @@ juliaDataType(a)=(a==CUDNN_DATA_HALF ? Float16 :
                   a==CUDNN_DATA_BFLOAT16 ? BFloat16 :
                   a==CUDNN_DATA_INT8 ? Int8 :
                   a==CUDNN_DATA_UINT8 ? UInt8 :
-                  a==CUDNN_DATA_INT32 ? Int32 : error())
+                  a==CUDNN_DATA_INT32 ? Int32 :
+                  a==CUDNN_DATA_INT64 ? Int64 : error())
 
 tuple_strides(A::Tuple) = _strides((1,), A)
 _strides(out::Tuple{Int}, A::Tuple{}) = ()
