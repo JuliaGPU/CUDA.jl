@@ -32,7 +32,7 @@ mutable struct CuMemoryPool
                 maxSize,
                 usage,
                 0,  # gpuDirectRDMACapable
-                ntuple(i->Cuchar(0), 53)
+                ntuple(i->Cuchar(0), Val(53))
             ))
             handle_ref = Ref{CUmemoryPool}()
             cuMemPoolCreate(handle_ref, props)
