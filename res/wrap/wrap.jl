@@ -291,7 +291,9 @@ function main(name="all")
     if name == "all" || name == "cupti"
         cupti = cuda
 
-        wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_profiler_target.h"];
+        wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_target.h",
+                       "$cupti/cupti_profiler_target.h", "$cupti/cupti_profiler_host.h",
+                       "$cupti/cupti_range_profiler.h"];
             include_dirs=[cuda, cupti],
             targets=[r"cupti_.*.h"])
     end
