@@ -20,3 +20,5 @@ function device_reset!(dev::Union{CuDevice,Nothing}=nothing)
     Base.depwarn("`device_reset!` is deprecated and is now a no-op; CUDA.jl no longer supports resetting a device.", :device_reset!)
     return
 end
+
+@deprecate CuContext(handle::CUcontext) unsafe_wrap(CuContext, handle) false

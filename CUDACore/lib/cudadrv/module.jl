@@ -51,6 +51,9 @@ mutable struct CuModule
     handle::CUmodule
     ctx::CuContext
 
+    # whether CUDA.jl unloads the module (see `unsafe_wrap`)
+    const owned::Bool
+
     function CuModule(data, options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
         handle_ref = Ref{CUmodule}()
 
@@ -91,14 +94,33 @@ mutable struct CuModule
         end
 
         ctx = current_context()
-        obj = new(handle_ref[], ctx)
+        obj = new(handle_ref[], ctx, true)
         # unloading a module waits for running kernels to finish
         resource_finalizer(unsafe_unload!, obj; ctx)
         return obj
     end
+
+    global function Base.unsafe_wrap(::Type{CuModule}, handle::CUmodule; ctx::CuContext,
+                                     own::Bool=false)
+        obj = new(handle, ctx, own)
+        own && resource_finalizer(unsafe_unload!, obj; ctx)
+        return obj
+    end
 end
 
+"""
+    unsafe_wrap(CuModule, handle::CUmodule; ctx::CuContext, own=false)
+
+Wrap a module that was loaded outside of CUDA.jl, in context `ctx`. With `own=true`, CUDA.jl
+takes ownership of the module and unloads it when the returned object is garbage
+collected; that is not possible for modules that belong to a library or to the CUDA
+runtime. Otherwise, the handle needs to remain valid for as long as the returned object,
+or a function obtained from it, is used.
+"""
+unsafe_wrap(::Type{CuModule}, ::CUmodule)
+
 function unsafe_unload!(mod::CuModule)
+    mod.owned || throw(ArgumentError("Cannot unload a module that CUDA.jl doesn't own"))
     context!(mod.ctx) do
         cuModuleUnload(mod)
     end

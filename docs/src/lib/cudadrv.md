@@ -286,6 +286,29 @@ is_capturing
 capture_status
 ```
 
+## Objects created elsewhere
+
+Driver objects that were created outside of CUDA.jl, e.g., by another library, can be
+wrapped with `unsafe_wrap`. With `own=false`, the default, CUDA.jl never releases the
+handle, and the caller needs to keep it valid for as long as the wrapped object is used;
+destroying such an object explicitly throws an error, except for contexts, which don't
+remember whether they are owned. With `own=true`, ownership moves to
+CUDA.jl, which releases the object as if it had created it: streams, events, modules and
+graphs are released when they are garbage collected, while contexts and memory pools are
+never released implicitly and can be destroyed with `unsafe_destroy!`.
+
+Information that cannot be queried from the driver, like the context an event was created
+in, needs to be passed explicitly.
+
+```@docs
+unsafe_wrap(::Type{CuContext}, ::CUcontext)
+unsafe_wrap(::Type{CuStream}, ::CUstream)
+unsafe_wrap(::Type{CuEvent}, ::CUevent)
+unsafe_wrap(::Type{CuModule}, ::CUmodule)
+unsafe_wrap(::Type{CuMemoryPool}, ::CUmemoryPool)
+unsafe_wrap(::Type{CuGraph}, ::CUgraph)
+```
+
 ## Deferred resource cleanup
 
 ```@docs

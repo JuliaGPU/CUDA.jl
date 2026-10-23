@@ -18,6 +18,13 @@ synchronize(ctx)
 @test startswith(sprint(show, MIME"text/plain"(), ctx), "CuContext")
 @test CUDA.api_version(ctx) isa Cuint
 
+# contexts created elsewhere can be wrapped, and are never destroyed implicitly
+let ctx2 = unsafe_wrap(CuContext, ctx.handle)
+    @test ctx2 == ctx
+    @test CUDACore.isvalid(ctx2)
+end
+@test (@test_deprecated CuContext(ctx.handle)) == ctx
+
 if !exclusive
     let ctx2 = CuContext(dev)
         @test ctx2 == current_context()    # ctor implicitly pushes
@@ -345,6 +352,33 @@ end
 @testset "event query" begin
     event = CuEvent()
     @test CUDA.isdone(event)
+end
+
+@testset "wrapped events" begin
+    handle = Ref{CUDACore.CUevent}()
+
+    # an event that CUDA.jl doesn't own can be used, but isn't destroyed
+    CUDACore.cuEventCreate(handle, CUDA.EVENT_DISABLE_TIMING)
+    let event = unsafe_wrap(CuEvent, handle[]; ctx=context())
+        record(event)
+        synchronize(event)
+        @test CUDA.isdone(event)
+        @test_throws ArgumentError CUDA.unsafe_destroy!(event)
+    end
+    GC.gc(true)
+    CUDA.reclaim()
+    @test CUDACore.unchecked_cuEventQuery(handle[]) == CUDA.SUCCESS
+    CUDACore.cuEventDestroy_v2(handle[])
+
+    # ownership can be handed to CUDA.jl
+    CUDACore.cuEventCreate(handle, CUDA.EVENT_DISABLE_TIMING)
+    let event = unsafe_wrap(CuEvent, handle[]; ctx=context(), own=true)
+        record(event)
+        synchronize(event)
+        finalize(event)
+    end
+    # (failing to destroy the event, e.g. destroying it twice, would be logged)
+    @test_logs min_level=Base.CoreLogging.Warn CUDA.reclaim()
 end
 
 end
@@ -826,6 +860,30 @@ end
 
 @test_throws Exception CuModule("foobar")
 
+# modules loaded elsewhere can be wrapped
+let ptx = push!(read(joinpath(@__DIR__, "ptx/dummy.ptx")), 0x00),
+    handle = Ref{CUDACore.CUmodule}(), fun = Ref{CUDACore.CUfunction}()
+    CUDACore.cuModuleLoadData(handle, ptx)
+    let md = unsafe_wrap(CuModule, handle[]; ctx=context())
+        cudacall(CuFunction(md, "dummy"), Tuple{})
+        synchronize()
+        @test_throws ArgumentError CUDACore.unsafe_unload!(md)
+    end
+    GC.gc(true)
+    CUDA.reclaim()
+    CUDACore.cuModuleGetFunction(fun, handle[], "dummy")
+    CUDACore.cuModuleUnload(handle[])
+
+    # ownership can be handed to CUDA.jl
+    CUDACore.cuModuleLoadData(handle, ptx)
+    let md = unsafe_wrap(CuModule, handle[]; ctx=context(), own=true)
+        cudacall(CuFunction(md, "dummy"), Tuple{})
+        synchronize()
+        finalize(md)
+    end
+    @test_logs min_level=Base.CoreLogging.Warn CUDA.reclaim()
+end
+
 @testset "globals" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
 
@@ -981,7 +1039,14 @@ memory_pool!(dev, pool)
 attribute!(pool2, CUDA.MEMPOOL_ATTR_RELEASE_THRESHOLD, UInt64(2^30))
 @test attribute(UInt64, pool2, CUDA.MEMPOOL_ATTR_RELEASE_THRESHOLD) == 2^30
 
+@test unsafe_wrap(CuMemoryPool, pool2.handle; ctx=context()) == pool2
+@test_throws ArgumentError CUDA.unsafe_destroy!(unsafe_wrap(CuMemoryPool, pool2.handle;
+                                                            ctx=context()))
 CUDA.unsafe_destroy!(pool2)
+
+# the pools that the driver returns aren't owned by CUDA.jl
+@test_throws ArgumentError CUDA.unsafe_destroy!(default_memory_pool(dev))
+@test_throws ArgumentError CUDA.unsafe_destroy!(memory_pool(dev))
 
 end
 
@@ -990,6 +1055,28 @@ end
 ############################################################################################
 
 @testset "stream" begin
+
+# streams created elsewhere can be handed to CUDA.jl
+let handle = Ref{CUDACore.CUstream}(), a = CUDA.zeros(Int, 1)
+    CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+    @test_throws ArgumentError unsafe_wrap(CuStream, handle[])
+    s = unsafe_wrap(CuStream, handle[]; own=true)
+    stream!(s) do
+        a .+= 1
+    end
+    @test Array(a) == [1]
+    finalize(s)
+    @test_logs min_level=Base.CoreLogging.Warn CUDA.reclaim()
+end
+@test_throws ArgumentError unsafe_wrap(CuStream, CUDACore.CU_STREAM_LEGACY; own=true)
+let handle = Ref{CUDACore.CUstream}(), graph = Ref{CUDACore.CUgraph}()
+    CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
+    CUDACore.cuStreamBeginCapture_v2(handle[], CUDACore.CU_STREAM_CAPTURE_MODE_RELAXED)
+    @test_throws ArgumentError unsafe_wrap(CuStream, handle[]; own=true)
+    CUDACore.cuStreamEndCapture(handle[], graph)
+    CUDACore.cuGraphDestroy(graph[])
+    CUDACore.cuStreamDestroy_v2(handle[])
+end
 
 s = CuStream()
 synchronize(s)
@@ -1089,6 +1176,32 @@ let s = CuStream(), e = CuEvent()
         record(e, s)
         open_gate_during(() -> synchronize(e))
     end
+end
+
+# an event that CUDA.jl doesn't own may be recorded again by its owner, so synchronizing it
+# doesn't tell anything about the work it was recorded after by CUDA.jl
+let s = CuStream(), other = CuStream(), handle = Ref{CUDACore.CUevent}()
+    CUDACore.cuEventCreate(handle, CUDA.EVENT_DISABLE_TIMING)
+    e = unsafe_wrap(CuEvent, handle[]; ctx=context())
+    a = CUDA.zeros(Int, 1)
+    b = CUDA.zeros(Int, 1)
+    a .= 0
+    b .= a
+    synchronize()
+    @test gated(s) do
+        stream!(s) do
+            a .= 1
+            record(e)
+        end
+        CUDACore.cuEventRecord(handle[], other)
+        synchronize(e)
+        stream!(other) do
+            b .= a
+            open_gate_during(() -> synchronize(other))
+        end
+    end
+    @test Array(b) == [1]
+    CUDACore.cuEventDestroy_v2(handle[])
 end
 
 # the entire context, including streams that do not synchronize with the legacy stream

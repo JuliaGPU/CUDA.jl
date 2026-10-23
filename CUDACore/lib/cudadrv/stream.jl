@@ -143,6 +143,32 @@ mutable struct CuStream
         return obj
     end
 
+    global function Base.unsafe_wrap(::Type{CuStream}, handle::CUstream; own::Bool=false)
+        own || throw(ArgumentError("Wrapping a stream that CUDA.jl doesn't own is not supported"))
+        handle in (C_NULL, CU_STREAM_LEGACY, CU_STREAM_PER_THREAD) &&
+            throw(ArgumentError("Cannot take ownership of a default stream"))
+        status = Ref{CUstreamCaptureStatus}()
+        cuStreamIsCapturing(handle, status)
+        status[] == CU_STREAM_CAPTURE_STATUS_NONE ||
+            throw(ArgumentError("Cannot take ownership of a stream that is being captured"))
+        # a green context may only be current on one thread at a time, while CUDA.jl
+        # activates a stream's context wherever it needs to
+        if driver_version() >= v"12.4"
+            green_ref = Ref{CUgreenCtx}()
+            cuStreamGetGreenCtx(handle, green_ref)
+            green_ref[] == C_NULL ||
+                throw(ArgumentError("Cannot take ownership of a stream in a green context"))
+        end
+
+        ctx_ref = Ref{CUcontext}()
+        cuStreamGetCtx(handle, ctx_ref)
+        ctx = unsafe_wrap(CuContext, ctx_ref[])
+        disposal_stream(ctx)
+        obj = new(handle, true, ctx, nothing, 0, StreamOrder())
+        resource_finalizer(obj)
+        return obj
+    end
+
     global default_stream() = new(convert(CUstream, C_NULL), true, nothing, nothing, 0, nothing)
 
     global legacy_stream() = new(convert(CUstream, 1), true, nothing, nothing, 0, nothing)
@@ -187,6 +213,21 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
     accomplished using tasks.
 """
 per_thread_stream()
+
+"""
+    unsafe_wrap(CuStream, handle::CUstream; own=false)
+
+Take ownership of a stream that was created outside of CUDA.jl, which requires passing
+`own=true`. CUDA.jl then destroys the stream when the returned object is garbage collected,
+and the handle shouldn't be used by anything else after that. The stream's context is not
+owned by the returned object. Default streams, streams that are being captured and streams
+in a green context can't be adopted.
+
+Streams that CUDA.jl doesn't own, i.e. with `own=false`, are not supported, because memory
+remembers the stream it was last used on, and uses it after the stream may have been
+destroyed. To order work with a stream that another library owns, use events instead.
+"""
+unsafe_wrap(::Type{CuStream}, ::CUstream)
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
 
