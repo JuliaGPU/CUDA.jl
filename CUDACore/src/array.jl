@@ -1002,27 +1002,31 @@ guaranteed to be initialized.
 function Base.resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
 
-  # only resize when the new length exceeds the capacity or is much smaller
-  cap = A.maxsize ÷ aligned_sizeof(T)
+  # only resize when the new length exceeds the capacity or is much smaller. arrays that
+  # don't start at the beginning of their memory (like views) can't tell how much of it
+  # they may use, and elements of zero size (like unions of singletons) don't tell the
+  # capacity, so those are reallocated when growing.
+  sz = aligned_sizeof(T)
+  cap = iszero(A.offset) && !iszero(sz) ? A.maxsize ÷ sz : 0
   if n > cap || n < cap ÷ 4
     len = if n < cap
       # shrink to fit
       n
-    elseif A.maxsize > RESIZE_THRESHOLD
+    elseif cap * sz > RESIZE_THRESHOLD
       # large arrays grown by fixed increments
-      max(n, cap + RESIZE_INCREMENT ÷ aligned_sizeof(T))
+      max(n, cap + RESIZE_INCREMENT ÷ sz)
     else
       # small arrays are doubled in size
       max(n, 2 * length(A))
     end
 
     # determine the new buffer size
-    maxsize = len * aligned_sizeof(T)
-    bufsize = if isbitstype(T)
-        maxsize
-    else
+    maxsize = len * sz
+    bufsize = if Base.isbitsunion(T)
       # type tag array past the data
       maxsize + len
+    else
+      maxsize
     end
 
     # allocate new data

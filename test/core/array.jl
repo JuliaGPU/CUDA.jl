@@ -786,6 +786,30 @@ end
     @test Array(a)[1:3] == data
     @test a.maxsize == sizeof(a)
   end
+
+  # views don't grow into memory that isn't theirs
+  for data in ([1, 2, 3, 4], [1, nothing, 3, nothing])
+    a = CuArray(data)
+    v = view(a, 3:4)
+    CUDA.resize!(v, 4)
+    @test length(v) == 4
+    @test Array(v)[1:2] == data[3:4]
+    @test Array(a) == data
+  end
+
+  # elements of zero size have no capacity to speak of
+  let data = Union{Nothing,Missing}[nothing, missing, missing]
+    a = CuArray(data)
+    CUDA.resize!(a, 6)
+    @test length(a) == 6
+    @test isequal(Array(a)[1:3], data)
+    CUDA.resize!(a, 1)
+    @test isequal(Array(a), [nothing])
+
+    v = view(CuArray(data), 2:3)
+    CUDA.resize!(v, 4)
+    @test isequal(Array(v)[1:2], [missing, missing])
+  end
 end
 
 @testset "aliasing" begin
