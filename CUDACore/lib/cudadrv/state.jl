@@ -552,6 +552,7 @@ end
 
 function stream!(stream::CuStream)
     check_stream_capture()
+    check_owned(stream)
     state = task_local_state!()
     devidx = deviceid(state.device)+1
     bind!(stream)
@@ -561,6 +562,7 @@ end
 
 function stream!(f::Function, stream::CuStream)
     check_stream_capture()
+    check_owned(stream)
     state = task_local_state!()
     devidx = deviceid(state.device)+1
     old_stream = state.streams[devidx]

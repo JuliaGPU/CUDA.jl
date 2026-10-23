@@ -144,25 +144,28 @@ mutable struct CuStream
     end
 
     global function Base.unsafe_wrap(::Type{CuStream}, handle::CUstream; own::Bool=false)
-        own || throw(ArgumentError("Wrapping a stream that CUDA.jl doesn't own is not supported"))
         handle in (C_NULL, CU_STREAM_LEGACY, CU_STREAM_PER_THREAD) &&
-            throw(ArgumentError("Cannot take ownership of a default stream"))
-        status = Ref{CUstreamCaptureStatus}()
-        cuStreamIsCapturing(handle, status)
-        status[] == CU_STREAM_CAPTURE_STATUS_NONE ||
-            throw(ArgumentError("Cannot take ownership of a stream that is being captured"))
+            throw(ArgumentError("Cannot wrap a default stream"))
         # a green context may only be current on one thread at a time, while CUDA.jl
         # activates a stream's context wherever it needs to
         if driver_version() >= v"12.4"
             green_ref = Ref{CUgreenCtx}()
             cuStreamGetGreenCtx(handle, green_ref)
             green_ref[] == C_NULL ||
-                throw(ArgumentError("Cannot take ownership of a stream in a green context"))
+                throw(ArgumentError("Cannot wrap a stream in a green context"))
         end
-
         ctx_ref = Ref{CUcontext}()
         cuStreamGetCtx(handle, ctx_ref)
         ctx = unsafe_wrap(CuContext, ctx_ref[])
+
+        # memory is never used on a stream that CUDA.jl doesn't own (see `isborrowed`),
+        # so there's nothing to order or to release
+        own || return new(handle, true, ctx, nothing, 0, nothing)
+
+        status = Ref{CUstreamCaptureStatus}()
+        cuStreamIsCapturing(handle, status)
+        status[] == CU_STREAM_CAPTURE_STATUS_NONE ||
+            throw(ArgumentError("Cannot take ownership of a stream that is being captured"))
         disposal_stream(ctx)
         obj = new(handle, true, ctx, nothing, 0, StreamOrder())
         resource_finalizer(obj)
@@ -217,19 +220,55 @@ per_thread_stream()
 """
     unsafe_wrap(CuStream, handle::CUstream; own=false)
 
-Take ownership of a stream that was created outside of CUDA.jl, which requires passing
-`own=true`. CUDA.jl then destroys the stream when the returned object is garbage collected,
-and the handle shouldn't be used by anything else after that. The stream's context is not
-owned by the returned object. Default streams, streams that are being captured and streams
-in a green context can't be adopted.
+Wrap a stream that was created outside of CUDA.jl. Default streams and streams in a green
+context can't be wrapped. The stream's context is not owned by the returned object.
 
-Streams that CUDA.jl doesn't own, i.e. with `own=false`, are not supported, because memory
-remembers the stream it was last used on, and uses it after the stream may have been
-destroyed. To order work with a stream that another library owns, use events instead.
+With `own=true`, CUDA.jl takes ownership of the stream and uses it like a stream it created:
+the stream is destroyed when the returned object is garbage collected, and the handle
+shouldn't be used by anything else after that. A stream that is being captured can't be
+adopted.
+
+With `own=false`, the stream's owner may destroy it as soon as it doesn't need it anymore.
+CUDA.jl memory remembers the stream it was last used on, and uses it after that, e.g., to be
+freed, so a stream that CUDA.jl doesn't own can only be used for work that doesn't involve
+CUDA.jl memory: recording and waiting for events, synchronizing, and launching kernels that
+don't take arrays as arguments. Other uses, like launching a kernel that takes an array,
+copying an array, capturing a graph, or making the stream the task's stream with
+[`stream!`](@ref), throw an error. To use memory on behalf of the stream's owner, order work
+on the task's stream with the borrowed one using events:
+
+```julia
+xla_stream = unsafe_wrap(CuStream, handle)  # e.g., the stream XLA passes to a callback
+
+# make the task's stream wait for the work XLA submitted before the callback
+event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
+record(event, xla_stream)
+CUDA.wait(event, stream())
+
+a .+= 1  # use memory on the task's stream, as usual
+
+# make XLA's stream wait for the work the callback submitted
+record(event, stream())
+CUDA.wait(event, xla_stream)
+```
 """
 unsafe_wrap(::Type{CuStream}, ::CUstream)
 
 Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
+
+# memory remembers the stream it was last used on, and uses it later on, e.g., to free it.
+# a stream that CUDA.jl doesn't own may be destroyed before that, so memory can't be used
+# on it. (the special streams, which don't have a context, always exist.)
+isborrowed(s::CuStream) = s.ctx !== nothing && s.order === nothing
+
+function check_owned(s::CuStream)
+    isborrowed(s) && throw(ArgumentError(
+        """Cannot use CUDA.jl memory on a stream that CUDA.jl doesn't own.
+
+           Use events to order work on this stream with work on a stream that CUDA.jl
+           owns, e.g., the task's stream, and use the memory there."""))
+    return
+end
 
 bind!(s::CuStream) = (s.order === nothing || bind!(s.order); return)
 
@@ -243,6 +282,7 @@ Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
 function unsafe_destroy!(s::CuStream)
     @assert s.ctx !== nothing "Cannot destroy unassociated stream"
+    isborrowed(s) && throw(ArgumentError("Cannot destroy a stream that CUDA.jl doesn't own"))
     context!(s.ctx) do
         cuStreamDestroy_v2(s)
     end

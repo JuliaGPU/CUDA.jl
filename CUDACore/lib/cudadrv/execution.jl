@@ -294,10 +294,19 @@ cudacall
 
 # forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 cudacall(f::F, types::Union{Tuple,Type}, args::Vararg{Any,N}) where {F,N} =
-    cudacall_tuple(f, types, args)
+    cudacall_managed(f, types, args)
 Core.kwcall(kwargs::NamedTuple, ::typeof(cudacall), f::F, types::Union{Tuple,Type},
             args::Vararg{Any,N}) where {F,N} =
-    cudacall_tuple(f, types, args; kwargs...)
+    cudacall_managed(f, types, args; kwargs...)
+
+# arrays are converted for use by the launch on `stream` (see `with_managed`). kernels
+# launched with `@cuda` call `cudacall_tuple` directly, with arguments that already are.
+function cudacall_managed(f::F, types, args::Tuple; stream::CuStream=stream(),
+                          kwargs...) where {F}
+    with_ordered_managed((); stream) do
+        cudacall_tuple(f, types, args; stream, kwargs...)
+    end
+end
 
 cudacall_tuple(f::F, types::Tuple, args::Tuple; kwargs...) where {F} =
     cudacall_tuple(f, _to_tuple_type(types), args; kwargs...)

@@ -307,6 +307,7 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
                          capturing::Bool=is_capturing(stream),
                          external::Bool=false) where {M}
   sizeof(managed) == 0 && return managed
+  check_owned(stream)
 
   M == UnifiedMemory && attach_globally!(managed, stream, capturing)
 

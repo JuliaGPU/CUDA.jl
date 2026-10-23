@@ -445,6 +445,8 @@ function capture_stream(f, graph::Union{Nothing,CuGraph}, deps::Vector{CUgraphNo
 end
 
 function reserve_capture_stream(stream::CuStream, ctx::CuContext)
+    # (the stream becomes the task's stream while capturing, see `stream!`)
+    check_owned(stream)
     haskey(task_local_storage(), :CUDA_capture_stream) &&
         throw(ArgumentError("Cannot capture on a specific stream while already capturing"))
     stream.ctx == ctx ||
@@ -883,6 +885,8 @@ the graph has finished executing.
 function launch(exec::CuGraphExec, stream::CuStream=stream())
     capture_submission(stream) do
         @lock exec.lock begin
+            # the memory the graph allocated is freed on the stream it was last launched on
+            isempty(exec.allocations) || check_owned(stream)
             with_ordered_managed(exec.launch_memory; stream) do
                 cuGraphLaunch(exec, stream)
             end
