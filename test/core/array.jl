@@ -92,6 +92,14 @@ function slow_sum(out, a, cycles)
 end
 
 @testset "unsafe_wrap" begin
+    # isbits unions keep selector bytes past the wrapped memory
+    let a = CuArray(Union{Int,Nothing}[1, nothing])
+        @test_throws ArgumentError unsafe_wrap(CuArray, pointer(a), 2)
+    end
+    let a = cu(Union{Int,Nothing}[1, nothing]; unified=true)
+        @test_throws ArgumentError unsafe_wrap(Array, a)
+    end
+
     # managed memory -> CuArray
     for a in [cu([1]; device=true), cu([1]; unified=true)]
         p = pointer(a)

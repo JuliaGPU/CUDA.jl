@@ -279,6 +279,9 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,M}
   check_eltype("unsafe_wrap(CuArray, ...)", T)
+  # arrays of isbits unions keep selector bytes past their data, outside of the memory
+  Base.isbitsunion(T) && throw(ArgumentError(
+    "unsafe_wrap(CuArray, ...) does not support isbits-union element types like $T"))
   sz = prod(dims) * aligned_sizeof(T)
 
   # create a memory object
