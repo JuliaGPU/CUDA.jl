@@ -1032,6 +1032,17 @@ end
     @test Array(a) == [1]
   end
 
+  # scalar indexing of memory that's accessible from the host
+  for M in (CUDA.UnifiedMemory, CUDA.HostMemory)
+    a = CuVector{Union{Int32,Nothing},M}([1, nothing, 3])
+    @test a[1] === Int32(1)
+    @test a[2] === nothing
+    a[1] = nothing
+    a[2] = 2
+    @test Array(a) == [nothing, 2, 3]
+    @test view(a, 2:3)[2] === Int32(3)
+  end
+
   # struct with unions are not isbits but are allocatedinline
   let
     @gensym typnam

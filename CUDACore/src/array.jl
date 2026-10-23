@@ -524,14 +524,25 @@ unmanaged_pointer(x::CuArray{T}, i::Integer=1) where {T} =
 
 ## indexing
 
-function Base.getindex(x::CuArray{<:Any, <:Any, <:Union{HostMemory,UnifiedMemory}}, I::Int)
+function Base.getindex(x::CuArray{T, <:Any, <:Union{HostMemory,UnifiedMemory}}, I::Int) where T
   @boundscheck checkbounds(x, I)
-  unsafe_load(pointer(x, I; type=HostMemory))
+  if Base.isbitsunion(T)
+    # the element's type is stored separately, in its selector byte, so copy both
+    y = Vector{T}(undef, 1)
+    unsafe_copyto!(y, 1, x, I, 1)
+    y[]
+  else
+    unsafe_load(pointer(x, I; type=HostMemory))
+  end
 end
 
-function Base.setindex!(x::CuArray{<:Any, <:Any, <:Union{HostMemory,UnifiedMemory}}, v, I::Int)
+function Base.setindex!(x::CuArray{T, <:Any, <:Union{HostMemory,UnifiedMemory}}, v, I::Int) where T
   @boundscheck checkbounds(x, I)
-  unsafe_store!(pointer(x, I; type=HostMemory), v)
+  if Base.isbitsunion(T)
+    unsafe_copyto!(x, I, T[v], 1, 1)
+  else
+    unsafe_store!(pointer(x, I; type=HostMemory), v)
+  end
 end
 
 
