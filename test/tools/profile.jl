@@ -1,6 +1,24 @@
 import NVTX
 using CUDA.Profile: push_row!, filtermask
 
+# A100s let only one process profile them when MIG is enabled, which other CI jobs on the
+# same GPU may be doing, so retry sessions that find the GPU busy
+function retry_busy(f; timeout=600)
+    start = time()
+    while true
+        try
+            return f()
+        catch err
+            busy = occursin("being profiled by another process", sprint(showerror, err))
+            busy && time() - start < timeout || rethrow()
+            sleep(5)
+        end
+    end
+end
+macro retry_busy(ex)
+    :(retry_busy(() -> $(esc(ex))))
+end
+
 @testset "profiler" begin
 
 ############################################################################################
@@ -167,6 +185,182 @@ end
 end
 
 end
+end
+
+############################################################################################
+
+@testset "metrics" begin
+
+@test_throws ArgumentError @macroexpand CUDA.@metrics :memory nothing
+
+# the range profiler of CUPTI 12.8 to 13.1 doesn't work
+broken_range_profiler = can_use_cupti() && v"12.8" <= CUPTI.version() < v"13.2"
+
+# whether this device and driver let us read performance counters
+can_collect_metrics = can_use_cupti() && CUPTI.has_range_profiler() &&
+                      !broken_range_profiler && try
+    @retry_busy CUDA.@metrics metrics=["gpu__time_duration.sum"] nothing
+    true
+catch err
+    msg = sprint(showerror, err)
+    contains(msg, "not supported on this device") || contains(msg, "performance counters") ||
+        contains(msg, "did not collect hardware metrics") ||
+        contains(msg, "did not record when kernels executed") || rethrow()
+    @warn "Cannot collect hardware metrics, skipping tests" exception=err
+    false
+end
+
+if can_use_cupti() && !CUPTI.has_range_profiler()
+    @test_throws "CUDA 12.6 Update 2" CUDA.@metrics error("must not execute")
+elseif broken_range_profiler
+    @test_throws "CUDA 13.2" CUDA.@metrics error("must not execute")
+end
+
+if can_collect_metrics
+
+function increment(a)
+    i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+    i <= length(a) && (@inbounds a[i] += 1f0)
+    return
+end
+
+a = CUDA.zeros(Float32, 1024)
+
+@testset "overview" begin
+    p = @retry_busy CUDA.@metrics @cuda threads=32 blocks=32 increment(a)
+    @test p isa CUDA.Profile.KernelProfile
+    @test length(p.kernels.id) == 1
+    @test p.passes >= 1
+    @test size(p.values) == (1, length(p.metrics))
+    @test p.values[1, 1] > 0    # duration
+
+    str = string(p)
+    @test occursin("increment", str)
+    @test occursin("Compute", str)
+
+    str = string(@retry_busy CUDA.@metrics trace=true @cuda threads=32 blocks=32 increment(a))
+    @test occursin("ID", str)
+    @test occursin("Blocks", str)
+
+    str = string(@retry_busy CUDA.@metrics metrics=:memory @cuda threads=32 blocks=32 increment(a))
+    @test occursin("DRAM traffic", str)
+
+    @test occursin("No kernels", string(@retry_busy CUDA.@metrics nothing))
+end
+
+@testset "raw metrics" begin
+    p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum", "smsp__average_warp_latency.ratio"] begin
+        @cuda threads=32 blocks=32 increment(a)
+    end
+    @test p.metrics == ["smsp__warps_launched.sum", "smsp__average_warp_latency.ratio"]
+    @test p.values[1, 1] == 32
+    # ratios aren't percentages
+    @test !occursin("%", string(p))
+end
+
+@testset "attribution" begin
+    # the number of warps uniquely identifies each launch
+    p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum"] begin
+        @sync for task in 1:4
+            Threads.@spawn for i in 1:4
+                @cuda threads=32 blocks=10task+i increment(a)
+            end
+        end
+    end
+    @test length(p.kernels.id) == 16
+    @test p.values[:, 1] == [grid.x for grid in p.kernels.grid]
+end
+
+@testset "contexts" begin
+    # only kernels in the profiled context are reported, even if the code switches
+    ctx = context()
+    CuContext(device()) do other
+        context!(ctx)
+        p = @retry_busy CUDA.@metrics begin
+            @cuda increment(a)
+            context!(other)
+        end
+        @test context() == other
+        @test length(p.kernels.id) == 1
+        context!(ctx)
+    end
+end
+
+@testset "replay" begin
+    # kernels are replayed to collect metrics, which shouldn't affect results
+    fill!(a, 0)
+    p = @retry_busy CUDA.@metrics @cuda threads=32 blocks=32 increment(a)
+    @test p.passes > 1
+    @test all(isequal(1), Array(a))
+end
+
+@testset "errors" begin
+    executed = Ref(false)
+    @test_throws "Metric 'foo__bar.sum' is not available" CUDA.@metrics metrics=["foo__bar.sum"] (executed[] = true)
+    @test_throws ArgumentError CUDA.@metrics metrics=:unknown (executed[] = true)
+    @test !executed[]
+
+    @test_throws "at most" @retry_busy CUDA.@metrics begin
+        for i in 1:CUDA.Profile.max_launches+1
+            @cuda increment(a)
+        end
+    end
+
+    stream = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    graph = capture(; stream) do
+        @cuda stream=stream increment(a)
+    end
+    exec = instantiate(graph)
+    @test_throws "CUDA graphs" @retry_busy CUDA.@metrics begin
+        launch(exec, stream)
+        synchronize(stream)
+    end
+
+    @test_throws "profiled code failed" @retry_busy CUDA.@metrics begin
+        @cuda increment(a)
+        error("profiled code failed")
+    end
+    @test length(@retry_busy CUDA.@metrics(@cuda increment(a)).kernels.id) == 1
+    @test CUDA.@profile(@cuda increment(a)) isa CUDA.Profile.ProfileResults
+end
+
+@testset "nesting" begin
+    nested(f) = @retry_busy CUDA.@metrics begin
+        @cuda increment(a)
+        try
+            f()
+        catch err
+            err
+        end
+    end
+    inner_metrics() = CUDA.@metrics metrics=["gpu__time_duration.sum"] @cuda increment(a)
+    inner_trace() = CUDA.@profile @cuda increment(a)
+
+    for inner in (inner_metrics, inner_trace)
+        # in the same task
+        p = nested(inner)
+        @test length(p.kernels.id) == 1
+
+        # in another task, which would deadlock if it waited for the outer session
+        p = nested(() -> fetch(Threads.@spawn inner()))
+        @test length(p.kernels.id) == 1
+    end
+
+    # collecting metrics while tracing activity
+    str = string(CUDA.@profile begin
+        @cuda increment(a)
+        try
+            inner_metrics()
+        catch
+        end
+    end)
+    @test occursin("increment", str)
+
+    @test length(@retry_busy CUDA.@metrics(@cuda increment(a)).kernels.id) == 1
+end
+
+end
+
 end
 
 end
