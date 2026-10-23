@@ -914,17 +914,18 @@ end
     @test Array(b) == [2, nothing, 4]
   end
 
-  # same for views
-  let a = [0, nothing, 1, nothing, 3, nothing]
+  # same for views, which have their own selector bytes (the data is chosen so that
+  # the parent's first selector bytes differ from the view's)
+  let a = [nothing, nothing, 1, nothing, 3, 5]
     b = CuArray(a)
-    b = view(b, 3:5)
-    c = Array(b)
-    @test view(a, 3:5) == c
+    v = view(b, 3:5)
+    @test Array(v) == view(a, 3:5)
+    @test Array(copy(v)) == view(a, 3:5)
+    @test Array(map(x -> something(x, 0), v)) == [1, 0, 3]
   end
-  let a = [0, nothing, 1, nothing, 3, nothing]
+  let a = [nothing, nothing, 1, nothing, 3, 5]
     b = CuArray(a)
-    b = view(b, 3:5)
-    c = similar(b, Bool)
+    v = view(b, 3:5)
     function kernel(x)
       i = threadIdx().x
       val = x[i]
@@ -933,8 +934,22 @@ end
       end
       return
     end
-    @cuda threads=length(b) kernel(b)
-    @test Array(b) == [2, nothing, 4]
+    @cuda threads=length(v) kernel(v)
+    @test Array(v) == [2, nothing, 4]
+    @test Array(b) == [nothing, nothing, 2, nothing, 4, 5]
+
+    fill!(view(b, 2:3), nothing)
+    @test Array(b) == [nothing, nothing, nothing, nothing, 4, 5]
+    view(b, 4:5) .= 7
+    @test Array(b) == [nothing, nothing, nothing, 7, 7, 5]
+    copyto!(view(b, 1:2), [1, nothing])
+    @test Array(b) == [1, nothing, nothing, 7, 7, 5]
+
+    # derived from views
+    @test Array(view(view(b, 2:6), 2:4)) == [nothing, 7, 7]
+    @test Array(reshape(view(b, 3:6), 2, 2)) == [nothing 7; 7 5]
+    @test Array(vec(view(reshape(b, 2, 3), :, 2))) == [nothing, 7]
+    @test Array(b[[2, 4, 6]]) == [nothing, 7, 5]
   end
 
   # test that we can create and use arrays with all singleton objects
@@ -956,6 +971,27 @@ end
     end
     @cuda threads=length(b) kernel()
     @test Array(errors) == [0]
+  end
+
+  # views of such arrays have no byte offset, but still have their own selector bytes
+  let b = CuArray(Union{Nothing,Missing}[nothing, nothing, missing, missing])
+    v = view(b, 3:4)
+    @test isequal(Array(v), [missing, missing])
+    @test isequal(Array(copy(v)), [missing, missing])
+
+    function kernel(ok, x)
+      i = threadIdx().x
+      ok[i] = x[i] === missing
+      x[i] = nothing
+      return
+    end
+    ok = CuArray(falses(2))
+    @cuda threads=2 kernel(ok, v)
+    @test all(Array(ok))
+    @test Array(b) == [nothing, nothing, nothing, nothing]
+
+    fill!(view(b, 2:3), missing)
+    @test isequal(Array(b), [nothing, missing, missing, nothing])
   end
 
   # arrays with union{union{...}, ...}

@@ -74,7 +74,10 @@ end
 mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
   data::DataRef{Managed{M}}
 
-  maxsize::Int  # maximum data size; excluding any selector bytes
+  # the size of the data in memory, in bytes, excluding any selector bytes. arrays of
+  # isbits unions that don't start at the beginning of their memory (like views) add their
+  # element offset, so that this is where their own selector bytes start (see `typetagdata`)
+  maxsize::Int
   offset::Int   # offset of the data in memory, in bytes
 
   dims::Dims{N}
@@ -534,6 +537,7 @@ end
 
 ## interop with device arrays
 
+# device arrays address their selector bytes relative to their first element
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
   CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, pointer(a)), size(a),
                                a.maxsize - a.offset)
@@ -610,10 +614,7 @@ function typetagdata(a::CuArray, i=1; type=DeviceMemory)
   else
     error("unknown memory type")
   end
-  # for zero-size element types (e.g. singleton unions), the byte offset
-  # is always zero, so the corresponding element offset is also zero
-  elem_offset = iszero(Base.elsize(a)) ? 0 : a.offset ÷ Base.elsize(a)
-  convert(PT, a.data[]) + a.maxsize + elem_offset + i - 1
+  convert(PT, a.data[]) + a.maxsize + i - 1
 end
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
@@ -958,8 +959,12 @@ end
 ## derived arrays
 
 function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
+  # the selector bytes are indexed by element, so advance them here: the byte offset can't
+  # tell how many elements of zero size (like unions of singletons) were skipped. union
+  # arrays only derive arrays of the same element type, as `reinterpret` rejects them.
+  maxsize = Base.isbitsunion(T) ? a.maxsize + offset : a.maxsize
   offset = a.offset + offset * aligned_sizeof(T)
-  CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
+  CuArray{T,N}(copy(a.data), dims; maxsize, offset)
 end
 
 
