@@ -660,15 +660,41 @@ function capture(cfg)
 end
 
 function Base.show(io::IO, results::ProfileResults)
+    crop = if get(io, :is_pluto, false) || get(io, :jupyter, false)
+        # Pluto.jl and IJulia.jl both indicate they want to limit output,
+        # but they have scrollbars, so let's ignore that
+        :none
+    elseif io isa Base.TTY || get(io, :limit, false)::Bool
+        # crop horizonally to fit the terminal
+        :horizontal
+    else
+        :none
+    end
+
+    # render into a buffer, so that the code below (which takes long to compile) does not
+    # need to be specialized on, and precompiled for, every kind of output stream
+    buf = IOContext(IOContext(IOBuffer(), io), :color => get(io, :color, false)::Bool,
+                    :displaysize => displaysize(io))
+    show_results(buf, results, crop)
+    write(io, take!(buf.io))
+    return
+end
+
+function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Symbol)
     results = deepcopy(results)
     host = results.host
     device = results.device
     nvtx = results.nvtx
 
+    # the tables are not concretely typed, so we assert column types where calls would
+    # otherwise be inferred loosely enough to be invalidated by packages extending Base
+    # (e.g. GPUArrays' `findfirst`), which would discard the precompiled display code.
+
     # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize')
-    trace_first_sync = findfirst(host.name .== "cuCtxSynchronize")
+    syncs = (host.name::Vector{String}) .== "cuCtxSynchronize"
+    trace_first_sync = findfirst(syncs)
     trace_first_sync === nothing && error("Could not find the start of the profiling data.")
-    trace_last_sync = findlast(host.name .== "cuCtxSynchronize")
+    trace_last_sync = findlast(syncs)
     trace_first_sync == trace_last_sync && error("Could not find the end of the profiling data.")
     ## truncate the trace
     if !results.raw || !results.trace
@@ -724,7 +750,8 @@ function Base.show(io::IO, results::ProfileResults)
     # helper function to visualize slow trace entries
     function time_highlighters(df)
         ## filter out entries that execute _very_ quickly (like calls to cuCtxGetCurrent)
-        relevant_times = df.time[df.time .>= 1e-8]
+        times = df.time::Vector{Float64}
+        relevant_times = times[times .>= 1e-8]
 
         isempty(relevant_times) && return ()
         p75 = quantile(relevant_times, 0.75)
@@ -824,17 +851,6 @@ function Base.show(io::IO, results::ProfileResults)
         end
     end
 
-    crop = if get(io, :is_pluto, false) || get(io, :jupyter, false)
-        # Pluto.jl and IJulia.jl both indicate they want to limit output,
-        # but they have scrollbars, so let's ignore that
-        :none
-    elseif io isa Base.TTY || get(io, :limit, false)::Bool
-        # crop horizonally to fit the terminal
-        :horizontal
-    else
-        :none
-    end
-
     # host-side activity
     let
         # to determine the time the host was active, we should look at threads separately
@@ -869,7 +885,7 @@ function Base.show(io::IO, results::ProfileResults)
 
         # instantaneous NVTX markers can be added to the API trace
         if results.trace
-            instant_mask = nvtx.type .== :instant
+            instant_mask = (nvtx.type::Vector{Symbol}) .== :instant
             n_markers = count(instant_mask)
             if n_markers > 0
                 marker_names = nvtx.name[instant_mask]
