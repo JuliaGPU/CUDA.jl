@@ -238,6 +238,18 @@ is still not a complete solution though, e.g. new array wrappers are not covered
 one level of wrapping is supported. Sometimes the only solution is to materialize the
 wrapper to a `CuArray` again.
 
+Kernels assume that arrays in global memory are aligned to the largest power of two, up to
+16 bytes, that divides their element size, e.g., to 8 bytes for `ComplexF32` and to 16 bytes
+for `ComplexF64` or `NTuple{4,Float32}` (unions and zero-size types keep their own
+alignment). As with CUDA C's `float2` and `float4`, this makes
+it possible to load and store such elements with a single vector instruction. Arrays
+allocated by CUDA.jl, and contiguous views and reshapes of them, always satisfy this. An
+array can only start elsewhere when reinterpreting a view that starts at an offset to a
+larger element type (e.g. `reinterpret(ComplexF32, view(x::CuVector{Float32}, 2:9))`), or
+when wrapping a pointer with `unsafe_wrap`. Such arrays can still be copied, but passing
+them to a kernel, including broadcasts and other array operations, throws an
+`ArgumentError`. Use `copy` to get an aligned array.
+
 
 ## Random numbers
 

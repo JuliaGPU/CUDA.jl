@@ -219,6 +219,34 @@ function shmem_reinterpet_equal_size()
   return y
 end
 
+@testset "vectorized element accesses" begin
+  function kernel(y, x)
+    i = threadIdx().x
+    @inbounds y[i] = x[i]
+    return
+  end
+  for (T, insts) in ((ComplexF32, r"ld\.global\.b64|ld\.global\.v2\.b32"),
+                     (NTuple{4,Float32}, r"ld\.global\.v2\.b64|ld\.global\.v4\.b32"))
+    ptx = sprint(io -> CUDA.code_ptx(io, kernel, Tuple{CuDeviceVector{T,AS.Global},
+                                                       CuDeviceVector{T,AS.Global}}))
+    @test occursin(insts, ptx)
+  end
+
+  # a global array reinterpreted on the device may not be aligned for the new type
+  function kernel_reinterpret(y, x)
+    @inbounds y[] = reinterpret(ComplexF32, x)[1]
+    return
+  end
+  x = CuArray(Float32[1, 2, 3])
+  y = CUDA.zeros(ComplexF32)
+  @cuda kernel_reinterpret(y, view(x, 1:2))
+  @test Array(y)[] == 1 + 2im
+  @test_throws CUDACore.KernelException begin
+    @cuda kernel_reinterpret(y, view(x, 2:3))
+    synchronize()
+  end
+end
+
 @testset "reinterpret to a stronger alignment" begin
   function kernel(y, offset)
     a = CuDynamicSharedArray(Float32, 2, offset)

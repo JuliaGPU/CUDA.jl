@@ -77,6 +77,19 @@ small reductions along a dimension can be slower.
   borrowed, as CUDA.jl doesn't know who owns them, so destroying them with
   `unsafe_destroy!` throws. Destroy a pool through the object it was created
   with instead.
+- Kernels assume that arrays in global memory are aligned to the largest power
+  of two, up to 16 bytes, that divides their element size (except for unions and
+  zero-size elements), like CUDA C's `float2` and `float4`. This lets them load
+  and store elements like `ComplexF32`, `NTuple{4,Float32}` or
+  `SVector{4,Float32}` with a single vector instruction, making e.g. broadcasts
+  over L2-resident data up to 1.5x faster. Arrays allocated by CUDA.jl, and
+  views of them, are always aligned. Arrays that start at another offset, e.g.
+  `reinterpret(ComplexF32, view(x, 2:9))` with `x::CuVector{Float32}` or a
+  `CuArray` wrapping a foreign pointer, can still be copied, but passing them to
+  a kernel throws an `ArgumentError`; use `copy` to get an aligned array.
+  Before, such arrays worked, or faulted with a misaligned address error if they
+  weren't even aligned to their element type
+  ([#3451](https://github.com/JuliaGPU/CUDA.jl/issues/3451)).
 
 *New features*:
 
