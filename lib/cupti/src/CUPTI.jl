@@ -16,12 +16,15 @@ end
 
 using CEnum: @cenum
 
+using Libdl
+
 
 # core library
 include("libcupti.jl")
 
 include("error.jl")
 include("wrappers.jl")
+include("profiler.jl")
 
 
 function __init__()
