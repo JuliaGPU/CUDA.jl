@@ -532,8 +532,21 @@ end
 @device_override Base.hypot(x::Float32, y::Float32) = ccall("extern __nv_hypotf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 
 # `Base.fma(::Float16,...)` branches on `jl_have_fma`
-@device_override Base.fma(x::Float16, y::Float16, z::Float16) =
-    ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+#
+# Float16 uses `Base.llvmcall`: `ccall(..., llvmcall)` roots the memory its arguments were
+# loaded from, which keeps e.g. `Complex{Float16}` fields in memory and leads to redundant
+# shared memory loads. switch back once JuliaLang/julia#64079 is merged.
+#@device_override Base.fma(x::Float16, y::Float16, z::Float16) =
+#    ccall("llvm.fma.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+@device_override Base.fma(x::Float16, y::Float16, z::Float16) = Base.llvmcall(
+    ("""
+     declare half @llvm.fma.f16(half, half, half)
+     define half @entry(half %x, half %y, half %z) #0 {
+       %r = call half @llvm.fma.f16(half %x, half %y, half %z)
+       ret half %r
+     }
+     attributes #0 = { alwaysinline }""", "entry"),
+    Float16, Tuple{Float16, Float16, Float16}, x, y, z)
 
 # `Base.muladd(x, y, z) = fma(x, y, z)` is the natural choice on GPU: NVPTX
 # always lowers `llvm.fmuladd.fXX` to `fma.rn`, and routing through
@@ -543,8 +556,18 @@ end
     ccall("llvm.fmuladd.f64", llvmcall, Cdouble, (Cdouble, Cdouble, Cdouble), x, y, z)
 @device_override Base.muladd(x::Float32, y::Float32, z::Float32) =
     ccall("llvm.fmuladd.f32", llvmcall, Cfloat, (Cfloat, Cfloat, Cfloat), x, y, z)
-@device_override Base.muladd(x::Float16, y::Float16, z::Float16) =
-    ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+# see `fma` above for why this doesn't use `ccall`
+#@device_override Base.muladd(x::Float16, y::Float16, z::Float16) =
+#    ccall("llvm.fmuladd.f16", llvmcall, Float16, (Float16, Float16, Float16), x, y, z)
+@device_override Base.muladd(x::Float16, y::Float16, z::Float16) = Base.llvmcall(
+    ("""
+     declare half @llvm.fmuladd.f16(half, half, half)
+     define half @entry(half %x, half %y, half %z) #0 {
+       %r = call half @llvm.fmuladd.f16(half %x, half %y, half %z)
+       ret half %r
+     }
+     attributes #0 = { alwaysinline }""", "entry"),
+    Float16, Tuple{Float16, Float16, Float16}, x, y, z)
 
 # Directed rounding for binary arithmetic and fma. NVPTX exposes
 # `{add,mul,div,fma}.{rn,rz,rm,rp}.{f32,f64}` directly; there is no `sub`
