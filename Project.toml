@@ -22,7 +22,7 @@ cuSOLVER = "887afef0-6a32-4de5-add4-7827692ba8fc"
 cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 
 [sources]
-GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "4f70a3886f78ad731fe29319c1c5501e4aae814b"}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/device-libraries"}
 CUDACore = {path = "CUDACore"}
 CUDATools = {path = "CUDATools"}
 cuBLAS = {path = "lib/cublas"}

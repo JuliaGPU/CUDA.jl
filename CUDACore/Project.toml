@@ -32,7 +32,7 @@ ScopedValues = "7e506255-f358-4e82-b7e4-beb19740aa63"
 UnsafeAtomics = "013be700-e6cd-48c3-b4a1-df204f14c38f"
 
 [sources]
-GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "4f70a3886f78ad731fe29319c1c5501e4aae814b"}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/device-libraries"}
 
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
