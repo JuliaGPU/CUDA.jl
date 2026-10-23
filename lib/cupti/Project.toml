@@ -9,6 +9,7 @@ CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
 GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
 [compat]
 CEnum = "0.5, 1"
@@ -16,4 +17,5 @@ CUDACore = "=6.4.2"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.25"
 GPUToolbox = "3"
+Libdl = "1"
 julia = "1.10"
