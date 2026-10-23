@@ -1040,6 +1040,40 @@ end
     @test Array(a) == [1]
   end
 
+  # members of different sizes and alignments
+  for data in (Union{Int8,Float64}[Int8(1), 2.5, Int8(3)],
+               Union{NTuple{3,Int8},Int16}[Int8.((1, 2, 3)), Int16(4), Int8.((5, 6, 7))])
+    b = CuArray(data)
+    @test Array(b) == data
+    @test Array(view(b, 2:3)) == data[2:3]
+    @test Array(copy(b)) == data
+    @test Array(reverse(b)) == reverse(data)
+    @test Array(vcat(b, b)) == vcat(data, data)
+  end
+
+  # operations that go through kernels
+  let a = Union{Missing,Bool}[missing, true, false]
+    b = CuArray(a)
+    @test isequal(Array(b .| false), a .| false)
+    @test any(ismissing, b)
+    @test !all(ismissing, b)
+    @test count(ismissing, b) == 1
+  end
+  let a = [1, nothing, 3, nothing]
+    b = CuArray(a)
+    @test sum(x -> something(x, 0), b) == 4
+    @test Array(findall(isnothing, b)) == [2, 4]
+    fill!(b, nothing)
+    @test Array(b) == [nothing, nothing, nothing, nothing]
+    fill!(b, 5)
+    @test Array(b) == [5, 5, 5, 5]
+    view(b, [1, 3]) .= nothing
+    @test Array(b) == [nothing, 5, nothing, 5]
+    @test CUDA.@allowscalar(b[1]) === nothing
+    CUDA.@allowscalar b[1] = 1
+    @test Array(b) == [1, 5, nothing, 5]
+  end
+
   # scalar indexing of memory that's accessible from the host
   for M in (CUDA.UnifiedMemory, CUDA.HostMemory)
     a = CuVector{Union{Int32,Nothing},M}([1, nothing, 3])
