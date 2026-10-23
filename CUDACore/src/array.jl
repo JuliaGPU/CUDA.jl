@@ -957,6 +957,8 @@ const MemsetCompatTypes = Union{UInt8, Int8,
                                 UInt16, Int16, Float16,
                                 UInt32, Int32, Float32}
 function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
+  # memset can't write the selector bytes of unions of these types
+  Base.isbitsunion(T) && return invoke(fill!, Tuple{GPUArrays.AnyGPUArray,Any}, A, x)
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do

@@ -1051,6 +1051,17 @@ end
     @test Array(vcat(b, b)) == vcat(data, data)
   end
 
+  # unions of types that are otherwise filled using memset
+  for (T, xs) in ((Union{Int8,Float32}, (Int8(1), 2f0)),
+                  (Union{Int8,Int16}, (Int8(1), Int16(2))),
+                  (Union{Float16,Float32}, (Float16(1), 2f0)))
+    b = CuArray{T}(undef, 3)
+    for x in xs
+      fill!(b, x)
+      @test all(y -> y === x, Array(b))
+    end
+  end
+
   # operations that go through kernels
   let a = Union{Missing,Bool}[missing, true, false]
     b = CuArray(a)
