@@ -161,6 +161,33 @@ end
     @cuda kernel((0f0, 0f0, 0f0))
 end
 
+@testset "isbits unions" begin
+    # the elements of this union are padded from 12 to 16 bytes
+    function kernel(a, b)
+        i = threadIdx().x
+        s = CuStaticSharedArray(Union{Int64,NTuple{3,Int32}}, 4)
+        t = CuStaticSharedArray(Int32, 4)
+        t[i] = -1
+        sync_threads()
+        s[i] = isodd(i) ? Int64(i) : (Int32(i), Int32(i), Int32(i))
+        sync_threads()
+        a[i] = s[i]
+        b[i] = t[i]
+        return
+    end
+
+    a = CuArray{Union{Int64,NTuple{3,Int32}}}(undef, 4)
+    b = CuArray{Int32}(undef, 4)
+    @cuda threads=4 kernel(a, b)
+    @test Array(a) == [1, (2, 2, 2), 3, (4, 4, 4)]
+    @test all(==(-1), Array(b))
+
+    # where the arrays end up is up to the compiler, so also check the allocation:
+    # 4 elements of 16 bytes and 4 selector bytes
+    ptx = sprint(io -> CUDA.@device_code_ptx io=io @cuda launch=false kernel(a, b))
+    @test occursin(r"\.shared .*\[68\];", ptx)
+end
+
 end
 
 
@@ -228,6 +255,41 @@ end
     @cuda threads=n shmem=(n*sizeof(Float32) + n*sizeof(Int64)) kernel(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
+end
+
+# the selector bytes of an array of isbits unions follow its data
+@testset "isbits unions" begin
+    function kernel(a, b)
+        i = threadIdx().x
+        sa = CuDynamicSharedArray(Union{Int64,NTuple{3,Int32}}, 4)
+        sb = CuDynamicSharedArray(Int32, 4, sizeof(sa) + length(sa))
+        sb[i] = -1
+        sync_threads()
+        sa[i] = isodd(i) ? Int64(i) : (Int32(i), Int32(i), Int32(i))
+        sync_threads()
+        a[i] = sa[i]
+        b[i] = sb[i]
+        return
+    end
+
+    a = CuArray{Union{Int64,NTuple{3,Int32}}}(undef, 4)
+    b = CuArray{Int32}(undef, 4)
+    @cuda threads=4 shmem=4*16+4+4*sizeof(Int32) kernel(a, b)
+    @test Array(a) == [1, (2, 2, 2), 3, (4, 4, 4)]
+    @test all(==(-1), Array(b))
+
+    # the bounds check accounts for the padding of the elements and their selector bytes
+    # (exceptions occasionally hang under compute-sanitizer)
+    if !sanitize
+        function bounds_kernel()
+            CuDynamicSharedArray(Union{Int64,NTuple{3,Int32}}, 4)
+            return
+        end
+        @test_throws CUDACore.KernelException begin
+            @cuda shmem=4*12+4 bounds_kernel()
+            synchronize()
+        end
+    end
 end
 
 end
