@@ -401,6 +401,8 @@ end
 ## coalesced group
 
 function shfl(cg::coalesced_group, elem, src_rank)
+    # the lane has to have a single type, or the shuffle is emitted once for every type
+    src_rank = Int32(src_rank)
     lane = if src_rank == 0
         CUDACore.ffs(cg.mask)
     elseif num_threads(cg) == 32
