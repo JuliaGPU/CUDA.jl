@@ -563,6 +563,7 @@ function Adapt.adapt_storage(to::KernelAdaptor, xs::DenseCuArray{T,N}) where {T,
   managed = check_capture(xs.data)[]
   push!(to.managed, managed)
   ptr = convert(CuPtr{T}, managed.mem) + xs.offset
+  check_alignment(xs, ptr)
   CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, ptr), size(xs),
                                xs.maxsize - xs.offset)
 end

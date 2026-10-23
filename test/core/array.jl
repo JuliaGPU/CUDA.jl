@@ -461,6 +461,15 @@ end
     v = view(a, 2:7)  # offset of 1 Float32 = 4 bytes
     r = reinterpret(Float64, v)  # Float64 = 8 bytes; 4 is not a multiple of 8
     @test Array(r) == reinterpret(Float64, @view Array(a)[2:7])
+
+    # kernels require aligned elements
+    @test_throws ArgumentError r .+ 1
+    @test Array(copy(r) .+ 1) == reinterpret(Float64, @view Array(a)[2:7]) .+ 1
+    @test_throws ArgumentError Base.unsafe_convert(CuDeviceVector{Float64,AS.Global}, r)
+    # empty arrays have no elements to access
+    e = reinterpret(Float64, view(a, 2:1))
+    @test isempty(cudaconvert(e))
+    @test isempty(Base.unsafe_convert(CuDeviceVector{Float64,AS.Global}, e))
   end
 
   @testset "unmanaged reinterpret" begin

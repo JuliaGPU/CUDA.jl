@@ -535,9 +535,23 @@ end
 ## interop with device arrays
 
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, pointer(a)), size(a),
+  ptr = pointer(a)
+  check_alignment(a, ptr)
+  CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, ptr), size(a),
                                a.maxsize - a.offset)
 end
+
+# a `CuArray` can wrap a pointer that is not aligned for its element type, e.g., after
+# `unsafe_wrap` or `reinterpret` of a view. that is fine for copies, but element accesses in
+# kernels assume the alignment of the device array (see `alignment`).
+function check_alignment(a::DenseCuArray{T}, ptr) where {T}
+  align = alignment(T, Val(AS.Global))
+  if UInt(ptr) % align != 0 && !isempty(a)
+    alignment_error(T, ptr, align)
+  end
+end
+@noinline alignment_error(T, ptr, align) =
+  throw(ArgumentError("cannot use a $T array at $ptr in a kernel, which requires $align-byte alignment. Such arrays result from `reinterpret`ing a view that doesn't start at a multiple of the alignment, or from `unsafe_wrap`ping a less-aligned pointer; use `copy` to get an aligned array."))
 
 
 ## synchronization

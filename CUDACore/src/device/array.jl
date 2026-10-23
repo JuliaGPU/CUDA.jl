@@ -14,6 +14,9 @@ type of `ptr`. `dims` may be a single scalar, or a tuple of integers correspondi
 lengths in each dimension). If the rank `N` is supplied explicitly as in `Array{T,N}(dims)`,
 then it must match the length of `dims`. The same applies to the element type `T`, which
 should match the type of the pointer `ptr`.
+
+Element accesses assume that `ptr` is aligned as required by `T` in address space `A`, so
+constructing a device array from a less-aligned pointer results in undefined behavior.
 """
 CuDeviceArray
 
@@ -69,7 +72,10 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
 #       this information, because it enables optimizations like Load Store Vectorization
 #       (cfr. shared memory and its wider-than-datatype alignment)
 
-@generated function alignment(::CuDeviceArray{T}) where {T}
+# the alignment that accesses to elements of type `T` in address space `A` assume. pointers
+# that do not come from an allocation (`unsafe_wrap`, `reinterpret` of a view) are checked
+# when converting to a device array, see `check_alignment`.
+@generated function alignment(::Type{T}, ::Val{A}) where {T,A}
     if Base.isbitsunion(T)
         _, sz, al = Base.uniontype_layout(T)
         al
@@ -77,6 +83,7 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
         Base.datatype_alignment(T)
     end
 end
+alignment(::CuDeviceArray{T,<:Any,A}) where {T,A} = alignment(T, Val(A))
 
 # check that `i` indexes into `1:n`. the explicit check avoids the OneTo construction of
 # `checkbounds`, which calls `max` and breaks elimination of redundant bounds checks in the
@@ -269,6 +276,13 @@ end
 function Base.reinterpret(::Type{T}, a::CuDeviceArray{S,N,A}) where {T,S,N,A}
   err = GPUArrays._reinterpret_exception(T, a)
   err === nothing || throw(err)
+
+  # `T` may require a stronger alignment than `a` was checked for. this is not a bounds
+  # check: the alignment that element accesses assume depends on it.
+  if alignment(T, Val(A)) > alignment(S, Val(A)) && !isempty(a) &&
+     UInt(a.ptr) % alignment(T, Val(A)) != 0
+    throw(ArgumentError("cannot reinterpret an array whose pointer is not aligned for the new element type"))
+  end
 
   if aligned_sizeof(T) == aligned_sizeof(S) # fast case
     return CuDeviceArray{T,N,A}(reinterpret(LLVMPtr{T,A}, a.ptr), size(a), a.maxsize)
