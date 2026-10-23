@@ -41,11 +41,6 @@ end
                                         align::Val) where {T} =
     _pointerref_ldg(ptr, i - 1, align)
 
-for (N, T) in ((4, Float32), (2, Float64), (4, Int8), (4, Int16), (4, Int32), (2, Int64))
-    @eval @inline unsafe_cached_load(p::LLVMPtr{NTuple{$N, Base.VecElement{$T}},AS.Global}, i::Integer=1, align::Val=Val(1)) =
-        pointerref_ldg(p, Int(i), align)
-end
-
 # interface
 
 export unsafe_cached_load
@@ -54,7 +49,37 @@ export unsafe_cached_load
 # an unsigned index is zero-extended in Julia, rather than sign-extended by `getelementptr`.
 @inline unsafe_cached_load(p::LLVMPtr{<:Union{LDGTypes...},AS.Global}, i::Integer=1, align::Val=Val(1)) =
     pointerref_ldg(p, Int(i), align)
-# NOTE: fall back to normal unsafe_load for unsupported types. we could be smarter here,
-#       e.g. destruct/load/reconstruct, but that's too complicated for what it's worth.
+# other element types, e.g. `ComplexF32` or `NTuple{4,Float32}`. LLVM drops `!invariant.load`
+# when it splits a load of such an aggregate into loads of its fields, or a vector load into
+# loads of its elements, so `pointerref_ldg` wouldn't reliably result in `ld.global.nc`.
+# like CUDA C's `__ldg` for vector types, use inline assembly for elements that can be
+# loaded at once. that matters before Volta, where `ld.global.nc` uses a separate cache.
+@inline function unsafe_cached_load(p::LLVMPtr{T,AS.Global}, i::Integer=1,
+                                    ::Val{align}=Val(1)) where {T,align}
+    if isbitstype(T) && sizeof(T) in (4, 8, 16) && align >= sizeof(T)
+        q = p + (Int(i)-1) * aligned_sizeof(T)
+        reinterpret_bits(T, ldg_bits(Val(sizeof(T)), UInt64(UInt(q))))
+    elseif isbitstype(T) && sizeof(T) > 0
+        pointerref_ldg(p, Int(i), Val(align))
+    else
+        unsafe_load(p, i, Val(align))
+    end
+end
+
+@device_function ldg_bits(::Val{4}, addr::UInt64) = Base.llvmcall(
+    """%v = call i32 asm "ld.global.nc.b32 \$0, [\$1];", "=r,l"(i64 %0)
+       ret i32 %v""", UInt32, Tuple{UInt64}, addr)
+@device_function ldg_bits(::Val{8}, addr::UInt64) = Base.llvmcall(
+    """%v = call i64 asm "ld.global.nc.b64 \$0, [\$1];", "=l,l"(i64 %0)
+       ret i64 %v""", UInt64, Tuple{UInt64}, addr)
+@device_function ldg_bits(::Val{16}, addr::UInt64) = Base.llvmcall(
+    """%v = call { i64, i64 } asm "ld.global.nc.v2.b64 {\$0, \$1}, [\$2];", "=l,=l,l"(i64 %0)
+       %a = extractvalue { i64, i64 } %v, 0
+       %b = extractvalue { i64, i64 } %v, 1
+       %r0 = insertelement <2 x i64> poison, i64 %a, i32 0
+       %r = insertelement <2 x i64> %r0, i64 %b, i32 1
+       ret <2 x i64> %r""", NTuple{2,VecElement{UInt64}}, Tuple{UInt64}, addr)
+
+# NOTE: fall back to normal unsafe_load for unsupported types
 unsafe_cached_load(p::LLVMPtr, i::Integer=1, align::Val=Val(1)) =
     unsafe_load(p, i, align)
