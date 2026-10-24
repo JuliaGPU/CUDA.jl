@@ -74,7 +74,10 @@ end
 mutable struct CuArray{T,N,M} <: AbstractGPUArray{T,N}
   data::DataRef{Managed{M}}
 
-  maxsize::Int  # maximum data size; excluding any selector bytes
+  # the size of the data in memory, in bytes, excluding any selector bytes. arrays of
+  # isbits unions that don't start at the beginning of their memory (like views) add their
+  # element offset, so that this is where their own selector bytes start (see `typetagdata`)
+  maxsize::Int
   offset::Int   # offset of the data in memory, in bytes
 
   dims::Dims{N}
@@ -276,6 +279,9 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
                           ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N,M}
   check_eltype("unsafe_wrap(CuArray, ...)", T)
+  # arrays of isbits unions keep selector bytes past their data, outside of the memory
+  Base.isbitsunion(T) && throw(ArgumentError(
+    "unsafe_wrap(CuArray, ...) does not support isbits-union element types like $T"))
   sz = prod(dims) * aligned_sizeof(T)
 
   # create a memory object
@@ -521,19 +527,31 @@ unmanaged_pointer(x::CuArray{T}, i::Integer=1) where {T} =
 
 ## indexing
 
-function Base.getindex(x::CuArray{<:Any, <:Any, <:Union{HostMemory,UnifiedMemory}}, I::Int)
+function Base.getindex(x::CuArray{T, <:Any, <:Union{HostMemory,UnifiedMemory}}, I::Int) where T
   @boundscheck checkbounds(x, I)
-  unsafe_load(pointer(x, I; type=HostMemory))
+  if Base.isbitsunion(T)
+    # the element's type is stored separately, in its selector byte, so copy both
+    y = Vector{T}(undef, 1)
+    unsafe_copyto!(y, 1, x, I, 1)
+    y[]
+  else
+    unsafe_load(pointer(x, I; type=HostMemory))
+  end
 end
 
-function Base.setindex!(x::CuArray{<:Any, <:Any, <:Union{HostMemory,UnifiedMemory}}, v, I::Int)
+function Base.setindex!(x::CuArray{T, <:Any, <:Union{HostMemory,UnifiedMemory}}, v, I::Int) where T
   @boundscheck checkbounds(x, I)
-  unsafe_store!(pointer(x, I; type=HostMemory), v)
+  if Base.isbitsunion(T)
+    unsafe_copyto!(x, I, T[v], 1, 1)
+  else
+    unsafe_store!(pointer(x, I; type=HostMemory), v)
+  end
 end
 
 
 ## interop with device arrays
 
+# device arrays address their selector bytes relative to their first element
 function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
   CuDeviceArray{T,N,AS.Global}(reinterpret(LLVMPtr{T,AS.Global}, pointer(a)), size(a),
                                a.maxsize - a.offset)
@@ -610,10 +628,7 @@ function typetagdata(a::CuArray, i=1; type=DeviceMemory)
   else
     error("unknown memory type")
   end
-  # for zero-size element types (e.g. singleton unions), the byte offset
-  # is always zero, so the corresponding element offset is also zero
-  elem_offset = iszero(Base.elsize(a)) ? 0 : a.offset ÷ Base.elsize(a)
-  convert(PT, a.data[]) + a.maxsize + elem_offset + i - 1
+  convert(PT, a.data[]) + a.maxsize + i - 1
 end
 
 function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
@@ -942,6 +957,8 @@ const MemsetCompatTypes = Union{UInt8, Int8,
                                 UInt16, Int16, Float16,
                                 UInt32, Int32, Float32}
 function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
+  # memset can't write the selector bytes of unions of these types
+  Base.isbitsunion(T) && return invoke(fill!, Tuple{GPUArrays.AnyGPUArray,Any}, A, x)
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
@@ -958,8 +975,12 @@ end
 ## derived arrays
 
 function GPUArrays.derive(::Type{T}, a::CuArray, dims::Dims{N}, offset::Int) where {T,N}
+  # the selector bytes are indexed by element, so advance them here: the byte offset can't
+  # tell how many elements of zero size (like unions of singletons) were skipped. union
+  # arrays only derive arrays of the same element type, as `reinterpret` rejects them.
+  maxsize = Base.isbitsunion(T) ? a.maxsize + offset : a.maxsize
   offset = a.offset + offset * aligned_sizeof(T)
-  CuArray{T,N}(copy(a.data), dims; a.maxsize, offset)
+  CuArray{T,N}(copy(a.data), dims; maxsize, offset)
 end
 
 
@@ -997,27 +1018,31 @@ guaranteed to be initialized.
 function Base.resize!(A::CuVector{T}, n::Integer) where T
   n == length(A) && return A
 
-  # only resize when the new length exceeds the capacity or is much smaller
-  cap = A.maxsize ÷ aligned_sizeof(T)
+  # only resize when the new length exceeds the capacity or is much smaller. arrays that
+  # don't start at the beginning of their memory (like views) can't tell how much of it
+  # they may use, and elements of zero size (like unions of singletons) don't tell the
+  # capacity, so those are reallocated when growing.
+  sz = aligned_sizeof(T)
+  cap = iszero(A.offset) && !iszero(sz) ? A.maxsize ÷ sz : 0
   if n > cap || n < cap ÷ 4
     len = if n < cap
       # shrink to fit
       n
-    elseif A.maxsize > RESIZE_THRESHOLD
+    elseif cap * sz > RESIZE_THRESHOLD
       # large arrays grown by fixed increments
-      max(n, cap + RESIZE_INCREMENT ÷ aligned_sizeof(T))
+      max(n, cap + RESIZE_INCREMENT ÷ sz)
     else
       # small arrays are doubled in size
       max(n, 2 * length(A))
     end
 
     # determine the new buffer size
-    maxsize = len * aligned_sizeof(T)
-    bufsize = if isbitstype(T)
-        maxsize
-    else
+    maxsize = len * sz
+    bufsize = if Base.isbitsunion(T)
       # type tag array past the data
       maxsize + len
+    else
+      maxsize
     end
 
     # allocate new data

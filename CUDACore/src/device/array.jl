@@ -22,6 +22,8 @@ CuDeviceArray
 
 struct CuDeviceArray{T,N,A} <: DenseArray{T,N}
     ptr::LLVMPtr{T,A}
+    # distance from `ptr` to the selector bytes of an array of isbits unions (see
+    # `typetagdata`), which is the size of the data for an array that owns its memory
     maxsize::Int
 
     dims::Dims{N}

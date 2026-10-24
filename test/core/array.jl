@@ -92,6 +92,14 @@ function slow_sum(out, a, cycles)
 end
 
 @testset "unsafe_wrap" begin
+    # isbits unions keep selector bytes past the wrapped memory
+    let a = CuArray(Union{Int,Nothing}[1, nothing])
+        @test_throws ArgumentError unsafe_wrap(CuArray, pointer(a), 2)
+    end
+    let a = cu(Union{Int,Nothing}[1, nothing]; unified=true)
+        @test_throws ArgumentError unsafe_wrap(Array, a)
+    end
+
     # managed memory -> CuArray
     for a in [cu([1]; device=true), cu([1]; unified=true)]
         p = pointer(a)
@@ -786,6 +794,30 @@ end
     @test Array(a)[1:3] == data
     @test a.maxsize == sizeof(a)
   end
+
+  # views don't grow into memory that isn't theirs
+  for data in ([1, 2, 3, 4], [1, nothing, 3, nothing])
+    a = CuArray(data)
+    v = view(a, 3:4)
+    CUDA.resize!(v, 4)
+    @test length(v) == 4
+    @test Array(v)[1:2] == data[3:4]
+    @test Array(a) == data
+  end
+
+  # elements of zero size have no capacity to speak of
+  let data = Union{Nothing,Missing}[nothing, missing, missing]
+    a = CuArray(data)
+    CUDA.resize!(a, 6)
+    @test length(a) == 6
+    @test isequal(Array(a)[1:3], data)
+    CUDA.resize!(a, 1)
+    @test isequal(Array(a), [nothing])
+
+    v = view(CuArray(data), 2:3)
+    CUDA.resize!(v, 4)
+    @test isequal(Array(v)[1:2], [missing, missing])
+  end
 end
 
 @testset "aliasing" begin
@@ -914,17 +946,18 @@ end
     @test Array(b) == [2, nothing, 4]
   end
 
-  # same for views
-  let a = [0, nothing, 1, nothing, 3, nothing]
+  # same for views, which have their own selector bytes (the data is chosen so that
+  # the parent's first selector bytes differ from the view's)
+  let a = [nothing, nothing, 1, nothing, 3, 5]
     b = CuArray(a)
-    b = view(b, 3:5)
-    c = Array(b)
-    @test view(a, 3:5) == c
+    v = view(b, 3:5)
+    @test Array(v) == view(a, 3:5)
+    @test Array(copy(v)) == view(a, 3:5)
+    @test Array(map(x -> something(x, 0), v)) == [1, 0, 3]
   end
-  let a = [0, nothing, 1, nothing, 3, nothing]
+  let a = [nothing, nothing, 1, nothing, 3, 5]
     b = CuArray(a)
-    b = view(b, 3:5)
-    c = similar(b, Bool)
+    v = view(b, 3:5)
     function kernel(x)
       i = threadIdx().x
       val = x[i]
@@ -933,8 +966,22 @@ end
       end
       return
     end
-    @cuda threads=length(b) kernel(b)
-    @test Array(b) == [2, nothing, 4]
+    @cuda threads=length(v) kernel(v)
+    @test Array(v) == [2, nothing, 4]
+    @test Array(b) == [nothing, nothing, 2, nothing, 4, 5]
+
+    fill!(view(b, 2:3), nothing)
+    @test Array(b) == [nothing, nothing, nothing, nothing, 4, 5]
+    view(b, 4:5) .= 7
+    @test Array(b) == [nothing, nothing, nothing, 7, 7, 5]
+    copyto!(view(b, 1:2), [1, nothing])
+    @test Array(b) == [1, nothing, nothing, 7, 7, 5]
+
+    # derived from views
+    @test Array(view(view(b, 2:6), 2:4)) == [nothing, 7, 7]
+    @test Array(reshape(view(b, 3:6), 2, 2)) == [nothing 7; 7 5]
+    @test Array(vec(view(reshape(b, 2, 3), :, 2))) == [nothing, 7]
+    @test Array(b[[2, 4, 6]]) == [nothing, 7, 5]
   end
 
   # test that we can create and use arrays with all singleton objects
@@ -958,6 +1005,27 @@ end
     @test Array(errors) == [0]
   end
 
+  # views of such arrays have no byte offset, but still have their own selector bytes
+  let b = CuArray(Union{Nothing,Missing}[nothing, nothing, missing, missing])
+    v = view(b, 3:4)
+    @test isequal(Array(v), [missing, missing])
+    @test isequal(Array(copy(v)), [missing, missing])
+
+    function kernel(ok, x)
+      i = threadIdx().x
+      ok[i] = x[i] === missing
+      x[i] = nothing
+      return
+    end
+    ok = CuArray(falses(2))
+    @cuda threads=2 kernel(ok, v)
+    @test all(Array(ok))
+    @test Array(b) == [nothing, nothing, nothing, nothing]
+
+    fill!(view(b, 2:3), missing)
+    @test isequal(Array(b), [nothing, missing, missing, nothing])
+  end
+
   # arrays with union{union{...}, ...}
   let a = CuArray{Union{Union{Missing,Nothing},Int}}([0])
     function kernel(x)
@@ -970,6 +1038,62 @@ end
     end
     @cuda threads=length(a) kernel(a)
     @test Array(a) == [1]
+  end
+
+  # members of different sizes and alignments
+  for data in (Union{Int8,Float64}[Int8(1), 2.5, Int8(3)],
+               Union{NTuple{3,Int8},Int16}[Int8.((1, 2, 3)), Int16(4), Int8.((5, 6, 7))])
+    b = CuArray(data)
+    @test Array(b) == data
+    @test Array(view(b, 2:3)) == data[2:3]
+    @test Array(copy(b)) == data
+    @test Array(reverse(b)) == reverse(data)
+    @test Array(vcat(b, b)) == vcat(data, data)
+  end
+
+  # unions of types that are otherwise filled using memset
+  for (T, xs) in ((Union{Int8,Float32}, (Int8(1), 2f0)),
+                  (Union{Int8,Int16}, (Int8(1), Int16(2))),
+                  (Union{Float16,Float32}, (Float16(1), 2f0)))
+    b = CuArray{T}(undef, 3)
+    for x in xs
+      fill!(b, x)
+      @test all(y -> y === x, Array(b))
+    end
+  end
+
+  # operations that go through kernels
+  let a = Union{Missing,Bool}[missing, true, false]
+    b = CuArray(a)
+    @test isequal(Array(b .| false), a .| false)
+    @test any(ismissing, b)
+    @test !all(ismissing, b)
+    @test count(ismissing, b) == 1
+  end
+  let a = [1, nothing, 3, nothing]
+    b = CuArray(a)
+    @test sum(x -> something(x, 0), b) == 4
+    @test Array(findall(isnothing, b)) == [2, 4]
+    fill!(b, nothing)
+    @test Array(b) == [nothing, nothing, nothing, nothing]
+    fill!(b, 5)
+    @test Array(b) == [5, 5, 5, 5]
+    view(b, [1, 3]) .= nothing
+    @test Array(b) == [nothing, 5, nothing, 5]
+    @test CUDA.@allowscalar(b[1]) === nothing
+    CUDA.@allowscalar b[1] = 1
+    @test Array(b) == [1, 5, nothing, 5]
+  end
+
+  # scalar indexing of memory that's accessible from the host
+  for M in (CUDA.UnifiedMemory, CUDA.HostMemory)
+    a = CuVector{Union{Int32,Nothing},M}([1, nothing, 3])
+    @test a[1] === Int32(1)
+    @test a[2] === nothing
+    a[1] = nothing
+    a[2] = 2
+    @test Array(a) == [nothing, 2, 3]
+    @test view(a, 2:3)[2] === Int32(3)
   end
 
   # struct with unions are not isbits but are allocatedinline

@@ -39,13 +39,15 @@ Note that the amount of dynamic shared memory needs to specified when launching 
 Optionally, an offset parameter indicating how many bytes to add to the base shared memory
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
+Arrays of isbits unions (e.g. `Union{Int32,Nothing}`) take up one more byte per element,
+past `sizeof(a)`.
 """
 @inline function CuDynamicSharedArray(::Type{T}, dims::Tuple, offset) where {T}
     N = length(dims)
     @boundscheck begin
         len = prod(dims)
-        sz = len*sizeof(T)
-        if !isbitstype(T)
+        sz = len*aligned_sizeof(T)
+        if Base.isbitsunion(T)
             sz += len
         end
         if offset+sz > dynamic_smem_size()
@@ -101,8 +103,9 @@ end
 
     # determine the array size
     # TODO: assert that allocatedinline(T) (or it won't have a layout)
-    sz = len*sizeof(T)
-    if !isbitstype(T)
+    sz = len*aligned_sizeof(T)
+    if Base.isbitsunion(T)
+        # one selector byte per element, past the data
         sz += len
     end
     # cover the 32-bit word that 8- and 16-bit atomics operate on (see `pool_alloc`)
