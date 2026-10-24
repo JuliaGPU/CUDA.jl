@@ -13,6 +13,7 @@ projects = ["test", "docs", "perf", "examples",
 [deps]
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDATools = "9ec180c6-1c07-47c7-9e6e-ebefa4d1f6d0"
+GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 cuBLAS = "182d3088-87b7-4494-8cad-fc6afaa545bc"
 cuFFT = "533571aa-0936-420e-b4be-9c66f5f626ca"
@@ -21,6 +22,7 @@ cuSOLVER = "887afef0-6a32-4de5-add4-7827692ba8fc"
 cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 
 [sources]
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/device-libraries"}
 CUDACore = {path = "CUDACore"}
 CUDATools = {path = "CUDATools"}
 cuBLAS = {path = "lib/cublas"}
