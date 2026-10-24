@@ -43,6 +43,28 @@ end
     end
 end
 
+@testset "Float16 fma/muladd on aligned shared memory" begin
+    # rooted `ccall` arguments led to a 16-bit load next to an overlapping 32-bit one
+    for f in (fma, muladd)
+        @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{ComplexF16,1}}) do x
+            @check_not "ld.shared.b16"
+            s = CuStaticSharedArray(ComplexF16, 256)
+            i = threadIdx().x
+            @inbounds s[i] = x[i]
+            sync_threads()
+            acc = zero(ComplexF16)
+            for k in 1:64
+                a = unsafe_load(pointer(s), (i + k) % 256 + 1, Val(4))
+                b = unsafe_load(pointer(s), (2i + k) % 256 + 1, Val(4))
+                acc = Complex(f(a.re, b.re, -f(a.im, b.im, -acc.re)),
+                              f(a.re, b.im, f(a.im, b.re, acc.im)))
+            end
+            @inbounds x[i] = acc
+            return
+        end
+    end
+end
+
 # Julia 1.10 lacks `@consistent_overlay`, so code reaching any overlay is never folded
 VERSION >= v"1.11" && @testset "concrete evaluation" begin
     # code reachable from the throw overlays must not form an inference cycle with them,
