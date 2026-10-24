@@ -245,6 +245,11 @@ while it is wrapped, and operations on the `CuArray` execute asynchronously, so
 synchronize before accessing the memory from the CPU. Like other CuArrays, a wrapped array
 is kept alive by CUDA graphs that captured operations on it.
 
+Kernels require the data to be aligned like an allocation: to the largest power of two, up to
+16 bytes, that divides the element size (e.g., 8 bytes for `ComplexF32`), unless the element
+type is a union or has size zero, and at least to the element type's alignment. A less-aligned
+array can still be copied, but passing it to a kernel throws an `ArgumentError`.
+
 !!! warning
 
     `unsafe_wrap(Array, a::CuArray)` does not keep `a` alive: the returned `Array` is only

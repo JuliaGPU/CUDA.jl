@@ -478,6 +478,13 @@ end
     e = reinterpret(Float64, view(a, 2:1))
     @test isempty(cudaconvert(e))
     @test isempty(Base.unsafe_convert(CuDeviceVector{Float64,AS.Global}, e))
+
+    # elements in global memory are aligned to their size, up to 16 bytes
+    c = reinterpret(ComplexF32, view(a, 2:9))
+    @test_throws ArgumentError c .+ 1
+    @test Array(copy(c) .+ 1) == reinterpret(ComplexF32, @view Array(a)[2:9]) .+ 1
+    @test Array(reinterpret(ComplexF32, view(a, 3:6)) .+ 1) ==
+          reinterpret(ComplexF32, @view Array(a)[3:6]) .+ 1
   end
 
   @testset "unmanaged reinterpret" begin

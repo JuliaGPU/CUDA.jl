@@ -15,8 +15,11 @@ lengths in each dimension). If the rank `N` is supplied explicitly as in `Array{
 then it must match the length of `dims`. The same applies to the element type `T`, which
 should match the type of the pointer `ptr`.
 
-Element accesses assume that `ptr` is aligned as required by `T` in address space `A`, so
-constructing a device array from a less-aligned pointer results in undefined behavior.
+Element accesses assume that `ptr` is aligned to the alignment of `T`. In global memory
+(`A == AS.Global`), it should also be aligned to the largest power of two, up to 16 bytes,
+that divides the element size `Base.aligned_sizeof(T)`, e.g., to 8 bytes for `ComplexF32`
+and to 16 bytes for `NTuple{4,Float32}`, unless `T` is a union or has size zero.
+Constructing a device array from a less-aligned pointer results in undefined behavior.
 """
 CuDeviceArray
 
@@ -70,17 +73,24 @@ Base.unsafe_convert(::Type{LLVMPtr{T,A}}, x::CuDeviceArray{T,<:Any,A}) where {T,
 
 ## indexing intrinsics
 
-# TODO: arrays as allocated by the CUDA APIs are 256-byte aligned. we should keep track of
-#       this information, because it enables optimizations like Load Store Vectorization
-#       (cfr. shared memory and its wider-than-datatype alignment)
-
 # the alignment that accesses to elements of type `T` in address space `A` assume. pointers
 # that do not come from an allocation (`unsafe_wrap`, `reinterpret` of a view) are checked
 # when converting to a device array, see `check_alignment`.
+#
+# Julia aligns composite types like `ComplexF32` or `NTuple{4,Float32}` to their fields,
+# which keeps LLVM from using vector loads and stores for them. allocations are 256-byte
+# aligned and views offset them by whole elements, so global arrays can assume the largest
+# power of two that divides the element size, like CUDA C's `float2` and `float4`. it is
+# capped at 16 bytes, the widest vector access on most devices, which also keeps arrays that
+# wrap host memory valid. shared memory keeps the element type's alignment:
+# dynamic shared arrays take arbitrary byte offsets, and ptxas already vectorizes static
+# shared memory accesses.
 @generated function alignment(::Type{T}, ::Val{A}) where {T,A}
     if Base.isbitsunion(T)
         _, sz, al = Base.uniontype_layout(T)
         al
+    elseif A == AS.Global && Base.aligned_sizeof(T) > 0
+        max(Base.datatype_alignment(T), gcd(16, Base.aligned_sizeof(T)))
     else
         Base.datatype_alignment(T)
     end
