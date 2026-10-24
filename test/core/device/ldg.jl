@@ -95,6 +95,30 @@ end
     @test Array(x) == Array(y)
 end
 
+@testset "Const composite types" begin
+    function reduce_const(f, A, _B)
+        B = Base.Experimental.Const(_B)
+        i = threadIdx().x
+        if i <= length(A)
+            # using the fields made LLVM split the load and drop `!invariant.load`
+            @inbounds A[i] = f(B[i])
+        end
+        return
+    end
+
+    for (T, f, ld) in ((ComplexF32, x -> real(x) + imag(x), "ld.global.nc.b64"),
+                       (NTuple{4,Float32}, sum, "ld.global.nc.v2.b64"),
+                       (NTuple{4,VecElement{Float32}}, x -> sum(e -> e.value, x),
+                        "ld.global.nc.v2.b64"))
+        y = CuArray(reinterpret(T, Float32.(1:32*sizeof(T)÷4)))
+        x = CUDA.zeros(Float32, length(y))
+        buf = IOBuffer()
+        @device_code_ptx io=buf @cuda threads=length(x) reduce_const(f, x, y)
+        @test Array(x) == map(f, Array(y))
+        @test occursin(ld, String(take!(buf)))
+    end
+end
+
 @testset "Const bits union" begin
     function copy_const(A, _B)
         B = Base.Experimental.Const(_B)
