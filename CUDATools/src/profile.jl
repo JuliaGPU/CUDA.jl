@@ -185,9 +185,22 @@ function push_row!(t::NamedTuple, row::NamedTuple)
 end
 
 # Filter rows by a boolean mask, returns new NamedTuple
-function filtermask(t::NamedTuple, mask::AbstractVector{Bool})
-    NamedTuple{keys(t)}(Tuple(col[mask] for col in t))
+filtermask(t::NamedTuple, mask::AbstractVector{Bool}) = map(col -> col[mask], t)
+
+# the name of an NVTX range or marker, qualified by its domain
+function nvtx_name(name, domain)
+    if name !== missing && domain !== missing
+        "$(domain).$(name)"
+    elseif name !== missing
+        "$name"
+    else
+        missing
+    end
 end
+
+# Call `f` without inferring the call, so that callers aren't invalidated along with the
+# loosely-typed instance of `f` that inference would otherwise create for their arguments.
+barrier(f, args...) = Base.inferencebarrier(f)(args...)
 
 # NVTX colors are ARGB, while Crayons expects RGB.
 nvtx_crayon(color::UInt32) = Crayon(; foreground=color & 0x00ffffff)
@@ -760,32 +773,54 @@ const uncropped_format = PrettyTables.TextTableFormat(;
     horizontal_line_at_beginning=false, horizontal_line_after_data_rows=false,
     vertical_line_at_beginning=false, vertical_line_after_data_columns=false)
 
-print_table(io::IO, df, crop::Symbol; kwargs...) =
-    pretty_table(io, df; table_format=(crop == :none ? uncropped_format : PrettyTables.TextTableFormat()),
+# print the `columns` of a table. PrettyTables gets a matrix with their values, so that its
+# code doesn't need to be compiled for every combination of columns (which depends on the
+# data), and `formatter(value, column)` and the highlighters operate on that matrix.
+function print_table(io::IOContext{IOBuffer}, crop::Symbol, df::NamedTuple,
+                     columns::Vector{Symbol}; kwargs...)
+    data = Matrix{Any}(undef, length(first(df)), length(columns))
+    for (j, column) in enumerate(columns)
+        set_column!(data, j, df[column])
+    end
+    print_table(io, crop, data, columns; kwargs...)
+end
+# called with dynamic dispatch, as the type of a column isn't known statically, which (unlike
+# for Base's `setindex!`) makes the precompiled specializations available.
+set_column!(data::Matrix{Any}, j::Int, column::AbstractVector) = (data[:, j] = column)
+function print_table(io::IOContext{IOBuffer}, crop::Symbol, data::Matrix{Any},
+                     columns::Vector{Symbol}; labels::Dict{Symbol,String},
+                     alignment::Vector{Symbol}, formatter::Function,
+                     highlighters::Vector{TextHighlighter}=TextHighlighter[])
+    pretty_table(io, data; column_labels=[labels[column] for column in columns], alignment,
+                 formatters=[(v, i, j) -> formatter(v, columns[j])], highlighters,
+                 table_format=(crop == :none ? uncropped_format : PrettyTables.TextTableFormat()),
                  fit_table_in_display_horizontally=(crop == :horizontal),
-                 fit_table_in_display_vertically=false, kwargs...)
+                 fit_table_in_display_vertically=false)
+end
 
 # The report that displaying `results` shows: the activity in the profiled region (or the
 # entire trace in raw trace mode) with times relative to its start, as tables listing every
 # event (`trace=true`) or summarizing the events per name.
-function report(results::ProfileResults)
-    results = deepcopy(results)
-    host = results.host
-    device = results.device
-    nvtx = results.nvtx
-
-    # the tables are not concretely typed, so we assert column types where calls would
-    # otherwise be inferred loosely enough to be invalidated by packages extending Base
-    # (e.g. GPUArrays' `findfirst`), which would discard the precompiled display code.
+#
+# The fields of `ProfileResults` are not concretely typed, so this and the code using its
+# result are called through function barriers. Otherwise, many calls would be inferred
+# loosely enough to be invalidated by packages extending Base (e.g. GPUArrays' `sortperm`),
+# discarding the precompiled display code.
+report(results::ProfileResults) =
+    barrier(report, results.host, results.device, results.nvtx, results.trace, results.raw)
+function report(host::NamedTuple, device::NamedTuple, nvtx::NamedTuple, trace::Bool, raw::Bool)
+    # the columns are modified in place below. their elements are immutable, so copying
+    # them suffices (and unlike `deepcopy`, is inferred)
+    host, device, nvtx = map(copy, host), map(copy, device), map(copy, nvtx)
 
     # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize')
-    syncs = (host.name::Vector{String}) .== "cuCtxSynchronize"
+    syncs = host.name .== "cuCtxSynchronize"
     trace_first_sync = findfirst(syncs)
     trace_first_sync === nothing && error("Could not find the start of the profiling data.")
     trace_last_sync = findlast(syncs)
     trace_first_sync == trace_last_sync && error("Could not find the end of the profiling data.")
     ## truncate the trace
-    if !results.raw || !results.trace
+    if !raw || !trace
         trace_begin = host.stop[trace_first_sync]
         trace_end = host.stop[trace_last_sync]
 
@@ -816,7 +851,7 @@ function report(results::ProfileResults)
     device.start .-= trace_begin
     device.stop .-= trace_begin
     nvtx.start .-= trace_begin
-    if !results.raw
+    if !raw
         # renumber event IDs from 1
         first_id = minimum([host.id; device.id])
         for df in (host, device)
@@ -878,7 +913,7 @@ function report(results::ProfileResults)
     ## get rid of API call version suffixes
     host.name .= replace.(host.name, r"_v\d+$" => "")
 
-    if !results.raw
+    if !raw
         # filter spammy API calls
         spammy = Set([# context and stream queries we use for nonblocking sync
                       "cuCtxGetCurrent", "cuCtxGetId", "cuCtxGetApiVersion",
@@ -895,38 +930,28 @@ function report(results::ProfileResults)
         host = filtermask(host, [name ∉ spammy for name in host.name])
     end
 
-    if results.trace
-        # instantaneous NVTX markers can be added to the API trace
-        instant_mask = (nvtx.type::Vector{Symbol}) .== :instant
+    if trace
+        # instantaneous NVTX markers are added to the API trace. this is done even if there
+        # are none, so that the type of the trace doesn't depend on the data.
+        instant_mask = nvtx.type .== :instant
         n_markers = count(instant_mask)
-        if n_markers > 0
-            marker_names = nvtx.name[instant_mask]
-            marker_domains = nvtx.domain[instant_mask]
-            marker_details = map(marker_names, marker_domains) do name, domain
-                if !ismissing(name) && !ismissing(domain)
-                    "$(domain).$(name)"
-                elseif !ismissing(name)
-                    "$name"
-                else
-                    missing
-                end
-            end
+        marker_details = Union{Missing,String}[nvtx_name(name, domain) for (name, domain)
+                                               in zip(nvtx.name[instant_mask], nvtx.domain[instant_mask])]
 
-            # append markers to host trace (with type widening for id/stop)
-            host = (
-                id      = vcat(Vector{Union{Missing,Int}}(host.id), fill(missing, n_markers)),
-                start   = vcat(host.start, nvtx.start[instant_mask]),
-                stop    = vcat(Vector{Union{Missing,Float64}}(host.stop), fill(missing, n_markers)),
-                name    = vcat(host.name, fill("NVTX marker", n_markers)),
-                tid     = vcat(host.tid, nvtx.tid[instant_mask]),
-                details = vcat(host.details, marker_details),
-                time    = vcat(host.time, zeros(Float64, n_markers)),
-            )
+        # append markers to host trace (with type widening for id/stop)
+        host = (
+            id      = vcat(Vector{Union{Missing,Int}}(host.id), fill(missing, n_markers)),
+            start   = vcat(host.start, nvtx.start[instant_mask]),
+            stop    = vcat(Vector{Union{Missing,Float64}}(host.stop), fill(missing, n_markers)),
+            name    = vcat(host.name, fill("NVTX marker", n_markers)),
+            tid     = vcat(host.tid, nvtx.tid[instant_mask]),
+            details = vcat(host.details, marker_details),
+            time    = vcat(host.time, zeros(Float64, n_markers)),
+        )
 
-            # sort by start time
-            perm = sortperm(host.start)
-            host = NamedTuple{keys(host)}(Tuple(col[perm] for col in host))
-        end
+        # sort by start time
+        order = sortperm(host.start)
+        host = map(col -> col[order], host)
     else
         host = summarize_trace(host)
     end
@@ -937,12 +962,12 @@ function report(results::ProfileResults)
     ## add memory throughput information. CUPTI's timestamp resolution
     ## can round very short events down to 0 ns, so guard against the
     ## resulting Inf throughput (which would later trip up format_bytes).
-    throughput = map(device.size, device.time) do s, t
+    throughput = Union{Missing,Float64}[
         (s === missing || !isfinite(t) || t == 0) ? missing : s / t
-    end
+        for (s, t) in zip(device.size, device.time)]
     device = merge(device, (; throughput))
 
-    if !results.trace
+    if !trace
         device = summarize_trace(device)
     end
 
@@ -959,22 +984,13 @@ function report(results::ProfileResults)
     end
 
     ## add stop time from matching end events
-    nvtx_ranges = filtermask(nvtx, nvtx.type .== :start)
-    stop_times = Float64[get(end_times, id, NaN) for id in nvtx_ranges.id]
-    nvtx_ranges = merge(nvtx_ranges, (; stop=stop_times, time=stop_times .- nvtx_ranges.start))
+    starts = filtermask(nvtx, nvtx.type .== :start)
+    stop_times = Float64[get(end_times, id, NaN) for id in starts.id]
+    nvtx_ranges = merge(starts, (; stop=stop_times, time=stop_times .- starts.start))
 
-    if !results.trace
+    if !trace
         # merge the domain and name into a single column
-        merged_names = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
-            if name !== missing && domain !== missing
-                "$(domain).$(name)"
-            elseif name !== missing
-                "$name"
-            else
-                missing
-            end
-        end
-        nvtx_ranges.name .= merged_names
+        nvtx_ranges.name .= nvtx_name.(nvtx_ranges.name, nvtx_ranges.domain)
 
         nvtx_ranges = summarize_trace(nvtx_ranges)
     end
@@ -983,31 +999,28 @@ function report(results::ProfileResults)
               host, device, nvtx=nvtx_ranges)
 end
 
-function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Symbol)
-    r = report(results)
+show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Symbol) =
+    barrier(show_activity, io, report(results), results.trace, results.raw, crop)
+
+function show_activity(io::IOContext{IOBuffer}, r::NamedTuple, trace::Bool, raw::Bool,
+                       crop::Symbol)
     println(io, "Profiler ran for $(format_time(r.time)), capturing $(r.events) events.")
 
     # helper function to visualize slow trace entries
-    function time_highlighters(df)
+    function time_highlighters(times::Vector{Float64}, columns::Vector{Symbol})
         ## filter out entries that execute _very_ quickly (like calls to cuCtxGetCurrent)
-        times = df.time::Vector{Float64}
         relevant_times = times[times .>= 1e-8]
 
-        isempty(relevant_times) && return ()
+        isempty(relevant_times) && return TextHighlighter[]
         p75 = quantile(relevant_times, 0.75)
         p95 = quantile(relevant_times, 0.95)
 
-        highlight_p95 = TextHighlighter((data, i, j) -> (keys(data)[j] == :time) &&
-                                                        (data[j][i] >= p95),
-                                        crayon"red")
-        highlight_p75 = TextHighlighter((data, i, j) -> (keys(data)[j] == :time) &&
-                                                        (data[j][i] >= p75),
-                                        crayon"yellow")
-        highlight_bold = TextHighlighter((data, i, j) -> (keys(data)[j] == :name) &&
-                                                         (data.time[i] >= p75),
-                                         crayon"bold")
-
-        (highlight_p95, highlight_p75, highlight_bold)
+        time = findfirst(==(:time), columns)
+        TextHighlighter[
+            TextHighlighter((data, i, j) -> j == time && data[i, j]::Float64 >= p95, crayon"red"),
+            TextHighlighter((data, i, j) -> j == time && data[i, j]::Float64 >= p75, crayon"yellow"),
+            TextHighlighter((data, i, j) -> columns[j] == :name && data[i, time]::Float64 >= p75,
+                            crayon"bold")]
     end
 
     trace_column_names = Dict(
@@ -1038,13 +1051,42 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
         :name          => "Name",
     )
 
-    summary_formatter(df) = function(v, i, j)
-        col = keys(df)[j]
-        if col == :time_ratio
-            format_percentage(v)
-        elseif col == :time
+    function trace_formatter(v, column)
+        if v === missing
+            "-"
+        elseif column in (:start, :time)
             format_time(v)
-        elseif col == :time_dist
+        elseif column == :size
+            Base.format_bytes(v)
+        elseif column == :shared_mem
+            if raw || v.static > 0 && v.dynamic > 0
+                "$(Base.format_bytes(v.static)) static, $(Base.format_bytes(v.dynamic)) dynamic"
+            elseif v.static > 0
+                "$(Base.format_bytes(v.static)) static"
+            elseif v.dynamic > 0
+                "$(Base.format_bytes(v.dynamic)) dynamic"
+            else
+                "-"
+            end
+        elseif column == :local_mem
+            "$(Base.format_bytes(v.thread)) / $(Base.format_bytes(v.total))"
+        elseif column == :throughput
+            Base.format_bytes(v) * "/s"
+        elseif column == :device
+            name(CuDevice(v))
+        elseif v isa CuDim3
+            format_dim(v)
+        else
+            v
+        end
+    end
+
+    function summary_formatter(v, column)
+        if column == :time_ratio
+            format_percentage(v)
+        elseif column == :time
+            format_time(v)
+        elseif column == :time_dist
             if v === missing
                 ""
             else
@@ -1062,13 +1104,23 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             push!(columns, :time_dist)
         end
         push!(columns, :name)
-        df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
 
-        header = [summary_column_names[k] for k in keys(df)]
-        alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
-        highlighters = time_highlighters(df)
-        print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+        alignment = [k in (:name, :time_dist) ? :l : :r for k in columns]
+        print_table(io, crop, df, columns; labels=summary_column_names, alignment,
+                    formatter=summary_formatter,
+                    highlighters=time_highlighters(df.time, columns))
     end
+
+    function print_trace(df, columns; highlighters=TextHighlighter[])
+        alignment = [k == :name ? :l : :r for k in columns]
+        print_table(io, crop, df, columns; labels=trace_column_names, alignment,
+                    formatter=trace_formatter,
+                    highlighters=[highlighters; time_highlighters(df.time, columns)])
+    end
+
+    # whether a column contains useful information
+    varies(column) = raw || length(unique(column)) > 1
+    present(column) = raw || any(!ismissing, column)
 
     # host-side activity
     let df = r.host
@@ -1078,35 +1130,12 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
         end
         if isempty(df.name)
             println(io, "\nNo host-side activity was recorded.")
-        elseif results.trace
-            # determine columns to show, based on whether they contain useful information
+        elseif trace
             columns = [:id, :start, :time]
-            for col in [:tid]
-                if results.raw || length(unique(df[col])) > 1
-                    push!(columns, col)
-                end
-            end
+            varies(df.tid) && push!(columns, :tid)
             push!(columns, :name)
-            if any(!ismissing, df.details)
-                push!(columns, :details)
-            end
-
-            df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
-
-            header = [trace_column_names[k] for k in keys(df)]
-            alignment = [k == :name ? :l : :r for k in keys(df)]
-            formatters = function(v, i, j)
-                if v === missing
-                    return "-"
-                elseif keys(df)[j] in (:start, :time)
-                    format_time(v)
-                else
-                    v
-                end
-            end
-            highlighters = time_highlighters(df)
-            highlighters = isempty(highlighters) ? PrettyTables.TextHighlighter[] : collect(highlighters)
-            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters)
+            any(!ismissing, df.details) && push!(columns, :details)
+            print_trace(df, columns)
         else
             print_summary(df)
         end
@@ -1121,70 +1150,28 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
 
         if isempty(df.name)
             println(io, "\nNo device-side activity was recorded.")
-        elseif results.trace
-            # determine columns to show, based on whether they contain useful information
+        elseif trace
             columns = [:id, :start, :time]
             ## device/stream identification
-            for col in [:device, :stream]
-                if results.raw || length(unique(df[col])) > 1
-                    push!(columns, col)
-                end
-            end
+            varies(df.device) && push!(columns, :device)
+            varies(df.stream) && push!(columns, :stream)
             ## kernel details (can be missing)
-            for col in [:block, :grid, :registers]
-                if results.raw || any(!ismissing, df[col])
-                    push!(columns, col)
-                end
-            end
-            if results.raw || any(val->!ismissing(val) && (val.static > 0 || val.dynamic > 0), df.shared_mem)
+            present(df.block) && push!(columns, :block)
+            present(df.grid) && push!(columns, :grid)
+            present(df.registers) && push!(columns, :registers)
+            if raw || any(val->!ismissing(val) && (val.static > 0 || val.dynamic > 0), df.shared_mem)
                 push!(columns, :shared_mem)
             end
-            if results.raw || any(val->!ismissing(val) && val.thread > 0, df.local_mem)
+            if raw || any(val->!ismissing(val) && val.thread > 0, df.local_mem)
                 push!(columns, :local_mem)
             end
             ## memory details (can be missing)
-            if results.raw || any(!ismissing, df.size)
+            if present(df.size)
                 push!(columns, :size)
                 push!(columns, :throughput)
             end
             push!(columns, :name)
-
-            df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
-
-            header = [trace_column_names[k] for k in keys(df)]
-            alignment = [k == :name ? :l : :r for k in keys(df)]
-            formatters = function(v, i, j)
-                col = keys(df)[j]
-                if v === missing
-                    return "-"
-                elseif col in (:start, :time)
-                    format_time(v)
-                elseif col == :size
-                    Base.format_bytes(v)
-                elseif col == :shared_mem
-                    if results.raw || v.static > 0 && v.dynamic > 0
-                        "$(Base.format_bytes(v.static)) static, $(Base.format_bytes(v.dynamic)) dynamic"
-                    elseif v.static > 0
-                        "$(Base.format_bytes(v.static)) static"
-                    elseif v.dynamic > 0
-                        "$(Base.format_bytes(v.dynamic)) dynamic"
-                    else
-                        "-"
-                    end
-                elseif col == :local_mem
-                    "$(Base.format_bytes(v.thread)) / $(Base.format_bytes(v.total))"
-                elseif col == :throughput
-                    Base.format_bytes(v) * "/s"
-                elseif col == :device
-                    name(CuDevice(v))
-                elseif v isa CuDim3
-                    format_dim(v)
-                else
-                    v
-                end
-            end
-            highlighters = time_highlighters(df)
-            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters))
+            print_trace(df, columns)
         else
             print_summary(df)
         end
@@ -1195,47 +1182,27 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
         isempty(df.name) && return
         println(io, "\nNVTX ranges:")
 
-        if results.trace
-            # determine columns to show, based on whether they contain useful information
+        if trace
             columns = [:id, :start, :time]
-            for col in [:tid]
-                if results.raw || length(unique(df[col])) > 1
-                    push!(columns, col)
-                end
-            end
-            for col in [:domain, :name, :payload]
-                if results.raw || any(!ismissing, df[col])
-                    push!(columns, col)
-                end
-            end
+            varies(df.tid) && push!(columns, :tid)
+            present(df.domain) && push!(columns, :domain)
+            present(df.name) && push!(columns, :name)
+            present(df.payload) && push!(columns, :payload)
 
             # use color information as provided by NVTX
-            color_highlighters = []
+            id = findfirst(==(:id), columns)
+            color_highlighters = TextHighlighter[]
             for color in unique(df.color)
                 if color !== nothing
                     ids = Set(df.id[isequal.(df.color, color)])
                     highlighter = TextHighlighter(nvtx_crayon(color)) do data, i, j
-                        keys(data)[j] in (:name, :domain) && data.id[i] in ids
+                        columns[j] in (:name, :domain) && data[i, id] in ids
                     end
                     push!(color_highlighters, highlighter)
                 end
             end
 
-            df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
-
-            header = [trace_column_names[k] for k in keys(df)]
-            alignment = [k == :name ? :l : :r for k in keys(df)]
-            formatters = function(v, i, j)
-                if v === missing
-                    return "-"
-                elseif keys(df)[j] in (:start, :time)
-                    format_time(v)
-                else
-                    v
-                end
-            end
-            highlighters = tuple(color_highlighters..., time_highlighters(df)...)
-            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters))
+            print_trace(df, columns; highlighters=color_highlighters)
         else
             print_summary(df)
         end
@@ -1556,15 +1523,16 @@ Base.show(io::IO, p::KernelProfile) = show_report(io, p)
 # The report that displaying `p` shows: a table of kernel launches (`trace=true`) or of
 # kernels sorted by their total duration, if known, and a matrix with the value of every
 # metric for each row (averaged over the launches of each kernel).
-function report(p::KernelProfile)
-    values = p.values
-    timecol = findfirst(col -> col.metric == duration_metric.metric, p.columns)
+report(p::KernelProfile) = barrier(report, p.kernels, p.values, p.columns, p.trace)
+function report(kernels::NamedTuple, values::Matrix{Float64}, columns::Vector{MetricColumn},
+                trace::Bool)
+    timecol = findfirst(col -> col.metric == duration_metric.metric, columns)
 
-    p.trace && return (; rows=p.kernels, values)
+    trace && return (; rows=kernels, values)
 
     groups = Dict{String,Vector{Int}}()
     order = String[]
-    for (i, name) in enumerate(p.kernels.name)
+    for (i, name) in enumerate(kernels.name)
         haskey(groups, name) || push!(order, name)
         push!(get!(Vector{Int}, groups, name), i)
     end
@@ -1577,8 +1545,8 @@ function report(p::KernelProfile)
                                    for name in order],
               calls = Int[length(groups[name]) for name in order],
               name = order)
-    values = Float64[mean(values[groups[name], j]) for name in order, j in axes(values, 2)]
-    return (; rows, values)
+    means = Float64[mean(values[groups[name], j]) for name in order, j in axes(values, 2)]
+    return (; rows, values=means)
 end
 
 function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
@@ -1592,54 +1560,11 @@ function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
     println(io, "Collected hardware metrics for $launches on $(p.device)$passes.")
     println(io, "Kernels were serialized, so these metrics describe each kernel in isolation.\n")
 
-    columns = p.columns
     (; rows, values) = report(p)
-    metric_values = [values[:, j] for j in eachindex(columns)]
-    names = rows.name
-    rows = if p.trace
-        (; rows.id, rows.grid, rows.block, rows.registers)
-    elseif any(col -> col.metric == duration_metric.metric, columns)
-        (; rows.time_ratio, rows.calls)
-    else
-        (; rows.calls)
-    end
-    metric_keys = Tuple(Symbol("metric", j) for j in eachindex(columns))
-    df = merge(rows, NamedTuple{metric_keys}(Tuple(metric_values)), (; name = names))
+    barrier(show_metrics, io, rows, values, p.columns, p.trace, crop)
 
-    column_names = Dict(:id => "ID", :grid => "Blocks", :block => "Threads",
-                        :registers => "Regs", :time_ratio => "Time (%)", :calls => "Calls",
-                        :name => "Name")
-    for (key, col) in zip(metric_keys, columns)
-        column_names[key] = col.kind == :time && !p.trace ? "Avg time" : col.name
-    end
-    header = [column_names[k] for k in keys(df)]
-    alignment = [k == :name ? :l : :r for k in keys(df)]
-    metric_kind = Dict(zip(metric_keys, [col.kind for col in columns]))
-
-    formatter = function(v, i, j)
-        key = keys(df)[j]
-        if key == :time_ratio
-            format_percentage(v)
-        elseif haskey(metric_kind, key)
-            format_metric(v, metric_kind[key])
-        elseif v isa CuDim3
-            format_dim(v)
-        else
-            v
-        end
-    end
-
-    # emphasize units that come close to their peak throughput
-    highlight_peak = TextHighlighter(crayon"bold") do data, i, j
-        key = keys(data)[j]
-        get(metric_kind, key, :none) == :percent && data[j][i] >= 80
-    end
-
-    print_table(io, df, crop; column_labels=header, alignment, formatters=[formatter],
-                highlighters=[highlight_peak])
-
-    if any(col -> col.kind == :percent && col in overview_metrics, columns)
-        l1 = any(col -> col.name == "L1/TEX", columns) ?
+    if any(col -> col.kind == :percent && col in overview_metrics, p.columns)
+        l1 = any(col -> col.name == "L1/TEX", p.columns) ?
             " (or the cycles the SMs were active, for L1/TEX)" : ""
         println(io, """
 
@@ -1651,6 +1576,54 @@ function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
     end
 
     return
+end
+
+function show_metrics(io::IOContext{IOBuffer}, rows::NamedTuple, values::Matrix{Float64},
+                      metrics::Vector{MetricColumn}, trace::Bool, crop::Symbol)
+    launch_columns = if trace
+        [:id, :grid, :block, :registers]
+    elseif any(col -> col.metric == duration_metric.metric, metrics)
+        [:time_ratio, :calls]
+    else
+        [:calls]
+    end
+    metric_keys = [Symbol("metric", j) for j in eachindex(metrics)]
+    columns = push!(append!(copy(launch_columns), metric_keys), :name)
+    data = Matrix{Any}(undef, length(rows.name), length(columns))
+    for (j, column) in enumerate(launch_columns)
+        set_column!(data, j, rows[column])
+    end
+    data[:, length(launch_columns) .+ eachindex(metrics)] = values
+    data[:, end] = rows.name
+
+    labels = Dict(:id => "ID", :grid => "Blocks", :block => "Threads",
+                  :registers => "Regs", :time_ratio => "Time (%)", :calls => "Calls",
+                  :name => "Name")
+    for (key, col) in zip(metric_keys, metrics)
+        labels[key] = col.kind == :time && !trace ? "Avg time" : col.name
+    end
+    alignment = [k == :name ? :l : :r for k in columns]
+    metric_kind = Dict(zip(metric_keys, [col.kind for col in metrics]))
+
+    function formatter(v, column)
+        if column == :time_ratio
+            format_percentage(v)
+        elseif haskey(metric_kind, column)
+            format_metric(v, metric_kind[column])
+        elseif v isa CuDim3
+            format_dim(v)
+        else
+            v
+        end
+    end
+
+    # emphasize units that come close to their peak throughput
+    highlight_peak = TextHighlighter(crayon"bold") do data, i, j
+        get(metric_kind, columns[j], :none) == :percent && data[i, j]::Float64 >= 80
+    end
+
+    print_table(io, crop, data, columns; labels, alignment, formatter,
+                highlighters=[highlight_peak])
 end
 
 function format_metric(v::Float64, kind::Symbol)
@@ -1733,8 +1706,9 @@ end
 ns(t) = t === missing ? missing : round(t * 1e9; digits=1)
 fraction(x) = round(x; digits=6)
 
-function json_report(results::ProfileResults)
-    r = report(results)
+json_report(results::ProfileResults) =
+    barrier(json_report, report(results), results.trace, results.raw)
+function json_report(r::NamedTuple, trace::Bool, raw::Bool)
 
     summary(df) = Any[let dist = df.time_dist[i]
         JSONObject("name" => df.name[i], "calls" => df.calls[i],
@@ -1745,7 +1719,7 @@ function json_report(results::ProfileResults)
                    "max_ns" => ns(dist === missing ? df.time[i] : dist.max))
     end for i in eachindex(df.name)]
 
-    host, device, nvtx = if results.trace
+    host, device, nvtx = if trace
         df = r.host
         host = Any[JSONObject("id" => df.id[i], "start_ns" => ns(df.start[i]),
                               "duration_ns" => ns(df.time[i]), "thread" => df.tid[i],
@@ -1777,16 +1751,17 @@ function json_report(results::ProfileResults)
         summary(r.host), summary(r.device), summary(r.nvtx)
     end
 
-    JSONObject("schema_version" => 1, "view" => (results.trace ? "trace" : "summary"),
-               "raw" => results.raw, "duration_ns" => ns(r.time), "events" => r.events,
+    JSONObject("schema_version" => 1, "view" => (trace ? "trace" : "summary"),
+               "raw" => raw, "duration_ns" => ns(r.time), "events" => r.events,
                "host_time_ns" => ns(r.host_time), "device_time_ns" => ns(r.device_time),
                "host" => host, "device" => device, "nvtx" => nvtx)
 end
 
 const metric_units = Dict(:time => "nanosecond", :percent => "percent", :bytes => "byte")
 
-function json_report(p::KernelProfile)
-    (; rows, values) = report(p)
+json_report(p::KernelProfile) = barrier(json_report, p, report(p))
+function json_report(p::KernelProfile, r::NamedTuple)
+    (; rows, values) = r
     metrics(i) = JSONObject(Pair{String,Any}[metric => values[i, j]
                                              for (j, metric) in enumerate(p.metrics)])
 
