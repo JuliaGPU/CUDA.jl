@@ -1,9 +1,20 @@
+# a diagonal-band mask of the forward's score subgraph, bounding the band on the right
+# (keeping row + seq_len_kv - seq_len_q + shift_right_bound >= col) or on the left
+# (keeping col + left_bound - seq_len_kv + seq_len_q > row)
+struct SDPABandMask
+    input::Tensor
+    output::Tensor
+    seq_len_q::Union{Nothing,Tensor}
+    seq_len_kv::Union{Nothing,Tensor}
+    left_bound::Union{Nothing,Tensor}
+    shift_right_bound::Union{Nothing,Tensor}
+end
+
 struct SDPAMaskSubgraph
     input::Tensor
     fill::Tensor
     output::Tensor
-    seq_len_q::Union{Nothing,Tensor}
-    seq_len_kv::Union{Nothing,Tensor}
+    masks::Vector{SDPABandMask}
 end
 
 struct SDPAFwdOp <: Operation
@@ -229,6 +240,23 @@ function check_sdpa_bottom_right(causal, padded, sq, skv)
     return
 end
 
+# the band bounds are by-value Int32 scalars; cudnn-frontend refuses a left bound with
+# more queries than keys unless the sequences are padded
+function check_sdpa_band(left_bound, right_bound, padded, sq, skv)
+    for (name, t) in (("left_bound", left_bound), ("right_bound", right_bound))
+        t === nothing || t.by_value && all(==(1), t.dims) && t.dtype == CUDNN_DATA_INT32 ||
+            throw(ArgumentError("$name must be a by-value Int32 scalar"))
+    end
+    left_bound !== nothing && !padded && sq > skv &&
+        throw(UnsupportedGraphError(
+            "cuDNN: a left band bound does not support more queries than keys " *
+            "($sq > $skv) without seq_len_q and seq_len_kv"))
+    return
+end
+
+sdpa_banded(causal, left_bound, right_bound) =
+    causal !== :none || left_bound !== nothing || right_bound !== nothing
+
 # bottom-right alignment keeps row + seq_len_kv - seq_len_q >= col: per batch element
 # under padding masks, otherwise from by-value scalars bound to the sequence lengths
 function sdpa_diagonal_lengths!(g::Graph, seq_len_q, seq_len_kv)
@@ -237,14 +265,29 @@ function sdpa_diagonal_lengths!(g::Graph, seq_len_q, seq_len_kv)
            scalar!(g, Int32; rank=4, name="MaskSeqLenKV")
 end
 
-function sdpa_causal_subgraph!(g::Graph, skv, sq, hq, b, causal, seq_len_q, seq_len_kv)
+# as cudnn-frontend chains them: the right bound (the causal diagonal, or any diagonal
+# shifted by right_bound), then the left bound, both aligned by causal
+function sdpa_mask_subgraph!(g::Graph, skv, sq, hq, b, causal, seq_len_q, seq_len_kv,
+                             left_bound, right_bound)
     score_dims = (skv, sq, hq, b)
     input = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name="Score")
     fill = scalar!(g, Float32; rank=4, name="MaskValue")
-    output = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name="MaskedScore")
     lengths = causal === :bottom_right ? sdpa_diagonal_lengths!(g, seq_len_q, seq_len_kv) :
               (nothing, nothing)
-    return SDPAMaskSubgraph(input, fill, output, lengths...)
+    score(name) = tensor!(g; dims=score_dims, dtype=Float32, virtual=true, name)
+    masks = SDPABandMask[]
+    x = input
+    if causal !== :none || right_bound !== nothing
+        y = score("RightMaskedScore")
+        push!(masks, SDPABandMask(x, y, lengths..., nothing, right_bound))
+        x = y
+    end
+    if left_bound !== nothing
+        y = score("LeftMaskedScore")
+        push!(masks, SDPABandMask(x, y, lengths..., left_bound, nothing))
+        x = y
+    end
+    return SDPAMaskSubgraph(input, fill, x, masks)
 end
 
 alphabeta_type(dtype::cudnnDataType_t) =
@@ -1010,8 +1053,10 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
                    stats::Union{Nothing,Tensor,Bool}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
-                   causal::Union{Bool,Symbol}=false, dropout_p::Real=0,
-                   bias=nothing)
+                   causal::Union{Bool,Symbol}=false,
+                   left_bound::Union{Nothing,Tensor}=nothing,
+                   right_bound::Union{Nothing,Tensor}=nothing,
+                   dropout_p::Real=0, bias=nothing)
     dropout_p == 0 || throw(ArgumentError("sdpa_fwd! does not support dropout"))
     bias === nothing || throw(ArgumentError("sdpa_fwd! does not support bias"))
     causal = sdpa_causal(causal)
@@ -1030,6 +1075,7 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     hq % hk == 0 || throw(DimensionMismatch("q head count must be a multiple of k/v heads"))
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
     check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
+    check_sdpa_band(left_bound, right_bound, seq_len_q !== nothing, sq, skv)
     check_sdpa_ragged(seq_len_q !== nothing, q, k, v, o)
 
     o === nothing && (o = tensor!(g; dims=(d, hq, sq, b), dtype=q.dtype, virtual=true,
@@ -1043,8 +1089,9 @@ function sdpa_fwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor;
     stats === nothing || sdpa_tensor!(stats)
     seq_len_q === nothing || foreach(sdpa_tensor!, (seq_len_q, seq_len_kv))
 
-    mask_subgraph = causal === :none ? nothing :
-                    sdpa_causal_subgraph!(g, skv, sq, hq, b, causal, seq_len_q, seq_len_kv)
+    mask_subgraph = sdpa_banded(causal, left_bound, right_bound) ?
+                    sdpa_mask_subgraph!(g, skv, sq, hq, b, causal, seq_len_q, seq_len_kv,
+                                        left_bound, right_bound) : nothing
 
     push!(g.ops, SDPAFwdOp(q, k, v, o, scale, stats, seq_len_q, seq_len_kv,
                            mask_subgraph))
@@ -1148,8 +1195,10 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
                    scale::Union{Nothing,Tensor}=nothing,
                    seq_len_q::Union{Nothing,Tensor}=nothing,
                    seq_len_kv::Union{Nothing,Tensor}=nothing,
-                   causal::Union{Bool,Symbol}=false, deterministic::Bool=false,
-                   dropout_p::Real=0, bias=nothing)
+                   causal::Union{Bool,Symbol}=false,
+                   left_bound::Union{Nothing,Tensor}=nothing,
+                   right_bound::Union{Nothing,Tensor}=nothing,
+                   deterministic::Bool=false, dropout_p::Real=0, bias=nothing)
     dropout_p == 0 || throw(ArgumentError("sdpa_bwd! does not support dropout"))
     bias === nothing || throw(ArgumentError("sdpa_bwd! does not support bias"))
     causal = sdpa_causal(causal)
@@ -1174,6 +1223,7 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     check_sdpa_bwd_dtype("stats", stats, CUDNN_DATA_FLOAT)
     check_sdpa_sequence_lengths(seq_len_q, seq_len_kv, b)
     check_sdpa_bottom_right(causal, seq_len_q !== nothing, sq, skv)
+    check_sdpa_band(left_bound, right_bound, seq_len_q !== nothing, sq, skv)
     check_sdpa_ragged(seq_len_q !== nothing, q, k, v, o, dO, dQ, dK, dV)
 
     # gradients default to dense, or to the layout of a ragged input
@@ -1231,8 +1281,8 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
 
     slq, slkv = seq_len_q, seq_len_kv
     padded = slq !== nothing
-    ninf = causal !== :none || padded ? scalar!(g, Float32; rank=4, name="MaskValue") :
-           nothing
+    ninf = sdpa_banded(causal, left_bound, right_bound) || padded ?
+           scalar!(g, Float32; rank=4, name="MaskValue") : nothing
 
     # P = exp(scale · QKᵀ − stats), padding/causally masked on request
     s = mm!(q, k, virt("S", (skv, sq, h, b)); m=slq, n=slkv)
@@ -1263,33 +1313,39 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
         sm = pointwise!(g, CUDNN_POINTWISE_BINARY_SELECT, sm, ninf, pmask,
                         name="select_padding")
     end
-    if causal !== :none
-        score_dims = (skv, sq, h, b)
-        row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
-                      name="row_idx")
-        col = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
-                      name="col_idx")
-        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=row, axis=2,
-                   compute_dtype=CUDNN_DATA_INT32, name="gen_row_idx")
-        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=col, axis=3,
-                   compute_dtype=CUDNN_DATA_INT32, name="gen_col_idx")
+    # the band masks of sdpa_fwd!, spelled as cudnn-frontend's composite ones
+    score_dims = (skv, sq, h, b)
+    int(name) = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true, name)
+    int_op!(mode, lhs, rhs, name) =
+        pointwise!(g, mode, lhs, rhs; y=int(name), compute_dtype=CUDNN_DATA_INT32, name)
+    index!(x, axis, name) = pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, x; y=int(name), axis,
+                                       compute_dtype=CUDNN_DATA_INT32, name="gen_$name")
+    function select!(x, mode, lhs, rhs, name)
+        mask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true, name)
+        pointwise!(g, mode, lhs, rhs; y=mask, compute_dtype=CUDNN_DATA_INT32, name)
+        return pointwise!(g, CUDNN_POINTWISE_BINARY_SELECT, x, ninf, mask,
+                          name="select_$name")
+    end
+    lq, lkv = causal === :bottom_right ? sdpa_diagonal_lengths!(g, slq, slkv) :
+              (nothing, nothing)
+    if causal !== :none || right_bound !== nothing
+        row, col = index!(sm, 2, "row_idx"), index!(sm, 3, "col_idx")
         if causal === :bottom_right
-            lq, lkv = sdpa_diagonal_lengths!(g, slq, slkv)
-            row_kv = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
-                             name="row_add_skv")
-            pointwise!(g, CUDNN_POINTWISE_ADD, row, lkv; y=row_kv,
-                       compute_dtype=CUDNN_DATA_INT32, name="row+skv")
-            row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
-                          name="row_add_skv_sub_sq")
-            pointwise!(g, CUDNN_POINTWISE_SUB, row_kv, lq; y=row,
-                       compute_dtype=CUDNN_DATA_INT32, name="row+skv-sq")
+            row = int_op!(CUDNN_POINTWISE_ADD, row, lkv, "row+skv")
+            row = int_op!(CUDNN_POINTWISE_SUB, row, lq, "row+skv-sq")
         end
-        mask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
-                       name="causal_mask")
-        pointwise!(g, CUDNN_POINTWISE_CMP_GE, row, col; y=mask,
-                   compute_dtype=CUDNN_DATA_INT32, name="row_ge_col")
-        sm = pointwise!(g, CUDNN_POINTWISE_BINARY_SELECT, sm, ninf, mask,
-                        name="select_causal")
+        right_bound === nothing ||
+            (row = int_op!(CUDNN_POINTWISE_ADD, row, right_bound, "row+right_bound"))
+        sm = select!(sm, CUDNN_POINTWISE_CMP_GE, row, col, "causal_mask")
+    end
+    if left_bound !== nothing
+        row, col = index!(sm, 2, "row_idx_left"), index!(sm, 3, "col_idx_left")
+        col = int_op!(CUDNN_POINTWISE_ADD, col, left_bound, "col+left_bound")
+        if causal === :bottom_right
+            col = int_op!(CUDNN_POINTWISE_SUB, col, lkv, "col+left_bound-skv")
+            col = int_op!(CUDNN_POINTWISE_ADD, col, lq, "col+left_bound-skv+sq")
+        end
+        sm = select!(sm, CUDNN_POINTWISE_CMP_GT, col, row, "left_bound_mask")
     end
     p = pointwise!(g, CUDNN_POINTWISE_EXP, sm; name="exp_s")
 
@@ -1489,17 +1545,22 @@ function lower(op::NormBwdOp, ctx::LoweringContext)
                             dx=desc(ctx, op.dx))
 end
 
-function lower_sdpa_mask_subgraph!(d, ctx, mask)
+function lower_sdpa_mask_subgraph!(d, ctx, subgraph)
     optdesc(t) = t === nothing ? nothing : desc(ctx, t)
-    mask_op = track!(ctx, diagonal_band_mask_operation(desc(ctx, mask.input),
-                                                       desc(ctx, mask.fill),
-                                                       desc(ctx, mask.output);
-                                                       seq_len_q=optdesc(mask.seq_len_q),
-                                                       seq_len_kv=optdesc(mask.seq_len_kv),
-                                                       comparison_mode=CUDNN_POINTWISE_CMP_GE))
-    d[:subgraph] = track!(ctx, operation_graph([mask_op]))
-    d[:subgraph_input_uid] = mask.input.uid
-    d[:subgraph_output_uid] = mask.output.uid
+    mask_ops = map(subgraph.masks) do mask
+        mode = mask.left_bound === nothing ? CUDNN_POINTWISE_CMP_GE : CUDNN_POINTWISE_CMP_GT
+        op = diagonal_band_mask_operation(desc(ctx, mask.input), desc(ctx, subgraph.fill),
+                                          desc(ctx, mask.output);
+                                          seq_len_q=optdesc(mask.seq_len_q),
+                                          seq_len_kv=optdesc(mask.seq_len_kv),
+                                          left_bound=optdesc(mask.left_bound),
+                                          shift_right_bound=optdesc(mask.shift_right_bound),
+                                          comparison_mode=mode)
+        track!(ctx, op)
+    end
+    d[:subgraph] = track!(ctx, operation_graph(mask_ops))
+    d[:subgraph_input_uid] = subgraph.input.uid
+    d[:subgraph_output_uid] = subgraph.output.uid
     return
 end
 

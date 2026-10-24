@@ -17,18 +17,20 @@ function zero_padded_queries!(a, seq_len_q)
     return a
 end
 
-# key j is visible to query i when j <= i, shifted by kvlen - qlen when bottom-right
-function causal_mask!(S, causal, qlen, kvlen)
-    causal === false && return S
+# key j is visible to query i when i - left_bound < j <= i + right_bound, the causal
+# mask being a right bound of 0, shifted by kvlen - qlen when bottom-right
+function band_mask!(S, causal, left_bound, right_bound, qlen, kvlen)
+    causal === false || (right_bound = something(right_bound, 0))
     shift = causal === :bottom_right ? kvlen - qlen : 0
     for i in axes(S, 1), j in axes(S, 2)
-        j > i + shift && (S[i, j] = Float32(-Inf))
+        right_bound !== nothing && j > i + shift + right_bound && (S[i, j] = Float32(-Inf))
+        left_bound !== nothing && j <= i + shift - left_bound && (S[i, j] = Float32(-Inf))
     end
     return S
 end
 
-function sdpa_ref(q, k, v; scale, causal=false, stats=false, seq_len_q=nothing,
-                  seq_len_kv=nothing)
+function sdpa_ref(q, k, v; scale, causal=false, left_bound=nothing, right_bound=nothing,
+                  stats=false, seq_len_q=nothing, seq_len_kv=nothing)
     d, h, sq, b = size(q); hk = size(k, 2); skv = size(k, 3)
     groups = h ÷ hk
     qh, kh, vh = Float32.(Array(q)), Float32.(Array(k)), Float32.(Array(v))
@@ -40,7 +42,7 @@ function sdpa_ref(q, k, v; scale, causal=false, stats=false, seq_len_q=nothing,
         kvh = (hh - 1) ÷ groups + 1
         Q, K, V = qh[:, hh, :, bb], kh[:, kvh, :, bb], vh[:, kvh, :, bb]
         S = scale .* (Q' * K)                       # sq x skv
-        causal_mask!(S, causal, qlens[bb], kvlens[bb])
+        band_mask!(S, causal, left_bound, right_bound, qlens[bb], kvlens[bb])
         kvlens[bb] < skv && (S[:, kvlens[bb]+1:end] .= Float32(-Inf))
         m = maximum(S; dims=2)
         e = exp.(S .- m)
@@ -53,8 +55,8 @@ function sdpa_ref(q, k, v; scale, causal=false, stats=false, seq_len_q=nothing,
     return stats ? (o, s) : o
 end
 
-function sdpa_bwd_ref(q, k, v, dO; scale, causal=false, seq_len_q=nothing,
-                      seq_len_kv=nothing)
+function sdpa_bwd_ref(q, k, v, dO; scale, causal=false, left_bound=nothing,
+                      right_bound=nothing, seq_len_q=nothing, seq_len_kv=nothing)
     d, h, sq, b = size(q); hk = size(k, 2); skv = size(k, 3)
     groups = h ÷ hk
     qh = Float32.(Array(q))
@@ -70,7 +72,7 @@ function sdpa_bwd_ref(q, k, v, dO; scale, causal=false, seq_len_q=nothing,
         kvh = (hh - 1) ÷ groups + 1
         Q, K, V = qh[:, hh, :, bb], kh[:, kvh, :, bb], vh[:, kvh, :, bb]
         S = scale .* (Q' * K)                       # sq x skv
-        causal_mask!(S, causal, qlens[bb], kvlens[bb])
+        band_mask!(S, causal, left_bound, right_bound, qlens[bb], kvlens[bb])
         kvlens[bb] < skv && (S[:, kvlens[bb]+1:end] .= Float32(-Inf))
         m = maximum(S; dims=2)
         A = exp.(S .- m)
@@ -87,54 +89,59 @@ function sdpa_bwd_ref(q, k, v, dO; scale, causal=false, seq_len_q=nothing,
 end
 
 function sdpatest(T; d=64, sq=32, skv=32, h=4, hk=h, b=2, scale=1/sqrt(d), rtol=2e-2,
-                  causal=false)
+                  causal=false, left_bound=nothing, right_bound=nothing)
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
     k = cuRAND.randn(T, d, hk, skv, b) ./ 4
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
+    band = (; causal, left_bound, right_bound)
 
-    ref = sdpa_ref(q, k, v; scale, causal)
-    y = attention(q, k, v; scale, causal)
+    ref = sdpa_ref(q, k, v; scale, band...)
+    y = attention(q, k, v; scale, band...)
     @test size(y) == (d, h, sq, b)
     @test eltype(y) == T
     @test Array(y) ≈ ref rtol=rtol
 
     out = similar(q)
-    attention!(out, q, k, v; scale, causal)
+    attention!(out, q, k, v; scale, band...)
     @test Array(out) == Array(y)
 end
 
 function sdpa_stats_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
-                         scale=1/sqrt(d), causal=false, rtol=2e-3)
+                         scale=1/sqrt(d), causal=false, left_bound=nothing,
+                         right_bound=nothing, rtol=2e-3)
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
     k = cuRAND.randn(T, d, hk, skv, b) ./ 4
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
+    band = (; causal, left_bound, right_bound)
 
-    ref, refstats = sdpa_ref(q, k, v; scale, causal, stats=true)
+    ref, refstats = sdpa_ref(q, k, v; scale, band..., stats=true)
     out = similar(q)
     stats = CUDACore.zeros(Float32, 1, sq, h, b)
-    attention!(out, q, k, v; scale, causal, stats)
+    attention!(out, q, k, v; scale, band..., stats)
     @test Array(out) ≈ ref rtol=2e-2
     @test Array(stats) ≈ permutedims(refstats, (1, 3, 2, 4)) rtol=rtol
 end
 
 function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
-                            scale=1/sqrt(d), causal=false, deterministic=false, rtol=3e-2)
+                            scale=1/sqrt(d), causal=false, left_bound=nothing,
+                            right_bound=nothing, deterministic=false, rtol=3e-2)
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
     k = cuRAND.randn(T, d, hk, skv, b) ./ 4
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
     dO = cuRAND.randn(T, d, h, sq, b) ./ 4
+    band = (; causal, left_bound, right_bound)
     o = similar(q)
     stats = CUDACore.zeros(Float32, 1, sq, h, b)
-    attention!(o, q, k, v; scale, causal, stats)
+    attention!(o, q, k, v; scale, band..., stats)
 
-    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal)
+    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, band...)
     dq, dk, dv = similar(q), similar(k), similar(v)
-    if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, o, stats; causal,
+    if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, o, stats; band...,
                                            deterministic)
         @test_skip "SDPA backward engine is unsupported on this device"
         return
     end
-    attention_backward!(dq, dk, dv, dO, q, k, v, o, stats; scale, causal, deterministic)
+    attention_backward!(dq, dk, dv, dO, q, k, v, o, stats; scale, band..., deterministic)
     @test Array(dq) ≈ refdq rtol=rtol
     @test Array(dk) ≈ refdk rtol=rtol
     @test Array(dv) ≈ refdv rtol=rtol
@@ -142,7 +149,7 @@ function sdpa_backward_test(T; d=64, sq=32, skv=32, h=4, hk=h, b=2,
     # dQ is accumulated in arbitrary order unless deterministic, so repeated calls
     # otherwise agree only closely
     agree(a, b) = deterministic ? a == b : isapprox(a, b; rtol=1e-2)
-    a_dq, a_dk, a_dv = attention_backward(dO, q, k, v, o, stats; scale, causal,
+    a_dq, a_dk, a_dv = attention_backward(dO, q, k, v, o, stats; scale, band...,
                                           deterministic)
     @test agree(Array(a_dq), Array(dq))
     @test agree(Array(a_dk), Array(dk))
@@ -151,21 +158,23 @@ end
 
 function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
                            qlens=[32, 48], kvlens=[40, 56], causal=false,
+                           left_bound=nothing, right_bound=nothing,
                            deterministic=false, scale=1/sqrt(d), rtol=3e-2)
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
     k = cuRAND.randn(T, d, hk, skv, b) ./ 4
     v = cuRAND.randn(T, d, hk, skv, b) ./ 4
     seq_len_q = CuArray(reshape(Int32.(qlens), 1, 1, 1, b))
     seq_len_kv = CuArray(reshape(Int32.(kvlens), 1, 1, 1, b))
+    band = (; causal, left_bound, right_bound)
 
-    ref = sdpa_ref(q, k, v; scale, causal, seq_len_q, seq_len_kv)
+    ref = sdpa_ref(q, k, v; scale, band..., seq_len_q, seq_len_kv)
     out = similar(q)
     stats = CUDACore.zeros(Float32, 1, sq, h, b)
-    if !cuDNN.attention_supported(out, q, k, v; causal, stats, seq_len_q, seq_len_kv)
+    if !cuDNN.attention_supported(out, q, k, v; band..., stats, seq_len_q, seq_len_kv)
         @test_skip "SDPA sequence-length engine is unsupported on this device"
         return
     end
-    attention!(out, q, k, v; scale, causal, stats, seq_len_q, seq_len_kv)
+    attention!(out, q, k, v; scale, band..., stats, seq_len_q, seq_len_kv)
     got = zero_padded_queries!(Array(out), seq_len_q)
     expected = zero_padded_queries!(copy(ref), seq_len_q)
     @test got ≈ expected rtol=rtol
@@ -173,17 +182,17 @@ function sdpa_padding_test(T; d=64, sq=64, skv=64, h=4, hk=2, b=2,
     # padded backward: gradients compare inside the valid region; out-of-range
     # rows are clamped away by the GEMM overrides and stay zero
     dO = cuRAND.randn(T, d, h, sq, b) ./ 4
-    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal, seq_len_q,
+    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, band..., seq_len_q,
                                        seq_len_kv)
     dq = CUDACore.zeros(T, d, h, sq, b)
     dk = CUDACore.zeros(T, d, hk, skv, b)
     dv = CUDACore.zeros(T, d, hk, skv, b)
     if !cuDNN.attention_backward_supported(dq, dk, dv, dO, q, k, v, out, stats;
-                                           causal, seq_len_q, seq_len_kv, deterministic)
+                                           band..., seq_len_q, seq_len_kv, deterministic)
         @test_skip "SDPA padded backward engine is unsupported on this device"
         return
     end
-    attention_backward!(dq, dk, dv, dO, q, k, v, out, stats; scale, causal,
+    attention_backward!(dq, dk, dv, dO, q, k, v, out, stats; scale, band...,
                         seq_len_q, seq_len_kv, deterministic)
     @test zero_padded_queries!(Array(dq), seq_len_q) ≈
           zero_padded_queries!(refdq, seq_len_q) rtol=rtol
@@ -197,7 +206,8 @@ end
 pack(a, lens) = cat((a[:, :, 1:n, bb] for (bb, n) in enumerate(lens))...; dims=3)
 
 function sdpa_packed_test(T; d=64, h=4, hk=h, qlens=[5, 17, 64], kvlens=[9, 17, 70],
-                          causal=false, slack=0, scale=1/sqrt(d), rtol=3e-2)
+                          causal=false, left_bound=nothing, right_bound=nothing,
+                          slack=0, scale=1/sqrt(d), rtol=3e-2)
     b = length(qlens)
     sq, skv = maximum(qlens) + slack, maximum(kvlens) + slack
     q = cuRAND.randn(T, d, h, sq, b) ./ 4
@@ -206,14 +216,15 @@ function sdpa_packed_test(T; d=64, h=4, hk=h, qlens=[5, 17, 64], kvlens=[9, 17, 
     dO = cuRAND.randn(T, d, h, sq, b) ./ 4
     seq_len_q = CuArray(reshape(Int32.(qlens), 1, 1, 1, b))
     seq_len_kv = CuArray(reshape(Int32.(kvlens), 1, 1, 1, b))
-    ref, refstats = sdpa_ref(q, k, v; scale, causal, stats=true, seq_len_q, seq_len_kv)
-    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, causal, seq_len_q, seq_len_kv)
+    band = (; causal, left_bound, right_bound)
+    ref, refstats = sdpa_ref(q, k, v; scale, band..., stats=true, seq_len_q, seq_len_kv)
+    refdq, refdk, refdv = sdpa_bwd_ref(q, k, v, dO; scale, band..., seq_len_q, seq_len_kv)
 
     pq, pdO = CuArray(pack(Array(q), qlens)), CuArray(pack(Array(dO), qlens))
     pk, pv = CuArray(pack(Array(k), kvlens)), CuArray(pack(Array(v), kvlens))
     kw = (; cu_seq_len_q=CuArray(Int32[0; cumsum(qlens)]),
           cu_seq_len_kv=CuArray(Int32[0; cumsum(kvlens)]),
-          max_seq_len_q=sq, max_seq_len_kv=skv, causal)
+          max_seq_len_q=sq, max_seq_len_kv=skv, band...)
     out = similar(pq)
     stats = CUDACore.zeros(Float32, 1, sq, h, b)
     if !cuDNN.attention_supported(out, pq, pk, pv; stats, kw...)
@@ -287,6 +298,27 @@ if capability(device()) >= v"8.0"
                          causal=:bottom_right)                 # decoding against caches
         sdpa_packed_test(T; qlens=[5, 0, 64], kvlens=[9, 0, 70],
                          slack=13)                             # empty sequence, loose max
+
+        # diagonal bands
+        sdpatest(T; sq=128, skv=128, causal=true, left_bound=16)          # sliding window
+        sdpatest(T; h=4, hk=2, causal=true, left_bound=8)                 # with GQA
+        sdpatest(T; sq=16, skv=48, causal=:bottom_right, left_bound=20)   # chunked prefill
+        sdpatest(T; sq=1, skv=40, causal=:bottom_right, left_bound=10)    # decoding
+        sdpatest(T; left_bound=5, right_bound=4)                          # |i - j| < 5
+        sdpatest(T; left_bound=6)
+        sdpatest(T; right_bound=3)
+        sdpatest(T; sq=16, skv=48, causal=:bottom_right, left_bound=7, right_bound=2)
+        sdpa_stats_test(T; causal=true, left_bound=8)
+        sdpa_backward_test(T; causal=true, left_bound=8)
+        sdpa_backward_test(T; sq=24, skv=100, h=4, hk=2, causal=:bottom_right,
+                           left_bound=30)
+        sdpa_backward_test(T; left_bound=5, right_bound=4)
+        sdpa_backward_test(T; causal=true, left_bound=8, deterministic=true)
+        sdpa_padding_test(T; causal=true, left_bound=16)
+        sdpa_padding_test(T; sq=16, skv=64, qlens=[4, 16], kvlens=[20, 64],
+                          causal=:bottom_right, left_bound=10)
+        sdpa_packed_test(T; causal=true, left_bound=8)
+        sdpa_packed_test(T; h=8, hk=2, causal=:bottom_right, left_bound=12)
     end
 
     # long enough for the default plan's dQ to vary between runs
@@ -399,6 +431,25 @@ if capability(device()) >= v"8.0"
         @test isempty(attention(q0, q0, q0))
         qf32 = cuRAND.randn(Float32, 64, 4, 32, 2)
         @test !cuDNN.attention_supported(similar(qf32), qf32, qf32, qf32)
+    end
+
+    let q = cuRAND.randn(Float16, 64, 4, 32, 2) ./ 4
+        # the bounds' values don't shape the plan, and a right bound of 0 is causal
+        attention(q, q, q; causal=true)
+        attention(q, q, q; causal=true, left_bound=4)
+        n = length(cuDNN.handle().plans)
+        attention(q, q, q; causal=true, left_bound=9)
+        attention(q, q, q; right_bound=0)
+        @test length(cuDNN.handle().plans) == n
+        @test Array(attention(q, q, q; right_bound=0)) ==
+              Array(attention(q, q, q; causal=true))
+
+        @test_throws ArgumentError attention(q, q, q; left_bound=0)
+        @test_throws ArgumentError attention(q, q, q; right_bound=-1)
+        k16 = cuRAND.randn(Float16, 64, 4, 16, 2) ./ 4   # more queries than keys
+        @test !cuDNN.attention_supported(similar(q), q, k16, k16; causal=true, left_bound=4)
+        @test_throws cuDNN.UnsupportedGraphError attention(q, k16, k16; causal=true,
+                                                           left_bound=4)
     end
 
     let d=64, h=4, s=32, b=2, scale=1f0/8

@@ -33,6 +33,39 @@ end
 
 attention_args_supported(T, d) = T in (Float16, BFloat16) && d % 8 == 0 && d <= 256
 
+# the masked band of the scores; a right bound of 0 is the causal mask
+function attention_band(causal, left_bound, right_bound)
+    causal = sdpa_causal(causal)
+    left_bound === nothing || left_bound >= 1 ||
+        throw(ArgumentError("left_bound must be positive, got $left_bound"))
+    right_bound === nothing || right_bound >= 0 ||
+        throw(ArgumentError("right_bound must be nonnegative, got $right_bound"))
+    if right_bound == 0
+        causal === :none && (causal = :top_left)
+        right_bound = nothing
+    end
+    return (; causal, left_bound, right_bound)
+end
+
+banded(band) = sdpa_banded(band.causal, band.left_bound, band.right_bound)
+
+# the bounds are by-value scalars bound per call, so only their presence shapes the plan
+band_key(band) = (band.causal, band.left_bound !== nothing, band.right_bound !== nothing)
+
+band_tensors!(g, band) =
+    (; left_bound=band.left_bound === nothing ? nothing :
+                  scalar!(g, Int32; rank=4, name="LeftBound"),
+       right_bound=band.right_bound === nothing ? nothing :
+                   scalar!(g, Int32; rank=4, name="RightBound"))
+
+function bind_band!(bindings, g, band)
+    band.left_bound === nothing ||
+        (bindings[tensor(g, "LeftBound")] = Int32(band.left_bound))
+    band.right_bound === nothing ||
+        (bindings[tensor(g, "RightBound")] = Int32(band.right_bound))
+    return
+end
+
 function check_attention_heads(q, k, v, out)
     d, h = size(q)
     dk, hk = size(k)
@@ -152,7 +185,7 @@ function bind_sequences!(bindings, g, seqs::PackedSequences, (d, h, hk, sq, skv,
     return
 end
 
-function build_attention_graph(seqs, (d, h, hk, sq, skv, b), out, q, k, v, stats, causal;
+function build_attention_graph(seqs, (d, h, hk, sq, skv, b), out, q, k, v, stats, band;
                                deterministic, math_mode, max_workspace)
     g = Graph(io_dtype=eltype(q), intermediate_dtype=Float32, compute_dtype=Float32)
     offq, offkv = ragged_offsets!(g, seqs, b)
@@ -171,12 +204,12 @@ function build_attention_graph(seqs, (d, h, hk, sq, skv, b), out, q, k, v, stats
                      dtype=Float32, name="Stats", output=true)
     tseqq, tseqkv = sequence_tensors!(g, seqs, b)
     sdpa_fwd!(g, tq, tk, tv; o=to, scale=ts, stats=tstats, seq_len_q=tseqq,
-              seq_len_kv=tseqkv, causal)
+              seq_len_kv=tseqkv, band.causal, band_tensors!(g, band)...)
     build!(g; deterministic, math_mode, max_workspace)
 end
 
 function build_attention_backward_graph(seqs, (d, h, hk, sq, skv, b), dq, dk, dv, dO,
-                                        q, k, v, o, causal;
+                                        q, k, v, o, band;
                                         deterministic, math_mode, max_workspace)
     # as cudnn-frontend does; there is no engine for it on SM12x
     seqs isa PackedSequences && deterministic && capability(device()).major in (8, 12) &&
@@ -205,35 +238,37 @@ function build_attention_backward_graph(seqs, (d, h, hk, sq, skv, b), dq, dk, dv
     ts = scalar!(g, Float32; rank=4, name="Scale")
     tseqq, tseqkv = sequence_tensors!(g, seqs, b)
     sdpa_bwd!(g, tq, tk, tv, to, tdO, tstats; dQ=tdq, dK=tdk, dV=tdv, scale=ts,
-              seq_len_q=tseqq, seq_len_kv=tseqkv, causal, deterministic)
+              seq_len_q=tseqq, seq_len_kv=tseqkv, band.causal, band_tensors!(g, band)...,
+              deterministic)
     build!(g; deterministic, math_mode, max_workspace)
 end
 
-function attention_plan(seqs, out, q, k, v, stats, causal;
+function attention_plan(seqs, out, q, k, v, stats, band;
                         deterministic, math_mode, max_workspace)
     dims = attention_dims(seqs, q, k, v, out)
     _, h, _, sq, _, b = dims
     attention_stats_dims(stats, h, sq, b)
     key = (:attention_fwd, eltype(q), attention_key(seqs, dims, (q, k, v, out))...,
-           attention_optional_key(stats), causal, deterministic, math_mode, max_workspace)
+           attention_optional_key(stats), band_key(band)..., deterministic, math_mode,
+           max_workspace)
     g = cached_graph(key) do
-        build_attention_graph(seqs, dims, out, q, k, v, stats, causal;
+        build_attention_graph(seqs, dims, out, q, k, v, stats, band;
                               deterministic, math_mode, max_workspace)
     end
     return g, dims
 end
 
-function attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, causal;
+function attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, band;
                                  deterministic, math_mode, max_workspace)
     dims = attention_dims(seqs, q, k, v, o)
     _, h, _, sq, _, b = dims
     attention_gradient_dims(dq, dk, dv, dO, q, k, v)
     attention_stats_dims(stats, h, sq, b)
     key = (:attention_bwd, eltype(q),
-           attention_key(seqs, dims, (dq, dk, dv, dO, q, k, v, o, stats))..., causal,
-           deterministic, math_mode, max_workspace)
+           attention_key(seqs, dims, (dq, dk, dv, dO, q, k, v, o, stats))...,
+           band_key(band)..., deterministic, math_mode, max_workspace)
     g = cached_graph(key) do
-        build_attention_backward_graph(seqs, dims, dq, dk, dv, dO, q, k, v, o, causal;
+        build_attention_backward_graph(seqs, dims, dq, dk, dv, dO, q, k, v, o, band;
                                        deterministic, math_mode, max_workspace)
     end
     return g, dims
@@ -267,16 +302,19 @@ end
 function run_attention!(seqs, out::DenseCuArray{T}, q::DenseCuArray{T},
                         k::DenseCuArray{T}, v::DenseCuArray{T};
                         scale::Real=1/sqrt(size(q, 1)),
-                        causal::Union{Bool,Symbol}=false, dropout_p::Real=0, bias=nothing,
+                        causal::Union{Bool,Symbol}=false,
+                        left_bound::Union{Nothing,Integer}=nothing,
+                        right_bound::Union{Nothing,Integer}=nothing,
+                        dropout_p::Real=0, bias=nothing,
                         stats::Union{Nothing,DenseCuArray{Float32,4}}=nothing,
                         deterministic::Bool=false,
                         math_mode=CUDACore.math_mode(),
                         max_workspace::Union{Nothing,Integer}=nothing) where {T}
     check_attention_args("attention!", T, dropout_p, bias)
-    causal = sdpa_causal(causal)
+    band = attention_band(causal, left_bound, right_bound)
     isempty(out) && return out
     check_head_dim(size(q, 1))
-    g, dims = attention_plan(seqs, out, q, k, v, stats, causal;
+    g, dims = attention_plan(seqs, out, q, k, v, stats, band;
                              deterministic, math_mode, max_workspace)
 
     bindings = IdDict{Tensor,Any}(
@@ -287,8 +325,9 @@ function run_attention!(seqs, out::DenseCuArray{T}, q::DenseCuArray{T},
         tensor(g, "Scale") => Float32(scale),
     )
     stats === nothing || (bindings[tensor(g, "Stats")] = stats)
-    causal === :none || (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
-    bind_sequences!(bindings, g, seqs, dims, causal)
+    banded(band) && (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    bind_band!(bindings, g, band)
+    bind_sequences!(bindings, g, seqs, dims, band.causal)
     execute!(g, bindings)
     return out
 end
@@ -299,16 +338,18 @@ function run_attention_backward!(seqs, dq::DenseCuArray{T}, dk::DenseCuArray{T},
                                  v::DenseCuArray{T}, o::DenseCuArray{T},
                                  stats::DenseCuArray{Float32,4};
                                  scale::Real=1/sqrt(size(q, 1)),
-                                 causal::Union{Bool,Symbol}=false, dropout_p::Real=0,
-                                 bias=nothing,
+                                 causal::Union{Bool,Symbol}=false,
+                                 left_bound::Union{Nothing,Integer}=nothing,
+                                 right_bound::Union{Nothing,Integer}=nothing,
+                                 dropout_p::Real=0, bias=nothing,
                                  deterministic::Bool=false,
                                  math_mode=CUDACore.math_mode(),
                                  max_workspace::Union{Nothing,Integer}=nothing) where {T}
     check_attention_args("attention_backward!", T, dropout_p, bias)
-    causal = sdpa_causal(causal)
+    band = attention_band(causal, left_bound, right_bound)
     isempty(dq) && isempty(dk) && isempty(dv) && return dq, dk, dv
     check_head_dim(size(q, 1))
-    g, dims = attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, causal;
+    g, dims = attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, band;
                                       deterministic, math_mode, max_workspace)
 
     bindings = IdDict{Tensor,Any}(
@@ -325,9 +366,9 @@ function run_attention_backward!(seqs, dq::DenseCuArray{T}, dk::DenseCuArray{T},
         tensor(g, "One") => 1f0,
     )
     bind_backward_workspaces!(bindings, g, seqs, dims, q, k, deterministic)
-    (causal !== :none || masked(seqs)) &&
-        (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
-    bind_sequences!(bindings, g, seqs, dims, causal)
+    (banded(band) || masked(seqs)) && (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    bind_band!(bindings, g, band)
+    bind_sequences!(bindings, g, seqs, dims, band.causal)
     execute!(g, bindings)
     return dq, dk, dv
 end
@@ -345,15 +386,17 @@ end
 function attention_plan_supported(seqs, out::DenseCuArray{T}, q::DenseCuArray{T},
                                   k::DenseCuArray{T}, v::DenseCuArray{T};
                                   causal::Union{Bool,Symbol}=false,
+                                  left_bound::Union{Nothing,Integer}=nothing,
+                                  right_bound::Union{Nothing,Integer}=nothing,
                                   stats::Union{Nothing,DenseCuArray{Float32,4}}=nothing,
                                   deterministic::Bool=false,
                                   math_mode=CUDACore.math_mode(),
                                   max_workspace::Union{Nothing,Integer}=nothing) where {T}
-    causal = sdpa_causal(causal)
+    band = attention_band(causal, left_bound, right_bound)
     attention_args_supported(T, size(q, 1)) || return false
     isempty(out) && return true
     plan_supported() do
-        attention_plan(seqs, out, q, k, v, stats, causal;
+        attention_plan(seqs, out, q, k, v, stats, band;
                        deterministic, math_mode, max_workspace)
     end
 end
@@ -364,14 +407,16 @@ function attention_backward_plan_supported(seqs, dq::DenseCuArray{T}, dk::DenseC
                                            v::DenseCuArray{T}, o::DenseCuArray{T},
                                            stats::DenseCuArray{Float32,4};
                                            causal::Union{Bool,Symbol}=false,
+                                           left_bound::Union{Nothing,Integer}=nothing,
+                                           right_bound::Union{Nothing,Integer}=nothing,
                                            deterministic::Bool=false,
                                            math_mode=CUDACore.math_mode(),
                                            max_workspace::Union{Nothing,Integer}=nothing) where {T}
-    causal = sdpa_causal(causal)
+    band = attention_band(causal, left_bound, right_bound)
     attention_args_supported(T, size(q, 1)) || return false
     isempty(dq) && isempty(dk) && isempty(dv) && return true
     plan_supported() do
-        attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, causal;
+        attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, band;
                                 deterministic, math_mode, max_workspace)
     end
 end
@@ -489,6 +534,17 @@ prefill): query `i` attends to keys `j ≤ i + seq_len_kv - seq_len_q`, with the
 taken per batch element when they are passed and from the array sizes otherwise. Without
 `seq_len_q` and `seq_len_kv`, it is unsupported when there are more queries than keys;
 with them, the output of queries that see no key is undefined.
+
+`left_bound` and `right_bound` restrict each query to a band of keys around the diagonal,
+as cuDNN's diagonal-band bounds do: query `i` attends to keys
+`i + shift - left_bound < j ≤ i + shift + right_bound`, where `shift` is
+`seq_len_kv - seq_len_q` when `causal=:bottom_right` and 0 otherwise. A causal mask is a
+right bound of 0, which `right_bound` replaces. With `causal=true`, `left_bound=w` is a
+sliding window of `w` keys, the query's own included (FlashAttention's
+`window_size=(w - 1, 0)`); `left_bound=w, right_bound=w - 1` is the bidirectional window
+`|i - j| < w`. Without `seq_len_q` and `seq_len_kv`, a left bound is unsupported when
+there are more queries than keys. The bounds are passed by value at each call, so plans
+don't depend on them.
 
 Packed variable-length sequences use `(head_dim, heads, tokens)` arrays instead, holding
 the sequences back to back, with the required keywords `cu_seq_len_q`, `cu_seq_len_kv`,
