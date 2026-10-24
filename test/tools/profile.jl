@@ -113,6 +113,16 @@ let
     @test !occursin("cuCtxSynchronize", str)
 end
 
+# timestamps keep their nanosecond resolution, and aren't rounded to multiples of
+# 2^-22 s (~238 ns) as happens when converting CUPTI's raw timestamps to seconds
+let
+    results = CUDA.@profile for i in 1:10
+        @cuda identity(nothing)
+    end
+    times = [results.host.stop .- results.host.start; results.device.stop .- results.device.start]
+    @test any(t -> !isinteger(t * 2^22), times)
+end
+
 # kernel launch (raw trace)
 let
     str = string(CUDA.@profile trace=true raw=true @cuda identity(nothing))
