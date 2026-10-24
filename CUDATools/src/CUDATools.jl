@@ -37,6 +37,7 @@ export NVML, has_nvml
 
 # Developer tools
 include("reflection.jl")
+include("cubin.jl")
 include("profile.jl")
 include("utilities.jl")
 
