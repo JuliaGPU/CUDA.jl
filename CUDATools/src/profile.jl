@@ -744,7 +744,10 @@ print_table(io::IO, df, crop::Symbol; kwargs...) =
                  fit_table_in_display_horizontally=(crop == :horizontal),
                  fit_table_in_display_vertically=false, kwargs...)
 
-function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Symbol)
+# The report that displaying `results` shows: the activity in the profiled region (or the
+# entire trace in raw trace mode) with times relative to its start, as tables listing every
+# event (`trace=true`) or summarizing the events per name.
+function report(results::ProfileResults)
     results = deepcopy(results)
     host = results.host
     device = results.device
@@ -769,12 +772,10 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
         last_id = host.id[trace_last_sync - 1]
         host = filtermask(host, first_id .<= host.id .<= last_id)
         device = filtermask(device, first_id .<= device.id .<= last_id)
-        trace_divisions = Int[]
     else
-        # in raw mode, we display the entire trace, but highlight the relevant part.
-        # note that we only do so when tracing, because otherwise the summary would
-        # be skewed by the expensive initial API call used to sink the profiler overhead.
-        trace_divisions = [trace_first_sync, trace_last_sync-1]
+        # in raw mode, we display the entire trace. note that we only do so when tracing,
+        # because otherwise the summary would be skewed by the expensive initial API call
+        # used to sink the profiler overhead.
 
         # inclusive bounds
         trace_begin = host.start[begin]
@@ -786,7 +787,6 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
     host = merge(host, (; time=host.stop .- host.start))
     device = merge(device, (; time=device.stop .- device.start))
     events = length(host.id) + length(device.id)
-    println(io, "Profiler ran for $(format_time(trace_time)), capturing $(events) events.")
 
     # make some numbers more friendly to read
     ## make timestamps relative to the start
@@ -809,29 +809,6 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
                 findfirst(isequal(tid), threads)
             end
         end
-    end
-
-    # helper function to visualize slow trace entries
-    function time_highlighters(df)
-        ## filter out entries that execute _very_ quickly (like calls to cuCtxGetCurrent)
-        times = df.time::Vector{Float64}
-        relevant_times = times[times .>= 1e-8]
-
-        isempty(relevant_times) && return ()
-        p75 = quantile(relevant_times, 0.75)
-        p95 = quantile(relevant_times, 0.95)
-
-        highlight_p95 = TextHighlighter((data, i, j) -> (keys(data)[j] == :time) &&
-                                                        (data[j][i] >= p95),
-                                        crayon"red")
-        highlight_p75 = TextHighlighter((data, i, j) -> (keys(data)[j] == :time) &&
-                                                        (data[j][i] >= p75),
-                                        crayon"yellow")
-        highlight_bold = TextHighlighter((data, i, j) -> (keys(data)[j] == :name) &&
-                                                         (data.time[i] >= p75),
-                                         crayon"bold")
-
-        (highlight_p95, highlight_p75, highlight_bold)
     end
 
     function summarize_trace(df)
@@ -867,6 +844,149 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             time_dist = out_dist[perm],
             time_ratio = out_ratio[perm],
         )
+    end
+
+    # host-side activity
+    ## to determine the time the host was active, we should look at threads separately
+    thread_times = Dict{Int,Float64}()
+    for (tid, t) in zip(host.tid, host.time)
+        thread_times[tid] = get(thread_times, tid, 0.0) + t
+    end
+    host_time = maximum(values(thread_times))
+
+    ## get rid of API call version suffixes
+    host.name .= replace.(host.name, r"_v\d+$" => "")
+
+    if !results.raw
+        # filter spammy API calls
+        spammy = Set([# context and stream queries we use for nonblocking sync
+                      "cuCtxGetCurrent", "cuCtxGetId", "cuCtxGetApiVersion",
+                      "cuStreamQuery", "cuStreamGetId",
+                      # occupancy API, done before every kernel launch
+                      "cuOccupancyMaxPotentialBlockSize",
+                      # driver pointer set-up
+                      "cuGetProcAddress",
+                      # called a lot during compilation
+                      "cuDeviceGetAttribute",
+                      # done before every memory operation
+                      "cuPointerGetAttribute", "cuDeviceGetMemPool",
+                      "cuStreamGetCaptureInfo"])
+        host = filtermask(host, [name ∉ spammy for name in host.name])
+    end
+
+    if results.trace
+        # instantaneous NVTX markers can be added to the API trace
+        instant_mask = (nvtx.type::Vector{Symbol}) .== :instant
+        n_markers = count(instant_mask)
+        if n_markers > 0
+            marker_names = nvtx.name[instant_mask]
+            marker_domains = nvtx.domain[instant_mask]
+            marker_details = map(marker_names, marker_domains) do name, domain
+                if !ismissing(name) && !ismissing(domain)
+                    "$(domain).$(name)"
+                elseif !ismissing(name)
+                    "$name"
+                else
+                    missing
+                end
+            end
+
+            # append markers to host trace (with type widening for id/stop)
+            host = (
+                id      = vcat(Vector{Union{Missing,Int}}(host.id), fill(missing, n_markers)),
+                start   = vcat(host.start, nvtx.start[instant_mask]),
+                stop    = vcat(Vector{Union{Missing,Float64}}(host.stop), fill(missing, n_markers)),
+                name    = vcat(host.name, fill("NVTX marker", n_markers)),
+                tid     = vcat(host.tid, nvtx.tid[instant_mask]),
+                details = vcat(host.details, marker_details),
+                time    = vcat(host.time, zeros(Float64, n_markers)),
+            )
+
+            # sort by start time
+            perm = sortperm(host.start)
+            host = NamedTuple{keys(host)}(Tuple(col[perm] for col in host))
+        end
+    else
+        host = summarize_trace(host)
+    end
+
+    # device-side activity
+    device_time = sum(device.time)
+
+    ## add memory throughput information. CUPTI's timestamp resolution
+    ## can round very short events down to 0 ns, so guard against the
+    ## resulting Inf throughput (which would later trip up format_bytes).
+    throughput = map(device.size, device.time) do s, t
+        (s === missing || !isfinite(t) || t == 0) ? missing : s / t
+    end
+    device = merge(device, (; throughput))
+
+    if !results.trace
+        device = summarize_trace(device)
+    end
+
+    # NVTX ranges
+    # TODO: do we also want to repeat the host/device summary for each NVTX range?
+    #       that's what nvprof used to do, but it's a little verbose...
+
+    ## build lookup from end event id → stop time
+    end_times = Dict{Int,Float64}()
+    for i in eachindex(nvtx.id)
+        if nvtx.type[i] == :end
+            end_times[nvtx.id[i]] = nvtx.start[i]
+        end
+    end
+
+    ## add stop time from matching end events
+    nvtx_ranges = filtermask(nvtx, nvtx.type .== :start)
+    stop_times = Float64[get(end_times, id, NaN) for id in nvtx_ranges.id]
+    nvtx_ranges = merge(nvtx_ranges, (; stop=stop_times, time=stop_times .- nvtx_ranges.start))
+
+    if !results.trace
+        # merge the domain and name into a single column
+        merged_names = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
+            if name !== missing && domain !== missing
+                "$(domain).$(name)"
+            elseif name !== missing
+                "$name"
+            else
+                missing
+            end
+        end
+        nvtx_ranges.name .= merged_names
+
+        nvtx_ranges = summarize_trace(nvtx_ranges)
+    end
+
+    return (; time=trace_time, events, host_time, device_time,
+              host, device, nvtx=nvtx_ranges)
+end
+
+function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Symbol)
+    r = report(results)
+    println(io, "Profiler ran for $(format_time(r.time)), capturing $(r.events) events.")
+
+    # helper function to visualize slow trace entries
+    function time_highlighters(df)
+        ## filter out entries that execute _very_ quickly (like calls to cuCtxGetCurrent)
+        times = df.time::Vector{Float64}
+        relevant_times = times[times .>= 1e-8]
+
+        isempty(relevant_times) && return ()
+        p75 = quantile(relevant_times, 0.75)
+        p95 = quantile(relevant_times, 0.95)
+
+        highlight_p95 = TextHighlighter((data, i, j) -> (keys(data)[j] == :time) &&
+                                                        (data[j][i] >= p95),
+                                        crayon"red")
+        highlight_p75 = TextHighlighter((data, i, j) -> (keys(data)[j] == :time) &&
+                                                        (data[j][i] >= p75),
+                                        crayon"yellow")
+        highlight_bold = TextHighlighter((data, i, j) -> (keys(data)[j] == :name) &&
+                                                         (data.time[i] >= p75),
+                                         crayon"bold")
+
+        (highlight_p95, highlight_p75, highlight_bold)
     end
 
     trace_column_names = Dict(
@@ -915,74 +1035,25 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
         end
     end
 
+    function print_summary(df)
+        columns = [:time_ratio, :time, :calls]
+        if any(!ismissing, df.time_dist)
+            push!(columns, :time_dist)
+        end
+        push!(columns, :name)
+        df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
+
+        header = [summary_column_names[k] for k in keys(df)]
+        alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
+        highlighters = time_highlighters(df)
+        print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+    end
+
     # host-side activity
-    let
-        # to determine the time the host was active, we should look at threads separately
-        thread_times = Dict{Int,Float64}()
-        for (tid, t) in zip(host.tid, host.time)
-            thread_times[tid] = get(thread_times, tid, 0.0) + t
-        end
-        host_time = maximum(values(thread_times))
-        host_ratio = host_time / trace_time
-
-        # get rid of API call version suffixes
-        host.name .= replace.(host.name, r"_v\d+$" => "")
-
-        df = if results.raw
-            host
-        else
-            # filter spammy API calls
-            spammy = Set([# context and stream queries we use for nonblocking sync
-                          "cuCtxGetCurrent", "cuCtxGetId", "cuCtxGetApiVersion",
-                          "cuStreamQuery", "cuStreamGetId",
-                          # occupancy API, done before every kernel launch
-                          "cuOccupancyMaxPotentialBlockSize",
-                          # driver pointer set-up
-                          "cuGetProcAddress",
-                          # called a lot during compilation
-                          "cuDeviceGetAttribute",
-                          # done before every memory operation
-                          "cuPointerGetAttribute", "cuDeviceGetMemPool",
-                          "cuStreamGetCaptureInfo"])
-            filtermask(host, [name ∉ spammy for name in host.name])
-        end
-
-        # instantaneous NVTX markers can be added to the API trace
-        if results.trace
-            instant_mask = (nvtx.type::Vector{Symbol}) .== :instant
-            n_markers = count(instant_mask)
-            if n_markers > 0
-                marker_names = nvtx.name[instant_mask]
-                marker_domains = nvtx.domain[instant_mask]
-                marker_details = map(marker_names, marker_domains) do name, domain
-                    if !ismissing(name) && !ismissing(domain)
-                        "$(domain).$(name)"
-                    elseif !ismissing(name)
-                        "$name"
-                    else
-                        missing
-                    end
-                end
-
-                # append markers to host trace (with type widening for id/stop)
-                df = (
-                    id      = vcat(Vector{Union{Missing,Int}}(df.id), fill(missing, n_markers)),
-                    start   = vcat(df.start, nvtx.start[instant_mask]),
-                    stop    = vcat(Vector{Union{Missing,Float64}}(df.stop), fill(missing, n_markers)),
-                    name    = vcat(df.name, fill("NVTX marker", n_markers)),
-                    tid     = vcat(df.tid, nvtx.tid[instant_mask]),
-                    details = vcat(df.details, marker_details),
-                    time    = vcat(df.time, zeros(Float64, n_markers)),
-                )
-
-                # sort by start time
-                perm = sortperm(df.start)
-                df = NamedTuple{keys(df)}(Tuple(col[perm] for col in df))
-            end
-        end
-
+    let df = r.host
         if !isempty(df.name)
-            println(io, "\nHost-side activity: calling CUDA APIs took $(format_time(host_time)) ($(format_percentage(host_ratio)) of the trace)")
+            host_ratio = r.host_time / r.time
+            println(io, "\nHost-side activity: calling CUDA APIs took $(format_time(r.host_time)) ($(format_percentage(host_ratio)) of the trace)")
         end
         if isempty(df.name)
             println(io, "\nNo host-side activity was recorded.")
@@ -1014,72 +1085,50 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             end
             highlighters = time_highlighters(df)
             highlighters = isempty(highlighters) ? PrettyTables.TextHighlighter[] : collect(highlighters)
-            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters)#,
-                                 #body_hlines=trace_divisions)
+            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters)
         else
-            df = summarize_trace(df)
-
-            columns = [:time_ratio, :time, :calls]
-            if any(!ismissing, df.time_dist)
-                push!(columns, :time_dist)
-            end
-            push!(columns, :name)
-            df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
-
-            header = [summary_column_names[k] for k in keys(df)]
-            alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
-            highlighters = time_highlighters(df)
-            print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+            print_summary(df)
         end
     end
 
     # device-side activity
-    let
-        device_time = sum(device.time)
-        device_ratio = device_time / trace_time
-        if !isempty(device.id)
-            println(io, "\nDevice-side activity: GPU was busy for $(format_time(device_time)) ($(format_percentage(device_ratio)) of the trace)")
+    let df = r.device
+        if !isempty(df.name)
+            device_ratio = r.device_time / r.time
+            println(io, "\nDevice-side activity: GPU was busy for $(format_time(r.device_time)) ($(format_percentage(device_ratio)) of the trace)")
         end
 
-        # add memory throughput information. CUPTI's timestamp resolution
-        # can round very short events down to 0 ns, so guard against the
-        # resulting Inf throughput (which would later trip up format_bytes).
-        throughput = map(device.size, device.time) do s, t
-            (s === missing || !isfinite(t) || t == 0) ? missing : s / t
-        end
-        device = merge(device, (; throughput))
-
-        if isempty(device.id)
+        if isempty(df.name)
             println(io, "\nNo device-side activity was recorded.")
         elseif results.trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
             ## device/stream identification
             for col in [:device, :stream]
-                if results.raw || length(unique(device[col])) > 1
+                if results.raw || length(unique(df[col])) > 1
                     push!(columns, col)
                 end
             end
             ## kernel details (can be missing)
             for col in [:block, :grid, :registers]
-                if results.raw || any(!ismissing, device[col])
+                if results.raw || any(!ismissing, df[col])
                     push!(columns, col)
                 end
             end
-            if results.raw || any(val->!ismissing(val) && (val.static > 0 || val.dynamic > 0), device.shared_mem)
+            if results.raw || any(val->!ismissing(val) && (val.static > 0 || val.dynamic > 0), df.shared_mem)
                 push!(columns, :shared_mem)
             end
-            if results.raw || any(val->!ismissing(val) && val.thread > 0, device.local_mem)
+            if results.raw || any(val->!ismissing(val) && val.thread > 0, df.local_mem)
                 push!(columns, :local_mem)
             end
             ## memory details (can be missing)
-            if results.raw || any(!ismissing, device.size)
+            if results.raw || any(!ismissing, df.size)
                 push!(columns, :size)
                 push!(columns, :throughput)
             end
             push!(columns, :name)
 
-            df = NamedTuple{Tuple(columns)}(Tuple(device[c] for c in columns))
+            df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
 
             header = [trace_column_names[k] for k in keys(df)]
             alignment = [k == :name ? :l : :r for k in keys(df)]
@@ -1115,45 +1164,16 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             end
             highlighters = time_highlighters(df)
             print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters))
-                                 #body_hlines=trace_divisions)
         else
-            df = summarize_trace(device)
-
-            columns = [:time_ratio, :time, :calls]
-            if any(!ismissing, df.time_dist)
-                push!(columns, :time_dist)
-            end
-            push!(columns, :name)
-            df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
-
-            header = [summary_column_names[k] for k in keys(df)]
-            alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
-            highlighters = time_highlighters(df)
-            print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+            print_summary(df)
         end
     end
 
-    # show NVTX ranges
-    # TODO: do we also want to repeat the host/device summary for each NVTX range?
-    #       that's what nvprof used to do, but it's a little verbose...
-
-    # build lookup from end event id → stop time
-    end_times = Dict{Int,Float64}()
-    for i in eachindex(nvtx.id)
-        if nvtx.type[i] == :end
-            end_times[nvtx.id[i]] = nvtx.start[i]
-        end
-    end
-
-    nvtx_ranges = filtermask(nvtx, nvtx.type .== :start)
-    if length(nvtx_ranges.id) > 0
-        # add stop time from matching end events
-        stop_times = Float64[get(end_times, id, NaN) for id in nvtx_ranges.id]
-        nvtx_ranges = merge(nvtx_ranges, (; stop=stop_times, time=stop_times .- nvtx_ranges.start))
-
+    # NVTX ranges
+    let df = r.nvtx
+        isempty(df.name) && return
         println(io, "\nNVTX ranges:")
 
-        df = nvtx_ranges
         if results.trace
             # determine columns to show, based on whether they contain useful information
             columns = [:id, :start, :time]
@@ -1196,31 +1216,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             highlighters = tuple(color_highlighters..., time_highlighters(df)...)
             print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters))
         else
-            # merge the domain and name into a single column
-            merged_names = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
-                if name !== missing && domain !== missing
-                    "$(domain).$(name)"
-                elseif name !== missing
-                    "$name"
-                else
-                    missing
-                end
-            end
-            nvtx_ranges.name .= merged_names
-
-            df = summarize_trace(nvtx_ranges)
-
-            columns = [:time_ratio, :time, :calls]
-            if any(!ismissing, df.time_dist)
-                push!(columns, :time_dist)
-            end
-            push!(columns, :name)
-            df = NamedTuple{Tuple(columns)}(Tuple(df[c] for c in columns))
-
-            header = [summary_column_names[k] for k in keys(df)]
-            alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
-            highlighters = time_highlighters(df)
-            print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
+            print_summary(df)
         end
     end
 
@@ -1524,6 +1520,34 @@ is_profiler_kernel(record) =
 
 Base.show(io::IO, p::KernelProfile) = show_report(io, p)
 
+# The report that displaying `p` shows: a table of kernel launches (`trace=true`) or of
+# kernels sorted by their total duration, if known, and a matrix with the value of every
+# metric for each row (averaged over the launches of each kernel).
+function report(p::KernelProfile)
+    values = p.values
+    timecol = findfirst(col -> col.metric == duration_metric.metric, p.columns)
+
+    p.trace && return (; rows=p.kernels, values)
+
+    groups = Dict{String,Vector{Int}}()
+    order = String[]
+    for (i, name) in enumerate(p.kernels.name)
+        haskey(groups, name) || push!(order, name)
+        push!(get!(Vector{Int}, groups, name), i)
+    end
+    if timecol !== nothing
+        sort!(order; by=name->sum(values[groups[name], timecol]), rev=true)
+    end
+    total_time = timecol === nothing ? 0.0 : sum(values[:, timecol])
+    rows = (; time_ratio = Float64[timecol === nothing ? NaN :
+                                   sum(values[groups[name], timecol]) / total_time
+                                   for name in order],
+              calls = Int[length(groups[name]) for name in order],
+              name = order)
+    values = Float64[mean(values[groups[name], j]) for name in order, j in axes(values, 2)]
+    return (; rows, values)
+end
+
 function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
     nlaunches = length(p.kernels.id)
     if nlaunches == 0
@@ -1536,36 +1560,15 @@ function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
     println(io, "Kernels were serialized, so these metrics describe each kernel in isolation.\n")
 
     columns = p.columns
-    values = p.values
-    timecol = findfirst(col -> col.metric == duration_metric.metric, columns)
-
-    if p.trace
-        rows = (; id = p.kernels.id, grid = p.kernels.grid, block = p.kernels.block,
-                  registers = p.kernels.registers)
-        metric_values = [values[:, j] for j in eachindex(columns)]
-        names = p.kernels.name
+    (; rows, values) = report(p)
+    metric_values = [values[:, j] for j in eachindex(columns)]
+    names = rows.name
+    rows = if p.trace
+        (; rows.id, rows.grid, rows.block, rows.registers)
+    elseif any(col -> col.metric == duration_metric.metric, columns)
+        (; rows.time_ratio, rows.calls)
     else
-        # one row per kernel, sorted by their total duration if we have it
-        groups = Dict{String,Vector{Int}}()
-        order = String[]
-        for (i, name) in enumerate(p.kernels.name)
-            haskey(groups, name) || push!(order, name)
-            push!(get!(Vector{Int}, groups, name), i)
-        end
-        if timecol !== nothing
-            sort!(order; by=name->sum(values[groups[name], timecol]), rev=true)
-        end
-        total_time = timecol === nothing ? 0.0 : sum(values[:, timecol])
-        rows = (; time_ratio = Float64[timecol === nothing ? NaN :
-                                       sum(values[groups[name], timecol]) / total_time
-                                       for name in order],
-                  calls = Int[length(groups[name]) for name in order])
-        if timecol === nothing
-            rows = (; calls = rows.calls)
-        end
-        metric_values = [Float64[mean(values[groups[name], j]) for name in order]
-                         for j in eachindex(columns)]
-        names = order
+        (; rows.calls)
     end
     metric_keys = Tuple(Symbol("metric", j) for j in eachindex(columns))
     df = merge(rows, NamedTuple{metric_keys}(Tuple(metric_values)), (; name = names))
