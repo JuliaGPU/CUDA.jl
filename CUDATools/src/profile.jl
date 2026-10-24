@@ -21,6 +21,10 @@ may not be relevant.
 Slow operations will be highlighted in the output: Entries colored in yellow are among the
 slowest 25%, while entries colored in red are among the slowest 5% of all operations.
 
+The results can also be written as JSON, e.g., for processing by scripts or coding agents,
+with `show(stdout, "application/json", results)`. See
+[`Profile.ProfileResults`](@ref CUDATools.Profile.ProfileResults) for details.
+
 To collect hardware metrics for every kernel instead, use
 [`CUDA.@metrics`](@ref CUDATools.@metrics).
 
@@ -125,6 +129,8 @@ To collect metrics, kernels are executed one at a time, and replayed as often as
 to read all counters (restoring memory in between). Durations and other metrics thus
 describe each kernel in isolation, and the code runs considerably slower. Only kernels
 launched in the current context are profiled, at most 512 of them.
+
+The results can also be written as JSON with `show(stdout, "application/json", results)`.
 
 See also: [`CUDA.@profile`](@ref CUDATools.@profile), which traces host and device activity.
 """
@@ -387,18 +393,33 @@ end
 """
     ProfileResults(...)
 
-The results of a profiling run, as returned by [`@profile`](@ref). The recommended way to
-interpret these results is to visualize them using the I/O stack (e.g. by calling `display`,
-`print`, `string`, ...)
+The results of a profiling run, as returned by [`CUDA.@profile`](@ref CUDATools.@profile).
+The recommended way to interpret these results is to visualize them using the I/O stack
+(e.g. by calling `display`, `print`, `string`, ...)
 
-For programmatic access, it is possible to access the fields of this struct. However, the
-exact format is not guaranteed to be stable, and may change between CUDA.jl releases.
-Currently, it contains three tables (NamedTuples of vectors):
+For programmatic access, `show(io, MIME"application/json"(), results)` writes the report
+that would be displayed as JSON, with times in nanoseconds relative to the start of the
+trace, and `null` for values that are not available:
+- `view`: `"summary"`, or `"trace"` when `trace=true` was passed;
+- `duration_ns` and `events`: the duration of the trace and the number of events in it;
+- `host_time_ns`: the time the busiest thread spent calling CUDA APIs;
+- `device_time_ns`: the total duration of device activity, which exceeds the duration of
+  the trace when operations overlap;
+- `host`, `device` and `nvtx`: arrays of API calls, device operations, and NVTX ranges.
+  In summary view, each entry summarizes the events with the same `name`: the number of
+  `calls`, their `total_ns` and the `time_fraction` of the trace that represents, and their
+  `mean_ns`, `std_ns`, `min_ns` and `max_ns`. In trace view, each entry describes one event:
+  its `start_ns` and `duration_ns`, an `id` that matches API calls with the operations they
+  launched, and details like launch configurations or the size of memory operations.
+
+It is also possible to access the fields of this struct. However, the exact format is not
+guaranteed to be stable, and may change between CUDA.jl releases. Currently, it contains
+three tables (NamedTuples of vectors):
 - `host`, containing host-side activity;
 - `device`, containing device-side activity;
 - `nvtx`, with information on captured NVTX ranges and events.
 
-See also: [`@profile`](@ref)
+See also: [`CUDA.@profile`](@ref CUDATools.@profile)
 """
 Base.@kwdef struct ProfileResults
     # captured data (NamedTuples of vectors)
@@ -1324,7 +1345,19 @@ metric_columns(metrics) =
 The hardware metrics collected by [`CUDA.@metrics`](@ref CUDATools.@metrics). Displaying
 this object shows a summary per kernel, or every launch when `trace=true` was passed.
 
-For programmatic access, the following fields are available:
+For programmatic access, `show(io, MIME"application/json"(), p)` writes the report that
+would be displayed as JSON:
+- `view`: `"summary"`, or `"trace"` when `trace=true` was passed;
+- `device`, and the number of kernel `launches` and of replay `passes`;
+- `metrics`: the collected metrics, with their CUPTI `name`, the `label` used when
+  displaying them, and their `unit` (`null` if unknown);
+- `kernels`: in summary view, every kernel with its number of `calls` and the
+  `time_fraction` they took, sorted by duration; in trace view, every launch with its `id`,
+  `grid` and `block` size, `registers` per thread, and `stream`. Each entry has a `metrics`
+  object with the value of every metric, averaged over the launches of a kernel in
+  summary view.
+
+The following fields are also available:
 - `kernels`: a table (NamedTuple of vectors) with one row per kernel launch, in the order
   they executed: the launch's correlation `id`, kernel `name`, `grid` and `block`
   dimensions, `registers` per thread, and `stream`;
@@ -1638,6 +1671,144 @@ function demangle_names!(names::Vector{String})
     copy!(names, demangled)
 end
 
+
+#
+# JSON output
+#
+
+# the reports contain few kinds of values, so we don't need a JSON library to write them.
+# objects and arrays are built from untyped containers, so that writing a report doesn't
+# need to compile code for every combination of values (e.g. missing or not) it contains.
+# missing values and non-finite numbers (e.g. the duration of an unterminated NVTX range)
+# are written as `null`.
+struct JSONObject
+    pairs::Vector{Pair{String,Any}}
+end
+JSONObject(@nospecialize(pairs::Pair...)) = JSONObject(Pair{String,Any}[pairs...])
+json(io::IO, ::Union{Nothing,Missing}) = print(io, "null")
+json(io::IO, x::Union{Bool,Integer}) = print(io, x)
+json(io::IO, x::AbstractFloat) = isfinite(x) ? print(io, Float64(x)) : print(io, "null")
+json(io::IO, x::CuDim3) = print(io, '[', Int(x.x), ',', Int(x.y), ',', Int(x.z), ']')
+function json(io::IO, x::String)
+    print(io, '"')
+    for c in x
+        if c == '"' || c == '\\'
+            print(io, '\\', c)
+        elseif c < ' '
+            print(io, "\\u", string(UInt32(c); base=16, pad=4))
+        else
+            print(io, c)
+        end
+    end
+    print(io, '"')
+end
+function json(io::IO, x::Vector{Any})
+    print(io, '[')
+    for (i, v) in enumerate(x)
+        i > 1 && print(io, ',')
+        json(io, v)
+    end
+    print(io, ']')
+end
+function json(io::IO, x::JSONObject)
+    print(io, '{')
+    for (i, (k, v)) in enumerate(x.pairs)
+        i > 1 && print(io, ',')
+        json(io, k)
+        print(io, ':')
+        json(io, v)
+    end
+    print(io, '}')
+end
+
+function Base.show(io::IO, ::MIME"application/json", report::Union{ProfileResults,KernelProfile})
+    # see `show_report`
+    buf = IOBuffer()
+    json(buf, json_report(report))
+    write(io, take!(buf))
+    return
+end
+
+# times in reports are in seconds, with rounding errors from converting nanoseconds
+ns(t) = t === missing ? missing : round(t * 1e9; digits=1)
+fraction(x) = round(x; digits=6)
+
+function json_report(results::ProfileResults)
+    r = report(results)
+
+    summary(df) = Any[let dist = df.time_dist[i]
+        JSONObject("name" => df.name[i], "calls" => df.calls[i],
+                   "total_ns" => ns(df.time[i]), "time_fraction" => fraction(df.time_ratio[i]),
+                   "mean_ns" => ns(dist === missing ? df.time[i] : dist.mean),
+                   "std_ns" => (dist === missing ? nothing : ns(dist.std)),
+                   "min_ns" => ns(dist === missing ? df.time[i] : dist.min),
+                   "max_ns" => ns(dist === missing ? df.time[i] : dist.max))
+    end for i in eachindex(df.name)]
+
+    host, device, nvtx = if results.trace
+        df = r.host
+        host = Any[JSONObject("id" => df.id[i], "start_ns" => ns(df.start[i]),
+                              "duration_ns" => ns(df.time[i]), "thread" => df.tid[i],
+                              "name" => df.name[i], "details" => df.details[i])
+                   for i in eachindex(df.name)]
+        df = r.device
+        device = Any[let shared_mem = df.shared_mem[i], local_mem = df.local_mem[i]
+            JSONObject("id" => df.id[i], "start_ns" => ns(df.start[i]),
+                       "duration_ns" => ns(df.time[i]), "device" => df.device[i],
+                       "context" => df.context[i], "stream" => df.stream[i],
+                       "name" => df.name[i], "grid" => df.grid[i], "block" => df.block[i],
+                       "registers" => df.registers[i],
+                       "static_shared_mem_bytes" => (shared_mem === missing ? missing : shared_mem.static),
+                       "dynamic_shared_mem_bytes" => (shared_mem === missing ? missing : shared_mem.dynamic),
+                       "local_mem_bytes_per_thread" => (local_mem === missing ? missing : local_mem.thread),
+                       "local_mem_bytes" => (local_mem === missing ? missing : local_mem.total),
+                       "size_bytes" => df.size[i],
+                       "throughput_bytes_per_second" => df.throughput[i],
+                       "details" => df.details[i])
+        end for i in eachindex(df.name)]
+        df = r.nvtx
+        nvtx = Any[JSONObject("id" => df.id[i], "start_ns" => ns(df.start[i]),
+                              "duration_ns" => ns(df.time[i]), "thread" => df.tid[i],
+                              "domain" => df.domain[i], "name" => df.name[i],
+                              "payload" => df.payload[i])
+                   for i in eachindex(df.name)]
+        host, device, nvtx
+    else
+        summary(r.host), summary(r.device), summary(r.nvtx)
+    end
+
+    JSONObject("schema_version" => 1, "view" => (results.trace ? "trace" : "summary"),
+               "raw" => results.raw, "duration_ns" => ns(r.time), "events" => r.events,
+               "host_time_ns" => ns(r.host_time), "device_time_ns" => ns(r.device_time),
+               "host" => host, "device" => device, "nvtx" => nvtx)
+end
+
+const metric_units = Dict(:time => "nanosecond", :percent => "percent", :bytes => "byte")
+
+function json_report(p::KernelProfile)
+    (; rows, values) = report(p)
+    metrics(i) = JSONObject(Pair{String,Any}[metric => values[i, j]
+                                             for (j, metric) in enumerate(p.metrics)])
+
+    kernels = if p.trace
+        Any[JSONObject("id" => rows.id[i], "name" => rows.name[i], "grid" => rows.grid[i],
+                       "block" => rows.block[i], "registers" => rows.registers[i],
+                       "stream" => rows.stream[i], "metrics" => metrics(i))
+            for i in eachindex(rows.name)]
+    else
+        Any[JSONObject("name" => rows.name[i], "calls" => rows.calls[i],
+                       "time_fraction" => fraction(rows.time_ratio[i]),
+                       "metrics" => metrics(i))
+            for i in eachindex(rows.name)]
+    end
+
+    JSONObject("schema_version" => 1, "view" => (p.trace ? "trace" : "summary"),
+               "device" => p.device, "launches" => length(p.kernels.id), "passes" => p.passes,
+               "metrics" => Any[JSONObject("name" => col.metric, "label" => col.name,
+                                           "unit" => get(metric_units, col.kind, nothing))
+                                for col in p.columns],
+               "kernels" => kernels)
+end
 
 #
 # benchmarking

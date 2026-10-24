@@ -98,6 +98,9 @@ Update 2 or later, except for CUDA 12.8 to 13.1.
 
 *New features*:
 
+- The results of `CUDA.@profile` and `CUDA.@metrics` can be written as JSON, for
+  processing by scripts or coding agents, with
+  `show(io, MIME"application/json"(), results)`.
 - `CUDA.resource_finalizer` registers a finalizer that releases CUDA resources
   on a regular task instead of from the garbage collector, for use by packages
   that wrap objects of CUDA libraries.

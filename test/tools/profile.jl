@@ -1,3 +1,4 @@
+import JSON
 import NVTX
 using CUDA.Profile: push_row!, filtermask
 
@@ -185,6 +186,51 @@ let
     @test occursin("a range", str)
 end
 
+# JSON output
+let
+    @cuda identity(nothing)
+    results = CUDA.@profile @cuda identity(nothing)
+    json = JSON.parse(repr("application/json", results))
+    @test json["view"] == "summary"
+    @test json["duration_ns"] > 0
+    kernel = only(filter(row -> occursin("identity", row["name"]), json["device"]))
+    @test kernel["calls"] == 1
+    @test kernel["total_ns"] == kernel["mean_ns"] > 0
+    @test kernel["std_ns"] === nothing
+    @test any(row -> startswith(row["name"], "cuLaunchKernel"), json["host"])
+    @test isempty(json["nvtx"])
+
+    # the trace view matches API calls with the kernels they launched
+    results = CUDA.@profile trace=true @cuda threads=2 blocks=3 identity(nothing)
+    json = JSON.parse(repr("application/json", results))
+    @test json["view"] == "trace"
+    kernel = only(filter(row -> occursin("identity", row["name"]), json["device"]))
+    @test kernel["block"] == [2, 1, 1]
+    @test kernel["grid"] == [3, 1, 1]
+    @test kernel["size_bytes"] === nothing
+    launch = only(filter(row -> row["id"] == kernel["id"], json["host"]))
+    @test startswith(launch["name"], "cuLaunchKernel")
+    @test launch["start_ns"] < kernel["start_ns"]
+
+    # names are escaped
+    name = "a \"range\"\n\twith \\ characters → \e"
+    results = CUDA.@profile trace=true NVTX.@range name identity(nothing)
+    json = JSON.parse(repr("application/json", results))
+    @test json["schema_version"] == 1
+    @test only(json["nvtx"])["name"] == name
+
+    # ranges that don't end have no duration
+    results = CUDA.@profile trace=true NVTX.range_start(; message="open")
+    json = JSON.parse(repr("application/json", results))
+    @test only(json["nvtx"])["duration_ns"] === nothing
+
+    # the raw trace includes everything
+    results = CUDA.@profile trace=true raw=true @cuda identity(nothing)
+    json = JSON.parse(repr("application/json", results))
+    @test json["raw"]
+    @test any(row -> row["name"] == "cuCtxSynchronize", json["host"])
+end
+
 end
 
 end
@@ -243,6 +289,26 @@ a = CUDA.zeros(Float32, 1024)
     @test !any(line -> endswith(line, r"[ │┐┤┘]"), split(str, '\n'))
     @test !occursin("bold", str)
 
+    json = JSON.parse(repr("application/json", p))
+    @test json["view"] == "summary"
+    @test json["launches"] == 1
+    @test json["passes"] == p.passes
+    @test [metric["name"] for metric in json["metrics"]] == p.metrics
+    @test json["metrics"][1]["unit"] == "nanosecond"
+    kernel = only(json["kernels"])
+    @test occursin("increment", kernel["name"])
+    @test kernel["calls"] == 1
+    @test kernel["time_fraction"] == 1
+    @test kernel["metrics"][p.metrics[1]] == p.values[1, 1]
+
+    p = @retry_busy CUDA.@metrics trace=true @cuda threads=32 blocks=32 increment(a)
+    json = JSON.parse(repr("application/json", p))
+    @test json["view"] == "trace"
+    kernel = only(json["kernels"])
+    @test kernel["id"] == only(p.kernels.id)
+    @test kernel["grid"] == [32, 1, 1]
+    @test kernel["block"] == [32, 1, 1]
+
     str = string(@retry_busy CUDA.@metrics trace=true @cuda threads=32 blocks=32 increment(a))
     @test occursin("ID", str)
     @test occursin("Blocks", str)
@@ -251,6 +317,9 @@ a = CUDA.zeros(Float32, 1024)
     @test occursin("DRAM traffic", str)
 
     @test occursin("No kernels", string(@retry_busy CUDA.@metrics nothing))
+    json = JSON.parse(repr("application/json", @retry_busy CUDA.@metrics nothing))
+    @test json["launches"] == 0
+    @test isempty(json["kernels"])
 end
 
 @testset "raw metrics" begin
@@ -261,6 +330,13 @@ end
     @test p.values[1, 1] == 32
     # ratios aren't percentages
     @test !occursin("%", string(p))
+
+    # without a duration, there's no time fraction, and units aren't known
+    json = JSON.parse(repr("application/json", p))
+    kernel = only(json["kernels"])
+    @test kernel["time_fraction"] === nothing
+    @test kernel["metrics"]["smsp__warps_launched.sum"] == 32
+    @test all(metric -> metric["unit"] === nothing, json["metrics"])
 end
 
 @testset "attribution" begin

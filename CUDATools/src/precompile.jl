@@ -68,6 +68,8 @@ using PrecompileTools
     for (host, device, nvtx) in ((host, device, nvtx), single_kernel), trace in (false, true)
         results = Profile.ProfileResults(; host, device, nvtx, trace)
         show(IOContext(IOBuffer(), :limit => true), MIME"text/plain"(), results)
+        string(results)
+        repr("application/json", results)
     end
 
     # hardware metrics, as collected by `profile_metrics`
@@ -82,5 +84,7 @@ using PrecompileTools
                                           metrics=[col.metric for col in columns],
                                           values, columns, trace)
         show(IOContext(IOBuffer(), :limit => true), MIME"text/plain"(), results)
+        string(results)
+        repr("application/json", results)
     end
 end

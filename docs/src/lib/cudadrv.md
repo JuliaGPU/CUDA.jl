@@ -229,6 +229,7 @@ CurrentModule = CUDATools
 ```@docs
 @profile
 @metrics
+Profile.ProfileResults
 Profile.KernelProfile
 Profile.start
 Profile.stop
