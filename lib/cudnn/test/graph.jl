@@ -44,6 +44,22 @@ sdpa_fwd!(gbr, brq, brkv, brkv; causal=:bottom_right)
                                                   causal=:bottom_right)
 @test_throws ArgumentError sdpa_fwd!(gbr, brq, brkv, brkv; causal=:diagonal)
 
+# band bounds are by-value Int32 scalars, masking after the causal diagonal
+gband = Graph(io_dtype=Float16)
+bq = tensor!(gband; dims=(64, 4, 32, 2), dtype=Float16, name="Q")
+bkv = tensor!(gband; dims=(64, 4, 16, 2), dtype=Float16, name="KV")
+lb = scalar!(gband, Int32; rank=4, name="LeftBound")
+rb = scalar!(gband, Int32; rank=4, name="RightBound")
+sdpa_fwd!(gband, bq, bq, bq; causal=true, left_bound=lb)
+@test length(gband.ops[end].mask_subgraph.masks) == 2
+sdpa_fwd!(gband, bq, bq, bq; right_bound=rb)
+@test only(gband.ops[end].mask_subgraph.masks).shift_right_bound === rb
+@test_throws ArgumentError sdpa_fwd!(gband, bq, bq, bq; left_bound=bq)
+@test_throws ArgumentError sdpa_fwd!(gband, bq, bq, bq;
+                                     left_bound=scalar!(gband, Float32; rank=4))
+@test_throws cuDNN.UnsupportedGraphError sdpa_fwd!(gband, bq, bkv, bkv; causal=true,
+                                                  left_bound=lb)
+
 seqq = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenQ")
 seqkv = tensor!(g; dims=(1, 1, 1, 2), dtype=Int32, name="SeqLenKV")
 opad = sdpa_fwd!(g, q, k, v; scale, seq_len_q=seqq, seq_len_kv=seqkv)

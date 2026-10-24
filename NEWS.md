@@ -162,6 +162,12 @@ small reductions along a dimension can be slower.
   the token count; `stats` stays padded to `max_seq_len_q`. Bottom-right causal
   masks align with each sequence's own lengths
   ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
+- cuDNN's attention functions accept `left_bound` and `right_bound`, which
+  restrict each query to a band of keys around the diagonal: with `causal=true`,
+  `left_bound=w` is sliding-window attention over the last `w` keys, as in
+  Gemma, Mistral or gpt-oss. The bounds combine with either causal alignment,
+  padding masks and packed sequences, and are bound per call, so all windows
+  share a plan ([#3461](https://github.com/JuliaGPU/CUDA.jl/issues/3461)).
 
 *Bug fixes*:
 
