@@ -21,6 +21,9 @@ may not be relevant. The output will be written to `io`, which defaults to `stdo
 Slow operations will be highlighted in the output: Entries colored in yellow are among the
 slowest 25%, while entries colored in red are among the slowest 5% of all operations.
 
+To collect hardware metrics for every kernel instead, use
+[`CUDA.@metrics`](@ref CUDATools.@metrics).
+
 !!! compat "Julia 1.9" 
     This functionality is only available on Julia 1.9 and later.
 
@@ -106,7 +109,43 @@ macro bprofile(ex...)
         $Profile.benchmark_and_profile(benchmarked_code; $(remaining_kwargs...))
     end
 end
-@public @profile, @bprofile, Profile
+"""
+    @metrics [metrics=:overview] [trace=false] code...
+
+Collect hardware metrics for every kernel launched by `code`, similar to NSight Compute,
+and return them as a [`Profile.KernelProfile`](@ref).
+
+By default (`metrics=:overview`), this reports how close each kernel comes to the peak
+throughput of the GPU's compute units and memory subsystems. `metrics=:memory` reports DRAM
+traffic, while a vector of strings collects the given CUPTI metrics (as listed by
+`ncu --query-metrics`). Displaying the result shows a summary per kernel, or every launch
+when `trace` is `true`.
+
+To collect metrics, kernels are executed one at a time, and replayed as often as needed
+to read all counters (restoring memory in between). Durations and other metrics thus
+describe each kernel in isolation, and the code runs considerably slower. Only kernels
+launched in the current context are profiled, at most 512 of them.
+
+See also: [`CUDA.@profile`](@ref CUDATools.@profile), which traces host and device activity.
+"""
+macro metrics(ex...)
+    code = ex[end]
+    kwargs = map(ex[1:end-1]) do kwarg
+        Meta.isexpr(kwarg, :(=)) ||
+            throw(ArgumentError("Invalid keyword argument to CUDA.@metrics: $kwarg"))
+        key, value = kwarg.args
+        Expr(:kw, key, esc(value))
+    end
+
+    quote
+        profiled_code() = $(esc(code))
+        # like the default value of `external` in `@profile`, this activates NVTX on first
+        # use, which breaks compiling kernels further down the same call on Julia 1.10.
+        $Profile.detect_cupti()
+        $Profile.profile_metrics(profiled_code; $(kwargs...))
+    end
+end
+@public @profile, @bprofile, @metrics, Profile
 
 
 module Profile
@@ -378,6 +417,9 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
     CUPTI.version() < v"11" &&
         error("Integrated profiling requires CUPTI 11 or later; use an external profiler with older toolkits.")
 
+    metrics_active[] &&
+        error("Cannot trace activity while collecting hardware metrics.")
+
     if !CUPTI.can_profile()
         error("""The integrated profiler relies on CUPTI, which requires additional permissions on Tegra devices.
                  With CUDA 13 and later, grant read/write access to `/dev/nvgpu/*/prof`
@@ -626,13 +668,9 @@ function capture(cfg)
         end
     end
 
-    # Batch-demangle all kernel names in a single demumble invocation. This is
-    # much faster than demangling them one-by-one.
-    if !isempty(device_trace.name)
-        input = join(device_trace.name, '\n')
-        demangled = split(readchomp(pipeline(IOBuffer(input), `$(demumble())`)), '\n')
-        copy!(device_trace.name, demangled)
-    end
+    # demangle all kernel names in a single demumble invocation, which is much faster
+    # than demangling them one by one.
+    demangle_names!(device_trace.name)
 
     # add details column via Dict lookup (replaces leftjoin)
     host_details = Union{Missing,String}[get(details, id, missing) for id in host_trace.id]
@@ -1044,13 +1082,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
                 elseif col == :device
                     name(CuDevice(v))
                 elseif v isa CuDim3
-                    if v.z != 1
-                        "$(Int(v.x))×$(Int(v.y))×$(Int(v.z))"
-                    elseif v.y != 1
-                        "$(Int(v.x))×$(Int(v.y))"
-                    else
-                        "$(Int(v.x))"
-                    end
+                    format_dim(v)
                 else
                     v
                 end
@@ -1171,6 +1203,16 @@ end
 
 format_percentage(x::Number) = @sprintf("%.2f%%", x * 100)
 
+function format_dim(v::CuDim3)
+    if v.z != 1
+        "$(Int(v.x))×$(Int(v.y))×$(Int(v.z))"
+    elseif v.y != 1
+        "$(Int(v.x))×$(Int(v.y))"
+    else
+        "$(Int(v.x))"
+    end
+end
+
 function format_time(ts::Number...)
     # the first number determines the scale and unit
     t = ts[1]
@@ -1205,6 +1247,377 @@ function format_time(ts::Number...)
     else
         return strs
     end
+end
+
+
+#
+# kernel metrics
+#
+
+# how to collect and display a metric
+struct MetricColumn
+    name::String        # column header
+    metric::String      # CUPTI metric name
+    kind::Symbol        # :time (in ns), :percent, :bytes, or :number
+end
+
+const duration_metric = MetricColumn("Time", "gpu__time_duration.sum", :time)
+
+# the throughput of compute and memory units, relative to their peak, as in NSight
+# Compute's "speed of light" section. L1 is relative to the cycles the SMs were active,
+# the others relative to the kernel's duration.
+const overview_metrics = [
+    duration_metric,
+    MetricColumn("Compute", "sm__throughput.avg.pct_of_peak_sustained_elapsed", :percent),
+    MetricColumn("Memory", "gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed", :percent),
+    MetricColumn("DRAM", "gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed", :percent),
+    MetricColumn("L2", "lts__throughput.avg.pct_of_peak_sustained_elapsed", :percent),
+    MetricColumn("L1/TEX", "l1tex__throughput.avg.pct_of_peak_sustained_active", :percent),
+]
+
+const memory_metrics = [
+    duration_metric,
+    MetricColumn("DRAM", "gpu__dram_throughput.avg.pct_of_peak_sustained_elapsed", :percent),
+    MetricColumn("DRAM traffic", "dram__bytes.sum", :bytes),
+]
+
+function metric_columns(metrics::Symbol)
+    metrics == :overview && return overview_metrics
+    metrics == :memory && return memory_metrics
+    throw(ArgumentError("Unknown metric preset `:$metrics`; use `:overview` or `:memory`, or a vector of metric names"))
+end
+function metric_columns(metrics::AbstractVector{<:AbstractString})
+    isempty(metrics) && throw(ArgumentError("No metrics to collect"))
+    map(metrics) do metric
+        kind = contains(metric, ".pct") ? :percent : :number
+        MetricColumn(metric, metric, kind)
+    end
+end
+metric_columns(metrics) =
+    throw(ArgumentError("Invalid value for `metrics`: expected `:overview`, `:memory`, or a vector of metric names, got $(repr(metrics))"))
+
+"""
+    KernelProfile
+
+The hardware metrics collected by [`CUDA.@metrics`](@ref CUDATools.@metrics). Displaying
+this object shows a summary per kernel, or every launch when `trace=true` was passed.
+
+For programmatic access, the following fields are available:
+- `kernels`: a table (NamedTuple of vectors) with one row per kernel launch, in the order
+  they executed: the launch's correlation `id`, kernel `name`, `grid` and `block`
+  dimensions, `registers` per thread, and `stream`;
+- `metrics`: the names of the CUPTI metrics that were collected;
+- `values`: a matrix with, for every launch (row), the value of every metric (column).
+  Durations are in nanoseconds, percentages between 0 and 100;
+- `passes`: how often every kernel was executed to collect these metrics.
+
+See also: [`CUDA.@metrics`](@ref CUDATools.@metrics)
+"""
+Base.@kwdef struct KernelProfile
+    device::String
+    passes::Int
+
+    kernels::NamedTuple
+    metrics::Vector{String}
+    values::Matrix{Float64}
+
+    # display properties
+    columns::Vector{MetricColumn}
+    trace::Bool=false
+end
+
+# the maximal number of kernel launches to collect metrics for. CUPTI's buffer needs
+# space for every launch up front (up to 400 KiB each for the overview metrics).
+const max_launches = 512
+
+# CUPTI versions whose range profiler doesn't work: 12.8 and 12.9 don't profile any kernel,
+# while 13.0 and 13.1 don't record when kernels executed, so we can't attribute ranges to
+# launches (observed on Turing, Ampere and Blackwell).
+broken_range_profiler() = v"12.8" <= CUPTI.version() < v"13.2"
+
+# CUPTI may also fail silently on configurations we haven't tested. to detect that, every
+# session ends with this kernel, which loads without compiling Julia code.
+const probe_ptx = """
+    .version 6.0
+    .target sm_50
+    .address_size 64
+    .visible .entry cuda_jl_metrics_probe() { ret; }
+    """
+
+# set while collecting metrics, during which the activity lock is held
+const metrics_active = Threads.Atomic{Bool}(false)
+
+function profile_metrics(@nospecialize(f); metrics=:overview, trace::Bool=false)
+    columns = metric_columns(metrics)
+    check_metrics_support()
+
+    # claim CUPTI for the whole session without waiting, as the code being profiled may be
+    # waiting for whoever holds it. checking `islocked` first rejects nesting in a session
+    # of this task, which the reentrant `trylock` would admit.
+    if islocked(CUPTI.activity_lock) || !trylock(CUPTI.activity_lock)
+        error("Cannot collect hardware metrics while another profiling session is active.")
+    end
+    metrics_active[] = true
+    try
+        collect_metrics(f, metrics, columns, trace)
+    finally
+        metrics_active[] = false
+        unlock(CUPTI.activity_lock)
+    end
+end
+
+function collect_metrics(@nospecialize(f), metrics, columns, trace)
+    ctx = context()
+    CUPTI.check_profiler_support(device(ctx))
+    if !(metrics isa AbstractVector)
+        # not every GPU supports all metrics of a preset, e.g., integrated GPUs don't
+        # report DRAM throughput
+        columns = CUPTI.ProfilerHost(ctx) do host
+            filter(col -> is_available(host, col.metric), columns)
+        end
+    end
+    probe = CuFunction(CuModule(probe_ptx), "cuda_jl_metrics_probe")
+    activity = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL])
+    CUDACore.cuCtxSynchronize()
+    profile = try
+        # the activity API identifies the launches, which are serialized, in the order
+        # the profiler numbers them. the profiler is set up before running `f`, so that
+        # configuration errors (e.g. unknown metrics) don't execute the user's code.
+        CUPTI.@enable! activity begin
+            CUPTI.range_profile([col.metric for col in columns]; ctx,
+                                max_ranges=max_launches+1) do
+                f()
+                # the code may have left another context current
+                context!(ctx) do
+                    CUDACore.cuCtxSynchronize()
+                    cudacall(probe, Tuple{})
+                    CUDACore.cuCtxSynchronize()
+                end
+            end
+        end
+    catch err
+        if err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
+            error("""Collecting hardware metrics requires access to the GPU's performance counters,
+                     which the NVIDIA driver restricts to administrators by default. Either run Julia as
+                     root, or allow all users by loading the `nvidia` kernel module with
+                     `NVreg_RestrictProfilingToAdminUsers=0`.
+                     See https://developer.nvidia.com/ERR_NVGPUCTRPERM for details.""")
+        end
+        rethrow()
+    end
+
+    kernels = kernel_launches(activity, ctx)
+    nlaunches = length(kernels.id)
+    nranges = size(profile.values, 1)
+    if nranges == 0 || isempty(kernels.name) || kernels.name[end] != "cuda_jl_metrics_probe"
+        error("""CUPTI $(CUPTI.version()) did not collect hardware metrics on this system, without reporting an error.
+                 Try a more recent version of CUDA.""")
+    elseif nlaunches > max_launches + 1
+        error("Hardware metrics can be collected for at most $max_launches kernel launches, but $(nlaunches-1) kernels were launched. Profile a smaller region of code.")
+    elseif nlaunches != nranges
+        error("Could not attribute hardware metrics to kernels: CUPTI reported $nranges ranges for $nlaunches kernel launches. Please file an issue.")
+    end
+
+    # drop the probe
+    kernels = map(col -> col[1:end-1], kernels)
+    values = profile.values[1:end-1, :]
+    KernelProfile(; device=name(device(ctx)), passes=profile.passes, kernels,
+                    metrics=[col.metric for col in columns], values, columns, trace)
+end
+
+function is_available(host, metric)
+    try
+        CUPTI.metric_properties(host, metric)
+        return true
+    catch err
+        err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_INVALID_METRIC_NAME || rethrow()
+        return false
+    end
+end
+
+function check_metrics_support()
+    if !CUPTI.can_profile()
+        error("""Collecting hardware metrics relies on CUPTI, which requires additional permissions on Tegra devices.
+                 See the documentation of `CUDA.@profile` for details.""")
+    end
+    if !CUPTI.has_range_profiler()
+        error("Collecting hardware metrics requires CUPTI from CUDA 12.6 Update 2 or later (CUPTI $(CUPTI.version()) is loaded).")
+    end
+    if broken_range_profiler()
+        error("CUPTI $(CUPTI.version()) cannot collect hardware metrics. Use CUDA 13.2 or later.")
+    end
+    if detect_cupti()
+        error("This Julia session is already being profiled by an external tool, so CUDA.jl cannot collect hardware metrics.")
+    end
+end
+
+# the kernel launches in `ctx`, in the order they executed
+function kernel_launches(cfg, ctx)
+    ctx_id = Ref{UInt32}()
+    CUPTI.cuptiGetContextId(ctx, ctx_id)
+
+    records = []
+    CUPTI.process(cfg) do _, _, record
+        record.contextId == ctx_id[] && push!(records, record)
+    end
+
+    # CUPTI launches a helper kernel after every profiled one, which it doesn't profile.
+    # its correlation ID is either the profiled kernel's or a new one, so identify it by
+    # name and launch configuration. anything unexpected fails the range count check.
+    filter!(!is_profiler_kernel, records)
+
+    # CUPTI doesn't record when kernels in a graph executed, so we can't tell which range
+    # they correspond to
+    any(record -> record.graphId != 0, records) &&
+        error("Hardware metrics cannot be collected for kernels launched by CUDA graphs. Launch them outside of a graph instead.")
+    any(record -> record.start == 0, records) &&
+        error("CUPTI $(CUPTI.version()) did not record when kernels executed, so hardware metrics cannot be attributed to them. Try a more recent version of CUDA.")
+    sort!(records; by=record->record.start)
+    for i in 2:length(records)
+        records[i].start == records[i-1].start &&
+            error("Could not attribute hardware metrics to kernels: launches started at the same time. Please file an issue.")
+    end
+
+    names = String[unsafe_string(record.name) for record in records]
+    demangle_names!(names)
+    (; id = Int[record.correlationId for record in records],
+       name = names,
+       grid = CuDim3[CuDim3(record.gridX, record.gridY, record.gridZ) for record in records],
+       block = CuDim3[CuDim3(record.blockX, record.blockY, record.blockZ) for record in records],
+       registers = Int[record.registersPerThread for record in records],
+       stream = Int[record.streamId for record in records])
+end
+
+is_profiler_kernel(record) =
+    unsafe_string(record.name) == "WaitNs" &&
+    (record.gridX, record.gridY, record.gridZ) == (1, 1, 1) &&
+    (record.blockX, record.blockY, record.blockZ) == (1, 1, 1)
+
+function Base.show(io::IO, p::KernelProfile)
+    crop = if get(io, :is_pluto, false) || get(io, :jupyter, false)
+        :none
+    elseif io isa Base.TTY || get(io, :limit, false)::Bool
+        :horizontal
+    else
+        :none
+    end
+
+    # see `show(::IO, ::ProfileResults)`
+    buf = IOContext(IOContext(IOBuffer(), io), :color => get(io, :color, false)::Bool,
+                    :displaysize => displaysize(io))
+    show_results(buf, p, crop)
+    write(io, take!(buf.io))
+    return
+end
+
+function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
+    nlaunches = length(p.kernels.id)
+    if nlaunches == 0
+        println(io, "No kernels were launched.")
+        return
+    end
+    launches = nlaunches == 1 ? "1 kernel launch" : "$nlaunches kernel launches"
+    passes = p.passes == 1 ? "" : ", executing each kernel $(p.passes) times"
+    println(io, "Collected hardware metrics for $launches on $(p.device)$passes.")
+    println(io, "Kernels were serialized, so these metrics describe each kernel in isolation.\n")
+
+    columns = p.columns
+    values = p.values
+    timecol = findfirst(col -> col.metric == duration_metric.metric, columns)
+
+    if p.trace
+        rows = (; id = p.kernels.id, grid = p.kernels.grid, block = p.kernels.block,
+                  registers = p.kernels.registers)
+        metric_values = [values[:, j] for j in eachindex(columns)]
+        names = p.kernels.name
+    else
+        # one row per kernel, sorted by their total duration if we have it
+        groups = Dict{String,Vector{Int}}()
+        order = String[]
+        for (i, name) in enumerate(p.kernels.name)
+            haskey(groups, name) || push!(order, name)
+            push!(get!(Vector{Int}, groups, name), i)
+        end
+        if timecol !== nothing
+            sort!(order; by=name->sum(values[groups[name], timecol]), rev=true)
+        end
+        total_time = timecol === nothing ? 0.0 : sum(values[:, timecol])
+        rows = (; time_ratio = Float64[timecol === nothing ? NaN :
+                                       sum(values[groups[name], timecol]) / total_time
+                                       for name in order],
+                  calls = Int[length(groups[name]) for name in order])
+        if timecol === nothing
+            rows = (; calls = rows.calls)
+        end
+        metric_values = [Float64[mean(values[groups[name], j]) for name in order]
+                         for j in eachindex(columns)]
+        names = order
+    end
+    metric_keys = Tuple(Symbol("metric", j) for j in eachindex(columns))
+    df = merge(rows, NamedTuple{metric_keys}(Tuple(metric_values)), (; name = names))
+
+    column_names = Dict(:id => "ID", :grid => "Blocks", :block => "Threads",
+                        :registers => "Regs", :time_ratio => "Time (%)", :calls => "Calls",
+                        :name => "Name")
+    for (key, col) in zip(metric_keys, columns)
+        column_names[key] = col.kind == :time && !p.trace ? "Avg time" : col.name
+    end
+    header = [column_names[k] for k in keys(df)]
+    alignment = [k == :name ? :l : :r for k in keys(df)]
+    metric_kind = Dict(zip(metric_keys, [col.kind for col in columns]))
+
+    formatter = function(v, i, j)
+        key = keys(df)[j]
+        if key == :time_ratio
+            format_percentage(v)
+        elseif haskey(metric_kind, key)
+            format_metric(v, metric_kind[key])
+        elseif v isa CuDim3
+            format_dim(v)
+        else
+            v
+        end
+    end
+
+    # emphasize units that come close to their peak throughput
+    highlight_peak = TextHighlighter(crayon"bold") do data, i, j
+        key = keys(data)[j]
+        get(metric_kind, key, :none) == :percent && data[j][i] >= 80
+    end
+
+    pretty_table(io, df; column_labels=header, alignment, formatters=[formatter],
+                 highlighters=[highlight_peak], fit_table_in_display_horizontally=(crop==:horizontal),
+                 fit_table_in_display_vertically=false)
+
+    if any(col -> col.kind == :percent && col in overview_metrics, columns)
+        l1 = any(col -> col.name == "L1/TEX", columns) ?
+            " (or the cycles the SMs were active, for L1/TEX)" : ""
+        println(io, """
+            Throughput is relative to the peak sustained rate of each unit during the kernel's
+            execution$l1. Values of at least 80% are shown in bold.""")
+    elseif !p.trace
+        println(io, "Metrics are averaged over all launches of each kernel.")
+    end
+
+    return
+end
+
+function format_metric(v::Float64, kind::Symbol)
+    if kind == :time
+        format_time(v / 1e9)
+    elseif kind == :percent
+        @sprintf("%.1f%%", v)
+    elseif kind == :bytes
+        Base.format_bytes(round(Int, v))
+    else
+        string(round(v; sigdigits=4))
+    end
+end
+
+function demangle_names!(names::Vector{String})
+    isempty(names) && return names
+    demangled = split(readchomp(pipeline(IOBuffer(join(names, '\n')), `$(demumble())`)), '\n')
+    copy!(names, demangled)
 end
 
 

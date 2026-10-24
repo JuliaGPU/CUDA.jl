@@ -2,6 +2,8 @@
 precompile(Tuple{typeof(Profile.detect_cupti)})
 precompile(Tuple{typeof(Profile.profile_internally), Function})
 precompile(Tuple{typeof(Profile.capture), CUPTI.ActivityConfig})
+precompile(Tuple{typeof(Profile.profile_metrics), Function})
+precompile(Tuple{typeof(Profile.kernel_launches), CUPTI.ActivityConfig, CUDACore.CuContext})
 
 # Reflection depends on a GPU; `func` and `types` are deliberately unspecialized.
 for io in (Base.TTY, Base.DevNull)
@@ -65,6 +67,20 @@ using PrecompileTools
                      map(col -> col[1:0], nvtx))
     for (host, device, nvtx) in ((host, device, nvtx), single_kernel), trace in (false, true)
         results = Profile.ProfileResults(; host, device, nvtx, trace)
+        show(IOContext(IOBuffer(), :limit => true), MIME"text/plain"(), results)
+    end
+
+    # hardware metrics, as collected by `profile_metrics`
+    columns = Profile.overview_metrics
+    kernels = (; id = Int[4, 5], name = String["kernel", "kernel"],
+                 grid = CUDACore.CuDim3[CUDACore.CuDim3(1,1,1), CUDACore.CuDim3(1,1,1)],
+                 block = CUDACore.CuDim3[CUDACore.CuDim3(1,1,1), CUDACore.CuDim3(1,1,1)],
+                 registers = Int[32, 32], stream = Int[1, 1])
+    values = ones(Float64, 2, length(columns))
+    for trace in (false, true)
+        results = Profile.KernelProfile(; device="GPU", passes=1, kernels,
+                                          metrics=[col.metric for col in columns],
+                                          values, columns, trace)
         show(IOContext(IOBuffer(), :limit => true), MIME"text/plain"(), results)
     end
 end

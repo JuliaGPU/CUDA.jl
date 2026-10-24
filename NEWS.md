@@ -24,6 +24,11 @@ needs to be registered for custom operators, and empty inputs give Base's
 results and errors. Large reductions along a dimension and sorting are faster;
 small reductions along a dimension can be slower.
 
+The new `CUDA.@metrics` macro collects hardware metrics for every kernel, reporting how
+close each one comes to the peak throughput of the GPU's compute units and memory
+subsystems. Specific CUPTI metrics can be requested by name. This requires CUDA 12.6
+Update 2 or later, except for CUDA 12.8 to 13.1.
+
 *Technically breaking changes*:
 
 - GPU resources are no longer released from finalizers, as many of the CUDA calls

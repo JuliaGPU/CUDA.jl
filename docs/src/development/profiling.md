@@ -135,6 +135,62 @@ corresponds to the device-side `broadcast` kernel.
 Integrated profiling requires CUPTI 11 or later. CUPTI 10 can crash when profiling
 kernels that use dynamic parallelism; use an external profiler with older toolkits.
 
+#### Kernel metrics
+
+CUDA.jl can also collect hardware metrics for every kernel, which help to understand why
+a kernel is slow. By default, `CUDA.@metrics` shows how close each kernel comes to the peak
+throughput of the GPU's compute units and memory subsystems, similar to the "speed of
+light" section of Nsight Compute:
+
+```julia
+julia> a = CUDA.rand(1024,1024,1024);
+
+julia> CUDA.@metrics sin.(a)
+Collected hardware metrics for 1 kernel launch on NVIDIA GeForce RTX 5080, executing each kernel 8 times.
+Kernels were serialized, so these metrics describe each kernel in isolation.
+
+┌──────────┬───────┬──────────┬─────────┬────────┬───────┬───────┬────────┬─────────────────────────
+│ Time (%) │ Calls │ Avg time │ Compute │ Memory │  DRAM │    L2 │ L1/TEX │ Name                   ⋯
+├──────────┼───────┼──────────┼─────────┼────────┼───────┼───────┼────────┼─────────────────────────
+│  100.00% │     1 │ 11.78 ms │   37.7% │  77.3% │ 77.3% │ 18.3% │  15.5% │ gpu_broadcast_kernel_c ⋯
+└──────────┴───────┴──────────┴─────────┴────────┴───────┴───────┴────────┴─────────────────────────
+                                                                                    1 column omitted
+Throughput is relative to the peak sustained rate of each unit during the kernel's
+execution (or the cycles the SMs were active, for L1/TEX). Values of at least 80% are shown in bold.
+```
+
+Here, the kernel uses three quarters of the available DRAM bandwidth, but much less of
+the SMs' compute throughput, so it is limited by memory accesses rather than by
+computation. A kernel where neither compute nor memory throughput comes close to the
+peak is typically limited by latency, e.g., because there are not enough threads to hide
+it.
+
+Other metrics can be selected with the `metrics` keyword: `metrics=:memory` reports
+the amount of DRAM traffic, while a vector of strings collects specific CUPTI metrics.
+Use `ncu --query-metrics` to list the metrics your GPU supports. As with the activity
+profiler, `trace=true` shows each launch separately instead of summarizing per kernel.
+The results can also be used programmatically:
+
+```julia
+julia> p = CUDA.@metrics metrics=["dram__bytes.sum"] sin.(a);
+
+julia> p.values
+1×1 Matrix{Float64}:
+ 8.622541568e9
+```
+
+To collect these metrics, CUDA.jl executes kernels one at a time, and replays every
+kernel as many times as needed to read all counters, restoring the contents of memory
+in between. This slows down execution considerably, and means that the metrics describe
+each kernel in isolation, not how kernels overlap in your application. Only kernels
+launched in the current context are profiled, at most 512 of them, and kernels launched
+by CUDA graphs are not supported.
+
+Collecting hardware metrics requires CUDA 12.6 Update 2 or later, except for CUDA 12.8
+to 13.1, whose profiler does not work. The NVIDIA driver also restricts access to
+performance counters to administrators by default. See [Troubleshooting Nsight
+Compute](@ref) for how to lift this restriction.
+
 #### Profiling on Tegra
 
 The integrated profiler relies on CUPTI, which needs additional permissions on Tegra
