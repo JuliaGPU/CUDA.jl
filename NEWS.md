@@ -154,6 +154,13 @@ small reductions along a dimension can be slower.
   chunked prefill). Under padding masks the alignment follows each batch
   element's `seq_len_q` and `seq_len_kv`
   ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
+- cuDNN's attention functions and support predicates accept `window` and
+  `right_bound`, restricting query `i` to `i - window < j ≤ i + right_bound`.
+  `causal=true, window=w` gives Gemma/Mistral-style sliding-window attention;
+  `window=w, right_bound=w-1` gives a bidirectional window. Bounds follow causal
+  alignment, combine with padding masks and packed sequences, and bind at execution,
+  allowing plan reuse when their values change
+  ([#3461](https://github.com/JuliaGPU/CUDA.jl/issues/3461)).
 - cuDNN's attention functions accept packed variable-length sequences:
   `(head_dim, heads, tokens)` arrays holding the sequences back to back, located
   by Int32 `cu_seq_len_q` and `cu_seq_len_kv` token offsets, with bounds

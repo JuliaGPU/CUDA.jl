@@ -13,6 +13,53 @@ struct PackedSequences{Q<:DenseCuArray{Int32,1},KV<:DenseCuArray{Int32,1}}
     max_seq_len_kv::Int
 end
 
+# query i attends to the keys i + shift - window < j <= i + shift + right_bound, the right
+# bound being 0 under a causal mask and the shift seq_len_kv - seq_len_q when that mask is
+# bottom-right aligned, 0 otherwise
+struct DiagonalMask
+    causal::Symbol
+    window::Union{Nothing,Int32}
+    right_bound::Union{Nothing,Int32}
+end
+
+function diagonal_mask(causal, window, right_bound)
+    causal = sdpa_causal(causal)
+    window === nothing || 1 <= window <= typemax(Int32) ||
+        throw(ArgumentError("window must be in 1:$(typemax(Int32)), got $window"))
+    right_bound === nothing || 0 <= right_bound <= typemax(Int32) ||
+        throw(ArgumentError("right_bound must be in 0:$(typemax(Int32)), got $right_bound"))
+    if causal !== :none && right_bound !== nothing
+        right_bound == 0 || throw(ArgumentError(
+            "a causal mask has right bound 0, got right_bound=$right_bound"))
+        right_bound = nothing
+    end
+    int32(x) = x === nothing ? nothing : Int32(x)
+    return DiagonalMask(causal, int32(window), int32(right_bound))
+end
+
+masked(mask::DiagonalMask) =
+    mask.causal !== :none || mask.window !== nothing || mask.right_bound !== nothing
+
+# the bounds bind by value, so plans depend only on which are set
+mask_key(mask::DiagonalMask) =
+    (mask.causal, mask.window !== nothing, mask.right_bound !== nothing)
+
+function bound_tensors!(g, mask::DiagonalMask)
+    bound(x, name) = x === nothing ? nothing : scalar!(g, Int32; rank=4, name)
+    return bound(mask.window, "LeftBound"), bound(mask.right_bound, "RightBound")
+end
+
+# a bound of sq + skv admits every key already; larger ones overflow cuDNN's index math
+function bind_mask!(bindings, g, mask::DiagonalMask, (d, h, hk, sq, skv, b))
+    masked(mask) || return
+    bindings[tensor(g, "MaskValue")] = Float32(-Inf)
+    bound(x) = Int32(min(x, sq + skv))
+    mask.window === nothing || (bindings[tensor(g, "LeftBound")] = bound(mask.window))
+    mask.right_bound === nothing ||
+        (bindings[tensor(g, "RightBound")] = bound(mask.right_bound))
+    return
+end
+
 # whether the sequences are delimited by padding masks
 masked(seqs::PaddedSequences) = seqs.seq_len_q !== nothing
 masked(::PackedSequences) = true
@@ -132,11 +179,11 @@ packed_lengths(cu) = reshape(view(cu, 2:length(cu)) .- view(cu, 1:length(cu)-1),
 packed_offsets(cu, token) = cu .* Int64(token)
 
 function bind_sequences!(bindings, g, seqs::PaddedSequences, (d, h, hk, sq, skv, b),
-                         causal)
+                         mask)
     if masked(seqs)
         bindings[tensor(g, "SeqLenQ")] = seqs.seq_len_q
         bindings[tensor(g, "SeqLenKV")] = seqs.seq_len_kv
-    elseif causal === :bottom_right
+    elseif mask.causal === :bottom_right
         bindings[tensor(g, "MaskSeqLenQ")] = Int32(sq)
         bindings[tensor(g, "MaskSeqLenKV")] = Int32(skv)
     end
@@ -144,7 +191,7 @@ function bind_sequences!(bindings, g, seqs::PaddedSequences, (d, h, hk, sq, skv,
 end
 
 function bind_sequences!(bindings, g, seqs::PackedSequences, (d, h, hk, sq, skv, b),
-                         causal)
+                         mask)
     bindings[tensor(g, "RaggedOffsetQ")] = packed_offsets(seqs.cu_seq_len_q, d * h)
     bindings[tensor(g, "RaggedOffsetKV")] = packed_offsets(seqs.cu_seq_len_kv, d * hk)
     bindings[tensor(g, "SeqLenQ")] = packed_lengths(seqs.cu_seq_len_q)
@@ -152,7 +199,7 @@ function bind_sequences!(bindings, g, seqs::PackedSequences, (d, h, hk, sq, skv,
     return
 end
 
-function build_attention_graph(seqs, (d, h, hk, sq, skv, b), out, q, k, v, stats, causal;
+function build_attention_graph(seqs, (d, h, hk, sq, skv, b), out, q, k, v, stats, mask;
                                deterministic, math_mode, max_workspace)
     g = Graph(io_dtype=eltype(q), intermediate_dtype=Float32, compute_dtype=Float32)
     offq, offkv = ragged_offsets!(g, seqs, b)
@@ -170,13 +217,14 @@ function build_attention_graph(seqs, (d, h, hk, sq, skv, b), out, q, k, v, stats
              tensor!(g; dims=(1, h, sq, b), strides=(1, sq, 1, sq * h),
                      dtype=Float32, name="Stats", output=true)
     tseqq, tseqkv = sequence_tensors!(g, seqs, b)
+    tleft, tright = bound_tensors!(g, mask)
     sdpa_fwd!(g, tq, tk, tv; o=to, scale=ts, stats=tstats, seq_len_q=tseqq,
-              seq_len_kv=tseqkv, causal)
+              seq_len_kv=tseqkv, mask.causal, left_bound=tleft, right_bound=tright)
     build!(g; deterministic, math_mode, max_workspace)
 end
 
 function build_attention_backward_graph(seqs, (d, h, hk, sq, skv, b), dq, dk, dv, dO,
-                                        q, k, v, o, causal;
+                                        q, k, v, o, mask;
                                         deterministic, math_mode, max_workspace)
     # as cudnn-frontend does; there is no engine for it on SM12x
     seqs isa PackedSequences && deterministic && capability(device()).major in (8, 12) &&
@@ -204,36 +252,39 @@ function build_attention_backward_graph(seqs, (d, h, hk, sq, skv, b), dq, dk, dv
     tdv = io("dV", dv, skv, hk, offkv; output=true)
     ts = scalar!(g, Float32; rank=4, name="Scale")
     tseqq, tseqkv = sequence_tensors!(g, seqs, b)
+    tleft, tright = bound_tensors!(g, mask)
     sdpa_bwd!(g, tq, tk, tv, to, tdO, tstats; dQ=tdq, dK=tdk, dV=tdv, scale=ts,
-              seq_len_q=tseqq, seq_len_kv=tseqkv, causal, deterministic)
+              seq_len_q=tseqq, seq_len_kv=tseqkv, mask.causal, left_bound=tleft,
+              right_bound=tright, deterministic)
     build!(g; deterministic, math_mode, max_workspace)
 end
 
-function attention_plan(seqs, out, q, k, v, stats, causal;
+function attention_plan(seqs, out, q, k, v, stats, mask;
                         deterministic, math_mode, max_workspace)
     dims = attention_dims(seqs, q, k, v, out)
     _, h, _, sq, _, b = dims
     attention_stats_dims(stats, h, sq, b)
     key = (:attention_fwd, eltype(q), attention_key(seqs, dims, (q, k, v, out))...,
-           attention_optional_key(stats), causal, deterministic, math_mode, max_workspace)
+           attention_optional_key(stats), mask_key(mask)..., deterministic, math_mode,
+           max_workspace)
     g = cached_graph(key) do
-        build_attention_graph(seqs, dims, out, q, k, v, stats, causal;
+        build_attention_graph(seqs, dims, out, q, k, v, stats, mask;
                               deterministic, math_mode, max_workspace)
     end
     return g, dims
 end
 
-function attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, causal;
+function attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, mask;
                                  deterministic, math_mode, max_workspace)
     dims = attention_dims(seqs, q, k, v, o)
     _, h, _, sq, _, b = dims
     attention_gradient_dims(dq, dk, dv, dO, q, k, v)
     attention_stats_dims(stats, h, sq, b)
     key = (:attention_bwd, eltype(q),
-           attention_key(seqs, dims, (dq, dk, dv, dO, q, k, v, o, stats))..., causal,
-           deterministic, math_mode, max_workspace)
+           attention_key(seqs, dims, (dq, dk, dv, dO, q, k, v, o, stats))...,
+           mask_key(mask)..., deterministic, math_mode, max_workspace)
     g = cached_graph(key) do
-        build_attention_backward_graph(seqs, dims, dq, dk, dv, dO, q, k, v, o, causal;
+        build_attention_backward_graph(seqs, dims, dq, dk, dv, dO, q, k, v, o, mask;
                                        deterministic, math_mode, max_workspace)
     end
     return g, dims
@@ -267,16 +318,19 @@ end
 function run_attention!(seqs, out::DenseCuArray{T}, q::DenseCuArray{T},
                         k::DenseCuArray{T}, v::DenseCuArray{T};
                         scale::Real=1/sqrt(size(q, 1)),
-                        causal::Union{Bool,Symbol}=false, dropout_p::Real=0, bias=nothing,
+                        causal::Union{Bool,Symbol}=false,
+                        window::Union{Nothing,Integer}=nothing,
+                        right_bound::Union{Nothing,Integer}=nothing,
+                        dropout_p::Real=0, bias=nothing,
                         stats::Union{Nothing,DenseCuArray{Float32,4}}=nothing,
                         deterministic::Bool=false,
                         math_mode=CUDACore.math_mode(),
                         max_workspace::Union{Nothing,Integer}=nothing) where {T}
     check_attention_args("attention!", T, dropout_p, bias)
-    causal = sdpa_causal(causal)
+    mask = diagonal_mask(causal, window, right_bound)
     isempty(out) && return out
     check_head_dim(size(q, 1))
-    g, dims = attention_plan(seqs, out, q, k, v, stats, causal;
+    g, dims = attention_plan(seqs, out, q, k, v, stats, mask;
                              deterministic, math_mode, max_workspace)
 
     bindings = IdDict{Tensor,Any}(
@@ -287,8 +341,8 @@ function run_attention!(seqs, out::DenseCuArray{T}, q::DenseCuArray{T},
         tensor(g, "Scale") => Float32(scale),
     )
     stats === nothing || (bindings[tensor(g, "Stats")] = stats)
-    causal === :none || (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
-    bind_sequences!(bindings, g, seqs, dims, causal)
+    bind_mask!(bindings, g, mask, dims)
+    bind_sequences!(bindings, g, seqs, dims, mask)
     execute!(g, bindings)
     return out
 end
@@ -299,16 +353,18 @@ function run_attention_backward!(seqs, dq::DenseCuArray{T}, dk::DenseCuArray{T},
                                  v::DenseCuArray{T}, o::DenseCuArray{T},
                                  stats::DenseCuArray{Float32,4};
                                  scale::Real=1/sqrt(size(q, 1)),
-                                 causal::Union{Bool,Symbol}=false, dropout_p::Real=0,
-                                 bias=nothing,
+                                 causal::Union{Bool,Symbol}=false,
+                                 window::Union{Nothing,Integer}=nothing,
+                                 right_bound::Union{Nothing,Integer}=nothing,
+                                 dropout_p::Real=0, bias=nothing,
                                  deterministic::Bool=false,
                                  math_mode=CUDACore.math_mode(),
                                  max_workspace::Union{Nothing,Integer}=nothing) where {T}
     check_attention_args("attention_backward!", T, dropout_p, bias)
-    causal = sdpa_causal(causal)
+    mask = diagonal_mask(causal, window, right_bound)
     isempty(dq) && isempty(dk) && isempty(dv) && return dq, dk, dv
     check_head_dim(size(q, 1))
-    g, dims = attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, causal;
+    g, dims = attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, mask;
                                       deterministic, math_mode, max_workspace)
 
     bindings = IdDict{Tensor,Any}(
@@ -325,9 +381,10 @@ function run_attention_backward!(seqs, dq::DenseCuArray{T}, dk::DenseCuArray{T},
         tensor(g, "One") => 1f0,
     )
     bind_backward_workspaces!(bindings, g, seqs, dims, q, k, deterministic)
-    (causal !== :none || masked(seqs)) &&
-        (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
-    bind_sequences!(bindings, g, seqs, dims, causal)
+    # padding masks select with the mask value too
+    masked(seqs) && (bindings[tensor(g, "MaskValue")] = Float32(-Inf))
+    bind_mask!(bindings, g, mask, dims)
+    bind_sequences!(bindings, g, seqs, dims, mask)
     execute!(g, bindings)
     return dq, dk, dv
 end
@@ -345,15 +402,17 @@ end
 function attention_plan_supported(seqs, out::DenseCuArray{T}, q::DenseCuArray{T},
                                   k::DenseCuArray{T}, v::DenseCuArray{T};
                                   causal::Union{Bool,Symbol}=false,
+                                  window::Union{Nothing,Integer}=nothing,
+                                  right_bound::Union{Nothing,Integer}=nothing,
                                   stats::Union{Nothing,DenseCuArray{Float32,4}}=nothing,
                                   deterministic::Bool=false,
                                   math_mode=CUDACore.math_mode(),
                                   max_workspace::Union{Nothing,Integer}=nothing) where {T}
-    causal = sdpa_causal(causal)
+    mask = diagonal_mask(causal, window, right_bound)
     attention_args_supported(T, size(q, 1)) || return false
     isempty(out) && return true
     plan_supported() do
-        attention_plan(seqs, out, q, k, v, stats, causal;
+        attention_plan(seqs, out, q, k, v, stats, mask;
                        deterministic, math_mode, max_workspace)
     end
 end
@@ -364,14 +423,16 @@ function attention_backward_plan_supported(seqs, dq::DenseCuArray{T}, dk::DenseC
                                            v::DenseCuArray{T}, o::DenseCuArray{T},
                                            stats::DenseCuArray{Float32,4};
                                            causal::Union{Bool,Symbol}=false,
+                                           window::Union{Nothing,Integer}=nothing,
+                                           right_bound::Union{Nothing,Integer}=nothing,
                                            deterministic::Bool=false,
                                            math_mode=CUDACore.math_mode(),
                                            max_workspace::Union{Nothing,Integer}=nothing) where {T}
-    causal = sdpa_causal(causal)
+    mask = diagonal_mask(causal, window, right_bound)
     attention_args_supported(T, size(q, 1)) || return false
     isempty(dq) && isempty(dk) && isempty(dv) && return true
     plan_supported() do
-        attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, causal;
+        attention_backward_plan(seqs, dq, dk, dv, dO, q, k, v, o, stats, mask;
                                 deterministic, math_mode, max_workspace)
     end
 end
@@ -487,8 +548,17 @@ attends to keys `j ≤ i`. `causal=:bottom_right` aligns it with the bottom-righ
 for queries that are the last positions of the key sequence (KV-cache decoding, chunked
 prefill): query `i` attends to keys `j ≤ i + seq_len_kv - seq_len_q`, with the lengths
 taken per batch element when they are passed and from the array sizes otherwise. Without
-`seq_len_q` and `seq_len_kv`, it is unsupported when there are more queries than keys;
-with them, the output of queries that see no key is undefined.
+`seq_len_q` and `seq_len_kv`, it is unsupported when there are more queries than keys.
+
+`window` and `right_bound` restrict query `i` to keys `i - window < j ≤ i + right_bound`,
+shifted with the bottom-right causal diagonal and top-left aligned otherwise. `window`
+counts self, matching Hugging Face's `sliding_window` and cuDNN's sliding window length:
+`causal=true, window=w` attends to the last `w` keys, including self. Causality implies
+right bound 0, so `right_bound` must be 0 or omitted with a causal mask. Without
+causality, `window` alone admits all later keys; `window=w, right_bound=w-1` gives
+`|i - j| < w`. Like bottom-right causal masking, `window` requires `seq_len_q` and
+`seq_len_kv` when queries outnumber keys. Outputs for queries with no visible key are
+undefined.
 
 Packed variable-length sequences use `(head_dim, heads, tokens)` arrays instead, holding
 the sequences back to back, with the required keywords `cu_seq_len_q`, `cu_seq_len_kv`,
@@ -499,8 +569,8 @@ nondecreasing token offsets starting at 0: sequence `b` holds tokens
 device and are not checked: a last offset beyond the token count, or a sequence longer
 than its bound, accesses memory out of bounds. Plans depend on the bounds and the batch
 size but not on the token counts, so rounding the bounds up lets batches share them.
-Causal masks align with each sequence's own lengths, and tokens past the last offset are
-ignored. `deterministic=true` is unsupported for the packed backward on compute
+Causal masks and windows align with each sequence's own lengths, and tokens past the last
+offset are ignored. `deterministic=true` is unsupported for the packed backward on compute
 capability 8.x and 12.x.
 
 The backward pass builds the composite graph of `sdpa_bwd!` and allocates its
@@ -509,7 +579,8 @@ under grouped-query attention. `deterministic=true` replaces the dQ accumulator,
 sums in arbitrary order, with a plan workspace of about `2 * batch_size * heads *
 seq_len_q * seq_len_kv` bytes; `max_workspace` bounds it.
 
-The support predicates build and cache a plan without executing it.
+The support predicates build and cache a plan without executing it. The values of
+`window` and `right_bound` don't shape the plan, only whether they are set.
 """
 attention, attention!, attention_backward, attention_backward!, attention_supported,
 attention_backward_supported
