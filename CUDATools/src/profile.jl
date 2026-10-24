@@ -151,7 +151,46 @@ macro metrics(ex...)
         $Profile.profile_metrics(profiled_code; $(kwargs...))
     end
 end
-@public @profile, @bprofile, @metrics, Profile
+"""
+    @sample [period=14] [format=:tree] [noisefloor=2.0] code...
+
+Sample where the warps of every kernel launched by `code` spend time, and why they are
+stalled, and return the samples as a [`Profile.PCProfile`](@ref CUDATools.Profile.PCProfile).
+
+Displaying the result shows, like `Profile.print`, a tree of the source locations in every
+kernel with the number of samples and of stalled samples, where the children of a
+location are the functions that were inlined into it. `format=:flat` lists the locations
+instead. Locations with `n` samples are hidden if `n <= noisefloor * √N`, where `N` is the
+number of samples of their parent (or of the kernel, in the flat format).
+`CUDATools.code_sass(p)` shows the samples per SASS instruction. The results can also be
+written as JSON with `show(stdout, "application/json", p)`.
+
+The program counter (PC) of a warp on every SM is sampled once every `2^period` cycles.
+Shorter periods collect more samples, which take longer to process afterwards. Kernels
+execute concurrently and at nearly full speed, and all kernels executing in the current
+context are sampled, including those launched by other tasks.
+
+This requires CUDA 13 or later, and a GPU with compute capability 7.5 or higher.
+
+See also: [`CUDA.@profile`](@ref CUDATools.@profile), [`CUDA.@metrics`](@ref CUDATools.@metrics).
+"""
+macro sample(ex...)
+    code = ex[end]
+    kwargs = map(ex[1:end-1]) do kwarg
+        Meta.isexpr(kwarg, :(=)) ||
+            throw(ArgumentError("Invalid keyword argument to CUDA.@sample: $kwarg"))
+        key, value = kwarg.args
+        Expr(:kw, key, esc(value))
+    end
+
+    quote
+        sampled_code() = $(esc(code))
+        # see `@metrics`
+        $Profile.detect_cupti()
+        $Profile.sample_pcs(sampled_code; $(kwargs...))
+    end
+end
+@public @profile, @bprofile, @metrics, @sample, Profile
 
 
 module Profile
@@ -450,8 +489,8 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
     CUPTI.version() < v"11" &&
         error("Integrated profiling requires CUPTI 11 or later; use an external profiler with older toolkits.")
 
-    metrics_active[] &&
-        error("Cannot trace activity while collecting hardware metrics.")
+    exclusive_active[] &&
+        error("Cannot trace activity while collecting hardware metrics or sampling PCs.")
 
     if !CUPTI.can_profile()
         error("""The integrated profiler relies on CUPTI, which requires additional permissions on Tegra devices.
@@ -1368,8 +1407,27 @@ const probe_ptx = """
     .visible .entry cuda_jl_metrics_probe() { ret; }
     """
 
-# set while collecting metrics, during which the activity lock is held
-const metrics_active = Threads.Atomic{Bool}(false)
+# set while an exclusive CUPTI session (collecting hardware metrics or sampling PCs) is
+# active, during which the activity lock is held
+const exclusive_active = Threads.Atomic{Bool}(false)
+
+# run `f` while holding `lock`, a CUPTI lock that exclusive sessions also take. those
+# sessions run user code while holding CUPTI, which may be waiting for us, so poll for the
+# lock instead of blocking, and give up with `msg` once such a session is active. checking
+# again after acquiring the lock rejects nesting in a session of this task, which the
+# reentrant `trylock` admits.
+function lock_unless_exclusive(f, lock, msg)
+    while !trylock(lock)
+        exclusive_active[] && error(msg)
+        sleep(0.001)
+    end
+    try
+        exclusive_active[] && error(msg)
+        f()
+    finally
+        unlock(lock)
+    end
+end
 
 function profile_metrics(@nospecialize(f); metrics=:overview, trace::Bool=false)
     columns = metric_columns(metrics)
@@ -1381,11 +1439,11 @@ function profile_metrics(@nospecialize(f); metrics=:overview, trace::Bool=false)
     if islocked(CUPTI.activity_lock) || !trylock(CUPTI.activity_lock)
         error("Cannot collect hardware metrics while another profiling session is active.")
     end
-    metrics_active[] = true
+    exclusive_active[] = true
     try
         collect_metrics(f, metrics, columns, trace)
     finally
-        metrics_active[] = false
+        exclusive_active[] = false
         unlock(CUPTI.activity_lock)
     end
 end
@@ -1809,5 +1867,8 @@ function benchmark_and_profile(f; time=1.0, kwargs...)
 
     profile_internally(benchmark_harness; kwargs...)
 end
+
+
+include("sampling.jl")
 
 end
