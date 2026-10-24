@@ -167,9 +167,8 @@ const _cupti_active = Ref{Union{Nothing,Bool}}(nothing)
 const _nvtx_activated = Ref{Bool}(false)
 
 function detect_cupti()
-    if _cupti_active[] !== nothing
-        return _cupti_active[]
-    end
+    cached = _cupti_active[]
+    cached === nothing || return cached
 
     # Some CUPTI versions crash while probing Tegra without profiling permissions.
     CUPTI.can_profile() || return false

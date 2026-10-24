@@ -26,6 +26,10 @@ end
     @test filtered.val == [25, 30]
 end
 
+@testset "detect_cupti" begin
+    @test @inferred(CUDA.Profile.detect_cupti()) isa Bool
+end
+
 end
 
 ############################################################################################
