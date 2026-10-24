@@ -276,6 +276,9 @@ Update 2 or later, except for CUDA 12.8 to 13.1.
   last used before that event without waiting for other work that was queued
   after it. This lets tasks spawned with `KernelAbstractions.@spawn` overlap
   with their parent.
+- The output of `CUDA.@profile` is more compact when it isn't cropped to a
+  terminal, e.g. when written to a file or pipe: tables have no outer border,
+  and rows are no longer padded to the width of the longest kernel name.
 
 
 ## v6.4 (September 2026)

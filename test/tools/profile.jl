@@ -117,6 +117,9 @@ let
 
     @test !occursin("cuCtxSynchronize", str)
     @test !occursin("ID", str)
+
+    # without cropping, rows aren't padded to the width of the table
+    @test !any(line -> endswith(line, r"[ │┐┤┘]"), split(str, '\n'))
 end
 
 # kernel launch (trace)
@@ -237,6 +240,8 @@ a = CUDA.zeros(Float32, 1024)
     str = string(p)
     @test occursin("increment", str)
     @test occursin("Compute", str)
+    @test !any(line -> endswith(line, r"[ │┐┤┘]"), split(str, '\n'))
+    @test !occursin("bold", str)
 
     str = string(@retry_busy CUDA.@metrics trace=true @cuda threads=32 blocks=32 increment(a))
     @test occursin("ID", str)

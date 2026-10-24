@@ -16,7 +16,7 @@ default, a summary of host and device-side execution will be show, including any
 events. To display a chronological trace of the captured activity instead, `trace` can be
 set to `true`. Trace output will include an ID column that can be used to match host-side
 and device-side activity. If `raw` is `true`, all data will always be included, even if it
-may not be relevant. The output will be written to `io`, which defaults to `stdout`.
+may not be relevant.
 
 Slow operations will be highlighted in the output: Entries colored in yellow are among the
 slowest 25%, while entries colored in red are among the slowest 5% of all operations.
@@ -705,7 +705,9 @@ function capture(cfg, origin::UInt64)
     return (; host, device, nvtx)
 end
 
-function Base.show(io::IO, results::ProfileResults)
+Base.show(io::IO, results::ProfileResults) = show_report(io, results)
+
+function show_report(io::IO, report)
     crop = if get(io, :is_pluto, false) || get(io, :jupyter, false)
         # Pluto.jl and IJulia.jl both indicate they want to limit output,
         # but they have scrollbars, so let's ignore that
@@ -721,10 +723,26 @@ function Base.show(io::IO, results::ProfileResults)
     # need to be specialized on, and precompiled for, every kind of output stream
     buf = IOContext(IOContext(IOBuffer(), io), :color => get(io, :color, false)::Bool,
                     :displaysize => displaysize(io))
-    show_results(buf, results, crop)
-    write(io, take!(buf.io))
+    show_results(buf, report, crop)
+    str = String(take!(buf.io))
+    if crop == :none
+        # tables pad every cell to the width of their column, which for kernel names can
+        # be hundreds of characters (keeping any escape sequences that follow)
+        str = replace(str, r" +((?:\e\[[0-9;]*m)*)$"m => s"\1")
+    end
+    write(io, str)
     return
 end
+
+# without cropping, there's no right border, so that rows aren't padded to the widest one
+const uncropped_format = PrettyTables.TextTableFormat(;
+    horizontal_line_at_beginning=false, horizontal_line_after_data_rows=false,
+    vertical_line_at_beginning=false, vertical_line_after_data_columns=false)
+
+print_table(io::IO, df, crop::Symbol; kwargs...) =
+    pretty_table(io, df; table_format=(crop == :none ? uncropped_format : PrettyTables.TextTableFormat()),
+                 fit_table_in_display_horizontally=(crop == :horizontal),
+                 fit_table_in_display_vertically=false, kwargs...)
 
 function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Symbol)
     results = deepcopy(results)
@@ -996,7 +1014,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             end
             highlighters = time_highlighters(df)
             highlighters = isempty(highlighters) ? PrettyTables.TextHighlighter[] : collect(highlighters)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters, fit_table_in_display_horizontally = (crop==:horizontal), fit_table_in_display_vertically=false)#,
+            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters)#,
                                  #body_hlines=trace_divisions)
         else
             df = summarize_trace(df)
@@ -1011,7 +1029,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             header = [summary_column_names[k] for k in keys(df)]
             alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
+            print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
         end
     end
 
@@ -1096,7 +1114,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
                 end
             end
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
+            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters))
                                  #body_hlines=trace_divisions)
         else
             df = summarize_trace(device)
@@ -1111,7 +1129,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             header = [summary_column_names[k] for k in keys(df)]
             alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
+            print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
         end
     end
 
@@ -1176,7 +1194,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
                 end
             end
             highlighters = tuple(color_highlighters..., time_highlighters(df)...)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
+            print_table(io, df, crop; column_labels=header, alignment, formatters=[formatters], highlighters=collect(highlighters))
         else
             # merge the domain and name into a single column
             merged_names = map(nvtx_ranges.name, nvtx_ranges.domain) do name, domain
@@ -1202,7 +1220,7 @@ function show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Sy
             header = [summary_column_names[k] for k in keys(df)]
             alignment = [k in (:name, :time_dist) ? :l : :r for k in keys(df)]
             highlighters = time_highlighters(df)
-            pretty_table(io, df; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters), fit_table_in_display_horizontally=(crop==:horizontal), fit_table_in_display_vertically=false)
+            print_table(io, df, crop; column_labels=header, alignment, formatters=[summary_formatter(df)], highlighters=collect(highlighters))
         end
     end
 
@@ -1504,22 +1522,7 @@ is_profiler_kernel(record) =
     (record.gridX, record.gridY, record.gridZ) == (1, 1, 1) &&
     (record.blockX, record.blockY, record.blockZ) == (1, 1, 1)
 
-function Base.show(io::IO, p::KernelProfile)
-    crop = if get(io, :is_pluto, false) || get(io, :jupyter, false)
-        :none
-    elseif io isa Base.TTY || get(io, :limit, false)::Bool
-        :horizontal
-    else
-        :none
-    end
-
-    # see `show(::IO, ::ProfileResults)`
-    buf = IOContext(IOContext(IOBuffer(), io), :color => get(io, :color, false)::Bool,
-                    :displaysize => displaysize(io))
-    show_results(buf, p, crop)
-    write(io, take!(buf.io))
-    return
-end
+Base.show(io::IO, p::KernelProfile) = show_report(io, p)
 
 function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
     nlaunches = length(p.kernels.id)
@@ -1596,18 +1599,19 @@ function show_results(io::IOContext{IOBuffer}, p::KernelProfile, crop::Symbol)
         get(metric_kind, key, :none) == :percent && data[j][i] >= 80
     end
 
-    pretty_table(io, df; column_labels=header, alignment, formatters=[formatter],
-                 highlighters=[highlight_peak], fit_table_in_display_horizontally=(crop==:horizontal),
-                 fit_table_in_display_vertically=false)
+    print_table(io, df, crop; column_labels=header, alignment, formatters=[formatter],
+                highlighters=[highlight_peak])
 
     if any(col -> col.kind == :percent && col in overview_metrics, columns)
         l1 = any(col -> col.name == "L1/TEX", columns) ?
             " (or the cycles the SMs were active, for L1/TEX)" : ""
         println(io, """
+
             Throughput is relative to the peak sustained rate of each unit during the kernel's
-            execution$l1. Values of at least 80% are shown in bold.""")
+            execution$l1.""")
+        get(io, :color, false)::Bool && println(io, "Values of at least 80% are shown in bold.")
     elseif !p.trace
-        println(io, "Metrics are averaged over all launches of each kernel.")
+        println(io, "\nMetrics are averaged over all launches of each kernel.")
     end
 
     return
