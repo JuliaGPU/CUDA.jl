@@ -186,6 +186,14 @@ let
     @test occursin("a range", str)
 end
 
+# unnamed NVTX ranges
+let
+    results = CUDA.@profile NVTX.range_end(NVTX.range_start())
+    @test occursin("NVTX ranges", string(results))
+    json = JSON.parse(repr("application/json", results))
+    @test only(json["nvtx"])["name"] === nothing
+end
+
 # JSON output
 let
     @cuda identity(nothing)

@@ -868,14 +868,14 @@ function report(host::NamedTuple, device::NamedTuple, nvtx::NamedTuple, trace::B
     end
 
     function summarize_trace(df)
-        # group times by name
-        groups = Dict{String,Vector{Float64}}()
+        # group times by name (which can be missing for NVTX ranges)
+        groups = Dict{Union{Missing,String},Vector{Float64}}()
         for (name, t) in zip(df.name, df.time)
             push!(get!(Vector{Float64}, groups, name), t)
         end
 
         n = length(groups)
-        out_name = Vector{String}(undef, n)
+        out_name = Vector{Union{Missing,String}}(undef, n)
         out_time = Vector{Float64}(undef, n)
         out_calls = Vector{Int}(undef, n)
         out_dist = Vector{Union{Missing,@NamedTuple{std::Float64, mean::Float64, min::Float64, max::Float64}}}(undef, n)
@@ -1082,7 +1082,9 @@ function show_activity(io::IOContext{IOBuffer}, r::NamedTuple, trace::Bool, raw:
     end
 
     function summary_formatter(v, column)
-        if column == :time_ratio
+        if column == :name && v === missing
+            "-"
+        elseif column == :time_ratio
             format_percentage(v)
         elseif column == :time
             format_time(v)
