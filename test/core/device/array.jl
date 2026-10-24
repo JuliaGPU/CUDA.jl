@@ -219,6 +219,23 @@ function shmem_reinterpet_equal_size()
   return y
 end
 
+@testset "reinterpret to a stronger alignment" begin
+  function kernel(y, offset)
+    a = CuDynamicSharedArray(Float32, 2, offset)
+    b = reinterpret(Float64, a)
+    @inbounds b[1] = 42
+    @inbounds y[] = b[1]
+    return
+  end
+  y = CUDA.zeros(Float64)
+  @cuda shmem=16 kernel(y, 8)
+  @test Array(y)[] == 42
+  @test_throws CUDACore.KernelException begin
+    @cuda shmem=16 kernel(y, 4)
+    synchronize()
+  end
+end
+
 @testset "reinterpret shmem: equal size" begin
   gpu = shmem_reinterpet_equal_size()
   a = zeros(Float32, length(gpu))
