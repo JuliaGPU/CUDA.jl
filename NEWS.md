@@ -169,6 +169,11 @@ small reductions along a dimension can be slower.
   the token count; `stats` stays padded to `max_seq_len_q`. Bottom-right causal
   masks align with each sequence's own lengths
   ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
+- cuBLAS's `gemm!`, `gemm_batched!` and `gemm_strided_batched!` accept every
+  combination of element types that cuBLAS supports, e.g., `Float16` or
+  `BFloat16` inputs with a `Float32` output, and select the compute type like
+  `mul!` does. They replace `gemmEx!`, `gemmBatchedEx!` and
+  `gemmStridedBatchedEx!`, which are deprecated.
 
 *Bug fixes*:
 
@@ -233,6 +238,8 @@ small reductions along a dimension can be slower.
 
 *Minor changes*:
 
+- `mul!` on CuArrays spends less time on the CPU per matrix product (3 µs less
+  on an RTX 5080), as it no longer dispatches dynamically to the cuBLAS wrapper.
 - An array that another task uses doesn't wait for work that the host already
   waited for, by synchronizing the stream or an event recorded after that work
   on the task that submitted it. Work submitted through a pointer taken outside

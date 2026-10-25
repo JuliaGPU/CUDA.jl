@@ -10,6 +10,17 @@ m = 20
 n = 35
 k = 13
 
+# not every combination of types that cuBLAS supports has kernels for every device
+function has_kernels(f)
+    try
+        f()
+        return true
+    catch err
+        (err isa CUBLASError && err.code == cuBLAS.CUBLAS_STATUS_NOT_SUPPORTED) || rethrow()
+        return false
+    end
+end
+
 @testset "level 3" begin
     @testset for elty in [Float16, Float32, Float64, ComplexF32, ComplexF64]
 
@@ -93,24 +104,50 @@ k = 13
             mul!(stridedC, stridedA, stridedB, true, false)
             @test Array(stridedC) ≈ Array(stridedA) * Array(stridedB)
         end
-        if capability(device()) > v"5.0"
-            @testset "gemmEx!" begin
-                A = rand(elty,m,k)
-                B = rand(elty,k,n)
-                C1 = rand(elty,m,n)
-                d_A = CuArray(A)
-                d_B = CuArray(B)
-                d_C1 = CuArray(C1)
-                α = rand(elty)
-                β = rand(elty)
-                cuBLAS.gemmEx!('N','N',α,d_A,d_B,β,d_C1)
-                h_C1 = Array(d_C1)
-                C1 = (α*A)*B + β*C1
-                # compare
-                @test C1 ≈ h_C1
-                d_Cbad = CUDACore.zeros(elty, m+1, n-1) 
-                @test_throws DimensionMismatch cuBLAS.gemmEx!('N','N',α,d_A,d_B,β,d_Cbad)
-            end
+        @testset "gemmEx! (deprecated)" begin
+            A = rand(elty,m,k)
+            B = rand(elty,k,n)
+            C1 = rand(elty,m,n)
+            d_A = CuArray(A)
+            d_B = CuArray(B)
+            d_C1 = CuArray(C1)
+            α = rand(elty)
+            β = rand(elty)
+            @test_deprecated cuBLAS.gemmEx!('N','N',α,d_A,d_B,β,d_C1)
+            @test (α*A)*B + β*C1 ≈ Array(d_C1)
+        end
+        @testset "device-side scalars" begin
+            A = rand(elty,m,k)
+            B = rand(elty,k,n)
+            C1 = rand(elty,m,n)
+            d_A = CuArray(A)
+            d_B = CuArray(B)
+            d_C1 = CuArray(C1)
+            α = rand(elty)
+            β = rand(elty)
+            # the scalars of a Float16 GEMM are Float16 too, as it computes in Float16
+            cuBLAS.gemm!('N','N',CuRef(α),d_A,d_B,CuArray([β]),d_C1)
+            @test (α*A)*B + β*C1 ≈ Array(d_C1)
+            @test_throws ArgumentError cuBLAS.gemm!('N','N',CuRef(1),d_A,d_B,β,d_C1)
+        end
+        @testset "empty dimensions" begin
+            C = rand(elty,m,n)
+            d_C = CuArray(C)
+            cuBLAS.gemm!('N','N',one(elty),CuArray(zeros(elty,m,0)),CuArray(zeros(elty,0,n)),
+                         elty(2),d_C)
+            @test Array(d_C) ≈ 2C
+            d_C = CuArray(zeros(elty,0,n))
+            cuBLAS.gemm!('N','N',one(elty),CuArray(zeros(elty,0,k)),CuArray(rand(elty,k,n)),
+                         zero(elty),d_C)
+            @test size(d_C) == (0, n)
+        end
+        @testset "unsupported layouts" begin
+            # cuBLAS needs contiguous columns
+            d_A = view(CuArray(rand(elty,2m,k)), 1:2:2m, :)
+            d_B = CuArray(rand(elty,k,n))
+            d_C = CuArray(rand(elty,m,n))
+            @test_throws ArgumentError cuBLAS.gemm!('N','N',one(elty),d_A,d_B,zero(elty),d_C)
+            @test_throws ArgumentError cuBLAS.gemm_batched!('N','N',one(elty),[d_A],[d_B],zero(elty),[d_C])
         end
         @testset "gemm" begin
             A = rand(elty,m,k)
@@ -257,21 +294,32 @@ k = 13
             @test_throws DimensionMismatch cuBLAS.gemm_batched('N','N',alpha,bd_A_bad,bd_B)
         end
 
-        @testset "gemmBatchedEx!" begin
-            # C = (alpha*A)*B + beta*C
-            cuBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_B,beta,bd_C)
+        @testset "gemmBatchedEx! (deprecated)" begin
+            bC = Array.(bd_C)
+            @test_deprecated cuBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_B,beta,bd_C)
             for i in 1:length(bd_C)
-                bC[i] = (alpha*bA[i])*bB[i] + beta*bC[i]
-                h_C = Array(bd_C[i])
-                #compare
-                @test bC[i] ≈ h_C
+                @test (alpha*bA[i])*bB[i] + beta*bC[i] ≈ Array(bd_C[i])
             end
-            @test_throws DimensionMismatch cuBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
-            @test_throws DimensionMismatch cuBLAS.gemmBatchedEx!('N','N',alpha,bd_A_bad,bd_B,beta,bd_C)
+        end
 
-            hA = [CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]
-            hC = [CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]
-            @test_throws DimensionMismatch cuBLAS.gemmBatchedEx!('N','N',alpha,hA,hA,beta,hC)
+        @testset "gemm_batched! with vectors" begin
+            x = [CuArray(rand(elty,k)) for _ in 1:2]
+            y = [CuArray(zeros(elty,m)) for _ in 1:2]
+            cuBLAS.gemm_batched!('N','N',one(elty),bd_A[1:2],x,zero(elty),y)
+            for i in 1:2
+                @test bA[i] * Array(x[i]) ≈ Array(y[i])
+            end
+        end
+
+        @testset "gemm_batched! with views" begin
+            # non-contiguous views, which aren't CuArrays
+            W = CuArray(rand(elty, 2m, k))
+            vA = [view(W, 1:m, :), view(W, m+1:2m, :)]
+            vC = [CuArray(zeros(elty, m, n)) for _ in 1:2]
+            cuBLAS.gemm_batched!('N','N',one(elty),vA,bd_B[1:2],zero(elty),vC)
+            for i in 1:2
+                @test Array(vA[i]) * bB[i] ≈ Array(vC[i])
+            end
         end
 
         nbatch = 10
@@ -304,24 +352,22 @@ k = 13
             @test bC ≈ h_C
 
             @test_throws DimensionMismatch cuBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
+
+            # a PermutedDimsArray, with the batch dimension in the middle, and integer scalars
+            pB = PermutedDimsArray(CuArray(permutedims(bB, (1, 3, 2))), (1, 3, 2))
+            cuBLAS.gemm_strided_batched!('N', 'N', 1, bd_A, pB, 0, bd_C)
+            for i in 1:nbatch
+                bC[:, :, i] = bA[:, :, i] * bB[:, :, i]
+            end
+            @test bC ≈ Array(bd_C)
         end
 
-        @testset "gemmStridedBatchedEx!" begin
-            cuBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_C)
+        @testset "gemmStridedBatchedEx! (deprecated)" begin
+            @test_deprecated cuBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_C)
             for i in 1:nbatch
                 bC[:, :, i] = (alpha * bA[:, :, i]) * bB[:, :, i] + beta * bC[:, :, i]
             end
-            h_C = Array(bd_C)
-            @test bC ≈ h_C
-
-            cuBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, sdr_B, beta, bd_C)
-            for i in 1:nbatch
-                bC[:, :, i] = (alpha * bA[:, :, i]) * sB + beta * bC[:, :, i]
-            end
-            h_C = Array(bd_C)
-            @test bC ≈ h_C
-
-            @test_throws DimensionMismatch cuBLAS.gemmStridedBatchedEx!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
+            @test bC ≈ Array(bd_C)
         end
 
         @testset "gemm_strided_batched" begin
@@ -355,6 +401,31 @@ k = 13
             h_C = Array(bd_C)
             @test bC ≈ h_C
             @test_throws DimensionMismatch cuBLAS.gemm_strided_batched('N', 'N', alpha, bd_A, bd_bad)
+        end
+    end
+
+    @testset "mixed-precision batched: $TC = $TA * $TA" for (TA, TC) in
+            ((Float16, Float16), (Float16, Float32), (BFloat16, BFloat16), (BFloat16, Float32))
+        (TA == Float16 && capability(device()) < v"5.3") && continue
+        nbatch = 3
+        hA = TA.(rand(Float32, m, k, nbatch))
+        hB = TA.(rand(Float32, k, n, nbatch))
+        ref = zeros(Float32, m, n, nbatch)
+        for i in 1:nbatch
+            ref[:, :, i] = Float32.(hA[:, :, i]) * Float32.(hB[:, :, i])
+        end
+        tol = sqrt(eps(TC == Float32 ? TA : TC))
+
+        dC = CuArray(zeros(TC, m, n, nbatch))
+        has_kernels(() -> cuBLAS.gemm_strided_batched!('N', 'N', 1f0, CuArray(hA), CuArray(hB), 0f0, dC)) || continue
+        @test Float32.(Array(dC)) ≈ ref rtol=tol
+
+        bA = [CuArray(hA[:, :, i]) for i in 1:nbatch]
+        bB = [CuArray(hB[:, :, i]) for i in 1:nbatch]
+        bC = [CuArray(zeros(TC, m, n)) for i in 1:nbatch]
+        cuBLAS.gemm_batched!('N', 'N', 1f0, bA, bB, 0f0, bC)
+        for i in 1:nbatch
+            @test Float32.(Array(bC[i])) ≈ ref[:, :, i] rtol=tol
         end
     end
 
