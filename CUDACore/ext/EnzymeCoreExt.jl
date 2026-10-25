@@ -59,26 +59,37 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cufunction)},
     end)
 end
 
+# Shadow of a `cudaconvert` argument, in batch lane `i` for the batched variants.
+# A `Const` argument has a structurally zero tangent. A mixed-activity annotation boxes its
+# shadow in a `Ref`, which must be unwrapped first: `cudaconvert` would otherwise turn the box
+# into a `KernelRefValue` rather than the device-side shadow.
+@inline cudaconvert_shadow(x::Const) = EnzymeCore.make_zero(x.val)
+@inline cudaconvert_shadow(x::Const, i) = EnzymeCore.make_zero(x.val)
+@inline cudaconvert_shadow(x::EnzymeCore.MixedDuplicated) = x.dval[]
+@inline cudaconvert_shadow(x::EnzymeCore.BatchMixedDuplicated, i) = x.dval[i][]
+@inline cudaconvert_shadow(x) = x.dval
+@inline cudaconvert_shadow(x, i) = x.dval[i]
+
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cudaconvert)},
                                         ::Type{RT}, x::IT) where {RT, IT}
 
     if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
-            Duplicated(ofn.val(x.val), ofn.val(x.dval))
+            Duplicated(ofn.val(x.val), ofn.val(cudaconvert_shadow(x)))
         else
             tup = ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
-                ofn.val(x.dval[i])::eltype(RT)
+                ofn.val(cudaconvert_shadow(x, i))::eltype(RT)
             end
             BatchDuplicated(ofn.val(x.val), tup)
         end
     elseif EnzymeRules.needs_shadow(config)
         if EnzymeRules.width(config) == 1
-            ofn.val(x.dval)::EnzymeCore.shadow_type(config, RT)
+            ofn.val(cudaconvert_shadow(x))::EnzymeCore.shadow_type(config, RT)
         else
             (ntuple(Val(EnzymeRules.width(config))) do i
                 Base.@_inline_meta
-                ofn.val(x.dval[i])::eltype(RT)
+                ofn.val(cudaconvert_shadow(x, i))::eltype(RT)
             end)::EnzymeCore.shadow_type(config, RT)
         end
     elseif EnzymeRules.needs_primal(config)
@@ -96,20 +107,13 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(cudac
     end
     
     shadow = if EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1 && !(IT <: Const)
-            ofn.val(x.dval)
-        elseif EnzymeRules.width(config) == 1 && IT <: Const
-            ofn.val(EnzymeCore.make_zero(x.val))
-        elseif !(IT <: Const)
-          ntuple(Val(EnzymeRules.width(config))) do i
-              Base.@_inline_meta
-              ofn.val(x.dval[i])
-          end
+        if EnzymeRules.width(config) == 1
+            ofn.val(cudaconvert_shadow(x))
         else
-          ntuple(Val(EnzymeRules.width(config))) do i
-              Base.@_inline_meta
-              ofn.val(EnzymeCore.make_zero(x.val[i]))
-          end
+            ntuple(Val(EnzymeRules.width(config))) do i
+                Base.@_inline_meta
+                ofn.val(cudaconvert_shadow(x, i))
+            end
         end
     else
         nothing
