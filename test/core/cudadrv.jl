@@ -45,6 +45,13 @@ if !exclusive
         @test !CUDACore.isvalid(global_ctx2)
         @test ctx == current_context()
 
+        # the handle of a destroyed context may be reused, or crash the driver when queried
+        CuContext(dev) do ctx3
+            @test CUDACore.isvalid(ctx3)
+            @test !CUDACore.isvalid(global_ctx2)
+        end
+        @test !CUDACore.isvalid(global_ctx2)
+
         @test device(ctx) == dev
         @test current_device() == dev
         device_synchronize()
