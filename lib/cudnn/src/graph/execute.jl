@@ -10,8 +10,6 @@ checked_array_pointer(t::Tensor, value) = throw(ArgumentError(
 function checked_array_pointer(t::Tensor, a::StridedCuArray)
     cudnnDataType(eltype(a)) == t.dtype ||
         throw(ArgumentError("binding for $(t.name) has eltype $(eltype(a)), expected $(t.dtype)"))
-    memory_layout(dims, strides) =
-        sort!([(Int64(d), Int64(s)) for (d, s) in zip(dims, strides) if d != 1]; by=last)
     if t.ragged_offset !== nothing
         # the offsets locate each token run on the device: check the layout within a token,
         # and that the tokens are back to back, as the tensor's strides place them

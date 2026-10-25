@@ -53,6 +53,20 @@ function canonical_strides(dims, strides)
     return out
 end
 
+# The non-singleton dimensions and their strides, from fastest- to slowest-varying.
+memory_layout(dims, strides) =
+    sort!([(Int64(d), Int64(s)) for (d, s) in zip(dims, strides) if d != 1]; by=last)
+
+# Whether a tensor occupies a contiguous block of memory, in any dimension order.
+function is_packed(t::Tensor)
+    dense = Int64(1)
+    for (d, s) in memory_layout(t.dims, t.strides)
+        s == dense || return false
+        dense *= d
+    end
+    return true
+end
+
 function tensor!(g::Graph; dims, strides=dense_strides(dims), dtype=nothing,
                  virtual::Bool=false, by_value::Bool=false, name::String="",
                  uid::Integer=0, alignment::Integer=16, output::Bool=false,

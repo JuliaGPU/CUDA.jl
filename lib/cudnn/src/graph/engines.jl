@@ -28,6 +28,11 @@ function keep_engine_config(cfg::BackendDescriptor, g::Graph;
         if math_mode != CUDACore.FAST_MATH
             CUDNN_NUMERICAL_NOTE_DOWN_CONVERT_INPUTS in notes && return false
         end
+        # FFT engines first transpose tensors that are not packed, which can take longer
+        # than the convolution itself, while other engines run as fast as on packed ones
+        if CUDNN_NUMERICAL_NOTE_FFT in notes
+            all(is_packed, g.tensors) || return false
+        end
         return true
     finally
         unsafe_destroy!(engine)
