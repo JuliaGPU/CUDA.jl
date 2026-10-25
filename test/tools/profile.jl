@@ -573,11 +573,11 @@ end
 end
 
 # a profile of a function with instructions generated for `chains`, sampled `counts` times
-function fixture_profile(chains, counts; kwargs...)
+function fixture_profile(chains, counts; ptx=nothing, kwargs...)
     n = length(chains)
     instructions = (; offset=collect(16 .* (0:n-1)), sass=fill("NOP", n), source=chains)
     f = CUDA.Profile.SampledFunction("kernel()", "_Z6kernelv", instructions,
-                                     reshape(counts, n, 1), reshape(counts, n, 1))
+                                     reshape(counts, n, 1), reshape(counts, n, 1), ptx)
     CUDA.Profile.PCProfile(; device="GPU", period=14, total=sum(counts), dropped=0,
                              reasons=["wait"], functions=[f], kwargs...)
 end
@@ -636,6 +636,39 @@ end
     @test occursin("colored by kind", stripped)
     @test !occursin('\e', sprint(CUDATools.code_sass, p))
     @test occursin("\e[", sprint(CUDATools.code_sass, p; context=:color => true))
+
+    # PTX code is annotated with the samples of the instructions generated for every line,
+    # including those of functions that ptxas inlined
+    text = ["", ".func  (.param .b32 func_retval0) callee(", ".param .b32 callee_param_0", ")",
+            "{", "mul.f32 \t%f1, %f1, %f1;", "ret;", "}", "", ".func other()", "{", "ret;",
+            "}", ".visible .entry _Z6kernelv(", ")", "{", "\$L__tmp0:",
+            "ld.global.f32 \t%f1, [%rd1];", "add.f32 \t%f2, %f1, %f1;", "{", "mov.b32 \t%r1, 0;",
+            "}", "{ mov.b32 \t%r2, 0; }", "ret;", "}"]
+    p = fixture_profile([[kernel], [kernel, load], [kernel, load, ptr], [kernel, add], [kernel]],
+                        [100, 300, 400, 150, 50]; ptx=(; text, lines=[18, 19, 19, 6, 0]))
+    ptx = sprint(CUDATools.code_ptx, p)
+    @test occursin("\n       700      700  wait 100% add.f32 \t%f2, %f1, %f1;\n", ptx)
+    @test occursin("\n       150      150  wait 100% mul.f32", ptx)
+    @test occursin("// 50 samples (5%) are of instructions without a line of PTX code", ptx)
+    @test occursin("callee(", ptx) && !occursin("other", ptx)
+    @test count("ret;", ptx) == 2   # past the end of blocks in function bodies
+    @test findfirst("callee(", ptx)[1] < findfirst(".entry", ptx)[1]
+    @test occursin("\n" * " "^31 * "//  kernel.jl:10  load\n", ptx)
+    @test !occursin("kernel.jl", sprint((io, p) -> CUDATools.code_ptx(io, p; debuginfo=:none), p))
+    # without the labels of debug information, unless asked for
+    @test !occursin("\$L__tmp0", ptx)
+    @test occursin("\$L__tmp0", sprint((io, p) -> CUDATools.code_ptx(io, p; raw=true), p))
+    @test !occursin('\e', ptx)
+    @test occursin("\e[", sprint(CUDATools.code_ptx, p; context=:color => true))
+    # the JSON contains the PTX code, and the line of every instruction
+    json = JSON.parse(repr("application/json", p))
+    @test json["ptx"] == [join(text, '\n')]
+    @test only(json["functions"])["ptx"] == 0
+    @test [inst["ptx_line"] for inst in only(json["functions"])["instructions"]] ==
+          [18, 19, 19, 6, nothing]
+
+    # code without line information has no PTX code
+    @test occursin("No PTX code available", sprint(CUDATools.code_ptx, fixture_profile([[kernel]], [1])))
 
     # cropped output fits the display
     cropped = sprint(show, MIME"text/plain"(), p; context=(:limit => true, :displaysize => (24, 30)))
@@ -728,6 +761,17 @@ location(frame) = (basename(frame.file), frame.line)
     @test occursin("/*0000*/", sass)
     @test occursin("MUFU.RSQ", sass)
     @test occursin("profile.jl:$spin_line  spin", sass)
+
+    @test !occursin("profile.jl:", sprint((io, p) -> CUDATools.code_sass(io, p; debuginfo=:none), p))
+
+    # the PTX code embedded in the cubin maps the samples onto lines of it
+    @test f.ptx !== nothing
+    @test sum(f.samples[f.ptx.lines .> 0, :]) > 0
+    ptx = sprint(CUDATools.code_ptx, p)
+    @test occursin(".entry", ptx)
+    @test occursin("sqrt", ptx)
+    @test occursin("profile.jl:$spin_line  spin", ptx)
+    @test occursin(r"\n +\d+ +\d+ .*\w+\.\w+\s", ptx)
 end
 
 @testset "JSON" begin
@@ -749,6 +793,8 @@ end
             frame(loc["frame"])["line"] == spin_line &&
             endswith(frame(loc["frame"])["file"], "profile.jl")
     end
+    @test occursin(".entry", json["ptx"][f["ptx"]+1])
+    @test any(inst -> inst["ptx_line"] !== nothing, f["instructions"])
 
     json = JSON.parse(repr("application/json", @retry_busy CUDA.@sample format=:flat spin_kernel()))
     @test json["view"] == "flat"

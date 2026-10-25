@@ -295,6 +295,34 @@ julia> CUDATools.code_sass(p)
 ...
 ```
 
+`CUDATools.code_ptx(p)` does the same for the PTX code that the SASS was generated from.
+`ptxas` embeds this code in the cubin, together with a table mapping every SASS
+instruction to a line of it (the same data Nsight Compute uses to correlate PTX and SASS),
+so every line shows the exact total of the instructions generated for it, without
+recompiling anything. The code of functions that `ptxas` inlined is shown as well:
+
+```julia
+julia> CUDATools.code_ptx(p)
+// gpu_broadcast_kernel_linear(...)
+// 9052 samples, 7256 stalled (80%): memory 94%, execution 3%, throttle 2%, issue 1%
+// Samples  Stalled  Stall reason
+...
+       128       60  short_scoreboard 92%    add.s64 	%rd8, %rd3, %rd7;
+        14        7  wait 100%               ld.global.b32 	%r4, [%rd8+-4];
+                                             //    @Base/broadcast.jl:677  _broadcast_getindex
+                                             //     @Base/broadcast.jl:704  _broadcast_getindex_evalf
+                                             //      CUDACore/src/device/intrinsics/math.jl:30  sin
+      7372     6406  long_scoreboard 100%    mul.f32 	%r13, %r4, 0f3F22F983;
+        23        6  wait 100%               cvt.rni.s32.f32 	%r73, %r13;
+...
+```
+
+The source locations in this view are those of the first SASS instruction generated for a
+line. Both functions take `debuginfo=:none` to leave them out, and `code_ptx` takes
+`raw=true` to print the code as embedded, including the empty lines that replace
+directives like `.loc`. The PTX code is only available for code compiled with line
+information, i.e., with a debug level of at least 1 (the default).
+
 In a terminal that supports colors, the number of stalled samples, the stall reasons and
 the kinds in the summary are colored by kind of stall (`memory` in red, `throttle` in
 yellow, `sync` in magenta, `execution` in blue, `issue` in cyan), source paths and tree
@@ -331,10 +359,11 @@ julia> p = CUDA.@sample b .= sin.(a);
 julia> show(stdout, "application/json", p)
 {"schema_version":1,"view":"tree","device":"NVIDIA GeForce RTX 5080","period":14,...,
  "frames":[{"function":"macro expansion","file":".../GPUArrays/3gHjC/src/host/broadcast.jl","line":62},...],
- "functions":[{"name":"gpu_broadcast_kernel_linear(...)",...,"count":9291,"stalled":7586,
+ "ptx":["\u000a\u000a\u000a\u000a.version 9.4\u000a.target sm_120a\u000a...",...],
+ "functions":[{"name":"gpu_broadcast_kernel_linear(...)",...,"count":9291,"stalled":7586,"ptx":0,
                "locations":[{"depth":0,"frame":0,"count":8704,"stalled":7269,"overhead":294,
                              "reasons":{"branch_resolving":88,"drain":153,"long_scoreboard":6668,...}},...],
-               "instructions":[{"offset":"0x0000","sass":"LDC R1, c[0x0][0x37c]","frames":[],
+               "instructions":[{"offset":"0x0000","sass":"LDC R1, c[0x0][0x37c]","frames":[],"ptx_line":17,
                                 "count":{"mio_throttle":17,...},"stalled":{...}},...]}]}
 ```
 
@@ -342,7 +371,9 @@ The JSON contains the same report as the tables, as selected by the `trace` and 
 keyword arguments, with times in nanoseconds and untruncated kernel names. For
 `CUDA.@sample`, it contains the rows of the tree or flat view (`locations`, with their
 `depth` and an index into the shared `frames`), and every sampled instruction with its
-samples per stall reason; stall kinds are not included, as they follow from the reasons. See
+samples per stall reason and the line of PTX code it was generated from, which indexes the
+PTX code of its module (`ptx`); stall kinds are not included, as they follow from the
+reasons. See
 [`Profile.ProfileResults`](@ref CUDATools.Profile.ProfileResults),
 [`Profile.KernelProfile`](@ref CUDATools.Profile.KernelProfile) and
 [`Profile.PCProfile`](@ref CUDATools.Profile.PCProfile) for a description of the

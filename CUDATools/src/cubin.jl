@@ -278,16 +278,17 @@ function decode_line_programs(data::AbstractVector{UInt8}, relocations::Dict{Int
 end
 
 """
-    line_tables(cubin::Vector{UInt8}) -> Dict{String,LineTable}
+    line_tables(cubin::Vector{UInt8}; section=".debug_line") -> Dict{String,LineTable}
 
 Decode the source locations of the instructions of every function in `cubin`, including
 the frames of inlined functions, keyed by the function's (mangled) name. Functions without
-line information are omitted.
+line information are omitted. With `section=".nv_debug_line_sass"`, the locations are lines
+of the PTX code embedded in the cubin (see `ptx_text`).
 """
-function line_tables(cubin::Vector{UInt8})
+function line_tables(cubin::Vector{UInt8}; section::String=".debug_line")
     elf = ELFFile(cubin)
     tables = Dict{String,LineTable}()
-    i = find_section(elf, ".debug_line")
+    i = find_section(elf, section)
     i === nothing && return tables
     str = find_section(elf, ".debug_str")
     function_name(offset) = str === nothing ? "" :
@@ -354,4 +355,13 @@ function line_tables(cubin::Vector{UInt8})
         tables[name] = LineTable(offsets, chains)
     end
     return tables
+end
+
+# the PTX code that ptxas embeds in cubins with line information, whose lines the
+# `.nv_debug_line_sass` line table refers to (with directives and comments blanked out)
+function ptx_text(cubin::Vector{UInt8})
+    elf = ELFFile(cubin)
+    i = find_section(elf, ".nv_debug_ptx_txt")
+    i === nothing && return nothing
+    replace(String(section_bytes(elf, i)), '\0' => '\n')
 end

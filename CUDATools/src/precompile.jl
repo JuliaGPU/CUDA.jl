@@ -7,6 +7,7 @@ precompile(Tuple{typeof(Profile.kernel_launches), CUPTI.ActivityConfig, CUDACore
 precompile(Tuple{typeof(Profile.sample_pcs), Function})
 precompile(Tuple{typeof(Profile.sampled_functions), CUPTI.PCSamples, Base.ValueIterator{Dict{UInt32,Vector{UInt8}}}})
 precompile(Tuple{typeof(line_tables), Vector{UInt8}})
+precompile(Tuple{typeof(Profile.embedded_ptx), Vector{UInt8}})
 
 # displaying results is precompiled by the workload below, which writes to an `IOBuffer`.
 # the methods that take the output stream render into a buffer, so precompile them for the
@@ -20,8 +21,10 @@ for results in (Profile.ProfileResults, Profile.KernelProfile, Profile.PCProfile
     end
 end
 
-for io in (Base.TTY, Base.PipeEndpoint, IOStream)
-    precompile(Tuple{typeof(code_sass), io, Profile.PCProfile})
+for io in (Base.TTY, Base.PipeEndpoint, IOStream), f in (code_sass, code_ptx)
+    precompile(Tuple{typeof(f), io, Profile.PCProfile})
+    precompile(Tuple{typeof(Core.kwcall), @NamedTuple{debuginfo::Symbol}, typeof(f), io,
+                     Profile.PCProfile})
 end
 
 # Reflection depends on a GPU; `func` and `types` are deliberately unspecialized.
@@ -111,17 +114,21 @@ using PrecompileTools
     end
 
     # PC samples, as collected by `sample_pcs`: a kernel with inlined code, labels, and
-    # instructions without source information, and one without any samples
+    # instructions without source information or PTX code, and one without any samples
     kernel = SourceFrame("", "/tmp/kernel.jl", 3)
     inlined = SourceFrame("getindex", "./array.jl", 10)
     instructions = (; offset=[0, 16, -1, 32, 48], sass=["LDG.E R2, [R2]", "FADD R0, R2, R2",
                                                         ".L_x_0:", "STG.E [R4], R0", "EXIT"],
                       source=[[kernel, inlined], [kernel], SourceFrame[], SourceFrame[], [kernel]])
     samples = [10 0; 2 1; 0 0; 1 0; 0 0]
+    text = [".visible .entry _Z6kernel5Int64(", ".param .u64 _Z6kernel5Int64_param_0", ")",
+            "{", "\$L__func_begin0:", "", "ld.global.f32 \t%f1, [%rd1];",
+            "add.f32 \t%f2, %f1, %f1;", "st.global.f32 \t[%rd1], %f2;", "ret;", "}"]
+    ptx = (; text, lines=[7, 8, 0, 9, 0])
     functions = [Profile.SampledFunction("kernel(Int64)", "_Z6kernel5Int64", instructions,
-                                         samples, samples .÷ 2),
+                                         samples, samples .÷ 2, ptx),
                  Profile.SampledFunction("idle()", "_Z4idlev", instructions,
-                                         zero(samples), zero(samples))]
+                                         zero(samples), zero(samples), nothing)]
     for format in (:tree, :flat)
         p = Profile.PCProfile(; device="GPU", period=14, total=14, dropped=0,
                                 reasons=["long_scoreboard", "wait"], functions, format)
@@ -130,8 +137,10 @@ using PrecompileTools
         string(p)
         sprint(show, p; context=:color => true)
         repr("application/json", p)
-        code_sass(IOBuffer(), p)
-        code_sass(IOContext(IOBuffer(), :color => true), p)
+        for f in (code_sass, code_ptx)
+            f(IOBuffer(), p)
+            f(IOContext(IOBuffer(), :color => true), p)
+        end
     end
     p = Profile.PCProfile(; device="GPU", period=14, total=0, dropped=0, reasons=String[],
                             functions=Profile.SampledFunction[])

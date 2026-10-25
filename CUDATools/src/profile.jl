@@ -157,18 +157,33 @@ end
 Sample where the warps of every kernel launched by `code` spend time, and why they are
 stalled, and return the samples as a [`Profile.PCProfile`](@ref CUDATools.Profile.PCProfile).
 
-Displaying the result shows, like `Profile.print`, a tree of the source locations in every
-kernel with the number of samples and of stalled samples, where the children of a
-location are the functions that were inlined into it. `format=:flat` lists the locations
-instead. Locations with `n` samples are hidden if `n <= noisefloor * √N`, where `N` is the
-number of samples of their parent (or of the kernel, in the flat format).
-`CUDATools.code_sass(p)` shows the samples per SASS instruction. The results can also be
-written as JSON with `show(stdout, "application/json", p)`.
-
 The program counter (PC) of a warp on every SM is sampled once every `2^period` cycles.
 Shorter periods collect more samples, which take longer to process afterwards. Kernels
 execute concurrently and at nearly full speed, and all kernels executing in the current
 context are sampled, including those launched by other tasks.
+
+The result `p` can be inspected in several ways:
+
+- displaying it shows, like `Profile.print`, a tree of the source locations in every
+  kernel with their number of samples and of stalled samples, where the children of a
+  location are the functions that were inlined into it. `format=:flat` lists the
+  locations instead. Locations with `n` samples are hidden if `n <= noisefloor * √N`,
+  where `N` is the number of samples of their parent (or of the kernel, in the flat
+  format). Stalls are colored by kind if the output supports colors, and lines are only
+  cropped to the width of the display if the output is limited (as in the REPL), so
+  `string(p)` is plain text where every row carries its location and function;
+- [`CUDATools.code_sass(p)`](@ref CUDATools.code_sass(::IO, ::CUDATools.Profile.PCProfile))
+  prints the SASS code of every sampled function, with the samples of every instruction;
+- [`CUDATools.code_ptx(p)`](@ref CUDATools.code_ptx(::IO, ::CUDATools.Profile.PCProfile))
+  prints the PTX code of every sampled function, with the samples of the instructions
+  generated for every line;
+- `show(io, MIME"application/json"(), p)` writes all of this as JSON;
+- the fields of `p` and of the
+  [`Profile.SampledFunction`](@ref CUDATools.Profile.SampledFunction)s it contains hold
+  the samples of every instruction per stall reason, for programmatic use.
+
+The JSON and the fields are described in the documentation of
+[`Profile.PCProfile`](@ref CUDATools.Profile.PCProfile).
 
 This requires CUDA 13 or later, and a GPU with compute capability 7.5 or higher.
 

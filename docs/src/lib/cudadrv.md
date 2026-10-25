@@ -234,6 +234,8 @@ Profile.ProfileResults
 Profile.KernelProfile
 Profile.PCProfile
 Profile.SampledFunction
+code_sass(::IO, ::Profile.PCProfile)
+code_ptx(::IO, ::Profile.PCProfile)
 Profile.start
 Profile.stop
 ```

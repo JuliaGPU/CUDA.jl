@@ -1,7 +1,8 @@
 # PC sampling
 
-using ..CUDATools: SourceFrame, LineTable, line_tables, source_chain, ELFFile, symbol_index
-import ..CUDATools: code_sass
+using ..CUDATools: SourceFrame, LineTable, line_tables, source_chain, ELFFile, symbol_index,
+                   ptx_text
+import ..CUDATools: code_sass, code_ptx
 
 """
     SampledFunction
@@ -18,7 +19,13 @@ by [`CUDA.@sample`](@ref CUDATools.@sample), with the following fields:
 - `samples` and `stalled`: matrices with, for every instruction (row), the number of
   samples per reason (column), counting all samples, or only the samples where the warp
   scheduler didn't issue an instruction (i.e., where stalls weren't hidden by other
-  warps).
+  warps);
+- `ptx`: the PTX code of the module, as ptxas embedded it in the cubin (`text`, a vector of
+  lines, with directives like `.loc` blanked out), and the line of that code every
+  instruction was generated from (`lines`, 0 if unknown), or `nothing` if the code was
+  compiled without line information.
+
+See [`CUDA.@sample`](@ref CUDATools.@sample) for the ways to display these samples.
 """
 struct SampledFunction
     name::String
@@ -27,24 +34,23 @@ struct SampledFunction
                               source::Vector{Vector{SourceFrame}}}
     samples::Matrix{Int}
     stalled::Matrix{Int}
+    ptx::Union{Nothing,@NamedTuple{text::Vector{String}, lines::Vector{Int}}}
 end
 
 """
     PCProfile
 
-The samples collected by [`CUDA.@sample`](@ref CUDATools.@sample). Displaying this object
-shows, for every sampled function, where its warps spent time, like `Profile.print` does:
-as a tree of source locations, where the children of a location are the functions that
-were inlined into it, or a flat list of locations (`format=:flat`). Every location lists
-the number of samples of the instructions generated for it (`Samples`), how many of them
-were `Stalled`, the samples of its own code, excluding inlined functions (`Self`), and the
-most common reasons for the stalls. Stall reasons are grouped into kinds (`memory`,
-`throttle`, `sync`, `execution` and `issue`), which are colored when the output supports
-colors (without them, the output is plain text that isn't cropped). Locations with few
-samples are hidden (see `noisefloor` in [`CUDA.@sample`](@ref CUDATools.@sample)). To see
-the samples per SASS instruction, use `CUDATools.code_sass(p)`.
+The samples collected by [`CUDA.@sample`](@ref CUDATools.@sample), which describes the ways
+to display them.
 
-For programmatic access, `show(io, MIME"application/json"(), p)` writes the samples as JSON:
+The text report shows, for every sampled function, a tree of source locations where the
+children of a location are the functions that were inlined into it, or a flat list of
+locations. Every location lists the number of samples of the instructions generated for it
+(`Samples`), how many of them were `Stalled`, the samples of its own code, excluding
+inlined functions (`Self`), and the most common reasons for the stalls. Stall reasons are
+grouped into kinds (`memory`, `throttle`, `sync`, `execution` and `issue`).
+
+`show(io, MIME"application/json"(), p)` writes the samples as JSON:
 - `view`: `"tree"` or `"flat"`, depending on the format;
 - `device`, the sampling `period` (once every 2^period cycles), the `noisefloor`, and the
   number of `total_samples` (including samples outside of the sampled functions) and
@@ -52,21 +58,23 @@ For programmatic access, `show(io, MIME"application/json"(), p)` writes the samp
 - `reasons`: the reasons warps were stalled for;
 - `frames`: source locations, each with a `function` (empty for the sampled function
   itself), `file` and `line`;
+- `ptx`: the PTX code of the sampled modules, as embedded in their cubins (see
+  [`CUDATools.code_ptx`](@ref CUDATools.code_ptx(::IO, ::CUDATools.Profile.PCProfile)));
 - `functions`: every sampled function with its demangled `name` and mangled `symbol`, its
-  `count` of samples and how many of them were `stalled`, the `locations` that are
-  displayed (in order, each with its `depth` in the tree, its `frame` (by index, from 0,
-  or `null` if unknown), `count`, `stalled` and `overhead` samples, and stalled samples per
-  reason), and every sampled instruction with its `offset`, `sass` text, the `frames` it
-  was generated from (outermost first), and its `count` and `stalled` samples per reason.
-  Reasons without samples are omitted.
+  `count` of samples and how many of them were `stalled`, its `ptx` code (by index, from 0,
+  or `null` without line information), the `locations` that are displayed (in order, each
+  with its `depth` in the tree, its `frame` (by index, from 0, or `null` if unknown),
+  `count`, `stalled` and `overhead` samples, and stalled samples per reason), and every
+  sampled instruction with its `offset`, `sass` text, the `frames` it was generated from
+  (outermost first), the line of PTX code it was generated from (`ptx_line`, from 1, or
+  `null` if unknown), and its `count` and `stalled` samples per reason. Reasons without
+  samples are omitted.
 
 The following fields are also available:
-- `device`, `period`, `total` and `dropped`, as above;
+- `device`, `period`, `noisefloor`, `total` and `dropped`, as above, and the `format`;
 - `reasons`: the reasons that index the columns of the sample matrices;
 - `functions`: a vector of [`Profile.SampledFunction`](@ref CUDATools.Profile.SampledFunction),
   sorted by their number of stalled samples.
-
-See also: [`CUDA.@sample`](@ref CUDATools.@sample)
 """
 Base.@kwdef struct PCProfile
     device::String
@@ -205,6 +213,7 @@ function sampled_functions(samples::CUPTI.PCSamples, cubins)
     end
 
     tables = Dict{UInt64,Dict{String,LineTable}}()
+    ptx_code = Dict{UInt64,Union{Nothing,Tuple{Vector{String},Dict{String,LineTable}}}}()
     functions = SampledFunction[]
     for ((crc, symbol), records) in pcs
         cubin = get(by_crc, crc, nothing)
@@ -217,6 +226,7 @@ function sampled_functions(samples::CUPTI.PCSamples, cubins)
             end
         end, symbol, nothing)
         sass = cubin === nothing ? nothing : disassemble_function(cubin, symbol)
+        ptx = cubin === nothing ? nothing : get!(() -> embedded_ptx(cubin), ptx_code, crc)
 
         # the instructions, or only the sampled ones if we couldn't disassemble the code
         offsets, texts = if sass === nothing
@@ -240,14 +250,38 @@ function sampled_functions(samples::CUPTI.PCSamples, cubins)
             end
         end
         instructions = (; offset=offsets, sass=texts, source)
-        push!(functions, SampledFunction(symbol, symbol, instructions, all_samples, stalled))
+        ptx_table = ptx === nothing ? nothing : get(ptx[2], symbol, nothing)
+        ptx_lines = if ptx_table === nothing
+            nothing
+        else
+            lines = map(offsets) do offset
+                chain = offset < 0 ? SourceFrame[] : source_chain(ptx_table, offset)
+                isempty(chain) ? 0 : chain[end].line
+            end
+            (; text=ptx[1], lines)
+        end
+        push!(functions, SampledFunction(symbol, symbol, instructions, all_samples, stalled,
+                                         ptx_lines))
     end
 
     names = demangle_names!([f.symbol for f in functions])
-    functions = [SampledFunction(name, f.symbol, f.instructions, f.samples, f.stalled)
+    functions = [SampledFunction(name, f.symbol, f.instructions, f.samples, f.stalled, f.ptx)
                  for (name, f) in zip(names, functions)]
     sort!(functions; by=f -> (sum(f.stalled), sum(f.samples)), rev=true)
     return (; reasons, functions)
+end
+
+# the PTX code embedded in `cubin`, as lines, and the line tables that map the instructions
+# of its functions onto them. this is the data Nsight Compute uses to correlate SASS and PTX.
+function embedded_ptx(cubin::Vector{UInt8})
+    try
+        text = ptx_text(cubin)
+        text === nothing && return nothing
+        return String.(split(text, '\n')), line_tables(cubin; section=".nv_debug_line_sass")
+    catch err
+        @debug "Could not read the PTX code of a cubin" exception=(err, catch_backtrace())
+        return nothing
+    end
 end
 
 # the SASS instructions of `symbol` in `cubin`, as (offsets, texts), with labels at offset -1
@@ -589,7 +623,8 @@ function show_results(io::IOContext{IOBuffer}, p::PCProfile, crop::Symbol)
         Stalled samples are those where the warp's scheduler issued no instruction, which
         other warps didn't hide; stall reasons are shares of them. Self samples are those of
         the location's own code, excluding inlined functions. Inlined code is attributed by
-        ptxas, which can be inaccurate. Use `CUDATools.code_sass(p)` to see the instructions.""")
+        ptxas, which can be inaccurate. Use `CUDATools.code_sass(p)` or `CUDATools.code_ptx(p)`
+        to see the samples per instruction.""")
     get(io, :color, false)::Bool && show_legend(io)
 end
 
@@ -659,37 +694,111 @@ function tree_guides(depths::Vector{Int})
 end
 
 
-## SASS
+## SASS and PTX code
 
 """
-    code_sass([io=stdout], p::Profile.PCProfile)
+    code_sass([io=stdout], p::Profile.PCProfile; debuginfo=:default)
 
 Print the SASS code of the functions sampled by [`CUDA.@sample`](@ref CUDATools.@sample),
-annotating every instruction with its number of samples, of stalled samples, and the most
-common stall reason. Source locations are shown like `@device_code_sass` does.
+annotating every instruction with its number of samples, of stalled samples, and its most
+common stall reason. Unless `debuginfo=:none`, the source locations the instructions were
+generated from are shown as comments, including the frames of inlined functions, like
+[`@device_code_sass`](@ref CUDATools.@device_code_sass) does. Functions without samples
+are omitted.
+
+See also:
+[`CUDATools.code_ptx`](@ref CUDATools.code_ptx(::IO, ::CUDATools.Profile.PCProfile))
 """
-function code_sass(io::IO, p::PCProfile)
+function code_sass(io::IO, p::PCProfile; debuginfo::Symbol=:default)
+    show_code(io, p) do buf, f
+        barrier(show_sass, buf, f, p.reasons, debuginfo != :none)
+    end
+end
+code_sass(p::PCProfile; kwargs...) = code_sass(stdout, p; kwargs...)
+
+"""
+    code_ptx([io=stdout], p::Profile.PCProfile; raw=false, debuginfo=:default)
+
+Print the PTX code of the functions sampled by [`CUDA.@sample`](@ref CUDATools.@sample),
+annotating every line with the samples of the SASS instructions that ptxas generated for
+it, as recorded in the cubin. This includes the code of functions that ptxas inlined.
+Unless `debuginfo=:none`, source locations are shown as comments, taken from the first
+instruction generated for a line that has one. With `raw=true`, the code is printed as ptxas embedded it
+in the cubin, with an empty line for every directive (like `.loc`) and with the labels
+used by debug information.
+
+This requires line information, i.e., running Julia with a debug level of at least 1 (the
+default).
+
+See also:
+[`CUDATools.code_sass`](@ref CUDATools.code_sass(::IO, ::CUDATools.Profile.PCProfile))
+"""
+function code_ptx(io::IO, p::PCProfile; raw::Bool=false, debuginfo::Symbol=:default)
+    show_code(io, p) do buf, f
+        barrier(show_ptx, buf, f, p.reasons, raw, debuginfo != :none)
+    end
+end
+code_ptx(p::PCProfile; kwargs...) = code_ptx(stdout, p; kwargs...)
+
+function show_code(f, io::IO, p::PCProfile)
     buf = IOContext(IOBuffer(), io)
-    for f in p.functions
-        barrier(show_sass, buf, f, p.reasons)
+    for fn in p.functions
+        sum(fn.samples) == 0 && continue
+        f(buf, fn)
     end
     write(io, take!(buf.io))
     return
 end
-code_sass(p::PCProfile) = code_sass(stdout, p)
 
-function show_sass(io::IOContext{IOBuffer}, f::SampledFunction, reasons::Vector{String})
-    kernel = short_name(f.name)
-    total = sum(f.samples)
+# the most common reason is shown as `reason 100%`, followed by a space
+reason_width(reasons::Vector{String}) = 6 + maximum(length, reasons; init=0)
+margin_width(reasons::Vector{String}) = 10 + 2 + 7 + 2 + reason_width(reasons)
+
+# the columns with the samples of a line of code
+function sample_columns(reasons::Vector{String}, samples::AbstractVector{Int},
+                        stalled::AbstractVector{Int}, hot::Bool)
+    count = sum(samples)
+    count == 0 && return Line([(" "^margin_width(reasons), "")])
+    width = reason_width(reasons)
+    top = top_reasons(stalled, 1)
+    reason = isempty(top) ? Line([(" "^width, "")]) :
+        Line([(reasons[top[1][1]], kind_styles[stall_kind(reasons[top[1][1]])]),
+              (rpad(" $(top[1][2])%", width - length(reasons[top[1][1]])), "")])
+    Line([(lpad(count, 10), hot ? bold_style : ""), ("  ", ""),
+          (lpad(sum(stalled), 7), stalled_style(reasons, stalled)), ("  ", ""),
+          reason...])
+end
+
+function show_code_header(io::IO, f::SampledFunction, reasons::Vector{String};
+                          note::Union{Nothing,String}=nothing)
     print_line(io, Line([("// ", ""), (f.name, bold_style)]), typemax(Int))
-    print_line(io, pushfirst!(summary_line(total, sum(f.stalled), reasons,
+    print_line(io, pushfirst!(summary_line(sum(f.samples), sum(f.stalled), reasons,
                                            vec(sum(f.stalled; dims=1))), ("// ", "")),
                typemax(Int))
+    note === nothing || println(io, "// ", note)
     println(io, "// Samples  Stalled  Stall reason")
+end
 
-    # the most common reason, as `reason 100%`, and a space
-    width = 6 + maximum(length, reasons; init=0)
-    margin = 10 + 2 + 7 + 2 + width
+# print the frames of the source location `chain` that are entered when coming from the
+# location `stack`, nesting inlined code
+function print_frames(io::IO, stack::Vector{SourceFrame}, chain::Vector{SourceFrame},
+                      margin::Int, comment::String, kernel::String)
+    common = 0
+    while common < min(length(stack), length(chain)) && stack[common+1] == chain[common+1]
+        common += 1
+    end
+    for depth in common+1:length(chain)
+        line = Line([(" "^margin * comment * " "^(depth-1), "")])
+        print_line(io, push_location!(line, chain[depth], kernel, false), typemax(Int))
+    end
+end
+
+function show_sass(io::IOContext{IOBuffer}, f::SampledFunction, reasons::Vector{String},
+                   frames::Bool)
+    show_code_header(io, f, reasons)
+    kernel = short_name(f.name)
+    total = sum(f.samples)
+    margin = margin_width(reasons)
     stack = SourceFrame[]
     for i in eachindex(f.instructions.offset)
         offset = f.instructions.offset[i]
@@ -698,37 +807,121 @@ function show_sass(io::IOContext{IOBuffer}, f::SampledFunction, reasons::Vector{
             continue
         end
 
-        # print the source locations that are entered, nesting inlined code
         chain = f.instructions.source[i]
-        common = 0
-        while common < min(length(stack), length(chain)) && stack[common+1] == chain[common+1]
-            common += 1
+        if frames
+            print_frames(io, stack, chain, margin, "; ", kernel)
+            stack = chain
         end
-        for depth in common+1:length(chain)
-            line = Line([(" "^margin * "; " * " "^(depth-1), "")])
-            print_line(io, push_location!(line, chain[depth], kernel, false), typemax(Int))
-        end
-        stack = chain
 
-        count = sum(@view f.samples[i, :])
-        hot = is_hot(count, total)
-        line = if count == 0
-            Line([(" "^margin, "")])
-        else
-            stalled = @view f.stalled[i, :]
-            top = top_reasons(stalled, 1)
-            reason = isempty(top) ? Line([(" "^width, "")]) :
-                Line([(reasons[top[1][1]], kind_styles[stall_kind(reasons[top[1][1]])]),
-                      (rpad(" $(top[1][2])%", width - length(reasons[top[1][1]])), "")])
-            Line([(lpad(count, 10), hot ? bold_style : ""), ("  ", ""),
-                  (lpad(sum(stalled), 7), stalled_style(reasons, stalled)), ("  ", ""),
-                  reason...])
-        end
+        hot = is_hot(sum(@view f.samples[i, :]), total)
+        line = sample_columns(reasons, @view(f.samples[i, :]), @view(f.stalled[i, :]), hot)
         push!(line, ("/*$(string(offset; base=16, pad=4))*/ ", ""))
         push!(line, (f.instructions.sass[i], hot ? bold_style : ""))
         print_line(io, line, typemax(Int))
     end
     println(io)
+end
+
+function show_ptx(io::IOContext{IOBuffer}, f::SampledFunction, reasons::Vector{String},
+                  raw::Bool, frames::Bool)
+    if f.ptx === nothing
+        print_line(io, Line([("// ", ""), (f.name, bold_style)]), typemax(Int))
+        println(io, "// No PTX code available, which requires line information.")
+        println(io)
+        return
+    end
+    text, ptx_lines = f.ptx
+
+    # the samples of every line, and the source location of its first SASS instruction.
+    # ptxas generates all instructions of a line from the same `.loc`, so they should have
+    # the same location, but the line table isn't always consistent.
+    nreasons = length(reasons)
+    counts = Dict{Int,Tuple{Vector{Int},Vector{Int}}}()
+    chains = Dict{Int,Vector{SourceFrame}}()
+    unknown = 0
+    for i in eachindex(f.instructions.offset)
+        f.instructions.offset[i] < 0 && continue
+        line = ptx_lines[i]
+        if line == 0
+            unknown += sum(@view f.samples[i, :])
+            continue
+        end
+        samples, stalled = get!(() -> (zeros(Int, nreasons), zeros(Int, nreasons)),
+                                counts, line)
+        samples .+= @view f.samples[i, :]
+        stalled .+= @view f.stalled[i, :]
+        chain = f.instructions.source[i]
+        isempty(chain) || get!(chains, line, chain)
+    end
+    total = sum(f.samples)
+    note = unknown == 0 ? nothing :
+        "$unknown samples ($(percentage(unknown, total))%) are of instructions without a " *
+        "line of PTX code"
+    show_code_header(io, f, reasons; note)
+
+    # the function, and the functions that ptxas inlined into it
+    kernel = short_name(f.name)
+    margin = margin_width(reasons)
+    shown = false
+    for (symbol, range) in sort!(collect(ptx_functions(text)); by=first ∘ last)
+        symbol == f.symbol || any(line -> haskey(counts, line), range) || continue
+        shown && println(io)
+        shown = true
+        stack = SourceFrame[]
+        for line in range
+            code = text[line]
+            # skip blanked directives and the labels that debug information refers to
+            if !raw && (isempty(strip(code)) ||
+                        occursin(r"^\$L__(tmp|func_begin|func_end)\d+:", code))
+                continue
+            end
+            if frames && haskey(chains, line)
+                print_frames(io, stack, chains[line], margin, "// ", kernel)
+                stack = chains[line]
+            end
+            columns = if haskey(counts, line)
+                samples, stalled = counts[line]
+                hot = is_hot(sum(samples), total)
+                sample_columns(reasons, samples, stalled, hot)
+            else
+                hot = false
+                Line([(" "^margin, "")])
+            end
+            push!(columns, (code, hot ? bold_style : ""))
+            print_line(io, columns, typemax(Int))
+        end
+    end
+    println(io)
+end
+
+# the lines of every function defined in PTX code, by symbol
+function ptx_functions(text::Vector{String})
+    functions = Dict{String,UnitRange{Int}}()
+    start = 0
+    symbol = ""
+    depth = 0       # of braces, which also delimit blocks in function bodies
+    for (i, line) in enumerate(text)
+        if start == 0
+            m = match(r"^\s*(?:\.visible\s+|\.weak\s+)*\.(?:entry|func)\s+(?:\(.*?\)\s*)?([\w$]+)",
+                      line)
+            m === nothing && continue
+            start = i
+            symbol = m[1]
+        end
+        code = first(split(line, "//"; limit=2))
+        if depth == 0 && occursin(';', code) && !occursin('{', code)
+            start = 0   # a declaration
+            continue
+        end
+        opened = depth > 0 || occursin('{', code)
+        depth += count(==('{'), code) - count(==('}'), code)
+        if opened && depth <= 0
+            functions[symbol] = start:i
+            start = 0
+            depth = 0
+        end
+    end
+    functions
 end
 
 
@@ -751,6 +944,14 @@ function json_pc_profile(p::PCProfile)
         length(frames) - 1
     end
     chain_id(chain) = Any[frame_id(frame) for frame in chain]
+    # the functions of a module share its PTX code
+    ptx = Any[]
+    ptx_ids = IdDict{Vector{String},Int}()
+    ptx_id(code) = code === nothing ? nothing : get!(ptx_ids, code.text) do
+        push!(ptx, join(code.text, '\n'))
+        length(ptx) - 1
+    end
+    ptx_line(f, i) = f.ptx === nothing || f.ptx.lines[i] == 0 ? nothing : f.ptx.lines[i]
     counts(row) = JSONObject(Pair{String,Any}[p.reasons[j] => row[j]
                                               for j in eachindex(row) if row[j] != 0])
 
@@ -768,18 +969,19 @@ function json_pc_profile(p::PCProfile)
         instructions = Any[JSONObject("offset" => "0x" * string(f.instructions.offset[i]; base=16, pad=4),
                                       "sass" => f.instructions.sass[i],
                                       "frames" => chain_id(f.instructions.source[i]),
+                                      "ptx_line" => ptx_line(f, i),
                                       "count" => counts(f.samples[i, :]),
                                       "stalled" => counts(f.stalled[i, :]))
                            for i in axes(f.samples, 1) if any(!iszero, @view f.samples[i, :])]
         push!(functions, JSONObject("name" => f.name, "symbol" => f.symbol,
                                     "count" => r.count, "stalled" => r.stalled,
-                                    "locations" => locations,
+                                    "ptx" => ptx_id(f.ptx), "locations" => locations,
                                     "instructions" => instructions))
     end
 
     JSONObject("schema_version" => 1, "view" => string(p.format), "device" => p.device,
                "period" => p.period, "noisefloor" => p.noisefloor,
                "total_samples" => p.total, "dropped_samples" => p.dropped,
-               "reasons" => Any[p.reasons...], "frames" => frames,
+               "reasons" => Any[p.reasons...], "frames" => frames, "ptx" => ptx,
                "functions" => functions)
 end

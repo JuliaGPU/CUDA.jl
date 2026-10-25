@@ -92,5 +92,5 @@ CurrentModule = CUDATools
 
 ```@docs
 @device_code_sass
-code_sass
+code_sass(::IO, ::Any, ::Any)
 ```
