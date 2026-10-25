@@ -94,7 +94,10 @@ function meanpool2d_bwd_ref(dy, x_size; window, pre_padding, post_padding, strid
     return dx
 end
 
-let W=7, H=6, C=2, N=2
+# with count_include_pad, the graph API's resampling engine used to count too little padding
+# when the post padding exceeds the pre padding (#3473)
+@testset "asymmetric padding, count_include_pad=$include_pad" for include_pad in (false, true)
+    W, H, C, N = 7, 6, 2, 2
     x = CuArray(reshape(Float32.(sin.(1:W*H*C*N)), W, H, C, N))
     window = (2, 3)
     pre_padding = (1, 0)
@@ -104,13 +107,12 @@ let W=7, H=6, C=2, N=2
     alpha = 1.25f0
     beta = 0.5f0
 
-    mean_ref = meanpool2d_ref(x; window, pre_padding, post_padding, stride,
-                              include_pad=false)
+    mean_ref = meanpool2d_ref(x; window, pre_padding, post_padding, stride, include_pad)
     y0 = CuArray(reshape(Float32.(cos.(1:length(mean_ref))), size(mean_ref)))
     y = copy(y0)
     supported = true
     try
-        meanpool!(y, x; window, padding, stride, alpha, beta, count_include_pad=false)
+        meanpool!(y, x; window, padding, stride, alpha, beta, count_include_pad=include_pad)
     catch e
         e isa UnsupportedGraphError || rethrow()
         @test_skip "meanpool! graph engine is unsupported on this device"
@@ -124,11 +126,11 @@ let W=7, H=6, C=2, N=2
     dx0 = CuArray(reshape(Float32.(sin.(1:length(x))), size(x)) ./ 8)
     dx = copy(dx0)
     dx_ref = meanpool2d_bwd_ref(dy, size(x); window, pre_padding, post_padding, stride,
-                                include_pad=false)
+                                include_pad)
     supported = true
     try
         ∇meanpool!(dx, dy, y, x; window, padding, stride, alpha, beta,
-                   count_include_pad=false)
+                   count_include_pad=include_pad)
     catch e
         e isa UnsupportedGraphError || rethrow()
         @test_skip "∇meanpool! graph engine is unsupported on this device"
