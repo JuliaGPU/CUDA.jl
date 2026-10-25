@@ -236,6 +236,14 @@ k = 13
             end
             @test_throws DimensionMismatch cuBLAS.gemm_batched!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
             @test_throws DimensionMismatch cuBLAS.gemm_batched!('N','N',alpha,bd_A_bad,bd_B,beta,bd_C)
+
+            # products of different sizes need a grouped GEMM
+            hA = [CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]
+            hC = [CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]
+            @test_throws DimensionMismatch cuBLAS.gemm_batched!('N','N',alpha,hA,hA,beta,hC)
+            # and so do matrices with different leading dimensions
+            lA = StridedCuMatrix{elty}[bd_A[1], view(CuArray(rand(elty,m+1,k)),1:m,:)]
+            @test_throws DimensionMismatch cuBLAS.gemm_batched!('N','N',alpha,lA,bd_B[1:2],beta,bd_C[1:2])
         end
 
         @testset "gemm_batched" begin
@@ -260,6 +268,10 @@ k = 13
             end
             @test_throws DimensionMismatch cuBLAS.gemmBatchedEx!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
             @test_throws DimensionMismatch cuBLAS.gemmBatchedEx!('N','N',alpha,bd_A_bad,bd_B,beta,bd_C)
+
+            hA = [CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]
+            hC = [CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]
+            @test_throws DimensionMismatch cuBLAS.gemmBatchedEx!('N','N',alpha,hA,hA,beta,hC)
         end
 
         nbatch = 10
@@ -376,6 +388,11 @@ k = 13
                 @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad1,bd_B,beta,bd_C)
                 @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad2,bd_B,beta,bd_C)
                 @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad3,bd_B,beta,bd_C)
+
+                # all products in a group must have the same size
+                hA = [[CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]]
+                hC = [[CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]]
+                @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(['N'],['N'],alpha[1:1],hA,hA,beta[1:1],hC)
             end
 
             @testset "gemm_grouped_batched" begin

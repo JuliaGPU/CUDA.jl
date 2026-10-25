@@ -226,6 +226,10 @@ small reductions along a dimension can be slower.
   the `Array` to memory the graph owns). The copy used to read the `Array`
   asynchronously, so modifying it right after could change what ended up on the
   GPU ([#2510](https://github.com/JuliaGPU/CUDA.jl/issues/2510)).
+- cuBLAS's `gemm_batched!` and `gemm_grouped_batched!` check that all products
+  in a batch, or in a group, have the same size. cuBLAS uses the dimensions of
+  the first product for all of them, so a batch of differently sized matrices
+  gave wrong results, and could write past the end of an output matrix.
 
 *Minor changes*:
 

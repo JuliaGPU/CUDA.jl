@@ -1360,6 +1360,7 @@ function gemmBatchedEx!(transA::Char, transB::Char,
             throw(DimensionMismatch("Input $i: A has dimension $(size(As)), B has dimension $(size(Bs)), C has dimension $(size(Cs))"))
         end
     end
+    check_uniform_batch(A, B, C)
     m = size(A[1], transA == 'N' ? 1 : 2)
     k = size(A[1], transA == 'N' ? 2 : 1)
     n = size(B[1], transB == 'N' ? 2 : 1)
@@ -1435,6 +1436,17 @@ function gemmStridedBatchedEx!(
     C
 end
 
+# cuBLAS takes the dimensions and leading dimensions of a batch from its first product
+function check_uniform_batch(A, B, C)
+    for (As, Bs, Cs) in zip(A, B, C)
+        if size(As) != size(A[1]) || size(Bs) != size(B[1]) || size(Cs) != size(C[1]) ||
+           stride(As, 2) != stride(A[1], 2) || stride(Bs, 2) != stride(B[1], 2) ||
+           stride(Cs, 2) != stride(C[1], 2)
+            throw(DimensionMismatch("all matrices in a batch must have the same size and leading dimension"))
+        end
+    end
+end
+
 # create a batch of pointers in device memory from a batch of device arrays
 @inline function unsafe_batch(batch::Vector{<:CuArray{T}}) where {T}
     ptrs = pointer.(batch)
@@ -1497,6 +1509,7 @@ for (fname, fname_64, elty) in ((:cublasSgemmGroupedBatched, :cublasSgemmGrouped
                 if m != size(C[i][1],1) || n != size(C[i][1],2) || k != size(B[i][1], transB[i] == 'N' ? 1 : 2)
                     throw(DimensionMismatch(""))
                 end
+                check_uniform_batch(A[i], B[i], C[i])
             end
 
             transa = convert.(cublasOperation_t, transA)
@@ -1647,6 +1660,7 @@ for (fname, fname_64, elty) in ((:cublasDgemmBatched, :cublasDgemmBatched_64, :F
                     throw(DimensionMismatch(""))
                 end
             end
+            check_uniform_batch(A, B, C)
 
             m = size(A[1], transA == 'N' ? 1 : 2)
             k = size(A[1], transA == 'N' ? 2 : 1)
