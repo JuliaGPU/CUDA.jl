@@ -1374,7 +1374,7 @@ as cuBLAS supports the combination.
 The compute type is selected based on these element types, e.g., computing products of
 `Float16` matrices in `Float16`. Pass `compute_type=Float32` to compute them in `Float32`
 instead; `Float16`, `Float64` and `Int32` are supported as well. The math mode (see
-[`CUDACore.math_mode!`](@ref)) then determines which variant of the compute type is used,
+`CUDA.math_mode!`) then determines which variant of the compute type is used,
 e.g., computing `Float32` products with TF32 tensor cores in fast math mode.
 
 `alpha` and `beta` are numbers, or device-side scalars (e.g. a `CuRef` or a one-element
