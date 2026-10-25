@@ -179,6 +179,10 @@ small reductions along a dimension can be slower.
   mixture-of-experts models. It also accepts a single `transA`, `transB`,
   `alpha` and `beta` for all groups
   ([#3465](https://github.com/JuliaGPU/CUDA.jl/issues/3465)).
+- cuBLAS's GEMM wrappers take a `compute_type` keyword argument, e.g.,
+  `compute_type=Float32` to accumulate products of `Float16` matrices in
+  `Float32` instead of `Float16`
+  ([#2020](https://github.com/JuliaGPU/CUDA.jl/issues/2020)).
 
 *Bug fixes*:
 

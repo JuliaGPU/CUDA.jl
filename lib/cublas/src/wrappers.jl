@@ -64,7 +64,7 @@ end
 
 function juliaStorageType(T::Type{<:Complex}, ct::cublasComputeType_t)
     if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
-        return T == Complex{BFloat16} == Complex{BFloat16} : Complex{Float16}
+        return T == Complex{BFloat16} ? Complex{BFloat16} : Complex{Float16}
     elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
            ct == CUBLAS_COMPUTE_32F_FAST_16F || ct == CUBLAS_COMPUTE_32F_FAST_16BF ||
            ct == CUBLAS_COMPUTE_32F_FAST_TF32 || ct == CUBLAS_COMPUTE_32F_EMULATED_16BFX9
@@ -1212,14 +1212,36 @@ const TypedGemmFloat = Union{Float16, Float32, Float64, ComplexF32, ComplexF64}
 
 # select the compute type of a GEMM, and the type of its scalars. a `nothing` compute type
 # means the GEMM needs a typed entry point.
-function gemm_compute_type(TA, TB, TC, m, k, n)
+function gemm_compute_type(TA, TB, TC, m, k, n, compute_type)
     computeType = gemmExComputeType(TA, TB, TC, m, k, n)
+    # an explicit compute type only replaces the default one if it has another precision,
+    # so that the math mode still selects its variants, e.g., TF32 in fast math mode
+    if compute_type !== nothing &&
+       (computeType === nothing || juliaStorageType(Float32, computeType) !== compute_type)
+        computeType = explicit_compute_type(compute_type)
+    end
     if computeType !== nothing
         return computeType, juliaStorageType(TC, computeType)
     elseif TA === TB === TC && TC <: TypedGemmFloat
         return nothing, TC
     else
         throw(ArgumentError("cuBLAS does not support GEMMs computing $TC = $TA * $TB"))
+    end
+end
+
+# whether cuBLAS supports a requested compute type for the given element types is up to it
+function explicit_compute_type(T)
+    pedantic = CUDACore.math_mode() == CUDACore.PEDANTIC_MATH
+    if T === Float16
+        pedantic ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
+    elseif T === Float32
+        pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+    elseif T === Float64
+        pedantic ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
+    elseif T === Int32
+        pedantic ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
+    else
+        throw(ArgumentError("cuBLAS cannot compute GEMMs in $T; use Float16, Float32, Float64 or Int32"))
     end
 end
 
@@ -1343,22 +1365,28 @@ for (fname, fname_64, elty) in ((:cublasDgemm_v2, :cublasDgemm_v2_64, :Float64),
 end
 
 """
-    gemm!(transA, transB, alpha, A, B, beta, C; algo=CUBLAS_GEMM_DEFAULT)
+    gemm!(transA, transB, alpha, A, B, beta, C; compute_type=nothing, algo=CUBLAS_GEMM_DEFAULT)
 
 Compute `C = alpha * op(A) * op(B) + beta * C`, where `op` is selected by `transA` and
 `transB` (`'N'`, `'T'` or `'C'`). The element types of `A`, `B` and `C` can differ, as long
-as cuBLAS supports the combination. The compute type is selected based on these element
-types and on the current math mode (see [`CUDACore.math_mode!`](@ref)).
+as cuBLAS supports the combination.
+
+The compute type is selected based on these element types, e.g., computing products of
+`Float16` matrices in `Float16`. Pass `compute_type=Float32` to compute them in `Float32`
+instead; `Float16`, `Float64` and `Int32` are supported as well. The math mode (see
+[`CUDACore.math_mode!`](@ref)) then determines which variant of the compute type is used,
+e.g., computing `Float32` products with TF32 tensor cores in fast math mode.
 
 `alpha` and `beta` are numbers, or device-side scalars (e.g. a `CuRef` or a one-element
 `CuArray`) of the type cuBLAS expects for the selected compute type.
 """
 function gemm!(transA::Char, transB::Char, alpha,
                A::StridedCuVecOrMat, B::StridedCuVecOrMat, beta, C::StridedCuVecOrMat;
+               compute_type::Union{Nothing, Type}=nothing,
                algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
     m, n, k = gemm_dims(transA, transB, A, B, C)
     TA, TB, TC = eltype(A), eltype(B), eltype(C)
-    computeType, scaleType = gemm_compute_type(TA, TB, TC, m, k, n)
+    computeType, scaleType = gemm_compute_type(TA, TB, TC, m, k, n, compute_type)
     alpha = gemm_scalar(scaleType, alpha)
     beta = gemm_scalar(scaleType, beta)
     GC.@preserve A B C alpha beta begin
@@ -1467,16 +1495,18 @@ function check_uniform_batch(A, B, C)
 end
 
 """
-    gemm_batched!(transA, transB, alpha, A, B, beta, C; algo=CUBLAS_GEMM_DEFAULT)
+    gemm_batched!(transA, transB, alpha, A, B, beta, C; compute_type=nothing,
+                  algo=CUBLAS_GEMM_DEFAULT)
 
 Compute `C[i] = alpha * op(A[i]) * op(B[i]) + beta * C[i]` for every matrix in the vectors
 `A`, `B` and `C`. All products need to have the same size; see
-[`gemm_grouped_batched!`](@ref) for products of different sizes. Element types and scalars
-are handled like for [`gemm!`](@ref).
+[`gemm_grouped_batched!`](@ref) for products of different sizes. Element types, scalars
+and the compute type are handled like for [`gemm!`](@ref).
 """
 function gemm_batched!(transA::Char, transB::Char, alpha,
                        A::Vector{<:StridedCuVecOrMat{TA}}, B::Vector{<:StridedCuVecOrMat{TB}},
                        beta, C::Vector{<:StridedCuVecOrMat{TC}};
+                       compute_type::Union{Nothing, Type}=nothing,
                        algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT) where {TA, TB, TC}
     if length(A) != length(B) || length(A) != length(C)
         throw(DimensionMismatch("A, B and C must contain the same number of matrices"))
@@ -1488,7 +1518,7 @@ function gemm_batched!(transA::Char, transB::Char, alpha,
     check_uniform_batch(A, B, C)
     m, n, k = gemm_dims(transA, transB, A[1], B[1], C[1])
     lda, ldb, ldc = gemm_ld(A[1]), gemm_ld(B[1]), gemm_ld(C[1])
-    computeType, scaleType = gemm_compute_type(TA, TB, TC, m, k, n)
+    computeType, scaleType = gemm_compute_type(TA, TB, TC, m, k, n, compute_type)
     alpha = gemm_scalar(scaleType, alpha)
     beta = gemm_scalar(scaleType, beta)
     Aptrs = unsafe_batch(A)
@@ -1567,16 +1597,18 @@ for (fname, fname_64, elty) in ((:cublasDgemmStridedBatched, :cublasDgemmStrided
 end
 
 """
-    gemm_strided_batched!(transA, transB, alpha, A, B, beta, C; algo=CUBLAS_GEMM_DEFAULT)
+    gemm_strided_batched!(transA, transB, alpha, A, B, beta, C; compute_type=nothing,
+                          algo=CUBLAS_GEMM_DEFAULT)
 
 Compute `C[:, :, i] = alpha * op(A[:, :, i]) * op(B[:, :, i]) + beta * C[:, :, i]` for
 every slice of the 3-dimensional arrays `A`, `B` and `C`. `A` or `B` can have a single
-slice, which is then used for every product. Element types and scalars are handled like
-for [`gemm!`](@ref).
+slice, which is then used for every product. Element types, scalars and the compute type
+are handled like for [`gemm!`](@ref).
 """
 function gemm_strided_batched!(transA::Char, transB::Char, alpha,
                                A::AbstractArray{TA, 3}, B::AbstractArray{TB, 3}, # allow PermutedDimsArray
                                beta, C::AbstractArray{TC, 3};
+                               compute_type::Union{Nothing, Type}=nothing,
                                algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT) where {TA, TB, TC}
     if size(A, 3) != size(C, 3) && size(A, 3) != 1
         throw(DimensionMismatch("A has $(size(A, 3)) matrices, C has $(size(C, 3))"))
@@ -1589,7 +1621,7 @@ function gemm_strided_batched!(transA::Char, transB::Char, alpha,
     strideB = size(B, 3) == 1 ? 0 : stride(B, 3)
     strideC = stride(C, 3)
     batchCount = size(C, 3)
-    computeType, scaleType = gemm_compute_type(TA, TB, TC, m, k, n)
+    computeType, scaleType = gemm_compute_type(TA, TB, TC, m, k, n, compute_type)
     alpha = gemm_scalar(scaleType, alpha)
     beta = gemm_scalar(scaleType, beta)
     GC.@preserve A B C alpha beta begin
@@ -1624,8 +1656,10 @@ gemm_strided_batched(transA::Char, transB::Char, A::AbstractArray{T, 3},
 
 # cublasGemmGroupedBatchedEx supports fewer types than the other Ex entry points: A, B and
 # C have the same element type, and the product is computed in FP32 or FP64.
-function grouped_gemm_compute_type(TA, TB, TC)
+function grouped_gemm_compute_type(TA, TB, TC, compute_type)
     TA === TB === TC || return nothing
+    compute_type === nothing || compute_type === (TC === Float64 ? Float64 : Float32) ||
+        return nothing
     mode = CUDACore.math_mode()
     if TC === Float16 || TC === BFloat16
         return CUBLAS_COMPUTE_32F
@@ -1662,7 +1696,7 @@ group_values(x::AbstractVector, group_count, name) =
 group_values(x, group_count, name) = fill(x, group_count)
 
 """
-    gemm_grouped_batched!(transA, transB, alpha, A, B, beta, C)
+    gemm_grouped_batched!(transA, transB, alpha, A, B, beta, C; compute_type=nothing)
 
 Compute `C[i][j] = alpha[i] * op(A[i][j]) * op(B[i][j]) + beta[i] * C[i][j]` for every
 group `i` of matrices in the vectors of vectors `A`, `B` and `C`. The products in a group
@@ -1673,8 +1707,9 @@ With vectors of matrices for `A`, `B` and `C`, every product is a group of its o
 
 The element types of `A`, `B` and `C` need to be the same: `Float16`, `BFloat16`,
 `Float32` or `Float64`. Products of 16-bit matrices are computed in `Float32`, and so are
-`alpha` and `beta`, which reside on the host. `Float16` and `BFloat16` need cuBLAS 12.5,
-the other types cuBLAS 12.4.
+`alpha` and `beta`, which reside on the host. `compute_type` can only select that
+precision: `Float32`, or `Float64` for `Float64` matrices. `Float16` and `BFloat16` need
+cuBLAS 12.5, the other types cuBLAS 12.4.
 """
 function gemm_grouped_batched!(transA::Union{Char, Vector{Char}},
                                transB::Union{Char, Vector{Char}},
@@ -1682,7 +1717,8 @@ function gemm_grouped_batched!(transA::Union{Char, Vector{Char}},
                                A::Vector{<:Vector{<:StridedCuMatrix{TA}}},
                                B::Vector{<:Vector{<:StridedCuMatrix{TB}}},
                                beta::Union{Number, Vector{<:Number}},
-                               C::Vector{<:Vector{<:StridedCuMatrix{TC}}}) where {TA, TB, TC}
+                               C::Vector{<:Vector{<:StridedCuMatrix{TC}}};
+                               compute_type::Union{Nothing, Type}=nothing) where {TA, TB, TC}
     if length(A) != length(B) || length(A) != length(C)
         throw(DimensionMismatch("A, B and C must contain the same number of groups"))
     end
@@ -1698,7 +1734,7 @@ function gemm_grouped_batched!(transA::Union{Char, Vector{Char}},
                   group_values(alpha, group_count, "alpha"),
                   reduce(vcat, A), reduce(vcat, B),
                   group_values(beta, group_count, "beta"),
-                  reduce(vcat, C), length.(C))
+                  reduce(vcat, C), length.(C), compute_type)
     C
 end
 function gemm_grouped_batched!(transA::Union{Char, Vector{Char}},
@@ -1707,7 +1743,8 @@ function gemm_grouped_batched!(transA::Union{Char, Vector{Char}},
                                A::Vector{<:StridedCuMatrix{TA}},
                                B::Vector{<:StridedCuMatrix{TB}},
                                beta::Union{Number, Vector{<:Number}},
-                               C::Vector{<:StridedCuMatrix{TC}}) where {TA, TB, TC}
+                               C::Vector{<:StridedCuMatrix{TC}};
+                               compute_type::Union{Nothing, Type}=nothing) where {TA, TB, TC}
     if length(A) != length(B) || length(A) != length(C)
         throw(DimensionMismatch("A, B and C must contain the same number of matrices"))
     end
@@ -1716,7 +1753,8 @@ function gemm_grouped_batched!(transA::Union{Char, Vector{Char}},
     grouped_gemm!(group_values(transA, group_count, "transA"),
                   group_values(transB, group_count, "transB"),
                   group_values(alpha, group_count, "alpha"), A, B,
-                  group_values(beta, group_count, "beta"), C, ones(Int, group_count))
+                  group_values(beta, group_count, "beta"), C, ones(Int, group_count),
+                  compute_type)
     C
 end
 
@@ -1724,13 +1762,18 @@ end
 # first group, and so on
 function grouped_gemm!(transA, transB, alpha, A::Vector{<:StridedCuMatrix{TA}},
                        B::Vector{<:StridedCuMatrix{TB}}, beta,
-                       C::Vector{<:StridedCuMatrix{TC}}, group_size) where {TA, TB, TC}
+                       C::Vector{<:StridedCuMatrix{TC}}, group_size,
+                       compute_type) where {TA, TB, TC}
     if cuBLAS.version() >= v"12.5"
-        computeType = grouped_gemm_compute_type(TA, TB, TC)
-        computeType === nothing &&
-            throw(ArgumentError("cuBLAS does not support grouped GEMMs computing $TC = $TA * $TB"))
+        computeType = grouped_gemm_compute_type(TA, TB, TC, compute_type)
+        if computeType === nothing
+            msg = "cuBLAS does not support grouped GEMMs computing $TC = $TA * $TB"
+            compute_type === nothing || (msg *= " in $compute_type")
+            throw(ArgumentError(msg))
+        end
         scaleType = juliaStorageType(TC, computeType)
-    elseif cuBLAS.version() >= v"12.4" && TA === TB === TC && TC <: CublasReal
+    elseif cuBLAS.version() >= v"12.4" && TA === TB === TC && TC <: CublasReal &&
+           (compute_type === nothing || compute_type === TC)
         computeType = nothing
         scaleType = TC
     else
@@ -1798,37 +1841,37 @@ function gemm_grouped_batched(transA::Union{Char, Vector{Char}},
                               transB::Union{Char, Vector{Char}},
                               alpha::Union{Number, Vector{<:Number}},
                               A::Vector{<:Vector{<:StridedCuMatrix{T}}},
-                              B::Vector{<:Vector{<:StridedCuMatrix{T}}}) where {T}
+                              B::Vector{<:Vector{<:StridedCuMatrix{T}}}; kwargs...) where {T}
     group_count = length(A)
     tA = group_values(transA, group_count, "transA")
     tB = group_values(transB, group_count, "transB")
     C = [[similar(B[i][j], (size(A[i][j], tA[i] == 'N' ? 1 : 2), size(B[i][j], tB[i] == 'N' ? 2 : 1)))
           for j in 1:length(A[i])] for i in 1:group_count]
-    gemm_grouped_batched!(transA, transB, alpha, A, B, zero(T), C)
+    gemm_grouped_batched!(transA, transB, alpha, A, B, zero(T), C; kwargs...)
 end
 function gemm_grouped_batched(transA::Union{Char, Vector{Char}},
                               transB::Union{Char, Vector{Char}},
                               A::Vector{<:Vector{<:StridedCuMatrix{T}}},
-                              B::Vector{<:Vector{<:StridedCuMatrix{T}}}) where {T}
-    gemm_grouped_batched(transA, transB, one(T), A, B)
+                              B::Vector{<:Vector{<:StridedCuMatrix{T}}}; kwargs...) where {T}
+    gemm_grouped_batched(transA, transB, one(T), A, B; kwargs...)
 end
 function gemm_grouped_batched(transA::Union{Char, Vector{Char}},
                               transB::Union{Char, Vector{Char}},
                               alpha::Union{Number, Vector{<:Number}},
                               A::Vector{<:StridedCuMatrix{T}},
-                              B::Vector{<:StridedCuMatrix{T}}) where {T}
+                              B::Vector{<:StridedCuMatrix{T}}; kwargs...) where {T}
     group_count = length(A)
     tA = group_values(transA, group_count, "transA")
     tB = group_values(transB, group_count, "transB")
     C = CuMatrix{T}[similar(B[i], (size(A[i], tA[i] == 'N' ? 1 : 2), size(B[i], tB[i] == 'N' ? 2 : 1)))
                     for i in 1:group_count]
-    gemm_grouped_batched!(transA, transB, alpha, A, B, zero(T), C)
+    gemm_grouped_batched!(transA, transB, alpha, A, B, zero(T), C; kwargs...)
 end
 function gemm_grouped_batched(transA::Union{Char, Vector{Char}},
                               transB::Union{Char, Vector{Char}},
                               A::Vector{<:StridedCuMatrix{T}},
-                              B::Vector{<:StridedCuMatrix{T}}) where {T}
-    gemm_grouped_batched(transA, transB, one(T), A, B)
+                              B::Vector{<:StridedCuMatrix{T}}; kwargs...) where {T}
+    gemm_grouped_batched(transA, transB, one(T), A, B; kwargs...)
 end
 
 # the `Ex` wrappers predate support for mixed element types in the regular ones

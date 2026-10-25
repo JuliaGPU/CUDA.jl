@@ -429,6 +429,50 @@ end
         end
     end
 
+    @testset "compute_type" begin
+        old_mode, old_precision = CUDACore.math_mode(), CUDACore.math_precision()
+        # the sums of these products, 65536, overflow Float16 before being scaled by alpha,
+        # unless they're accumulated in Float32
+        A = CuArray(fill(Float16(16), 4, 256))
+        B = CuArray(fill(Float16(16), 256, 4))
+        C = CuArray(zeros(Float16, 4, 4))
+        cuBLAS.gemm!('N','N',0.25f0,A,B,0f0,C; compute_type=Float32)
+        @test all(==(16384), Array(C))
+        try
+            for mode in (CUDACore.PEDANTIC_MATH, CUDACore.FAST_MATH)
+                CUDACore.math_mode!(mode)
+                C .= 0
+                cuBLAS.gemm!('N','N',0.25f0,A,B,0f0,C; compute_type=Float32)
+                @test all(==(16384), Array(C))
+            end
+        finally
+            CUDACore.math_mode!(old_mode; precision=old_precision)
+        end
+
+        Cs = [CuArray(zeros(Float16, 4, 4)) for _ in 1:2]
+        cuBLAS.gemm_batched!('N','N',0.25f0,[A,A],[B,B],0f0,Cs; compute_type=Float32)
+        @test all(C -> all(==(16384), Array(C)), Cs)
+
+        C3 = CuArray(zeros(Float16, 4, 4, 2))
+        cuBLAS.gemm_strided_batched!('N','N',0.25f0,reshape(A,4,256,1),reshape(B,256,4,1),
+                                     0f0,C3; compute_type=Float32)
+        @test all(==(16384), Array(C3))
+
+        # device-side scalars need to be of the compute type
+        @test_throws ArgumentError cuBLAS.gemm!('N','N',CuRef(Float16(1)),A,B,0f0,C;
+                                                compute_type=Float32)
+        @test_throws ArgumentError cuBLAS.gemm!('N','N',1,A,B,0,C; compute_type=Int8)
+
+        if cuBLAS.version() >= v"12.5"
+            C .= 0
+            cuBLAS.gemm_grouped_batched!('N','N',0.25f0,[A],[B],0f0,[C]; compute_type=Float32)
+            @test all(==(16384), Array(C))
+            # grouped GEMMs can't compute in Float16
+            @test_throws ArgumentError cuBLAS.gemm_grouped_batched!('N','N',1,[A],[B],0,[C];
+                                                                    compute_type=Float16)
+        end
+    end
+
     @testset "grouped batched: elty = $elty" for elty in [Float16, BFloat16, Float32, Float64]
         cuBLAS.version() >= (elty <: Union{Float16, BFloat16} ? v"12.5" : v"12.4.2") || continue
         # compare against products of the same inputs, computed in a wider type
