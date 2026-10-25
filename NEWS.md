@@ -169,6 +169,20 @@ small reductions along a dimension can be slower.
   the token count; `stats` stays padded to `max_seq_len_q`. Bottom-right causal
   masks align with each sequence's own lengths
   ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
+- cuBLAS's `gemm!`, `gemm_batched!` and `gemm_strided_batched!` accept every
+  combination of element types that cuBLAS supports, e.g., `Float16` or
+  `BFloat16` inputs with a `Float32` output, and select the compute type like
+  `mul!` does. They replace `gemmEx!`, `gemmBatchedEx!` and
+  `gemmStridedBatchedEx!`, which are deprecated.
+- cuBLAS's `gemm_grouped_batched!` supports `Float16` and `BFloat16` matrices
+  (with cuBLAS 12.5), computing in `Float32`, e.g., for the expert layers of
+  mixture-of-experts models. It also accepts a single `transA`, `transB`,
+  `alpha` and `beta` for all groups
+  ([#3465](https://github.com/JuliaGPU/CUDA.jl/issues/3465)).
+- cuBLAS's GEMM wrappers take a `compute_type` keyword argument, e.g.,
+  `compute_type=Float32` to accumulate products of `Float16` matrices in
+  `Float32` instead of `Float16`
+  ([#2020](https://github.com/JuliaGPU/CUDA.jl/issues/2020)).
 
 - cuDNN's `convolution!`, `convolution_data_gradient!`,
   `convolution_filter_gradient!`, `maxpool!`, `meanpool!`, `∇maxpool!` and
@@ -236,9 +250,15 @@ small reductions along a dimension can be slower.
   the `Array` to memory the graph owns). The copy used to read the `Array`
   asynchronously, so modifying it right after could change what ended up on the
   GPU ([#2510](https://github.com/JuliaGPU/CUDA.jl/issues/2510)).
+- cuBLAS's `gemm_batched!` and `gemm_grouped_batched!` check that all products
+  in a batch, or in a group, have the same size. cuBLAS uses the dimensions of
+  the first product for all of them, so a batch of differently sized matrices
+  gave wrong results, and could write past the end of an output matrix.
 
 *Minor changes*:
 
+- `mul!` on CuArrays spends less time on the CPU per matrix product (3 µs less
+  on an RTX 5080), as it no longer dispatches dynamically to the cuBLAS wrapper.
 - An array that another task uses doesn't wait for work that the host already
   waited for, by synchronizing the stream or an event recorded after that work
   on the task that submitted it. Work submitted through a pointer taken outside

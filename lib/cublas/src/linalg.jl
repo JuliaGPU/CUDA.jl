@@ -387,9 +387,8 @@ function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, 
     cublas_layout = column_major(A) && column_major(B) && column_major(C)
     if cublas_layout && all(in(('N', 'T', 'C')), (tA, tB))
         if A isa StridedCuArray && B isa StridedCuArray &&
-        gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
-            return gemmEx!(tA, tB, alpha, A, B, beta, C)
-        elseif T <: CublasFloat && A isa StridedCuArray{T} && B isa StridedCuArray{T}
+           (gemmExComputeType(eltype(A), eltype(B), T, mA, nA, nB) !== nothing ||
+            T <: CublasFloat && eltype(A) == eltype(B) == T)
             return gemm!(tA, tB, alpha, A, B, beta, C)
         end
     end
