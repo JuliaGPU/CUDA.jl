@@ -9,6 +9,36 @@ function cudnnTensorDescriptor(   # alternative constructor from array; main one
     cudnnTensorDescriptor(format, cudnnDataType(eltype(array)), Cint(length(dims)), dims)
 end
 
+# The legacy wrappers allocate outputs and scratch space like their inputs, and describe
+# them with the inputs' descriptors, so they only take contiguous views.
+function cudnnTensorDescriptor(array::StridedSubCuArray; kwargs...)
+    check_contiguous(array)
+    @invoke cudnnTensorDescriptor(array::Any; kwargs...)
+end
+
+function check_contiguous(a)
+    view_strides(a) == collect(tuple_strides(size(a))) ||
+        throw(ArgumentError("cuDNN's legacy API only supports contiguous arrays, got " *
+                            "strides $(strides(a)); copy the array first"))
+    return
+end
+
+# The strides of a view, with those of singleton dimensions replaced by dense ones.
+function view_strides(a)
+    st = collect(Int64, strides(a))
+    dense = Int64(1)
+    for i in eachindex(st)
+        if size(a, i) <= 1
+            st[i] = dense
+        elseif st[i] <= 0
+            throw(ArgumentError("cuDNN does not support arrays with non-positive strides, " *
+                                "got strides $(strides(a))"))
+        end
+        dense *= size(a, i)
+    end
+    return st
+end
+
 
 function cudnnFilterDescriptor(  # alternative constructor from array; main one in descriptors.jl
     array;
@@ -17,6 +47,11 @@ function cudnnFilterDescriptor(  # alternative constructor from array; main one 
 )
     @assert length(dims) <= CUDNN_DIM_MAX # length(dims) may not be N
     cudnnFilterDescriptor(cudnnDataType(eltype(array)), format, Cint(length(dims)), dims)
+end
+
+function cudnnFilterDescriptor(array::StridedSubCuArray; kwargs...)
+    check_contiguous(array)
+    @invoke cudnnFilterDescriptor(array::Any; kwargs...)
 end
 
 

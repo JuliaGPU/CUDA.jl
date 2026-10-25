@@ -94,3 +94,8 @@ pooltest(beta = 2)
 if capability(device()) >= v"8.0"
     pooltest(dataType = BFloat16)
 end
+
+# views that are not contiguous are rejected, rather than read as if they were
+let x = CuArray(randn(Float32, 12, 6, 8, 2))
+    @test_throws ArgumentError cudnnPoolingForward(view(x, :, :, 3:6, :); window=2)
+end

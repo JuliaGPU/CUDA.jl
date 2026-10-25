@@ -29,3 +29,10 @@ fd = FD(x)
 @test DT(Float32) isa cudnnDataType_t
 
 @test cudnnCreateTensorDescriptor(Ref{cudnnTensorDescriptor_t}(C_NULL)) isa Nothing
+
+# the legacy API describes outputs and scratch space like the inputs, so it rejects views
+# that are not contiguous
+let x = CuArray(rand(Float32, 5, 4, 6, 2))
+    @test_throws ArgumentError TD(view(x, :, :, 2:4, :))
+    @test_throws ArgumentError FD(view(x, :, :, 2:4, :))
+end

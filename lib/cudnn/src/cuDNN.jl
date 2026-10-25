@@ -9,7 +9,8 @@ module cuDNN
 
 using CUDACore
 using CUDACore: CUstream, CUgraph, libraryPropertyType
-using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked, resource_finalizer, GPUArrays
+using CUDACore: retry_reclaim, isdebug, initialize_context, @gcsafe_ccall, @checked, resource_finalizer, GPUArrays,
+                StridedSubCuArray
 
 using CEnum: @cenum
 
