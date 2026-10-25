@@ -135,8 +135,19 @@ cudnnRNNDescriptor(args...) = rnn_descriptor(handle(), args)
                           dataType::cudnnDataType_t,
                           nbDims::Cint,
                           dimA::Vector{Cint})
+    cudnnTensorDescriptor(dataType::cudnnDataType_t,
+                          nbDims::Cint,
+                          dimA::Vector{Cint},
+                          strideA::Vector{Cint})
+
+Describe a tensor that is packed in `format`, or that has explicit strides.
 """
-@cudnnDescriptor(Tensor, cudnnSetTensorNdDescriptorEx)
+@cudnnDescriptor(Tensor, set_tensor_descriptor)
+
+set_tensor_descriptor(ptr, format::cudnnTensorFormat_t, dataType, nbDims, dimA) =
+    cudnnSetTensorNdDescriptorEx(ptr, format, dataType, nbDims, dimA)
+set_tensor_descriptor(ptr, dataType::cudnnDataType_t, nbDims, dimA, strideA) =
+    cudnnSetTensorNdDescriptor(ptr, dataType, nbDims, dimA, strideA)
 
 
 """

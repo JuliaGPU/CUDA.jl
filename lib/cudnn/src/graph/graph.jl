@@ -70,10 +70,10 @@ function tensor!(g::Graph; dims, strides=dense_strides(dims), dtype=nothing,
     return t
 end
 
-function tensor!(g::Graph, a::DenseCuArray; name::String="", uid::Integer=0,
+function tensor!(g::Graph, a::StridedCuArray; name::String="", uid::Integer=0,
                  virtual::Bool=false, output::Bool=false, alignment::Integer=pointer_alignment(a),
                  backend_order=nothing)
-    tensor!(g; dims=size(a), strides=strides(a), dtype=eltype(a), virtual, output,
+    tensor!(g; dims=size(a), strides=view_strides(a), dtype=eltype(a), virtual, output,
             name, uid, alignment, backend_order)
 end
 
@@ -150,7 +150,7 @@ function unsafe_destroy!(g::Graph)
     return
 end
 
-function pointer_alignment(a::DenseCuArray)
+function pointer_alignment(a::StridedCuArray)
     p = UInt(pointer(a))
     p == 0 && return 1
     return Int(min(UInt(32), UInt(1) << min(trailing_zeros(p), 5)))

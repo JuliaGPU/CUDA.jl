@@ -23,6 +23,16 @@ function check_contiguous(a)
     return
 end
 
+# Describe an array by its strides, in the order and with the trailing singleton
+# dimensions of `dim4`, for the calls that take views.
+function strided_tensor_descriptor(a)
+    dims = dim4(size(a), Val(CUDNN_TENSOR_NCHW))
+    @assert length(dims) <= CUDNN_DIM_MAX
+    st = reverse(view_strides(a))
+    strides = Cint[st; ones(Cint, length(dims) - length(st))]
+    cudnnTensorDescriptor(cudnnDataType(eltype(a)), Cint(length(dims)), dims, strides)
+end
+
 # The strides of a view, with those of singleton dimensions replaced by dense ones.
 function view_strides(a)
     st = collect(Int64, strides(a))
