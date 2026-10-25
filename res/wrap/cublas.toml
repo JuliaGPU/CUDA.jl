@@ -782,5 +782,10 @@ needs_context = false
 10 = "CuPtr{Ptr{T}}"
 13 = "CuPtr{Ptr{T}}"
 
+[api.cublasGemmGroupedBatchedEx.argtypes]
+8 = "CuPtr{Ptr{Cvoid}}"
+11 = "CuPtr{Ptr{Cvoid}}"
+15 = "CuPtr{Ptr{Cvoid}}"
+
 [api.cublasLoggerConfigure]
 needs_context = false
