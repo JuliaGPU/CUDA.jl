@@ -70,7 +70,7 @@ function convolution_key(y, x, w, pre_padding, post_padding, stride, dilation, m
 end
 
 conv_optional_array_key(::Nothing) = nothing
-conv_optional_array_key(a::DenseCuArray) =
+conv_optional_array_key(a::StridedCuArray) =
     (size(a), strides(a), pointer_alignment(a))
 
 function fused_convolution_key(y, x, w, z, bias, activation, pre_padding, post_padding,
@@ -119,7 +119,7 @@ function build_convolution_graph(y, x, w, pre_padding, post_padding, stride, dil
     build!(g; deterministic, math_mode, max_workspace)
 end
 
-function check_conv_broadcast(name, a::DenseCuArray, y::DenseCuArray)
+function check_conv_broadcast(name, a::StridedCuArray, y::StridedCuArray)
     ndims(a) == ndims(y) ||
         throw(DimensionMismatch("$name must have rank $(ndims(y)), got $(ndims(a))"))
     all(i -> size(a, i) == 1 || size(a, i) == size(y, i), 1:ndims(y)) ||
@@ -214,7 +214,7 @@ function build_convolution_wgrad_graph(dw, x, dy, pre_padding, post_padding, str
     build!(g; deterministic, math_mode, max_workspace)
 end
 
-function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T};
+function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuArray{T};
                       padding=0, stride=1, dilation=1, groups::Integer=1,
                       mode=:cross_correlation, alpha::Real=1, beta::Real=0, bias=nothing,
                       activation=nothing, z=nothing, compute_type=nothing,
@@ -253,9 +253,10 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
                             deterministic, math_mode, max_workspace)
     else
         zarg = zsrc === nothing ? nothing : check_conv_broadcast("z", zsrc, y)
-        # graph inputs must not alias the output
-        zarg === y && (zarg = copy(y))
         biasarg = bias === nothing ? nothing : check_conv_broadcast("bias", bias, y)
+        # graph inputs must not alias the output
+        zarg !== nothing && Base.mightalias(zarg, y) && (zarg = copy(zarg))
+        biasarg !== nothing && Base.mightalias(biasarg, y) && (biasarg = copy(biasarg))
         key = fused_convolution_key(y, x, w, zarg, biasarg, pact, pre, post, str, dil,
                                      cmode, ctype, alpha, beta, deterministic, math_mode,
                                      max_workspace)
@@ -284,8 +285,8 @@ function convolution!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}
     end
 end
 
-function convolution_data_gradient!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
-                                    w::DenseCuArray{T};
+function convolution_data_gradient!(dx::StridedCuArray{T}, dy::StridedCuArray{T},
+                                    w::StridedCuArray{T};
                                     padding=0, stride=1, dilation=1,
                                     groups::Integer=1, mode=:cross_correlation, alpha::Real=1,
                                     beta::Real=0, compute_type=nothing,
@@ -325,8 +326,8 @@ function convolution_data_gradient!(dx::DenseCuArray{T}, dy::DenseCuArray{T},
     return dx
 end
 
-function convolution_filter_gradient!(dw::DenseCuArray{T}, x::DenseCuArray{T},
-                                      dy::DenseCuArray{T};
+function convolution_filter_gradient!(dw::StridedCuArray{T}, x::StridedCuArray{T},
+                                      dy::StridedCuArray{T};
                                       padding=0, stride=1, dilation=1,
                                       groups::Integer=1, mode=:cross_correlation, alpha::Real=1,
                                       beta::Real=0, compute_type=nothing,
@@ -371,7 +372,8 @@ end
 
 Convolve `x` with the filter `w`, or compute the gradients with respect to the
 convolution input or filter. Arrays are in Julia memory order: spatial dimensions first,
-then channels, then batch, with `w` shaped `(spatial..., C_in ÷ groups, C_out)`.
+then channels, then batch, with `w` shaped `(spatial..., C_in ÷ groups, C_out)`. They may
+be strided views, such as a range of channels, as long as their strides are positive.
 
 Computes `alpha * conv(x, w) + beta * z .+ bias` and applies `activation` (`:relu`,
 `:tanh`, `:sigmoid`, or `:elu`) as a fused graph. `z` defaults to (and may alias) `y`,

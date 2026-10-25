@@ -269,3 +269,39 @@ end
         @test Array(dw) ≈ Array(convolution_filter_gradient!(similar(w), xp, dy))
     end
 end
+
+# a range of channels is convolved in place
+@testset "views, padding $padding" for padding in (1, (1, 0, 0, 1))
+    C, K = 4, 5
+    channels(a, n) = view(a, :, :, n+1:2n, :)
+    x = channels(CuArray(rand(Float32, 6, 6, 3C, 2)), C)
+    w = CuArray(rand(Float32, 3, 3, C, K))
+    ysize = (6 + sum(padding isa Integer ? (2padding,) : padding[1:2]) - 2,
+             6 + sum(padding isa Integer ? (2padding,) : padding[3:4]) - 2)
+    y = channels(similar(x, ysize..., 3K, 2), K)
+    dy = channels(CuArray(rand(Float32, ysize..., 3K, 2)), K)
+    dx = channels(similar(x, 6, 6, 3C, 2), C)
+
+    convolution!(y, x, w; padding)
+    @test Array(y) ≈ Array(convolution!(similar(copy(y)), copy(x), w; padding))
+    convolution_data_gradient!(dx, dy, w; padding)
+    @test Array(dx) ≈ Array(convolution_data_gradient!(similar(copy(dx)), copy(dy), w; padding))
+    dw = convolution_filter_gradient!(similar(w), x, dy; padding)
+    @test Array(dw) ≈ Array(convolution_filter_gradient!(similar(w), copy(x), copy(dy); padding))
+
+    # fused graph, with a bias that is a view as well
+    bias = channels(CuArray(rand(Float32, 1, 1, 3K, 1)), K)
+    convolution!(y, x, w; padding, bias, activation=:relu)
+    @test Array(y) ≈ Array(convolution!(similar(copy(y)), copy(x), w; padding,
+                                        bias=copy(bias), activation=:relu))
+
+    @test_throws ArgumentError convolution!(y, view(parent(x), :, :, 2C:-1:C+1, :), w; padding)
+
+    # a residual that overlaps the output is read before the output is written
+    out = CuArray(rand(Float32, ysize..., K + 1, 2))
+    y, z = view(out, :, :, 2:K+1, :), view(out, :, :, 1:K, :)
+    ref = convolution!(similar(copy(y)), copy(x), w; padding, z=copy(z), beta=1,
+                       activation=:relu)
+    convolution!(y, x, w; padding, z, beta=1, activation=:relu)
+    @test Array(y) ≈ Array(ref)
+end

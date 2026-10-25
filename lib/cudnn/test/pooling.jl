@@ -267,3 +267,24 @@ end
         @test_skip "maxpool! graph engine without NaN propagation is unsupported"
     end
 end
+
+# a range of channels is pooled in place, by the fixed-function API and by graphs
+@testset "views, padding $padding" for padding in (1, (1, 0, 0, 1))
+    C = 3
+    channels(a) = view(a, :, :, C+1:2C, :)
+    x = channels(CuArray(rand(Float32, 7, 7, 3C, 2)))
+    xd = copy(x)
+    yd = similar(xd, 4, 4, C, 2)
+    y = channels(similar(xd, 4, 4, 3C, 2))
+    dy = channels(CuArray(rand(Float32, 4, 4, 3C, 2)))
+    dx = channels(similar(xd, 7, 7, 3C, 2))
+    for (pool!, ∇pool!) in ((maxpool!, ∇maxpool!), (meanpool!, ∇meanpool!))
+        pool!(yd, xd; window=2, padding)
+        pool!(y, x; window=2, padding)
+        @test Array(y) ≈ Array(yd)
+        dxd = ∇pool!(similar(xd), copy(dy), yd, xd; window=2, padding)
+        ∇pool!(dx, dy, y, x; window=2, padding)
+        @test Array(dx) ≈ Array(dxd)
+    end
+    @test_throws ArgumentError maxpool!(y, view(parent(x), :, :, 2C:-1:C+1, :); window=2, padding)
+end

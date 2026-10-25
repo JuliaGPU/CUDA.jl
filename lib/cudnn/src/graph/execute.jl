@@ -1,5 +1,5 @@
 checked_array_pointer(t::Tensor, value) = throw(ArgumentError(
-    "binding for $(t.name) must be a DenseCuArray, or a type with its own " *
+    "binding for $(t.name) must be a StridedCuArray, or a type with its own " *
     "checked_array_pointer method; got $(typeof(value))"))
 
 # Public for array types whose memory layout the dense comparison cannot express.
@@ -7,16 +7,16 @@ checked_array_pointer(t::Tensor, value) = throw(ArgumentError(
 # return a device pointer.
 @public checked_array_pointer
 
-function checked_array_pointer(t::Tensor, a::DenseCuArray)
+function checked_array_pointer(t::Tensor, a::StridedCuArray)
     cudnnDataType(eltype(a)) == t.dtype ||
         throw(ArgumentError("binding for $(t.name) has eltype $(eltype(a)), expected $(t.dtype)"))
-    memory_layout(dims, strides) =
-        sort!([(Int64(d), Int64(s)) for (d, s) in zip(dims, strides) if d != 1]; by=last)
     if t.ragged_offset !== nothing
-        # the offsets locate each token run on the device: check the layout within a token
+        # the offsets locate each token run on the device: check the layout within a token,
+        # and that the tokens are back to back, as the tensor's strides place them
         token = maximum(last, memory_layout(t.dims, t.strides); init=1)
         within(dims, strides) = filter(x -> last(x) < token, memory_layout(dims, strides))
         within(size(a), strides(a)) == within(t.dims, t.strides) &&
+            view_strides(a) == collect(tuple_strides(size(a))) &&
             length(a) % token == 0 ||
             throw(DimensionMismatch(
                 "binding for ragged $(t.name) has size $(size(a)), which does not hold " *

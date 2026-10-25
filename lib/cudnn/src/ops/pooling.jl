@@ -114,8 +114,8 @@ function fixed_pool!(y, x, mode, nan_propagation, window, padding, stride, alpha
     T = eltype(x)
     desc = fixed_pool_descriptor(mode, nan_propagation, window, padding, stride)
     cudnnPoolingForward(handle(), desc, scalingParameter(T, alpha),
-                        cudnnTensorDescriptor(x), x, scalingParameter(T, beta),
-                        cudnnTensorDescriptor(y), y)
+                        strided_tensor_descriptor(x), x, scalingParameter(T, beta),
+                        strided_tensor_descriptor(y), y)
     return y
 end
 
@@ -124,13 +124,13 @@ function fixed_pool_bwd!(dx, dy, y, x, mode, nan_propagation, window, padding, s
     T = eltype(x)
     desc = fixed_pool_descriptor(mode, nan_propagation, window, padding, stride)
     cudnnPoolingBackward(handle(), desc, scalingParameter(T, alpha),
-                         cudnnTensorDescriptor(y), y, cudnnTensorDescriptor(dy), dy,
-                         cudnnTensorDescriptor(x), x, scalingParameter(T, beta),
-                         cudnnTensorDescriptor(dx), dx)
+                         strided_tensor_descriptor(y), y, strided_tensor_descriptor(dy), dy,
+                         strided_tensor_descriptor(x), x, scalingParameter(T, beta),
+                         strided_tensor_descriptor(dx), dx)
     return dx
 end
 
-function maxpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, padding=0,
+function maxpool!(y::StridedCuArray, x::StridedCuArray; window, stride=window, padding=0,
                   alpha::Real=1, beta::Real=0,
                   nan_propagation::cudnnNanPropagation_t=CUDNN_PROPAGATE_NAN,
                   deterministic::Bool=false, math_mode=CUDACore.math_mode(),
@@ -151,7 +151,7 @@ function maxpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, paddi
     end
 end
 
-function meanpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, padding=0,
+function meanpool!(y::StridedCuArray, x::StridedCuArray; window, stride=window, padding=0,
                    count_include_pad::Bool=true, alpha::Real=1, beta::Real=0,
                    nan_propagation::cudnnNanPropagation_t=CUDNN_PROPAGATE_NAN,
                    deterministic::Bool=false, math_mode=CUDACore.math_mode(),
@@ -174,8 +174,8 @@ function meanpool!(y::DenseCuArray, x::DenseCuArray; window, stride=window, padd
     end
 end
 
-function ∇maxpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T},
-                   x::DenseCuArray{T}; window, stride=window, padding=0,
+function ∇maxpool!(dx::StridedCuArray{T}, dy::StridedCuArray{T}, y::StridedCuArray{T},
+                   x::StridedCuArray{T}; window, stride=window, padding=0,
                    alpha::Real=1, beta::Real=0,
                    nan_propagation::cudnnNanPropagation_t=CUDNN_PROPAGATE_NAN,
                    deterministic::Bool=false, math_mode=CUDACore.math_mode(),
@@ -196,8 +196,8 @@ function ∇maxpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T
     end
 end
 
-function ∇meanpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T},
-                    x::DenseCuArray{T}; window, stride=window, padding=0,
+function ∇meanpool!(dx::StridedCuArray{T}, dy::StridedCuArray{T}, y::StridedCuArray{T},
+                    x::StridedCuArray{T}; window, stride=window, padding=0,
                     count_include_pad::Bool=true, alpha::Real=1, beta::Real=0,
                     nan_propagation::cudnnNanPropagation_t=CUDNN_PROPAGATE_NAN,
                     deterministic::Bool=false, math_mode=CUDACore.math_mode(),
@@ -230,7 +230,8 @@ end
 
 Pool over the spatial dimensions of `x` (Julia memory order: spatial dimensions first,
 then channels, then batch), or compute the gradient with respect to the pooling input
-given the forward input `x` and output `y`.
+given the forward input `x` and output `y`. The arrays may be strided views, such as a range
+of channels, as long as their strides are positive.
 
 `padding` accepts a scalar, one value per spatial dimension, or per-side
 `(pre1, post1, ...)` pairs. `count_include_pad` includes padded elements in the averaging

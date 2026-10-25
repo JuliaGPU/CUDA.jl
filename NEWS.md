@@ -170,6 +170,12 @@ small reductions along a dimension can be slower.
   masks align with each sequence's own lengths
   ([#3438](https://github.com/JuliaGPU/CUDA.jl/pull/3438)).
 
+- cuDNN's `convolution!`, `convolution_data_gradient!`,
+  `convolution_filter_gradient!`, `maxpool!`, `meanpool!`, `∇maxpool!` and
+  `∇meanpool!`, and graph tensors, accept strided views, such as a range of
+  channels, which run as fast as dense arrays instead of needing a copy
+  ([#3472](https://github.com/JuliaGPU/CUDA.jl/issues/3472)).
+
 *Bug fixes*:
 
 - cuDNN's `attention_backward!` with `deterministic=true` gives reproducible
@@ -184,6 +190,10 @@ small reductions along a dimension can be slower.
   channel counts that are not a multiple of 4 (8 for 16-bit types), and is about
   twice as slow where it does have one. The functions also accept `alpha` and
   `beta` again ([#3380](https://github.com/JuliaGPU/CUDA.jl/issues/3380)).
+- cuDNN's legacy wrappers, like `cudnnPoolingForward`, gave wrong results for
+  views that are not contiguous, such as a range of channels, as their tensor
+  descriptors ignored the views' strides. `cudnnTensorDescriptor` and
+  `cudnnFilterDescriptor` now reject such views.
 - cuDNN's `maxpool!`, `meanpool!`, `∇maxpool!` and `∇meanpool!` use cuDNN's
   fixed-function pooling when the padding is symmetric, which is faster than a
   graph (up to twice as fast for the `Float16` max-pooling gradient) and makes

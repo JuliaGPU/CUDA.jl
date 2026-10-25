@@ -200,6 +200,9 @@ let g = Graph(io_dtype=Float16)
         t, CUDACore.zeros(Float16, 64, 2, 77))
     @test_throws DimensionMismatch cuDNN.checked_array_pointer(
         t, CUDACore.zeros(Float16, 256, 77))
+    @test cuDNN.checked_array_pointer(t, view(CUDACore.zeros(Float16, 64, 4, 77), :, :, 2:76)) != C_NULL
+    @test_throws DimensionMismatch cuDNN.checked_array_pointer(
+        t, view(CUDACore.zeros(Float16, 64, 4, 154), :, :, 1:2:153))
     @test_throws ArgumentError sdpa_fwd!(g, t, t, t)    # without padding masks
 end
 
