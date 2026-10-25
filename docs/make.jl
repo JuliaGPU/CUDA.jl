@@ -1,4 +1,5 @@
 using Documenter, Literate
+using DocumenterCodeBlocks: CodeBlocks
 using CUDA
 using CUDACore, CUDATools, CUPTI, NVML, cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE
 using cuDNN, cuStateVec, cuTENSOR, cuTensorNet
@@ -37,6 +38,9 @@ function main()
         sitename = "CUDA.jl",
         authors = "Tim Besard",
         repo = "$src/blob/{commit}{path}#{line}",
+        plugins = [
+            CodeBlocks(; line_counter = :named),
+        ],
         format = Documenter.HTML(
             # Use clean URLs on CI
             prettyurls = ci,
