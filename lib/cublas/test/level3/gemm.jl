@@ -429,103 +429,96 @@ end
         end
     end
 
-    if cuBLAS.version() >= v"12.4.2"
-        @testset "elty = $elty" for elty in [Float32, Float64]
-            num_groups = 10
-            group_sizes = collect(1:num_groups)
-            transA = ['N' for i in 1:num_groups]
-            transB = ['N' for i in 1:num_groups]
-            alpha = rand(elty, num_groups)
-            beta = rand(elty, num_groups)
-            # generate matrices
-            bA = [[rand(elty,3*i,2*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
-            bB = [[rand(elty,2*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
-            bC = [[rand(elty,3*i,5*i) for j in 1:group_sizes[i]] for i in 1:num_groups]
-            # move to device
-            bd_A = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
-            bd_B = [[CuArray(bB[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
-            bd_C = [[CuArray(bC[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups]
-            bd_A_bad1 = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]] for i in 1:num_groups-1]
-            bd_A_bad2 = [[CuArray(bA[i][j]) for j in 1:group_sizes[i]-1] for i in 1:num_groups]
-            bd_A_bad3 = [[CuArray(rand(elty, 3*i+1,2*i - 1)) for j in 1:group_sizes[i]] for i in 1:num_groups]
-            @testset "gemm_grouped_batched!" begin
-                # C = (alpha*A)*B + beta*C
-                cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
-                for i in 1:num_groups, j in 1:group_sizes[i]
-                    bC[i][j] = alpha[i] * bA[i][j] * bB[i][j] + beta[i] * bC[i][j]
-                    h_C = Array(bd_C[i][j])
-                    @test bC[i][j] ≈ h_C
-                end
-                @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad1,bd_B,beta,bd_C)
-                @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad2,bd_B,beta,bd_C)
-                @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad3,bd_B,beta,bd_C)
+    @testset "grouped batched: elty = $elty" for elty in [Float16, BFloat16, Float32, Float64]
+        cuBLAS.version() >= (elty <: Union{Float16, BFloat16} ? v"12.5" : v"12.4.2") || continue
+        # compare against products of the same inputs, computed in a wider type
+        wide(x) = Float64.(Array(x))
+        tol = elty <: Union{Float16, BFloat16} ? 1e-2 : sqrt(eps(elty))
+        randn_elty(dims...) = elty.(rand(Float32, dims...))
 
-                # all products in a group must have the same size
-                hA = [[CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]]
-                hC = [[CuArray(rand(elty,2,2)), CuArray(rand(elty,4,4))]]
-                @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(['N'],['N'],alpha[1:1],hA,hA,beta[1:1],hC)
+        num_groups = 10
+        group_sizes = collect(1:num_groups)
+        transA = ['N' for i in 1:num_groups]
+        transB = ['N' for i in 1:num_groups]
+        alpha = randn_elty(num_groups)
+        beta = randn_elty(num_groups)
+        bd_A = [[CuArray(randn_elty(3*i,2*i)) for j in 1:group_sizes[i]] for i in 1:num_groups]
+        bd_B = [[CuArray(randn_elty(2*i,5*i)) for j in 1:group_sizes[i]] for i in 1:num_groups]
+        bd_C = [[CuArray(randn_elty(3*i,5*i)) for j in 1:group_sizes[i]] for i in 1:num_groups]
+
+        @testset "gemm_grouped_batched!" begin
+            C0 = [wide.(Cs) for Cs in bd_C]
+            cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
+            for i in 1:num_groups, j in 1:group_sizes[i]
+                ref = alpha[i] * wide(bd_A[i][j]) * wide(bd_B[i][j]) + beta[i] * C0[i][j]
+                @test wide(bd_C[i][j]) ≈ ref rtol=tol
             end
 
-            @testset "gemm_grouped_batched" begin
-                bd_C = cuBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
-                for i in 1:num_groups, j in 1:group_sizes[i]
-                    bC[i][j] = bA[i][j] * bB[i][j]
-                    h_C = Array(bd_C[i][j])
-                    @test bC[i][j] ≈ h_C
-                end
+            bd_A_bad1 = bd_A[1:end-1]
+            bd_A_bad2 = [As[1:end-1] for As in bd_A]
+            bd_A_bad3 = [[CuArray(randn_elty(3*i+1,2*i-1)) for j in 1:group_sizes[i]] for i in 1:num_groups]
+            @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad1,bd_B,beta,bd_C)
+            @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad2,bd_B,beta,bd_C)
+            @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad3,bd_B,beta,bd_C)
+            @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA[1:2],transB,alpha,bd_A,bd_B,beta,bd_C)
+
+            # all products in a group must have the same size
+            hA = [[CuArray(randn_elty(2,2)), CuArray(randn_elty(4,4))]]
+            hC = [[CuArray(randn_elty(2,2)), CuArray(randn_elty(4,4))]]
+            @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!('N','N',1,hA,hA,0,hC)
+
+            # empty groups
+            eA = [bd_A[2], empty(bd_A[2])]
+            eB = [bd_B[2], empty(bd_B[2])]
+            eC = [[similar(C) for C in bd_C[2]], empty(bd_C[2])]
+            cuBLAS.gemm_grouped_batched!('N','N',1,eA,eB,0,eC)
+            for j in 1:group_sizes[2]
+                @test wide(eC[1][j]) ≈ wide(bd_A[2][j]) * wide(bd_B[2][j]) rtol=tol
+            end
+            e = CuMatrix{elty}[]
+            @test cuBLAS.gemm_grouped_batched!('N','N',1,[e],[e],0,[e]) == [e]
+        end
+
+        @testset "gemm_grouped_batched" begin
+            C = cuBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
+            for i in 1:num_groups, j in 1:group_sizes[i]
+                @test wide(C[i][j]) ≈ wide(bd_A[i][j]) * wide(bd_B[i][j]) rtol=tol
             end
         end
-    end
 
-    # Group size hardcoded to one
-    if cuBLAS.version() >= v"12.4.2"
-        @testset "elty = $elty" for elty in [Float32, Float64]
-
-            transA = ['N' for i in 1:10]
-            transB = ['N' for i in 1:10]
-            alpha = rand(elty, 10)
-            beta = rand(elty, 10)
-            # generate matrices
-            bA = [rand(elty,3*i,2*i) for i in 1:10]
-            bB = [rand(elty,2*i,5*i) for i in 1:10]
-            bC = [rand(elty,3*i,5*i) for i in 1:10]
-            # move to device
-            bd_A = CuArray{elty, 2}[]
-            bd_B = CuArray{elty, 2}[]
-            bd_C = CuArray{elty, 2}[]
-            bd_A_bad1 = CuArray{elty, 2}[]
-            bd_A_bad2 = CuArray{elty, 2}[]
-            for i in 1:length(bA)
-                push!(bd_A,CuArray(bA[i]))
-                push!(bd_B,CuArray(bB[i]))
-                push!(bd_C,CuArray(bC[i]))
-                if i < length(bA) - 1
-                    push!(bd_A_bad1,CuArray(bA[i]))
-                    push!(bd_A_bad2,CuArray(bA[i]))
-                else
-                    push!(bd_A_bad2,CuArray(rand(elty, 3*i+1, 2*i-1)))
-                end
+        @testset "single matrices" begin
+            A = [CuArray(randn_elty(3*i,2*i)) for i in 1:num_groups]
+            B = [CuArray(randn_elty(2*i,5*i)) for i in 1:num_groups]
+            C = [CuArray(randn_elty(3*i,5*i)) for i in 1:num_groups]
+            C0 = wide.(C)
+            cuBLAS.gemm_grouped_batched!(transA,transB,alpha,A,B,beta,C)
+            for i in 1:num_groups
+                ref = alpha[i] * wide(A[i]) * wide(B[i]) + beta[i] * C0[i]
+                @test wide(C[i]) ≈ ref rtol=tol
             end
 
-            @testset "gemm_grouped_batched!" begin
-                # C = (alpha*A)*B + beta*C
-                cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A,bd_B,beta,bd_C)
-                for i in 1:length(bd_C)
-                    bC[i] = alpha[i] * bA[i] * bB[i] + beta[i] * bC[i]
-                    h_C = Array(bd_C[i])
-                    @test bC[i] ≈ h_C
-                end
-                @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad1,bd_B,beta,bd_C)
-                @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,bd_A_bad2,bd_B,beta,bd_C)
+            C = cuBLAS.gemm_grouped_batched(transA,transB,A,B)
+            for i in 1:num_groups
+                @test wide(C[i]) ≈ wide(A[i]) * wide(B[i]) rtol=tol
             end
+            @test_throws DimensionMismatch cuBLAS.gemm_grouped_batched!(transA,transB,alpha,A[1:end-1],B,beta,C)
+        end
 
-            @testset "gemm_grouped_batched" begin
-                bd_C = cuBLAS.gemm_grouped_batched(transA,transB,bd_A,bd_B)
-                for i in 1:length(bd_C)
-                    bC[i] = bA[i] * bB[i]
-                    h_C = Array(bd_C[i])
-                    @test bC[i] ≈ h_C
-                end
+        @testset "mixture of experts" begin
+            # one product per expert, over the tokens routed to it, as views of contiguous
+            # arrays. the second expert gets no tokens, and the weights are transposed.
+            d_in, d_out = 16, 8
+            offsets = [0, 5, 5, 12]
+            W = CuArray(randn_elty(d_in, d_out, length(offsets) - 1))
+            X = CuArray(randn_elty(d_in, offsets[end]))
+            Y = CuArray(zeros(elty, d_out, offsets[end]))
+            experts = 1:length(offsets)-1
+            tokens = [offsets[e]+1:offsets[e+1] for e in experts]
+            cuBLAS.gemm_grouped_batched!('T', 'N', 1, [view(W, :, :, e) for e in experts],
+                                         [view(X, :, t) for t in tokens], 0,
+                                         [view(Y, :, t) for t in tokens])
+            for e in experts
+                @test wide(Y)[:, tokens[e]] ≈ transpose(wide(W)[:, :, e]) * wide(X)[:, tokens[e]] rtol=tol
             end
         end
     end

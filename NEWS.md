@@ -174,6 +174,11 @@ small reductions along a dimension can be slower.
   `BFloat16` inputs with a `Float32` output, and select the compute type like
   `mul!` does. They replace `gemmEx!`, `gemmBatchedEx!` and
   `gemmStridedBatchedEx!`, which are deprecated.
+- cuBLAS's `gemm_grouped_batched!` supports `Float16` and `BFloat16` matrices
+  (with cuBLAS 12.5), computing in `Float32`, e.g., for the expert layers of
+  mixture-of-experts models. It also accepts a single `transA`, `transB`,
+  `alpha` and `beta` for all groups
+  ([#3465](https://github.com/JuliaGPU/CUDA.jl/issues/3465)).
 
 *Bug fixes*:
 
