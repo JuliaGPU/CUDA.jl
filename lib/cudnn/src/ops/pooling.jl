@@ -162,6 +162,16 @@ function meanpool!(y::StridedCuArray, x::StridedCuArray; window, stride=window, 
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
     check_pool_output(y, x, win, pre, post, str)
+    # with asymmetric padding, the graph API's resampling engine for NCHW tensors only
+    # counts padding up to `pre` elements past the end of the input (cuDNN 9.24-9.27,
+    # #3473). Counting the padding is the same as pooling a zero-padded input, so make the
+    # padding symmetric by hand.
+    if count_include_pad && pre != post
+        padded_x, pad = padded_convolution_input(x, pre, post)
+        return meanpool!(y, padded_x; window=win, stride=str, padding=pad,
+                         count_include_pad, alpha, beta, nan_propagation, deterministic,
+                         math_mode, max_workspace)
+    end
     if use_fixed_pooling(pre, post)
         mode = fixed_pool_mode(:meanpool, count_include_pad, deterministic)
         fixed_pool!(y, x, mode, nan_propagation, win, pre, str, alpha, beta)
@@ -208,6 +218,17 @@ function ∇meanpool!(dx::StridedCuArray{T}, dy::StridedCuArray{T}, y::StridedCu
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
     check_pool_output(y, x, win, pre, post, str)
+    if count_include_pad && pre != post
+        padded_x, pad = padded_convolution_input(x, pre, post)
+        dx_padded = similar(padded_x)
+        ∇meanpool!(dx_padded, dy, y, padded_x; window=win, stride=str, padding=pad,
+                   count_include_pad, alpha, nan_propagation, deterministic, math_mode,
+                   max_workspace)
+        _, _, ranges = padded_convolution_geometry(x, pre, post)
+        interior = view(dx_padded, ranges...)
+        beta == 0 ? copyto!(dx, interior) : (dx .= interior .+ beta .* dx)
+        return dx
+    end
     if use_fixed_pooling(pre, post)
         mode = fixed_pool_mode(:meanpool, count_include_pad, deterministic)
         fixed_pool_bwd!(dx, dy, y, x, mode, nan_propagation, win, pre, str, alpha, beta)
@@ -238,7 +259,8 @@ of channels, as long as their strides are positive.
 divisor. `nan_propagation=CUDNN_NOT_PROPAGATE_NAN` makes max pooling ignore NaNs.
 
 Pooling with symmetric padding uses cuDNN's fixed-function API, which is faster than the
-graph API; asymmetric padding needs a graph. `deterministic=true` avoids the atomics of
+graph API; asymmetric padding needs a graph, except for mean pooling with
+`count_include_pad`, which first copies `x` into a zero-padded array. `deterministic=true` avoids the atomics of
 the regular max-pooling gradient. Engine selection for graphs can be further constrained
 with the `math_mode` and `max_workspace` keywords.
 """
