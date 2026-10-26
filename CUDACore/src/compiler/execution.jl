@@ -830,8 +830,11 @@ in a hot path without degrading performance. New code will be generated automati
 when function changes, or when different types or keyword arguments are provided.
 """
 function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
-    source = methodinstance(F, tt)
-    fun, state = cufunction_link(source; kwargs...)
+    kw = values(kwargs)
+    fun, state = GPUCompiler.cached_lookup(Tuple{CuFunction,KernelState}, F, tt,
+                                           (context(), kw)) do
+        cufunction_link(methodinstance(F, tt); kw...)
+    end
     return HostKernel{F,tt}(f, fun, state)
 end
 
