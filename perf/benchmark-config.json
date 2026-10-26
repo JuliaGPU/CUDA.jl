@@ -1,0 +1,58 @@
+{
+  "dashboard": "https://juliagpu.org/perf/?pkg=cuda",
+  "stat": "min",
+  "categories": [
+    {
+      "id": "performance",
+      "label": "Performance",
+      "description": "Array operations, kernels, launches and synchronization, with everything compiled.",
+      "floor": 0.03
+    },
+    {
+      "id": "latency",
+      "label": "Latency",
+      "description": "Time to precompile and import the package, and to compile a first kernel, each in a fresh Julia process.",
+      "floor": 0.05
+    },
+    {
+      "id": "applications",
+      "label": "Applications",
+      "description": "Larger applications and integration tests.",
+      "floor": 0.03
+    }
+  ],
+  "legacy": [
+    {
+      "stat": "median",
+      "until": "2026-05-18T11:01:55+02:00"
+    },
+    {
+      "stat": "min"
+    }
+  ],
+  "notes": [
+    {
+      "commit": "03ebed78c",
+      "date": "2024-12-18T10:47:04+01:00",
+      "kind": "methodology",
+      "label": "GitHub Actions",
+      "description": "Benchmarks are published by github-action-benchmark from a single Buildkite job on Julia 1.11, instead of being submitted to codespeed for several Julia versions.",
+      "url": "https://github.com/JuliaGPU/CUDA.jl/pull/2597"
+    },
+    {
+      "commit": "69db54845",
+      "date": "2026-02-05T07:58:57-04:00",
+      "kind": "julia",
+      "label": "Julia 1.12",
+      "description": "The benchmarks run on Julia 1.12 instead of 1.11.",
+      "url": "https://github.com/JuliaGPU/CUDA.jl/pull/3027"
+    },
+    {
+      "commit": "b4256bc18",
+      "date": "2026-05-18T11:01:55+02:00",
+      "kind": "methodology",
+      "label": "Median → minimum",
+      "description": "The benchmarks report the minimum over their samples instead of the median, which is less sensitive to scheduler jitter. Earlier runs only recorded the median, these only the minimum; the dashboard shows them as separate metrics."
+    }
+  ]
+}
