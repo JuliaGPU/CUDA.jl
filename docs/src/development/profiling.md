@@ -191,6 +191,24 @@ to 13.1, whose profiler does not work. The NVIDIA driver also restricts access t
 performance counters to administrators by default. See [Troubleshooting Nsight
 Compute](@ref) for how to lift this restriction.
 
+#### Machine-readable output
+
+The results of `CUDA.@profile` and `CUDA.@metrics` can also be written as JSON, which is
+easier to process for scripts and coding agents:
+
+```julia
+julia> p = CUDA.@profile sin.(a);
+
+julia> show(stdout, "application/json", p)
+{"schema_version":1,"view":"summary","raw":false,"duration_ns":3.28700542e7,"events":8,...
+```
+
+The JSON contains the same report as the tables, as selected by the `trace` and `raw`
+keyword arguments, with times in nanoseconds and untruncated kernel names. See
+[`Profile.ProfileResults`](@ref CUDATools.Profile.ProfileResults) and
+[`Profile.KernelProfile`](@ref CUDATools.Profile.KernelProfile) for a description of the
+contents.
+
 #### Profiling on Tegra
 
 The integrated profiler relies on CUPTI, which needs additional permissions on Tegra

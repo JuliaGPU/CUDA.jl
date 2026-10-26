@@ -98,6 +98,9 @@ Update 2 or later, except for CUDA 12.8 to 13.1.
 
 *New features*:
 
+- The results of `CUDA.@profile` and `CUDA.@metrics` can be written as JSON, for
+  processing by scripts or coding agents, with
+  `show(io, MIME"application/json"(), results)`.
 - `CUDA.resource_finalizer` registers a finalizer that releases CUDA resources
   on a regular task instead of from the garbage collector, for use by packages
   that wrap objects of CUDA libraries.
@@ -276,6 +279,9 @@ Update 2 or later, except for CUDA 12.8 to 13.1.
   last used before that event without waiting for other work that was queued
   after it. This lets tasks spawned with `KernelAbstractions.@spawn` overlap
   with their parent.
+- The output of `CUDA.@profile` is more compact when it isn't cropped to a
+  terminal, e.g. when written to a file or pipe: tables have no outer border,
+  and rows are no longer padded to the width of the longest kernel name.
 
 
 ## v6.4 (September 2026)
