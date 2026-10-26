@@ -414,6 +414,12 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
     # wait for the device to become idle
     CUDACore.cuCtxSynchronize()
 
+    # CUPTI timestamps count nanoseconds since an unspecified epoch (in practice, the Unix
+    # epoch). converted to seconds as is, a Float64 can only resolve them to 2^-22 s
+    # (~238 ns), so make them relative to the start of the session first.
+    origin = Ref{UInt64}()
+    CUPTI.cuptiGetTimestamp(origin)
+
     CUPTI.@enable! cfg begin
         # perform dummy operations to "warm up" the profiler, and avoid slow first calls.
         # we'll skip everything up until the synchronization call during processing
@@ -426,12 +432,15 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         CUDACore.cuCtxSynchronize()
     end
 
-    data = capture(cfg)
+    data = capture(cfg, origin[])
     ProfileResults(; data..., kwargs...)
 end
 
-# convert CUPTI activity records to host and device traces
-function capture(cfg)
+# convert CUPTI activity records to host and device traces, with times in seconds since
+# the CUPTI timestamp `origin`
+function capture(cfg, origin::UInt64)
+    seconds(timestamp) = (Int64(timestamp) - Int64(origin)) / 1e9
+
     host_trace = (
         id      = Int[],
         start   = Float64[],
@@ -481,7 +490,7 @@ function capture(cfg)
                            CUPTI.CUPTI_ACTIVITY_KIND_RUNTIME,
                            CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API]
             id = record.correlationId
-            t0, t1 = record.start/1e9, record._end/1e9
+            t0, t1 = seconds(record.start), seconds(record._end)
 
             name = if record.kind == CUPTI.CUPTI_ACTIVITY_KIND_DRIVER
                 ref = Ref{Cstring}(C_NULL)
@@ -517,7 +526,7 @@ function capture(cfg)
         # memory operations
         elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY
             id = record.correlationId
-            t0, t1 = record.start/1e9, record._end/1e9
+            t0, t1 = seconds(record.start), seconds(record._end)
 
             src_kind = as_memory_kind(record.srcKind)
             dst_kind = as_memory_kind(record.dstKind)
@@ -530,7 +539,7 @@ function capture(cfg)
                                       size=record.bytes))
         elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MEMSET
             id = record.correlationId
-            t0, t1 = record.start/1e9, record._end/1e9
+            t0, t1 = seconds(record.start), seconds(record._end)
 
             memory_kind = as_memory_kind(record.memoryKind)
             name = "[set $(string(memory_kind)) memory]"
@@ -558,7 +567,7 @@ function capture(cfg)
         elseif record.kind in [CUPTI.CUPTI_ACTIVITY_KIND_KERNEL,
                                CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL]
             id = record.correlationId
-            t0, t1 = record.start/1e9, record._end/1e9
+            t0, t1 = seconds(record.start), seconds(record._end)
 
             name = unsafe_string(record.name)
             grid = CuDim3(record.gridX, record.gridY, record.gridZ)
@@ -578,7 +587,7 @@ function capture(cfg)
 
         # NVTX markers
         elseif record.kind == CUPTI.CUPTI_ACTIVITY_KIND_MARKER
-            start = record.timestamp/1e9
+            start = seconds(record.timestamp)
             name = record.name == C_NULL ? missing : unsafe_string(record.name)
             domain = record.domain == C_NULL ? missing : unsafe_string(record.domain)
 

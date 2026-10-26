@@ -254,6 +254,9 @@ small reductions along a dimension can be slower.
   in a batch, or in a group, have the same size. cuBLAS uses the dimensions of
   the first product for all of them, so a batch of differently sized matrices
   gave wrong results, and could write past the end of an output matrix.
+- `CUDA.@profile` reports times with nanosecond resolution. Durations used to be
+  rounded to multiples of about 238 ns, so short API calls and kernels were
+  often reported as taking 0 ns.
 
 *Minor changes*:
 

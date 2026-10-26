@@ -1,7 +1,7 @@
 # @profile infrastructure (GPU-dependent, can't execute during precompilation)
 precompile(Tuple{typeof(Profile.detect_cupti)})
 precompile(Tuple{typeof(Profile.profile_internally), Function})
-precompile(Tuple{typeof(Profile.capture), CUPTI.ActivityConfig})
+precompile(Tuple{typeof(Profile.capture), CUPTI.ActivityConfig, UInt64})
 
 # Reflection depends on a GPU; `func` and `types` are deliberately unspecialized.
 for io in (Base.TTY, Base.DevNull)
