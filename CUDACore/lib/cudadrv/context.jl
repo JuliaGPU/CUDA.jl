@@ -80,9 +80,23 @@ function current_context()
     unsafe_wrap(CuContext, handle_ref[])
 end
 
+# the unique IDs of the contexts destroyed by `unsafe_destroy!`. the handle of a destroyed
+# context is freed, and passing it to the driver may crash, so `isvalid` must not query it.
+# checked on every synchronization, without locking, so the list is only ever replaced.
+# (not a `Set`, which is stored inline, and Julia < 1.12 omits the GC write barrier when
+#  atomically storing such a field: JuliaLang/julia#58760)
+mutable struct DestroyedContexts
+    Base.@atomic ids::Vector{UInt64}
+end
+const destroyed_contexts = DestroyedContexts(UInt64[])
+const destroyed_contexts_lock = ReentrantLock()
+
 function isvalid(ctx::CuContext)
-    # we first try an API call to see if the context handle is usable
     if driver_version() >= v"12"
+        ctx.id in (Base.@atomic destroyed_contexts.ids) && return false
+
+        # otherwise, query the driver, as contexts can also be destroyed by resetting a
+        # primary context, or outside of CUDA.jl
         id_ref = Ref{Culonglong}()
         res = unchecked_cuCtxGetId(ctx, id_ref)
         # the handle was valid when we got it, so either error means it was destroyed. which
@@ -113,7 +127,14 @@ respect any users of the context, and might make other objects unusable.
 function unsafe_destroy!(ctx::CuContext)
     if isvalid(ctx)
         cuCtxDestroy_v2(ctx)
+        if driver_version() >= v"12"
+            @lock destroyed_contexts_lock begin
+                ids = push!(copy(Base.@atomic destroyed_contexts.ids), ctx.id)
+                Base.@atomic destroyed_contexts.ids = ids
+            end
+        end
     end
+    return
 end
 
 Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
