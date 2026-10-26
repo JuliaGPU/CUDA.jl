@@ -5,7 +5,7 @@ using CUDA
 # Record the environment alongside benchmark results.
 CUDA.versioninfo()
 
-using BenchmarkTools
+using BenchmarkTools, Statistics, JSON
 
 using Random, StableRNGs
 rng = StableRNG(123)
@@ -36,9 +36,6 @@ tune!(SUITE)
 GC.gc(true)
 CUDA.reclaim()
 
-# benchmark groups that aren't part of the suite
-addgroup!(SUITE, "integration")
-
 @info "Running main benchmarks"
 results = run(SUITE, verbose=true)
 
@@ -49,8 +46,11 @@ integration_results["volumerhs"] = include("volumerhs.jl")
 integration_results["byval"] = include("byval.jl")
 integration_results["cudadevrt"] = include("cudadevrt.jl")
 
-results["latency"] = latency_results
-results["integration"] = integration_results
+# the first part of every name is its category in the benchmark history: everything
+# compiled (performance), fresh processes (latency), or larger codes (applications).
+# see perf/benchmark-config.json
+results = BenchmarkGroup("performance" => results, "latency" => latency_results,
+                         "applications" => integration_results)
 
 # write out the results
 # we report the minimum rather than the median: at the sub-microsecond scale of many
@@ -59,3 +59,41 @@ results["integration"] = integration_results
 # and is stable to <1% across trials. real regressions still show up in the minimum.
 result_file = length(ARGS) >= 1 ? ARGS[1] : "benchmarkresults.json"
 BenchmarkTools.save(result_file, minimum(results))
+
+# every statistic of every benchmark, and the environment they were measured in, for the
+# benchmark history at https://juliagpu.org/perf/. times are in nanoseconds.
+function export_results(file, results)
+    benchmarks = Dict{String,Any}()
+    for (keys, trial) in BenchmarkTools.leaves(results)
+        times = trial.times
+        benchmarks[join(keys, "/")] = Dict(
+            "min" => minimum(times), "p25" => quantile(times, 0.25),
+            "median" => median(times), "p75" => quantile(times, 0.75),
+            "mean" => mean(times), "max" => maximum(times),
+            "std" => length(times) > 1 ? std(times) : nothing,
+            "gctime" => median(trial.gctimes),
+            "memory" => trial.memory, "allocs" => trial.allocs,
+            "samples" => length(times), "evals" => trial.params.evals)
+    end
+    # the versions of every package loaded, to explain changes the commit itself does not
+    packages = Dict(id.name => string(pkgversion(mod)) for (id, mod) in Base.loaded_modules
+                    if pkgversion(mod) !== nothing)
+    env = Dict(
+        "julia" => string(VERSION),
+        "gpu" => CUDA.name(device()),
+        # NVML reports the kernel-mode driver's own version, but is absent on Tegra
+        "driver" => CUDA.has_nvml() ? string(CUDA.NVML.driver_version()) :
+                                      string(CUDA.driver_version()),
+        "runtime" => string(CUDA.runtime_version()),
+        "toolkit" => string(CUDA.compiler_version()),
+        "cpu" => Sys.cpu_info()[1].model,
+        "os" => Sys.iswindows() ? "Windows" : readchomp(`uname -sr`),
+        "threads" => Threads.nthreads(),
+        "agent" => get(ENV, "BUILDKITE_AGENT_NAME", nothing),
+        "package" => string(pkgversion(CUDA)),
+        "packages" => packages)
+    open(file, "w") do io
+        JSON.print(io, Dict("version" => 2, "env" => env, "benchmarks" => benchmarks))
+    end
+end
+export_results(joinpath(dirname(result_file), "benchmarks.json"), results)
