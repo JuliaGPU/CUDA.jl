@@ -137,3 +137,22 @@ jobs:
               repo,
               comment_id: source.id,
             });
+
+  # Publishes the same results to the benchmark history at https://juliagpu.org/perf/,
+  # which records every statistic and the environment of every run. While it runs next to
+  # the job above, its pull request comment only goes to the job summary.
+  history:
+    needs: benchmark
+    if: |
+      !cancelled() &&
+      github.event.context == 'buildkite/cuda-dot-jl/racehorse-benchmarks' &&
+      github.event.state == 'success'
+    permissions:
+      contents: write       # update the history in the gh-pages branch
+      pull-requests: write  # comment on pull requests
+    uses: JuliaGPU/benchmark-action/.github/workflows/publish.yml@3256ba402977d955df0d4aae5fdf1356199f8f40
+    with:
+      pipeline: cuda-dot-jl
+      comment: false
+    secrets:
+      BUILDKITE_TOKEN: ${{ secrets.BUILDKITE_TOKEN }}
