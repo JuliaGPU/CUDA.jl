@@ -908,6 +908,15 @@ let ptx = push!(read(joinpath(@__DIR__, "ptx/dummy.ptx")), 0x00),
     @test_logs min_level=Base.CoreLogging.Warn CUDA.reclaim()
 end
 
+# loading code doesn't give the task a stream, as creating one can wait for running kernels
+# (whenever the driver grows its stream pool, which can't be arranged from a test)
+let ptx = read(joinpath(@__DIR__, "ptx/dummy.ptx"), String)
+    @test fetch(@async begin
+        CuModule(ptx)
+        all(isnothing, CUDACore.task_local_state!().streams)
+    end)
+end
+
 @testset "globals" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
 

@@ -460,6 +460,16 @@ end
     instantiate(graph)()
     @test Array(a) == fill(3f0, 16)
 
+    # a task spawned while capturing can load code after the capture has ended
+    ptx = ".version 6.0\n.target sm_50\n.address_size 64\n.visible .entry k() { ret; }\n"
+    go = Base.Event()
+    local loader
+    capture() do
+        loader = @async (wait(go); CuModule(ptx))
+    end
+    notify(go)
+    @test fetch(loader) isa CuModule
+
     # a capture that starts while loading code waits for the GPU fails instead of waiting
     gate = UInt32[1, 0, 0]  # (is open, timed out, started), see `gate_kernel`
     gpu_gate = unsafe_wrap(CuArray, gate)
@@ -467,7 +477,6 @@ end
     # (compiled beforehand, as loading code waits for the GPU)
     @cuda gate_kernel(gate_ptr, gate_timeout())
     synchronize()
-    ptx = ".version 6.0\n.target sm_50\n.address_size 64\n.visible .entry k() { ret; }\n"
     GC.@preserve gpu_gate begin
         gate[1] = 0
         busy = CuStream()
