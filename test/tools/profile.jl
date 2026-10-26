@@ -246,10 +246,6 @@ end
 
 ############################################################################################
 
-@testset "metrics" begin
-
-@test_throws ArgumentError @macroexpand CUDA.@metrics :memory nothing
-
 # the range profiler of CUPTI 12.8 to 13.1 doesn't work
 broken_range_profiler = can_use_cupti() && v"12.8" <= CUPTI.version() < v"13.2"
 
@@ -266,6 +262,10 @@ catch err
     @warn "Cannot collect hardware metrics, skipping tests" exception=err
     false
 end
+
+@testset "metrics" begin
+
+@test_throws ArgumentError @macroexpand CUDA.@metrics :memory nothing
 
 if can_use_cupti() && !CUPTI.has_range_profiler()
     @test_throws "CUDA 12.6 Update 2" CUDA.@metrics error("must not execute")
@@ -446,6 +446,453 @@ end
     @test occursin("increment", str)
 
     @test length(@retry_busy CUDA.@metrics(@cuda increment(a)).kernels.id) == 1
+end
+
+end
+
+end
+
+############################################################################################
+
+@testset "sampling" begin
+
+@test_throws ArgumentError @macroexpand CUDA.@sample :flat nothing
+@test_throws ArgumentError CUDA.@sample period=4 error("must not execute")
+@test_throws ArgumentError CUDA.@sample format=:graph error("must not execute")
+
+# a cubin with a function `kernel`, whose line table has the given sequences of rows
+# (address, line, context row, offset of the inlined function's name), and end addresses.
+# ptxas relocates the line table with addends for sm_90 and newer, and without (`rel`) before.
+function line_table_cubin(sequences; rel::Bool=false)
+    uleb(x) = (out = UInt8[]; while true; b = UInt8(x & 0x7f); x >>= 7;
+               x == 0 ? (push!(out, b); return out) : push!(out, b | 0x80); end)
+    sleb(x) = (out = UInt8[]; while true; b = UInt8(x & 0x7f); x >>= 7;
+               done = (x == 0 && b & 0x40 == 0) || (x == -1 && b & 0x40 != 0);
+               done ? (push!(out, b); return out) : push!(out, b | 0x80); end)
+    bytes(x) = collect(reinterpret(UInt8, [htol(x)]))
+
+    # a DWARF 2 line program, recording where addresses need a relocation
+    program = UInt8[]
+    relocations = Int[]
+    for (rows, stop) in sequences
+        append!(program, [0x00, 0x09, 0x02])
+        push!(relocations, length(program))
+        append!(program, bytes(UInt64(0)))
+        address, line, context = 0, 1, 0
+        for (row_address, row_line, row_context, func) in rows
+            if row_context != context
+                operands = vcat(uleb(row_context), uleb(func))
+                append!(program, [0x00; uleb(length(operands) + 1); 0x90; operands])
+                context = row_context
+            end
+            append!(program, [0x02; uleb(row_address - address)])
+            append!(program, [0x03; sleb(row_line - line)])
+            push!(program, 0x01)
+            address, line = row_address, row_line
+        end
+        append!(program, [0x02; uleb(stop - address)])
+        append!(program, [0x00, 0x01, 0x01])
+    end
+    header = UInt8[1, 1, reinterpret(UInt8, Int8(-5)), 14, 13,
+                   0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1,     # standard opcode lengths
+                   0x00,                                   # no include directories
+                   codeunits("test.jl")..., 0, 0, 0, 0,    # one file
+                   0x00]
+    prefix = 4 + 2 + 4 + length(header)
+    debug_line = vcat(bytes(UInt32(prefix - 4 + length(program))), bytes(UInt16(2)),
+                      bytes(UInt32(length(header))), header, program)
+    relocations .+= prefix
+
+    reloc_section = rel ? ".rel.debug_line" : ".rela.debug_line"
+    shstrtab = "\0.shstrtab\0.strtab\0.symtab\0.text.kernel\0.debug_line\0$reloc_section\0.debug_str\0"
+    name(section) = findfirst(section * "\0", shstrtab)[1] - 1
+    symtab = vcat(zeros(UInt8, 24), bytes(UInt32(1)), UInt8[0x12, 0], bytes(UInt16(4)),
+                  bytes(UInt64(0)), bytes(UInt64(0)))
+    reloc = reduce(vcat, [vcat(bytes(UInt64(offset)), bytes(UInt64(1) << 32 | 1),
+                               rel ? UInt8[] : bytes(Int64(0))) for offset in relocations])
+    sections = [(".shstrtab", 3, codeunits(shstrtab), 0, 0),
+                (".strtab", 3, codeunits("\0kernel\0"), 0, 0),
+                (".symtab", 2, symtab, 2, 1),
+                (".text.kernel", 1, zeros(UInt8, 64), 0, 0),
+                (".debug_line", 1, debug_line, 0, 0),
+                (reloc_section, rel ? 9 : 4, reloc, 3, 5),
+                (".debug_str", 1, codeunits("\0inner;\0"), 0, 0)]
+
+    data = zeros(UInt8, 64)
+    offsets = Int[]
+    for (_, _, contents, _, _) in sections
+        push!(offsets, length(data))
+        append!(data, contents)
+    end
+    shoff = length(data)
+    append!(data, zeros(UInt8, 64))     # the null section
+    for ((section, type, contents, link, info), offset) in zip(sections, offsets)
+        append!(data, bytes(UInt32(name(section))), bytes(UInt32(type)), bytes(UInt64(0)),
+                bytes(UInt64(0)), bytes(UInt64(offset)), bytes(UInt64(length(contents))),
+                bytes(UInt32(link)), bytes(UInt32(info)), bytes(UInt64(1)), bytes(UInt64(0)))
+    end
+    data[1:6] = [0x7f, UInt8('E'), UInt8('L'), UInt8('F'), 2, 1]
+    data[0x29:0x30] = bytes(UInt64(shoff))
+    data[0x3b:0x3c] = bytes(UInt16(64))
+    data[0x3d:0x3e] = bytes(UInt16(length(sections) + 1))
+    data[0x3f:0x40] = bytes(UInt16(1))
+    return data
+end
+
+@testset "line tables" begin
+    lines(table, pcs) = map(pcs) do pc
+        chain = CUDATools.source_chain(table, pc)
+        isempty(chain) ? nothing : chain[end].line
+    end
+
+    # the sequences of a function are merged, and don't extend past their end
+    table = CUDATools.line_tables(line_table_cubin([([(0, 1, 0, 0)], 16),
+                                                    ([(32, 2, 0, 0)], 48)]))["kernel"]
+    @test lines(table, [0, 8, 15, 16, 31, 32, 47, 48, 64]) ==
+          [1, 1, 1, nothing, nothing, 2, 2, nothing, nothing]
+
+    # in any order, and when one starts where another ends
+    table = CUDATools.line_tables(line_table_cubin([([(16, 2, 0, 0), (24, 3, 0, 0)], 32),
+                                                    ([(0, 1, 0, 0)], 16)]))["kernel"]
+    @test lines(table, [0, 15, 16, 24, 31, 32]) == [1, 1, 2, 3, 3, nothing]
+
+    # relocations without addends, as used for sm_87 and older
+    table = CUDATools.line_tables(line_table_cubin([([(0, 1, 0, 0)], 16)]; rel=true))["kernel"]
+    @test lines(table, [0, 15, 16]) == [1, 1, nothing]
+
+    # inlined frames, outermost first, without repeating frames that are inlined at their
+    # own location (like Julia's `macro expansion` frames in unrolled code)
+    table = CUDATools.line_tables(line_table_cubin([([(0, 10, 0, 0), (8, 20, 1, 1),
+                                                      (16, 20, 2, 1)], 24)]))["kernel"]
+    outer = CUDATools.SourceFrame("", "test.jl", 10)
+    inner = CUDATools.SourceFrame("inner", "test.jl", 20)
+    @test CUDATools.source_chain(table, 0) == [outer]
+    @test CUDATools.source_chain(table, 8) == [outer, inner]
+    @test CUDATools.source_chain(table, 16) == [outer, inner]
+    @test isempty(CUDATools.source_chain(table, 24))
+end
+
+# a profile of a function with instructions generated for `chains`, sampled `counts` times
+function fixture_profile(chains, counts; ptx=nothing, kwargs...)
+    n = length(chains)
+    instructions = (; offset=collect(16 .* (0:n-1)), sass=fill("NOP", n), source=chains)
+    f = CUDA.Profile.SampledFunction("kernel()", "_Z6kernelv", instructions,
+                                     reshape(counts, n, 1), reshape(counts, n, 1), ptx)
+    CUDA.Profile.PCProfile(; device="GPU", period=14, total=sum(counts), dropped=0,
+                             reasons=["wait"], functions=[f], kwargs...)
+end
+
+@testset "noise floor" begin
+    hot = [CUDATools.SourceFrame("", "kernel.jl", 1)]
+    cold = [CUDATools.SourceFrame("", "kernel.jl", 2)]
+    p = fixture_profile([hot, cold], [1000, 1])
+    f = only(p.functions)
+    for format in (:tree, :flat)
+        @test length(CUDA.Profile.report(f, format, 0).rows.count) == 2
+        @test length(CUDA.Profile.report(f, format, 2).rows.count) == 1
+    end
+    str = string(p)
+    @test occursin("kernel.jl:1  kernel", str)
+    @test !occursin("kernel.jl:2", str)
+
+    # when every location is hidden, say so instead of claiming there were no samples
+    str = string(fixture_profile([hot], [1]))
+    @test occursin("below the noise floor", str)
+    @test !occursin("No samples", str)
+    @test occursin("kernel.jl:1  kernel", string(fixture_profile([hot], [1]; noisefloor=0)))
+end
+
+@testset "display" begin
+    kernel = CUDATools.SourceFrame("", "kernel.jl", 1)
+    load = CUDATools.SourceFrame("load", "kernel.jl", 10)
+    ptr = CUDATools.SourceFrame("pointer", "pointer.jl", 20)
+    add = CUDATools.SourceFrame("+", "float.jl", 30)
+    p = fixture_profile([[kernel], [kernel, load], [kernel, load, ptr], [kernel, add]],
+                        [100, 300, 400, 200]; noisefloor=0)
+
+    # a tree of locations, with the samples, stalled samples and self samples on every row
+    lines = split(string(p), '\n')
+    @test lines[1] == "kernel()"
+    @test lines[2] == "1000 samples, 1000 stalled (100%): execution 100%"
+    @test lines[4] == "Samples  Stalled  Self  File:Line  Function  [Stall reasons]"
+    @test lines[6:9] == ["   1000     1000   100  kernel.jl:1  kernel  [wait 100%]",
+                         "    700      700   300  ├─ kernel.jl:10  load  [wait 100%]",
+                         "    400      400   400  │ └─ pointer.jl:20  pointer  [wait 100%]",
+                         "    200      200   200  └─ float.jl:30  +  [wait 100%]"]
+
+    flat = string(fixture_profile([[kernel], [kernel, load], [kernel, load, ptr], [kernel, add]],
+                                  [100, 300, 400, 200]; noisefloor=0, format=:flat))
+    @test occursin("\n    700      700   300  kernel.jl:10  load  [wait 100%]\n", flat)
+
+    # plain output has no escape sequences and isn't cropped; colored output is
+    @test !occursin('\e', string(p))
+    long = fixture_profile([[CUDATools.SourceFrame("f", "x"^500, 1)]], [1]; noisefloor=0)
+    @test !occursin('…', string(long))
+    colored = sprint(show, p; context=:color => true)
+    @test occursin("\e[", colored)
+    # with the same text, and a legend
+    stripped = replace(colored, r"\e\[[0-9;]*m" => "")
+    @test startswith(stripped, string(p))
+    @test occursin("colored by kind", stripped)
+    @test !occursin('\e', sprint(CUDATools.code_sass, p))
+    @test occursin("\e[", sprint(CUDATools.code_sass, p; context=:color => true))
+
+    # PTX code is annotated with the samples of the instructions generated for every line,
+    # including those of functions that ptxas inlined
+    text = ["", ".func  (.param .b32 func_retval0) callee(", ".param .b32 callee_param_0", ")",
+            "{", "mul.f32 \t%f1, %f1, %f1;", "ret;", "}", "", ".func other()", "{", "ret;",
+            "}", ".visible .entry _Z6kernelv(", ")", "{", "\$L__tmp0:",
+            "ld.global.f32 \t%f1, [%rd1];", "add.f32 \t%f2, %f1, %f1;", "{", "mov.b32 \t%r1, 0;",
+            "}", "{ mov.b32 \t%r2, 0; }", "ret;", "}"]
+    p = fixture_profile([[kernel], [kernel, load], [kernel, load, ptr], [kernel, add], [kernel]],
+                        [100, 300, 400, 150, 50]; ptx=(; text, lines=[18, 19, 19, 6, 0]))
+    ptx = sprint(CUDATools.code_ptx, p)
+    @test occursin("\n       700      700  wait 100% add.f32 \t%f2, %f1, %f1;\n", ptx)
+    @test occursin("\n       150      150  wait 100% mul.f32", ptx)
+    @test occursin("// 50 samples (5%) are of instructions without a line of PTX code", ptx)
+    @test occursin("callee(", ptx) && !occursin("other", ptx)
+    @test count("ret;", ptx) == 2   # past the end of blocks in function bodies
+    @test findfirst("callee(", ptx)[1] < findfirst(".entry", ptx)[1]
+    @test occursin("\n" * " "^31 * "//  kernel.jl:10  load\n", ptx)
+    @test !occursin("kernel.jl", sprint((io, p) -> CUDATools.code_ptx(io, p; debuginfo=:none), p))
+    # without the labels of debug information, unless asked for
+    @test !occursin("\$L__tmp0", ptx)
+    @test occursin("\$L__tmp0", sprint((io, p) -> CUDATools.code_ptx(io, p; raw=true), p))
+    @test !occursin('\e', ptx)
+    @test occursin("\e[", sprint(CUDATools.code_ptx, p; context=:color => true))
+    # the JSON contains the PTX code, and the line of every instruction
+    json = JSON.parse(repr("application/json", p))
+    @test json["ptx"] == [join(text, '\n')]
+    @test only(json["functions"])["ptx"] == 0
+    @test [inst["ptx_line"] for inst in only(json["functions"])["instructions"]] ==
+          [18, 19, 19, 6, nothing]
+
+    # code without line information has no PTX code
+    @test occursin("No PTX code available", sprint(CUDATools.code_ptx, fixture_profile([[kernel]], [1])))
+
+    # cropped output fits the display
+    cropped = sprint(show, MIME"text/plain"(), p; context=(:limit => true, :displaysize => (24, 30)))
+    @test all(line -> textwidth(line) <= 30, split(cropped, '\n')[1:9])
+
+    # stall reasons that newer GPUs may add are grouped by their name
+    @test CUDA.Profile.stall_kinds[CUDA.Profile.stall_kind("future_throttle")] == "throttle"
+    @test CUDA.Profile.stall_kinds[CUDA.Profile.stall_kind("unknown")] == "other"
+end
+
+if can_use_cupti() && !CUPTI.has_pc_sampling()
+    @test_throws "CUDA 13" CUDA.@sample error("must not execute")
+end
+
+# whether this device and driver let us sample PCs
+can_sample = can_use_cupti() && CUPTI.has_pc_sampling() && try
+    @retry_busy CUDA.@sample nothing
+    true
+catch err
+    msg = sprint(showerror, err)
+    contains(msg, "does not support PC sampling") || contains(msg, "performance counters") ||
+        contains(msg, "another process") || contains(msg, "stall reasons") || rethrow()
+    @warn "Cannot sample PCs, skipping tests" exception=err
+    false
+end
+
+if can_sample
+
+# a kernel that spends its time on a known line
+spin_line = @__LINE__() + 5
+function spin(a, n)
+    i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
+    x = a[i]
+    for j in 1:n
+        x = sqrt(x + Float32(j))
+    end
+    a[i] = x
+    return
+end
+a = CUDA.ones(Float32, 256 * 64)
+spin_kernel() = @cuda threads=256 blocks=64 spin(a, 20_000)
+spin_kernel()
+synchronize()
+
+is_spin(f) = startswith(f.name, "spin(")
+location(frame) = (basename(frame.file), frame.line)
+
+@testset "attribution" begin
+    p = @retry_busy CUDA.@sample spin_kernel()
+    @test p.total > 0
+    f = only(filter(is_spin, p.functions))
+    @test sum(f.samples) > 0
+
+    # the kernel spends most of its time on the line in the loop body
+    r = CUDA.Profile.report(f, :tree, 0)
+    roots = findall(iszero, r.rows.depth)
+    hottest = roots[argmax(r.rows.count[roots])]
+    @test location(r.rows.path[hottest][end]) == ("profile.jl", spin_line)
+    # with `sqrt` inlined into it
+    children = [location(path[end]) for (depth, path) in zip(r.rows.depth, r.rows.path)
+                if depth == 1 && path[1] == r.rows.path[hottest][1]]
+    @test any(((file, _),) -> file == "math.jl", children)
+
+    str = string(p)
+    @test occursin("Samples  Stalled  Self  File:Line  Function", str)
+    @test occursin(Regex("\\n +\\d+ +\\d+ +\\d+  \\S*profile.jl:$spin_line  spin"), str)
+    @test occursin("Total samples: $(p.total)", str)
+
+    flat = string(@retry_busy CUDA.@sample format=:flat spin_kernel())
+    @test occursin("Samples  Stalled  Self  File:Line  Function", flat)
+    @test occursin("profile.jl:$spin_line  spin", flat)
+
+    # the noise floor hides locations
+    rows(noisefloor) = length(CUDA.Profile.report(f, :tree, noisefloor).rows.count)
+    @test rows(0) >= rows(2) > 0
+    @test rows(1000) == 0
+
+    # frames inlined at their own location (`macro expansion`) aren't repeated in unrolled
+    # code, like the loads in a reduction
+    x = CUDA.rand(Float32, 2^20)
+    sum(x)
+    chains = [chain for f in @retry_busy CUDA.@sample(sum(x)).functions
+                    for chain in f.instructions.source]
+    @test any(chain -> length(chain) > 1, chains)
+    for chain in chains
+        @test all(i -> chain[i] != chain[i+1], 1:length(chain)-1)
+    end
+
+    sass = sprint(CUDATools.code_sass, p)
+    @test occursin("/*0000*/", sass)
+    @test occursin("MUFU.RSQ", sass)
+    @test occursin("profile.jl:$spin_line  spin", sass)
+
+    @test !occursin("profile.jl:", sprint((io, p) -> CUDATools.code_sass(io, p; debuginfo=:none), p))
+
+    # the PTX code embedded in the cubin maps the samples onto lines of it
+    @test f.ptx !== nothing
+    @test sum(f.samples[f.ptx.lines .> 0, :]) > 0
+    ptx = sprint(CUDATools.code_ptx, p)
+    @test occursin(".entry", ptx)
+    @test occursin("sqrt", ptx)
+    @test occursin("profile.jl:$spin_line  spin", ptx)
+    @test occursin(r"\n +\d+ +\d+ .*\w+\.\w+\s", ptx)
+end
+
+@testset "JSON" begin
+    p = @retry_busy CUDA.@sample spin_kernel()
+    json = JSON.parse(repr("application/json", p))
+    @test json["view"] == "tree"
+    @test json["total_samples"] == p.total
+    @test json["period"] == 14
+    @test json["reasons"] == p.reasons
+    f = only(filter(f -> startswith(f["name"], "spin("), json["functions"]))
+    @test f["count"] == sum(only(filter(is_spin, p.functions)).samples)
+    @test sum(sum(values(inst["count"])) for inst in f["instructions"]) == f["count"]
+    @test all(f["locations"]) do loc
+        loc["frame"] === nothing || 0 <= loc["frame"] < length(json["frames"])
+    end
+    frame(id) = json["frames"][id+1]
+    @test any(f["locations"]) do loc
+        loc["depth"] == 0 && loc["frame"] !== nothing &&
+            frame(loc["frame"])["line"] == spin_line &&
+            endswith(frame(loc["frame"])["file"], "profile.jl")
+    end
+    @test occursin(".entry", json["ptx"][f["ptx"]+1])
+    @test any(inst -> inst["ptx_line"] !== nothing, f["instructions"])
+
+    json = JSON.parse(repr("application/json", @retry_busy CUDA.@sample format=:flat spin_kernel()))
+    @test json["view"] == "flat"
+    @test all(loc -> loc["depth"] == 0, only(filter(f -> startswith(f["name"], "spin("),
+                                                     json["functions"]))["locations"])
+end
+
+@testset "no kernels" begin
+    p = @retry_busy CUDA.@sample nothing
+    @test isempty(p.functions)
+    @test occursin("No samples", string(p))
+    @test isempty(JSON.parse(repr("application/json", p))["functions"])
+end
+
+@testset "tasks" begin
+    p = @retry_busy CUDA.@sample fetch(Threads.@spawn (spin_kernel(); synchronize()))
+    @test any(is_spin, p.functions)
+end
+
+@testset "errors" begin
+    @test_throws "boom" @retry_busy CUDA.@sample error("boom")
+    @test any(is_spin, @retry_busy CUDA.@sample(spin_kernel()).functions)
+
+    @test_throws "another profiling session" @retry_busy CUDA.@sample CUDA.@sample nothing
+    # `@metrics` rejects unsupported setups before checking for other sessions
+    can_collect_metrics &&
+        @test_throws "another profiling session" @retry_busy CUDA.@sample CUDA.@metrics nothing
+    @test_throws "sampling PCs" @retry_busy CUDA.@sample CUDA.@profile nothing
+    @test_throws "another profiling session" CUDA.@profile CUDA.@sample nothing
+end
+
+@testset "SASS reflection" begin
+    # run `f` in another task, returning its error, or `:timeout` if it deadlocks
+    function bounded(f)
+        t = Threads.@spawn try
+            f()
+        catch err
+            err
+        end
+        timedwait(() -> istaskdone(t), 120) == :ok ? fetch(t) : :timeout
+    end
+    message(err) = err isa Exception ? sprint(showerror, err) : repr(err)
+
+    # reflection that waits for the session would deadlock when the sampled code waits
+    # for it, so it's rejected, in the same task or another one
+    sass() = CUDATools.code_sass(() -> nothing, devnull)
+    device_sass() = @device_code_sass io=devnull nothing
+    for inner in (sass, device_sass), nested in (inner, () -> fetch(@async inner()))
+        err = bounded(() -> @retry_busy CUDA.@sample nested())
+        @test contains(message(err), "Cannot generate SASS code while")
+    end
+
+    # reflection already waiting for CUPTI when a session claims it gives up as well. the
+    # session's admission can't be paused, so hold the lock and flag the session manually.
+    claimed, release = Channel{Nothing}(1), Channel{Nothing}(1)
+    holder = Threads.@spawn lock(CUPTI.callback_lock) do
+        put!(claimed, nothing)
+        take!(release)
+    end
+    take!(claimed)
+    waiting = Threads.@spawn try
+        sass()
+    catch err
+        err
+    end
+    sleep(1)
+    CUDA.Profile.exclusive_active[] = true
+    timedwait(() -> istaskdone(waiting), 120)
+    CUDA.Profile.exclusive_active[] = false
+    put!(release, nothing)
+    wait(holder)
+    @test contains(message(fetch(waiting)), "Cannot generate SASS code while")
+
+    # sampling within reflection
+    for nested in (() -> CUDA.@sample(nothing), () -> fetch(@async CUDA.@sample(nothing)))
+        err = bounded(() -> CUDATools.code_sass(nested, devnull))
+        @test contains(message(err), "Cannot sample PCs while CUPTI callbacks are in use")
+    end
+
+    @test any(is_spin, @retry_busy CUDA.@sample(spin_kernel()).functions)
+    @test CUDATools.code_sass(() -> nothing, devnull) === nothing
+end
+
+# CUPTI 13.2+ breaks when loading a module after PC sampling was disabled
+@testset "module loading" begin
+    p = @retry_busy CUDA.@sample spin_kernel()
+    b = CUDA.zeros(Float32, 1)
+    p = @retry_busy CUDA.@sample (b .+= 1; synchronize())
+    @test p isa CUDA.Profile.PCProfile
+    @test CUDA.@profile(b .+= 2) isa CUDA.Profile.ProfileResults
+    # whether or not metrics can be collected here, CUPTI shouldn't be broken
+    metrics = try
+        @retry_busy CUDA.@metrics b .+= 3
+    catch err
+        err
+    end
+    @test !occursin("INVALID_OPERATION", sprint(show, metrics))
+    @test any(is_spin, @retry_busy CUDA.@sample(spin_kernel()).functions)
 end
 
 end

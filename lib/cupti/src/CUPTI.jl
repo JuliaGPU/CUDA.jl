@@ -25,6 +25,7 @@ include("libcupti.jl")
 include("error.jl")
 include("wrappers.jl")
 include("profiler.jl")
+include("pcsampling.jl")
 
 
 function __init__()

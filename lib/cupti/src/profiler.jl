@@ -56,18 +56,20 @@ function chip_name(dev::CuDevice)
 end
 
 """
-    CUPTI.check_profiler_support(dev::CuDevice)
+    CUPTI.check_profiler_support(dev::CuDevice; api=CUPTI_PROFILER_RANGE_PROFILING,
+                                 feature="hardware metrics")
 
-Throw an error explaining why `dev` doesn't support the range profiler, if it doesn't.
+Throw an error explaining why `dev` doesn't support the profiling `api`, if it doesn't.
+`feature` names what the API is used for in the error message.
 """
-function check_profiler_support(dev::CuDevice)
+function check_profiler_support(dev::CuDevice; api::CUpti_Profiler_API=CUPTI_PROFILER_RANGE_PROFILING,
+                                feature::String="hardware metrics")
     params = profiler_params(CUpti_Profiler_DeviceSupported_Params, :api;
-                             cuDevice=CUdevice(deviceid(dev)),
-                             api=CUPTI_PROFILER_RANGE_PROFILING)
+                             cuDevice=CUdevice(deviceid(dev)), api)
     res = unchecked_cuptiProfilerDeviceSupported(params)
     # MIG devices fail the query itself
     res == CUPTI_ERROR_INVALID_PARAMETER &&
-        error("Hardware metrics are not supported on this device (MIG instances are not supported).")
+        error("This device does not support $feature (MIG instances are not supported).")
     res == CUPTI_SUCCESS || throw_api_error(res)
 
     p = params[]
@@ -82,7 +84,7 @@ function check_profiler_support(dev::CuDevice)
     unsupported(p.cmp) && push!(reasons, "CMP devices are not supported")
     unsupported(p.wsl) && push!(reasons, "this version of WSL is not supported")
     isempty(reasons) && push!(reasons, "unknown reason")
-    error("Hardware metrics are not supported on this device: $(join(reasons, ", ")).")
+    error("This device does not support $feature: $(join(reasons, ", ")).")
 end
 
 function counter_availability(ctx::CuContext)

@@ -71,11 +71,18 @@ function prepare_sass_generation()
     if v"2024.1.1" <= CUPTI.library_version() <= v"2024.2.0"
         warmup_cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL,
                                            CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API])
-        CUPTI.@enable! warmup_cfg nothing
+        with_cupti_lock(CUPTI.activity_lock) do
+            CUPTI.@enable! warmup_cfg nothing
+        end
     end
 
     return
 end
+
+# sampling PCs or collecting metrics claims CUPTI while running user code, which may be
+# waiting for us, so don't wait for those sessions to end.
+with_cupti_lock(f, lock) = Profile.lock_unless_exclusive(f, lock,
+    "Cannot generate SASS code while collecting hardware metrics or sampling PCs.")
 
 function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     if !job.config.kernel
@@ -96,8 +103,10 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
     end
 
     compiled = CUDACore.compile(job)
-    CUPTI.@enable! cfg CUDACore.link_kernel(compiled.image, compiled.entry,
-                                            compiled.relocations)
+    with_cupti_lock(CUPTI.callback_lock) do
+        CUPTI.@enable! cfg CUDACore.link_kernel(compiled.image, compiled.entry,
+                                                compiled.relocations)
+    end
 
     for cubin in cubins
         disassemble_cubin(io, cubin; raw)
@@ -127,7 +136,9 @@ function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
     end
 
     try
-        CUPTI.@enable! cfg f()
+        with_cupti_lock(CUPTI.callback_lock) do
+            CUPTI.@enable! cfg f()
+        end
     finally
         for cubin in cubins
             disassemble_cubin(io, cubin; raw)

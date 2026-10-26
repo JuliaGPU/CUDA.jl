@@ -29,6 +29,11 @@ close each one comes to the peak throughput of the GPU's compute units and memor
 subsystems. Specific CUPTI metrics can be requested by name. This requires CUDA 12.6
 Update 2 or later, except for CUDA 12.8 to 13.1.
 
+The new `CUDA.@sample` macro samples where the warps of every kernel spend their time, and
+why they are stalled, reporting it per source line like `Profile.print` does, including
+the functions that were inlined, per SASS instruction with `CUDATools.code_sass`, or per
+line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
+
 *Technically breaking changes*:
 
 - GPU resources are no longer released from finalizers, as many of the CUDA calls

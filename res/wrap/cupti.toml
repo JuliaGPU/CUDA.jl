@@ -65,3 +65,13 @@ needs_context = false
 
 [api.cuptiProfilerHostGetRangeName]
 needs_context = false
+
+# these operate on a cubin in host memory
+[api.cuptiGetCubinCrc]
+needs_context = false
+
+[api.cuptiGetSassToSourceCorrelation]
+needs_context = false
+
+[api.cuptiRegisterComputeCrcCallback]
+needs_context = false

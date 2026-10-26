@@ -191,9 +191,161 @@ to 13.1, whose profiler does not work. The NVIDIA driver also restricts access t
 performance counters to administrators by default. See [Troubleshooting Nsight
 Compute](@ref) for how to lift this restriction.
 
+#### Source-level sampling
+
+To find out *where* in a kernel time goes, `CUDA.@sample` periodically samples which
+instruction the warps on every SM are executing, and why they are stalled. Like
+`Profile.print`, the result shows a tree of source locations for every sampled function.
+As Julia inlines almost all code into GPU kernels, the children of a location are the
+functions that were inlined into it:
+
+```julia
+julia> a = CUDA.rand(Float32, 2^26); b = similar(a);
+
+julia> CUDA.@sample b .= sin.(a)
+gpu_broadcast_kernel_linear(CompilerMetadata<DynamicSize, DynamicCheck, void, CartesianIndi…
+9291 samples, 7586 stalled (82%): memory 93%, execution 3%, throttle 2%, issue 2%
+
+Samples  Stalled  Self  File:Line  Function  [Stall reasons]
+────────────────────────────────────────────────────────────
+   8704     7269   294  @GPUArrays/src/host/broadcast.jl:62  macro expansion  [long_scoreboard…
+   8343     7029     0  └─ @Base/broadcast.jl:616  getindex  [long_scoreboard 95%, short_scor…
+   8343     7029     0    └─ @Base/broadcast.jl:620  _getindex  [long_scoreboard 95%, short_s…
+   8010     6884     0      ├─ @Base/broadcast.jl:672  _broadcast_getindex  [long_scoreboard…
+   8010     6884     0      │ └─ @Base/broadcast.jl:699  _broadcast_getindex_evalf  [long_sc…
+   7741     6782  7741      │   ├─ CUDACore/src/device/intrinsics/math.jl:30  sin  [long_sco…
+    269      102   269      │   └─ CUDACore/src/device/intrinsics/math.jl:32  sin  [wait 50%…
+    333      145     0      └─ @Base/broadcast.jl:671  _broadcast_getindex  [short_scoreboa…
+...
+    528      306   528  ?  (unknown location)  [mio_throttle 38%, wait 28%, short_scoreboard…
+
+Total samples: 9291, sampling every 2^14 cycles per SM on NVIDIA GeForce RTX 5080.
+...
+```
+
+Every function starts with its name, its number of samples and how many of them were
+stalled, broken down by the kind of stall (see below). Every row then lists:
+
+- `Samples`: the samples of the code generated for the location, including the code
+  inlined into it;
+- `Stalled`: how many of those samples were stalled. A sample is stalled when the warp's
+  scheduler couldn't issue any instruction, i.e., when the latency wasn't hidden by other
+  warps;
+- `Self`: the samples of the location's own code, excluding the functions inlined into
+  it (what `Profile.print` calls the overhead);
+- the location as `file:line` and the name of the function, followed by the most common
+  reasons for the stalls, as a share of the location's stalled samples.
+
+The stall reasons are those of [Nsight
+Compute](https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html#warp-scheduler-states),
+which `CUDA.@sample` groups into kinds:
+
+| Kind        | Stall reasons                                               | Warps wait for                                |
+|:------------|:------------------------------------------------------------|:----------------------------------------------|
+| `memory`    | `long_scoreboard`, `short_scoreboard`, `imc_miss`, `drain`  | the results of memory accesses, or of other variable-latency units (`short_scoreboard` also covers shared memory and special math functions like `sin`'s `MUFU` instructions) |
+| `throttle`  | `lg_throttle`, `mio_throttle`, `tex_throttle`, `math_pipe_throttle` | a full memory queue or a busy pipeline    |
+| `sync`      | `barrier`, `membar`, `sleeping`                             | other threads, or memory barriers             |
+| `execution` | `wait`                                                      | the fixed latency of an earlier instruction   |
+| `issue`     | `no_instructions`, `branch_resolving`, `dispatch_stall`, `not_selected`, `selected` | instruction fetch, branches, or the scheduler |
+
+Other reasons are shown as `other`. Stalls are attributed to the instruction that waits,
+which often is not the one causing the wait: above, the time spent waiting for `a` to be
+loaded shows up in `sin`, which uses the loaded value.
+
+Locations with few samples are hidden: as with `Profile.print`, the `noisefloor` keyword
+hides locations with `n <= noisefloor * √N` samples, where `N` is the number of samples of
+their parent (2 by default). `format=:flat` lists every location once instead of the
+tree, with the same columns, sorted by their number of stalled samples:
+
+```julia
+julia> CUDA.@sample format=:flat b .= sin.(a)
+gpu_broadcast_kernel_linear(CompilerMetadata<DynamicSize, DynamicCheck, void, CartesianIndi…
+9037 samples, 7283 stalled (81%): memory 93%, execution 4%, throttle 2%, issue 1%
+
+Samples  Stalled  Self  File:Line  Function  [Stall reasons]
+────────────────────────────────────────────────────────────
+   8463     6958   278  @GPUArrays/src/host/broadcast.jl:62  macro expansion  [long_scoreboard…
+   8133     6753     0  @Base/broadcast.jl:620  _getindex  [long_scoreboard 95%, short_scorebo…
+...
+   7522     6497  7522  CUDACore/src/device/intrinsics/math.jl:30  sin  [long_scoreboard 98%…
+...
+```
+
+To see the samples of every SASS instruction, use `CUDATools.code_sass(p)`. Every sampled
+instruction is preceded by its samples, stalled samples and most common stall reason, and
+the source locations the code was generated from are shown as comments, indented by how
+deeply they were inlined:
+
+```julia
+julia> p = CUDA.@sample b .= sin.(a);
+
+julia> CUDATools.code_sass(p)
+// gpu_broadcast_kernel_linear(...)
+// 9291 samples, 7586 stalled (82%): memory 93%, execution 3%, throttle 2%, issue 2%
+// Samples  Stalled  Stall reason
+        41       31  no_instructions 55%     /*0000*/ LDC R1, c[0x0][0x37c]
+         5        0                          /*0010*/ S2R R2, SR_TID.X
+...
+        15        3  wait 100%               /*0110*/ LDG.E R0, desc[UR4][R8.64+-0x4]
+                                             ;    @Base/broadcast.jl:672  _broadcast_getindex
+                                             ;     @Base/broadcast.jl:699  _broadcast_getindex_evalf
+                                             ;      CUDACore/src/device/intrinsics/math.jl:30  sin
+         3        0                          /*0120*/ BSSY.RECONVERGENT B0, `(.L_x_0)
+      7516     6668  long_scoreboard 100%    /*0130*/ FMUL R6, R0.reuse, 0.63661974668502807617
+...
+```
+
+`CUDATools.code_ptx(p)` does the same for the PTX code that the SASS was generated from.
+`ptxas` embeds this code in the cubin, together with a table mapping every SASS
+instruction to a line of it (the same data Nsight Compute uses to correlate PTX and SASS),
+so every line shows the exact total of the instructions generated for it, without
+recompiling anything. The code of functions that `ptxas` inlined is shown as well:
+
+```julia
+julia> CUDATools.code_ptx(p)
+// gpu_broadcast_kernel_linear(...)
+// 9052 samples, 7256 stalled (80%): memory 94%, execution 3%, throttle 2%, issue 1%
+// Samples  Stalled  Stall reason
+...
+       128       60  short_scoreboard 92%    add.s64 	%rd8, %rd3, %rd7;
+        14        7  wait 100%               ld.global.b32 	%r4, [%rd8+-4];
+                                             //    @Base/broadcast.jl:677  _broadcast_getindex
+                                             //     @Base/broadcast.jl:704  _broadcast_getindex_evalf
+                                             //      CUDACore/src/device/intrinsics/math.jl:30  sin
+      7372     6406  long_scoreboard 100%    mul.f32 	%r13, %r4, 0f3F22F983;
+        23        6  wait 100%               cvt.rni.s32.f32 	%r73, %r13;
+...
+```
+
+The source locations in this view are those of the first SASS instruction generated for a
+line. Both functions take `debuginfo=:none` to leave them out, and `code_ptx` takes
+`raw=true` to print the code as embedded, including the empty lines that replace
+directives like `.loc`. The PTX code is only available for code compiled with line
+information, i.e., with a debug level of at least 1 (the default).
+
+In a terminal that supports colors, the number of stalled samples, the stall reasons and
+the kinds in the summary are colored by kind of stall (`memory` in red, `throttle` in
+yellow, `sync` in magenta, `execution` in blue, `issue` in cyan), source paths and tree
+guides are dimmed, and hot code (locations or instructions with at least 10% of their
+function's samples) is shown in bold. When the output is not a terminal, for example when
+it is written to a file or captured with `string(p)`, the text is the same but without
+colors, and lines are never cropped, so every row can be found with tools like `grep`.
+The JSON output described below contains the same information in a structured form.
+
+All kernels that execute in the current context are sampled, at nearly full speed and
+concurrently. The program counter of a warp on every SM is sampled once every
+`2^period` cycles (`period=14` by default); shorter periods collect more samples, which
+take longer to process. Sampling requires CUDA 13 or later, a GPU with compute capability
+7.5 or higher, and access to the performance counters (see [Troubleshooting Nsight
+Compute](@ref)).
+
+Source locations come from the line tables that `ptxas` generates. These sometimes
+attribute instructions to the wrong inlined function, and code without line information
+is shown as an unknown location.
+
 #### Machine-readable output
 
-The results of `CUDA.@profile` and `CUDA.@metrics` can also be written as JSON, which is
+The results of `CUDA.@profile`, `CUDA.@metrics` and `CUDA.@sample` can also be written as JSON, which is
 easier to process for scripts and coding agents:
 
 ```julia
@@ -201,12 +353,30 @@ julia> p = CUDA.@profile sin.(a);
 
 julia> show(stdout, "application/json", p)
 {"schema_version":1,"view":"summary","raw":false,"duration_ns":3.28700542e7,"events":8,...
+
+julia> p = CUDA.@sample b .= sin.(a);
+
+julia> show(stdout, "application/json", p)
+{"schema_version":1,"view":"tree","device":"NVIDIA GeForce RTX 5080","period":14,...,
+ "frames":[{"function":"macro expansion","file":".../GPUArrays/3gHjC/src/host/broadcast.jl","line":62},...],
+ "ptx":["\u000a\u000a\u000a\u000a.version 9.4\u000a.target sm_120a\u000a...",...],
+ "functions":[{"name":"gpu_broadcast_kernel_linear(...)",...,"count":9291,"stalled":7586,"ptx":0,
+               "locations":[{"depth":0,"frame":0,"count":8704,"stalled":7269,"overhead":294,
+                             "reasons":{"branch_resolving":88,"drain":153,"long_scoreboard":6668,...}},...],
+               "instructions":[{"offset":"0x0000","sass":"LDC R1, c[0x0][0x37c]","frames":[],"ptx_line":17,
+                                "count":{"mio_throttle":17,...},"stalled":{...}},...]}]}
 ```
 
 The JSON contains the same report as the tables, as selected by the `trace` and `raw`
-keyword arguments, with times in nanoseconds and untruncated kernel names. See
-[`Profile.ProfileResults`](@ref CUDATools.Profile.ProfileResults) and
-[`Profile.KernelProfile`](@ref CUDATools.Profile.KernelProfile) for a description of the
+keyword arguments, with times in nanoseconds and untruncated kernel names. For
+`CUDA.@sample`, it contains the rows of the tree or flat view (`locations`, with their
+`depth` and an index into the shared `frames`), and every sampled instruction with its
+samples per stall reason and the line of PTX code it was generated from, which indexes the
+PTX code of its module (`ptx`); stall kinds are not included, as they follow from the
+reasons. See
+[`Profile.ProfileResults`](@ref CUDATools.Profile.ProfileResults),
+[`Profile.KernelProfile`](@ref CUDATools.Profile.KernelProfile) and
+[`Profile.PCProfile`](@ref CUDATools.Profile.PCProfile) for a description of the
 contents.
 
 #### Profiling on Tegra

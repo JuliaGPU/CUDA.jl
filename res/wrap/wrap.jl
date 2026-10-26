@@ -293,7 +293,7 @@ function main(name="all")
 
         wrap("cupti", ["$cupti/cupti.h", "$cupti/cupti_target.h",
                        "$cupti/cupti_profiler_target.h", "$cupti/cupti_profiler_host.h",
-                       "$cupti/cupti_range_profiler.h"];
+                       "$cupti/cupti_range_profiler.h", "$cupti/cupti_pcsampling.h"];
             include_dirs=[cuda, cupti],
             targets=[r"cupti_.*.h"])
     end

@@ -45,3 +45,11 @@ macro CUPTI_ACTIVITY_STRUCT_SIZE(type, lastfield)
     end
 end
 
+
+macro CUPTI_PCSAMPLING_STRUCT_SIZE(type, lastfield)
+    type = esc(type)
+    lastfield = QuoteNode(lastfield)
+    quote
+        $struct_size($type, $lastfield)
+    end
+end
