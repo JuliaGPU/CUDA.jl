@@ -471,14 +471,16 @@ end
     GC.@preserve gpu_gate begin
         gate[1] = 0
         busy = CuStream()
-        @cuda stream=busy gate_kernel(gate_ptr, gate_timeout())
-        loader = @async CuModule(ptx)
-        # (the task only yields once it waits for the GPU)
-        yield()
-        @test !istaskdone(loader)
-        @test_throws ErrorException capture(() -> nothing)
-        unsafe_store!(pointer(gate), UInt32(1), :release)
-        @test fetch(loader) isa CuModule
+        with_watchdog() do
+            @cuda stream=busy gate_kernel(gate_ptr, gate_timeout())
+            loader = @async CuModule(ptx)
+            # (the task only yields once it waits for the GPU)
+            yield()
+            @test !istaskdone(loader)
+            @test_throws ErrorException capture(() -> nothing)
+            unsafe_store!(pointer(gate), UInt32(1), :release)
+            @test fetch(loader) isa CuModule
+        end
         synchronize(busy)
         @test gate[2] == 0
     end

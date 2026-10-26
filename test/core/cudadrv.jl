@@ -1169,14 +1169,16 @@ gate_is_open() = unsafe_load(pointer(gate), :acquire) != 0
 # run `f` while a kernel on `stream` keeps the GPU busy until the gate is opened, returning
 # whether `f` succeeded and the gate was opened in time.
 function gated(f, stream)
-    ret = GC.@preserve gpu_gate try
-        gate .= 0
-        @cuda stream=stream gate_kernel(gate_ptr, timeout)
-        f()
-    finally
-        open_gate()
-        # also when `f` failed, as the gate is reused
-        synchronize(stream)
+    ret = GC.@preserve gpu_gate with_watchdog() do
+        try
+            gate .= 0
+            @cuda stream=stream gate_kernel(gate_ptr, timeout)
+            f()
+        finally
+            open_gate()
+            # also when `f` failed, as the gate is reused
+            synchronize(stream)
+        end
     end
     return ret && gate[2] == 0
 end
@@ -1390,30 +1392,32 @@ for M in (CUDA.DeviceMemory, CUDA.HostMemory, CUDA.UnifiedMemory), stream_first 
     a = CuArray{UInt8,1,M}(undef, 4096)
     ptr = UInt(pointer(a))
     gate .= 0
-    @cuda stream=s gate_kernel(gate_ptr, timeout)
-    @cuda stream=s touch_kernel(a)
-    try
-        # finalizing the stream retires it, and querying the pool status releases it
-        if stream_first
-            finalize(s)
-            CUDA.pool_status(devnull)
-            CUDA.unsafe_free!(a)
-        else
-            CUDA.unsafe_free!(a)
-            finalize(s)
-            CUDA.pool_status(devnull)
+    with_watchdog() do
+        @cuda stream=s gate_kernel(gate_ptr, timeout)
+        @cuda stream=s touch_kernel(a)
+        try
+            # finalizing the stream retires it, and querying the pool status releases it
+            if stream_first
+                finalize(s)
+                CUDA.pool_status(devnull)
+                CUDA.unsafe_free!(a)
+            else
+                CUDA.unsafe_free!(a)
+                finalize(s)
+                CUDA.pool_status(devnull)
+            end
+
+            # if the memory is reused, using it waits for the pending work
+            b = CuArray{UInt8,1,M}(undef, 4096)
+            @test UInt(pointer(b)) != ptr || !CUDA.isdone(stream())
+
+            # unrelated work doesn't
+            @cuda stream=other noop_kernel()
+            synchronize(other)
+        finally
+            open_gate()
+            device_synchronize()
         end
-
-        # if the memory is reused, using it waits for the pending work
-        b = CuArray{UInt8,1,M}(undef, 4096)
-        @test UInt(pointer(b)) != ptr || !CUDA.isdone(stream())
-
-        # unrelated work doesn't
-        @cuda stream=other noop_kernel()
-        synchronize(other)
-    finally
-        open_gate()
-        device_synchronize()
     end
     @test gate[2] == 0
 end

@@ -220,13 +220,15 @@ end
             @cuda gate_kernel(gate_ptr, gate_timeout())
             stream()
         end)
-        try
-            with_concurrent_streams(idle_limit) do streams
-                @test !(busy in streams)
+        with_watchdog() do
+            try
+                with_concurrent_streams(idle_limit) do streams
+                    @test !(busy in streams)
+                end
+            finally
+                unsafe_store!(pointer(gate), UInt32(1), :release)
+                synchronize(busy)
             end
-        finally
-            unsafe_store!(pointer(gate), UInt32(1), :release)
-            synchronize(busy)
         end
         @test gate[2] == 0
     end
