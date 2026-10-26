@@ -14,10 +14,12 @@ function checked_cuModuleLoadDataEx(_module, image, numOptions, options, optionV
     #      release threshold, we have it actually free up that memory, but that requires
     #      synchronizing all streams to make sure pending frees are actually executed.
     #
-    #      that would invalidate graphs that are being captured, so skip it then. like
-    #      reclaiming memory, this makes captures that start meanwhile fail, as waiting
-    #      for the GPU could deadlock if a kernel depends on the capturing task.
-    is_capturing() || releasing(device_synchronize; blocking=true)
+    #      that would invalidate graphs that are being captured, so `releasing` skips it
+    #      then. like reclaiming memory, this makes captures that start meanwhile fail, as
+    #      waiting for the GPU could deadlock if a kernel depends on the capturing task.
+    #      (not checking the task's stream, as a task that only loads code shouldn't need
+    #      one: creating it can wait for running kernels too)
+    releasing(device_synchronize; blocking=true)
 
     # FIXME: maybe all CUDA API calls need to run under retry_reclaim?
     #        that would require a redesign of the memory pool,
