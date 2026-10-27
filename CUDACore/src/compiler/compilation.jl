@@ -429,7 +429,9 @@ function check_parameter_memory(@nospecialize(job::CompilerJob))
     cap = base_version(sm_param)
     arch = cpu_name(sm_param)
 
-    argtypes = filter([KernelState, job.source.specTypes.parameters...]) do dt
+    # concretely typed: reducing over an abstract array (`sum` below) has edges to GPUArrays'
+    # methods, whose invalidation discards the precompiled compiler
+    argtypes = filter(Type[KernelState, job.source.specTypes.parameters...]) do dt
         !isghosttype(dt) && !Core.Compiler.isconstType(dt)
     end
     for dt in argtypes
@@ -457,6 +459,7 @@ function check_parameter_memory(@nospecialize(job::CompilerJob))
             end
 
             for (i, typ) in enumerate(source_types)
+                typ = typ::Type
                 if isghosttype(typ) || Core.Compiler.isconstType(typ)
                     continue
                 end
