@@ -20,7 +20,7 @@
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDA.jl
 
 [benchmark-img]: https://img.shields.io/badge/benchmarks-Chart-yellowgreen
-[benchmark-url]: https://cuda.juliagpu.org/bench/
+[benchmark-url]: https://juliagpu.org/perf/?pkg=cuda
 
 The CUDA.jl package is the main programming interface for working with NVIDIA CUDA GPUs
 using Julia. It features a user-friendly array abstraction, a compiler for writing CUDA

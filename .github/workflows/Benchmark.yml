@@ -1,9 +1,4 @@
 name: Benchmarks
-permissions:
-  contents: write       # update benchmark contents in gh-pages branch
-  issues: write         # comment on PR with benchmark results
-  pull-requests: write  # comment on PR with benchmark results
-  deployments: write    # deploy GitHub pages website
 
 # Buildkite posts a commit status for every step, so we can react to the benchmark step
 # finishing instead of keeping a runner busy polling for it. Status events are delivered
@@ -12,139 +7,13 @@ permissions:
 # code from the commit being benchmarked; the results are untrusted data.
 on: status
 
+permissions: {}
+
 jobs:
-  benchmark:
-    if: |
-      github.event.context == 'buildkite/cuda-dot-jl/racehorse-benchmarks' &&
-      github.event.state == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Download Benchmark Results
-        id: download
-        env:
-          BUILDKITE_TOKEN: ${{ secrets.BUILDKITE_TOKEN }}
-          TARGET_URL: ${{ github.event.target_url }}
-          SHA: ${{ github.event.sha }}
-          ON_MAIN: ${{ contains(github.event.branches.*.name, 'main') }}
-        run: |
-          set -euo pipefail
-          # the status links to the job that ran the benchmarks
-          if [[ ! "$TARGET_URL" =~ ^https://buildkite\.com/julialang/cuda-dot-jl/builds/([0-9]+)#([0-9a-f-]+)$ ]]; then
-            echo "Unexpected target URL: $TARGET_URL"
-            exit 1
-          fi
-          api="https://api.buildkite.com/v2/organizations/julialang/pipelines/cuda-dot-jl/builds/${BASH_REMATCH[1]}"
-          job="${BASH_REMATCH[2]}"
-          auth="Authorization: Bearer $BUILDKITE_TOKEN"
-
-          build=$(curl -fsS -H "$auth" "$api")
-          if [[ "$(jq -r .commit <<<"$build")" != "$SHA" ]]; then
-            echo "Build does not match commit $SHA"
-            exit 1
-          fi
-          pull_request=$(jq -r '.pull_request.id // empty' <<<"$build")
-
-          url=$(curl -fsS -H "$auth" "$api/jobs/$job/artifacts" |
-                jq -r '.[] | select(.path == "benchmarkresults.json") | .download_url')
-          if [[ -z "$url" ]]; then
-            echo "No benchmark results found"
-            exit 0
-          fi
-          mkdir -p artifacts
-          curl -fsSL -H "$auth" -o artifacts/benchmarkresults.json "$url"
-
-          echo "path=artifacts/benchmarkresults.json" >> "$GITHUB_OUTPUT"
-          echo "pull_request=$pull_request" >> "$GITHUB_OUTPUT"
-          # only record results of commits on main, as decided by GitHub: Buildkite's branch
-          # name for a fork's pull request is chosen by the fork
-          if [[ -z "$pull_request" && "$ON_MAIN" == "true" ]]; then
-            echo "main=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Upload Benchmark Results
-        if: ${{ steps.download.outputs.path != '' }}
-        uses: benchmark-action/github-action-benchmark@v1
-        with:
-          name: CUDA.jl Benchmarks
-          tool: "julia"
-          output-file-path: ${{ steps.download.outputs.path }}
-          benchmark-data-dir-path: "bench"
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.event.sha }}
-          comment-always: ${{ steps.download.outputs.pull_request != '' }}
-          summary-always: true
-          alert-threshold: "125%"
-          fail-on-alert: false
-          auto-push: ${{ steps.download.outputs.main == 'true' }}
-
-      # github-action-benchmark only comments on pull requests when triggered by one,
-      # so move the comment it left on the commit to the pull request
-      - name: Move Benchmark Results to Pull Request
-        if: ${{ steps.download.outputs.path != '' && steps.download.outputs.pull_request != '' }}
-        uses: actions/github-script@v9
-        env:
-          PULL_REQUEST: ${{ steps.download.outputs.pull_request }}
-        with:
-          script: |
-            const {owner, repo} = context.repo;
-            const commit_sha = context.payload.sha;
-            const issue_number = Number(process.env.PULL_REQUEST);
-            const marker = '<!-- github-benchmark-action-comment(start): CUDA.jl Benchmarks Summary -->';
-
-            const commitComments = await github.paginate(
-              github.rest.repos.listCommentsForCommit,
-              {owner, repo, commit_sha, per_page: 100},
-            );
-            const source = commitComments.filter(comment => comment.body?.startsWith(marker)).at(-1);
-            if (!source) {
-              throw new Error(`No benchmark comment found on commit ${commit_sha}`);
-            }
-
-            const pullRequestComments = await github.paginate(
-              github.rest.issues.listComments,
-              {owner, repo, issue_number, per_page: 100},
-            );
-            const benchmarkComments = pullRequestComments.filter(comment => comment.body?.startsWith(marker));
-            const existing = benchmarkComments.at(-1);
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner,
-                repo,
-                comment_id: existing.id,
-                body: source.body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number,
-                body: source.body,
-              });
-            }
-
-            for (const duplicate of benchmarkComments.slice(0, -1)) {
-              await github.rest.issues.deleteComment({
-                owner,
-                repo,
-                comment_id: duplicate.id,
-              });
-            }
-
-            await github.rest.repos.deleteCommitComment({
-              owner,
-              repo,
-              comment_id: source.id,
-            });
-
-  # Publishes the same results to the benchmark history at https://juliagpu.org/perf/,
-  # which records every statistic and the environment of every run. While it runs next to
-  # the job above, its pull request comment only goes to the job summary.
+  # Adds the results of every commit on main to the benchmark history at
+  # https://juliagpu.org/perf/, and compares those of pull requests with it in a comment.
   history:
-    needs: benchmark
     if: |
-      !cancelled() &&
       github.event.context == 'buildkite/cuda-dot-jl/racehorse-benchmarks' &&
       github.event.state == 'success'
     permissions:
@@ -153,6 +22,5 @@ jobs:
     uses: JuliaGPU/benchmark-action/.github/workflows/publish.yml@3256ba402977d955df0d4aae5fdf1356199f8f40
     with:
       pipeline: cuda-dot-jl
-      comment: false
     secrets:
       BUILDKITE_TOKEN: ${{ secrets.BUILDKITE_TOKEN }}
