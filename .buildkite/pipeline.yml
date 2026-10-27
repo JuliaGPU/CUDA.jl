@@ -406,7 +406,6 @@ steps:
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
     artifact_paths:
-      - "benchmarkresults.json"
       - "benchmarks.json"
     agents:
       queue: "cuda"
