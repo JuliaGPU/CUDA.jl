@@ -703,9 +703,8 @@ function capture!(f::Function, graph::CuGraph; after::AbstractVector{CuGraphNode
     all(node -> node.graph === graph, after) ||
         throw(ArgumentError("Dependencies need to be nodes of the same graph"))
     deps = CUgraphNode[node.handle for node in after]
-    frontier = @lock graph.lock context!(graph.ctx) do
-        _, frontier = capture_stream(f, graph, deps; mode, throw_error=true, stream)
-        frontier
+    _, frontier = @lock graph.lock context!(graph.ctx) do
+        capture_stream(f, graph, deps; mode, throw_error=true, stream)
     end
     return CuGraphNode[CuGraphNode(node, graph) for node in frontier]
 end
@@ -782,8 +781,8 @@ function instantiate_locked(graph::CuGraph, flags)
         if driver_version() >= v"11.4"
             # graphs that allocate memory without freeing it can only be launched again
             # after freeing that memory, which this flag makes the graph do itself
-            flags |= CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH
-            res = unchecked_cuGraphInstantiateWithFlags(handle_ref, graph, flags)
+            res = unchecked_cuGraphInstantiateWithFlags(
+                handle_ref, graph, flags | CUDA_GRAPH_INSTANTIATE_FLAG_AUTO_FREE_ON_LAUNCH)
             if res == ERROR_NOT_SUPPORTED && !isempty(allocations)
                 throw(ArgumentError("A graph that allocates memory can only be instantiated once at a time"))
             end
@@ -845,10 +844,10 @@ function free_allocations(graph_allocations::GraphAllocations)
         #      from a memory pool (see `free_context`), but the device to free them on
         #      isn't known here, so they leak when that context has been destroyed
         released === nothing && return
-        stream, ctx = released
+        handle, ctx = released
         context!(ctx) do
             for ptr in allocations
-                cuMemFreeAsync(ptr, stream)
+                cuMemFreeAsync(ptr, handle)
             end
         end
     end

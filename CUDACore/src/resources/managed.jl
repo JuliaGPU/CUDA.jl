@@ -207,19 +207,20 @@ end
 function prepare_host_access!(managed::Managed)
   if managed.attachment == GLOBALLY_ATTACHED && managed.synchronizing &&
      !managed.captured && managed.stream.ctx !== nothing
-    event = @lock stream_disposal_lock begin
+    attached = @lock stream_disposal_lock begin
       # (holding the lock under which a capture on the stream begins, see `pending_work`)
       order = managed.stream.order
       order === nothing || lock(order.lock)
       try
-        fence = order === nothing || recycled(managed) ? nothing : order.capture_event
-        if fence !== nothing && CUDACore.stream() != managed.stream
+        capture_event = order === nothing || recycled(managed) ? nothing : order.capture_event
+        fence = capture_event !== nothing && CUDACore.stream() != managed.stream ?
+                capture_event : nothing
+        stream, ctx = if fence !== nothing
           # the stream is being captured by another task, so attach on another stream,
           # after the work that was submitted before the capture began
           ctx = something(managed.stream.ctx)
-          stream = disposal_stream(ctx)
+          disposal_stream(ctx), ctx
         else
-          fence = nothing
           # this also handles owners that have been recycled or destroyed
           released = release_stream(managed.stream, managed.stream_ctx, managed.generation)
           if released === nothing
@@ -230,7 +231,7 @@ function prepare_host_access!(managed::Managed)
           elseif !recycled(managed) && isvalid(managed.stream)
             check_capture(managed.stream)
           end
-          stream, ctx = released
+          released
         end
         context!(ctx) do
           fence === nothing || cuStreamWaitEvent(stream, fence::CuEvent, 0)
@@ -246,7 +247,7 @@ function prepare_host_access!(managed::Managed)
         order === nothing || unlock(order.lock)
       end
     end
-    synchronize(event)
+    synchronize(attached)
     managed.attachment = HOST_ATTACHED
     managed.dirty = false
     managed.waiting = false

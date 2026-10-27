@@ -55,33 +55,34 @@ macro device_functions(ex)
     #       and any definition that escapes this rewrite ends up in the global method
     #       table as a CPU-callable function containing GPU-only intrinsics, which
     #       breaks ahead-of-time compilation (JuliaGPU/GPUCompiler.jl#611).
-    isdef(ex) = Meta.isexpr(ex, :function) ||
-                (Meta.isexpr(ex, :(=)) && Meta.isexpr(ex.args[1], (:call, :where, :(::))))
-    isdoc(m) = m === GlobalRef(Core, Symbol("@doc")) || m === Symbol("@doc") ||
-               (Meta.isexpr(m, :.) && m.args[end] == QuoteNode(Symbol("@doc")))
-    function rewrite(ex)
-        if isdef(ex)
-            return :(@device_function $ex)
-        elseif Meta.isexpr(ex, :macrocall) && isdoc(ex.args[1])
-            # docstring: rewrite the documented expression
-            return Expr(:macrocall, ex.args[1:end-1]..., rewrite(ex.args[end]))
-        elseif Meta.isexpr(ex, :macrocall)
-            # other macros (e.g. `@inline`): expand, then rewrite the result
-            return rewrite(macroexpand(__module__, ex))
-        elseif Meta.isexpr(ex, (:block, :if, :elseif))
-            # descend into blocks, and into conditionals (the `@doc` expansion on
-            # Julia 1.13 wraps definitions in `if true ... end`)
-            return Expr(ex.head, map(rewrite, ex.args)...)
-        elseif Meta.isexpr(ex, :(=)) && isa(ex.args[1], Symbol)
-            # assignment of a definition to a temporary (also from `@doc` expansion)
-            return Expr(:(=), ex.args[1], rewrite(ex.args[2]))
-        else
-            # preserve all the rest
-            return ex
-        end
-    end
+    esc(device_functions(__module__, ex))
+end
 
-    esc(rewrite(ex))
+isdef(ex) = Meta.isexpr(ex, :function) ||
+            (Meta.isexpr(ex, :(=)) && Meta.isexpr(ex.args[1], (:call, :where, :(::))))
+isdoc(m) = m === GlobalRef(Core, Symbol("@doc")) || m === Symbol("@doc") ||
+           (Meta.isexpr(m, :.) && m.args[end] == QuoteNode(Symbol("@doc")))
+
+function device_functions(mod::Module, ex)
+    if isdef(ex)
+        return :(@device_function $ex)
+    elseif Meta.isexpr(ex, :macrocall) && isdoc(ex.args[1])
+        # docstring: rewrite the documented expression
+        return Expr(:macrocall, ex.args[1:end-1]..., device_functions(mod, ex.args[end]))
+    elseif Meta.isexpr(ex, :macrocall)
+        # other macros (e.g. `@inline`): expand, then rewrite the result
+        return device_functions(mod, macroexpand(mod, ex))
+    elseif Meta.isexpr(ex, (:block, :if, :elseif))
+        # descend into blocks, and into conditionals (the `@doc` expansion on
+        # Julia 1.13 wraps definitions in `if true ... end`)
+        return Expr(ex.head, map(arg -> device_functions(mod, arg), ex.args)...)
+    elseif Meta.isexpr(ex, :(=)) && isa(ex.args[1], Symbol)
+        # assignment of a definition to a temporary (also from `@doc` expansion)
+        return Expr(:(=), ex.args[1], device_functions(mod, ex.args[2]))
+    else
+        # preserve all the rest
+        return ex
+    end
 end
 
 ## alignment API

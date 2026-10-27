@@ -136,7 +136,7 @@ end
 function library_log_callback(mod::Module, level::Integer, function_name::Cstring,
                               message::Cstring)
     guarded_callback() do
-        level = if level <= 1
+        log_level = if level <= 1
             Error
         elseif level == 3
             Info
@@ -144,15 +144,15 @@ function library_log_callback(mod::Module, level::Integer, function_name::Cstrin
             Debug
         end
 
-        function_name = unsafe_string(function_name)
-        message = unsafe_string(message)
-        output = if isempty(message)
-            "$function_name(...)"
+        name = unsafe_string(function_name)
+        msg = unsafe_string(message)
+        output = if isempty(msg)
+            "$name(...)"
         else
-            "$function_name: $message"
+            "$name: $msg"
         end
 
-        enqueue_log(mod, level, output)
+        enqueue_log(mod, log_level, output)
     end
     return
 end

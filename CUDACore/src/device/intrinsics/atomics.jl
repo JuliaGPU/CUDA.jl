@@ -427,20 +427,18 @@ macro atomic(ex)
     else
         Base.replace_ref_begin_end!(ref)
     end
-    esc(replace_atomic_ref(ref) do ref
-        array = ref.args[1]
-        indices = Expr(:tuple, ref.args[2:end]...)
-        :($atomic_arrayset($array, $indices, $op, $val))
-    end)
+    esc(atomic_update(ref, op, val))
 end
 @public @atomic, AtomicError, atomic_add!, atomic_sub!, atomic_and!, atomic_or!, atomic_xor!, atomic_min!, atomic_max!, atomic_inc!, atomic_dec!, atomic_cas!, atomic_xchg!
 
-function replace_atomic_ref(f, ex::Expr)
+function atomic_update(ex::Expr, op, val)
     if Meta.isexpr(ex, :ref)
-        f(ex)
+        array = ex.args[1]
+        indices = Expr(:tuple, ex.args[2:end]...)
+        :($atomic_arrayset($array, $indices, $op, $val))
     elseif Meta.isexpr(ex, :let) || Meta.isexpr(ex, :block)
         # `let S = array; S[...] end` (Julia < 1.13) or `begin local S = array; S[...] end`
-        Expr(ex.head, ex.args[1:end-1]..., replace_atomic_ref(f, ex.args[end]))
+        Expr(ex.head, ex.args[1:end-1]..., atomic_update(ex.args[end], op, val))
     else
         error("unsupported replace_ref_begin_end! result")
     end

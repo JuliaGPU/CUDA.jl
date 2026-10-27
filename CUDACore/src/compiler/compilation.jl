@@ -399,7 +399,7 @@ end
 function emit_ptx(@nospecialize(job::CompilerJob))
     # TODO: on 1.9, this actually creates a context. cache those.
     # the IR is ours: inspect it in here, and dispose of it so that it does not leak
-    asm, entry, relocations, needs_cudadevrt = JuliaContext() do ctx
+    ptx = JuliaContext() do ctx
         asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
         ir = meta.ir::LLVM.Module
 
@@ -415,12 +415,12 @@ function emit_ptx(@nospecialize(job::CompilerJob))
 
         entry = meta.entry.name
         dispose(ir)
-        asm, entry, meta.relocations, needs_cudadevrt
+        (; asm, entry, meta.relocations, needs_cudadevrt)
     end
 
     check_parameter_memory(job)
 
-    return (; asm, entry, relocations, needs_cudadevrt)
+    return ptx
 end
 
 function check_parameter_memory(@nospecialize(job::CompilerJob))

@@ -304,15 +304,16 @@ function pool_status(io::IO=stdout, info::MemoryInfo=(drain_retired(); MemoryInf
 
   end
 
-  active_handles = idle_handles = 0
+  active_handles = Ref(0)
+  idle_handles = Ref(0)
   foreach_reclaimable() do resource
     if resource isa HandleCache
       counts = handle_cache_counts(resource)
-      active_handles += counts.active
-      idle_handles += counts.idle
+      active_handles[] += counts.active
+      idle_handles[] += counts.idle
     end
   end
-  println(io, "Library handles: $active_handles active, $idle_handles reusable (released at reclaim)")
+  println(io, "Library handles: $(active_handles[]) active, $(idle_handles[]) reusable (released at reclaim)")
 
   limits = memory_limits()
   if limits.soft > 0 || limits.hard > 0

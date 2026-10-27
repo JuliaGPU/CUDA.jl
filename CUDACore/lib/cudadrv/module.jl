@@ -25,12 +25,12 @@ function checked_cuModuleLoadDataEx(_module, image, numOptions, options, optionV
     #        that would require a redesign of the memory pool,
     #        so maybe do so when we replace it with CUDA 11.2's pool.
     res = retry_reclaim(isequal(ERROR_OUT_OF_MEMORY)) do
-        res = unchecked_cuModuleLoadDataEx(_module, image, numOptions, options, optionValues)
-        if res == ERROR_OUT_OF_MEMORY
+        status = unchecked_cuModuleLoadDataEx(_module, image, numOptions, options, optionValues)
+        if status == ERROR_OUT_OF_MEMORY
             # OOM is self-explanatory, whether retried here or returned below.
             discard_driver_log()
         end
-        res
+        status
     end
     if res != SUCCESS
         throw(CuError(res, driver_log()))

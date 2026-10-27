@@ -118,7 +118,7 @@ function release_now(retired::RetiredOwner)
     destroy_later(synchronize_and(identity, retired.managed.stream_ctx), retired.owner)
     return
   end
-  event = try
+  idle = try
     @lock stream_disposal_lock begin
       released = release_stream(stream, ctx, retired.managed.generation)
       # (the work of a destroyed context has ended)
@@ -135,6 +135,6 @@ function release_now(retired::RetiredOwner)
     destroy_later(synchronize_and(identity, retired.managed.stream_ctx), retired.owner)
     rethrow()
   end
-  hold!(ReleaseAction(identity, retired.owner, nothing, false), event)
+  hold!(ReleaseAction(identity, retired.owner, nothing, false), idle)
   return
 end
