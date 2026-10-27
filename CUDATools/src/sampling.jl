@@ -357,7 +357,7 @@ function source_tree(f::SampledFunction)
         add_samples!(node, f, i)
         for frame in (isempty(chain) ? [unknown_frame] : chain)
             node = get!(node.children, frame) do
-                SourceNode(frame, length(node.reasons))
+                SourceNode(frame, size(f.samples, 2))
             end
             add_samples!(node, f, i)
         end
@@ -380,21 +380,23 @@ function tree_report(f::SampledFunction, noisefloor::Real)
     root = source_tree(f)
     rows = (; depth=Int[], path=Vector{SourceFrame}[], count=Int[], stalled=Int[],
               overhead=Int[], reasons=Vector{Int}[])
-    function visit(node, depth, path)
-        for child in sort!(collect(values(node.children)); by=order, rev=true)
-            above_noise(child.count, node.count, noisefloor) || continue
-            child_path = vcat(path, child.frame)
-            push!(rows.depth, depth)
-            push!(rows.path, child_path)
-            push!(rows.count, child.count)
-            push!(rows.stalled, child.stalled)
-            push!(rows.overhead, child.overhead)
-            push!(rows.reasons, child.reasons)
-            visit(child, depth + 1, child_path)
-        end
-    end
-    visit(root, 0, SourceFrame[])
+    tree_rows!(rows, root, 0, SourceFrame[], noisefloor)
     return (; rows, count=root.count, stalled=root.stalled)
+end
+
+# add the rows for the children of `node` above the noise floor, depth-first
+function tree_rows!(rows, node, depth, path, noisefloor)
+    for child in sort!(collect(values(node.children)); by=order, rev=true)
+        above_noise(child.count, node.count, noisefloor) || continue
+        child_path = vcat(path, child.frame)
+        push!(rows.depth, depth)
+        push!(rows.path, child_path)
+        push!(rows.count, child.count)
+        push!(rows.stalled, child.stalled)
+        push!(rows.overhead, child.overhead)
+        push!(rows.reasons, child.reasons)
+        tree_rows!(rows, child, depth + 1, child_path, noisefloor)
+    end
 end
 
 function flat_report(f::SampledFunction, noisefloor::Real)
