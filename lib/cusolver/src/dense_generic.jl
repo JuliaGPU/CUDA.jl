@@ -296,13 +296,8 @@ function Xgesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: Bla
     R = real(T)
     jobz in ('N', 'V') || throw(ArgumentError("jobz is incorrect. The values accepted are 'V' and 'N'."))
 
-    if econ
-        U = CuMatrix{T}(undef, m, p)
-        V = CuMatrix{T}(undef, n, p)
-    else
-        U = CuMatrix{T}(undef, m, m)
-        V = CuMatrix{T}(undef, n, n)
-    end
+    U = CuMatrix{T}(undef, m, econ ? p : m)
+    V = CuMatrix{T}(undef, n, econ ? p : n)
     Σ = CuVector{R}(undef, p)
     lda = max(1, stride(A, 2))
     ldu = max(1, stride(U, 2))
@@ -430,7 +425,7 @@ function Xsyevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
     chkuplo(uplo)
     n = checksquare(A)
     R = real(T)
-    (n ≥ 1) && (iu == 0) && (iu = n)
+    iu = iu == 0 ? n : iu
     (range == 'I') && !(1 ≤ il ≤ iu ≤ n) && throw(ArgumentError("illegal choice of eigenvalue indices (il = $il, iu = $iu), which must be between 1 and n = $n"))
     (range == 'V') && (vl ≥ vu) && throw(ArgumentError("lower boundary, $vl, must be less than upper boundary, $vu"))
     lda = max(1, stride(A, 2))

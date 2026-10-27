@@ -31,18 +31,14 @@ macro cudnnDescriptor(x, set = Symbol("cudnnSet$(x)Descriptor"))
         const $cache = Dict{Tuple,$sname}()                 # Dict is 3x faster than IdDict!
         const $cache_lock = ReentrantLock()
         function $sname(args...)
-            d = lock($cache_lock) do
-                get($cache, args, nothing)
-            end
+            d = @lock $cache_lock get($cache, args, nothing)
             if d === nothing
                 ptr = $tname[C_NULL]
                 $create(ptr)
                 $set(ptr[1], args...)
                 d = $sname(ptr[1])
                 resource_finalizer(x->$destroy(x.ptr), d; blocking=false)
-                lock($cache_lock) do
-                    $cache[args] = d
-                end
+                @lock $cache_lock $cache[args] = d
             end
             return d
         end

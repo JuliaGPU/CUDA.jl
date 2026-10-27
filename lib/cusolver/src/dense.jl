@@ -221,7 +221,6 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                     throw(ErrorException("Non-pivoting symmetric factorization of complex matrices is broken on cuSOLVER $(cuSOLVER.version()). Use pivoting=true instead."))
                 end
                 chkuplo(uplo)
-                n = checksquare(A)
                 lda = max(1, stride(A, 2))
                 dh = dense_handle()
 

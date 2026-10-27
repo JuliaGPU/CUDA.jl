@@ -283,7 +283,6 @@ for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusp
             descA = CuMatrixDescriptor('G', 'L', 'N', index)
             descC = CuMatrixDescriptor('G', 'L', 'N', index)
             rowPtrC = CuVector{Int32}(undef, m+1)
-            local colValC, nzValC
 
             function bufferSize()
                 out = Ref{Csize_t}()
@@ -292,7 +291,7 @@ for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusp
                 return out[]
             end
 
-            with_workspace(bufferSize) do buffer
+            return with_workspace(bufferSize) do buffer
                 nnzTotal = Ref{Cint}()
                 $fname(handle(), m, n, nnz(A), descA, nonzeros(A), rowPtr, colVal,
                        Ref{$elty}(threshold), descC, rowPtrC, nnzTotal, buffer)
@@ -302,8 +301,8 @@ for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusp
 
                 $pname(handle(), m, n, nnz(A), descA, nonzeros(A), rowPtr, colVal,
                        Ref{$elty}(threshold), descC, nzValC, rowPtrC, colValC, buffer)
+                CuSparseMatrixCSR{$elty, Ti}(rowPtrC, colValC, nzValC, (m, n))
             end
-            return CuSparseMatrixCSR{$elty, Ti}(rowPtrC, colValC, nzValC, (m, n))
         end
 
         function prune(A::CuSparseMatrixCSC{$elty, Ti}, threshold::Number, index::SparseChar) where {Ti}
@@ -314,7 +313,6 @@ for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusp
             descA = CuMatrixDescriptor('G', 'L', 'N', index)
             descC = CuMatrixDescriptor('G', 'L', 'N', index)
             colPtrC = CuVector{Int32}(undef, n+1)
-            local rowValC, nzValC
 
             function bufferSize()
                 out = Ref{Csize_t}()
@@ -323,7 +321,7 @@ for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusp
                 return out[]
             end
 
-            with_workspace(bufferSize) do buffer
+            return with_workspace(bufferSize) do buffer
                 nnzTotal = Ref{Cint}()
                 $fname(handle(), n, m, nnz(A), descA, nonzeros(A), colPtr, rowVal,
                        Ref{$elty}(threshold), descC, colPtrC, nnzTotal, buffer)
@@ -333,8 +331,8 @@ for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusp
 
                 $pname(handle(), n, m, nnz(A), descA, nonzeros(A), colPtr, rowVal,
                        Ref{$elty}(threshold), descC, nzValC, colPtrC, rowValC, buffer)
+                CuSparseMatrixCSC{$elty, Ti}(colPtrC, rowValC, nzValC, (m, n))
             end
-            return CuSparseMatrixCSC{$elty, Ti}(colPtrC, rowValC, nzValC, (m, n))
         end
     end
 end
@@ -405,21 +403,15 @@ end
 function _csr2cscEx2!(m, n, nnz_, csrVal::CuVector{T}, csrRowPtr, csrColInd,
                       cscVal::CuVector{T}, cscColPtr::CuVector{Cint}, cscRowInd::CuVector{Cint},
                       action, index, algo) where T
-    csrRowPtr = cint_indices(csrRowPtr)
-    csrColInd = cint_indices(csrColInd)
     if iszero(nnz_) || iszero(m) || iszero(n)
         cscColPtr .= (index == 'O' ? one(Cint) : zero(Cint))
         return
     end
 
     buggy = index == 'O' && v"12.0" <= version() < v"12.1"
-    if buggy
-        csrRowPtr = csrRowPtr .- one(Cint)
-        csrColInd = csrColInd .- one(Cint)
-        effidx = 'Z'
-    else
-        effidx = index
-    end
+    csrRowPtr = buggy ? cint_indices(csrRowPtr) .- one(Cint) : cint_indices(csrRowPtr)
+    csrColInd = buggy ? cint_indices(csrColInd) .- one(Cint) : cint_indices(csrColInd)
+    effidx = buggy ? 'Z' : index
     function bufferSize()
         out = Ref{Csize_t}(1)
         cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz_, csrVal,

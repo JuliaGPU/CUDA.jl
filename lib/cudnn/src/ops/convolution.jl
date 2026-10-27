@@ -129,6 +129,12 @@ function check_conv_broadcast(name, a::StridedCuArray, y::StridedCuArray)
     return a
 end
 
+# graph inputs must not alias the output
+function conv_graph_input(name, a, y)
+    a = check_conv_broadcast(name, a, y)
+    return Base.mightalias(a, y) ? copy(a) : a
+end
+
 function apply_conv_activation!(y, ::Nothing)
     return y
 end
@@ -252,11 +258,8 @@ function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuAr
                             groups, mode, alpha, beta, compute_type=ctype,
                             deterministic, math_mode, max_workspace)
     else
-        zarg = zsrc === nothing ? nothing : check_conv_broadcast("z", zsrc, y)
-        biasarg = bias === nothing ? nothing : check_conv_broadcast("bias", bias, y)
-        # graph inputs must not alias the output
-        zarg !== nothing && Base.mightalias(zarg, y) && (zarg = copy(zarg))
-        biasarg !== nothing && Base.mightalias(biasarg, y) && (biasarg = copy(biasarg))
+        zarg = zsrc === nothing ? nothing : conv_graph_input("z", zsrc, y)
+        biasarg = bias === nothing ? nothing : conv_graph_input("bias", bias, y)
         key = fused_convolution_key(y, x, w, zarg, biasarg, pact, pre, post, str, dil,
                                      cmode, ctype, alpha, beta, deterministic, math_mode,
                                      max_workspace)

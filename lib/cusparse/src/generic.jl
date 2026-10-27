@@ -149,15 +149,15 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
         return densetosparse_old(A, fmt, index)
     end
     m,n = size(A)
-    local rowPtr, colPtr, desc_sparse, B
-    if fmt == :coo
-        desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCOO, T, Cint, m, n, index)
+    # the row or column pointers of a CSR or CSC matrix are computed by the analysis
+    desc_sparse, ptr = if fmt == :coo
+        CuSparseMatrixDescriptor(CuSparseMatrixCOO, T, Cint, m, n, index), nothing
     elseif fmt == :csr
         rowPtr = CuVector{Cint}(undef, m+1)
-        desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtr, T, Cint, m, n, index)
-    elseif fmt == :csc
+        CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtr, T, Cint, m, n, index), rowPtr
+    else
         colPtr = CuVector{Cint}(undef, n+1)
-        desc_sparse = CuSparseMatrixDescriptor(CuSparseMatrixCSC, colPtr, T, Cint, m, n, index)
+        CuSparseMatrixDescriptor(CuSparseMatrixCSC, colPtr, T, Cint, m, n, index), colPtr
     end
     desc_dense = CuDenseMatrixDescriptor(A)
 
@@ -166,7 +166,7 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
         cusparseDenseToSparse_bufferSize(handle(), desc_dense, desc_sparse, algo, out)
         return out[]
     end
-    with_workspace(bufferSize) do buffer
+    return with_workspace(bufferSize) do buffer
         cusparseDenseToSparse_analysis(handle(), desc_dense, desc_sparse, algo, buffer)
         nnzB = Ref{Int64}()
         cusparseSpMatGetSize(desc_sparse, Ref{Int64}(), Ref{Int64}(), nnzB)
@@ -179,24 +179,24 @@ function densetosparse(A::CuMatrix{T}, fmt::Symbol, index::SparseChar, algo::cus
         elseif fmt == :csr
             colVal = CuVector{Cint}(undef, nnzB[])
             nzVal = CuVector{T}(undef, nnzB[])
-            B = CuSparseMatrixCSR{T, Cint}(rowPtr, colVal, nzVal, (m,n))
+            B = CuSparseMatrixCSR{T, Cint}(ptr, colVal, nzVal, (m,n))
             cusparseCsrSetPointers(desc_sparse, B.rowPtr, B.colVal, B.nzVal)
         elseif fmt == :csc
             rowVal = CuVector{Cint}(undef, nnzB[])
             nzVal = CuVector{T}(undef, nnzB[])
-            B = CuSparseMatrixCSC{T, Cint}(colPtr, rowVal, nzVal, (m,n))
+            B = CuSparseMatrixCSC{T, Cint}(ptr, rowVal, nzVal, (m,n))
             cusparseCscSetPointers(desc_sparse, B.colPtr, B.rowVal, B.nzVal)
         end
         cusparseDenseToSparse_convert(handle(), desc_dense, desc_sparse, algo, buffer)
+        # cusparseDenseToSparse_convert does not initialize colPtr/rowPtr for empty matrices;
+        # fill with the empty-matrix sentinel for the active indexing mode.
+        if fmt == :csc && iszero(n)
+            fill!(B.colPtr, index == 'O' ? one(Cint) : zero(Cint))
+        elseif fmt == :csr && iszero(m)
+            fill!(B.rowPtr, index == 'O' ? one(Cint) : zero(Cint))
+        end
+        B
     end
-    # cusparseDenseToSparse_convert does not initialize colPtr/rowPtr for empty matrices;
-    # fill with the empty-matrix sentinel for the active indexing mode.
-    if fmt == :csc && iszero(n)
-        fill!(B.colPtr, index == 'O' ? one(Cint) : zero(Cint))
-    elseif fmt == :csr && iszero(m)
-        fill!(B.rowPtr, index == 'O' ? one(Cint) : zero(Cint))
-    end
-    return B
 end
 
 # cuSPARSE has no data type for Bool, so widen the values to one it supports.
@@ -295,22 +295,17 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseC
 
     (A isa CuSparseMatrixBSR) && (cuSPARSE.version() < v"12.6.3") && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
-    # Support transa = 'C' for real matrices
-    transa = T <: Real && transa == 'C' ? 'T' : transa
-
     if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *
                             " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
     end
 
-    if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+    descA, transa, (m,n) = if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
         # Before cuSPARSE 12, model CSC input as its transposed CSR representation.
-        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
-        n,m = size(A)
-        transa = transa == 'N' ? 'T' : 'N'
+        CuSparseMatrixDescriptor(A, index, transposed=true), (transa == 'N' ? 'T' : 'N'), reverse(size(A))
     else
-        descA = CuSparseMatrixDescriptor(A, index)
-        m,n = size(A)
+        # Support transa = 'C' for real matrices
+        CuSparseMatrixDescriptor(A, index), (T <: Real && transa == 'C' ? 'T' : transa), size(A)
     end
 
     if transa == 'N'
@@ -351,8 +346,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
 
     (A isa CuSparseMatrixBSR) && (cuSPARSE.version() < v"12.5.1") && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
-    # Support transa = 'C' and `transb = 'C' for real matrices
-    transa = T <: Real && transa == 'C' ? 'T' : transa
+    # Support transb = 'C' for real matrices
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
     if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && T <: Complex
@@ -360,14 +354,12 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
                             " is not supported by the current CUDA version. Use a CSR or COO matrix instead."))
     end
 
-    if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
+    descA, transa, (m,k) = if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC)
         # Before cuSPARSE 12, model CSC input as its transposed CSR representation.
-        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
-        k,m = size(A)
-        transa = transa == 'N' ? 'T' : 'N'
+        CuSparseMatrixDescriptor(A, index, transposed=true), (transa == 'N' ? 'T' : 'N'), reverse(size(A))
     else
-        descA = CuSparseMatrixDescriptor(A, index)
-        m,k = size(A)
+        # Support transa = 'C' for real matrices
+        CuSparseMatrixDescriptor(A, index), (T <: Real && transa == 'C' ? 'T' : transa), size(A)
     end
     n = size(C)[2]
 
@@ -594,7 +586,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
                 return out[]
             end
             with_workspace(buffer3Size) do buffer3
-                function buffer2Size()
+                function estimatedBuffer2Size()
                     out = Ref{Csize_t}(0)
                     cusparseSpGEMM_estimateMemory(
                         handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
@@ -602,7 +594,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
                         buffer3, out)
                     return out[]
                 end
-                with_workspace(buffer2, buffer2Size) do buffer
+                with_workspace(buffer2, estimatedBuffer2Size) do buffer
                     unsafe_free!(buffer3)
 
                     out = Ref{Csize_t}(sizeof(buffer))
@@ -727,7 +719,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
                 return out[]
             end
             with_workspace(buffer3Size) do buffer3
-                function buffer2Size()
+                function estimatedBuffer2Size()
                     out = Ref{Csize_t}(0)
                     cusparseSpGEMM_estimateMemory(
                         handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
@@ -735,7 +727,7 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
                         buffer3, out)
                     return out[]
                 end
-                with_workspace(buffer2, buffer2Size) do buffer
+                with_workspace(buffer2, estimatedBuffer2Size) do buffer
                     unsafe_free!(buffer3)
 
                     out = Ref{Csize_t}(sizeof(buffer))
@@ -836,9 +828,6 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
     version() < v"11.5" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
-    # Support transa = 'C' for real matrices
-    transa = T <: Real && transa == 'C' ? 'T' : transa
-
     # native CSC support was added in cuSPARSE 12.8.1 (CUDA 13.3); older versions
     # model a CSC matrix as its transposed CSR, which cannot represent transa = 'C'.
     csc_workaround = isa(A, CuSparseMatrixCSC) && version() < v"12.8.1"
@@ -854,12 +843,11 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     (mX != mA) && throw(DimensionMismatch("X must have length $mA, but has length $mX"))
     (mY != mA) && throw(DimensionMismatch("Y must have length $mA, but has length $mY"))
 
-    if csc_workaround
-        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
-        transa = transa == 'N' ? 'T' : 'N'
-        uplo = uplo == 'U' ? 'L' : 'U'
+    descA, transa, uplo = if csc_workaround
+        CuSparseMatrixDescriptor(A, index, transposed=true), (transa == 'N' ? 'T' : 'N'), (uplo == 'U' ? 'L' : 'U')
     else
-        descA = CuSparseMatrixDescriptor(A, index)
+        # Support transa = 'C' for real matrices
+        CuSparseMatrixDescriptor(A, index), (T <: Real && transa == 'C' ? 'T' : transa), uplo
     end
 
     cusparse_uplo = Ref{cusparseFillMode_t}(uplo)
@@ -889,8 +877,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
              C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT) where {T}
     version() < v"11.6" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
-    # Support transa = 'C' and `transb = 'C' for real matrices
-    transa = T <: Real && transa == 'C' ? 'T' : transa
+    # Support transb = 'C' for real matrices
     transb = T <: Real && transb == 'C' ? 'T' : transb
 
     # Check if we solve a triangular system in-place with transb != 'N'.
@@ -915,12 +902,11 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     (nB != nC) && (transb == 'N') && throw(DimensionMismatch("B and C must have the same number of columns, but B has $nB columns and C has $nC columns"))
     (mB != nC) && (transb != 'N') && throw(DimensionMismatch("B must have the same the number of rows that C has as columns, but B has $mB rows and C has $nC columns"))
 
-    if csc_workaround
-        descA = CuSparseMatrixDescriptor(A, index, transposed=true)
-        transa = transa == 'N' ? 'T' : 'N'
-        uplo = uplo == 'U' ? 'L' : 'U'
+    descA, transa, uplo = if csc_workaround
+        CuSparseMatrixDescriptor(A, index, transposed=true), (transa == 'N' ? 'T' : 'N'), (uplo == 'U' ? 'L' : 'U')
     else
-        descA = CuSparseMatrixDescriptor(A, index)
+        # Support transa = 'C' for real matrices
+        CuSparseMatrixDescriptor(A, index), (T <: Real && transa == 'C' ? 'T' : transa), uplo
     end
 
     cusparse_uplo = Ref{cusparseFillMode_t}(uplo)

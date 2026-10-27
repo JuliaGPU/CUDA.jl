@@ -1281,23 +1281,23 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     s = mm!(q, k, virt("S", (skv, sq, h, b)); m=slq, n=slkv)
     ss = pointwise!(g, CUDNN_POINTWISE_MUL, s, scale; name="mul_s_attn_scale")
     sm = pointwise!(g, CUDNN_POINTWISE_SUB, ss, stats; name="sub_s_m")
+    score_dims = (skv, sq, h, b)
     if padded
-        score_dims = (skv, sq, h, b)
-        row = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
-                      name="row_idx_padding")
-        col = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
-                      name="col_idx_padding")
-        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=row, axis=2,
+        row_idx = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                          name="row_idx_padding")
+        col_idx = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true,
+                          name="col_idx_padding")
+        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=row_idx, axis=2,
                    compute_dtype=CUDNN_DATA_INT32, name="gen_row_idx_padding")
-        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=col, axis=3,
+        pointwise!(g, CUDNN_POINTWISE_GEN_INDEX, sm; y=col_idx, axis=3,
                    compute_dtype=CUDNN_DATA_INT32, name="gen_col_idx_padding")
         rmask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
                         name="row_mask_padding")
         cmask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
                         name="col_mask_padding")
-        pointwise!(g, CUDNN_POINTWISE_CMP_LT, row, slq; y=rmask,
+        pointwise!(g, CUDNN_POINTWISE_CMP_LT, row_idx, slq; y=rmask,
                    compute_dtype=CUDNN_DATA_BOOLEAN, name="lt_row_sq_padding")
-        pointwise!(g, CUDNN_POINTWISE_CMP_LT, col, slkv; y=cmask,
+        pointwise!(g, CUDNN_POINTWISE_CMP_LT, col_idx, slkv; y=cmask,
                    compute_dtype=CUDNN_DATA_BOOLEAN, name="lt_col_skv_padding")
         pmask = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_BOOLEAN, virtual=true,
                         name="padding_mask")
@@ -1310,7 +1310,6 @@ function sdpa_bwd!(g::Graph, q::Tensor, k::Tensor, v::Tensor, o::Tensor, dO::Ten
     # each generating its own indices: the engines reject a padded bottom-right window
     # whose bands share them
     if banded
-        score_dims = (skv, sq, h, b)
         int(name) = tensor!(g; dims=score_dims, dtype=CUDNN_DATA_INT32, virtual=true, name)
         pwint!(mode, x, y, name) =
             pointwise!(g, mode, x, y; y=int(name), compute_dtype=CUDNN_DATA_INT32, name)
@@ -1549,7 +1548,8 @@ end
 function lower_sdpa_mask_subgraph!(d, ctx, mask)
     optdesc(t) = t === nothing ? nothing : desc(ctx, t)
     x = mask.input
-    ops = map(mask.bands) do band
+    ops = BackendDescriptor[]
+    for band in mask.bands
         # a left bound keeps col > row + shift - left, a right one col <= row + shift + right
         mode = band.left_bound === nothing ? CUDNN_POINTWISE_CMP_GE : CUDNN_POINTWISE_CMP_GT
         op = diagonal_band_mask_operation(desc(ctx, x), desc(ctx, mask.fill),
@@ -1559,9 +1559,8 @@ function lower_sdpa_mask_subgraph!(d, ctx, mask)
                                           left_bound=optdesc(band.left_bound),
                                           shift_right_bound=optdesc(band.shift_right_bound),
                                           comparison_mode=mode)
-        track!(ctx, op)
+        push!(ops, track!(ctx, op))
         x = band.output
-        op
     end
     d[:subgraph] = track!(ctx, operation_graph(ops))
     d[:subgraph_input_uid] = mask.input.uid
