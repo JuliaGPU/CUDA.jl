@@ -91,6 +91,46 @@ function gate_kernel(gate::Ptr{UInt32}, cycles)
 end
 gate_timeout() = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))
 
+# a gate that isn't opened in time usually means that a task blocked its thread in a call
+# that waits for the GPU, without yielding to the task that opens the gate. to identify that
+# call, have Julia print the native backtrace of every thread (as it does on SIGUSR1) when
+# `f` takes longer than `timeout` seconds, i.e., before the gate kernel gives up. a POSIX
+# timer delivers the signal, so this doesn't need any Julia thread to be responsive.
+function with_watchdog(f; timeout=30)
+    Sys.islinux() || return f()
+
+    # the signal has to reach Julia's signal listener thread (the one waiting in
+    # sigtimedwait), because Julia treats SIGUSR1 as fatal on threads that don't block it,
+    # like the ones compute-sanitizer starts. for the same reason, make those threads ignore
+    # it (Julia's own threads block it), as the profile that Julia collects after printing
+    # the backtraces signals the whole process.
+    tids = readdir("/proc/self/task")
+    i = findfirst(tids) do tid
+        wchan = try read("/proc/self/task/$tid/wchan", String) catch; "" end
+        contains(wchan, "sigtimedwait")
+    end
+    i === nothing && return f()
+    ccall(:signal, Ptr{Cvoid}, (Cint, Ptr{Cvoid}), 10 #= SIGUSR1 =#, Ptr{Cvoid}(1) #= SIG_IGN =#)
+
+    # struct sigevent: sigev_value, sigev_signo, sigev_notify, and the target thread
+    sev = zeros(Cint, 16)
+    sev[3] = 10         # SIGUSR1
+    sev[4] = 4          # SIGEV_THREAD_ID
+    sev[5] = parse(Cint, tids[i])
+    timer = Ref{Ptr{Cvoid}}()
+    ccall((:timer_create, "librt.so.1"), Cint, (Cint, Ptr{Cint}, Ptr{Ptr{Cvoid}}),
+          1 #= CLOCK_MONOTONIC =#, sev, timer) == 0 || return f()
+    try
+        # struct itimerspec: no interval, so the timer fires once
+        spec = Int64[0, 0, timeout, 0]
+        ccall((:timer_settime, "librt.so.1"), Cint,
+              (Ptr{Cvoid}, Cint, Ptr{Int64}, Ptr{Cvoid}), timer[], 0, spec, C_NULL)
+        f()
+    finally
+        ccall((:timer_delete, "librt.so.1"), Cint, (Ptr{Cvoid},), timer[])
+    end
+end
+
 # run `f` while a kernel on another stream keeps the GPU busy, testing that the kernel was
 # running all along. everything `f` does on the GPU needs to have been compiled beforehand,
 # as loading code waits for the GPU to become idle.
@@ -108,20 +148,22 @@ function while_gpu_busy(f)
         # freeing memory can also wait for the GPU, so don't run finalizers
         GC.gc(true)
         gc_enabled = GC.enable(false)
-        try
-            for i in 1:3
-                unsafe_store!(cpu, UInt32(0), i)
+        with_watchdog() do
+            try
+                for i in 1:3
+                    unsafe_store!(cpu, UInt32(0), i)
+                end
+                @cuda stream=busy gate_kernel(gpu, gate_timeout())
+                t0 = time()
+                while unsafe_load(cpu + 2sizeof(UInt32), :acquire) == 0 && time() - t0 < 60
+                end
+                @test unsafe_load(cpu, 3) == 1
+                f()
+            finally
+                unsafe_store!(cpu, UInt32(1), :release)
+                GC.enable(gc_enabled)
+                synchronize(busy)
             end
-            @cuda stream=busy gate_kernel(gpu, gate_timeout())
-            t0 = time()
-            while unsafe_load(cpu + 2sizeof(UInt32), :acquire) == 0 && time() - t0 < 60
-            end
-            @test unsafe_load(cpu, 3) == 1
-            f()
-        finally
-            unsafe_store!(cpu, UInt32(1), :release)
-            GC.enable(gc_enabled)
-            synchronize(busy)
         end
         @test unsafe_load(cpu, 2) == 0
     end
