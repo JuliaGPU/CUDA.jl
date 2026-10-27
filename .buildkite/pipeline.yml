@@ -411,6 +411,9 @@ steps:
       queue: "cuda"
       benchmark: "*"
       gpu: "rtx2070"
+    # the benchmark agent also takes ordinary CUDA jobs when the other agents are busy;
+    # when it frees up, it should pick a waiting benchmark job first
+    priority: 1
     if: |
       build.message !~ /\[skip [^\]]*(benchmarks)/ &&
       (build.message =~ /\[only [^\]]*(benchmarks)/ ||
