@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: write       # update the history in the gh-pages branch
       pull-requests: write  # comment on pull requests
-    uses: JuliaGPU/benchmark-action/.github/workflows/publish.yml@3256ba402977d955df0d4aae5fdf1356199f8f40
+    uses: JuliaGPU/benchmark-action/.github/workflows/publish.yml@5a6d44cf881aef52c806497634960940749994c7
     with:
       pipeline: cuda-dot-jl
     secrets:
