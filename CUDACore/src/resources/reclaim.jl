@@ -59,7 +59,17 @@ end
 @noinline function retry_reclaim_slow(f, retry_if, ret)
     dev = active_state().device
     for level in instances(ReclaimLevel)
-        reclaim_step(level, dev)
+        if level == RECLAIM_GC
+            # the memory that collecting garbage frees may suffice, without returning cached
+            # memory to the driver first (which would have to be allocated again)
+            GC.gc(true)
+            drain_retired()
+            ret = f()
+            retry_if(ret) || return ret
+            reclaim_step(level, dev; collect=false)
+        else
+            reclaim_step(level, dev)
+        end
         ret = f()
         retry_if(ret) || return ret
     end
@@ -73,7 +83,7 @@ end
 #
 # none of this holds a lock while collecting garbage (a task holding a lock doesn't run
 # finalizers) or waiting for the GPU (as other tasks may need to make progress for that).
-function reclaim_step(level::ReclaimLevel, dev::CuDevice)
+function reclaim_step(level::ReclaimLevel, dev::CuDevice; collect::Bool=true)
     # memory is also freed asynchronously when not using a pool
     async = async_free_supported(dev)
 
@@ -82,7 +92,7 @@ function reclaim_step(level::ReclaimLevel, dev::CuDevice)
     if level == RECLAIM_DROP && !capturing
         foreach_reclaimable(drop!)
     end
-    if level >= RECLAIM_GC
+    if level >= RECLAIM_GC && collect
         GC.gc(true)
     end
     capturing && return
