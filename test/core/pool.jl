@@ -84,3 +84,24 @@ end
         @test (Base.@atomic CUDACore.unified_cache.bytes) == 0
     end
 end
+
+# memory that isn't allocated from a pool is freed in stream order, and is only returned to
+# the driver after synchronizing. NVML reports how much this process uses, unlike
+# `CUDA.free_memory()`, which other processes affect.
+const unpooled_size = 512 * 2^20
+function free_unpooled()
+    mem = CUDACore.alloc(CUDACore.DeviceMemory, unpooled_size)
+    a = unsafe_wrap(CuArray, convert(CuPtr{UInt8}, mem), unpooled_size; own=true)
+    a .= 0x01
+    CUDA.unsafe_free!(a)
+end
+
+@testset "reclaiming returns memory that isn't pooled" begin
+    CUDA.reclaim()
+    before = gpu_rss_nvml()
+    if before !== missing
+        free_unpooled()
+        CUDA.reclaim()
+        @test gpu_rss_nvml() < before + unpooled_size ÷ 2
+    end
+end

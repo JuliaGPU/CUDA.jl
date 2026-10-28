@@ -270,6 +270,10 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
 - `CUDA.@profile` reports times with nanosecond resolution. Durations used to be
   rounded to multiples of about 238 ns, so short API calls and kernels were
   often reported as taking 0 ns.
+- Memory that isn't allocated from a memory pool is returned to the driver
+  after it is freed. In v6.5.0 it could stay allocated, so code that allocated
+  repeatedly with `JULIA_CUDA_MEMORY_POOL=none` ran out of memory, as did code
+  that freed many arrays wrapped with `unsafe_wrap(CuArray, ...; own=true)`.
 
 *Minor changes*:
 
