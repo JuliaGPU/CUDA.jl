@@ -313,3 +313,28 @@ end
                                         window=2, padding, beta=2))
     end
 end
+
+# max-pooling gradients laid out unlike the forward arrays are copied, as cuDNN rejects them,
+# or with graphs, computes wrong gradients (#3497)
+@testset "∇maxpool! layouts, padding $padding" for padding in (1, (1, 0, 0, 1))
+    C = 3
+    # a range of channels, with strides that depend on the size of the parent
+    channels(a, n) = copyto!(view(similar(a, size(a)[1:2]..., n*size(a, 3), size(a, 4)),
+                                  :, :, size(a, 3)+1:2size(a, 3), :), a)
+    xd = CuArray(rand(Float32, 7, 7, C, 2))
+    yd = maxpool!(similar(xd, 4, 4, C, 2), xd; window=2, padding)
+    dyd = CuArray(rand(Float32, size(yd)))
+    dx0 = CuArray(rand(Float32, size(xd)))
+    ref = Array(∇maxpool!(similar(xd), dyd, yd, xd; window=2, padding))
+    for (x, dx, y, dy) in ((channels(xd, 3), copy(dx0), yd, dyd),
+                           (xd, channels(dx0, 3), yd, dyd),
+                           (xd, copy(dx0), channels(yd, 3), dyd),
+                           (xd, copy(dx0), yd, channels(dyd, 3)),
+                           (channels(xd, 3), channels(dx0, 5),
+                            channels(yd, 3), channels(dyd, 5)))
+        @test Array(∇maxpool!(dx, dy, y, x; window=2, padding)) ≈ ref
+    end
+    dx = channels(dx0, 3)
+    ∇maxpool!(dx, dyd, yd, xd; window=2, padding, beta=2)
+    @test Array(dx) ≈ ref .+ 2 .* Array(dx0)
+end
