@@ -10,79 +10,16 @@ end
 @public @device_override, @device_function, @device_functions
 
 macro device_override(ex)
-    ex = macroexpand(__module__, ex)
-    if VERSION >= v"1.12.0-DEV.745" || v"1.11-rc1" <= VERSION < v"1.12-"
-        # this requires that the overlay method f′ is consistent with f, i.e.,
-        #   - if f(x) returns a value, f′(x) must return the identical value.
-        #   - if f(x) throws an exception, f′(x) must also throw an exception
-        #     (although the exceptions do not need to be identical).
-        esc(quote
-            Base.Experimental.@consistent_overlay($(CUDACore.method_table), $ex)
-        end)
-    else
-        esc(quote
-            Base.Experimental.@overlay($(CUDACore.method_table), $ex)
-        end)
-    end
+    esc(GPUToolbox.Overlays.device_override(__module__, GlobalRef(CUDACore, :method_table), ex))
 end
 
 macro device_function(ex)
-    ex = macroexpand(__module__, ex)
-    def = splitdef(ex)
-
-    # generate a function that errors
-    def[:body] = quote
-        error("This function is not intended for use on the CPU")
-    end
-
-    esc(quote
-        # `@__doc__` makes docstrings apply to the CPU stub (i.e., to the function
-        # binding), so that `@device_functions` can rewrite documented definitions
-        Base.@__doc__ $(combinedef(def))
-
-        # NOTE: no use of `@consistent_overlay` here because the regular function errors
-        Base.Experimental.@overlay($(CUDACore.method_table), $ex)
-    end)
+    esc(GPUToolbox.Overlays.device_function(__module__, GlobalRef(CUDACore, :method_table), ex))
 end
 
+# `device_function` also rewrites every definition in a block
 macro device_functions(ex)
-    # recursively prepend `@device_function` to all function definitions.
-    #
-    # NOTE: definitions are rewritten *before* macro expansion, where possible. In
-    #       particular, docstrings (`Core.@doc`) are handled by descending into the
-    #       documented expression, because the shape of `@doc`'s expansion has changed
-    #       repeatedly (Julia 1.13 wraps the definition in `if true; val = ...; end`),
-    #       and any definition that escapes this rewrite ends up in the global method
-    #       table as a CPU-callable function containing GPU-only intrinsics, which
-    #       breaks ahead-of-time compilation (JuliaGPU/GPUCompiler.jl#611).
-    esc(device_functions(__module__, ex))
-end
-
-isdef(ex) = Meta.isexpr(ex, :function) ||
-            (Meta.isexpr(ex, :(=)) && Meta.isexpr(ex.args[1], (:call, :where, :(::))))
-isdoc(m) = m === GlobalRef(Core, Symbol("@doc")) || m === Symbol("@doc") ||
-           (Meta.isexpr(m, :.) && m.args[end] == QuoteNode(Symbol("@doc")))
-
-function device_functions(mod::Module, ex)
-    if isdef(ex)
-        return :(@device_function $ex)
-    elseif Meta.isexpr(ex, :macrocall) && isdoc(ex.args[1])
-        # docstring: rewrite the documented expression
-        return Expr(:macrocall, ex.args[1:end-1]..., device_functions(mod, ex.args[end]))
-    elseif Meta.isexpr(ex, :macrocall)
-        # other macros (e.g. `@inline`): expand, then rewrite the result
-        return device_functions(mod, macroexpand(mod, ex))
-    elseif Meta.isexpr(ex, (:block, :if, :elseif))
-        # descend into blocks, and into conditionals (the `@doc` expansion on
-        # Julia 1.13 wraps definitions in `if true ... end`)
-        return Expr(ex.head, map(arg -> device_functions(mod, arg), ex.args)...)
-    elseif Meta.isexpr(ex, :(=)) && isa(ex.args[1], Symbol)
-        # assignment of a definition to a temporary (also from `@doc` expansion)
-        return Expr(:(=), ex.args[1], device_functions(mod, ex.args[2]))
-    else
-        # preserve all the rest
-        return ex
-    end
+    esc(GPUToolbox.Overlays.device_function(__module__, GlobalRef(CUDACore, :method_table), ex))
 end
 
 ## alignment API
