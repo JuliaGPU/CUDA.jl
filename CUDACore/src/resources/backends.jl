@@ -231,7 +231,9 @@ function try_create_pool(f)
   end
 end
 
-pools_enabled() = get(ENV, "JULIA_CUDA_MEMORY_POOL", "cuda") == "cuda"
+# (independent of the allocator for device memory, see `allocator`)
+const host_memory_pools = Preferences.@load_preference("host_memory_pools", true)
+pools_enabled() = host_memory_pools
 
 # a pool of pinned host memory, accessible from all devices
 function host_pool()

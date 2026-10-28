@@ -74,6 +74,15 @@ end
     end
 end
 
+@testset "host memory pools don't depend on the device memory allocator" begin
+    # (also tested with `JULIA_CUDA_MEMORY_POOL=none` in CI)
+    if CUDACore.host_memory_pools && CUDACore.driver_version() >= v"13.0" &&
+       all(dev -> attribute(dev, CUDA.DEVICE_ATTRIBUTE_HOST_MEMORY_POOLS_SUPPORTED) == 1,
+           devices())
+        @test CUDACore.host_pool() !== nothing
+    end
+end
+
 @testset "live bytes return to zero" begin
     # (the hard limit is checked against them when not using a pool)
     live = CUDACore.memory_stats().live

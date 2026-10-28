@@ -44,8 +44,6 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
   may wait for the GPU, like unpinning memory or destroying some library objects,
   are deferred until memory is reclaimed: on an out-of-memory error, or when
   calling `CUDA.reclaim()`. Pinned arrays are kept alive until then.
-- `JULIA_CUDA_MEMORY_POOL=none` now also disables the memory pools that are used
-  to allocate host and unified memory.
 - The stream that `stream()` returns in a task is handed to another task once
   the task has finished and the work on the stream has completed, instead of
   being kept alive until the GC collects the task. This keeps applications that
@@ -111,7 +109,9 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
   that wrap objects of CUDA libraries.
 - Host and unified memory is allocated from stream-ordered memory pools where
   supported (CUDA 13 and later), or otherwise cached for reuse, making allocating
-  and freeing such memory considerably faster.
+  and freeing such memory considerably faster. `JULIA_CUDA_MEMORY_POOL` doesn't
+  affect these pools; setting the `host_memory_pools` preference to `false`
+  disables them.
 - `CUDA.priority!(p)` sets the priority of the current task's GPU work, by
   switching the task to a stream of that priority that is ordered after its
   previous one; `CUDA.priority!(p) do ... end` restores the previous stream
