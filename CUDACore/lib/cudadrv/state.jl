@@ -401,6 +401,12 @@ function claim_stream!(pool::Vector{PooledStream}, task::Task)
             true
         elseif !isvalid(entry.stream)
             false
+        elseif shared(entry.stream)
+            # tasks that activated the stream with `stream!` may still submit work to it
+            false
+        elseif bound_elsewhere(entry.stream, task)
+            # (`stream!` takes the pool lock, so tasks can't activate it once we've checked)
+            true
         else
             status = query(entry.stream)
             if status == ERROR_NOT_READY
@@ -550,12 +556,26 @@ function check_stream_capture()
     return
 end
 
+# a pooled stream is only handed to another task when no task can still submit work to it,
+# which `claim_stream!` checks while holding the pool lock. that only holds if tasks that
+# activate a stream note that while holding the same lock.
+bind_activated!(stream::CuStream) = @lock stream_pool_lock bind!(stream)
+
+# the same for a task that submits work to a stream without activating it
+@inline function bind_submitter!(stream::CuStream)
+    order = stream.order
+    order === nothing && return
+    owner = Base.@atomic order.owner
+    owner !== nothing && owner.value === current_task() && return
+    bind_activated!(stream)
+end
+
 function stream!(stream::CuStream)
     check_stream_capture()
     check_owned(stream)
     state = task_local_state!()
     devidx = deviceid(state.device)+1
-    bind!(stream)
+    bind_activated!(stream)
     state.streams[devidx] = stream
     return
 end
@@ -567,7 +587,7 @@ function stream!(f::Function, stream::CuStream)
     devidx = deviceid(state.device)+1
     old_stream = state.streams[devidx]
     old_priority = state.priorities[devidx]
-    bind!(stream)
+    bind_activated!(stream)
     state.streams[devidx] = stream
     try
         f()
