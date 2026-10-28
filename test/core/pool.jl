@@ -62,6 +62,15 @@ end
     CUDA.cached_memory()
 end
 
+@testset "live bytes return to zero" begin
+    # (the hard limit is checked against them when not using a pool)
+    live = CUDACore.memory_stats().live
+    for _ in 1:10
+        CUDA.unsafe_free!(CuArray{UInt8}(undef, 1024))
+    end
+    @test CUDACore.memory_stats().live == live
+end
+
 @testset "parse_limit" begin
     @test CUDACore.parse_limit("8000kB") == UInt(8000*1000)
     @test CUDACore.parse_limit("8000MB") == UInt(8000*1000*1000)

@@ -46,12 +46,7 @@ mutable struct MemoryStats
 end
 MemoryStats() = MemoryStats(0, 0.0, 0, 0.0, 0.0, 0)
 
-function account!(stats::MemoryStats, bytes::Integer)
-  Base.@atomic stats.live += bytes
-  if bytes > 0
-    Base.@atomic stats.live += 1
-  end
-end
+account!(stats::MemoryStats, bytes::Integer) = (Base.@atomic stats.live += bytes; nothing)
 
 function memory_stats(dev::CuDevice=device())
   @memoize index=deviceid(dev)+1 begin
