@@ -120,40 +120,18 @@ function versioninfo(io::IO=stdout)
         println(io, length(devs), " devices:")
     end
     for (i, dev) in enumerate(devs)
-        function query_nvml()
-            mig = uuid(dev) != parent_uuid(dev)
-            nvml_gpu = NVML.Device(parent_uuid(dev))
-            nvml_dev = NVML.Device(uuid(dev); mig)
-
-            str = NVML.name(nvml_dev)
-            cap = NVML.compute_capability(nvml_gpu)
-            mem = NVML.memory_info(nvml_dev)
-
-            (; str, cap, mem)
-        end
-
-        function query_cuda()
-            str = name(dev)
-            cap = capability(dev)
-            mem = device!(dev) do
-                # this requires a device context, so we prefer NVML
-                (free=free_memory(), total=total_memory())
-            end
-            (; str, cap, mem)
-        end
-
         str, cap, mem = if has_nvml()
             try
-                query_nvml()
+                query_nvml(dev)
             catch err
                 if !isa(err, NVML.NVMLError) ||
                    !in(err.code, [NVML.ERROR_NOT_SUPPORTED, NVML.ERROR_NO_PERMISSION])
                     rethrow()
                 end
-                query_cuda()
+                query_cuda(dev)
             end
         else
-            query_cuda()
+            query_cuda(dev)
         end
         println(io, "  $(i-1): $str (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
 
@@ -179,6 +157,28 @@ function versioninfo(io::IO=stdout)
             end
         end
     end
+end
+
+function query_nvml(dev::CuDevice)
+    mig = uuid(dev) != parent_uuid(dev)
+    nvml_gpu = NVML.Device(parent_uuid(dev))
+    nvml_dev = NVML.Device(uuid(dev); mig)
+
+    str = NVML.name(nvml_dev)
+    cap = NVML.compute_capability(nvml_gpu)
+    mem = NVML.memory_info(nvml_dev)
+
+    (; str, cap, mem)
+end
+
+function query_cuda(dev::CuDevice)
+    str = name(dev)
+    cap = capability(dev)
+    mem = device!(dev) do
+        # this requires a device context, so we prefer NVML
+        (free=free_memory(), total=total_memory())
+    end
+    (; str, cap, mem)
 end
 
 KI.versioninfo(io::IO, ::CUDABackend) = versioninfo(io)

@@ -286,7 +286,7 @@ function drain_retired(limit::Int=typemax(Int))
   else
     trylock(drain_lock) || return 0
   end
-  n = 0
+  n = Ref(0)
   try
     # releasing a resource may drain recursively, which should leave the work to the
     # outer drain
@@ -298,7 +298,7 @@ function drain_retired(limit::Int=typemax(Int))
           Base.@atomic :monotonic retired_backlog.head =
             Base.@atomicswap :acquire retired_memory.head = nothing
         end
-        while n < limit
+        while n[] < limit
           node = Base.@atomic :monotonic retired_backlog.head
           node === nothing && break
           Base.@atomic :monotonic retired_backlog.head = node.next
@@ -308,7 +308,7 @@ function drain_retired(limit::Int=typemax(Int))
             release_failed!(ReleaseAction(identity, node.resource, nothing, false),
                             err, catch_backtrace())
           end
-          n += 1
+          n[] += 1
         end
         release_held!()
       end
@@ -318,7 +318,7 @@ function drain_retired(limit::Int=typemax(Int))
   finally
     unlock(drain_lock)
   end
-  return n
+  return n[]
 end
 
 # drain periodically, so that memory gets released when the application stops using CUDA.

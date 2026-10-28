@@ -1473,9 +1473,7 @@ function collect_metrics(@nospecialize(f), metrics, columns, trace)
         if !(metrics isa AbstractVector)
             # not every GPU supports all metrics of a preset, e.g., integrated GPUs don't
             # report DRAM throughput
-            columns = CUPTI.ProfilerHost(ctx) do host
-                filter(col -> is_available(host, col.metric), columns)
-            end
+            columns = available_columns(ctx, columns)
         end
 
         # the activity API identifies the launches, which are serialized, in the order
@@ -1523,6 +1521,10 @@ function collect_metrics(@nospecialize(f), metrics, columns, trace)
     values = profile.values[1:end-1, :]
     KernelProfile(; device=name(device(ctx)), passes=profile.passes, kernels,
                     metrics=[col.metric for col in columns], values, columns, trace)
+end
+
+available_columns(ctx, columns) = CUPTI.ProfilerHost(ctx) do host
+    filter(col -> is_available(host, col.metric), columns)
 end
 
 function is_available(host, metric)

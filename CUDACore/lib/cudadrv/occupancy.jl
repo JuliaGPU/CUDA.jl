@@ -117,8 +117,9 @@ function query_launch_configuration(fun::CuFunction, shmem::Union{Integer,Base.C
         lock(_shmem_cb_lock) do
             global _shmem_cb
             _shmem_cb = shmem
-            cb = @cfunction(_shmem_cint_cb, Cint, (Cint,))
-            cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
+            cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun,
+                                             @cfunction(_shmem_cint_cb, Cint, (Cint,)),
+                                             0, max_threads)
             _shmem_cb = nothing
         end
     end

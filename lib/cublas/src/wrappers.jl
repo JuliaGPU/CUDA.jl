@@ -1788,7 +1788,7 @@ function grouped_gemm!(transA, transB, alpha, A::Vector{<:StridedCuMatrix{TA}},
     group_count = length(group_size)
     group_count == 0 && return
     ends = cumsum(group_size)
-    groups = [ends[i]-group_size[i]+1:ends[i] for i in 1:group_count]
+    groups = UnitRange.(ends .- group_size .+ 1, ends)
     m = Vector{Int64}(undef, group_count)
     n = Vector{Int64}(undef, group_count)
     k = Vector{Int64}(undef, group_count)

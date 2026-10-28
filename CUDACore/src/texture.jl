@@ -230,7 +230,7 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
 
         # we always need 3 address modes
         if !(address_mode isa Tuple)
-            address_mode = ntuple(_->address_mode, N)
+            address_mode = ntuple(Returns(address_mode), N)
         end
         address_mode = tuple(address_mode..., ntuple(_->ADDRESS_MODE_CLAMP, 3 - N)...)
 

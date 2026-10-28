@@ -100,20 +100,25 @@ end
 # AD method
 function cudnnConvolutionForwardAD(w, x, bias, z; y, activation, convDesc, wDesc, xDesc, yDesc, zDesc, biasDesc, alpha, beta, dw, dx, dz, dbias, dready)
     p = cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, biasDesc, activation, beta!=0)
-    with_workspace(p.memory) do workspace
-        if bias === nothing && activation === CUDNN_ACTIVATION_IDENTITY && (z === y || beta[] == 0)
+    if bias === nothing && activation === CUDNN_ACTIVATION_IDENTITY && (z === y || beta[] == 0)
+        with_workspace(p.memory) do workspace
             cudnnConvolutionForward(handle(), alpha, xDesc, x, wDesc, w, convDesc, p.algo, workspace, sizeof(workspace), beta, yDesc, y)
+        end
+    else
+        @assert activation === CUDNN_ACTIVATION_IDENTITY || activation === CUDNN_ACTIVATION_RELU  "Only RELU and IDENTITY supported"
+        activationDesc = cudnnActivationDescriptor(activation, CUDNN_NOT_PROPAGATE_NAN, Cdouble(1.0))
+        # bias and z cannot be null for cudnnConvolutionBiasActivationForward
+        z === nothing && (beta[] = 0)
+        z, zDesc = z === nothing ? (y, yDesc) : (z, zDesc)
+        bias, biasDesc = if bias === nothing
+            format = cudnnGetFilterDescriptor(wDesc)[3]
+            bdim = (format === CUDNN_TENSOR_NHWC ? 1 : ndims(y)-1)
+            zero_bias = fill!(similar(w, ntuple(i->(i==bdim ? size(y,i) : 1), ndims(y))), 0)
+            zero_bias, cudnnTensorDescriptor(zero_bias; format)
         else
-            @assert activation === CUDNN_ACTIVATION_IDENTITY || activation === CUDNN_ACTIVATION_RELU  "Only RELU and IDENTITY supported"
-            activationDesc = cudnnActivationDescriptor(activation, CUDNN_NOT_PROPAGATE_NAN, Cdouble(1.0))
-            # bias and z cannot be null for cudnnConvolutionBiasActivationForward
-            if z === nothing; z, zDesc = y, yDesc; beta[] = 0; end
-            if bias === nothing
-                format = cudnnGetFilterDescriptor(wDesc)[3]
-                bdim = (format === CUDNN_TENSOR_NHWC ? 1 : ndims(y)-1)
-                bias = fill!(similar(w, ntuple(i->(i==bdim ? size(y,i) : 1), ndims(y))), 0)
-                biasDesc = cudnnTensorDescriptor(bias; format)
-            end
+            bias, biasDesc
+        end
+        with_workspace(p.memory) do workspace
             cudnnConvolutionBiasActivationForward(handle(), alpha, xDesc, x, wDesc, w, convDesc, p.algo, workspace, sizeof(workspace), beta, zDesc, z, biasDesc, bias, activationDesc, yDesc, y)
         end
     end
@@ -156,9 +161,7 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
     convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
     biasDesc_native = isnothing(biasDesc) ? nothing : cudnnGetTensorDescriptor(biasDesc)
     key = (xDesc_native, wDesc_native, convDesc_native, biasDesc, activation)
-    val = lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
-        get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
-    end
+    val = @lock cudnnConvolutionFwdAlgoPerfCacheLock get(cudnnConvolutionFwdAlgoPerfCache, key, nothing)
     if val === nothing
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_FWD_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
@@ -172,9 +175,7 @@ function cudnnConvolutionFwdAlgoPerf(xDesc, x, wDesc, w, convDesc, yDesc, y, bia
         end
         val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults,
                                              returnedAlgoCount[1])
-        lock(cudnnConvolutionFwdAlgoPerfCacheLock) do
-            cudnnConvolutionFwdAlgoPerfCache[key] = val
-        end
+        @lock cudnnConvolutionFwdAlgoPerfCacheLock cudnnConvolutionFwdAlgoPerfCache[key] = val
     end
     return val
 end
@@ -189,9 +190,7 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
     dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
     convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
     key = (wDesc_native, dyDesc_native, convDesc_native)
-    val = lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
-        get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
-    end
+    val = @lock cudnnConvolutionBwdDataAlgoPerfCacheLock get(cudnnConvolutionBwdDataAlgoPerfCache, key, nothing)
     if val === nothing
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
@@ -205,9 +204,7 @@ function cudnnConvolutionBwdDataAlgoPerf(wDesc, w, dyDesc, dy, convDesc, dxDesc,
         end
         val = cudnnConvolutionAlgoPerfChoose(convDesc, dyDesc, perfResults,
                                              returnedAlgoCount[1])
-        lock(cudnnConvolutionBwdDataAlgoPerfCacheLock) do
-            cudnnConvolutionBwdDataAlgoPerfCache[key] = val
-        end
+        @lock cudnnConvolutionBwdDataAlgoPerfCacheLock cudnnConvolutionBwdDataAlgoPerfCache[key] = val
     end
     return val
 end
@@ -222,9 +219,7 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
     dyDesc_native = cudnnGetTensorDescriptor(dyDesc)
     convDesc_native = cudnnGetConvolutionDescriptor(convDesc)
     key = (xDesc_native, dyDesc_native, convDesc_native)
-    val = lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
-        get(cudnnConvolutionBwdFilterAlgoPerfCache, key, nothing)
-    end
+    val = @lock cudnnConvolutionBwdFilterAlgoPerfCacheLock get(cudnnConvolutionBwdFilterAlgoPerfCache, key, nothing)
     if val === nothing
         requestedAlgoCount = Int(CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT)
         returnedAlgoCount = Cint[0]
@@ -238,9 +233,7 @@ function cudnnConvolutionBwdFilterAlgoPerf(xDesc, x, dyDesc, dy, convDesc, dwDes
         end
         val = cudnnConvolutionAlgoPerfChoose(convDesc, xDesc, perfResults,
                                              returnedAlgoCount[1])
-        lock(cudnnConvolutionBwdFilterAlgoPerfCacheLock) do
-            cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
-        end
+        @lock cudnnConvolutionBwdFilterAlgoPerfCacheLock cudnnConvolutionBwdFilterAlgoPerfCache[key] = val
     end
     return val
 end

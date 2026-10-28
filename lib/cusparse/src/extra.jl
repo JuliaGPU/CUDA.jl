@@ -27,8 +27,7 @@ function geam_spgeam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::Cu
     descC = CuSparseMatrixDescriptor(CuSparseMatrixCSR, rowPtrC, T, Cint, m, n, index)
     spgeam_desc = CuSpGEAMDescriptor()
 
-    local C
-    GC.@preserve rowPtrC begin
+    return GC.@preserve rowPtrC begin
         function bufferSize()
             out = Ref{Csize_t}()
             cusparseSpGEAM_bufferSize(handle(), 'N', 'N', alpha_ref, descA, beta_ref, descB,
@@ -49,9 +48,9 @@ function geam_spgeam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::Cu
 
             cusparseSpGEAM(handle(), 'N', 'N', alpha_ref, descA, beta_ref, descB,
                            descC, T, CUSPARSE_SPGEAM_ALG_DEFAULT, spgeam_desc, buffer)
+            C
         end
     end
-    return C
 end
 
 for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2, :Float32),
@@ -67,7 +66,6 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
             descrC = CuMatrixDescriptor('G', 'L', 'N', index)
 
             rowPtrC = CuVector{Int32}(undef, m+1)
-            local colValC, nzValC
 
             function bufferSize()
                 out = Ref{Csize_t}()
@@ -79,7 +77,7 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                 return out[]
             end
 
-            with_workspace(bufferSize) do buffer
+            return with_workspace(bufferSize) do buffer
                 nnzTotal = Ref{Cint}()
                 cusparseXcsrgeam2Nnz(handle(), m, n,
                     descrA, nnz(A), A.rowPtr, A.colVal,
@@ -95,10 +93,8 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                     beta, descrB, nnz(B), nonzeros(B), B.rowPtr, B.colVal,
                     descrC, nzValC, rowPtrC, colValC,
                     buffer)
+                CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
             end
-
-            C = CuSparseMatrixCSR(rowPtrC, colValC, nzValC, (m, n))
-            return C
         end
     end
 end

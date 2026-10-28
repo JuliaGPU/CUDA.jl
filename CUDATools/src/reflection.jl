@@ -218,9 +218,9 @@ function print_sass(io::IO, lines)
                 for i in common+1:length(chain)
                     println(io, "; ", "│"^(i-2), "┌ @ ", frame(chain[i]))
                 end
-                stack = chain
+                copy!(stack, chain)
             end
-            chain = Tuple{String,String}[]
+            empty!(chain)
             continue
         end
 
