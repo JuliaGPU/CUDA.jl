@@ -169,7 +169,7 @@ function pc_sample(f, ctx::CuContext, period::Integer)
     reasons = try
         stall_reasons(ctx)
     catch
-        cuptiPCSamplingDisable(profiler_params(CUpti_PCSamplingDisableParams, :ctx; ctx))
+        unchecked_cuptiPCSamplingDisable(profiler_params(CUpti_PCSamplingDisableParams, :ctx; ctx))
         rethrow()
     end
 
@@ -216,9 +216,13 @@ function pc_sample(f, ctx::CuContext, period::Integer)
                 dropped += counts.dropped
                 buffer.data[].remainingNumPcs == 0 && break
             end
-        finally
-            cuptiPCSamplingDisable(profiler_params(CUpti_PCSamplingDisableParams, :ctx; ctx))
+        catch
+            # after a failed session, disabling can fail too (e.g. CUPTI 13.0 when another
+            # process holds the profiling hardware), which shouldn't hide the actual error
+            unchecked_cuptiPCSamplingDisable(profiler_params(CUpti_PCSamplingDisableParams, :ctx; ctx))
+            rethrow()
         end
+        cuptiPCSamplingDisable(profiler_params(CUpti_PCSamplingDisableParams, :ctx; ctx))
         counts = add_records!(pcs, final)
         total += counts.total
         dropped += counts.dropped
