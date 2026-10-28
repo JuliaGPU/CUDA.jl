@@ -223,3 +223,101 @@ end
     purge!(a)
     @test reserved(a) == 0
 end
+
+
+# compute-sanitizer only sees the allocations the caching allocator makes, i.e., segments,
+# unless the blocks are annotated
+@testset "compute-sanitizer annotations" begin
+    sanitizer = Sys.which("compute-sanitizer")
+    if sanitizer === nothing || sanitize
+        @info "Skipping the compute-sanitizer tests (not found, or already running under it)"
+    else
+        function sanitized(code; tool="memcheck")
+            script = tempname() * ".jl"
+            write(script, "using CUDA\n" * code)
+            cmd = `$sanitizer --tool=$tool --print-limit=10 $(Base.julia_cmd()) --project=$(Base.active_project()) $script`
+            cmd = addenv(cmd, "JULIA_CUDA_MEMORY_POOL" => "caching")
+            out = IOBuffer()
+            run(pipeline(ignorestatus(cmd); stdout=out, stderr=out))
+            return String(take!(out))
+        end
+
+        # valid uses: the 8-bit atomics that cover the padding at the end of an array,
+        # reusing memory while work on its previous allocation is still queued, graphs
+        out = sanitized("""
+        function inc!(a)
+            i = threadIdx().x
+            i <= length(a) && (@inbounds a[i] += one(eltype(a)))
+            return
+        end
+        function atomic_last!(a)
+            CUDA.@atomic a[length(a)] += UInt8(1)
+            return
+        end
+        # 8- and 16-bit atomics on the last element touch the padded word
+        a = CUDA.zeros(UInt8, 13)
+        @cuda atomic_last!(a)
+        @assert Array(a)[13] == 1
+        # reusing memory while work on its previous allocation is still queued
+        x = CUDA.zeros(Float32, 1000)
+        @cuda threads=1000 inc!(x)
+        CUDA.unsafe_free!(x)
+        y = CUDA.zeros(Float32, 1000)
+        @cuda threads=1000 inc!(y)
+        @assert all(==(1), Array(y))
+        # graphs
+        z = CUDA.zeros(Float32, 256)
+        g = capture() do
+            @cuda threads=256 inc!(z)
+        end
+        exec = instantiate(g); exec(); exec()
+        @assert all(==(2), Array(z))
+        println("VALID DONE")
+        """)
+        @test occursin("VALID DONE", out)
+        @test occursin("ERROR SUMMARY: 0 errors", out)
+
+        # accesses past the end of a block, within its segment
+        out = sanitized("""
+        function write_at!(a, i)
+            unsafe_store!(pointer(a), 1f0, i)
+            return
+        end
+        a = CuArray{Float32}(undef, 16)
+        b = CuArray{Float32}(undef, 16)
+        @cuda write_at!(a, 17)   # just past the end, within the segment
+        synchronize()
+        """)
+        @test occursin("Invalid __global__ write", out)
+
+        # accesses to a block that has been freed
+        out = sanitized("""
+        function write_at!(p, i)
+            unsafe_store!(p, 1f0, i)
+            return
+        end
+        a = CuArray{Float32}(undef, 16)
+        b = CuArray{Float32}(undef, 16)
+        p = pointer(a)
+        CUDA.unsafe_free!(a)
+        @cuda write_at!(p, 1)   # after freeing, within the segment
+        synchronize()
+        """)
+        @test occursin("Invalid __global__ write", out)
+
+        # a reused block is uninitialized
+        out = sanitized("""
+        function copy1!(dst, src)
+            dst[1] = src[1]
+            return
+        end
+        x = CUDA.ones(Float32, 16)
+        CUDA.unsafe_free!(x)
+        y = CuArray{Float32}(undef, 16)   # reuses x's block
+        out = CUDA.zeros(Float32, 1)
+        @cuda copy1!(out, y)
+        synchronize()
+        """; tool="initcheck")
+        @test occursin("Uninitialized __global__ memory read", out)
+    end
+end

@@ -176,7 +176,7 @@ const fence_seq = Threads.Atomic{UInt64}(0)
   end
   if b !== nothing
     Base.@atomic a.hits += 1
-    return DeviceMemory(a.dev, ctx, reinterpret(CuPtr{Cvoid}, b.addr), sz, CACHED_MEMORY)
+    return cached_memory(a, ctx, b, sz)
   end
   return allocate_slow(a, sz, ctx, lane)
 end
@@ -217,8 +217,10 @@ end
   return cached_memory(a, ctx, b, sz)
 end
 
-cached_memory(a::CachingAllocator, ctx::CuContext, b::Block, sz) =
-  DeviceMemory(a.dev, ctx, reinterpret(CuPtr{Cvoid}, b.addr), sz, CACHED_MEMORY)
+@inline function cached_memory(a::CachingAllocator, ctx::CuContext, b::Block, sz)
+  annotating() && annotate_allocation(b.segment.payload::Ptr{Cvoid}, b.addr, sz)
+  return DeviceMemory(a.dev, ctx, reinterpret(CuPtr{Cvoid}, b.addr), sz, CACHED_MEMORY)
+end
 
 function take_polled!(a::CachingAllocator, ctx::CuContext, sz, lane::Lane; exhaustive::Bool)
   @lock a.lock begin
@@ -254,7 +256,8 @@ function grow!(a::CachingAllocator, ctx::CuContext, segsize::Int, sz)
   # the memory now exists, so its credit is only returned once it has been freed
   try
     take_fault!(a, :metadata) && error("Injected failure")
-    b = @lock a.lock add_segment!(arena!(a, ctx), base, segsize, sz)
+    payload = annotating() ? annotate_segment(base, segsize) : nothing
+    b = @lock a.lock add_segment!(arena!(a, ctx), base, segsize, sz; payload)
     Base.@atomic a.segments_allocated += 1
     return b
   catch
@@ -269,6 +272,7 @@ end
 function release(a::CachingAllocator, mem::DeviceMemory, stream::CuStream,
                  stream_ctx::CuContext, generation::Int)
   addr = UInt(mem.ptr)
+  annotating() && annotate_free(addr)
   if !isvalid(mem.ctx)
     # its segment was freed along with the context
     drop_destroyed!(a)
@@ -394,6 +398,9 @@ end
 
 function release_segments!(a::CachingAllocator, rel::SegmentRelease)
   ctx, stream, segments, fences = rel.ctx, rel.stream, rel.segments, rel.fences
+  if annotating()
+    foreach(seg -> annotate_segment_release(seg.payload::Ptr{Cvoid}), segments)
+  end
   a.release_barrier === nothing || Base.wait(a.release_barrier)
   # without support for freeing memory in stream order, `cuMemFree` waits for all running
   # kernels, so it's only called when reclaiming memory (after waiting for the fences)
