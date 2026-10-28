@@ -163,18 +163,21 @@ objects:
 ```julia-repl
 julia> CUDA.pool_status()             # initial state
 Effective GPU memory usage: 16.12% (2.537 GiB/15.744 GiB)
+Memory allocator: cuda (CUDA's stream-ordered memory pool)
 Memory pool usage: 0 bytes (0 bytes reserved)
 
 julia> a = CuArray{Int}(undef, 1024);   # allocate 8KB
 
 julia> CUDA.pool_status()
 Effective GPU memory usage: 16.35% (2.575 GiB/15.744 GiB)
+Memory allocator: cuda (CUDA's stream-ordered memory pool)
 Memory pool usage: 8.000 KiB (32.000 MiB reserved)
 
 julia> a = nothing; GC.gc(true)
 
 julia> CUDA.pool_status()             # 8KB is now cached
 Effective GPU memory usage: 16.34% (2.573 GiB/15.744 GiB)
+Memory allocator: cuda (CUDA's stream-ordered memory pool)
 Memory pool usage: 0 bytes (32.000 MiB reserved)
 
 ```
@@ -186,6 +189,7 @@ julia> CUDA.reclaim()
 
 julia> CUDA.pool_status()
 Effective GPU memory usage: 16.17% (2.546 GiB/15.744 GiB)
+Memory allocator: cuda (CUDA's stream-ordered memory pool)
 Memory pool usage: 0 bytes (0 bytes reserved)
 ```
 
@@ -197,11 +201,31 @@ Memory pool usage: 0 bytes (0 bytes reserved)
     runs into an out-of-memory situation only if not manually reclaiming memory beforehand.
 
 
-!!! note
+### Choosing a memory allocator
 
-    If you need to disable the memory pool, e.g. because of incompatibility with certain
-    CUDA APIs, set the environment variable `JULIA_CUDA_MEMORY_POOL` to `none` before
-    importing CUDA.jl.
+How device memory is allocated can be chosen with the environment variable
+`JULIA_CUDA_MEMORY_POOL`, which needs to be set before CUDA.jl first allocates memory:
+
+* `cuda` (the default): CUDA's stream-ordered memory pool. The driver manages
+  fragmentation by remapping physical memory, and libraries that allocate memory with
+  `cudaMallocAsync` share the pool. Its memory can't be shared with other processes
+  through CUDA IPC, so CUDA-aware MPI implementations that rely on it (like Open MPI and
+  MPICH with UCX) move data between GPUs in the same node at a fraction of the bandwidth.
+* `caching`: CUDA.jl's caching allocator, which suballocates memory from cached
+  `cuMemAlloc` allocations. Allocating and freeing is about as fast as with the memory pool,
+  and the memory can be shared through CUDA IPC, but fragmentation is managed less
+  effectively: memory is only returned to the driver in whole allocations of 2 MiB or more,
+  so the reserved memory can exceed what's in use by more than with `cuda`. Library
+  allocations don't share the cache. This allocator is new and opt-in.
+* `none`: every array is allocated with `cuMemAlloc`, and freed when it's not used anymore.
+  That's slow, but the memory footprint is exact, the memory can be shared through CUDA
+  IPC, and tools like compute-sanitizer see every allocation. Use it when troubleshooting
+  memory issues, or to rule out the memory allocator.
+
+Devices or drivers that don't support memory pools (CUDA 11.2 and older) use `none`
+instead of `cuda`. Running under compute-sanitizer, the `caching` allocator describes its
+allocations to the sanitizer, but it still can't detect copies or memsets that overrun an
+array, or stale pointers to memory that has been reused.
 
 
 ### Memory limits
@@ -213,11 +237,19 @@ device memory. You can change this using two environment variables:
 * `JULIA_CUDA_SOFT_MEMORY_LIMIT`: This is an advisory limit, used to configure the memory
   pool. If you set this to a nonzero value, the memory pool will attempt to release cached
   memory until memory use falls below this limit. Note that this only happens at specific
-  synchronization points, so memory use may temporarily exceed this limit. In addition,
-  this limit is incompatible with `JULIA_CUDA_MEMORY_POOL=none`.
+  synchronization points, so memory use may temporarily exceed this limit. With the
+  `caching` allocator, it's how much unused memory is kept cached when the device is idle.
+  Without a memory pool (`JULIA_CUDA_MEMORY_POOL=none`), nothing is cached, so this limit
+  has no effect.
 * `JULIA_CUDA_HARD_MEMORY_LIMIT`: This is a hard limit, checked before every allocation.
   On older versions of CUDA, before v12.2, this is a relatively expensive limit, so it is
   recommended to first try to use the soft limit.
+
+The limits apply to the memory that CUDA.jl allocates for arrays (in each process). With
+the default `cuda` allocator they also cover memory that libraries allocate with
+`cudaMallocAsync`, as libraries share the memory pool. With the `caching` allocator and
+`none` they don't, and with the `caching` allocator they include cached memory and memory
+that is being returned to the driver.
 
 The value of these variables can be formatted as a number of bytes, optionally followed by
 a unit, or as a percentage of the total device memory. Examples: `100M`, `50%`, `1.5GiB`,

@@ -44,6 +44,8 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
   may wait for the GPU, like unpinning memory or destroying some library objects,
   are deferred until memory is reclaimed: on an out-of-memory error, or when
   calling `CUDA.reclaim()`. Pinned arrays are kept alive until then.
+- `JULIA_CUDA_MEMORY_POOL` now only accepts `cuda`, `caching` or `none`; other
+  values are an error, where they used to act like `none`.
 - The stream that `stream()` returns in a task is handed to another task once
   the task has finished and the work on the stream has completed, instead of
   being kept alive until the GC collects the task. This keeps applications that
@@ -101,6 +103,15 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
 
 *New features*:
 
+- `JULIA_CUDA_MEMORY_POOL=caching` selects a new allocator for device memory,
+  which caches memory allocated with `cuMemAlloc` instead of using CUDA's
+  stream-ordered memory pool. Unlike the pool's, that memory can be shared
+  through CUDA IPC, which CUDA-aware MPI implementations use to move data
+  between GPUs in a node, while allocating remains about as fast. It is opt-in
+  for now; see the documentation on memory management for the trade-offs.
+- `CUDA.used_memory()` and `CUDA.cached_memory()` return a number with every
+  allocator, also without a memory pool, and `CUDA.pool_status()` reports
+  which allocator is in use.
 - The results of `CUDA.@profile` and `CUDA.@metrics` can be written as JSON, for
   processing by scripts or coding agents, with
   `show(io, MIME"application/json"(), results)`.
