@@ -37,44 +37,8 @@ cannot be satisfied.
 
   return Managed(mem; owned_allocation=true)
 end
-@inline function _pool_alloc(::Type{DeviceMemory}, sz, state)
-
-    mem = if stream_ordered(state.device)
-      pool_mark!(state.device, true)
-      pool = pool_create(state.device)
-
-      retry_reclaim(isnothing) do
-        memory_limit_exceeded(sz) && return nothing
-
-        # try the actual allocation
-        try
-          alloc(DeviceMemory, sz; async=true, state.stream, pool)
-        catch err
-          isa(err, OutOfGPUMemoryError) || rethrow()
-          return nothing
-        end
-      end
-    else
-      retry_reclaim(isnothing) do
-        memory_limit_exceeded(sz) && return nothing
-
-        # try the actual allocation
-        try
-          alloc(DeviceMemory, sz; async=false)
-        catch err
-          isa(err, OutOfGPUMemoryError) || rethrow()
-          return nothing
-        end
-      end
-    end
-    # NOTE: the `retry_reclaim` body is duplicated to work around
-    #       closure capture issues with the `pool` variable
-    mem === nothing && throw(OutOfGPUMemoryError(sz))
-
-    account!(memory_stats(state.device), sz)
-
-    mem
-end
+@inline _pool_alloc(::Type{DeviceMemory}, sz, state) =
+  allocate(allocator(state.device), sz, state)
 @inline function _pool_alloc(::Type{UnifiedMemory}, sz, state)
   # NOTE: allocating unified memory rarely fails, as it is only backed by physical memory
   #       when used. when host memory runs out, the OS kills the process on a page fault
@@ -135,32 +99,7 @@ function free_now(managed::Managed)
 end
 @inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
                             generation::Int, owned_allocation::Bool, ::Attachment)
-    if mem.async || async_free_supported(mem.dev)
-      # free in stream order. `cuMemFree` would wait for all work on the device to finish,
-      # blocking kernel launches from other threads in the meantime. that also works for
-      # memory that wasn't allocated from a pool.
-      free_ctx = free_context(mem)
-      free_ctx === nothing || @lock stream_disposal_lock begin
-        handle, ctx = @something(release_stream(stream, stream_ctx, generation),
-                                 (disposal_stream(free_ctx), free_ctx))
-        context!(ctx) do
-          if mem.async
-            cuMemFreeAsync(mem, handle)
-          else
-            # when memory that wasn't allocated from a pool is freed in stream order,
-            # destroying that stream waits for the free, i.e., for all work on the stream.
-            # so free it on the disposal stream instead, after the work on this stream.
-            free_stream = after_on_disposal_stream(handle, ctx)
-            cuMemFreeAsync(mem, free_stream)
-            push!(unsynced_frees, ctx)
-          end
-        end
-      end
-    else
-      # without support for freeing memory in stream order, `cuMemFree` is the only option,
-      # which waits for all running kernels. defer that until memory is reclaimed.
-      defer_release(free, mem; ctx=mem.ctx, blocking=true)
-    end
+    release(mem, stream, stream_ctx, generation)
     owned_allocation && account!(memory_stats(mem.dev), -sizeof(mem))
 end
 @inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
@@ -210,24 +149,30 @@ end
 # block anymore. doing so after every free would be expensive, as the driver then unmaps
 # and maps memory for every allocation. memory that is needed before then is returned when
 # reclaiming memory, which synchronizes the context.
-const unsynced_frees = Set{CuContext}()  # protected by `stream_disposal_lock`
+# (bytes per context the memory was freed in, and device it was allocated on)
+const unsynced_frees = Dict{Tuple{CuContext,CuDevice},Int}()  # protected by `stream_disposal_lock`
 
 function record_free_events()
   releasing() do
     @lock stream_disposal_lock begin
-      for ctx in unsynced_frees
+      for ((ctx, dev), bytes) in unsynced_frees
         try
-          # (the work of a destroyed context has ended)
-          isvalid(ctx) || continue
+          if !isvalid(ctx)
+            # the work of a destroyed context has ended
+            returned_frees(dev, bytes)
+            continue
+          end
           context!(ctx) do
             event = CuEvent(EVENT_DISABLE_TIMING)
             cuEventRecord(event, disposal_stream(ctx))
-            hold!(ReleaseAction(synchronize_and_finalize, event, ctx, false), event)
+            hold!(ReleaseAction(synchronize_and_finalize, (event, dev, bytes), ctx, false),
+                  event)
           end
         catch err
           # the memory is still returned when reclaiming memory
           isa(err, CuError) || rethrow()
           @debug "Failed to record an event after freeing memory" exception=(err, catch_backtrace())
+          returned_frees(dev, bytes)
         end
       end
       empty!(unsynced_frees)
@@ -235,9 +180,22 @@ function record_free_events()
   end
   return
 end
-function synchronize_and_finalize(event::CuEvent)
+function synchronize_and_finalize((event, dev, bytes))
   cuEventSynchronize(event)
   finalize(event)
+  returned_frees(dev, bytes)
+end
+
+returned_frees(dev::CuDevice, bytes::Int) =
+  Threads.atomic_sub!(direct_allocator(dev).pending, bytes)
+
+# the memory freed in a context that hasn't been returned yet, which synchronizing the
+# context returns, as `(device, bytes)` pairs
+function take_unsynced_frees(ctx::CuContext)
+  @lock stream_disposal_lock begin
+    keys = filter(key -> first(key) == ctx, collect(Base.keys(unsynced_frees)))
+    [(last(key), pop!(unsynced_frees, key)) for key in keys]
+  end
 end
 
 # freed memory may only be released when reclaiming memory, so do so when running out

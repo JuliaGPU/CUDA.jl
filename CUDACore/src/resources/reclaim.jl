@@ -58,9 +58,8 @@ end
 
 @noinline function retry_reclaim_slow(f, retry_if, ret)
     dev = active_state().device
-    so = stream_ordered(dev)
     for level in instances(ReclaimLevel)
-        reclaim_step(level, dev, so)
+        reclaim_step(level, dev)
         ret = f()
         retry_if(ret) || return ret
     end
@@ -74,7 +73,7 @@ end
 #
 # none of this holds a lock while collecting garbage (a task holding a lock doesn't run
 # finalizers) or waiting for the GPU (as other tasks may need to make progress for that).
-function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
+function reclaim_step(level::ReclaimLevel, dev::CuDevice)
     # memory is also freed asynchronously when not using a pool
     async = async_free_supported(dev)
 
@@ -102,7 +101,7 @@ function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
             # releases deferred until after synchronizing the context (of memory last used
             # on the per-thread default stream) can free memory asynchronously
             async && synchronize_frees()
-            trim_pools(dev, stream_ordered)
+            trim_pools(dev)
         end
     end
     return
@@ -113,7 +112,10 @@ end
 # waiting for an event recorded by `cuCtxRecordEvent`, as `device_synchronize` does, or
 # finding the work done by polling doesn't, so this synchronizes the context itself.
 function synchronize_frees()
-    synchronize_object(context(); blocking=false, spin=true)
+    ctx = context()
+    freed = take_unsynced_frees(ctx)
+    synchronize_object(ctx; blocking=false, spin=true)
+    foreach(((dev, bytes),) -> returned_frees(dev, bytes), freed)
     check_exceptions()
 end
 
@@ -130,8 +132,8 @@ function purge_resources!()
     end
 end
 
-function trim_pools(dev::CuDevice, stream_ordered::Bool)
-    stream_ordered && trim(pool_create(dev))
+function trim_pools(dev::CuDevice)
+    trim!(allocator(dev))
     for pool in (host_pool(), unified_pool())
         pool === nothing || trim(pool)
     end
@@ -152,6 +154,6 @@ the pool. Returns `nothing`.
 """
 function reclaim(level::ReclaimLevel = RECLAIM_DROP)
     dev = active_state().device
-    reclaim_step(level, dev, stream_ordered(dev))
+    reclaim_step(level, dev)
     return
 end

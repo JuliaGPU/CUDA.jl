@@ -57,9 +57,10 @@ end
 end
 
 @testset "pool_status" begin
-    CUDA.pool_status(devnull)
-    CUDA.used_memory()
-    CUDA.cached_memory()
+    status = sprint(CUDA.pool_status)
+    @test occursin("Memory allocator: $(CUDACore.name(CUDACore.allocator(device())))", status)
+    @test CUDA.used_memory() isa Int
+    @test CUDA.cached_memory() >= CUDA.used_memory()
 end
 
 @testset "live bytes return to zero" begin

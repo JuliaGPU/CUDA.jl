@@ -62,13 +62,7 @@ CUDA.precompile_runtime()
 # threshold trades per-alloc pool-refill cost for lower NVML-reported memory;
 # tune up if test wall-time regresses, down if a worker's RSS budget is tight.
 const pool_release_threshold = 256 * 2^20  # 256 MiB
-let dev = device()
-    if CUDACore.stream_ordered(dev)
-        pool = CUDACore.pool_create(dev)
-        CUDACore.attribute!(pool, CUDACore.MEMPOOL_ATTR_RELEASE_THRESHOLD,
-                            UInt64(pool_release_threshold))
-    end
-end
+CUDACore.set_retention!(CUDACore.allocator(device()), pool_release_threshold)
 
 
 ## custom test record capturing CUDA-specific statistics

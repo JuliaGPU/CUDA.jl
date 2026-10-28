@@ -247,9 +247,9 @@ function mg_handle()
         resource_finalizer(mg_handle_finalizer, wrapped)
 
         # cuSOLVERMg accesses the per-device buffers from the other devices in the grid
-        # and from the context it is called in, so when using the stream-ordered
-        # allocator, make each grid device's pool visible to all of them.
-        for dev in filter(CUDACore.stream_ordered, devices())
+        # and from the context it is called in, so make each grid device's memory
+        # visible to all of them.
+        for dev in devices()
             other_devs = filter(!isequal(dev), union(devices(), [cuda.device]))
             # only grant access to peer-capable devices: cuMemPoolSetAccess on a
             # fresh pool can succeed even when the devices are not peer capable,
@@ -258,9 +258,7 @@ function mg_handle()
             for other in setdiff(other_devs, accessible_devs)
                 @warn "cuSOLVERMg: $other cannot access memory on $dev; operations may fail" maxlog=1
             end
-            isempty(accessible_devs) && continue
-            pool = CUDACore.pool_create(dev)
-            access!(pool, accessible_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
+            CUDACore.grant_access!(CUDACore.allocator(dev), accessible_devs)
         end
 
         devs = convert.(Cint, devices())
