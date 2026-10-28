@@ -26,7 +26,6 @@ using LinearAlgebra
 
 using BFloat16s: BFloat16
 
-using ExprTools: splitdef, combinedef
 
 using LLVMLoopInfo
 

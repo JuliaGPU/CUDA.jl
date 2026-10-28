@@ -32,14 +32,16 @@ end
     CuDeviceArray{UInt32,1,AS.Shared}(global_random_state(Val(:global_random_counters)), (32,))
 
 # initialization function, called automatically at the start of each kernel because
-# there's no reliable way to detect uninitialized shared memory (see JuliaGPU/CUDA.jl#2008)
-function initialize_rng_state()
+# there's no reliable way to detect uninitialized shared memory (see JuliaGPU/CUDA.jl#2008).
+# it must return nothing, as the kernel calls it as a void function.
+@device_function function initialize_rng_state()
     threadId = threadIdx().x + (threadIdx().y - 1i32) * blockDim().x +
                                (threadIdx().z - 1i32) * blockDim().x * blockDim().y
     warpId = (threadId - 1i32) >> 0x5 + 1i32  # fld1
 
     @inbounds global_random_keys()[warpId] = kernel_state().random_seed
     @inbounds global_random_counters()[warpId] = 0
+    return
 end
 
 # generators
