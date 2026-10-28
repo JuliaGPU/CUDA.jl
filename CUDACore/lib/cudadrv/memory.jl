@@ -27,6 +27,12 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, mem::AbstractMemory)
 
 @public DeviceMemory
 
+# how device memory was allocated, which determines how it needs to be freed
+@enum DeviceMemoryOrigin::UInt8 begin
+    DIRECT_MEMORY   # `cuMemAlloc`
+    POOL_MEMORY     # from a stream-ordered memory pool
+end
+
 """
     DeviceMemory
 
@@ -38,10 +44,16 @@ struct DeviceMemory <: AbstractMemory
     ptr::CuPtr{Cvoid}
     bytesize::Int
 
-    async::Bool
+    origin::DeviceMemoryOrigin
 end
 
-DeviceMemory() = DeviceMemory(device(), context(), CU_NULL, 0, false)
+DeviceMemory(dev::CuDevice, ctx::CuContext, ptr, bytesize::Integer, async::Bool) =
+    DeviceMemory(dev, ctx, ptr, bytesize, async ? POOL_MEMORY : DIRECT_MEMORY)
+DeviceMemory() = DeviceMemory(device(), context(), CU_NULL, 0, DIRECT_MEMORY)
+
+# (whether the memory was allocated from a pool, the field this used to be)
+Base.getproperty(mem::DeviceMemory, field::Symbol) =
+    field === :async ? getfield(mem, :origin) == POOL_MEMORY : getfield(mem, field)
 
 Base.pointer(mem::DeviceMemory) = mem.ptr
 Base.sizeof(mem::DeviceMemory) = mem.bytesize
@@ -84,7 +96,7 @@ end
 function free(mem::DeviceMemory; stream::Union{Nothing,CuStream}=nothing)
     pointer(mem) == CU_NULL && return
 
-    if mem.async
+    if mem.origin == POOL_MEMORY
         stream = @something stream CUDACore.stream()
         cuMemFreeAsync(mem, stream)
     else

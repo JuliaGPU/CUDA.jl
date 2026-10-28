@@ -63,6 +63,17 @@ end
     @test CUDA.cached_memory() >= CUDA.used_memory()
 end
 
+@testset "allocation origin" begin
+    mem = CUDACore.alloc(CUDA.DeviceMemory, 1024)
+    @test mem.origin == CUDACore.DIRECT_MEMORY && !mem.async
+    CUDACore.free(mem)
+    if CUDACore.memory_pools_supported(device())
+        mem = CUDACore.alloc(CUDA.DeviceMemory, 1024; async=true)
+        @test mem.origin == CUDACore.POOL_MEMORY && mem.async
+        CUDACore.free(mem)
+    end
+end
+
 @testset "live bytes return to zero" begin
     # (the hard limit is checked against them when not using a pool)
     live = CUDACore.memory_stats().live

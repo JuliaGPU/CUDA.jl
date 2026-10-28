@@ -131,7 +131,7 @@ end
 # allocated in. allocations from a memory pool outlive that context, so are freed in another.
 function free_context(mem::DeviceMemory)
   isvalid(mem.ctx) && return mem.ctx
-  mem.async || return nothing
+  mem.origin == POOL_MEMORY || return nothing
   ctx = context(mem.dev)
   return isvalid(ctx) ? ctx : nothing
 end

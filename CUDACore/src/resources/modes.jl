@@ -35,10 +35,10 @@ function direct_allocator(dev::CuDevice)
   end::DirectAllocator
 end
 
-# free memory with the allocator that made it
+# free memory with the allocator that made it, regardless of the one currently in use
 function release(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
                  generation::Int)
-  if mem.async
+  if mem.origin == POOL_MEMORY
     release(DriverPool, mem, stream, stream_ctx, generation)
   else
     release(direct_allocator(mem.dev), mem, stream, stream_ctx, generation)
