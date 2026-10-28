@@ -105,3 +105,16 @@ end
         @test gpu_rss_nvml() < before + unpooled_size ÷ 2
     end
 end
+
+@testset "memory that isn't pooled is returned without reclaiming" begin
+    # (without stream-ordered frees, it is only freed when reclaiming memory)
+    before = gpu_rss_nvml()
+    if before !== missing && CUDACore.async_free_supported(device())
+        free_unpooled()
+        t0 = time()
+        while gpu_rss_nvml() >= before + unpooled_size ÷ 2 && time() - t0 < 10
+            sleep(0.1)
+        end
+        @test gpu_rss_nvml() < before + unpooled_size ÷ 2
+    end
+end

@@ -322,6 +322,7 @@ function drain_retired(limit::Int=typemax(Int))
 end
 
 # drain periodically, so that memory gets released when the application stops using CUDA.
+# this also returns memory that was freed outside of a pool (see `record_free_events`).
 # started when a context is first used (see `disposal_stream`).
 const retired_drainer = Threads.Atomic{Bool}(false)
 function start_retired_drainer()
@@ -331,6 +332,7 @@ function start_retired_drainer()
   ccall(:jl_generating_output, Cint, ()) == 0 || return
   Timer(1; interval=1) do _
     try
+      record_free_events()
       drain_retired()
     catch err
       @error "Failed to release retired GPU resources" exception=(err, catch_backtrace())
