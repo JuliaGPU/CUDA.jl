@@ -49,6 +49,20 @@ function view_strides(a)
     return st
 end
 
+# Whether cuDNN can address an array by its strides: those of non-singleton dimensions,
+# which `view_strides` keeps, must be positive.
+describable(a) = all(i -> size(a, i) <= 1 || stride(a, i) > 0, 1:ndims(a))
+
+# run a cuDNN operation on dense copies of operands it can't address
+cudnn_input(a, layout=describable) = layout(a) ? a : copyto!(similar(a), a)
+cudnn_input(::Nothing, layout=describable) = nothing
+function cudnn_output(f, a, beta, layout=describable)
+    layout(a) && return f(a)
+    # the operation only reads the destination when it accumulates into it
+    tmp = beta == 0 ? similar(a) : copyto!(similar(a), a)
+    copyto!(a, f(tmp))
+end
+
 
 function cudnnFilterDescriptor(  # alternative constructor from array; main one in descriptors.jl
     array;

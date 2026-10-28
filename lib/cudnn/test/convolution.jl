@@ -295,7 +295,43 @@ end
     @test Array(y) ≈ Array(convolution!(similar(copy(y)), copy(x), w; padding,
                                         bias=copy(bias), activation=:relu))
 
-    @test_throws ArgumentError convolution!(y, view(parent(x), :, :, 2C:-1:C+1, :), w; padding)
+    # reversed views, which cuDNN can't address, are copied
+    reversed(a) = view(a, :, :, size(a, 3):-1:1, :)
+    xr, wr, dyr = reversed(copy(x)), reversed(copy(w)), reversed(copy(dy))
+    # NaN-filled, so that reading the old contents with `beta == 0` would show
+    yr = reversed(fill!(similar(copy(y)), NaN))
+    convolution!(yr, xr, wr; padding)
+    @test Array(yr) ≈ Array(convolution!(similar(copy(y)), copy(xr), copy(wr); padding))
+    dxr = reversed(fill!(similar(copy(dx)), NaN))
+    convolution_data_gradient!(dxr, dyr, wr; padding)
+    @test Array(dxr) ≈ Array(convolution_data_gradient!(similar(copy(dx)), copy(dyr),
+                                                        copy(wr); padding))
+    dwr = reversed(fill!(similar(w), NaN))
+    convolution_filter_gradient!(dwr, xr, dyr; padding)
+    @test Array(dwr) ≈ Array(convolution_filter_gradient!(similar(w), copy(xr), copy(dyr);
+                                                          padding))
+
+    # a staged output keeps the contents that `beta` scales, also as the default `z`
+    y0 = CuArray(rand(Float32, size(y)))
+    for activation in (nothing, :relu)
+        yb = copyto!(reversed(similar(y0)), y0)
+        convolution!(yb, x, w; padding, beta=2, activation)
+        @test Array(yb) ≈ Array(convolution!(copy(y0), x, w; padding, beta=2, activation))
+    end
+    dx0, dw0 = CuArray(rand(Float32, size(dx))), CuArray(rand(Float32, size(w)))
+    dxb = copyto!(reversed(similar(dx0)), dx0)
+    convolution_data_gradient!(dxb, dy, w; padding, beta=2)
+    @test Array(dxb) ≈ Array(convolution_data_gradient!(copy(dx0), dy, w; padding, beta=2))
+    dwb = copyto!(reversed(similar(dw0)), dw0)
+    convolution_filter_gradient!(dwb, x, dy; padding, beta=2)
+    @test Array(dwb) ≈ Array(convolution_filter_gradient!(copy(dw0), x, dy; padding, beta=2))
+
+    # reversed residual and bias
+    zr, biasr = reversed(CuArray(rand(Float32, size(y)))), reversed(copy(bias))
+    yz = convolution!(similar(copy(y)), x, w; padding, z=zr, bias=biasr, beta=1,
+                      activation=:relu)
+    @test Array(yz) ≈ Array(convolution!(similar(copy(y)), x, w; padding, z=copy(zr),
+                                         bias=copy(biasr), beta=1, activation=:relu))
 
     # a residual that overlaps the output is read before the output is written
     out = CuArray(rand(Float32, ysize..., K + 1, 2))

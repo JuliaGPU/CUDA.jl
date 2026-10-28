@@ -288,5 +288,28 @@ end
         ∇pool!(dx, dy, y, x; window=2, padding)
         @test Array(dx) ≈ Array(dxd)
     end
-    @test_throws ArgumentError maxpool!(y, view(parent(x), :, :, 2C:-1:C+1, :); window=2, padding)
+
+    # reversed views, which cuDNN can't address, are copied
+    reversed(a) = view(a, :, :, size(a, 3):-1:1, :)
+    xr, dyr = reversed(copy(x)), reversed(copy(dy))
+    y0, dx0 = CuArray(rand(Float32, size(yd))), CuArray(rand(Float32, size(xd)))
+    for (pool!, ∇pool!) in ((maxpool!, ∇maxpool!), (meanpool!, ∇meanpool!))
+        # NaN-filled, so that reading the old contents with `beta == 0` would show
+        yr = reversed(fill!(similar(yd), NaN))
+        pool!(yr, xr; window=2, padding)
+        @test Array(yr) ≈ Array(pool!(similar(yd), copy(xr); window=2, padding))
+        dxr = reversed(fill!(similar(xd), NaN))
+        ∇pool!(dxr, dyr, yr, xr; window=2, padding)
+        @test Array(dxr) ≈ Array(∇pool!(similar(xd), copy(dyr), copy(yr), copy(xr);
+                                        window=2, padding))
+
+        # a staged output keeps the contents that `beta` scales
+        yb = copyto!(reversed(similar(yd)), y0)
+        pool!(yb, xr; window=2, padding, beta=2)
+        @test Array(yb) ≈ Array(pool!(copy(y0), copy(xr); window=2, padding, beta=2))
+        dxb = copyto!(reversed(similar(xd)), dx0)
+        ∇pool!(dxb, dyr, yr, xr; window=2, padding, beta=2)
+        @test Array(dxb) ≈ Array(∇pool!(copy(dx0), copy(dyr), copy(yr), copy(xr);
+                                        window=2, padding, beta=2))
+    end
 end

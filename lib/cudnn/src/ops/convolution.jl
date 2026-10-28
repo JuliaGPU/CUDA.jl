@@ -227,6 +227,14 @@ function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuAr
                       deterministic::Bool=false, math_mode=CUDACore.math_mode(),
                       max_workspace::Union{Nothing,Integer}=nothing) where {T}
     isempty(y) && return y
+    x, w, bias = cudnn_input(x), cudnn_input(w), cudnn_input(bias)
+    # `beta` scales `z`, so it goes unread when zero
+    z = beta == 0 ? nothing : cudnn_input(z)
+    # a staged `y` holds its old contents, so it can stand in for the default `z`
+    describable(y) || return cudnn_output(y, beta) do y
+        convolution!(y, x, w; padding, stride, dilation, groups, mode, alpha, beta, bias,
+                     activation, z, compute_type, deterministic, math_mode, max_workspace)
+    end
     spatial_rank = ndims(x) - 2
     pre, post = convolution_padding(padding, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
@@ -297,6 +305,12 @@ function convolution_data_gradient!(dx::StridedCuArray{T}, dy::StridedCuArray{T}
                                     math_mode=CUDACore.math_mode(),
                                     max_workspace::Union{Nothing,Integer}=nothing) where {T}
     isempty(dx) && return dx
+    dy, w = cudnn_input(dy), cudnn_input(w)
+    describable(dx) || return cudnn_output(dx, beta) do dx
+        convolution_data_gradient!(dx, dy, w; padding, stride, dilation, groups, mode,
+                                   alpha, beta, compute_type, deterministic, math_mode,
+                                   max_workspace)
+    end
     spatial_rank = ndims(dx) - 2
     pre, post = convolution_padding(padding, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
@@ -338,6 +352,12 @@ function convolution_filter_gradient!(dw::StridedCuArray{T}, x::StridedCuArray{T
                                       math_mode=CUDACore.math_mode(),
                                       max_workspace::Union{Nothing,Integer}=nothing) where {T}
     isempty(dw) && return dw
+    x, dy = cudnn_input(x), cudnn_input(dy)
+    describable(dw) || return cudnn_output(dw, beta) do dw
+        convolution_filter_gradient!(dw, x, dy; padding, stride, dilation, groups, mode,
+                                     alpha, beta, compute_type, deterministic, math_mode,
+                                     max_workspace)
+    end
     spatial_rank = ndims(x) - 2
     pre, post = convolution_padding(padding, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
@@ -376,7 +396,8 @@ end
 Convolve `x` with the filter `w`, or compute the gradients with respect to the
 convolution input or filter. Arrays are in Julia memory order: spatial dimensions first,
 then channels, then batch, with `w` shaped `(spatial..., C_in ÷ groups, C_out)`. They may
-be strided views, such as a range of channels, as long as their strides are positive.
+be strided views, such as a range of channels. Views that cuDNN can't address, such as
+reversed ones, are copied.
 
 Computes `alpha * conv(x, w) + beta * z .+ bias` and applies `activation` (`:relu`,
 `:tanh`, `:sigmoid`, or `:elu`) as a fused graph. `z` defaults to (and may alias) `y`,
