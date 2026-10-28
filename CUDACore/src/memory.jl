@@ -265,6 +265,7 @@ function pool_status(io::IO=stdout, info::MemoryInfo=(drain_retired(); MemoryInf
   @printf(io, "Memory pool usage: %s (%s reserved)\n",
               Base.format_bytes(info.pool_used_bytes),
               Base.format_bytes(info.pool_reserved_bytes))
+  status(io, allocator(device()))
 
   active_handles = Ref(0)
   idle_handles = Ref(0)

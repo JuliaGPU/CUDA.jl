@@ -31,6 +31,7 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, mem::AbstractMemory)
 @enum DeviceMemoryOrigin::UInt8 begin
     DIRECT_MEMORY   # `cuMemAlloc`
     POOL_MEMORY     # from a stream-ordered memory pool
+    CACHED_MEMORY   # suballocated by CUDA.jl's caching allocator
 end
 
 """
@@ -95,6 +96,8 @@ end
 
 function free(mem::DeviceMemory; stream::Union{Nothing,CuStream}=nothing)
     pointer(mem) == CU_NULL && return
+    mem.origin == CACHED_MEMORY &&
+        throw(ArgumentError("Memory from the caching allocator can only be freed by it"))
 
     if mem.origin == POOL_MEMORY
         stream = @something stream CUDACore.stream()

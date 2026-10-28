@@ -15,12 +15,16 @@
 # - `trim!(a)`: return unused backing memory to the driver, without waiting for the GPU;
 # - `set_retention!(a, bytes)`: how much unused memory to keep around;
 # - `grant_access!(a, peers)`: make its memory accessible from other devices;
-# - `name(a)`, for reporting.
+# - `name(a)` and `status(io, a)`, for reporting.
 #
 # memory is freed by the allocator that made it, regardless of the current setting (see
 # `release(::DeviceMemory, ...)`).
 
 abstract type DeviceAllocator end
+
+status(io::IO, ::DeviceAllocator) = nothing
+# return everything that isn't in use, also if that means waiting for the GPU
+purge!(a::DeviceAllocator) = trim!(a)
 
 # whether memory can be freed in stream order, which is also supported for memory that wasn't
 # allocated from a pool

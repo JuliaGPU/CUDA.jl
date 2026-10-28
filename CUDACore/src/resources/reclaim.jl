@@ -15,7 +15,7 @@ cheapest to most aggressive:
 
 | Level           | Action                                              |
 | :---            | :---                                                |
-| `RECLAIM_PURGE` | release retired resources and empty caches (no GC, no sync) |
+| `RECLAIM_PURGE` | release retired resources and empty caches (no GC; may wait for the GPU to return cached memory) |
 | `RECLAIM_SYNC`  | synchronize the device (lets async deallocs finish) |
 | `RECLAIM_GC`    | run a full Julia GC, then sync + purge + trim       |
 | `RECLAIM_DROP`  | also drop task-local library state, then GC + …     |

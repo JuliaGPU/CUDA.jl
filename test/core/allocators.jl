@@ -1,14 +1,14 @@
 # the same tests for every device memory allocator, whichever `JULIA_CUDA_MEMORY_POOL`
 # selects, by constructing them directly
 
-using CUDACore: DirectAllocator, DriverPool, try_allocate, release, used, reserved, trim!,
-                generation, name
+using CUDACore: DirectAllocator, DriverPool, CachingAllocator, try_allocate, release, used,
+                reserved, trim!, purge!, generation, name
 
 const MiB = 1 << 20
 
 function test_allocators(; limits=(soft=UInt(0), hard=UInt(0)))
     dev = device()
-    allocators = Any[DirectAllocator(dev; limits)]
+    allocators = Any[DirectAllocator(dev; limits), CachingAllocator(dev; limits)]
     if CUDACore.memory_pools_supported(dev)
         push!(allocators, DriverPool(dev; limits, install=false))
     end
@@ -102,7 +102,12 @@ end
 
     @testset "reuse on another stream" begin
         s1, s2 = CuStream(), CuStream()
+        # make the memory that is about to be freed the only memory that could be reused
+        # (a cached segment has room for two of these)
+        synchronize()
+        purge!(a)
         x = allocate_on(a, MiB, s1)
+        filler = allocate_on(a, MiB, s1)
         stream!(s1) do
             fill!(as_array(x), 1)
         end
@@ -115,16 +120,17 @@ end
             if overlaps(x, y)
                 # only allowed if the work on the other stream waits for the earlier use
                 sleep(0.1)
-                @test !isdone(s2)
+                @test !CUDACore.isdone(s2)
             end
             release_on(a, y, s2)
         end
         @test all(==(1), out)
+        release_on(a, filler, s1)
     end
 
     @testset "statistics and reclaiming" begin
         CUDA.reclaim()
-        trim!(a)
+        purge!(a)
         used0, reserved0 = used(a), reserved(a)
         s = stream()
         mems = [allocate_on(a, sz, s) for sz in (512, 3MiB, 12MiB, 64MiB)]
@@ -134,7 +140,7 @@ end
         @test used(a) == used0
         # once the GPU is done with it, reclaiming memory returns it all
         CUDA.reclaim()
-        trim!(a)
+        purge!(a)
         @test reserved(a) <= reserved0
     end
 
@@ -219,7 +225,7 @@ end
     release_on(a, x, s)
     # once freed (and returned to the driver), the memory can be allocated again
     CUDA.reclaim()
-    trim!(a)
+    purge!(a)
     y = allocate_on(a, 48MiB, s)
     @test y !== nothing
     release_on(a, y, s)
