@@ -341,3 +341,23 @@ end
     convolution!(y, x, w; padding, z, beta=1, activation=:relu)
     @test Array(y) ≈ Array(ref)
 end
+
+# filters that are not dense are copied, as the engines reject them
+@testset "filter views" begin
+    C, K = 4, 5
+    x = CuArray(rand(Float32, 6, 6, C, 2))
+    dy = CuArray(rand(Float32, 6, 6, K, 2))
+    wd = CuArray(rand(Float32, 3, 3, C, K))
+    # a range of input channels, and a spatial crop
+    for (psize, indices) in (((3, 3, 3C, K), (:, :, C+1:2C, :)),
+                             ((5, 5, C, K), (2:4, 2:4, :, :)))
+        w = copyto!(view(similar(wd, psize), indices...), wd)
+        @test Array(convolution!(similar(dy), x, w; padding=1)) ≈
+              Array(convolution!(similar(dy), x, wd; padding=1))
+        @test Array(convolution_data_gradient!(similar(x), dy, w; padding=1)) ≈
+              Array(convolution_data_gradient!(similar(x), dy, wd; padding=1))
+        dw = view(similar(wd, psize), indices...)
+        @test Array(convolution_filter_gradient!(dw, x, dy; padding=1)) ≈
+              Array(convolution_filter_gradient!(similar(wd), x, dy; padding=1))
+    end
+end

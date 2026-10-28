@@ -53,6 +53,10 @@ end
 # which `view_strides` keeps, must be positive.
 describable(a) = all(i -> size(a, i) <= 1 || stride(a, i) > 0, 1:ndims(a))
 
+# The convolution engines reject filters that are not dense and column-major, such as a
+# range of input channels or a spatial crop.
+dense_layout(a) = describable(a) && view_strides(a) == collect(tuple_strides(size(a)))
+
 # run a cuDNN operation on dense copies of operands it can't address
 cudnn_input(a, layout=describable) = layout(a) ? a : copyto!(similar(a), a)
 cudnn_input(::Nothing, layout=describable) = nothing
