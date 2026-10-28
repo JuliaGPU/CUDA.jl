@@ -63,4 +63,16 @@ default_rng() = cuRAND.gpuarrays_rng()
 
 Base.@deprecate_binding has_cusolvermg cuSOLVER.has_cusolvermg false
 
+# displaying an array compiles for about 150 ms otherwise. CUDACore's device-free workload
+# can't do this, and precompiling it there wouldn't last: the array is shown without
+# specializing on its type, so loading cuSPARSE's array types invalidates that code.
+# the REPL displays on a `TTYTerminal`, which is part of Base on 1.12+.
+let ios = @static isdefined(Base, :Terminals) ? (IOBuffer, Base.Terminals.TTYTerminal) :
+                                               (IOBuffer,)
+    for io in ios, N in (1, 2)
+        precompile(Tuple{typeof(show), IOContext{io}, MIME"text/plain",
+                         CuArray{Float32,N,CUDACore.DeviceMemory}})
+    end
+end
+
 end
