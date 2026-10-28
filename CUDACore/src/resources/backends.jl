@@ -99,7 +99,7 @@ function free_now(managed::Managed)
 end
 @inline function _pool_free(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
                             generation::Int, owned_allocation::Bool, ::Attachment)
-    release(mem, stream, stream_ctx, generation)
+    release(mem, stream, stream_ctx, generation, owned_allocation)
     owned_allocation && account!(memory_stats(mem.dev), -sizeof(mem))
 end
 @inline function _pool_free(mem::Union{UnifiedMemory,HostMemory}, stream::CuStream,
@@ -149,30 +149,31 @@ end
 # block anymore. doing so after every free would be expensive, as the driver then unmaps
 # and maps memory for every allocation. memory that is needed before then is returned when
 # reclaiming memory, which synchronizes the context.
-# (bytes per context the memory was freed in, and device it was allocated on)
-const unsynced_frees = Dict{Tuple{CuContext,CuDevice},Int}()  # protected by `stream_disposal_lock`
+# (bytes per context the memory was freed in, and allocator that allocated it)
+const unsynced_frees = Dict{Tuple{CuContext,DirectAllocator},Int}()  # protected by `stream_disposal_lock`
 
 function record_free_events()
   releasing() do
     @lock stream_disposal_lock begin
-      for ((ctx, dev), bytes) in unsynced_frees
+      for ((ctx, a), bytes) in unsynced_frees
         try
           if !isvalid(ctx)
             # the work of a destroyed context has ended
-            returned_frees(dev, bytes)
+            returned_frees(a, bytes)
             continue
           end
           context!(ctx) do
             event = CuEvent(EVENT_DISABLE_TIMING)
             cuEventRecord(event, disposal_stream(ctx))
-            hold!(ReleaseAction(synchronize_and_finalize, (event, dev, bytes), ctx, false),
+            # (also when the context is destroyed meanwhile, to update the accounting)
+            hold!(ReleaseAction(synchronize_and_finalize, (event, a, bytes), nothing, false),
                   event)
           end
         catch err
           # the memory is still returned when reclaiming memory
           isa(err, CuError) || rethrow()
           @debug "Failed to record an event after freeing memory" exception=(err, catch_backtrace())
-          returned_frees(dev, bytes)
+          returned_frees(a, bytes)
         end
       end
       empty!(unsynced_frees)
@@ -180,17 +181,19 @@ function record_free_events()
   end
   return
 end
-function synchronize_and_finalize((event, dev, bytes))
-  cuEventSynchronize(event)
-  finalize(event)
-  returned_frees(dev, bytes)
+function synchronize_and_finalize((event, a, bytes))
+  # (the work of a destroyed context has ended)
+  if isvalid(event.ctx)
+    context!(() -> cuEventSynchronize(event), event.ctx)
+    finalize(event)
+  end
+  returned_frees(a, bytes)
 end
 
-returned_frees(dev::CuDevice, bytes::Int) =
-  Threads.atomic_sub!(direct_allocator(dev).pending, bytes)
+returned_frees(a::DirectAllocator, bytes::Int) = Threads.atomic_sub!(a.pending, bytes)
 
 # the memory freed in a context that hasn't been returned yet, which synchronizing the
-# context returns, as `(device, bytes)` pairs
+# context returns, as `(allocator, bytes)` pairs
 function take_unsynced_frees(ctx::CuContext)
   @lock stream_disposal_lock begin
     keys = filter(key -> first(key) == ctx, collect(Base.keys(unsynced_frees)))

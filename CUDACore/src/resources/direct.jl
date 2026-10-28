@@ -2,27 +2,35 @@
 
 struct DirectAllocator <: DeviceAllocator
   dev::CuDevice
+  limits::@NamedTuple{soft::UInt, hard::UInt}
+  # bytes of live allocations
+  used::Threads.Atomic{Int}
   # bytes that have been freed, but not returned to the driver yet
   pending::Threads.Atomic{Int}
 end
-DirectAllocator(dev::CuDevice) = DirectAllocator(dev, Threads.Atomic{Int}(0))
+DirectAllocator(dev::CuDevice; limits=memory_limits()) =
+  DirectAllocator(dev, limits, Threads.Atomic{Int}(0), Threads.Atomic{Int}(0))
 
 name(::DirectAllocator) = "none (`cuMemAlloc` for every allocation)"
 
 function try_allocate(a::DirectAllocator, sz, state)
   # (memory that has been freed but not returned yet isn't counted)
-  limit = memory_limits().hard
-  limit > 0 && used(a) + sz > limit && return nothing
-  try
+  a.limits.hard > 0 && used(a) + sz > a.limits.hard && return nothing
+  mem = try
     alloc(DeviceMemory, sz; async=false)
   catch err
     isa(err, OutOfGPUMemoryError) || rethrow()
-    nothing
+    return nothing
   end
+  Threads.atomic_add!(a.used, sz)
+  return mem
 end
 
+# `owned` is false for memory that the allocator didn't allocate, but that was handed to
+# CUDA.jl to free (see `unsafe_wrap`)
 function release(a::DirectAllocator, mem::DeviceMemory, stream::CuStream,
-                 stream_ctx::CuContext, generation::Int)
+                 stream_ctx::CuContext, generation::Int; owned::Bool=true)
+  owned && Threads.atomic_sub!(a.used, sizeof(mem))
   # (freed along with its context)
   isvalid(mem.ctx) || return
   if async_free_supported(mem.dev)
@@ -38,7 +46,7 @@ function release(a::DirectAllocator, mem::DeviceMemory, stream::CuStream,
         free_stream = after_on_disposal_stream(handle, ctx)
         cuMemFreeAsync(mem, free_stream)
         # (counted until it has been returned, see `record_free_events`)
-        key = (ctx, mem.dev)
+        key = (ctx, a)
         unsynced_frees[key] = get(unsynced_frees, key, 0) + sizeof(mem)
         Threads.atomic_add!(a.pending, sizeof(mem))
       end
@@ -47,15 +55,17 @@ function release(a::DirectAllocator, mem::DeviceMemory, stream::CuStream,
     # without support for freeing memory in stream order, `cuMemFree` is the only option,
     # which waits for all running kernels. defer that until memory is reclaimed.
     Threads.atomic_add!(a.pending, sizeof(mem))
-    defer_release(mem; ctx=mem.ctx, blocking=true) do mem
-      free(mem)
-      Threads.atomic_sub!(direct_allocator(mem.dev).pending, sizeof(mem))
+    # (also when the context is destroyed meanwhile, which frees the memory, to update the
+    # accounting)
+    defer_release(mem; blocking=true) do mem
+      isvalid(mem.ctx) && context!(() -> free(mem), mem.ctx)
+      Threads.atomic_sub!(a.pending, sizeof(mem))
     end
   end
   return
 end
 
-used(a::DirectAllocator) = memory_stats(a.dev).live
+used(a::DirectAllocator) = a.used[]
 reserved(a::DirectAllocator) = used(a) + a.pending[]
 
 trim!(::DirectAllocator) = nothing

@@ -115,7 +115,7 @@ function synchronize_frees()
     ctx = context()
     freed = take_unsynced_frees(ctx)
     synchronize_object(ctx; blocking=false, spin=true)
-    foreach(((dev, bytes),) -> returned_frees(dev, bytes), freed)
+    foreach(((a, bytes),) -> returned_frees(a, bytes), freed)
     check_exceptions()
 end
 

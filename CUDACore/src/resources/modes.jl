@@ -35,12 +35,13 @@ function direct_allocator(dev::CuDevice)
   end::DirectAllocator
 end
 
-# free memory with the allocator that made it, regardless of the one currently in use
+# free memory with the allocator that made it, regardless of the one currently in use.
+# memory that CUDA.jl didn't allocate (see `unsafe_wrap`) isn't `owned`.
 function release(mem::DeviceMemory, stream::CuStream, stream_ctx::CuContext,
-                 generation::Int)
+                 generation::Int, owned::Bool)
   if mem.origin == POOL_MEMORY
     release(DriverPool, mem, stream, stream_ctx, generation)
   else
-    release(direct_allocator(mem.dev), mem, stream, stream_ctx, generation)
+    release(direct_allocator(mem.dev), mem, stream, stream_ctx, generation; owned)
   end
 end

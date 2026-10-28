@@ -3,24 +3,25 @@
 struct DriverPool <: DeviceAllocator
   dev::CuDevice
   pool::CuMemoryPool
+  limits::@NamedTuple{soft::UInt, hard::UInt}
 end
 
-# a custom pool, also used by other libraries and applications (`cuDeviceSetMemPool`)
-function DriverPool(dev::CuDevice)
-  limits = memory_limits()
+# with `install`, the pool is also used by other libraries and applications
+# (`cuDeviceSetMemPool`), and is trimmed when idle
+function DriverPool(dev::CuDevice; limits=memory_limits(), install::Bool=true)
   pool = if limits.hard > 0 && CUDACore.driver_version() >= v"12.2"
     CuMemoryPool(dev; maxSize=limits.hard)
   else
     CuMemoryPool(dev)
   end
-  memory_pool!(dev, pool)
+  install && memory_pool!(dev, pool)
 
   # allow the pool to use up all memory of this device
   attribute!(pool, MEMPOOL_ATTR_RELEASE_THRESHOLD,
              limits.soft == 0 ? typemax(UInt64) : limits.soft)
 
-  start_pool_cleanup()
-  return DriverPool(dev, pool)
+  install && start_pool_cleanup()
+  return DriverPool(dev, pool, limits)
 end
 
 name(::DriverPool) = "cuda (CUDA's stream-ordered memory pool)"
@@ -37,7 +38,7 @@ function try_allocate(a::DriverPool, sz, state)
 end
 
 function exceeds_limit(a::DriverPool, sz)
-  limit = memory_limits().hard
+  limit = a.limits.hard
   limit > 0 || return false
   # (since CUDA 12.2, the pool is configured to enforce the limit itself)
   driver_version() >= v"12.2" && return false
