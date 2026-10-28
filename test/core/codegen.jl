@@ -379,10 +379,15 @@ end
 ############################################################################################
 
 @testset "relocation patching" begin
+    # a load from a libjulia global, which has to be patched with its address at load time
     runtime_relocs = @eval module $(gensym())
-        using ..CUDACore
-        const relocated_type_tag = CUDACore.GPUCompiler.Runtime.type_tag
-        relocation_kernel(out) = (out[1] = relocated_type_tag(Val(:float32)); return)
+        relocation_kernel(out) = (out[1] = Base.llvmcall(("""
+            @jl_float32_type = external global i64
+            define i64 @entry() #0 {
+                %tag = load i64, i64* @jl_float32_type
+                ret i64 %tag
+            }
+            attributes #0 = { alwaysinline }""", "entry"), UInt, Tuple{}); return)
     end
 
     out = CUDA.zeros(UInt, 1)
