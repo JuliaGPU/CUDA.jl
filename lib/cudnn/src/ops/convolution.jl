@@ -34,29 +34,35 @@ function check_convolution_groups(input_channels, filter_input_channels, output_
     return
 end
 
-# Convert asymmetric padding to symmetric padding over a zero-padded input.
-function padded_convolution_geometry(x, pre, post)
-    rank = length(pre)
-    pad = min.(pre, post)
+# The size of `x` zero-padded by `lo` and `hi` elements in each spatial dimension, and the
+# ranges that `x` occupies in it.
+function zero_padded_geometry(x, lo, hi)
+    rank = length(lo)
     padded_size = ntuple(ndims(x)) do i
-        i <= rank ? size(x, i) + abs(pre[i] - post[i]) : size(x, i)
+        i <= rank ? size(x, i) + lo[i] + hi[i] : size(x, i)
     end
     ranges = ntuple(ndims(x)) do i
-        if i <= rank
-            offset = max(pre[i] - post[i], 0)
-            (1 + offset):(size(x, i) + offset)
-        else
-            axes(x, i)
-        end
+        i <= rank ? ((1 + lo[i]):(size(x, i) + lo[i])) : axes(x, i)
     end
-    return pad, padded_size, ranges
+    return padded_size, ranges
+end
+
+function zero_padded(x, lo, hi)
+    padded_size, ranges = zero_padded_geometry(x, lo, hi)
+    padded = fill!(similar(x, padded_size), zero(eltype(x)))
+    copyto!(view(padded, ranges...), x)
+    return padded
+end
+
+# Convert asymmetric padding to symmetric padding over a zero-padded input.
+function padded_convolution_geometry(x, pre, post)
+    pad = min.(pre, post)
+    return pad, zero_padded_geometry(x, pre .- pad, post .- pad)...
 end
 
 function padded_convolution_input(x, pre, post)
-    pad, padded_size, ranges = padded_convolution_geometry(x, pre, post)
-    padded = fill!(similar(x, padded_size), zero(eltype(x)))
-    copyto!(view(padded, ranges...), x)
-    return padded, pad
+    pad = min.(pre, post)
+    return zero_padded(x, pre .- pad, post .- pad), pad
 end
 
 function convolution_key(y, x, w, pre_padding, post_padding, stride, dilation, mode,

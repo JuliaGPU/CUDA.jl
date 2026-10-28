@@ -338,3 +338,118 @@ end
     ∇maxpool!(dx, dyd, yd, xd; window=2, padding, beta=2)
     @test Array(dx) ≈ ref .+ 2 .* Array(dx0)
 end
+
+# N-dimensional reference for an explicit output size, with PyTorch's semantics: output `o`
+# pools `(o-1)*stride - pre .+ (1:window)`, and the include-pad divisor counts the part of
+# that window inside the input or its padding
+function pool_windows(o, x; window, pre, post, stride)
+    nd = ndims(x) - 2
+    win = [(o[d]-1)*stride[d] - pre[d] .+ (1:window[d]) for d in 1:nd]
+    inside = CartesianIndices(Tuple(intersect(win[d], axes(x, d)) for d in 1:nd))
+    padded = prod(length(intersect(win[d], 1-pre[d]:size(x, d)+post[d])) for d in 1:nd)
+    return inside, padded
+end
+
+function pool_nd_ref(op, x, outsize; include_pad=true, geometry...)
+    nd = ndims(x) - 2
+    y = zeros(Float32, outsize..., size(x)[nd+1:end]...)
+    for b in axes(x, nd+2), c in axes(x, nd+1), o in CartesianIndices(outsize)
+        inside, padded = pool_windows(o, x; geometry...)
+        vals = [x[i, c, b] for i in inside]
+        y[o, c, b] = op === :max ? maximum(vals) :
+                                   sum(vals) / (include_pad ? padded : length(vals))
+    end
+    return y
+end
+
+function pool_nd_bwd_ref(op, dy, x; include_pad=true, geometry...)
+    nd = ndims(x) - 2
+    dx = zeros(Float32, size(x))
+    for b in axes(x, nd+2), c in axes(x, nd+1), o in CartesianIndices(size(dy)[1:nd])
+        inside, padded = pool_windows(o, x; geometry...)
+        if op === :max
+            dx[argmax(i -> x[i, c, b], inside), c, b] += dy[o, c, b]
+        else
+            for i in inside
+                dx[i, c, b] += dy[o, c, b] / (include_pad ? padded : length(inside))
+            end
+        end
+    end
+    return dx
+end
+
+# NNlib's generalisation of PyTorch's rule to asymmetric padding: the last window must
+# start inside the input or the leading padding
+function ceil_output_dim(x, window, pre, post, stride)
+    o = cld(x + pre + post - window, stride) + 1
+    return (o - 1) * stride < x + pre ? o : o - 1
+end
+
+@testset "ceil_mode, $(xsize) window $window stride $stride padding $padding" for
+        (xsize, window, stride, padding, ysize) in (
+            # the example from #3499
+            ((6, 6), 3, 2, 0, (3, 3)),
+            # stride smaller and larger than the window
+            ((7,), 3, 2, 1, nothing),
+            ((7, 5), (2, 1), 3, 0, (3, 2)),
+            ((9, 8), (4, 3), (3, 2), (2, 1), (4, 5)),
+            ((5, 6, 7), 3, 2, 1, (3, 4, 4)),
+            # the naive ceil size has an extra window that starts in the trailing padding
+            ((5,), 2, 2, 1, (3,)),
+            ((5, 5), 2, 2, 1, (3, 3)),
+            # asymmetric padding, which needs a graph
+            ((7, 6), 3, 2, (1, 0, 0, 2), (4, 3)),
+            ((5, 6, 7), 3, 2, (1, 0, 0, 1, 1, 2), (3, 3, 4)),
+            ((6, 6), 2, 3, (1, 0, 0, 1), (3, 2)))
+    nd = length(xsize)
+    pre, post = cuDNN.convolution_padding(padding, nd)
+    win, str = cuDNN.spatial_vector(window, nd), cuDNN.spatial_vector(stride, nd)
+    outsize = Tuple(ceil_output_dim.(xsize, win, pre, post, str))
+    ysize === nothing || @test outsize == ysize
+    geometry = (; window=win, pre, post, stride=str)
+    kwargs = (; window, stride, padding, ceil_mode=true)
+
+    x_h = randn(Float32, xsize..., 3, 2)
+    x = CuArray(x_h)
+    dy_h = randn(Float32, outsize..., 3, 2)
+    dy = CuArray(dy_h)
+    y0, dx0 = CuArray(randn(Float32, size(dy))), CuArray(randn(Float32, size(x)))
+    alpha, beta = 1.5f0, 0.5f0
+    for (pool!, ∇pool!, op, include_pad) in ((maxpool!, ∇maxpool!, :max, false),
+                                              (meanpool!, ∇meanpool!, :mean, false),
+                                              (meanpool!, ∇meanpool!, :mean, true))
+        mean_kwargs = op === :mean ? (; count_include_pad=include_pad) : (;)
+        y_ref = pool_nd_ref(op, x_h, outsize; include_pad, geometry...)
+        y = pool!(similar(y0), x; kwargs..., mean_kwargs...)
+        @test Array(y) ≈ y_ref
+        yb = pool!(copy(y0), x; kwargs..., mean_kwargs..., alpha, beta)
+        @test Array(yb) ≈ alpha .* y_ref .+ beta .* Array(y0)
+
+        dx_ref = pool_nd_bwd_ref(op, dy_h, x_h; include_pad, geometry...)
+        dx = ∇pool!(similar(x), dy, y, x; kwargs..., mean_kwargs...)
+        @test Array(dx) ≈ dx_ref
+        dxb = ∇pool!(copy(dx0), dy, y, x; kwargs..., mean_kwargs..., alpha, beta)
+        @test Array(dxb) ≈ alpha .* dx_ref .+ beta .* Array(dx0)
+    end
+
+    # the floor size is rejected, unless it is the same
+    floorsize = Tuple(cuDNN.resample_output_dims(xsize, win, pre, post, str))
+    if floorsize != outsize
+        @test_throws DimensionMismatch maxpool!(similar(x, floorsize..., 3, 2), x; kwargs...)
+    end
+end
+
+@testset "ceil_mode padding" begin
+    x = CuArray(rand(Float32, 6, 6, 1, 1))
+    y = similar(x, 4, 4, 1, 1)
+    @test_throws ArgumentError maxpool!(y, x; window=2, padding=2, ceil_mode=true)
+    @test_throws ArgumentError meanpool!(y, x; window=2, padding=(0, 2, 0, 0), ceil_mode=true)
+    @test_throws ArgumentError ∇maxpool!(similar(x), y, y, x; window=2, padding=-1,
+                                         ceil_mode=true)
+    @test_throws ArgumentError maxpool!(y, x; window=2, stride=0, ceil_mode=true)
+
+    # an empty destination is validated too: the ceil size here is 1, the floor size 0
+    x = CuArray(rand(Float32, 2, 1, 1))
+    @test_throws DimensionMismatch maxpool!(similar(x, 0, 1, 1), x; window=3, stride=2,
+                                            ceil_mode=true)
+end
