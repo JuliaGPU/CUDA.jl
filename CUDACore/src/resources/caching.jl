@@ -525,7 +525,7 @@ function purge!(a::CachingAllocator)
   return
 end
 
-grant_access!(::CachingAllocator, peers::Vector{CuDevice}) = nothing
+grant_access!(a::CachingAllocator, peers::Vector{CuDevice}) = grant_peer_access(a.dev, peers)
 
 function tree_capacity(tree::BlockTree)
   bytes = Ref(0)

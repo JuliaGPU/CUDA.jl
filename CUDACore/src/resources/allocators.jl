@@ -23,6 +23,17 @@
 abstract type DeviceAllocator end
 
 status(io::IO, ::DeviceAllocator) = nothing
+
+# memory allocated with `cuMemAlloc` is accessible from other devices once their contexts
+# have peer access to the one it was allocated in
+function grant_peer_access(dev::CuDevice, peers::Vector{CuDevice})
+  for peer in peers
+    peer == dev && continue
+    maybe_enable_peer_access(peer, dev) == 1 ||
+      @warn "Could not enable peer access from $peer to $dev" maxlog=1
+  end
+  return
+end
 # return everything that isn't in use, also if that means waiting for the GPU
 purge!(a::DeviceAllocator) = trim!(a)
 

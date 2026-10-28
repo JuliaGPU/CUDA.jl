@@ -70,4 +70,4 @@ reserved(a::DirectAllocator) = used(a) + a.pending[]
 
 trim!(::DirectAllocator) = nothing
 set_retention!(::DirectAllocator, bytes) = nothing
-grant_access!(::DirectAllocator, peers::Vector{CuDevice}) = nothing
+grant_access!(a::DirectAllocator, peers::Vector{CuDevice}) = grant_peer_access(a.dev, peers)
