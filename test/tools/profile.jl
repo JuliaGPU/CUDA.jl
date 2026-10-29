@@ -20,11 +20,53 @@ macro retry_busy(ex)
     :(retry_busy(() -> $(esc(ex))))
 end
 
+# Retry contention outside the deadlock timeout: another process may hold the profiling
+# hardware longer than the operation itself is allowed to take.
+function bounded(f; timeout=120)
+    try
+        retry_busy() do
+            t = Threads.@spawn f()
+            timedwait(() -> istaskdone(t), timeout) == :ok ? fetch(t) : :timeout
+        end
+    catch err
+        err
+    end
+end
+
 @testset "profiler" begin
 
 ############################################################################################
 
 @testset "helpers" begin
+
+@testset "contention" begin
+    attempts = Ref(0)
+    result = bounded(; timeout=1) do
+        attempts[] += 1
+        attempts[] == 1 && error("GPU is being profiled by another process")
+        :done
+    end
+    @test result === :done
+    @test attempts[] == 2
+
+    # Other errors still reach the assertion without being retried.
+    attempts[] = 0
+    err = bounded() do
+        attempts[] += 1
+        error("profiled code failed")
+    end
+    @test occursin("profiled code failed", sprint(showerror, err))
+    @test attempts[] == 1
+
+    # A task that actually blocks still times out; release it afterwards.
+    release, done = Channel{Nothing}(1), Channel{Nothing}(1)
+    @test bounded(; timeout=1) do
+        take!(release)
+        put!(done, nothing)
+    end === :timeout
+    put!(release, nothing)
+    take!(done)
+end
 
 @testset "push_row!" begin
     nt = (id = Int[], name = String[], value = Union{Missing,Int}[])
@@ -385,7 +427,7 @@ end
 
 @testset "errors" begin
     executed = Ref(false)
-    @test_throws "Metric 'foo__bar.sum' is not available" CUDA.@metrics metrics=["foo__bar.sum"] (executed[] = true)
+    @test_throws "Metric 'foo__bar.sum' is not available" @retry_busy CUDA.@metrics metrics=["foo__bar.sum"] (executed[] = true)
     @test_throws ArgumentError CUDA.@metrics metrics=:unknown (executed[] = true)
     @test !executed[]
 
@@ -827,15 +869,6 @@ end
 end
 
 @testset "SASS reflection" begin
-    # run `f` in another task, returning its error, or `:timeout` if it deadlocks
-    function bounded(f)
-        t = Threads.@spawn try
-            f()
-        catch err
-            err
-        end
-        timedwait(() -> istaskdone(t), 120) == :ok ? fetch(t) : :timeout
-    end
     message(err) = err isa Exception ? sprint(showerror, err) : repr(err)
 
     # reflection that waits for the session would deadlock when the sampled code waits
@@ -843,7 +876,7 @@ end
     sass() = CUDATools.code_sass(() -> nothing, devnull)
     device_sass() = @device_code_sass io=devnull nothing
     for inner in (sass, device_sass), nested in (inner, () -> fetch(@async inner()))
-        err = bounded(() -> @retry_busy CUDA.@sample nested())
+        err = bounded(() -> CUDA.@sample nested())
         @test contains(message(err), "Cannot generate SASS code while")
     end
 
