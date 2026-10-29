@@ -314,14 +314,23 @@ macro enable!(cfg, expr)
                         $mod.cuptiEnableDomain(true, subscriber, callback_kind)
                     end
 
-                    try
+                    ret = try
                         $(esc(expr))
-                    finally
+                    catch
+                        # a failed session can break unsubscribing (e.g. PC sampling with
+                        # CUPTI 13.0 when another process holds the profiling hardware),
+                        # which shouldn't hide the actual error
                         for callback_kind in _cfg.callback_kinds
-                            $mod.cuptiEnableDomain(false, subscriber, callback_kind)
+                            $mod.unchecked_cuptiEnableDomain(false, subscriber, callback_kind)
                         end
-                        $mod.cuptiUnsubscribe(subscriber)
+                        $mod.unchecked_cuptiUnsubscribe(subscriber)
+                        rethrow()
                     end
+                    for callback_kind in _cfg.callback_kinds
+                        $mod.cuptiEnableDomain(false, subscriber, callback_kind)
+                    end
+                    $mod.cuptiUnsubscribe(subscriber)
+                    ret
                 end
             end
         else
