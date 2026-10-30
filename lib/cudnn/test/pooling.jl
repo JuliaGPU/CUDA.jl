@@ -288,5 +288,53 @@ end
         ∇pool!(dx, dy, y, x; window=2, padding)
         @test Array(dx) ≈ Array(dxd)
     end
-    @test_throws ArgumentError maxpool!(y, view(parent(x), :, :, 2C:-1:C+1, :); window=2, padding)
+
+    # reversed views, which cuDNN can't address, are copied
+    reversed(a) = view(a, :, :, size(a, 3):-1:1, :)
+    xr, dyr = reversed(copy(x)), reversed(copy(dy))
+    y0, dx0 = CuArray(rand(Float32, size(yd))), CuArray(rand(Float32, size(xd)))
+    for (pool!, ∇pool!) in ((maxpool!, ∇maxpool!), (meanpool!, ∇meanpool!))
+        # NaN-filled, so that reading the old contents with `beta == 0` would show
+        yr = reversed(fill!(similar(yd), NaN))
+        pool!(yr, xr; window=2, padding)
+        @test Array(yr) ≈ Array(pool!(similar(yd), copy(xr); window=2, padding))
+        dxr = reversed(fill!(similar(xd), NaN))
+        ∇pool!(dxr, dyr, yr, xr; window=2, padding)
+        @test Array(dxr) ≈ Array(∇pool!(similar(xd), copy(dyr), copy(yr), copy(xr);
+                                        window=2, padding))
+
+        # a staged output keeps the contents that `beta` scales
+        yb = copyto!(reversed(similar(yd)), y0)
+        pool!(yb, xr; window=2, padding, beta=2)
+        @test Array(yb) ≈ Array(pool!(copy(y0), copy(xr); window=2, padding, beta=2))
+        dxb = copyto!(reversed(similar(xd)), dx0)
+        ∇pool!(dxb, dyr, yr, xr; window=2, padding, beta=2)
+        @test Array(dxb) ≈ Array(∇pool!(copy(dx0), copy(dyr), copy(yr), copy(xr);
+                                        window=2, padding, beta=2))
+    end
+end
+
+# max-pooling gradients laid out unlike the forward arrays are copied, as cuDNN rejects them,
+# or with graphs, computes wrong gradients (#3497)
+@testset "∇maxpool! layouts, padding $padding" for padding in (1, (1, 0, 0, 1))
+    C = 3
+    # a range of channels, with strides that depend on the size of the parent
+    channels(a, n) = copyto!(view(similar(a, size(a)[1:2]..., n*size(a, 3), size(a, 4)),
+                                  :, :, size(a, 3)+1:2size(a, 3), :), a)
+    xd = CuArray(rand(Float32, 7, 7, C, 2))
+    yd = maxpool!(similar(xd, 4, 4, C, 2), xd; window=2, padding)
+    dyd = CuArray(rand(Float32, size(yd)))
+    dx0 = CuArray(rand(Float32, size(xd)))
+    ref = Array(∇maxpool!(similar(xd), dyd, yd, xd; window=2, padding))
+    for (x, dx, y, dy) in ((channels(xd, 3), copy(dx0), yd, dyd),
+                           (xd, channels(dx0, 3), yd, dyd),
+                           (xd, copy(dx0), channels(yd, 3), dyd),
+                           (xd, copy(dx0), yd, channels(dyd, 3)),
+                           (channels(xd, 3), channels(dx0, 5),
+                            channels(yd, 3), channels(dyd, 5)))
+        @test Array(∇maxpool!(dx, dy, y, x; window=2, padding)) ≈ ref
+    end
+    dx = channels(dx0, 3)
+    ∇maxpool!(dx, dyd, yd, xd; window=2, padding, beta=2)
+    @test Array(dx) ≈ ref .+ 2 .* Array(dx0)
 end

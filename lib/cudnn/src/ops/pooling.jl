@@ -141,13 +141,16 @@ function maxpool!(y::StridedCuArray, x::StridedCuArray; window, stride=window, p
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
     check_pool_output(y, x, win, pre, post, str)
-    if use_fixed_pooling(pre, post)
-        mode = fixed_pool_mode(:maxpool, false, deterministic)
-        fixed_pool!(y, x, mode, nan_propagation, win, pre, str, alpha, beta)
-    else
-        pool_execute!(y, x, :maxpool, :maxpool, :neg_inf, win, pre, post, str,
-                      nan_propagation, alpha, beta, deterministic, math_mode,
-                      max_workspace)
+    x = cudnn_input(x)
+    cudnn_output(y, beta) do y
+        if use_fixed_pooling(pre, post)
+            mode = fixed_pool_mode(:maxpool, false, deterministic)
+            fixed_pool!(y, x, mode, nan_propagation, win, pre, str, alpha, beta)
+        else
+            pool_execute!(y, x, :maxpool, :maxpool, :neg_inf, win, pre, post, str,
+                          nan_propagation, alpha, beta, deterministic, math_mode,
+                          max_workspace)
+        end
     end
 end
 
@@ -172,17 +175,28 @@ function meanpool!(y::StridedCuArray, x::StridedCuArray; window, stride=window, 
                          count_include_pad, alpha, beta, nan_propagation, deterministic,
                          math_mode, max_workspace)
     end
-    if use_fixed_pooling(pre, post)
-        mode = fixed_pool_mode(:meanpool, count_include_pad, deterministic)
-        fixed_pool!(y, x, mode, nan_propagation, win, pre, str, alpha, beta)
-    else
-        graph_mode = count_include_pad ? :avgpool_include_padding :
-                                         :avgpool_exclude_padding
-        pool_execute!(y, x, :meanpool, graph_mode, :zero, win, pre, post, str,
-                      nan_propagation, alpha, beta, deterministic, math_mode,
-                      max_workspace)
+    x = cudnn_input(x)
+    cudnn_output(y, beta) do y
+        if use_fixed_pooling(pre, post)
+            mode = fixed_pool_mode(:meanpool, count_include_pad, deterministic)
+            fixed_pool!(y, x, mode, nan_propagation, win, pre, str, alpha, beta)
+        else
+            graph_mode = count_include_pad ? :avgpool_include_padding :
+                                             :avgpool_exclude_padding
+            pool_execute!(y, x, :meanpool, graph_mode, :zero, win, pre, post, str,
+                          nan_propagation, alpha, beta, deterministic, math_mode,
+                          max_workspace)
+        end
     end
 end
+
+# The strides cuDNN describes an operand with once `cudnn_input` or `cudnn_output` stages it.
+staged_strides(a) = describable(a) ? view_strides(a) : collect(tuple_strides(size(a)))
+
+# The max-pooling gradient needs `dx` laid out like `x`, and `dy` like `y`: the fixed-function
+# API rejects other layouts, and the graph API computes wrong gradients for them (#3497).
+# Stage both members of a mismatched pair densely, which reuses one that already is.
+pair_layout(a, b) = staged_strides(a) == staged_strides(b) ? describable : dense_layout
 
 function ∇maxpool!(dx::StridedCuArray{T}, dy::StridedCuArray{T}, y::StridedCuArray{T},
                    x::StridedCuArray{T}; window, stride=window, padding=0,
@@ -196,13 +210,18 @@ function ∇maxpool!(dx::StridedCuArray{T}, dy::StridedCuArray{T}, y::StridedCuA
     win = spatial_vector(window, spatial_rank)
     str = spatial_vector(stride, spatial_rank)
     check_pool_output(y, x, win, pre, post, str)
-    if use_fixed_pooling(pre, post)
-        mode = fixed_pool_mode(:maxpool, false, deterministic)
-        fixed_pool_bwd!(dx, dy, y, x, mode, nan_propagation, win, pre, str, alpha, beta)
-    else
-        pool_bwd_execute!(dx, dy, y, x, :maxpool_bwd, :maxpool, :neg_inf, win,
-                          pre, post, str, nan_propagation, alpha, beta, deterministic,
-                          math_mode, max_workspace)
+    xlayout, ylayout = pair_layout(x, dx), pair_layout(y, dy)
+    x, y, dy = cudnn_input(x, xlayout), cudnn_input(y, ylayout), cudnn_input(dy, ylayout)
+    cudnn_output(dx, beta, xlayout) do dx
+        if use_fixed_pooling(pre, post)
+            mode = fixed_pool_mode(:maxpool, false, deterministic)
+            fixed_pool_bwd!(dx, dy, y, x, mode, nan_propagation, win, pre, str, alpha,
+                            beta)
+        else
+            pool_bwd_execute!(dx, dy, y, x, :maxpool_bwd, :maxpool, :neg_inf, win,
+                              pre, post, str, nan_propagation, alpha, beta,
+                              deterministic, math_mode, max_workspace)
+        end
     end
 end
 
@@ -229,15 +248,19 @@ function ∇meanpool!(dx::StridedCuArray{T}, dy::StridedCuArray{T}, y::StridedCu
         beta == 0 ? copyto!(dx, interior) : (dx .= interior .+ beta .* dx)
         return dx
     end
-    if use_fixed_pooling(pre, post)
-        mode = fixed_pool_mode(:meanpool, count_include_pad, deterministic)
-        fixed_pool_bwd!(dx, dy, y, x, mode, nan_propagation, win, pre, str, alpha, beta)
-    else
-        graph_mode = count_include_pad ? :avgpool_include_padding :
-                                         :avgpool_exclude_padding
-        pool_bwd_execute!(dx, dy, y, x, :meanpool_bwd, graph_mode, :zero, win,
-                          pre, post, str, nan_propagation, alpha, beta, deterministic,
-                          math_mode, max_workspace)
+    x, y, dy = cudnn_input(x), cudnn_input(y), cudnn_input(dy)
+    cudnn_output(dx, beta) do dx
+        if use_fixed_pooling(pre, post)
+            mode = fixed_pool_mode(:meanpool, count_include_pad, deterministic)
+            fixed_pool_bwd!(dx, dy, y, x, mode, nan_propagation, win, pre, str, alpha,
+                            beta)
+        else
+            graph_mode = count_include_pad ? :avgpool_include_padding :
+                                             :avgpool_exclude_padding
+            pool_bwd_execute!(dx, dy, y, x, :meanpool_bwd, graph_mode, :zero, win,
+                              pre, post, str, nan_propagation, alpha, beta,
+                              deterministic, math_mode, max_workspace)
+        end
     end
 end
 
@@ -252,7 +275,8 @@ end
 Pool over the spatial dimensions of `x` (Julia memory order: spatial dimensions first,
 then channels, then batch), or compute the gradient with respect to the pooling input
 given the forward input `x` and output `y`. The arrays may be strided views, such as a range
-of channels, as long as their strides are positive.
+of channels. Views that cuDNN can't address, such as reversed ones, are copied, as are
+the arrays of a max-pooling gradient whose layout differs from the forward array's.
 
 `padding` accepts a scalar, one value per spatial dimension, or per-side
 `(pre1, post1, ...)` pairs. `count_include_pad` includes padded elements in the averaging
