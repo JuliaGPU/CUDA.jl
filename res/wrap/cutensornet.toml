@@ -83,3 +83,68 @@ needs_context = false
 
 [api.cutensornetLoggerSetLevel]
 needs_context = false
+
+[api.cutensornetWorkspaceSetMemory.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetNetworkSetInputTensorMemory.argtypes]
+4 = "CuPtr{Cvoid}"
+
+[api.cutensornetNetworkSetOutputTensorMemory.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.cutensornetNetworkSetGradientTensorMemory.argtypes]
+4 = "CuPtr{Cvoid}"
+
+[api.cutensornetNetworkSetAdjointTensorMemory.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateApplyTensorOperator.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetStateApplyTensorOperatorWithGradient.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateUpdateTensorOperatorGradient.argtypes]
+4 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateApplyDiagonalTensorOperator.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetStateApplyControlledTensorOperator.argtypes]
+8 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetStateUpdateTensorOperator.argtypes]
+4 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetStateCompute.argtypes]
+6 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cutensornetNetworkOperatorAppendProduct.argtypes]
+8 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cutensornetNetworkOperatorAppendMPO.argtypes]
+8 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cutensornetAccessorCompute.argtypes]
+5 = "PtrOrCuPtr{Cvoid}"
+
+[api.cutensornetMarginalCompute.argtypes]
+5 = "CuPtr{Cvoid}"
+
+[api.cutensornetCreateStateProjectionMPS.argtypes]
+13 = "Ptr{CuPtr{Cvoid}}"
+
+[api.cutensornetStateProjectionMPSComputeTensorEnv.argtypes]
+5 = "CuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateProjectionMPSExtractTensor.argtypes]
+5 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateProjectionMPSInsertTensor.argtypes]
+6 = "CuPtr{Cvoid}"
+
+[api.cutensornetStateProjectionMPSUpdateDualTensors.argtypes]
+6 = "Ptr{CuPtr{Cvoid}}"
