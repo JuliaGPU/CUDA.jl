@@ -44,8 +44,8 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
   may wait for the GPU, like unpinning memory or destroying some library objects,
   are deferred until memory is reclaimed: on an out-of-memory error, or when
   calling `CUDA.reclaim()`. Pinned arrays are kept alive until then.
-- `JULIA_CUDA_MEMORY_POOL=none` now also disables the memory pools that are used
-  to allocate host and unified memory.
+- `JULIA_CUDA_MEMORY_POOL` now only accepts `cuda`, `caching` or `none`; other
+  values are an error, where they used to act like `none`.
 - The stream that `stream()` returns in a task is handed to another task once
   the task has finished and the work on the stream has completed, instead of
   being kept alive until the GC collects the task. This keeps applications that
@@ -103,6 +103,15 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
 
 *New features*:
 
+- `JULIA_CUDA_MEMORY_POOL=caching` selects a new allocator for device memory,
+  which caches memory allocated with `cuMemAlloc` instead of using CUDA's
+  stream-ordered memory pool. Unlike the pool's, that memory can be shared
+  through CUDA IPC, which CUDA-aware MPI implementations use to move data
+  between GPUs in a node, while allocating remains about as fast. It is opt-in
+  for now; see the documentation on memory management for the trade-offs.
+- `CUDA.used_memory()` and `CUDA.cached_memory()` return a number with every
+  allocator, also without a memory pool, and `CUDA.pool_status()` reports
+  which allocator is in use.
 - The results of `CUDA.@profile` and `CUDA.@metrics` can be written as JSON, for
   processing by scripts or coding agents, with
   `show(io, MIME"application/json"(), results)`.
@@ -111,7 +120,9 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
   that wrap objects of CUDA libraries.
 - Host and unified memory is allocated from stream-ordered memory pools where
   supported (CUDA 13 and later), or otherwise cached for reuse, making allocating
-  and freeing such memory considerably faster.
+  and freeing such memory considerably faster. `JULIA_CUDA_MEMORY_POOL` doesn't
+  affect these pools; setting the `host_memory_pools` preference to `false`
+  disables them.
 - `CUDA.priority!(p)` sets the priority of the current task's GPU work, by
   switching the task to a stream of that priority that is ordered after its
   previous one; `CUDA.priority!(p) do ... end` restores the previous stream

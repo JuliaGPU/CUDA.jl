@@ -21,7 +21,13 @@
 # (as the work it waits for may depend on another task that needs that lock). while a graph
 # is being captured, nothing is released (only retired), as that could invalidate the capture.
 
+include("resources/segments.jl")
+include("resources/allocators.jl")
+include("resources/direct.jl")
 include("resources/pools.jl")
+include("resources/sanitizer.jl")
+include("resources/caching.jl")
+include("resources/modes.jl")
 include("resources/reclaim.jl")
 include("resources/managed.jl")
 include("resources/lifecycle.jl")

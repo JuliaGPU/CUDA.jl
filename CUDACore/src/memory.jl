@@ -46,12 +46,7 @@ mutable struct MemoryStats
 end
 MemoryStats() = MemoryStats(0, 0.0, 0, 0.0, 0.0, 0)
 
-function account!(stats::MemoryStats, bytes::Integer)
-  Base.@atomic stats.live += bytes
-  if bytes > 0
-    Base.@atomic stats.live += 1
-  end
-end
+account!(stats::MemoryStats, bytes::Integer) = (Base.@atomic stats.live += bytes; nothing)
 
 function memory_stats(dev::CuDevice=device())
   @memoize index=deviceid(dev)+1 begin
@@ -106,10 +101,7 @@ function maybe_collect(will_block::Bool=false)
       #       the pressure calculation below reflects the heap we have control over.
 
       # also include reserved bytes
-      dev = device()
-      if stream_ordered(dev)
-        size += (cached_memory() - used_memory())::Int
-      end
+      size += cached_memory() - used_memory()
 
       size
     end
@@ -234,27 +226,6 @@ function memory_limits()
   end::NamedTuple{(:soft, :hard), Tuple{UInt,UInt}}
 end
 
-function memory_limit_exceeded(bytes::Integer)
-  limit = memory_limits()
-  limit.hard > 0 || return false
-
-  dev = device()
-  used_bytes = if stream_ordered(dev) && driver_version() >= v"12.2"
-    # we configured the memory pool to do this for us
-    return false
-  elseif stream_ordered(dev)
-    pool = pool_create(dev)
-    Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
-  else
-    # NOTE: cannot use `memory_info()`, because it only reports total & free memory.
-    #       computing `total - free` would include memory allocated by other processes.
-    #       NVML does report used memory, but is slow, and not available on all platforms.
-    memory_stats().live
-  end
-
-  return used_bytes + bytes > limit.hard
-end
-
 
 ## OOM handling
 
@@ -263,19 +234,14 @@ export OutOfGPUMemoryError
 struct MemoryInfo
   free_bytes::Int
   total_bytes::Int
-  pool_reserved_bytes::Union{Int,Nothing}
-  pool_used_bytes::Union{Int,Nothing}
+  allocator::String
+  pool_reserved_bytes::Int
+  pool_used_bytes::Int
 
   function MemoryInfo()
     free_bytes, total_bytes = memory_info()
-
-    pool_reserved_bytes, pool_used_bytes = if stream_ordered(device())
-      cached_memory(), used_memory()
-    else
-      nothing, nothing
-    end
-
-    new(free_bytes, total_bytes, pool_reserved_bytes, pool_used_bytes)
+    a = allocator(device())
+    new(free_bytes, total_bytes, name(a), reserved(a), used(a))
   end
 end
 
@@ -295,14 +261,11 @@ function pool_status(io::IO=stdout, info::MemoryInfo=(drain_retired(); MemoryInf
               100*used_ratio, Base.format_bytes(used_bytes),
               Base.format_bytes(info.total_bytes))
 
-  if info.pool_reserved_bytes === nothing
-    @printf(io, "No memory pool is in use.\n")
-  else
-    @printf(io, "Memory pool usage: %s (%s reserved)\n",
-                Base.format_bytes(info.pool_used_bytes),
-                Base.format_bytes(info.pool_reserved_bytes))
-
-  end
+  println(io, "Memory allocator: ", info.allocator)
+  @printf(io, "Memory pool usage: %s (%s reserved)\n",
+              Base.format_bytes(info.pool_used_bytes),
+              Base.format_bytes(info.pool_reserved_bytes))
+  status(io, allocator(device()))
 
   active_handles = Ref(0)
   idle_handles = Ref(0)
@@ -483,34 +446,21 @@ end
 """
     used_memory()
 
-Returns the amount of memory from the CUDA memory pool that is currently in use by the
-application.
+Returns the amount of device memory that is currently allocated by the application.
 """
 function used_memory()
   # not using `active_state()`, which creates the task's stream. that can block until the
   # GPU is idle, while this is called right before synchronizing (by `maybe_collect`).
-  dev = device()
-  if stream_ordered(dev)
-    pool = pool_create(dev)
-    Int(attribute(UInt64, pool, MEMPOOL_ATTR_USED_MEM_CURRENT))
-  else
-    missing
-  end
+  used(allocator(device()))
 end
 
 """
     cached_memory()
 
-Returns the amount of backing memory currently allocated for the CUDA memory pool.
+Returns the amount of backing memory currently allocated for device memory, including
+memory that is cached for reuse or that has been freed but not returned to the driver yet.
 """
 function cached_memory()
-  # not using `active_state()`, which creates the task's stream. that can block until the
-  # GPU is idle, while this is called right before synchronizing (by `maybe_collect`).
-  dev = device()
-  if stream_ordered(dev)
-    pool = pool_create(dev)
-    Int(attribute(UInt64, pool, MEMPOOL_ATTR_RESERVED_MEM_CURRENT))
-  else
-    missing
-  end
+  # (see `used_memory`)
+  reserved(allocator(device()))
 end
