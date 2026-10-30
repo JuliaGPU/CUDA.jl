@@ -831,12 +831,21 @@ when function changes, or when different types or keyword arguments are provided
 """
 function cufunction(f::F, tt::TT=Tuple{}; kwargs...) where {F,TT}
     kw = values(kwargs)
-    fun, state = GPUCompiler.cached_lookup(Tuple{CuFunction,KernelState}, F, tt,
-                                           (context(), kw)) do
-        cufunction_link(methodinstance(F, tt); kw...)
-    end
+    fun, state = GPUCompiler.cached_lookup(KernelLinker(F, tt, kw),
+                                           Tuple{CuFunction,KernelState}, F, tt,
+                                           (context(), kw))
     return HostKernel{F,tt}(f, fun, state)
 end
+
+# what `cufunction` calls when the kernel isn't cached: a callable struct rather than a
+# closure, whose type would depend on the kernel's, compiling it (and the inlined
+# `methodinstance`) again for every kernel.
+struct KernelLinker{K}
+    ft::Type
+    tt::Type
+    kw::K
+end
+(l::KernelLinker)() = cufunction_link(methodinstance(l.ft, l.tt); l.kw...)
 
 # the parts of `cufunction` that don't depend on the type of the function, kept separate so
 # that they are compiled once rather than for every kernel
