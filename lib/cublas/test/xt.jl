@@ -12,6 +12,24 @@ k = 13
 
 @testset "cublasXt" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "unsupported layouts" begin
+            dA = CuArray(rand(elty,m,m))
+            dB = CuArray(rand(elty,m,n))
+            dC = CuArray(rand(elty,m,n))
+            sA = view(CuArray(rand(elty,2m,m)), 1:2:2m, :)
+            sB = view(CuArray(rand(elty,2m,n)), 1:2:2m, :)
+            sC = view(CuArray(rand(elty,2m,n)), 1:2:2m, :)
+            for (X, Y, Z) in ((sA, dB, dC), (dA, sB, dC), (dA, dB, sC))
+                @test_throws ArgumentError cuBLAS.xt_gemm!('N','N',one(elty),X,Y,zero(elty),Z)
+                @test_throws ArgumentError cuBLAS.xt_symm!('L','U',one(elty),X,Y,zero(elty),Z)
+                @test_throws ArgumentError cuBLAS.xt_trmm!('L','U','N','N',one(elty),X,Y,Z)
+                elty <: Complex && @test_throws ArgumentError cuBLAS.xt_hemm!('L','U',one(elty),X,Y,zero(elty),Z)
+            end
+            # host arrays go through the same check
+            hA = view(rand(elty,2m,m), 1:2:2m, :)
+            @test_throws ArgumentError cuBLAS.xt_symm!('L','U',one(elty),hA,rand(elty,m,n),zero(elty),rand(elty,m,n))
+        end
+
         @testset "xt_trmm! gpu" begin
             alpha = rand(elty)
             A = triu(rand(elty, m, m))

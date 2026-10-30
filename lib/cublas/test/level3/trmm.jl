@@ -48,6 +48,19 @@ end
         @test alpha * A * B ≈ Array(d_C)
     end
 
+    @testset "unsupported layouts" begin
+        dA = CuArray(rand(elty, m, m))
+        dB = CuArray(rand(elty, m, n))
+        dC = CuArray(rand(elty, m, n))
+        sA = view(CuArray(rand(elty, 2m, m)), 1:2:2m, :)
+        sB = view(CuArray(rand(elty, 2m, n)), 1:2:2m, :)
+        sC = view(CuArray(rand(elty, 2m, n)), 1:2:2m, :)
+        @test_throws ArgumentError cuBLAS.trmm!('L', 'U', 'N', 'N', one(elty), sA, dB, dC)
+        @test_throws ArgumentError cuBLAS.trmm!('L', 'U', 'N', 'N', one(elty), dA, sB, dC)
+        @test_throws ArgumentError cuBLAS.trmm!('L', 'U', 'N', 'N', one(elty), dA, dB, sC)
+        @test_throws ArgumentError cuBLAS.trmm('L', 'U', 'N', 'N', one(elty), sA, dB)
+    end
+
     @testset "triangular-dense mul!" begin
         sA = rand(elty, m, m)
         sA = sA + transpose(sA)

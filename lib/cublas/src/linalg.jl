@@ -6,10 +6,6 @@ using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!,
     using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
 end
 
-# cuBLAS addresses a matrix, or a vector passed as one, through its leading dimension
-# `stride(X, 2)`, which must be at least the number of rows. Reversed views fail this.
-column_major(X::StridedCuVecOrMat) = stride(X, 1) == 1 && stride(X, 2) >= max(1, size(X, 1))
-
 # BLAS walks a vector with a negative increment backwards from its end, while a reversed
 # view points at its first element, so vector operands need a positive stride.
 blas_layout(x::StridedCuVector) = stride(x, 1) > 0
