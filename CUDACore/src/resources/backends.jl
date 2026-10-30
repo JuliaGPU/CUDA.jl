@@ -144,15 +144,16 @@ end
         handle, ctx = @something(release_stream(stream, stream_ctx, generation),
                                  (disposal_stream(free_ctx), free_ctx))
         context!(ctx) do
-          free_stream = if !mem.async
+          if mem.async
+            cuMemFreeAsync(mem, handle)
+          else
             # when memory that wasn't allocated from a pool is freed in stream order,
             # destroying that stream waits for the free, i.e., for all work on the stream.
             # so free it on the disposal stream instead, after the work on this stream.
-            after_on_disposal_stream(handle, ctx)
-          else
-            handle
+            free_stream = after_on_disposal_stream(handle, ctx)
+            cuMemFreeAsync(mem, free_stream)
+            push!(unsynced_frees, ctx)
           end
-          cuMemFreeAsync(mem, free_stream)
         end
       end
     else
@@ -200,6 +201,43 @@ function free_context(mem::Union{UnifiedMemory,HostMemory})
   mem.pooled || return nothing
   ctx = context(device())
   return isvalid(ctx) ? ctx : nothing
+end
+
+# memory that wasn't allocated from a pool, but was freed in stream order, is only returned
+# to the driver when synchronizing the stream it was freed on with the CPU (polling isn't
+# enough). such memory is freed on the disposal stream of its context, so every second, an
+# event is recorded there, which is synchronized once polling finds it done and that doesn't
+# block anymore. doing so after every free would be expensive, as the driver then unmaps
+# and maps memory for every allocation. memory that is needed before then is returned when
+# reclaiming memory, which synchronizes the context.
+const unsynced_frees = Set{CuContext}()  # protected by `stream_disposal_lock`
+
+function record_free_events()
+  releasing() do
+    @lock stream_disposal_lock begin
+      for ctx in unsynced_frees
+        try
+          # (the work of a destroyed context has ended)
+          isvalid(ctx) || continue
+          context!(ctx) do
+            event = CuEvent(EVENT_DISABLE_TIMING)
+            cuEventRecord(event, disposal_stream(ctx))
+            hold!(ReleaseAction(synchronize_and_finalize, event, ctx, false), event)
+          end
+        catch err
+          # the memory is still returned when reclaiming memory
+          isa(err, CuError) || rethrow()
+          @debug "Failed to record an event after freeing memory" exception=(err, catch_backtrace())
+        end
+      end
+      empty!(unsynced_frees)
+    end
+  end
+  return
+end
+function synchronize_and_finalize(event::CuEvent)
+  cuEventSynchronize(event)
+  finalize(event)
 end
 
 # freed memory may only be released when reclaiming memory, so do so when running out

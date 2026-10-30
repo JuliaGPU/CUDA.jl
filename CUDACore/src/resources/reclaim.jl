@@ -95,17 +95,26 @@ function reclaim_step(level::ReclaimLevel, dev::CuDevice, stream_ordered::Bool)
         if level == RECLAIM_PURGE
             purge_resources!()
         elseif level == RECLAIM_SYNC
-            async && device_synchronize()
+            async && synchronize_frees()
         elseif level >= RECLAIM_GC
-            async && device_synchronize()
+            async && synchronize_frees()
             purge_resources!()
             # releases deferred until after synchronizing the context (of memory last used
             # on the per-thread default stream) can free memory asynchronously
-            async && device_synchronize()
+            async && synchronize_frees()
             trim_pools(dev, stream_ordered)
         end
     end
     return
+end
+
+# memory that wasn't allocated from a pool, but was freed in stream order, is only returned
+# to the driver when synchronizing the stream it was freed on (or the context) with the CPU.
+# waiting for an event recorded by `cuCtxRecordEvent`, as `device_synchronize` does, or
+# finding the work done by polling doesn't, so this synchronizes the context itself.
+function synchronize_frees()
+    synchronize_object(context(); blocking=false, spin=true)
+    check_exceptions()
 end
 
 function purge_resources!()

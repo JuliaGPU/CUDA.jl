@@ -7,7 +7,7 @@ using CUDA, CUDACore, GPUArrays
 using CUDA: i32
 using Adapt
 using FileCheck
-using ..Main: TestSuite, can_use_cupti, sanitize
+using ..Main: TestSuite, can_use_cupti, sanitize, gpu_rss_nvml
 
 testf(@nospecialize(f), @nospecialize(xs...); kwargs...) =
     TestSuite.compare(f, CuArray, xs...; kwargs...)
