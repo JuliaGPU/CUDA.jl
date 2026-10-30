@@ -1186,14 +1186,19 @@ end
 # than sm_50. Each wrapper consists of a front-end that validates its inputs and selects a
 # compute type, and a back-end that only takes pointers and is compiled once.
 
-# the dimensions of op(A) * op(B), checked against those of C. cuBLAS addresses matrices
-# through their leading dimension, so their columns need to be contiguous.
-function gemm_dims(transA::Char, transB::Char, A, B, C)
-    for X in (A, B, C)
+# cuBLAS addresses matrices through their leading dimension, so their columns need to be
+# contiguous.
+function check_contiguous(Xs...)
+    for X in Xs
         if stride(X, 1) != 1 || gemm_ld(X) < max(1, size(X, 1))
             throw(ArgumentError("cuBLAS cannot multiply arrays with strides $(strides(X))"))
         end
     end
+end
+
+# the dimensions of op(A) * op(B), checked against those of C.
+function gemm_dims(transA::Char, transB::Char, A, B, C)
+    check_contiguous(A, B, C)
     m = size(A, transA == 'N' ? 1 : 2)
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
@@ -1903,6 +1908,7 @@ for (fname, fname_64, elty) in ((:cublasDsymm_v2, :cublasDsymm_v2_64, :Float64),
                        B::StridedCuMatrix{$elty},
                        beta,
                        C::StridedCuMatrix{$elty})
+            check_contiguous(A, B, C)
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
             m = side == 'L' ? k : size(B,1)
@@ -2018,6 +2024,7 @@ for (fname, fname_64, elty) in ((:cublasZhemm_v2, :cublasZhemm_v2_64, :ComplexF6
                        B::StridedCuMatrix{$elty},
                        beta,
                        C::StridedCuMatrix{$elty})
+            check_contiguous(A, B, C)
             mA, nA = size(A)
             m, n = size(B)
             mC, nC = size(C)
@@ -2199,6 +2206,7 @@ for (mmname, mmname_64, elty) in
                        A::StridedCuMatrix{$elty},
                        B::StridedCuMatrix{$elty},
                        C::StridedCuMatrix{$elty})
+            check_contiguous(A, B, C)
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
@@ -2764,6 +2772,7 @@ for (fname, elty) in
                        B::Union{StridedCuVecOrMat{$elty}, StridedVecOrMat{$elty}},
                        beta::Number,
                        C::Union{StridedCuVecOrMat{$elty}, StridedVecOrMat{$elty}})
+            check_contiguous(A, B, C)
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
             n = size(B, transB == 'N' ? 2 : 1)
@@ -2804,6 +2813,7 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
                        B::Union{StridedMatrix{$elty}, StridedCuMatrix{$elty}},
                        beta::Number,
                        C::Union{StridedMatrix{$elty}, StridedCuMatrix{$elty}})
+            check_contiguous(A, B, C)
             mA, nA = size(A)
             m, n = size(B)
             mC, nC = size(C)
@@ -2845,6 +2855,7 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
                        B::Union{StridedMatrix{$elty}, StridedCuMatrix{$elty}},
                        beta::Number,
                        C::Union{StridedMatrix{$elty}, StridedCuMatrix{$elty}})
+            check_contiguous(A, B, C)
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
             m = side == 'L' ? k : size(B,1)
@@ -3032,6 +3043,7 @@ for (mmname, smname, elty) in
                        A::Union{StridedMatrix{$elty}, StridedCuMatrix{$elty}},
                        B::Union{StridedMatrix{$elty}, StridedCuMatrix{$elty}},
                        C::Union{StridedMatrix{$elty}, StridedCuMatrix{$elty}})
+            check_contiguous(A, B, C)
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages

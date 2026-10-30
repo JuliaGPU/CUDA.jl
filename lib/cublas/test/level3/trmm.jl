@@ -48,6 +48,19 @@ end
         @test alpha * A * B ≈ Array(d_C)
     end
 
+    @testset "unsupported layouts" begin
+        dA = CuArray(rand(elty, m, m))
+        dB = CuArray(rand(elty, m, n))
+        dC = CuArray(rand(elty, m, n))
+        sA = view(CuArray(rand(elty, 2m, m)), 1:2:2m, :)
+        sB = view(CuArray(rand(elty, 2m, n)), 1:2:2m, :)
+        sC = view(CuArray(rand(elty, 2m, n)), 1:2:2m, :)
+        @test_throws ArgumentError cuBLAS.trmm!('L', 'U', 'N', 'N', one(elty), sA, dB, dC)
+        @test_throws ArgumentError cuBLAS.trmm!('L', 'U', 'N', 'N', one(elty), dA, sB, dC)
+        @test_throws ArgumentError cuBLAS.trmm!('L', 'U', 'N', 'N', one(elty), dA, dB, sC)
+        @test_throws ArgumentError cuBLAS.trmm('L', 'U', 'N', 'N', one(elty), sA, dB)
+    end
+
     @testset "triangular-dense mul!" begin
         sA = rand(elty, m, m)
         sA = sA + transpose(sA)
@@ -112,6 +125,29 @@ end
 
             @test C ≈ Array(dC)
             @test D ≈ Array(dD)
+        end
+    end
+
+    @testset "triangular-triangular mul! unsupported layouts" begin
+        strided() = view(CuArray(rand(elty, 2m, m)), 1:2:2m, :)
+        for (TRa, ta, TRb, tb) in (
+            (UpperTriangular, identity,  LowerTriangular, identity),
+            (LowerTriangular, identity,  UpperTriangular, identity),
+            (UpperTriangular, identity,  UpperTriangular, transpose),
+            (UpperTriangular, transpose, UpperTriangular, identity),
+            (LowerTriangular, identity,  LowerTriangular, transpose),
+            (LowerTriangular, transpose, LowerTriangular, identity),
+        )
+            dA = CuArray(rand(elty, m, m))
+            dB = CuArray(rand(elty, m, m))
+            dC = CuArray(rand(elty, m, m))
+            # the methods first zero one operand's other triangle, which uses scalar indexing
+            # on these views, so allow that to reach the layout check
+            CUDACore.@allowscalar begin
+                @test_throws ArgumentError mul!(dC, ta(TRa(strided())), tb(TRb(dB)))
+                @test_throws ArgumentError mul!(dC, ta(TRa(dA)), tb(TRb(strided())))
+                @test_throws ArgumentError mul!(strided(), ta(TRa(dA)), tb(TRb(dB)))
+            end
         end
     end
 end

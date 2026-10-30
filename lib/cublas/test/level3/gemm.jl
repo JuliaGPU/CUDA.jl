@@ -146,7 +146,11 @@ end
             d_A = view(CuArray(rand(elty,2m,k)), 1:2:2m, :)
             d_B = CuArray(rand(elty,k,n))
             d_C = CuArray(rand(elty,m,n))
+            s_B = view(CuArray(rand(elty,2k,n)), 1:2:2k, :)
+            s_C = view(CuArray(rand(elty,2m,n)), 1:2:2m, :)
             @test_throws ArgumentError cuBLAS.gemm!('N','N',one(elty),d_A,d_B,zero(elty),d_C)
+            @test_throws ArgumentError cuBLAS.gemm!('N','N',one(elty),CuArray(rand(elty,m,k)),s_B,zero(elty),d_C)
+            @test_throws ArgumentError cuBLAS.gemm!('N','N',one(elty),CuArray(rand(elty,m,k)),d_B,zero(elty),s_C)
             @test_throws ArgumentError cuBLAS.gemm_batched!('N','N',one(elty),[d_A],[d_B],zero(elty),[d_C])
         end
         @testset "gemm" begin
@@ -201,6 +205,18 @@ end
                 @test C ≈ h_C
                 @test_throws DimensionMismatch cuBLAS.symm('L','U',dsA,d_Bbad)
             end
+            @testset "symm! unsupported layouts" begin
+                dA = CuArray(rand(elty,m,m))
+                dB = CuArray(rand(elty,m,n))
+                dC = CuArray(rand(elty,m,n))
+                sA = view(CuArray(rand(elty,2m,m)), 1:2:2m, :)
+                sB = view(CuArray(rand(elty,2m,n)), 1:2:2m, :)
+                sC = view(CuArray(rand(elty,2m,n)), 1:2:2m, :)
+                @test_throws ArgumentError cuBLAS.symm!('L','U',one(elty),sA,dB,zero(elty),dC)
+                @test_throws ArgumentError cuBLAS.symm!('L','U',one(elty),dA,sB,zero(elty),dC)
+                @test_throws ArgumentError cuBLAS.symm!('L','U',one(elty),dA,dB,zero(elty),sC)
+                @test_throws ArgumentError cuBLAS.symm('L','U',sA,dB)
+            end
         end
 
         if elty <: Complex
@@ -232,6 +248,18 @@ end
                 # move to host and compare
                 h_C = Array(d_C)
                 @test C ≈ h_C
+            end
+            @testset "hemm! unsupported layouts" begin
+                dA = CuArray(rand(elty,m,m))
+                dB = CuArray(rand(elty,m,n))
+                dC = CuArray(rand(elty,m,n))
+                sA = view(CuArray(rand(elty,2m,m)), 1:2:2m, :)
+                sB = view(CuArray(rand(elty,2m,n)), 1:2:2m, :)
+                sC = view(CuArray(rand(elty,2m,n)), 1:2:2m, :)
+                @test_throws ArgumentError cuBLAS.hemm!('L','U',one(elty),sA,dB,zero(elty),dC)
+                @test_throws ArgumentError cuBLAS.hemm!('L','U',one(elty),dA,sB,zero(elty),dC)
+                @test_throws ArgumentError cuBLAS.hemm!('L','U',one(elty),dA,dB,zero(elty),sC)
+                @test_throws ArgumentError cuBLAS.hemm('L','U',sA,dB)
             end
         end
     end
