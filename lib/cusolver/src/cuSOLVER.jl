@@ -294,6 +294,75 @@ function log_message(level::Int32, function_name::Cstring, message::Cstring)
     return
 end
 
+# without the callback API, the library can only be configured through its environment,
+# which it reads once when first called. have it write to a file, which unlike a pipe cannot
+# block the library when a single-threaded Julia isn't reading, and forward what it writes.
+const log_file = Ref("")
+const log_offset = Ref(0)
+const log_forwarding = Ref(false)
+const log_file_lock = ReentrantLock()
+const log_timer = Ref{Timer}()
+
+const log_line_regex = r"^\[[^\]]*\]\[[^\]]*\]\[\d+\]\[(\w+)\]\[(\w+)\]\s*(.*)$"
+
+function parse_log_line(line::AbstractString)
+    m = match(log_line_regex, line)
+    m === nothing && return CUDACore.Debug, line
+    category, name, message = m.captures
+    level = if category == "Error"
+        CUDACore.Error
+    elseif category == "Hint"
+        CUDACore.Info
+    else
+        CUDACore.Debug
+    end
+    return level, isempty(message) ? "$name(...)" : "$name: $message"
+end
+
+function forward_log_file()
+    Base.@lock log_file_lock begin
+        isfile(log_file[]) || return
+        # the library has read its configuration; don't leak it into child processes
+        if get(ENV, "CUSOLVERDN_LOG_FILE", nothing) == log_file[]
+            delete!(ENV, "CUSOLVERDN_LOG_LEVEL")
+            delete!(ENV, "CUSOLVERDN_LOG_FILE")
+        end
+        data = open(log_file[]) do io
+            seek(io, log_offset[])
+            read(io)
+        end
+        # a line that's still being written is picked up the next time
+        last_newline = findlast(==(UInt8('\n')), data)
+        last_newline === nothing && return
+        log_offset[] += last_newline
+        log_forwarding[] || return
+        for line in eachline(IOBuffer(view(data, 1:last_newline)))
+            level, message = parse_log_line(line)
+            CUDACore.enqueue_log(cuSOLVER, level, message)
+        end
+    end
+    return
+end
+
+# NOTE: must be called before the library is first used
+function forward_log_file_start()
+    CUDACore.init_logging()
+    log_file[] = tempname()
+    ENV["CUSOLVERDN_LOG_LEVEL"] = "5"
+    ENV["CUSOLVERDN_LOG_FILE"] = log_file[]
+    log_forwarding[] = true
+    push!(CUDACore.log_sources, forward_log_file)
+    log_timer[] = Timer(0.25; interval=0.25) do _
+        try
+            forward_log_file()
+        catch err
+            CUDACore.enqueue_log(CUDACore, CUDACore.Error,
+                                 "Error reading the cuSOLVER log: " * sprint(showerror, err))
+        end
+    end
+    return
+end
+
 """
     cuSOLVER.enable_logging(enable::Bool=true)
 
@@ -302,12 +371,21 @@ reported at `Debug` level, performance hints at `Info` level, and problems at `E
 level. Starting Julia with `JULIA_DEBUG=cuSOLVER` enables this automatically, and also shows
 the `Debug`-level messages.
 
-If the installed shared library does not export the logging API, enabling emits a warning.
-Set `CUSOLVERDN_LOG_LEVEL` before starting Julia to use cuSOLVER's own output instead.
+If the installed shared library does not export the logging API, messages are only available
+when starting Julia with `JULIA_DEBUG=cuSOLVER`, in which case this function pauses or
+resumes forwarding them. The library keeps generating messages while paused. Without
+`JULIA_DEBUG`, enabling emits a warning; set `CUSOLVERDN_LOG_LEVEL` before starting Julia to
+use cuSOLVER's own output instead.
 """
 function enable_logging(enable::Bool=true)
     if !has_logging_api()
-        enable && @warn "The cuSOLVER $(version()) shared library does not export the logging callback API; set the CUSOLVERDN_LOG_LEVEL environment variable to have the library print its log to stdout instead" maxlog=1
+        if !isempty(log_file[])
+            # drop or deliver what was generated before this call under the old setting
+            forward_log_file()
+            log_forwarding[] = enable
+        elseif enable
+            @warn "The cuSOLVER $(version()) shared library does not export the logging callback API; start Julia with JULIA_DEBUG=cuSOLVER, or set the CUSOLVERDN_LOG_LEVEL environment variable to have the library print its log to stdout instead" maxlog=1
+        end
         return
     end
     if enable
@@ -349,11 +427,14 @@ function __init__()
         end
     end
 
-    # forward the library's log messages when debugging. only complain about the missing
-    # API when cuSOLVER was named explicitly, not when implied by `JULIA_DEBUG=CUDA`.
-    if !precompiling && isdebug(cuSOLVER) &&
-       (has_logging_api() || isdebug(cuSOLVER; group=:init))
-        enable_logging(true)
+    # forward the library's log messages when debugging, unless the user configured the
+    # library's own output.
+    if !precompiling && isdebug(cuSOLVER)
+        if has_logging_api()
+            enable_logging(true)
+        elseif !haskey(ENV, "CUSOLVERDN_LOG_LEVEL")
+            forward_log_file_start()
+        end
     end
 
     CUDACore.register_reclaimable!(idle_dense_handles)

@@ -43,8 +43,13 @@ driver supporting CUDA 12.9 or newer), `cuBLAS` (including cuBLASLt), `cuDNN`, `
 `cuTENSOR`, `cuStateVec`, and `cuTensorNet`. On Windows, cuBLAS forwarding covers cuBLASLt
 only. `CUDA.enable_logging()` controls the driver; it does not enable library logging.
 
-`cuSOLVER.enable_logging()` requires a shared library that exports NVIDIA's logging API.
-If unavailable, it warns; use `CUSOLVERDN_LOG_LEVEL` as described below instead.
+NVIDIA's cuSOLVER shared libraries currently do not export its logging API. In that case,
+`JULIA_DEBUG` forwards messages through a temporary log file instead, which has to be set up
+before the library is first used: without `JULIA_DEBUG`, `cuSOLVER.enable_logging()` warns,
+and with it, the function only pauses or resumes forwarding while the library keeps
+generating messages. These messages use the logger of the task that delivers them, so call
+`CUDA.flush_logs()` inside `with_logger` to capture them. Setting `CUSOLVERDN_LOG_LEVEL`
+yourself disables the forwarding, and uses the library's own output as described below.
 cuFFT, cuRAND, CUPTI, and NVML have no equivalent library log forwarding.
 
 ## Diagnosing errors

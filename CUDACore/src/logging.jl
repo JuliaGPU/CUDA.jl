@@ -65,6 +65,10 @@ function enqueue_log(mod::Module, level::LogLevel, message::AbstractString)
     return
 end
 
+# functions that enqueue messages from sources that cannot push them to us, e.g. a library
+# that can only log to a file. called when flushing, so must not call `flush_logs` themselves.
+const log_sources = Function[]
+
 """
     CUDA.flush_logs()
 
@@ -73,6 +77,16 @@ ongoing delivery to finish. Call this before inspecting captured messages or clo
 logger's output stream. This does not synchronize GPU work or enable logging.
 """
 function flush_logs()
+    for source in log_sources
+        try
+            # the delivery task can predate the package that registered the source
+            Base.invokelatest(source)
+        catch err
+            enqueue_log(CUDACore, Error,
+                        "Error reading log source: " * sprint(showerror, err, catch_backtrace()))
+        end
+    end
+
     # Only delivery takes this lock; callbacks must remain able to enqueue while a logger
     # yields or calls a CUDA library itself.
     Base.@lock log_flush_lock begin
