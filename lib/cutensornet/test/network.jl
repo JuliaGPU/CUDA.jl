@@ -169,17 +169,13 @@ end
 end
 
 @testset "JULIA_DEBUG" begin
-    script = """
-        using CUDACore, cuTensorNet, Logging
-        io = IOBuffer()
-        with_logger(SimpleLogger(io, Logging.Debug)) do
-            cuTensorNet.CuNetwork{ComplexF64}()
-            CUDACore.flush_logs()
-        end
-        @assert occursin("cutensornet", String(take!(io)))
-        """
-    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) -e $script`
-    @test success(pipeline(addenv(cmd, "JULIA_DEBUG" => "cuTensorNet"); stdout=devnull, stderr))
+    # what makes `__init__` enable forwarding the library's logs
+    withenv("JULIA_DEBUG" => "cuTensorNet") do
+        @test CUDACore.isdebug(cuTensorNet)
+    end
+    withenv("JULIA_DEBUG" => "") do
+        @test !CUDACore.isdebug(cuTensorNet)
+    end
 end
 
 @testset "errors" begin

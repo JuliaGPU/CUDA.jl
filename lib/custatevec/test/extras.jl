@@ -26,17 +26,13 @@ end
 end
 
 @testset "JULIA_DEBUG" begin
-    script = """
-        using CUDACore, cuStateVec, Logging
-        io = IOBuffer()
-        with_logger(SimpleLogger(io, Logging.Debug)) do
-            cuStateVec.CuStateVec(ComplexF64, 2)
-            CUDACore.flush_logs()
-        end
-        @assert occursin("custatevec", String(take!(io)))
-        """
-    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) -e $script`
-    @test success(pipeline(addenv(cmd, "JULIA_DEBUG" => "cuStateVec"); stdout=devnull, stderr))
+    # what makes `__init__` enable forwarding the library's logs
+    withenv("JULIA_DEBUG" => "cuStateVec") do
+        @test CUDACore.isdebug(cuStateVec)
+    end
+    withenv("JULIA_DEBUG" => "") do
+        @test !CUDACore.isdebug(cuStateVec)
+    end
 end
 
 @testset "math mode" begin

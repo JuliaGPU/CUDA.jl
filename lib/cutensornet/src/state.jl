@@ -3,14 +3,11 @@
 # state modes are 0-based, and tensor operators act on them following NVIDIA's conventions:
 # with the default layout, the elements of an operator are stored in the row-following order
 # of its textbook definition. all data handed to the library must stay alive for as long as
-# the object it was given to, which these wrappers take care of.
+# the object it was given to, which these wrappers take care of. that data must be device
+# memory: host pointers only work on systems where the GPU can access all of host memory
+# (e.g. with HMM), and cause illegal memory accesses elsewhere.
 
 const DEFAULT_MAX_WORKSPACE = 2^30
-
-# for arrays of pointers to data that may live on the device or on the host, which the
-# headers don't specify, and that can't be expressed by the type of the argument
-rawptr(a::CuArray) = reinterpret(Ptr{Cvoid}, pointer(a))
-rawptr(a::Array)   = Ptr{Cvoid}(pointer(a))
 
 # the library requires objects to be destroyed before the ones they were created from, but
 # finalizers run in no particular order. those objects are therefore counted as being in use,
@@ -106,7 +103,7 @@ end
 Base.unsafe_convert(::Type{cutensornetState_t}, state::CuNetworkState) = state.handle
 Base.eltype(::CuNetworkState{T}) where {T} = T
 
-function apply!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operator::AbstractArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
+function apply!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operator::CuArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
     ndims(operator) == 2 * length(modes) || throw(DimensionMismatch("an operator on $(length(modes)) modes must have $(2 * length(modes)) dimensions."))
     id = Ref{Int64}()
     cutensornetStateApplyTensorOperator(handle(), state, length(modes), convert(Vector{Int32}, modes), operator, C_NULL, immutable, adjoint, unitary, id)
@@ -115,7 +112,7 @@ function apply!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operator::Ab
 end
 
 # the gradient is written by `compute_with_gradients!` on an expectation value of the state
-function apply_with_gradient!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operator::AbstractArray{T}, gradient::CuArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
+function apply_with_gradient!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operator::CuArray{T}, gradient::CuArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
     ndims(operator) == 2 * length(modes) || throw(DimensionMismatch("an operator on $(length(modes)) modes must have $(2 * length(modes)) dimensions."))
     size(gradient) == size(operator) || throw(DimensionMismatch("the gradient must have the size of the operator."))
     id = Ref{Int64}()
@@ -133,7 +130,7 @@ end
 
 # the operator is a tensor of the diagonal values, with a single dimension for each mode.
 # computing the full state isn't supported afterwards, as noted at `compute!`.
-function apply_diagonal!(state::CuNetworkState{T}, modes::Vector{<:Integer}, diagonal::AbstractArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
+function apply_diagonal!(state::CuNetworkState{T}, modes::Vector{<:Integer}, diagonal::CuArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
     ndims(diagonal) == length(modes) || throw(DimensionMismatch("a diagonal operator on $(length(modes)) modes must have $(length(modes)) dimensions."))
     id = Ref{Int64}()
     cutensornetStateApplyDiagonalTensorOperator(handle(), state, length(modes), convert(Vector{Int32}, modes), diagonal, C_NULL, immutable, adjoint, unitary, id)
@@ -142,7 +139,7 @@ function apply_diagonal!(state::CuNetworkState{T}, modes::Vector{<:Integer}, dia
 end
 
 # only the target tensor is provided. control values default to the last basis state.
-function apply_controlled!(state::CuNetworkState{T}, control_modes::Vector{<:Integer}, target_modes::Vector{<:Integer}, operator::AbstractArray{T}; control_values::Union{Nothing,Vector{<:Integer}}=nothing, immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
+function apply_controlled!(state::CuNetworkState{T}, control_modes::Vector{<:Integer}, target_modes::Vector{<:Integer}, operator::CuArray{T}; control_values::Union{Nothing,Vector{<:Integer}}=nothing, immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
     ndims(operator) == 2 * length(target_modes) || throw(DimensionMismatch("an operator on $(length(target_modes)) modes must have $(2 * length(target_modes)) dimensions."))
     values = control_values === nothing ? C_NULL : convert(Vector{Int64}, control_values)
     id = Ref{Int64}()
@@ -152,7 +149,7 @@ function apply_controlled!(state::CuNetworkState{T}, control_modes::Vector{<:Int
 end
 
 # register new data for an operator, also when it was changed in place
-function update!(state::CuNetworkState{T}, id::Integer, operator::AbstractArray{T}; unitary::Bool=false) where {T}
+function update!(state::CuNetworkState{T}, id::Integer, operator::CuArray{T}; unitary::Bool=false) where {T}
     cutensornetStateUpdateTensorOperator(handle(), state, id, operator, unitary)
     state.tensors[id] = operator
     return state
@@ -166,17 +163,17 @@ function apply!(state::CuNetworkState{T}, operator::CuNetworkOperator{T}; immuta
     return id[]
 end
 
-function apply_unitary_channel!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operators::Vector{<:AbstractArray{T}}, probabilities::Vector{<:Real}) where {T}
+function apply_unitary_channel!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operators::Vector{<:CuArray{T}}, probabilities::Vector{<:Real}) where {T}
     length(operators) == length(probabilities) || throw(DimensionMismatch("need a probability for each operator."))
     id = Ref{Int64}()
-    cutensornetStateApplyUnitaryChannel(handle(), state, length(modes), convert(Vector{Int32}, modes), length(operators), rawptr.(operators), C_NULL, convert(Vector{Cdouble}, probabilities), id)
+    cutensornetStateApplyUnitaryChannel(handle(), state, length(modes), convert(Vector{Int32}, modes), length(operators), pointer.(operators), C_NULL, convert(Vector{Cdouble}, probabilities), id)
     state.tensors[id[]] = operators
     return id[]
 end
 
-function apply_general_channel!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operators::Vector{<:AbstractArray{T}}) where {T}
+function apply_general_channel!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operators::Vector{<:CuArray{T}}) where {T}
     id = Ref{Int64}()
-    cutensornetStateApplyGeneralChannel(handle(), state, length(modes), convert(Vector{Int32}, modes), length(operators), rawptr.(operators), C_NULL, id)
+    cutensornetStateApplyGeneralChannel(handle(), state, length(modes), convert(Vector{Int32}, modes), length(operators), pointer.(operators), C_NULL, id)
     state.tensors[id[]] = operators
     return id[]
 end
@@ -185,7 +182,7 @@ end
 # outer bonds at the boundaries.
 function initialize_mps!(state::CuNetworkState{T}, tensors::Vector{<:CuArray{T}}; boundary_condition::cutensornetBoundaryCondition_t=CUTENSORNET_BOUNDARY_CONDITION_OPEN) where {T}
     length(tensors) == length(state.extents) || throw(DimensionMismatch("need one tensor for each state mode."))
-    cutensornetStateInitializeMPS(handle(), state, boundary_condition, [collect(Int64, size(t)) for t in tensors], C_NULL, rawptr.(tensors))
+    cutensornetStateInitializeMPS(handle(), state, boundary_condition, [collect(Int64, size(t)) for t in tensors], C_NULL, pointer.(tensors))
     state.initial_tensors = tensors
     return state
 end

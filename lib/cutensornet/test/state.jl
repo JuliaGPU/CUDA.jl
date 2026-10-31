@@ -112,9 +112,8 @@ const BELL = [1 0; 0 1] ./ sqrt(2)
     @testset "host data" begin
         T = ComplexF64
         state = CuNetworkState{T}([2])
-        apply!(state, [0], T[0 1; 1 0])
-        prepare!(state)
-        @test collect(only(compute!(state).tensors)) ≈ [0, 1]
+        # this would only work on systems where the GPU can access all of host memory
+        @test_throws MethodError apply!(state, [0], T[0 1; 1 0])
     end
 end
 
