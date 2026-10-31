@@ -17,7 +17,8 @@ end
 @testset "measureOnZBasis" begin
     @testset for elty in [ComplexF32, ComplexF64]
         h_sv = 1.0/√8 .* elty[0.0, im, 0.0, im, 0.0, im, 0.0, im]
-        h_sv_result = 1.0/√2 * elty[0.0, 0.0, 0.0, im, 0.0, 0.0, 0.0, im]
+        # the amplitudes with even parity over all three bits
+        h_sv_result = 1.0/√2 * elty[0.0, 0.0, 0.0, im, 0.0, im, 0.0, 0.0]
         sv   = CuStateVec(h_sv)
         sv, parity = measureOnZBasis!(sv, [0, 1, 2], 0.2, cuStateVec.CUSTATEVEC_COLLAPSE_NORMALIZE_AND_ZERO)
         sv_result  = collect(sv.data)

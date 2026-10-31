@@ -26,11 +26,11 @@ function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMat
     n_index_bits = Int(log2(div(length(sv.data), n_svs)))
     function bufferSize()
         out = Ref{Csize_t}()
-        custatevecApplyMatrixBatchedGetWorkspaceSize(handle(), eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
+        custatevecApplyMatrixBatchedGetWorkspaceSize(handle(), eltype(sv), n_index_bits, n_svs, sv_stride, map_type, convert(Vector{Int32}, matrix_inds), matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, length(targets), length(controls), compute_type(eltype(sv), eltype(matrix)), out)
         out[]
     end
     with_workspace(handle().cache, bufferSize) do buffer
-        custatevecApplyMatrixBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, map_type, matrix_inds, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
+        custatevecApplyMatrixBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, map_type, convert(Vector{Int32}, matrix_inds), matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, Int32(adjoint), n_matrices, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls), compute_type(eltype(sv), eltype(matrix)), buffer, sizeof(buffer))
     end
     return sv
 end
@@ -50,7 +50,7 @@ end
 function abs2SumOnZBasis(sv::CuStateVec, basisInds::Vector{<:Integer})
     abs2sum0 = Ref{Float64}(0.0)
     abs2sum1 = Ref{Float64}(0.0)
-    custatevecAbs2SumOnZBasis(handle(), sv.data, eltype(sv), sv.nbits, abs2sum0, abs2sum1, basisInds, length(basisInds))
+    custatevecAbs2SumOnZBasis(handle(), sv.data, eltype(sv), sv.nbits, abs2sum0, abs2sum1, convert(Vector{Int32}, basisInds), length(basisInds))
     return abs2sum0[], abs2sum1[]
 end
 
@@ -62,7 +62,7 @@ end
 function measureOnZBasis!(sv::CuStateVec, basisInds::Vector{<:Integer}, randnum::Float64, collapse::custatevecCollapseOp_t=CUSTATEVEC_COLLAPSE_NONE)
     0.0 <= randnum < 1.0 || throw(ArgumentError("randnum $randnum must be in the interval [0, 1)."))
     parity = Ref{Int32}()
-    custatevecMeasureOnZBasis(handle(), sv.data, eltype(sv), sv.nbits, parity, basisInds, length(basisInds), randnum, collapse)
+    custatevecMeasureOnZBasis(handle(), sv.data, eltype(sv), sv.nbits, parity, convert(Vector{Int32}, basisInds), length(basisInds), randnum, collapse)
     return sv, parity[]
 end
 
@@ -212,6 +212,97 @@ function testMatrixType(matrix::Union{Matrix, CuMatrix}, adjoint::Bool, matrix_t
         custatevecTestMatrixType(handle(), residualNorm, matrix_type, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, n_targets, Int32(adjoint), compute_type, buffer, sizeof(buffer))
     end
     return residualNorm[]
+end
+
+function preprocess!(sampler::CuStateVecSampler)
+    sampler.workspace = CuVector{UInt8}(undef, sampler.ws_size)
+    custatevecSamplerPreprocess(handle(), sampler.handle, sampler.workspace, sizeof(sampler.workspace))
+    return sampler
+end
+
+# the squared norm of the state vector. the sampler must have been preprocessed.
+function squaredNorm(sampler::CuStateVecSampler)
+    norm = Ref{Cdouble}()
+    custatevecSamplerGetSquaredNorm(handle(), sampler, norm)
+    return norm[]
+end
+
+# treat the sampler's state vector as part `sub_sv_ord` of `n_sub_svs` of a larger state
+# vector, with `offset` the cumulative squared norm of the preceding parts and `norm` that
+# of all parts. the sampler must have been preprocessed.
+function applySubSVOffset!(sampler::CuStateVecSampler, sub_sv_ord::Integer, n_sub_svs::Integer, offset::Real, norm::Real)
+    custatevecSamplerApplySubSVOffset(handle(), sampler, sub_sv_ord, n_sub_svs, offset, norm)
+    return sampler
+end
+
+# sample from a preprocessed sampler. for a sampler with sub-SV offsets, `randnums` that
+# don't fall in this part of the state vector are clamped to its range by the library.
+function sample(sampler::CuStateVecSampler, sampled_bits::Vector{<:Integer}, randnums::Vector{Float64}; output::custatevecSamplerOutput_t=CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
+    bitstrings = Vector{custatevecIndex_t}(undef, length(randnums))
+    custatevecSamplerSample(handle(), sampler.handle, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), randnums, length(randnums), output)
+    return bitstrings
+end
+
+function defaultWorkspaceSize()
+    size = Ref{Csize_t}()
+    custatevecGetDefaultWorkspaceSize(handle(), size)
+    return size[]
+end
+
+function mathMode()
+    mode = Ref{custatevecMathMode_t}()
+    custatevecGetMathMode(handle(), mode)
+    return mode[]
+end
+
+function mathMode!(mode::custatevecMathMode_t)
+    custatevecSetMathMode(handle(), mode)
+    return mode
+end
+
+function property(type::libraryPropertyType)
+    value = Ref{Int32}()
+    custatevecGetProperty(type, value)
+    return Int(value[])
+end
+
+# the raw stream that's set on the library handle
+function currentStream()
+    stream_ref = Ref{cudaStream_t}()
+    custatevecGetStream(handle(), stream_ref)
+    return stream_ref[]
+end
+
+errorName(status::custatevecStatus_t)   = unsafe_string(custatevecGetErrorName(status))
+errorString(status::custatevecStatus_t) = unsafe_string(custatevecGetErrorString(status))
+
+# the extra workspace is only needed if the accessor reported a size for it
+function setExtraWorkspace!(a::CuStateVecAccessor, buffer::CuVector{UInt8})
+    sizeof(buffer) >= a.ws_size || throw(ArgumentError("the accessor needs a workspace of at least $(a.ws_size) bytes."))
+    custatevecAccessorSetExtraWorkspace(handle(), a, buffer, sizeof(buffer))
+    a.workspace = buffer
+    return a
+end
+
+# returns the number of swap batches
+function setIndexBitSwaps!(scheduler::CuStateVecDistIndexBitSwapScheduler, bit_swaps::Vector{Pair{T, T}}, mask_bit_string::Vector{<:Integer}=Int32[], mask_ordering::Vector{<:Integer}=Int32[]) where {T<:Integer}
+    n_batches = Ref{UInt32}()
+    custatevecDistIndexBitSwapSchedulerSetIndexBitSwaps(handle(), scheduler, convert(Vector{Pair{Int32, Int32}}, bit_swaps), length(bit_swaps), convert(Vector{Int32}, mask_bit_string), convert(Vector{Int32}, mask_ordering), length(mask_ordering), n_batches)
+    return Int(n_batches[])
+end
+
+function swapParameters(scheduler::CuStateVecDistIndexBitSwapScheduler, swap_batch_index::Integer, org_sub_sv_index::Integer)
+    parameters = Ref{custatevecSVSwapParameters_t}()
+    custatevecDistIndexBitSwapSchedulerGetParameters(handle(), scheduler, swap_batch_index, org_sub_sv_index, parameters)
+    return parameters[]
+end
+
+# copy `src` into, and/or `dst` out of a device slice, for elements in `[i_begin, i_end)`.
+# with both, these are exchanged. the migrator's device slices start out with undefined
+# contents. `src` and `dst` must be accessible by the device.
+function migrate!(migrator::CuStateVecSubSVMigrator{T}, slice_index::Integer, src::Union{Nothing, CuVector{T}}, dst::Union{Nothing, CuVector{T}}, i_begin::Integer, i_end::Integer) where {T}
+    custatevecSubSVMigratorMigrate(handle(), migrator, slice_index, something(src, CU_NULL), something(dst, CU_NULL), i_begin, i_end)
+    return migrator
 end
 
 # TODO attach this to the Julia indexing API
