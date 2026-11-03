@@ -109,6 +109,30 @@ const BELL = [1 0; 0 1] ./ sqrt(2)
         @test collect(only(compute!(state).tensors)) ≈ [0 1; 0 0]
     end
 
+    @testset "mixed states" begin
+        T = ComplexF64
+        # the density matrix |10⟩⟨10|, with the modes of the bra after those of the ket
+        state = CuNetworkState{T}([2, 2]; purity=cuTensorNet.CUTENSORNET_STATE_PURITY_MIXED)
+        apply!(state, [0], pauli_x(T))
+        expected = zeros(T, 2, 2, 2, 2)
+        expected[2, 1, 2, 1] = 1
+        prepare!(state)
+        output = compute!(state)
+        @test output.extents == [[2, 2, 2, 2]]
+        @test collect(only(output.tensors)) ≈ expected
+
+        acc = CuStateAccessor(state)
+        prepare!(acc)
+        amplitudes, _ = compute!(acc)
+        @test collect(amplitudes) ≈ expected
+
+        # projecting the bra of the first mode
+        acc = CuStateAccessor(state, [2])
+        prepare!(acc)
+        amplitudes, _ = compute!(acc, [1])
+        @test collect(amplitudes) ≈ expected[:, :, 2, :]
+    end
+
     @testset "host data" begin
         T = ComplexF64
         state = CuNetworkState{T}([2])
@@ -135,6 +159,8 @@ end
             prepare!(acc)
             amplitudes, _ = compute!(acc, [1])
             @test collect(amplitudes) ≈ [0, 1] ./ sqrt(2)
+            @test_throws DimensionMismatch compute!(acc)
+            @test_throws DimensionMismatch compute!(acc, [1, 0])
         end
 
         @testset "expectation values" begin
@@ -186,6 +212,7 @@ end
             marginal = CuStateMarginal(state, [0]; projected_modes=[1], diagonal=true)
             prepare!(marginal)
             @test collect(compute!(marginal, [1])) ≈ [0, 1] ./ 2
+            @test_throws DimensionMismatch compute!(marginal)
         end
 
         @testset "sampling" begin
@@ -396,6 +423,9 @@ end
         # the overlap of the MPS and |000⟩ is only made up of the first element
         @test collect(environment)[1] ≈ 1
         @test count(!iszero, round.(collect(environment); digits=8)) == 1
+        if env != (0 => 2)
+            @test_throws ArgumentError insert_tensor!(projection, env, tensor)
+        end
         insert_tensor!(projection, env, tensor; ortho)
     end
 

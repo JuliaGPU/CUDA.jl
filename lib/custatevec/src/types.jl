@@ -81,7 +81,8 @@ Base.unsafe_convert(::Type{custatevecSamplerDescriptor_t}, desc::CuStateVecSampl
 mutable struct CuStateVecAccessor
     handle::custatevecAccessorDescriptor_t
     ws_size::Csize_t
-    # the descriptor refers to the state vector's memory, and to the extra workspace if set
+    # the descriptor refers to the state vector's memory, and to the extra workspace if set.
+    # that workspace is optional, and speeds up repeated accesses with small device buffers.
     sv::CuStateVec
     workspace::Union{Nothing,CuVector{UInt8}}
     # with `view=true`, the accessor is read-only, but the state vector can be immutable
@@ -94,8 +95,6 @@ mutable struct CuStateVecAccessor
         create(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, convert(Vector{Int32}, bit_ordering), length(bit_ordering), mask_string, mask_order, length(mask_bit_string), extra_size)
         obj = new(desc_ref[], extra_size[], sv, nothing)
         resource_finalizer(custatevecAccessorDestroy, obj)
-        # the library crashes when accessing the state vector without the workspace it asked for
-        extra_size[] > 0 && setExtraWorkspace!(obj, CuVector{UInt8}(undef, extra_size[]))
         obj
     end
 end
@@ -104,11 +103,16 @@ Base.unsafe_convert(::Type{custatevecAccessorDescriptor_t}, desc::CuStateVecAcce
 
 mutable struct CuStateVecDistIndexBitSwapScheduler
     handle::custatevecDistIndexBitSwapSchedulerDescriptor_t
+    # the library handle it was created with, which is also needed to destroy it
+    library::Handle
     function CuStateVecDistIndexBitSwapScheduler(n_global_bits::Integer, n_local_bits::Integer)
         desc_ref = Ref{custatevecDistIndexBitSwapSchedulerDescriptor_t}()
-        custatevecDistIndexBitSwapSchedulerCreate(handle(), desc_ref, n_global_bits, n_local_bits)
-        obj = new(desc_ref[])
-        resource_finalizer(custatevecDistIndexBitSwapSchedulerDestroy, obj)
+        library = handle()
+        custatevecDistIndexBitSwapSchedulerCreate(library, desc_ref, n_global_bits, n_local_bits)
+        obj = new(desc_ref[], library)
+        resource_finalizer(obj) do x
+            custatevecDistIndexBitSwapSchedulerDestroy(x.library, x)
+        end
         obj
     end
 end
@@ -117,14 +121,21 @@ Base.unsafe_convert(::Type{custatevecDistIndexBitSwapSchedulerDescriptor_t}, des
 
 mutable struct CuStateVecSubSVMigrator{T}
     handle::custatevecSubSVMigratorDescriptor_t
+    # the library handle it was created with, which is also needed to destroy it
+    library::Handle
     # the descriptor refers to this memory
     device_slices::CuVector{T}
+    n_device_slices::Int
+    n_local_bits::Int
     function CuStateVecSubSVMigrator(device_slices::CuVector{T}, n_device_slices::Integer, n_local_bits::Integer) where {T}
-        length(device_slices) == n_device_slices * 2^n_local_bits || throw(DimensionMismatch("device_slices must hold $n_device_slices slices of $(2^n_local_bits) elements."))
+        length(device_slices) >= n_device_slices * 2^n_local_bits || throw(DimensionMismatch("device_slices must hold $n_device_slices slices of $(2^n_local_bits) elements."))
         desc_ref = Ref{custatevecSubSVMigratorDescriptor_t}()
-        custatevecSubSVMigratorCreate(handle(), desc_ref, device_slices, T, n_device_slices, n_local_bits)
-        obj = new{T}(desc_ref[], device_slices)
-        resource_finalizer(custatevecSubSVMigratorDestroy, obj)
+        library = handle()
+        custatevecSubSVMigratorCreate(library, desc_ref, device_slices, T, n_device_slices, n_local_bits)
+        obj = new{T}(desc_ref[], library, device_slices, n_device_slices, n_local_bits)
+        resource_finalizer(obj) do x
+            custatevecSubSVMigratorDestroy(x.library, x)
+        end
         obj
     end
 end

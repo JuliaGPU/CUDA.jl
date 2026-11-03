@@ -140,6 +140,7 @@ end
         gradient = CUDACore.zeros(elty, 3, 3)
         seed = CUDACore.fill(one(elty), ())
         @test_throws DimensionMismatch set_gradient!(net, a, CUDACore.zeros(elty, 2, 2))
+        @test_throws ArgumentError set_gradient!(net, 99, CUDACore.zeros(elty, 2, 2))
         @test_throws DimensionMismatch set_adjoint!(net, CUDACore.zeros(elty, 2))
         set_gradient!(net, a, gradient)
         set_adjoint!(net, seed)

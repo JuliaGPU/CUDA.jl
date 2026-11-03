@@ -25,11 +25,7 @@ const cudaDataType_t = cudaDataType
 # core library
 include("libcustatevec.jl")
 
-# low-level wrappers
 include("error.jl")
-include("types.jl")
-include("wrappers.jl")
-include("statevec.jl")
 
 
 ## handles
@@ -63,7 +59,18 @@ function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
+# BF16x9 emulation of FP32 is opt-in through the fast math mode, as with cuBLAS
+function math_mode!(handle, mode, precision)
+    custatevecSetMathMode(handle, if mode == CUDACore.FAST_MATH && precision === :BFloat16x9
+        CUSTATEVEC_MATH_MODE_ALLOW_FP32_EMULATED_BF16X9
+    elseif mode == CUDACore.PEDANTIC_MATH
+        CUSTATEVEC_MATH_MODE_DISALLOW_FP32_EMULATED_BF16X9
+    else
+        CUSTATEVEC_MATH_MODE_DEFAULT
+    end)
+end
+
+const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode, math_precision::Symbol}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUQUANTUM)
 
 function handle()
@@ -80,8 +87,9 @@ function handle()
         resource_finalizer(handle_finalizer, fat_handle; blocking=false)
 
         custatevecSetStream(new_handle, cuda.stream)
+        math_mode!(new_handle, cuda.math_mode, cuda.math_precision)
 
-        (; handle=fat_handle, stream=cuda.stream)
+        (; handle=fat_handle, cuda.stream, cuda.math_mode, cuda.math_precision)
     end
     state = get!(state_cache, cuda.context) do
         new_state(cuda)
@@ -90,14 +98,29 @@ function handle()
     # update stream
     @noinline function update_stream(cuda, state)
         custatevecSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream)
+        (; state.handle, cuda.stream, state.math_mode, state.math_precision)
     end
     if state.stream != cuda.stream
         states[cuda.context] = state = update_stream(cuda, state)
     end
 
+    # update math mode
+    @noinline function update_math_mode(cuda, state)
+        math_mode!(state.handle, cuda.math_mode, cuda.math_precision)
+        (; state.handle, state.stream, cuda.math_mode, cuda.math_precision)
+    end
+    if state.math_mode != cuda.math_mode || state.math_precision != cuda.math_precision
+        states[cuda.context] = state = update_math_mode(cuda, state)
+    end
+
     return state.handle
 end
+
+
+# low-level wrappers
+include("types.jl")
+include("wrappers.jl")
+include("statevec.jl")
 
 
 ## logging

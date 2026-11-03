@@ -1,8 +1,8 @@
 @testset "library properties" begin
-    # these identify the toolkit the library was built with, not `version()`
-    @test cuStateVec.property(CUDACore.MAJOR_VERSION) > 0
-    @test cuStateVec.property(CUDACore.MINOR_VERSION) >= 0
-    @test cuStateVec.property(CUDACore.PATCH_LEVEL) >= 0
+    ver = cuStateVec.version()
+    @test cuStateVec.property(CUDACore.MAJOR_VERSION) == ver.major
+    @test cuStateVec.property(CUDACore.MINOR_VERSION) == ver.minor
+    @test cuStateVec.property(CUDACore.PATCH_LEVEL) == ver.patch
     @test cuStateVec.currentStream() == CUDACore.stream().handle
     @test cuStateVec.errorName(cuStateVec.CUSTATEVEC_STATUS_INVALID_VALUE) == "CUSTATEVEC_STATUS_INVALID_VALUE"
     @test !isempty(cuStateVec.errorString(cuStateVec.CUSTATEVEC_STATUS_INVALID_VALUE))
@@ -36,20 +36,21 @@ end
 end
 
 @testset "math mode" begin
-    original = cuStateVec.mathMode()
-    @test original == cuStateVec.CUSTATEVEC_MATH_MODE_DEFAULT
+    # the library's math mode follows the task's
+    old_mode, old_precision = CUDACore.math_mode(), CUDACore.math_precision()
+    @test cuStateVec.mathMode() == cuStateVec.CUSTATEVEC_MATH_MODE_DEFAULT
     try
-        for mode in (cuStateVec.CUSTATEVEC_MATH_MODE_DISALLOW_FP32_EMULATED_BF16X9,
-                     cuStateVec.CUSTATEVEC_MATH_MODE_ALLOW_FP32_EMULATED_BF16X9)
-            @test cuStateVec.mathMode!(mode) == mode
-            @test cuStateVec.mathMode() == mode
-            # the mode must not break regular operation
+        for (mode, precision, expected) in ((CUDACore.FAST_MATH, :BFloat16x9, cuStateVec.CUSTATEVEC_MATH_MODE_ALLOW_FP32_EMULATED_BF16X9),
+                                            (CUDACore.PEDANTIC_MATH, nothing, cuStateVec.CUSTATEVEC_MATH_MODE_DISALLOW_FP32_EMULATED_BF16X9),
+                                            (CUDACore.DEFAULT_MATH, nothing, cuStateVec.CUSTATEVEC_MATH_MODE_DEFAULT))
+            CUDACore.math_mode!(mode; precision)
+            @test cuStateVec.mathMode() == expected
             sv = CuStateVec(ComplexF32, 2)
             applyMatrix!(sv, ComplexF32[0 1; 1 0], false, [0], Int[])
             @test collect(sv.data) ≈ ComplexF32[0, 1, 0, 0]
         end
     finally
-        cuStateVec.mathMode!(original)
+        CUDACore.math_mode!(old_mode; precision=old_precision)
     end
 end
 
@@ -120,8 +121,8 @@ end
         @testset "extra workspace" begin
             sv = CuStateVec(copy(data))
             acc = CuStateVecAccessor(sv, [2, 1, 0], Int[], Int[])
-            # a workspace is provided automatically when one is needed
-            @test (acc.workspace !== nothing) == (acc.ws_size > 0)
+            # the workspace is optional
+            @test acc.workspace === nothing
             buf = similar(data)
             accessorGet(acc, buf, 0, 8)
             # the bit ordering is reversed
@@ -142,13 +143,13 @@ end
 @testset "integer vectors of any width" begin
     # the C API takes `int32_t` arrays: wider integers must be converted, not reinterpreted
     @testset for T in (Int32, Int64)
-        data = ComplexF64[1, 0, 0, 0, 0, 0, 0, 1] ./ sqrt(2)
-        @test collect(abs2SumOnZBasis(CuStateVec(copy(data)), T[2])) ≈ [0.5, 0.5]
-        # all of the amplitude has odd parity on the top bit when collapsing to |1⟩
-        sv = CuStateVec(ComplexF64[0, 0, 0, 0, 0, 0, 0, 1])
-        @test last(measureOnZBasis!(sv, T[2], 0.5)) == 1
-        sv = CuStateVec(ComplexF64[0, 1, 0, 0, 0, 0, 0, 0])
-        @test last(measureOnZBasis!(sv, T[2], 0.5)) == 0
+        # bits 0 and 2 of |100⟩ have odd parity. reinterpreted as `int32_t`, an Int64 vector
+        # [0, 2] reads as [0, 0], which has even parity.
+        data = ComplexF64[0, 0, 0, 0, 1, 0, 0, 0]
+        @test collect(abs2SumOnZBasis(CuStateVec(copy(data)), T[0, 2])) ≈ [0, 1]
+        @test last(measureOnZBasis!(CuStateVec(copy(data)), T[0, 2], 0.5)) == 1
+        data = ComplexF64[0, 0, 0, 0, 0, 1, 0, 0]
+        @test last(measureOnZBasis!(CuStateVec(copy(data)), T[0, 2], 0.5)) == 0
 
         # masks select the part of the state vector with bit 2 set
         acc = CuStateVecAccessor(CuStateVec(ComplexF64[1, 2, 3, 4, 5, 6, 7, 8]), [0, 1], [1], [2])
@@ -202,33 +203,55 @@ end
     @test cuStateVec.swapParameters(scheduler, n_batches - 1, 0).transferSize == 1
 
     @test_throws cuStateVec.CUSTATEVECError cuStateVec.swapParameters(scheduler, n_batches, 0)
+
+    # destroying it must succeed, or it's kept alive
+    @test_logs min_level=Base.CoreLogging.Warn begin
+        (() -> cuStateVec.CuStateVecDistIndexBitSwapScheduler(2, 2))()
+        GC.gc(true)
+        CUDACore.reclaim()
+    end
 end
 
 @testset "sub state vector migrator" begin
     @testset for elty in [ComplexF32, ComplexF64]
+        # the sub state vectors live in host memory that the device can access
+        host(data) = CUDACore.pin(data)
         slices = CuVector{elty}(undef, 2 * 4)
         migrator = cuStateVec.CuStateVecSubSVMigrator(slices, 2, 2)
-        a = CuVector(elty[1, 2, 3, 4])
-        b = CuVector(elty[5, 6, 7, 8])
+        a = host(elty[1, 2, 3, 4])
+        b = host(elty[5, 6, 7, 8])
 
         # one way each
         cuStateVec.migrate!(migrator, 0, a, nothing, 0, 4)
         cuStateVec.migrate!(migrator, 1, b, nothing, 0, 4)
         CUDACore.synchronize()
         @test collect(slices) == elty[1, 2, 3, 4, 5, 6, 7, 8]
-        out = CUDACore.zeros(elty, 4)
+        out = host(zeros(elty, 4))
         cuStateVec.migrate!(migrator, 1, nothing, out, 0, 4)
         CUDACore.synchronize()
-        @test collect(out) == elty[5, 6, 7, 8]
+        @test out == elty[5, 6, 7, 8]
 
         # exchanging a part of the slice
-        src = CuVector(elty[9, 10, 11, 12])
-        dst = CUDACore.zeros(elty, 4)
+        src = host(elty[9, 10, 11, 12])
+        dst = host(zeros(elty, 4))
         cuStateVec.migrate!(migrator, 0, src, dst, 1, 3)
         CUDACore.synchronize()
         @test collect(slices)[1:4] == elty[1, 10, 11, 4]
-        @test collect(dst) == elty[0, 2, 3, 0]
+        @test dst == elty[0, 2, 3, 0]
 
+        @test_throws ArgumentError cuStateVec.migrate!(migrator, 2, a, nothing, 0, 4)
+        @test_throws ArgumentError cuStateVec.migrate!(migrator, 0, a, nothing, 0, 5)
+        @test_throws ArgumentError cuStateVec.migrate!(migrator, 0, a, nothing, 3, 2)
+        @test_throws DimensionMismatch cuStateVec.migrate!(migrator, 0, a[1:2], nothing, 0, 4)
+
+        # slices may be larger than needed, but not smaller
+        @test cuStateVec.CuStateVecSubSVMigrator(CuVector{elty}(undef, 9), 2, 2) isa cuStateVec.CuStateVecSubSVMigrator
         @test_throws DimensionMismatch cuStateVec.CuStateVecSubSVMigrator(slices, 3, 2)
+
+        @test_logs min_level=Base.CoreLogging.Warn begin
+            (() -> cuStateVec.CuStateVecSubSVMigrator(CuVector{elty}(undef, 8), 2, 2))()
+            GC.gc(true)
+            CUDACore.reclaim()
+        end
     end
 end

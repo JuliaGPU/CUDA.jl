@@ -75,7 +75,7 @@ needs_context = false
 
 [api.custatevecApplyGeneralizedPermutationMatrixGetWorkspaceSize.argtypes]
 4 = "PtrOrCuPtr{custatevecIndex_t}"
-5 = "CuPtr{Cvoid}"
+5 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecApplyGeneralizedPermutationMatrix.argtypes]
 2 = "CuPtr{Cvoid}"
@@ -168,5 +168,8 @@ needs_context = false
 3 = "CuPtr{Cvoid}"
 
 [api.custatevecSubSVMigratorMigrate.argtypes]
-4 = "CuPtr{Cvoid}"
-5 = "CuPtr{Cvoid}"
+4 = "PtrOrCuPtr{Cvoid}"
+5 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecMultiDeviceSwapIndexBits.argtypes]
+3 = "Ptr{CuPtr{Cvoid}}"

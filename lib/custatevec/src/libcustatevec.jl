@@ -520,7 +520,7 @@ end
                                                                                             svDataType::cudaDataType_t,
                                                                                             nIndexBits::UInt32,
                                                                                             permutation::PtrOrCuPtr{custatevecIndex_t},
-                                                                                            diagonals::CuPtr{Cvoid},
+                                                                                            diagonals::PtrOrCuPtr{Cvoid},
                                                                                             diagonalsDataType::cudaDataType_t,
                                                                                             targets::Ptr{Int32},
                                                                                             nTargets::UInt32,
@@ -702,7 +702,7 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecMultiDeviceSwapIndexBits(handles::Ptr{custatevecHandle_t},
                                                                    nHandles::UInt32,
-                                                                   subSVs::Ptr{Ptr{Cvoid}},
+                                                                   subSVs::Ptr{CuPtr{Cvoid}},
                                                                    svDataType::cudaDataType_t,
                                                                    nGlobalIndexBits::UInt32,
                                                                    nLocalIndexBits::UInt32,
@@ -1119,8 +1119,8 @@ end
     @gcsafe_ccall libcustatevec.custatevecSubSVMigratorMigrate(handle::custatevecHandle_t,
                                                                migrator::custatevecSubSVMigratorDescriptor_t,
                                                                deviceSliceIndex::Cint,
-                                                               srcSubSVSlice::CuPtr{Cvoid},
-                                                               dstSubSVSlice::CuPtr{Cvoid},
+                                                               srcSubSVSlice::PtrOrCuPtr{Cvoid},
+                                                               dstSubSVSlice::PtrOrCuPtr{Cvoid},
                                                                _begin::custatevecIndex_t,
                                                                _end::custatevecIndex_t)::custatevecStatus_t
 end

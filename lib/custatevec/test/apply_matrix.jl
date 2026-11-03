@@ -65,6 +65,13 @@
         exp_vals = expectationsOnPauliBasis(sv, pauli_ops, [[0], [1]])
         @test exp_vals[1] ≈ 0.0 atol=1e-6
         @test exp_vals[2] ≈ 1.0 atol=1e-6
+
+        # every operator has its own basis bits: on |00⟩, ⟨Z₀⟩ = 1, ⟨X₁⟩ = 0 and ⟨Z₀Z₁⟩ = 1
+        sv = CuStateVec(elty, n_q)
+        pauli_ops = [cuStateVec.Pauli[cuStateVec.PauliZ()], cuStateVec.Pauli[cuStateVec.PauliX()],
+                     cuStateVec.Pauli[cuStateVec.PauliZ(), cuStateVec.PauliZ()]]
+        exp_vals = expectationsOnPauliBasis(sv, pauli_ops, [[0], [1], [0, 1]])
+        @test exp_vals ≈ [1.0, 0.0, 1.0] atol=1e-6
     end
 end
 @testset "applyMatrixBatched! and expectation" begin

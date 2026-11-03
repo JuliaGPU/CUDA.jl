@@ -35,7 +35,11 @@ function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMat
     return sv
 end
 
+index_vector(v::Vector{<:Integer}) = convert(Vector{custatevecIndex_t}, v)
+index_vector(v::CuVector{<:Integer}) = convert(CuVector{custatevecIndex_t}, v)
+
 function applyGeneralizedPermutationMatrix!(sv::CuStateVec, permutation::Union{Vector{<:Integer}, CuVector{<:Integer}}, diagonals::Union{Vector, CuVector}, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
+    permutation = index_vector(permutation)
     function bufferSize()
         out = Ref{Csize_t}()
         custatevecApplyGeneralizedPermutationMatrixGetWorkspaceSize(handle(), eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), convert(Vector{Int32}, targets), length(targets), length(controls), out)
@@ -162,7 +166,7 @@ end
 function expectationsOnPauliBasis(sv::CuStateVec, pauliOps::Vector{Vector{Pauli}}, basisInds::Vector{Vector{Int}})
     exp_vals = zeros(Float64, length(pauliOps))
     cupaulis = [[CuStateVecPauli(O) for O in op] for op in pauliOps]
-    custatevecComputeExpectationsOnPauliBasis(handle(), sv.data, eltype(sv), sv.nbits, exp_vals, cupaulis, length(pauliOps), convert(Vector{Vector{Int32}}, basisInds), length.(basisInds))
+    custatevecComputeExpectationsOnPauliBasis(handle(), sv.data, eltype(sv), sv.nbits, exp_vals, cupaulis, length(pauliOps), convert(Vector{Vector{Int32}}, basisInds), convert(Vector{UInt32}, length.(basisInds)))
     return exp_vals
 end
 
@@ -170,8 +174,8 @@ function sample(sv::CuStateVec, sampled_bits::Vector{<:Integer}, shot_count)
     sampler = CuStateVecSampler(sv, UInt32(shot_count))
     bitstrings = Vector{custatevecIndex_t}(undef, shot_count)
     with_workspace(handle().cache, sampler.ws_size) do buffer
-        custatevecSamplerPreprocess(handle(), sampler.handle, buffer, sizeof(buffer))
-        custatevecSamplerSample(handle(), sampler.handle, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
+        custatevecSamplerPreprocess(handle(), sampler, buffer, sizeof(buffer))
+        custatevecSamplerSample(handle(), sampler, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     end
     return bitstrings
 end
@@ -181,18 +185,24 @@ function swapIndexBits!(sv::CuStateVec, bitSwaps::Vector{Pair{T, T}}, maskBitStr
     return sv
 end
 
-function swapIndexBitsMultiDevice!(sub_svs::Vector{CuStateVec}, devices::Vector{CuDevice}, indexBitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}, device_network_type::custatevecDeviceNetworkType_t) where {T<:Integer}
+function swapIndexBitsMultiDevice!(sub_svs::Vector{<:CuStateVec}, devices::Vector{CuDevice}, indexBitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}, device_network_type::custatevecDeviceNetworkType_t) where {T<:Integer}
     all(sv->sv.nbits == first(sub_svs).nbits, sub_svs) || throw(ArgumentError("all sub-vectors of the state vector must have the same number of index bits."))
     all(sv->eltype(sv) == eltype(first(sub_svs)), sub_svs) || throw(ArgumentError("all sub-vectors of the state vector must have the same element type."))
+    n_global_bits = trailing_zeros(length(sub_svs))
+    ispow2(length(sub_svs)) || throw(ArgumentError("the number of sub state vectors must be a power of 2."))
+    # the handles must include one for the current device, on whose stream the swap is ordered
+    device() in devices || throw(ArgumentError("one of the devices must be the current one."))
     original_device = device()
-    handles = map(devices) do d
+    handles = map(unique(devices)) do d
         device!(d)
         handle()
     end
     device!(original_device)
-    sub_data = map(sv->sv.data, sub_svs)
-    global_index_bits = mapreduce(sv->sv.nbits, +, sub_svs)
-    custatevecMultiDeviceSwapIndexBits(handles, length(handles), sub_data, eltype(first(sub_svs)), first(sub_svs).nbits, global_index_bits, convert(Vector{Pair{Int32, Int32}}, indexBitSwaps), length(indexBitSwaps), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering), device_network_type)
+    raw_handles = [h.handle for h in handles]
+    sub_data = map(sv->pointer(sv.data), sub_svs)
+    GC.@preserve sub_svs handles begin
+        custatevecMultiDeviceSwapIndexBits(raw_handles, length(raw_handles), sub_data, eltype(first(sub_svs)), n_global_bits, first(sub_svs).nbits, convert(Vector{Pair{Int32, Int32}}, indexBitSwaps), length(indexBitSwaps), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering), device_network_type)
+    end
     return sub_svs
 end
 
@@ -216,7 +226,7 @@ end
 
 function preprocess!(sampler::CuStateVecSampler)
     sampler.workspace = CuVector{UInt8}(undef, sampler.ws_size)
-    custatevecSamplerPreprocess(handle(), sampler.handle, sampler.workspace, sizeof(sampler.workspace))
+    custatevecSamplerPreprocess(handle(), sampler, sampler.workspace, sizeof(sampler.workspace))
     return sampler
 end
 
@@ -239,7 +249,7 @@ end
 # don't fall in this part of the state vector are clamped to its range by the library.
 function sample(sampler::CuStateVecSampler, sampled_bits::Vector{<:Integer}, randnums::Vector{Float64}; output::custatevecSamplerOutput_t=CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     bitstrings = Vector{custatevecIndex_t}(undef, length(randnums))
-    custatevecSamplerSample(handle(), sampler.handle, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), randnums, length(randnums), output)
+    custatevecSamplerSample(handle(), sampler, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), randnums, length(randnums), output)
     return bitstrings
 end
 
@@ -249,15 +259,11 @@ function defaultWorkspaceSize()
     return size[]
 end
 
+# set through `CUDACore.math_mode!`
 function mathMode()
     mode = Ref{custatevecMathMode_t}()
     custatevecGetMathMode(handle(), mode)
     return mode[]
-end
-
-function mathMode!(mode::custatevecMathMode_t)
-    custatevecSetMathMode(handle(), mode)
-    return mode
 end
 
 function property(type::libraryPropertyType)
@@ -276,7 +282,7 @@ end
 errorName(status::custatevecStatus_t)   = unsafe_string(custatevecGetErrorName(status))
 errorString(status::custatevecStatus_t) = unsafe_string(custatevecGetErrorString(status))
 
-# the extra workspace is only needed if the accessor reported a size for it
+# an optional workspace for the accessor, of at least the size it reported
 function setExtraWorkspace!(a::CuStateVecAccessor, buffer::CuVector{UInt8})
     sizeof(buffer) >= a.ws_size || throw(ArgumentError("the accessor needs a workspace of at least $(a.ws_size) bytes."))
     custatevecAccessorSetExtraWorkspace(handle(), a, buffer, sizeof(buffer))
@@ -297,11 +303,20 @@ function swapParameters(scheduler::CuStateVecDistIndexBitSwapScheduler, swap_bat
     return parameters[]
 end
 
-# copy `src` into, and/or `dst` out of a device slice, for elements in `[i_begin, i_end)`.
-# with both, these are exchanged. the migrator's device slices start out with undefined
-# contents. `src` and `dst` must be accessible by the device.
-function migrate!(migrator::CuStateVecSubSVMigrator{T}, slice_index::Integer, src::Union{Nothing, CuVector{T}}, dst::Union{Nothing, CuVector{T}}, i_begin::Integer, i_end::Integer) where {T}
-    custatevecSubSVMigratorMigrate(handle(), migrator, slice_index, something(src, CU_NULL), something(dst, CU_NULL), i_begin, i_end)
+# copy elements `[i_begin, i_end)` of the sub state vector `src` into a device slice, and/or
+# those of the slice out to `dst`. with both, these are exchanged. the migrator's device
+# slices start out with undefined contents. `src` and `dst` are meant to be in host memory,
+# which must be accessible by the device (e.g. pinned with `CUDACore.pin`). the copies are
+# asynchronous, so synchronize before using or freeing that memory.
+function migrate!(migrator::CuStateVecSubSVMigrator{T}, slice_index::Integer,
+                  src::Union{Nothing, DenseVector{T}}, dst::Union{Nothing, DenseVector{T}},
+                  i_begin::Integer, i_end::Integer) where {T}
+    0 <= slice_index < migrator.n_device_slices || throw(ArgumentError("slice index $slice_index is out of range for $(migrator.n_device_slices) device slices."))
+    0 <= i_begin <= i_end <= 2^migrator.n_local_bits || throw(ArgumentError("range [$i_begin, $i_end) is out of bounds for slices of $(2^migrator.n_local_bits) elements."))
+    for buf in (src, dst)
+        buf === nothing || length(buf) >= i_end || throw(DimensionMismatch("sub state vectors must hold at least $i_end elements."))
+    end
+    custatevecSubSVMigratorMigrate(handle(), migrator, slice_index, something(src, C_NULL), something(dst, C_NULL), i_begin, i_end)
     return migrator
 end
 

@@ -1,11 +1,15 @@
 # the state API, for simulating quantum circuits and other tensor network states.
 #
 # state modes are 0-based, and tensor operators act on them following NVIDIA's conventions:
-# with the default layout, the elements of an operator are stored in the row-following order
-# of its textbook definition. all data handed to the library must stay alive for as long as
-# the object it was given to, which these wrappers take care of. that data must be device
-# memory: host pointers only work on systems where the GPU can access all of host memory
-# (e.g. with HMM), and cause illegal memory accesses elsewhere.
+# with the default layout, the elements of an operator applied to a state are stored in the
+# row-following order of its textbook definition. the tensors of a `CuNetworkOperator` are
+# different: their modes are the state modes they act on, in order, followed by the same for
+# the dual modes, so multi-mode tensors aren't laid out like the ones applied to states.
+#
+# all data handed to the library must stay alive for as long as the object it was given to,
+# which these wrappers take care of. that data must be device memory: host pointers only work
+# on systems where the GPU can access all of host memory (e.g. with HMM), and cause illegal
+# memory accesses elsewhere.
 
 const DEFAULT_MAX_WORKSPACE = 2^30
 
@@ -74,6 +78,7 @@ end
 mutable struct CuNetworkState{T}
     handle::cutensornetState_t
     extents::Vector{Int64}
+    purity::cutensornetStatePurity_t
     # data handed to the library, by the id of the operator it belongs to
     tensors::Dict{Int64,Any}
     gradients::Dict{Int64,Any}
@@ -95,13 +100,18 @@ mutable struct CuNetworkState{T}
             cutensornetDestroyState(state)
             foreach(release!, state.operators)
         end
-        obj = new{T}(state_ref[], extents, Dict{Int64,Any}(), Dict{Int64,Any}(), Any[], nothing, CuArray{T}[], nothing, 0, false, destroy, CuNetworkOperator{T}[])
+        obj = new{T}(state_ref[], extents, purity, Dict{Int64,Any}(), Dict{Int64,Any}(), Any[], nothing, CuArray{T}[], nothing, 0, false, destroy, CuNetworkOperator{T}[])
         resource_finalizer(retire!, obj)
         return obj
     end
 end
 Base.unsafe_convert(::Type{cutensornetState_t}, state::CuNetworkState) = state.handle
 Base.eltype(::CuNetworkState{T}) where {T} = T
+
+# the extents of the state tensor: those of the modes, followed by those of the dual modes
+# for a mixed state (a density matrix)
+state_extents(state::CuNetworkState) =
+    state.purity == CUTENSORNET_STATE_PURITY_MIXED ? vcat(state.extents, state.extents) : state.extents
 
 function apply!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operator::CuArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
     ndims(operator) == 2 * length(modes) || throw(DimensionMismatch("an operator on $(length(modes)) modes must have $(2 * length(modes)) dimensions."))
@@ -189,9 +199,8 @@ end
 
 # request `compute!` to factorize the state as an MPS with tensors of (at most) these extents.
 #
-# the library's default SVD algorithm, gesvd, fails with an internal error whenever it has
-# to truncate or decompose: unlike with the tensor decompositions in tensornet.jl, the host
-# workspace it needs since CUDA 13.4 Update 1 can't make it there. use gesvdj instead.
+# the library's default SVD algorithm, gesvd, fails with an internal error when computing
+# the MPS, even with the host workspace it asks for attached. use gesvdj instead.
 function finalize_mps!(state::CuNetworkState, extents::Vector{<:Vector{<:Integer}}; boundary_condition::cutensornetBoundaryCondition_t=CUTENSORNET_BOUNDARY_CONDITION_OPEN, svd_algorithm::cutensornetTensorSVDAlgo_t=CUTENSORNET_TENSOR_SVD_ALGO_GESVDJ)
     length(extents) == length(state.extents) || throw(DimensionMismatch("need extents for each state mode."))
     state.mps_extents = [collect(Int64, e) for e in extents]
@@ -293,7 +302,7 @@ end
 function compute!(state::CuNetworkState{T}; stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
     workspace = require_prepared(state)
-    extents = state.mps_extents === nothing ? [copy(state.extents)] : deepcopy(state.mps_extents)
+    extents = state.mps_extents === nothing ? [copy(state_extents(state))] : deepcopy(state.mps_extents)
     strides = [zeros(Int64, length(e)) for e in extents]
     state.output = [CuArray{T}(undef, e...) for e in extents]
     cutensornetStateCompute(handle(), state, workspace, extents, strides, pointer.(state.output), stream)
@@ -304,15 +313,21 @@ end
 function CuStateAccessor(state::CuNetworkState{T}, projected_modes::Vector{<:Integer}=Int32[]) where {T}
     acc_ref = Ref{cutensornetStateAccessor_t}()
     cutensornetCreateAccessor(handle(), state, length(projected_modes), convert(Vector{Int32}, projected_modes), C_NULL, acc_ref)
-    # the amplitudes have the modes that aren't projected, in order
-    extents = [e for (m, e) in enumerate(state.extents) if !((m - 1) in projected_modes)]
-    return CuStateAccessor{T}(acc_ref[], state, extents)
+    # the amplitudes have the modes that aren't projected, in order. for mixed states, these
+    # are the modes of the density matrix, with the dual modes numbered after the others.
+    extents = [e for (m, e) in enumerate(state_extents(state)) if !((m - 1) in projected_modes)]
+    return CuStateAccessor{T}(acc_ref[], state, (; extents, n_projected=length(projected_modes)))
+end
+
+function check_projection(x, values)
+    length(values) == x.data.n_projected || throw(DimensionMismatch("need a value for each of the $(x.data.n_projected) projected modes."))
 end
 
 # the amplitudes for the projected modes having certain values, and the squared state norm
 function compute!(acc::CuStateAccessor{T}, projected_values::Vector{<:Integer}=Int64[]; stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
-    amplitudes = CuArray{T}(undef, acc.data...)
+    check_projection(acc, projected_values)
+    amplitudes = CuArray{T}(undef, acc.data.extents...)
     norm = Ref{T}(zero(T))
     cutensornetAccessorCompute(handle(), acc, convert(Vector{Int64}, projected_values), require_prepared(acc), amplitudes, norm, stream)
     synchronize(stream)
@@ -353,12 +368,13 @@ function CuStateMarginal(state::CuNetworkState{T}, modes::Vector{<:Integer}; pro
     create = diagonal ? cutensornetCreateMarginalDiagonal : cutensornetCreateMarginal
     create(handle(), state, length(modes), convert(Vector{Int32}, modes), length(projected_modes), convert(Vector{Int32}, projected_modes), C_NULL, marginal_ref)
     extents = [state.extents[m + 1] for m in modes]
-    return CuStateMarginal{T}(marginal_ref[], state, diagonal ? extents : vcat(extents, extents))
+    return CuStateMarginal{T}(marginal_ref[], state, (; extents=diagonal ? extents : vcat(extents, extents), n_projected=length(projected_modes)))
 end
 
 function compute!(x::CuStateMarginal{T}, projected_values::Vector{<:Integer}=Int64[]; stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
-    marginal = CuArray{T}(undef, x.data...)
+    check_projection(x, projected_values)
+    marginal = CuArray{T}(undef, x.data.extents...)
     cutensornetMarginalCompute(handle(), x, convert(Vector{Int64}, projected_values), require_prepared(x), marginal, stream)
     synchronize(stream)
     return marginal
@@ -422,8 +438,15 @@ function extract_tensor!(output::CuArray{T}, x::CuStateProjectionMPS{T}, env::Pa
     return output
 end
 
-function insert_tensor!(x::CuStateProjectionMPS{T}, env::Pair, input::CuArray{T}; ortho::Pair=env, stream::CuStream=stream()) where {T}
+# the orthogonality center ends up in `ortho`, which must be the site of a one-site
+# environment (the default), one of the sites of a two-site environment, or a site next to
+# the bond of a zero-site environment.
+function insert_tensor!(x::CuStateProjectionMPS{T}, env::Pair, input::CuArray{T}; ortho::Union{Nothing,Pair}=nothing, stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
+    if ortho === nothing
+        last(env) - first(env) == 2 || throw(ArgumentError("the orthogonality center must be specified for environments that don't exclude a single site."))
+        ortho = env
+    end
     cutensornetStateProjectionMPSInsertTensor(handle(), x, Ref(env_bounds(env)), Ref(env_bounds(ortho)), C_NULL, input, require_prepared(x), stream)
     synchronize(stream)
     return x
