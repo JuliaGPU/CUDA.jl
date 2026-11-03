@@ -80,8 +80,9 @@ end
 
 mutable struct CuNetwork{T}
     handle::cutensornetNetworkDescriptor_t
-    # the descriptor refers to this memory once it has been set
-    inputs::Vector{CuArray{T}}
+    # the descriptor refers to this memory once it has been set. inputs are keyed by the id
+    # the library assigned them, which isn't necessarily sequential.
+    inputs::Dict{Int64,CuArray{T}}
     output::Union{Nothing,CuArray{T}}
     gradients::Dict{Int64,CuArray{T}}
     adjoint::Union{Nothing,CuArray{T}}
@@ -90,7 +91,7 @@ mutable struct CuNetwork{T}
     function CuNetwork{T}() where {T}
         desc_ref = Ref{cutensornetNetworkDescriptor_t}()
         cutensornetCreateNetwork(handle(), desc_ref)
-        obj = new{T}(desc_ref[], CuArray{T}[], nothing, Dict{Int64,CuArray{T}}(), nothing, nothing, nothing)
+        obj = new{T}(desc_ref[], Dict{Int64,CuArray{T}}(), nothing, Dict{Int64,CuArray{T}}(), nothing, nothing, nothing)
         resource_finalizer(cutensornetDestroyNetwork, obj)
         return obj
     end
@@ -103,7 +104,7 @@ function append_tensor!(net::CuNetwork{T}, tensor::CuArray{T}, modes; conjugate:
     qualifiers = Ref(cutensornetTensorQualifiers_t(conjugate, constant, requires_gradient))
     id = Ref{Int64}()
     cutensornetNetworkAppendTensor(handle(), net, ndims(tensor), collect(Int64, size(tensor)), convert(Vector{Int32}, collect(modes)), qualifiers, T, id)
-    push!(net.inputs, tensor)
+    net.inputs[id[]] = tensor
     return id[]
 end
 
@@ -160,8 +161,8 @@ function prepare_contraction!(net::CuNetwork; gradients::Bool=false, preference:
     net.workspace = workspace
     cutensornetNetworkPrepareContraction(handle(), net, workspace)
     gradients && cutensornetNetworkPrepareGradientsBackward(handle(), net, workspace)
-    for (id, tensor) in enumerate(net.inputs)
-        cutensornetNetworkSetInputTensorMemory(handle(), net, id - 1, tensor, C_NULL)
+    for (id, tensor) in net.inputs
+        cutensornetNetworkSetInputTensorMemory(handle(), net, id, tensor, C_NULL)
     end
     cutensornetNetworkSetOutputTensorMemory(handle(), net, net.output, C_NULL)
     return net
@@ -169,7 +170,8 @@ end
 
 # the buffer that receives the gradient with respect to the input with the given id
 function set_gradient!(net::CuNetwork{T}, id::Integer, gradient::CuArray{T}) where {T}
-    size(gradient) == size(net.inputs[id + 1]) || throw(DimensionMismatch("gradient must have the size of the input tensor."))
+    haskey(net.inputs, id) || throw(ArgumentError("the network has no input tensor with id $id."))
+    size(gradient) == size(net.inputs[id]) || throw(DimensionMismatch("gradient must have the size of the input tensor."))
     cutensornetNetworkSetGradientTensorMemory(handle(), net, id, gradient, C_NULL)
     net.gradients[id] = gradient
     return net
