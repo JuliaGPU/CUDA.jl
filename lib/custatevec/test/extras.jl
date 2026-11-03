@@ -1,8 +1,8 @@
 @testset "library properties" begin
-    # these identify the toolkit the library was built with, not `version()`
-    @test cuStateVec.property(CUDACore.MAJOR_VERSION) > 0
-    @test cuStateVec.property(CUDACore.MINOR_VERSION) >= 0
-    @test cuStateVec.property(CUDACore.PATCH_LEVEL) >= 0
+    ver = cuStateVec.version()
+    @test cuStateVec.property(CUDACore.MAJOR_VERSION) == ver.major
+    @test cuStateVec.property(CUDACore.MINOR_VERSION) == ver.minor
+    @test cuStateVec.property(CUDACore.PATCH_LEVEL) == ver.patch
     @test cuStateVec.currentStream() == CUDACore.stream().handle
     @test cuStateVec.errorName(cuStateVec.CUSTATEVEC_STATUS_INVALID_VALUE) == "CUSTATEVEC_STATUS_INVALID_VALUE"
     @test !isempty(cuStateVec.errorString(cuStateVec.CUSTATEVEC_STATUS_INVALID_VALUE))
