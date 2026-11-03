@@ -114,4 +114,30 @@ end
             @test D ≈ Array(dD)
         end
     end
+
+    @testset "triangular-triangular mul! with full inputs and views" begin
+        # a view that skips every other row, which cuBLAS can't address
+        function strided(X)
+            v = view(CuArray(zeros(elty, 2size(X, 1), size(X, 2))), 1:2:2size(X, 1), :)
+            copyto!(v, CuArray(X))
+        end
+        A = rand(elty, m, m)
+        B = rand(elty, m, m)
+        for (TRa, ta, TRb, tb) in (
+                (UpperTriangular, identity,  LowerTriangular, identity),
+                (LowerTriangular, identity,  UpperTriangular, identity),
+                (UpperTriangular, identity,  UpperTriangular, transpose),
+                (UpperTriangular, transpose, UpperTriangular, identity),
+                (LowerTriangular, identity,  LowerTriangular, transpose),
+                (LowerTriangular, transpose, LowerTriangular, identity),
+            ), (wA, wB, wC) in ((CuArray, CuArray, CuArray), (strided, CuArray, CuArray),
+                                (CuArray, strided, CuArray), (CuArray, CuArray, strided))
+            dA, dB, dC = wA(A), wB(B), wC(zeros(elty, m, m))
+            mul!(dC, ta(TRa(dA)), tb(TRb(dB)))
+            @test Array(dC) ≈ ta(TRa(A)) * tb(TRb(B))
+            # the triangles outside the wrappers are left alone
+            @test Array(dA) == A
+            @test Array(dB) == B
+        end
+    end
 end
