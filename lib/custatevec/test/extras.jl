@@ -142,13 +142,13 @@ end
 @testset "integer vectors of any width" begin
     # the C API takes `int32_t` arrays: wider integers must be converted, not reinterpreted
     @testset for T in (Int32, Int64)
-        data = ComplexF64[1, 0, 0, 0, 0, 0, 0, 1] ./ sqrt(2)
-        @test collect(abs2SumOnZBasis(CuStateVec(copy(data)), T[2])) ≈ [0.5, 0.5]
-        # all of the amplitude has odd parity on the top bit when collapsing to |1⟩
-        sv = CuStateVec(ComplexF64[0, 0, 0, 0, 0, 0, 0, 1])
-        @test last(measureOnZBasis!(sv, T[2], 0.5)) == 1
-        sv = CuStateVec(ComplexF64[0, 1, 0, 0, 0, 0, 0, 0])
-        @test last(measureOnZBasis!(sv, T[2], 0.5)) == 0
+        # bits 0 and 2 of |100⟩ have odd parity. reinterpreted as `int32_t`, an Int64 vector
+        # [0, 2] reads as [0, 0], which has even parity.
+        data = ComplexF64[0, 0, 0, 0, 1, 0, 0, 0]
+        @test collect(abs2SumOnZBasis(CuStateVec(copy(data)), T[0, 2])) ≈ [0, 1]
+        @test last(measureOnZBasis!(CuStateVec(copy(data)), T[0, 2], 0.5)) == 1
+        data = ComplexF64[0, 0, 0, 0, 0, 1, 0, 0]
+        @test last(measureOnZBasis!(CuStateVec(copy(data)), T[0, 2], 0.5)) == 0
 
         # masks select the part of the state vector with bit 2 set
         acc = CuStateVecAccessor(CuStateVec(ComplexF64[1, 2, 3, 4, 5, 6, 7, 8]), [0, 1], [1], [2])
