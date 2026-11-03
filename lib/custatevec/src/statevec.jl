@@ -162,7 +162,7 @@ end
 function expectationsOnPauliBasis(sv::CuStateVec, pauliOps::Vector{Vector{Pauli}}, basisInds::Vector{Vector{Int}})
     exp_vals = zeros(Float64, length(pauliOps))
     cupaulis = [[CuStateVecPauli(O) for O in op] for op in pauliOps]
-    custatevecComputeExpectationsOnPauliBasis(handle(), sv.data, eltype(sv), sv.nbits, exp_vals, cupaulis, length(pauliOps), convert(Vector{Vector{Int32}}, basisInds), length.(basisInds))
+    custatevecComputeExpectationsOnPauliBasis(handle(), sv.data, eltype(sv), sv.nbits, exp_vals, cupaulis, length(pauliOps), convert(Vector{Vector{Int32}}, basisInds), convert(Vector{UInt32}, length.(basisInds)))
     return exp_vals
 end
 
