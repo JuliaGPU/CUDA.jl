@@ -160,3 +160,13 @@ needs_context = false
 
 [api.custatevecLoggerSetLevel]
 needs_context = false
+
+[api.custatevecAccessorSetExtraWorkspace.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.custatevecSubSVMigratorCreate.argtypes]
+3 = "CuPtr{Cvoid}"
+
+[api.custatevecSubSVMigratorMigrate.argtypes]
+4 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"

@@ -163,13 +163,16 @@ end
 
 mutable struct CuTensorNetworkContractionOptimizerInfo
     handle::cutensornetContractionOptimizerInfo_t
-    function CuTensorNetworkContractionOptimizerInfo(net_desc::CuTensorNetworkDescriptor)
-        desc_ref = Ref{cutensornetContractionOptimizerInfo_t}()
-        cutensornetCreateContractionOptimizerInfo(handle(), net_desc, desc_ref)
-        obj = new(desc_ref[])
+    function CuTensorNetworkContractionOptimizerInfo(info::cutensornetContractionOptimizerInfo_t)
+        obj = new(info)
         resource_finalizer(cutensornetDestroyContractionOptimizerInfo, obj)
         return obj
     end
+end
+function CuTensorNetworkContractionOptimizerInfo(net_desc)
+    desc_ref = Ref{cutensornetContractionOptimizerInfo_t}()
+    cutensornetCreateContractionOptimizerInfo(handle(), net_desc, desc_ref)
+    return CuTensorNetworkContractionOptimizerInfo(desc_ref[])
 end
 
 Base.unsafe_convert(::Type{cutensornetContractionOptimizerInfo_t}, desc::CuTensorNetworkContractionOptimizerInfo) = desc.handle

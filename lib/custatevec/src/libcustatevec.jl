@@ -615,7 +615,7 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecAccessorSetExtraWorkspace(handle::custatevecHandle_t,
                                                                     accessor::custatevecAccessorDescriptor_t,
-                                                                    extraWorkspace::Ptr{Cvoid},
+                                                                    extraWorkspace::CuPtr{Cvoid},
                                                                     extraWorkspaceSizeInBytes::Csize_t)::custatevecStatus_t
 end
 
@@ -1101,7 +1101,7 @@ const custatevecSubSVMigratorDescriptor_t = Ptr{custatevecSubSVMigratorDescripto
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecSubSVMigratorCreate(handle::custatevecHandle_t,
                                                               migrator::Ptr{custatevecSubSVMigratorDescriptor_t},
-                                                              deviceSlices::Ptr{Cvoid},
+                                                              deviceSlices::CuPtr{Cvoid},
                                                               svDataType::cudaDataType_t,
                                                               nDeviceSlices::Cint,
                                                               nSliceLocalIndexBits::Cint)::custatevecStatus_t
@@ -1119,8 +1119,8 @@ end
     @gcsafe_ccall libcustatevec.custatevecSubSVMigratorMigrate(handle::custatevecHandle_t,
                                                                migrator::custatevecSubSVMigratorDescriptor_t,
                                                                deviceSliceIndex::Cint,
-                                                               srcSubSVSlice::Ptr{Cvoid},
-                                                               dstSubSVSlice::Ptr{Cvoid},
+                                                               srcSubSVSlice::CuPtr{Cvoid},
+                                                               dstSubSVSlice::CuPtr{Cvoid},
                                                                _begin::custatevecIndex_t,
                                                                _end::custatevecIndex_t)::custatevecStatus_t
 end

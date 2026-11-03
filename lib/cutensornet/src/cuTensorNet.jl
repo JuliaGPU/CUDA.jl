@@ -34,6 +34,8 @@ include("error.jl")
 include("types.jl")
 include("wrappers.jl")
 include("tensornet.jl")
+include("network.jl")
+include("state.jl")
 
 
 ## handles
