@@ -93,6 +93,31 @@ function vec_pointer_stride(n::Integer, x::StridedCuVecOrDenseMat)
     pointer(x) + min(st, 0) * sizeof(eltype(x)) * (n - 1), st
 end
 
+# cuBLAS addresses a matrix, or a vector passed as one, through its leading dimension
+# `stride(X, 2)`, which only works for contiguous columns that don't overlap. Views that
+# skip rows or reverse the columns fail this. With a single row there's no row stride to
+# honor, and without any rows nothing gets accessed.
+column_major(X) = (stride(X, 1) == 1 || size(X, 1) == 1) &&
+                  (size(X, 1) == 0 || stride(X, 2) >= size(X, 1))
+
+function leading_dim(X)
+    if !column_major(X)
+        throw(ArgumentError("cuBLAS cannot address an array of size $(size(X)) with strides $(strides(X))"))
+    end
+    return max(1, stride(X, 2))
+end
+
+# batched routines take a single leading dimension for all matrices in the batch
+function leading_dim(Xs::AbstractVector{<:AbstractArray})
+    ld = leading_dim(first(Xs))
+    for X in Xs
+        if leading_dim(X) != ld
+            throw(DimensionMismatch("all matrices in a batch must have the same leading dimension"))
+        end
+    end
+    return ld
+end
+
 ## copy
 for (fname, fname_64, elty) in ((:cublasDcopy_v2, :cublasDcopy_v2_64, :Float64),
                                 (:cublasScopy_v2, :cublasScopy_v2_64, :Float32),
@@ -579,7 +604,7 @@ for (fname, fname_64, elty) in ((:cublasDgemv_v2, :cublasDgemv_v2_64, :Float64),
             # check dimensions
             length(x) == (trans == 'N' ? n : m) && length(y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
             # compute increments
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             incy = stride(y,1)
             if cuBLAS.version() >= v"12.0"
@@ -635,7 +660,7 @@ for (fname, fname_64, eltyin, eltyout) in (
                     throw(DimensionMismatch("Input $i: A has dimension $(size(As)), x has dimension $(size(xs)), y has dimension $(size(ys))"))
                 end
             end
-            lda = max(1,stride(A[1],2))
+            lda = leading_dim(A)
             incx = stride(x[1],1)
             incy = stride(y[1],1)
             Aptrs = unsafe_batch(A)
@@ -681,7 +706,7 @@ for (fname, fname_64, eltyin, eltyout) in (
                 throw(DimensionMismatch("A has dimension $(size(A)), x has dimension $(size(x)), y has dimension $(size(y))"))
             end
 
-            lda = max(1,stride(A, 2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             incy = stride(y,1)
             strideA = size(A, 3) == 1 ? 0 : stride(A, 3)
@@ -717,7 +742,7 @@ for (fname, fname_64, elty) in ((:cublasDgbmv_v2, :cublasDgbmv_v2_64, :Float64),
             # check dimensions
             length(x) == (trans == 'N' ? n : m) && length(y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
             # compute increments
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             incy = stride(y,1)
             if cuBLAS.version() >= v"12.0"
@@ -787,7 +812,7 @@ for (fname, fname_64, elty) in ((:cublasDsymv_v2, :cublasDsymv_v2_64, :Float64),
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             incy = stride(y,1)
             if cuBLAS.version() >= v"12.0"
@@ -821,7 +846,7 @@ for (fname, fname_64, elty) in ((:cublasZhemv_v2, :cublasZhemv_v2_64, :ComplexF6
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             incy = stride(y,1)
             if cuBLAS.version() >= v"12.0"
@@ -862,7 +887,7 @@ for (fname, fname_64, elty) in ((:cublasDsbmv_v2, :cublasDsbmv_v2_64, :Float64),
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) || n != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             incy = stride(y,1)
             if cuBLAS.version() >= v"12.0"
@@ -900,7 +925,7 @@ for (fname, fname_64, elty) in ((:cublasZhbmv_v2, :cublasZhbmv_v2_64, :ComplexF6
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) || n != length(y) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             incy = stride(y,1)
             if cuBLAS.version() >= v"12.0"
@@ -939,7 +964,7 @@ for (fname, fname_64, elty) in ((:cublasStbmv_v2, :cublasStbmv_v2_64, :Float32),
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
@@ -971,7 +996,7 @@ for (fname, fname_64, elty) in ((:cublasStbsv_v2, :cublasStbsv_v2_64, :Float32),
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
@@ -1003,7 +1028,7 @@ for (fname, fname_64, elty) in ((:cublasDtrmv_v2, :cublasDtrmv_v2_64, :Float64),
             if n != length(x)
                 throw(DimensionMismatch("length(x)=$(length(x)) does not match size(A)=$(size(A))"))
             end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, diag, n, A, lda, x, incx)
@@ -1035,7 +1060,7 @@ for (fname, fname_64, elty) in ((:cublasDtrsv_v2, :cublasDtrsv_v2_64, :Float64),
             if n != length(x)
                 throw(DimensionMismatch("length(x)=$(length(x)) does not match size(A)=$(size(A))"))
             end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(x,1)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, diag, n, A, lda, x, incx)
@@ -1067,7 +1092,7 @@ for (fname, fname_64, elty) in ((:cublasDger_v2, :cublasDger_v2_64, :Float64),
             n == length(y) || throw(DimensionMismatch(""))
             incx = stride(x,1)
             incy = stride(y,1)
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), m, n, alpha, x, incx, y, incy, A, lda)
             else
@@ -1114,7 +1139,7 @@ for (fname, fname_64, elty) in ((:cublasDsyr_v2, :cublasDsyr_v2_64, :Float64),
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, n, alpha, x, incx, A, lda)
             else
@@ -1139,7 +1164,7 @@ for (fname, fname_64, elty, relty) in (
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, n, alpha, x, incx, A, lda)
             else
@@ -1166,7 +1191,7 @@ for (fname, fname_64, elty) in ((:cublasZher2_v2, :cublasZher2_v2_64, :ComplexF6
             length(y) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             incy = stride(y,1)
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, n, alpha, x, incx, y, incy, A, lda)
             else
@@ -1186,14 +1211,9 @@ end
 # than sm_50. Each wrapper consists of a front-end that validates its inputs and selects a
 # compute type, and a back-end that only takes pointers and is compiled once.
 
-# the dimensions of op(A) * op(B), checked against those of C. cuBLAS addresses matrices
-# through their leading dimension, so their columns need to be contiguous.
+# the dimensions of op(A) * op(B), checked against those of C
 function gemm_dims(transA::Char, transB::Char, A, B, C)
-    for X in (A, B, C)
-        if stride(X, 1) != 1 || gemm_ld(X) < max(1, size(X, 1))
-            throw(ArgumentError("cuBLAS cannot multiply arrays with strides $(strides(X))"))
-        end
-    end
+    foreach(leading_dim, (A, B, C))
     m = size(A, transA == 'N' ? 1 : 2)
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
@@ -1202,8 +1222,6 @@ function gemm_dims(transA::Char, transB::Char, A, B, C)
     end
     return m, n, k
 end
-
-gemm_ld(A) = max(1, stride(A, 2))
 
 gemm_ptr(x) = Base.unsafe_convert(CuPtr{Cvoid}, x)
 
@@ -1391,13 +1409,13 @@ function gemm!(transA::Char, transB::Char, alpha,
     beta = gemm_scalar(scaleType, beta)
     GC.@preserve A B C alpha beta begin
         if computeType === nothing
-            gemm_typed!(TC, transA, transB, m, n, k, gemm_ptr(alpha), gemm_ptr(A), gemm_ld(A),
-                        gemm_ptr(B), gemm_ld(B), gemm_ptr(beta), gemm_ptr(C), gemm_ld(C))
+            gemm_typed!(TC, transA, transB, m, n, k, gemm_ptr(alpha), gemm_ptr(A), leading_dim(A),
+                        gemm_ptr(B), leading_dim(B), gemm_ptr(beta), gemm_ptr(C), leading_dim(C))
         else
             gemm_ex!(transA, transB, m, n, k, gemm_ptr(alpha), gemm_ptr(A),
-                     convert(cudaDataType, TA), gemm_ld(A), gemm_ptr(B),
-                     convert(cudaDataType, TB), gemm_ld(B), gemm_ptr(beta), gemm_ptr(C),
-                     convert(cudaDataType, TC), gemm_ld(C), computeType, algo)
+                     convert(cudaDataType, TA), leading_dim(A), gemm_ptr(B),
+                     convert(cudaDataType, TB), leading_dim(B), gemm_ptr(beta), gemm_ptr(C),
+                     convert(cudaDataType, TC), leading_dim(C), computeType, algo)
         end
     end
     C
@@ -1517,7 +1535,7 @@ function gemm_batched!(transA::Char, transB::Char, alpha,
     end
     check_uniform_batch(A, B, C)
     m, n, k = gemm_dims(transA, transB, A[1], B[1], C[1])
-    lda, ldb, ldc = gemm_ld(A[1]), gemm_ld(B[1]), gemm_ld(C[1])
+    lda, ldb, ldc = leading_dim(A[1]), leading_dim(B[1]), leading_dim(C[1])
     computeType, scaleType = gemm_compute_type(TA, TB, TC, m, k, n, compute_type)
     alpha = gemm_scalar(scaleType, alpha)
     beta = gemm_scalar(scaleType, beta)
@@ -1627,15 +1645,15 @@ function gemm_strided_batched!(transA::Char, transB::Char, alpha,
     GC.@preserve A B C alpha beta begin
         if computeType === nothing
             gemm_strided_batched_typed!(TC, transA, transB, m, n, k, gemm_ptr(alpha),
-                                        gemm_ptr(A), gemm_ld(A), strideA, gemm_ptr(B),
-                                        gemm_ld(B), strideB, gemm_ptr(beta), gemm_ptr(C),
-                                        gemm_ld(C), strideC, batchCount)
+                                        gemm_ptr(A), leading_dim(A), strideA, gemm_ptr(B),
+                                        leading_dim(B), strideB, gemm_ptr(beta), gemm_ptr(C),
+                                        leading_dim(C), strideC, batchCount)
         else
             gemm_strided_batched_ex!(transA, transB, m, n, k, gemm_ptr(alpha), gemm_ptr(A),
-                                     convert(cudaDataType, TA), gemm_ld(A), strideA,
-                                     gemm_ptr(B), convert(cudaDataType, TB), gemm_ld(B),
+                                     convert(cudaDataType, TA), leading_dim(A), strideA,
+                                     gemm_ptr(B), convert(cudaDataType, TB), leading_dim(B),
                                      strideB, gemm_ptr(beta), gemm_ptr(C),
-                                     convert(cudaDataType, TC), gemm_ld(C), strideC,
+                                     convert(cudaDataType, TC), leading_dim(C), strideC,
                                      batchCount, computeType, algo)
         end
     end
@@ -1802,7 +1820,7 @@ function grouped_gemm!(transA, transB, alpha, A::Vector{<:StridedCuMatrix{TA}},
         check_uniform_batch(view(A, group), view(B, group), view(C, group))
         j = first(group)
         m[i], n[i], k[i] = gemm_dims(transA[i], transB[i], A[j], B[j], C[j])
-        lda[i], ldb[i], ldc[i] = gemm_ld(A[j]), gemm_ld(B[j]), gemm_ld(C[j])
+        lda[i], ldb[i], ldc[i] = leading_dim(A[j]), leading_dim(B[j]), leading_dim(C[j])
     end
 
     alpha = convert(Vector{scaleType}, alpha)
@@ -1910,9 +1928,9 @@ for (fname, fname_64, elty) in ((:cublasDsymm_v2, :cublasDsymm_v2_64, :Float64),
             if m != size(C,1) || n != size(C,2) || k != size(B, side == 'L' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
             else
@@ -1950,8 +1968,8 @@ for (fname, fname_64, elty) in ((:cublasDsyrk_v2, :cublasDsyrk_v2_64, :Float64),
             nn = size(A, trans == 'N' ? 1 : 2)
             if nn != n throw(DimensionMismatch("syrk!")) end
             k  = size(A, trans == 'N' ? 2 : 1)
-            lda = max(1,stride(A,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             else
@@ -1986,9 +2004,9 @@ for (fname, fname_64, elty) in ((:cublasDsyrkx, :cublasDsyrkx_64, :Float64),
             nn = size(A, trans == 'N' ? 1 : 2)
             if nn != n throw(DimensionMismatch("syrkx!")) end
             k  = size(A, trans == 'N' ? 2 : 1)
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             else
@@ -2025,9 +2043,9 @@ for (fname, fname_64, elty) in ((:cublasZhemm_v2, :cublasZhemm_v2_64, :ComplexF6
             if ((m != mC) || (n != nC)) throw(DimensionMismatch("B and C must have same dimensions")) end
             if ((side == 'L') && (mA != m)) throw(DimensionMismatch("")) end
             if ((side == 'R') && (mA != n)) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
             else
@@ -2063,8 +2081,8 @@ for (fname, fname_64, elty, relty) in (
             nn = size(A, trans == 'N' ? 1 : 2)
             if nn != n throw(DimensionMismatch("herk!")) end
             k  = size(A, trans == 'N' ? 2 : 1)
-            lda = max(1,stride(A,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             else
@@ -2105,9 +2123,9 @@ for (fname, fname_64, elty) in ((:cublasDsyr2k_v2, :cublasDsyr2k_v2_64, :Float64
             k  = size(A, trans == 'N' ? 2 : 1)
             if k != size(B, trans == 'N' ? 2 : 1) throw(DimensionMismatch(
                 "Inner dimensions of op(A) and op(B.') must match")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             else
@@ -2154,9 +2172,9 @@ for (fname, fname_64, elty, relty) in (
             if k != size(B, trans == 'N' ? 2 : 1)
                 throw(DimensionMismatch("Inner dimensions of op(A) and op(B.') must match"))
             end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             else
@@ -2206,9 +2224,9 @@ for (mmname, mmname_64, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
             mC, nC = size(C)
             if mC != m || nC != n throw(DimensionMismatch("trmm!")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $mmname_64(handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
             else
@@ -2237,8 +2255,8 @@ for (smname, smname_64, elty) in
             # TODO: clean up error messages
             if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
             if cuBLAS.version() >= v"12.0"
                 $smname_64(handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb)
             else
@@ -2283,8 +2301,8 @@ for (fname, fname_64, elty) in ((:cublasDtrsmBatched, :cublasDtrsmBatched_64, :F
             end
 
             m,n = size(B[1])
-            lda = max(1,stride(A[1],2))
-            ldb = max(1,stride(B[1],2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
             if cuBLAS.version() >= v"12.0"
@@ -2336,9 +2354,9 @@ for (fname, fname_64, elty) in ((:cublasDgeam, :cublasDgeam_64, :Float64),
             if ((transb == 'C' || transb == 'T') && ((nB != m) || (mB != n)))
                 throw(DimensionMismatch("transposed B has dimension $((nB, mB)) but C has dimension $(size(C))"))
             end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
             else
@@ -2403,7 +2421,7 @@ function getrf_batched!(A::Vector{<:StridedCuMatrix},
         end
     end
     m,n = size(A[1])
-    lda = max(1,stride(A[1],2))
+    lda = leading_dim(A)
 
     Aptrs = unsafe_batch(A)
     return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
@@ -2422,7 +2440,7 @@ function getrf_strided_batched!(A::DenseCuArray{<:Any, 3},
     if m != n
         throw(DimensionMismatch("All matrices must be square!"))
     end
-    lda = max(1,stride(A,2))
+    lda = leading_dim(A)
 
     Aptrs = unsafe_strided_batch(A)
     return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
@@ -2472,8 +2490,8 @@ function getrs_batched!(trans::Char,
         end
     end
     m,n = size(A[1])
-    lda = max(1,stride(A[1],2))
-    ldb = max(1,stride(B[1],2))
+    lda = leading_dim(A)
+    ldb = leading_dim(B)
     nrhs = size(B[1],2)
 
     Aptrs = unsafe_batch(A)
@@ -2501,8 +2519,8 @@ function getrs_strided_batched!(trans::Char,
     if m != o
         throw(DimensionMismatch("Rows in A and B must be equal!"))
     end
-    lda = max(1,stride(A,2))
-    ldb = max(1,stride(B,2))
+    lda = leading_dim(A)
+    ldb = leading_dim(B)
     nrhs = size(B,2)
 
     Aptrs = unsafe_strided_batch(A)
@@ -2535,8 +2553,8 @@ for (fname, elty) in ((:cublasDgetriBatched, :Float64),
 
             C = CuMatrix{$elty}[similar(A[1]) for i in 1:length(A)]
             n = size(A[1])[1]
-            lda = max(1,stride(A[1],2))
-            ldc = max(1,stride(C[1],2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
             info = CUDACore.zeros(Cint,length(A))
@@ -2562,8 +2580,8 @@ for (fname, elty) in ((:cublasDgetriBatched, :Float64),
                                 C::Vector{<:StridedCuMatrix{$elty}},
                                 pivotArray::CuMatrix{Cint})
             n = size(A[1])[1]
-            lda = max(1, stride(A[1], 2))
-            ldc = max(1, stride(C[1], 2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
             info = CUDACore.zeros(Cint, length(A))
@@ -2582,8 +2600,8 @@ function getri_strided_batched!(A::CuArray{<:Any,3}, C::CuArray{<:Any,3}, pivot:
     if m != n
         throw(DimensionMismatch("All matrices must be square!"))
     end
-    ldc = max(1, stride(C, 2))
-    lda = max(1, stride(A, 2))
+    ldc = leading_dim(C)
+    lda = leading_dim(A)
     Cptrs = unsafe_strided_batch(C)
     Aptrs = unsafe_strided_batch(A)
     return getri_batched!(n, Aptrs, lda, Cptrs, ldc, pivot)
@@ -2610,8 +2628,8 @@ for (fname, elty) in
 
             C = CuMatrix{$elty}[similar(A[1]) for i in 1:length(A)]
             n = size(A[1])[1]
-            lda = max(1,stride(A[1],2))
-            ldc = max(1,stride(C[1],2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
             info = CUDACore.zeros(Cint,length(A))
@@ -2632,7 +2650,7 @@ for (fname, elty) in ((:cublasDgeqrfBatched, :Float64),
     @eval begin
         function geqrf_batched!(A::Vector{<:StridedCuMatrix{$elty}})
             m,n = size(A[1])
-            lda = max(1,stride(A[1],2))
+            lda = leading_dim(A)
             Aptrs = unsafe_batch(A)
             hTauArray = [zeros($elty, min(m,n)) for i in 1:length(A)]
             TauArray = CuArray{$elty,1}[]
@@ -2685,8 +2703,8 @@ for (fname, elty) in ((:cublasDgelsBatched, :Float64),
             end
 
             nrhs = size(C[1])[2]
-            lda = max(1,stride(A[1],2))
-            ldc = max(1,stride(A[1],2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             Aptrs = unsafe_batch(A)
             Cptrs = unsafe_batch(C)
             info  = Ref{Cint}()
@@ -2723,9 +2741,9 @@ for (fname, fname_64, elty) in ((:cublasDdgmm, :cublasDdgmm_64, :Float64),
             if ((mA != m) || (nA != n )) throw(DimensionMismatch("")) end
             if ((mode == 'L') && (lx != m)) throw(DimensionMismatch("")) end
             if ((mode == 'R') && (lx != n)) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
+            lda = leading_dim(A)
             incx = stride(X,1)
-            ldc = max(1,stride(C,2))
+            ldc = leading_dim(C)
             if cuBLAS.version() >= v"12.0"
                 $fname_64(handle(), mode, m, n, A, lda, X, incx, C, ldc)
             else
@@ -2770,9 +2788,9 @@ for (fname, elty) in
             if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             $fname(xt_handle(), transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
@@ -2811,9 +2829,9 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
             if ((m != mC) || (n != nC)) throw(DimensionMismatch("B and C must have same dimensions")) end
             if ((side == 'L') && (mA != m)) throw(DimensionMismatch("")) end
             if ((side == 'R') && (mA != n)) throw(DimensionMismatch("")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             $fname(xt_handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
@@ -2852,9 +2870,9 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
             if m != size(C,1) || n != size(C,2) || k != size(B, side == 'L' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             $fname(xt_handle(), side, uplo, m, n, alpha, A, lda, B, ldb,
                    beta, C, ldc)
             C
@@ -2888,8 +2906,8 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
             nn = size(A, trans == 'N' ? 1 : 2)
             if nn != n throw(DimensionMismatch("syrk!")) end
             k  = size(A, trans == 'N' ? 2 : 1)
-            lda = max(1,stride(A,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
@@ -2921,9 +2939,9 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
             nn = size(A, trans == 'N' ? 1 : 2)
             if nn != n throw(DimensionMismatch("xt_syrkx!")) end
             k  = size(A, trans == 'N' ? 2 : 1)
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
@@ -2956,8 +2974,8 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
             nn = size(A, trans == 'N' ? 1 : 2)
             if nn != n throw(DimensionMismatch("herk!")) end
             k  = size(A, trans == 'N' ? 2 : 1)
-            lda = max(1,stride(A,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldc = leading_dim(C)
             $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
@@ -2994,9 +3012,9 @@ for (fname, elty) in ((:cublasXtZher2k,:ComplexF64),
             if k != size(B, trans == 'N' ? 2 : 1)
                 throw(DimensionMismatch("Inner dimensions of op(A) and op(B.') must match"))
             end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
@@ -3039,9 +3057,9 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
             mC, nC = size(C)
             if mC != m || nC != n throw(DimensionMismatch("trmm!")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
+            ldc = leading_dim(C)
             $mmname(xt_handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
             C
         end
@@ -3057,8 +3075,8 @@ for (mmname, smname, elty) in
             # TODO: clean up error messages
             if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
-            lda = max(1,stride(A,2))
-            ldb = max(1,stride(B,2))
+            lda = leading_dim(A)
+            ldb = leading_dim(B)
             $smname(xt_handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb)
             B
         end

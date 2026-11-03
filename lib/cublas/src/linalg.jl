@@ -6,10 +6,6 @@ using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!,
     using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
 end
 
-# cuBLAS addresses a matrix, or a vector passed as one, through its leading dimension
-# `stride(X, 2)`, which must be at least the number of rows. Reversed views fail this.
-column_major(X::StridedCuVecOrMat) = stride(X, 1) == 1 && stride(X, 2) >= max(1, size(X, 1))
-
 # BLAS walks a vector with a negative increment backwards from its end, while a reversed
 # view points at its first element, so vector operands need a positive stride.
 blas_layout(x::StridedCuVector) = stride(x, 1) > 0
@@ -450,27 +446,25 @@ function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitc
     tfunB = LinearAlgebra.wrapperop(B)
     transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
     transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
-    if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
-        triu!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
-        tril!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
-        # operation is reversed to avoid executing the tranpose
-        triu!(A)
-        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-    elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
-        tril!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
-        triu!(B)
-        trmm!('L', uplocA, transa, isunitcA, one(T), A, B, C)
-    elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
-        tril!(A)
-        trmm!('R', uplocB, transb, isunitcB, one(T), parent(B), A, C)
-    else
-        throw("mixed triangular-triangular multiplication") # TODO: rethink
+    # one operand gets its other triangle zeroed so cuBLAS can treat it as a full matrix;
+    # do so on a copy, which also gives cuBLAS a layout it can address
+    blas_output(C) do C
+        if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
+            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), triu!(copy(B)), C)
+        elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
+            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), tril!(copy(B)), C)
+        elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
+            # operation is reversed to avoid executing the tranpose
+            trmm!('R', uplocB, transb, isunitcB, one(T), blas_input(parent(B)), triu!(copy(A)), C)
+        elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
+            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), tril!(copy(B)), C)
+        elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
+            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), triu!(copy(B)), C)
+        elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
+            trmm!('R', uplocB, transb, isunitcB, one(T), blas_input(parent(B)), tril!(copy(A)), C)
+        else
+            throw("mixed triangular-triangular multiplication") # TODO: rethink
+        end
     end
     return C
 end
