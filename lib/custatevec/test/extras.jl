@@ -213,29 +213,38 @@ end
 
 @testset "sub state vector migrator" begin
     @testset for elty in [ComplexF32, ComplexF64]
+        # the sub state vectors live in host memory that the device can access
+        host(data) = CUDACore.pin(data)
         slices = CuVector{elty}(undef, 2 * 4)
         migrator = cuStateVec.CuStateVecSubSVMigrator(slices, 2, 2)
-        a = CuVector(elty[1, 2, 3, 4])
-        b = CuVector(elty[5, 6, 7, 8])
+        a = host(elty[1, 2, 3, 4])
+        b = host(elty[5, 6, 7, 8])
 
         # one way each
         cuStateVec.migrate!(migrator, 0, a, nothing, 0, 4)
         cuStateVec.migrate!(migrator, 1, b, nothing, 0, 4)
         CUDACore.synchronize()
         @test collect(slices) == elty[1, 2, 3, 4, 5, 6, 7, 8]
-        out = CUDACore.zeros(elty, 4)
+        out = host(zeros(elty, 4))
         cuStateVec.migrate!(migrator, 1, nothing, out, 0, 4)
         CUDACore.synchronize()
-        @test collect(out) == elty[5, 6, 7, 8]
+        @test out == elty[5, 6, 7, 8]
 
         # exchanging a part of the slice
-        src = CuVector(elty[9, 10, 11, 12])
-        dst = CUDACore.zeros(elty, 4)
+        src = host(elty[9, 10, 11, 12])
+        dst = host(zeros(elty, 4))
         cuStateVec.migrate!(migrator, 0, src, dst, 1, 3)
         CUDACore.synchronize()
         @test collect(slices)[1:4] == elty[1, 10, 11, 4]
-        @test collect(dst) == elty[0, 2, 3, 0]
+        @test dst == elty[0, 2, 3, 0]
 
+        @test_throws ArgumentError cuStateVec.migrate!(migrator, 2, a, nothing, 0, 4)
+        @test_throws ArgumentError cuStateVec.migrate!(migrator, 0, a, nothing, 0, 5)
+        @test_throws ArgumentError cuStateVec.migrate!(migrator, 0, a, nothing, 3, 2)
+        @test_throws DimensionMismatch cuStateVec.migrate!(migrator, 0, a[1:2], nothing, 0, 4)
+
+        # slices may be larger than needed, but not smaller
+        @test cuStateVec.CuStateVecSubSVMigrator(CuVector{elty}(undef, 9), 2, 2) isa cuStateVec.CuStateVecSubSVMigrator
         @test_throws DimensionMismatch cuStateVec.CuStateVecSubSVMigrator(slices, 3, 2)
 
         @test_logs min_level=Base.CoreLogging.Warn begin

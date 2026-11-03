@@ -126,12 +126,14 @@ mutable struct CuStateVecSubSVMigrator{T}
     library::Handle
     # the descriptor refers to this memory
     device_slices::CuVector{T}
+    n_device_slices::Int
+    n_local_bits::Int
     function CuStateVecSubSVMigrator(device_slices::CuVector{T}, n_device_slices::Integer, n_local_bits::Integer) where {T}
-        length(device_slices) == n_device_slices * 2^n_local_bits || throw(DimensionMismatch("device_slices must hold $n_device_slices slices of $(2^n_local_bits) elements."))
+        length(device_slices) >= n_device_slices * 2^n_local_bits || throw(DimensionMismatch("device_slices must hold $n_device_slices slices of $(2^n_local_bits) elements."))
         desc_ref = Ref{custatevecSubSVMigratorDescriptor_t}()
         library = handle()
         custatevecSubSVMigratorCreate(library, desc_ref, device_slices, T, n_device_slices, n_local_bits)
-        obj = new{T}(desc_ref[], library, device_slices)
+        obj = new{T}(desc_ref[], library, device_slices, n_device_slices, n_local_bits)
         resource_finalizer(obj) do x
             custatevecSubSVMigratorDestroy(x.library, x)
         end

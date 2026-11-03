@@ -168,5 +168,5 @@ needs_context = false
 3 = "CuPtr{Cvoid}"
 
 [api.custatevecSubSVMigratorMigrate.argtypes]
-4 = "CuPtr{Cvoid}"
-5 = "CuPtr{Cvoid}"
+4 = "PtrOrCuPtr{Cvoid}"
+5 = "PtrOrCuPtr{Cvoid}"

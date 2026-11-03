@@ -297,11 +297,20 @@ function swapParameters(scheduler::CuStateVecDistIndexBitSwapScheduler, swap_bat
     return parameters[]
 end
 
-# copy `src` into, and/or `dst` out of a device slice, for elements in `[i_begin, i_end)`.
-# with both, these are exchanged. the migrator's device slices start out with undefined
-# contents. `src` and `dst` must be accessible by the device.
-function migrate!(migrator::CuStateVecSubSVMigrator{T}, slice_index::Integer, src::Union{Nothing, CuVector{T}}, dst::Union{Nothing, CuVector{T}}, i_begin::Integer, i_end::Integer) where {T}
-    custatevecSubSVMigratorMigrate(handle(), migrator, slice_index, something(src, CU_NULL), something(dst, CU_NULL), i_begin, i_end)
+# copy elements `[i_begin, i_end)` of the sub state vector `src` into a device slice, and/or
+# those of the slice out to `dst`. with both, these are exchanged. the migrator's device
+# slices start out with undefined contents. `src` and `dst` are meant to be in host memory,
+# which must be accessible by the device (e.g. pinned with `CUDACore.pin`). the copies are
+# asynchronous, so synchronize before using or freeing that memory.
+function migrate!(migrator::CuStateVecSubSVMigrator{T}, slice_index::Integer,
+                  src::Union{Nothing, DenseVector{T}}, dst::Union{Nothing, DenseVector{T}},
+                  i_begin::Integer, i_end::Integer) where {T}
+    0 <= slice_index < migrator.n_device_slices || throw(ArgumentError("slice index $slice_index is out of range for $(migrator.n_device_slices) device slices."))
+    0 <= i_begin <= i_end <= 2^migrator.n_local_bits || throw(ArgumentError("range [$i_begin, $i_end) is out of bounds for slices of $(2^migrator.n_local_bits) elements."))
+    for buf in (src, dst)
+        buf === nothing || length(buf) >= i_end || throw(DimensionMismatch("sub state vectors must hold at least $i_end elements."))
+    end
+    custatevecSubSVMigratorMigrate(handle(), migrator, slice_index, something(src, C_NULL), something(dst, C_NULL), i_begin, i_end)
     return migrator
 end
 

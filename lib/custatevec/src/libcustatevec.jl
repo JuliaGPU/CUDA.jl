@@ -1119,8 +1119,8 @@ end
     @gcsafe_ccall libcustatevec.custatevecSubSVMigratorMigrate(handle::custatevecHandle_t,
                                                                migrator::custatevecSubSVMigratorDescriptor_t,
                                                                deviceSliceIndex::Cint,
-                                                               srcSubSVSlice::CuPtr{Cvoid},
-                                                               dstSubSVSlice::CuPtr{Cvoid},
+                                                               srcSubSVSlice::PtrOrCuPtr{Cvoid},
+                                                               dstSubSVSlice::PtrOrCuPtr{Cvoid},
                                                                _begin::custatevecIndex_t,
                                                                _end::custatevecIndex_t)::custatevecStatus_t
 end
