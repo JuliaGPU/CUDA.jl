@@ -75,7 +75,7 @@ needs_context = false
 
 [api.custatevecApplyGeneralizedPermutationMatrixGetWorkspaceSize.argtypes]
 4 = "PtrOrCuPtr{custatevecIndex_t}"
-5 = "CuPtr{Cvoid}"
+5 = "PtrOrCuPtr{Cvoid}"
 
 [api.custatevecApplyGeneralizedPermutationMatrix.argtypes]
 2 = "CuPtr{Cvoid}"

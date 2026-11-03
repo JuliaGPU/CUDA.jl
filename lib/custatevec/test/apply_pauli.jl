@@ -17,5 +17,13 @@ end
         sv = CuStateVec{elty}(CuVector{elty}(h_sv), UInt32(log2(length(h_sv))))
         sv_result = applyGeneralizedPermutationMatrix!(sv, CuVector{Int64}(permutation), CuVector{elty}(diagonals), false, [0, 1], [2], [1])
         @test collect(sv_result.data) ≈ h_sv_result
+
+        # permutations of other integer types, and data in host memory
+        for (perm, diags) in ((CuVector{Int32}(permutation), CuVector{elty}(diagonals)),
+                              (Int32.(permutation), diagonals))
+            sv = CuStateVec{elty}(CuVector{elty}(h_sv), UInt32(log2(length(h_sv))))
+            applyGeneralizedPermutationMatrix!(sv, perm, diags, false, [0, 1], [2], [1])
+            @test collect(sv.data) ≈ h_sv_result
+        end
     end
 end

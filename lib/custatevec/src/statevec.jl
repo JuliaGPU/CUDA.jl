@@ -35,7 +35,11 @@ function applyMatrixBatched!(sv::CuStateVec, n_svs::Int, map_type::custatevecMat
     return sv
 end
 
+index_vector(v::Vector{<:Integer}) = convert(Vector{custatevecIndex_t}, v)
+index_vector(v::CuVector{<:Integer}) = convert(CuVector{custatevecIndex_t}, v)
+
 function applyGeneralizedPermutationMatrix!(sv::CuStateVec, permutation::Union{Vector{<:Integer}, CuVector{<:Integer}}, diagonals::Union{Vector, CuVector}, adjoint::Bool, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
+    permutation = index_vector(permutation)
     function bufferSize()
         out = Ref{Csize_t}()
         custatevecApplyGeneralizedPermutationMatrixGetWorkspaceSize(handle(), eltype(sv), sv.nbits, permutation, diagonals, eltype(diagonals), convert(Vector{Int32}, targets), length(targets), length(controls), out)

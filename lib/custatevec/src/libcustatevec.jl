@@ -520,7 +520,7 @@ end
                                                                                             svDataType::cudaDataType_t,
                                                                                             nIndexBits::UInt32,
                                                                                             permutation::PtrOrCuPtr{custatevecIndex_t},
-                                                                                            diagonals::CuPtr{Cvoid},
+                                                                                            diagonals::PtrOrCuPtr{Cvoid},
                                                                                             diagonalsDataType::cudaDataType_t,
                                                                                             targets::Ptr{Int32},
                                                                                             nTargets::UInt32,
