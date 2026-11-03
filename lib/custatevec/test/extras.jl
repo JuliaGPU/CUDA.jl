@@ -36,20 +36,21 @@ end
 end
 
 @testset "math mode" begin
-    original = cuStateVec.mathMode()
-    @test original == cuStateVec.CUSTATEVEC_MATH_MODE_DEFAULT
+    # the library's math mode follows the task's
+    old_mode, old_precision = CUDACore.math_mode(), CUDACore.math_precision()
+    @test cuStateVec.mathMode() == cuStateVec.CUSTATEVEC_MATH_MODE_DEFAULT
     try
-        for mode in (cuStateVec.CUSTATEVEC_MATH_MODE_DISALLOW_FP32_EMULATED_BF16X9,
-                     cuStateVec.CUSTATEVEC_MATH_MODE_ALLOW_FP32_EMULATED_BF16X9)
-            @test cuStateVec.mathMode!(mode) == mode
-            @test cuStateVec.mathMode() == mode
-            # the mode must not break regular operation
+        for (mode, precision, expected) in ((CUDACore.FAST_MATH, :BFloat16x9, cuStateVec.CUSTATEVEC_MATH_MODE_ALLOW_FP32_EMULATED_BF16X9),
+                                            (CUDACore.PEDANTIC_MATH, nothing, cuStateVec.CUSTATEVEC_MATH_MODE_DISALLOW_FP32_EMULATED_BF16X9),
+                                            (CUDACore.DEFAULT_MATH, nothing, cuStateVec.CUSTATEVEC_MATH_MODE_DEFAULT))
+            CUDACore.math_mode!(mode; precision)
+            @test cuStateVec.mathMode() == expected
             sv = CuStateVec(ComplexF32, 2)
             applyMatrix!(sv, ComplexF32[0 1; 1 0], false, [0], Int[])
             @test collect(sv.data) ≈ ComplexF32[0, 1, 0, 0]
         end
     finally
-        cuStateVec.mathMode!(original)
+        CUDACore.math_mode!(old_mode; precision=old_precision)
     end
 end
 

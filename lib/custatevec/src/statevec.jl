@@ -259,15 +259,11 @@ function defaultWorkspaceSize()
     return size[]
 end
 
+# set through `CUDACore.math_mode!`
 function mathMode()
     mode = Ref{custatevecMathMode_t}()
     custatevecGetMathMode(handle(), mode)
     return mode[]
-end
-
-function mathMode!(mode::custatevecMathMode_t)
-    custatevecSetMathMode(handle(), mode)
-    return mode
 end
 
 function property(type::libraryPropertyType)
