@@ -174,8 +174,8 @@ function sample(sv::CuStateVec, sampled_bits::Vector{<:Integer}, shot_count)
     sampler = CuStateVecSampler(sv, UInt32(shot_count))
     bitstrings = Vector{custatevecIndex_t}(undef, shot_count)
     with_workspace(handle().cache, sampler.ws_size) do buffer
-        custatevecSamplerPreprocess(handle(), sampler.handle, buffer, sizeof(buffer))
-        custatevecSamplerSample(handle(), sampler.handle, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
+        custatevecSamplerPreprocess(handle(), sampler, buffer, sizeof(buffer))
+        custatevecSamplerSample(handle(), sampler, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     end
     return bitstrings
 end
@@ -226,7 +226,7 @@ end
 
 function preprocess!(sampler::CuStateVecSampler)
     sampler.workspace = CuVector{UInt8}(undef, sampler.ws_size)
-    custatevecSamplerPreprocess(handle(), sampler.handle, sampler.workspace, sizeof(sampler.workspace))
+    custatevecSamplerPreprocess(handle(), sampler, sampler.workspace, sizeof(sampler.workspace))
     return sampler
 end
 
@@ -249,7 +249,7 @@ end
 # don't fall in this part of the state vector are clamped to its range by the library.
 function sample(sampler::CuStateVecSampler, sampled_bits::Vector{<:Integer}, randnums::Vector{Float64}; output::custatevecSamplerOutput_t=CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     bitstrings = Vector{custatevecIndex_t}(undef, length(randnums))
-    custatevecSamplerSample(handle(), sampler.handle, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), randnums, length(randnums), output)
+    custatevecSamplerSample(handle(), sampler, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), randnums, length(randnums), output)
     return bitstrings
 end
 
