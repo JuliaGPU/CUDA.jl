@@ -28,6 +28,7 @@ Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SIMD = "fdea26ae-647d-5447-a871-4b548cad5224"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
@@ -50,6 +51,7 @@ CUDA = {path = ".."}
 CUDACore = {path = "../CUDACore"}
 CUDATools = {path = "../CUDATools"}
 CUPTI = {path = "../lib/cupti"}
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/device-libraries"}
 NVML = {path = "../lib/nvml"}
 cuBLAS = {path = "../lib/cublas"}
 cuDNN = {path = "../lib/cudnn"}
@@ -68,5 +70,6 @@ GPUArrays = "12.1.1"
 JLD2 = "0.5.12 - 0"
 JSON = "1"
 ParallelTestRunner = "2.8"
+SIMD = "3"
 StyledStrings = "1"
 UnsafeAtomics = "0.3, 0.4"

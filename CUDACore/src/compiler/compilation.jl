@@ -32,22 +32,12 @@ GPUCompiler.isintrinsic(@nospecialize(job::AnyCUDAJob), fn::String) =
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
-# link libdevice
-function GPUCompiler.link_libraries!(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module)
-    lib = parse(LLVM.Module, MemoryBufferFile(CUDA_Compiler.libdevice); lazy=true)
+GPUCompiler.device_libraries(@nospecialize(job::AnyCUDAJob)) =
+    (GPUCompiler.runtime_library(CUDACore),
+     HalfMath.library(),
+     GPUCompiler.DeviceLibrary(:libdevice; bitcode=CUDA_Compiler.libdevice))
 
-    # override libdevice's triple and datalayout to avoid warnings
-    lib.triple = mod.triple
-    lib.datalayout = mod.datalayout
-
-    # the linker will only materialize libdevice symbols referenced by `mod`
-    link!(mod, lib; only_needed=true)  # destroys lib
-
-    push!(get!(mod.metadata, "nvvm-reflect-ftz").operands,
-          MDNode([ConstantInt(Int32(1))]))
-
-    return
-end
+include("math.jl")
 
 GPUCompiler.method_table(@nospecialize(job::AnyCUDAJob)) = method_table
 

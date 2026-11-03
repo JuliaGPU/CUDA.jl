@@ -29,7 +29,11 @@ steps:
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
           julia --project=. -e '
-            using Pkg
+            using Pkg, TOML
+            for (name, source) in TOML.parsefile("Project.toml")["sources"]
+              haskey(source, "url") || continue
+              Pkg.add(PackageSpec(; name, url=source["url"], rev=get(source, "rev", nothing)))
+            end
             Pkg.develop([PackageSpec(; path) for path in (
               "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",

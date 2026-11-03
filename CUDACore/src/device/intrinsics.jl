@@ -20,6 +20,7 @@ include("intrinsics/wmma.jl")
 # > functions for NVIDIA GPU devices, including math primitives and bit-manipulation
 # > functions. These functions are optimized for particular GPU architectures, and are
 # > intended to be linked with an NVVM IR module during compilation to PTX.
+include("intrinsics/half_math.jl")
 include("intrinsics/math.jl")
 # TODO: native mathematical functions, CUDA C programming guide" > "C language extensions"
 #       https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__DOUBLE.html
