@@ -154,12 +154,6 @@ memory_jobs = max(1, memory_free ÷ memory_per_worker)
 
 @info "Parallelism budget" device = "$(CUDA.name(first_gpu)) ($(deviceid(first_gpu)))" integrated gpu_free = Base.format_bytes(gpu_free) memory_jobs cpu_threads = Sys.CPU_THREADS cpu_free = Base.format_bytes(Sys.free_memory())
 
-if args.jobs === nothing
-    default_jobs = min(ParallelTestRunner.default_njobs(), memory_jobs)
-    args = parse_args([test_args; "--jobs=$default_jobs"]; custom = custom_flags)
-end
-
-
 ## compute-sanitizer wrapping (optional)
 
 exename = nothing
@@ -244,6 +238,7 @@ end
 try
     runtests(CUDA, args;
              testsuite, init_code, init_worker_code, test_worker,
+             max_default_jobs = memory_jobs,
              RecordType = CUDATestRecord,
              custom_args = (; julia_timed_tests = context_destroying_tests),
              exename)
