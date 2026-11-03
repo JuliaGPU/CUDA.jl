@@ -286,7 +286,7 @@ end
 errorName(status::custatevecStatus_t)   = unsafe_string(custatevecGetErrorName(status))
 errorString(status::custatevecStatus_t) = unsafe_string(custatevecGetErrorString(status))
 
-# the extra workspace is only needed if the accessor reported a size for it
+# an optional workspace for the accessor, of at least the size it reported
 function setExtraWorkspace!(a::CuStateVecAccessor, buffer::CuVector{UInt8})
     sizeof(buffer) >= a.ws_size || throw(ArgumentError("the accessor needs a workspace of at least $(a.ws_size) bytes."))
     custatevecAccessorSetExtraWorkspace(handle(), a, buffer, sizeof(buffer))

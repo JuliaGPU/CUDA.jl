@@ -81,7 +81,8 @@ Base.unsafe_convert(::Type{custatevecSamplerDescriptor_t}, desc::CuStateVecSampl
 mutable struct CuStateVecAccessor
     handle::custatevecAccessorDescriptor_t
     ws_size::Csize_t
-    # the descriptor refers to the state vector's memory, and to the extra workspace if set
+    # the descriptor refers to the state vector's memory, and to the extra workspace if set.
+    # that workspace is optional, and speeds up repeated accesses with small device buffers.
     sv::CuStateVec
     workspace::Union{Nothing,CuVector{UInt8}}
     # with `view=true`, the accessor is read-only, but the state vector can be immutable
@@ -94,8 +95,6 @@ mutable struct CuStateVecAccessor
         create(handle(), pointer(sv.data), eltype(sv), sv.nbits, desc_ref, convert(Vector{Int32}, bit_ordering), length(bit_ordering), mask_string, mask_order, length(mask_bit_string), extra_size)
         obj = new(desc_ref[], extra_size[], sv, nothing)
         resource_finalizer(custatevecAccessorDestroy, obj)
-        # the library crashes when accessing the state vector without the workspace it asked for
-        extra_size[] > 0 && setExtraWorkspace!(obj, CuVector{UInt8}(undef, extra_size[]))
         obj
     end
 end

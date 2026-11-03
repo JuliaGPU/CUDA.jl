@@ -120,8 +120,8 @@ end
         @testset "extra workspace" begin
             sv = CuStateVec(copy(data))
             acc = CuStateVecAccessor(sv, [2, 1, 0], Int[], Int[])
-            # a workspace is provided automatically when one is needed
-            @test (acc.workspace !== nothing) == (acc.ws_size > 0)
+            # the workspace is optional
+            @test acc.workspace === nothing
             buf = similar(data)
             accessorGet(acc, buf, 0, 8)
             # the bit ordering is reversed
