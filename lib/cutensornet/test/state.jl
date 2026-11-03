@@ -159,6 +159,8 @@ end
             prepare!(acc)
             amplitudes, _ = compute!(acc, [1])
             @test collect(amplitudes) ≈ [0, 1] ./ sqrt(2)
+            @test_throws DimensionMismatch compute!(acc)
+            @test_throws DimensionMismatch compute!(acc, [1, 0])
         end
 
         @testset "expectation values" begin
@@ -210,6 +212,7 @@ end
             marginal = CuStateMarginal(state, [0]; projected_modes=[1], diagonal=true)
             prepare!(marginal)
             @test collect(compute!(marginal, [1])) ≈ [0, 1] ./ 2
+            @test_throws DimensionMismatch compute!(marginal)
         end
 
         @testset "sampling" begin

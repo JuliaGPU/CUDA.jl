@@ -313,13 +313,18 @@ function CuStateAccessor(state::CuNetworkState{T}, projected_modes::Vector{<:Int
     # the amplitudes have the modes that aren't projected, in order. for mixed states, these
     # are the modes of the density matrix, with the dual modes numbered after the others.
     extents = [e for (m, e) in enumerate(state_extents(state)) if !((m - 1) in projected_modes)]
-    return CuStateAccessor{T}(acc_ref[], state, extents)
+    return CuStateAccessor{T}(acc_ref[], state, (; extents, n_projected=length(projected_modes)))
+end
+
+function check_projection(x, values)
+    length(values) == x.data.n_projected || throw(DimensionMismatch("need a value for each of the $(x.data.n_projected) projected modes."))
 end
 
 # the amplitudes for the projected modes having certain values, and the squared state norm
 function compute!(acc::CuStateAccessor{T}, projected_values::Vector{<:Integer}=Int64[]; stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
-    amplitudes = CuArray{T}(undef, acc.data...)
+    check_projection(acc, projected_values)
+    amplitudes = CuArray{T}(undef, acc.data.extents...)
     norm = Ref{T}(zero(T))
     cutensornetAccessorCompute(handle(), acc, convert(Vector{Int64}, projected_values), require_prepared(acc), amplitudes, norm, stream)
     synchronize(stream)
@@ -360,12 +365,13 @@ function CuStateMarginal(state::CuNetworkState{T}, modes::Vector{<:Integer}; pro
     create = diagonal ? cutensornetCreateMarginalDiagonal : cutensornetCreateMarginal
     create(handle(), state, length(modes), convert(Vector{Int32}, modes), length(projected_modes), convert(Vector{Int32}, projected_modes), C_NULL, marginal_ref)
     extents = [state.extents[m + 1] for m in modes]
-    return CuStateMarginal{T}(marginal_ref[], state, diagonal ? extents : vcat(extents, extents))
+    return CuStateMarginal{T}(marginal_ref[], state, (; extents=diagonal ? extents : vcat(extents, extents), n_projected=length(projected_modes)))
 end
 
 function compute!(x::CuStateMarginal{T}, projected_values::Vector{<:Integer}=Int64[]; stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
-    marginal = CuArray{T}(undef, x.data...)
+    check_projection(x, projected_values)
+    marginal = CuArray{T}(undef, x.data.extents...)
     cutensornetMarginalCompute(handle(), x, convert(Vector{Int64}, projected_values), require_prepared(x), marginal, stream)
     synchronize(stream)
     return marginal
