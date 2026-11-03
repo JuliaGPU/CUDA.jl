@@ -74,6 +74,7 @@ end
 mutable struct CuNetworkState{T}
     handle::cutensornetState_t
     extents::Vector{Int64}
+    purity::cutensornetStatePurity_t
     # data handed to the library, by the id of the operator it belongs to
     tensors::Dict{Int64,Any}
     gradients::Dict{Int64,Any}
@@ -95,13 +96,18 @@ mutable struct CuNetworkState{T}
             cutensornetDestroyState(state)
             foreach(release!, state.operators)
         end
-        obj = new{T}(state_ref[], extents, Dict{Int64,Any}(), Dict{Int64,Any}(), Any[], nothing, CuArray{T}[], nothing, 0, false, destroy, CuNetworkOperator{T}[])
+        obj = new{T}(state_ref[], extents, purity, Dict{Int64,Any}(), Dict{Int64,Any}(), Any[], nothing, CuArray{T}[], nothing, 0, false, destroy, CuNetworkOperator{T}[])
         resource_finalizer(retire!, obj)
         return obj
     end
 end
 Base.unsafe_convert(::Type{cutensornetState_t}, state::CuNetworkState) = state.handle
 Base.eltype(::CuNetworkState{T}) where {T} = T
+
+# the extents of the state tensor: those of the modes, followed by those of the dual modes
+# for a mixed state (a density matrix)
+state_extents(state::CuNetworkState) =
+    state.purity == CUTENSORNET_STATE_PURITY_MIXED ? vcat(state.extents, state.extents) : state.extents
 
 function apply!(state::CuNetworkState{T}, modes::Vector{<:Integer}, operator::CuArray{T}; immutable::Bool=true, adjoint::Bool=false, unitary::Bool=false) where {T}
     ndims(operator) == 2 * length(modes) || throw(DimensionMismatch("an operator on $(length(modes)) modes must have $(2 * length(modes)) dimensions."))
@@ -293,7 +299,7 @@ end
 function compute!(state::CuNetworkState{T}; stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
     workspace = require_prepared(state)
-    extents = state.mps_extents === nothing ? [copy(state.extents)] : deepcopy(state.mps_extents)
+    extents = state.mps_extents === nothing ? [copy(state_extents(state))] : deepcopy(state.mps_extents)
     strides = [zeros(Int64, length(e)) for e in extents]
     state.output = [CuArray{T}(undef, e...) for e in extents]
     cutensornetStateCompute(handle(), state, workspace, extents, strides, pointer.(state.output), stream)
@@ -304,8 +310,9 @@ end
 function CuStateAccessor(state::CuNetworkState{T}, projected_modes::Vector{<:Integer}=Int32[]) where {T}
     acc_ref = Ref{cutensornetStateAccessor_t}()
     cutensornetCreateAccessor(handle(), state, length(projected_modes), convert(Vector{Int32}, projected_modes), C_NULL, acc_ref)
-    # the amplitudes have the modes that aren't projected, in order
-    extents = [e for (m, e) in enumerate(state.extents) if !((m - 1) in projected_modes)]
+    # the amplitudes have the modes that aren't projected, in order. for mixed states, these
+    # are the modes of the density matrix, with the dual modes numbered after the others.
+    extents = [e for (m, e) in enumerate(state_extents(state)) if !((m - 1) in projected_modes)]
     return CuStateAccessor{T}(acc_ref[], state, extents)
 end
 

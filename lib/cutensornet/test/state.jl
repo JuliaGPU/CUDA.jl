@@ -109,6 +109,30 @@ const BELL = [1 0; 0 1] ./ sqrt(2)
         @test collect(only(compute!(state).tensors)) ≈ [0 1; 0 0]
     end
 
+    @testset "mixed states" begin
+        T = ComplexF64
+        # the density matrix |10⟩⟨10|, with the modes of the bra after those of the ket
+        state = CuNetworkState{T}([2, 2]; purity=cuTensorNet.CUTENSORNET_STATE_PURITY_MIXED)
+        apply!(state, [0], pauli_x(T))
+        expected = zeros(T, 2, 2, 2, 2)
+        expected[2, 1, 2, 1] = 1
+        prepare!(state)
+        output = compute!(state)
+        @test output.extents == [[2, 2, 2, 2]]
+        @test collect(only(output.tensors)) ≈ expected
+
+        acc = CuStateAccessor(state)
+        prepare!(acc)
+        amplitudes, _ = compute!(acc)
+        @test collect(amplitudes) ≈ expected
+
+        # projecting the bra of the first mode
+        acc = CuStateAccessor(state, [2])
+        prepare!(acc)
+        amplitudes, _ = compute!(acc, [1])
+        @test collect(amplitudes) ≈ expected[:, :, 2, :]
+    end
+
     @testset "host data" begin
         T = ComplexF64
         state = CuNetworkState{T}([2])
