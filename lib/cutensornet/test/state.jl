@@ -423,6 +423,9 @@ end
         # the overlap of the MPS and |000⟩ is only made up of the first element
         @test collect(environment)[1] ≈ 1
         @test count(!iszero, round.(collect(environment); digits=8)) == 1
+        if env != (0 => 2)
+            @test_throws ArgumentError insert_tensor!(projection, env, tensor)
+        end
         insert_tensor!(projection, env, tensor; ortho)
     end
 

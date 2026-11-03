@@ -435,8 +435,15 @@ function extract_tensor!(output::CuArray{T}, x::CuStateProjectionMPS{T}, env::Pa
     return output
 end
 
-function insert_tensor!(x::CuStateProjectionMPS{T}, env::Pair, input::CuArray{T}; ortho::Pair=env, stream::CuStream=stream()) where {T}
+# the orthogonality center ends up in `ortho`, which must be the site of a one-site
+# environment (the default), one of the sites of a two-site environment, or a site next to
+# the bond of a zero-site environment.
+function insert_tensor!(x::CuStateProjectionMPS{T}, env::Pair, input::CuArray{T}; ortho::Union{Nothing,Pair}=nothing, stream::CuStream=stream()) where {T}
     CUDACore.check_owned(stream)
+    if ortho === nothing
+        last(env) - first(env) == 2 || throw(ArgumentError("the orthogonality center must be specified for environments that don't exclude a single site."))
+        ortho = env
+    end
     cutensornetStateProjectionMPSInsertTensor(handle(), x, Ref(env_bounds(env)), Ref(env_bounds(ortho)), C_NULL, input, require_prepared(x), stream)
     synchronize(stream)
     return x
