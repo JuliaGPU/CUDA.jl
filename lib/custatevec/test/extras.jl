@@ -202,6 +202,13 @@ end
     @test cuStateVec.swapParameters(scheduler, n_batches - 1, 0).transferSize == 1
 
     @test_throws cuStateVec.CUSTATEVECError cuStateVec.swapParameters(scheduler, n_batches, 0)
+
+    # destroying it must succeed, or it's kept alive
+    @test_logs min_level=Base.CoreLogging.Warn begin
+        (() -> cuStateVec.CuStateVecDistIndexBitSwapScheduler(2, 2))()
+        GC.gc(true)
+        CUDACore.reclaim()
+    end
 end
 
 @testset "sub state vector migrator" begin
@@ -230,5 +237,11 @@ end
         @test collect(dst) == elty[0, 2, 3, 0]
 
         @test_throws DimensionMismatch cuStateVec.CuStateVecSubSVMigrator(slices, 3, 2)
+
+        @test_logs min_level=Base.CoreLogging.Warn begin
+            (() -> cuStateVec.CuStateVecSubSVMigrator(CuVector{elty}(undef, 8), 2, 2))()
+            GC.gc(true)
+            CUDACore.reclaim()
+        end
     end
 end

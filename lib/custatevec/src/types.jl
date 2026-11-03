@@ -104,11 +104,16 @@ Base.unsafe_convert(::Type{custatevecAccessorDescriptor_t}, desc::CuStateVecAcce
 
 mutable struct CuStateVecDistIndexBitSwapScheduler
     handle::custatevecDistIndexBitSwapSchedulerDescriptor_t
+    # the library handle it was created with, which is also needed to destroy it
+    library::Handle
     function CuStateVecDistIndexBitSwapScheduler(n_global_bits::Integer, n_local_bits::Integer)
         desc_ref = Ref{custatevecDistIndexBitSwapSchedulerDescriptor_t}()
-        custatevecDistIndexBitSwapSchedulerCreate(handle(), desc_ref, n_global_bits, n_local_bits)
-        obj = new(desc_ref[])
-        resource_finalizer(custatevecDistIndexBitSwapSchedulerDestroy, obj)
+        library = handle()
+        custatevecDistIndexBitSwapSchedulerCreate(library, desc_ref, n_global_bits, n_local_bits)
+        obj = new(desc_ref[], library)
+        resource_finalizer(obj) do x
+            custatevecDistIndexBitSwapSchedulerDestroy(x.library, x)
+        end
         obj
     end
 end
@@ -117,14 +122,19 @@ Base.unsafe_convert(::Type{custatevecDistIndexBitSwapSchedulerDescriptor_t}, des
 
 mutable struct CuStateVecSubSVMigrator{T}
     handle::custatevecSubSVMigratorDescriptor_t
+    # the library handle it was created with, which is also needed to destroy it
+    library::Handle
     # the descriptor refers to this memory
     device_slices::CuVector{T}
     function CuStateVecSubSVMigrator(device_slices::CuVector{T}, n_device_slices::Integer, n_local_bits::Integer) where {T}
         length(device_slices) == n_device_slices * 2^n_local_bits || throw(DimensionMismatch("device_slices must hold $n_device_slices slices of $(2^n_local_bits) elements."))
         desc_ref = Ref{custatevecSubSVMigratorDescriptor_t}()
-        custatevecSubSVMigratorCreate(handle(), desc_ref, device_slices, T, n_device_slices, n_local_bits)
-        obj = new{T}(desc_ref[], device_slices)
-        resource_finalizer(custatevecSubSVMigratorDestroy, obj)
+        library = handle()
+        custatevecSubSVMigratorCreate(library, desc_ref, device_slices, T, n_device_slices, n_local_bits)
+        obj = new{T}(desc_ref[], library, device_slices)
+        resource_finalizer(obj) do x
+            custatevecSubSVMigratorDestroy(x.library, x)
+        end
         obj
     end
 end

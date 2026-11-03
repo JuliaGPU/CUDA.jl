@@ -25,11 +25,7 @@ const cudaDataType_t = cudaDataType
 # core library
 include("libcustatevec.jl")
 
-# low-level wrappers
 include("error.jl")
-include("types.jl")
-include("wrappers.jl")
-include("statevec.jl")
 
 
 ## handles
@@ -98,6 +94,12 @@ function handle()
 
     return state.handle
 end
+
+
+# low-level wrappers
+include("types.jl")
+include("wrappers.jl")
+include("statevec.jl")
 
 
 ## logging
