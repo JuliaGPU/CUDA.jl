@@ -128,8 +128,17 @@ end
             return compiled
         end
         compiled = compile_all_device_code()
-        compiled > 100 || error("only \$compiled methods compiled; test is broken")
+        # CPU stubs of device functions are emitted by GPUToolbox and don't count
+        compiled > 50 || error("only \$compiled methods compiled; test is broken")
         """
     cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) --startup-file=no -e $script`
     @test success(pipeline(cmd; stdout=stderr, stderr=stderr))
+end
+
+# Both checks above only see `src/device`, and the second one only methods with concrete
+# signatures. `host_leaks` follows the typed IR of every method in CUDACore, the way
+# compile-all does, and reports calls that reach device-only symbols.
+import GPUToolbox
+@testset "host leaks" begin
+    @test isempty(GPUToolbox.Overlays.host_leaks(CUDACore))
 end
