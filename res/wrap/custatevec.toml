@@ -170,3 +170,6 @@ needs_context = false
 [api.custatevecSubSVMigratorMigrate.argtypes]
 4 = "PtrOrCuPtr{Cvoid}"
 5 = "PtrOrCuPtr{Cvoid}"
+
+[api.custatevecMultiDeviceSwapIndexBits.argtypes]
+3 = "Ptr{CuPtr{Cvoid}}"

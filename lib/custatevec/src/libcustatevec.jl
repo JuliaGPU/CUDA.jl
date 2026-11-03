@@ -702,7 +702,7 @@ end
     initialize_context()
     @gcsafe_ccall libcustatevec.custatevecMultiDeviceSwapIndexBits(handles::Ptr{custatevecHandle_t},
                                                                    nHandles::UInt32,
-                                                                   subSVs::Ptr{Ptr{Cvoid}},
+                                                                   subSVs::Ptr{CuPtr{Cvoid}},
                                                                    svDataType::cudaDataType_t,
                                                                    nGlobalIndexBits::UInt32,
                                                                    nLocalIndexBits::UInt32,

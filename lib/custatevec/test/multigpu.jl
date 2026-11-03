@@ -62,3 +62,18 @@
         device!(initial_dev)
     end
 end
+
+@testset "swapIndexBitsMultiDevice!" begin
+    # four sub state vectors (two global bits) of three local bits each, on the current device
+    full = ComplexF64.(1:32)
+    sub_svs = [CuStateVec(full[8i+1:8i+8]) for i in 0:3]
+    # swap local bit 0 with global bit 0, i.e. bit 3 of the full index
+    cuStateVec.swapIndexBitsMultiDevice!(sub_svs, fill(device(), 4), [0 => 3], Int[], Int[],
+                                         cuStateVec.CUSTATEVEC_DEVICE_NETWORK_TYPE_SWITCH)
+    synchronize()
+    swapbits(i) = (i & ~0b1001) | ((i & 1) << 3) | ((i >> 3) & 1)
+    @test reduce(vcat, collect.(getfield.(sub_svs, :data))) == [full[swapbits(i) + 1] for i in 0:31]
+
+    @test_throws ArgumentError cuStateVec.swapIndexBitsMultiDevice!(sub_svs[1:3], fill(device(), 3), [0 => 3], Int[], Int[],
+                                                                    cuStateVec.CUSTATEVEC_DEVICE_NETWORK_TYPE_SWITCH)
+end

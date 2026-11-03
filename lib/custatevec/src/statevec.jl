@@ -185,18 +185,24 @@ function swapIndexBits!(sv::CuStateVec, bitSwaps::Vector{Pair{T, T}}, maskBitStr
     return sv
 end
 
-function swapIndexBitsMultiDevice!(sub_svs::Vector{CuStateVec}, devices::Vector{CuDevice}, indexBitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}, device_network_type::custatevecDeviceNetworkType_t) where {T<:Integer}
+function swapIndexBitsMultiDevice!(sub_svs::Vector{<:CuStateVec}, devices::Vector{CuDevice}, indexBitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}, device_network_type::custatevecDeviceNetworkType_t) where {T<:Integer}
     all(sv->sv.nbits == first(sub_svs).nbits, sub_svs) || throw(ArgumentError("all sub-vectors of the state vector must have the same number of index bits."))
     all(sv->eltype(sv) == eltype(first(sub_svs)), sub_svs) || throw(ArgumentError("all sub-vectors of the state vector must have the same element type."))
+    n_global_bits = trailing_zeros(length(sub_svs))
+    ispow2(length(sub_svs)) || throw(ArgumentError("the number of sub state vectors must be a power of 2."))
+    # the handles must include one for the current device, on whose stream the swap is ordered
+    device() in devices || throw(ArgumentError("one of the devices must be the current one."))
     original_device = device()
-    handles = map(devices) do d
+    handles = map(unique(devices)) do d
         device!(d)
         handle()
     end
     device!(original_device)
-    sub_data = map(sv->sv.data, sub_svs)
-    global_index_bits = mapreduce(sv->sv.nbits, +, sub_svs)
-    custatevecMultiDeviceSwapIndexBits(handles, length(handles), sub_data, eltype(first(sub_svs)), first(sub_svs).nbits, global_index_bits, convert(Vector{Pair{Int32, Int32}}, indexBitSwaps), length(indexBitSwaps), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering), device_network_type)
+    raw_handles = [h.handle for h in handles]
+    sub_data = map(sv->pointer(sv.data), sub_svs)
+    GC.@preserve sub_svs handles begin
+        custatevecMultiDeviceSwapIndexBits(raw_handles, length(raw_handles), sub_data, eltype(first(sub_svs)), n_global_bits, first(sub_svs).nbits, convert(Vector{Pair{Int32, Int32}}, indexBitSwaps), length(indexBitSwaps), convert(Vector{Int32}, maskBitString), convert(Vector{Int32}, maskOrdering), length(maskOrdering), device_network_type)
+    end
     return sub_svs
 end
 
