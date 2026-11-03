@@ -240,6 +240,7 @@ function CuTensorNetworkContractionOptimizerInfo(net, data::Vector{UInt8})
     return CuTensorNetworkContractionOptimizerInfo(info_ref[])
 end
 
+# the info of a `CuNetwork` must be attached to it again with `set_optimizer_info!` afterwards
 function unpack!(info::CuTensorNetworkContractionOptimizerInfo, data::Vector{UInt8})
     cutensornetUpdateContractionOptimizerInfoFromPackedData(handle(), data, sizeof(data), info)
     return info

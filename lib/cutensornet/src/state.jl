@@ -1,11 +1,15 @@
 # the state API, for simulating quantum circuits and other tensor network states.
 #
 # state modes are 0-based, and tensor operators act on them following NVIDIA's conventions:
-# with the default layout, the elements of an operator are stored in the row-following order
-# of its textbook definition. all data handed to the library must stay alive for as long as
-# the object it was given to, which these wrappers take care of. that data must be device
-# memory: host pointers only work on systems where the GPU can access all of host memory
-# (e.g. with HMM), and cause illegal memory accesses elsewhere.
+# with the default layout, the elements of an operator applied to a state are stored in the
+# row-following order of its textbook definition. the tensors of a `CuNetworkOperator` are
+# different: their modes are the state modes they act on, in order, followed by the same for
+# the dual modes, so multi-mode tensors aren't laid out like the ones applied to states.
+#
+# all data handed to the library must stay alive for as long as the object it was given to,
+# which these wrappers take care of. that data must be device memory: host pointers only work
+# on systems where the GPU can access all of host memory (e.g. with HMM), and cause illegal
+# memory accesses elsewhere.
 
 const DEFAULT_MAX_WORKSPACE = 2^30
 
@@ -195,9 +199,8 @@ end
 
 # request `compute!` to factorize the state as an MPS with tensors of (at most) these extents.
 #
-# the library's default SVD algorithm, gesvd, fails with an internal error whenever it has
-# to truncate or decompose: unlike with the tensor decompositions in tensornet.jl, the host
-# workspace it needs since CUDA 13.4 Update 1 can't make it there. use gesvdj instead.
+# the library's default SVD algorithm, gesvd, fails with an internal error when computing
+# the MPS, even with the host workspace it asks for attached. use gesvdj instead.
 function finalize_mps!(state::CuNetworkState, extents::Vector{<:Vector{<:Integer}}; boundary_condition::cutensornetBoundaryCondition_t=CUTENSORNET_BOUNDARY_CONDITION_OPEN, svd_algorithm::cutensornetTensorSVDAlgo_t=CUTENSORNET_TENSOR_SVD_ALGO_GESVDJ)
     length(extents) == length(state.extents) || throw(DimensionMismatch("need extents for each state mode."))
     state.mps_extents = [collect(Int64, e) for e in extents]
