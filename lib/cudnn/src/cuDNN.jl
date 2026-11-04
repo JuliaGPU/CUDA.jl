@@ -143,7 +143,8 @@ function handle()
     @noinline function new_state(cuda)
         pooled = pop!(idle_handles, cuda.context)
         wrapped = Handle(pooled.handle, cuda.context, pooled.plans, pooled.dropout)
-        resource_finalizer(handle_finalizer, wrapped; blocking=false)
+        CUDACore.handle_finalizer(handle_finalizer, wrapped,
+                                  idle_handles, cuda.context, pooled)
 
         cudnnSetStream(pooled.handle, cuda.stream)
 

@@ -84,7 +84,8 @@ function handle()
 
         cache = CuVector{UInt8}(undef, 0)
         fat_handle = Handle(new_handle, cuda.context, cache)
-        resource_finalizer(handle_finalizer, fat_handle; blocking=false)
+        CUDACore.handle_finalizer(handle_finalizer, fat_handle,
+                                  idle_handles, cuda.context, new_handle)
 
         custatevecSetStream(new_handle, cuda.stream)
         math_mode!(new_handle, cuda.math_mode, cuda.math_precision)
