@@ -113,3 +113,183 @@ using Test
 c = Array(d_c)
 @test a+b ≈ c
 ```
+
+### Example: Large Matrix Vector Multiply 
+
+A simple example that compares performance between a single GPU against
+multiple-GPU environment for large matrix-vector multiplies.
+
+```julia
+using CUDA, BenchmarkTools
+n = 10000
+m = 300000
+W = cu(rand(Float32, (n,m)))
+x = cu(rand(Float32, m))
+y = cu(zeros(Float32, n))
+@benchmark CUDA.@sync y .= W*x
+```
+
+Benchmark Results running on a single GPU:
+```
+BenchmarkTools.Trial:
+  memory estimate:  123.75 KiB
+  allocs estimate:  7717
+  --------------
+  minimum time:     15.338 ms (0.00% GC)
+  median time:      15.391 ms (0.00% GC)
+  mean time:        15.393 ms (0.17% GC)
+  maximum time:     15.798 ms (0.00% GC)
+  --------------
+  samples:          325
+  evals/sample:     1
+```
+
+In a multiple GPU environment, the dimensions are split up such so that
+matrix-vector multiplies can be done on different devices in parallel. Note that
+Julia is column major order, so we explicitly split up the work along the
+columns of the matrix.
+
+```julia
+# setup cpu elements
+n_gpus = 3
+n = 10000
+m = 300000
+dims = (n, div(m,n_gpus), n_gpus)
+W = rand(Float32, dims)
+x = rand(Float32, (div(m,n_gpus), n_gpus))
+y = zeros(Float32, n, n_gpus)
+
+# copy to gpu
+buf_w = Mem.alloc(Mem.Unified, sizeof(W))
+d_w = unsafe_wrap(CuArray{Float32,3}, convert(CuPtr{Float32}, buf_w), dims)
+finalizer(d_w) do _
+    Mem.free(buf_w)
+end
+copyto!(d_w, W)
+
+buf_x = Mem.alloc(Mem.Unified, sizeof(x))
+d_x = unsafe_wrap(CuArray{Float32,2}, convert(CuPtr{Float32}, buf_x), size(x))
+finalizer(d_x) do _
+    Mem.free(buf_x)
+end
+copyto!(d_x, x)
+
+buf_y = Mem.alloc(Mem.Unified, sizeof(y))
+d_y = unsafe_wrap(CuArray{Float32,2}, convert(CuPtr{Float32}, buf_y), size(y))
+finalizer(d_y) do _
+    Mem.free(buf_y)
+end
+copyto!(d_y, y)
+
+@benchmark CUDA.@sync begin
+    @sync begin
+        for (gpu, dev) in enumerate(devices())
+            @async begin
+                device!(dev)
+                @views d_y[:,gpu] .= d_w[:,:,gpu] * d_x[:,gpu]
+            end
+        end
+    end
+    device_synchronize()
+end
+```
+
+Benchmark results: 
+```
+BenchmarkTools.Trial:
+  memory estimate:  9.08 KiB
+  allocs estimate:  285
+  --------------
+  minimum time:     5.331 ms (0.00% GC)
+  median time:      8.133 ms (0.00% GC)
+  mean time:        7.046 ms (19.94% GC)
+  maximum time:     22.511 ms (75.23% GC)
+  --------------
+  samples:          709
+  evals/sample:     1
+```
+
+As expected the speedup with splitting the work across 3 GPUs results in
+roughly a 2-3x speedup.
+
+
+### Example: Reduce over large vector
+
+Here we try a reduction over a large vector by summing over all elements. On a
+single GPU we might do: 
+```julia
+using CUDA, BenchmarkTools
+m = 30000000
+x = cu(rand(Float32, m))
+result = 0
+@benchmark CUDA.@sync result = reduce(+, x)
+```
+
+Benchmark results:
+```
+BenchmarkTools.Trial:
+  memory estimate:  2.34 KiB
+  allocs estimate:  104
+  --------------
+  minimum time:     239.676 μs (0.00% GC)
+  median time:      246.791 μs (0.00% GC)
+  mean time:        257.546 μs (0.86% GC)
+  maximum time:     98.832 ms (22.52% GC)
+  --------------
+  samples:          10000
+  evals/sample:     1
+```
+
+Distributing the work on multiple gpus, we might do: 
+```julia
+using CUDA, BenchmarkTools
+
+# cpu data
+n_gpus = 3
+m = 30000000
+x = rand(Float32, (div(m,n_gpus), n_gpus))
+
+# copy to gpu
+cux = Array{CuArray{Float32, 1}, 1}()
+for (gpu, dev) in enumerate(devices())
+    device!(dev)
+    push!(cux, x[:,gpu])
+end
+
+results = Vector{Any}(undef, n_gpus)
+
+# revert back to default
+device!(first(devices()))
+
+@benchmark CUDA.@sync begin
+    @sync begin
+        for (gpu, dev) in enumerate(devices())
+            @async begin
+                device!(dev)
+                results[gpu] = reduce(+, cux[gpu])
+            end
+        end
+    end
+    device_synchronize()
+    result = reduce(+, results)
+end
+```
+
+Benchmark results:
+```
+BenchmarkTools.Trial:
+  memory estimate:  11.75 KiB
+  allocs estimate:  402
+  --------------
+  minimum time:     410.079 μs (0.00% GC)
+  median time:      5.131 ms (0.00% GC)
+  mean time:        5.317 ms (0.00% GC)
+  maximum time:     30.191 ms (0.00% GC)
+  --------------
+  samples:          942
+  evals/sample:     1
+```
+
+Strangely enough, the median/mean time for multiple-GPUs is significantly higher
+than that of a single GPU, however the maximum time is about 1/3 the single GPU
+scenario. Why the large variance? 
