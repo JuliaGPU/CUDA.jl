@@ -258,6 +258,126 @@ end
     @test length(calls) == 3
 end
 
+@testset "handles of finished tasks" begin
+    # the handle of a task that has finished is reused, even if the task is still referenced
+    created = Ref(0)
+    released = Int[]
+    cache = CUDACore.HandleCache{Int,Int}(_ -> (created[] += 1), (k, v) -> nothing)
+    function borrow(cache, ready=nothing, hold=nothing)
+        handle = pop!(cache, 1)
+        wrapper = Ref(handle)
+        CUDACore.handle_finalizer(wrapper, cache, 1, handle; ctx=nothing) do wrapper
+            push!(released, wrapper[])
+            push!(cache, 1, wrapper[])
+        end
+        task_local_storage(:CUDA_test_handle, wrapper)
+        if ready !== nothing
+            put!(ready, nothing)
+            take!(hold)
+        end
+        return handle
+    end
+    first = @async borrow(cache)
+    @test fetch(first) == 1
+    second = @async borrow(cache)
+    GC.@preserve first second begin
+        @test fetch(second) == 1
+        @test created[] == 1
+        @test released == [1]
+
+        # the garbage collector doesn't release it again
+        finalize(first.storage[:CUDA_test_handle])
+        CUDA.pool_status(devnull)
+        @test released == [1]
+        @test CUDACore.handle_cache_counts(cache) == (active=1, idle=0)
+
+        # nor does a task when its finalization was queued first
+        finalize(second.storage[:CUDA_test_handle])
+        CUDACore.reclaim_finished!(cache, 1)
+        CUDA.pool_status(devnull)
+        @test released == [1, 1]
+        @test CUDACore.handle_cache_counts(cache) == (active=0, idle=1)
+    end
+
+    # but not that of a task that is still running
+    ready, hold = Channel{Nothing}(1), Channel{Nothing}(1)
+    running = @async borrow(cache, ready, hold)
+    take!(ready)
+    @test fetch(@async borrow(cache)) == 2
+    put!(hold, nothing)
+    @test fetch(running) == 1
+    @test created[] == 2
+
+    # handles whose release fails are kept, not released again
+    created[] = 0
+    cache = CUDACore.HandleCache{Int,Int}(_ -> (created[] += 1), (k, v) -> nothing)
+    attempts = Ref(0)
+    fail() = @async begin
+        handle = pop!(cache, 1)
+        wrapper = Ref(handle)
+        CUDACore.handle_finalizer(wrapper, cache, 1, handle; ctx=nothing) do _
+            attempts[] += 1
+            error("injected failure")
+        end
+        task_local_storage(:CUDA_test_handle, wrapper)
+        handle
+    end
+    first = fail()
+    wait(first)
+    second = @test_logs (:error, r"Failed to release a GPU resource") begin
+        task = fail()
+        wait(task)
+        task
+    end
+    GC.@preserve first second begin
+        # by a task, and then by the garbage collector
+        @test fetch(second) == 2
+        finalize(first.storage[:CUDA_test_handle])
+        CUDA.pool_status(devnull)
+        @test attempts[] == 1
+
+        # by the garbage collector, and then by a task
+        # (holding the drain lock, so that the background drainer doesn't log the error)
+        @test_logs (:error, r"Failed to release a GPU resource") begin
+            lock(CUDACore.drain_lock) do
+                finalize(second.storage[:CUDA_test_handle])
+                CUDACore.drain_retired()
+            end
+        end
+        @test attempts[] == 2
+        @test pop!(cache, 1) == 3
+        @test attempts[] == 2
+    end
+    @test CUDACore.handle_cache_counts(cache).idle == 0
+
+    # a handle is never held by two tasks, also when the garbage collector competes
+    next, holders, conflicts = Threads.Atomic{Int}(0), Set{Int}(), Threads.Atomic{Int}(0)
+    holders_lock = ReentrantLock()
+    cache = CUDACore.HandleCache{Int,Int}(_ -> Threads.atomic_add!(next, 1),
+                                          (k, v) -> nothing)
+    for _ in 1:50
+        @sync for _ in 1:8
+            Threads.@spawn begin
+                handle = pop!(cache, 1)
+                @lock holders_lock begin
+                    handle in holders && Threads.atomic_add!(conflicts, 1)
+                    push!(holders, handle)
+                end
+                wrapper = Ref(handle)
+                CUDACore.handle_finalizer(wrapper, cache, 1, handle; ctx=nothing) do wrapper
+                    push!(cache, 1, wrapper[])
+                end
+                task_local_storage(:CUDA_test_handle, wrapper)
+                yield()
+                @lock holders_lock delete!(holders, handle)
+            end
+        end
+        rand() < 0.2 && GC.gc(false)
+    end
+    @test conflicts[] == 0
+    @test next[] < 50
+end
+
 @testset "bounded draining" begin
     # finalizers may retire many resources at once, but allocating only releases a bounded
     # number of them, and only those that were retired before

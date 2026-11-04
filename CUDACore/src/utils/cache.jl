@@ -2,12 +2,30 @@
 
 export HandleCache
 
+# a handle held in task-local state is released at most once: when the garbage collector
+# collects the wrapper holding it, or when another task needs a handle after the owning
+# task has finished. whichever claims it first releases it.
+mutable struct HandleClaim
+    Base.@atomic claimed::Bool
+end
+claim!(c::HandleClaim) = (Base.@atomicreplace c.claimed false => true).success
+
+struct HandleOwner
+    task::WeakRef
+    wrapper::WeakRef    # weak, so that the wrapper can still be collected
+    claim::HandleClaim
+    release::Any
+    ctx::Any            # a `CuContext` or `nothing`, see `ReleaseAction`
+end
+
 struct HandleCache{K,V} <: Reclaimable
     ctor
     dtor
 
     active_handles::Set{Pair{K,V}}
     idle_handles::Dict{K,Vector{V}}
+    # active handles held in task-local state (see `handle_finalizer`)
+    owners::Dict{Pair{K,V},HandleOwner}
     lock::ReentrantLock
 
     # how many handles may be active before collecting garbage to try and free some
@@ -15,7 +33,8 @@ struct HandleCache{K,V} <: Reclaimable
 
     function HandleCache{K,V}(ctor, dtor; gc_threshold::Int=32) where {K,V}
         return new{K,V}(ctor, dtor, Set{Pair{K,V}}(), Dict{K,Vector{V}}(),
-                        ReentrantLock(), gc_threshold)
+                        Dict{Pair{K,V},HandleOwner}(), ReentrantLock(),
+                        gc_threshold)
     end
 end
 
@@ -23,27 +42,35 @@ end
 # must be registered in the owning library's __init__ (see reclaim.jl).
 purge!(cache::HandleCache) = Base.invokelatest(empty!, cache)
 
+# take an idle handle for `key`, if any, also returning the number of active handles.
+# (not inlined, as Julia 1.10 miscompiles the loop in `pop!` that calls this, crashing)
+@noinline function take_idle!(cache::HandleCache{K,V}, key::K) where {K,V}
+    @lock cache.lock begin
+        handles = get(cache.idle_handles, key, nothing)
+        handle = handles === nothing || isempty(handles) ? nothing : pop!(handles)
+        handle, length(cache.active_handles)
+    end
+end
+
 # remove a handle from the cache, or create a new one
 function Base.pop!(cache::HandleCache{K,V}, key::K) where {K,V}
     drain_retired(ALLOC_DRAIN_LIMIT)
     # check the cache
-    handle, num_active_handles = @lock cache.lock begin
-        if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
-            pop!(cache.idle_handles[key]), length(cache.active_handles)
-        else
-            nothing, length(cache.active_handles)
-        end
+    handle, num_active_handles = take_idle!(cache, key)
+
+    # if we didn't find anything, take one back from a task that has finished. the garbage
+    # collector is in no hurry to collect finished tasks, so code that spawns many tasks
+    # (e.g. a threaded `map`) would otherwise keep creating handles. another task may take
+    # the handle before we do, so keep trying.
+    while handle === nothing && reclaim_finished!(cache, key)
+        handle, num_active_handles = take_idle!(cache, key)
     end
 
     # if we didn't find anything, but lots of handles are active, try to free some
     if handle === nothing && num_active_handles > cache.gc_threshold
         GC.gc(false)
         drain_retired(ALLOC_DRAIN_LIMIT)
-        @lock cache.lock begin
-            if haskey(cache.idle_handles, key) && !isempty(cache.idle_handles[key])
-                handle = pop!(cache.idle_handles[key])
-            end
-        end
+        handle, _ = take_idle!(cache, key)
     end
 
     # if we still didn't find anything, create a new handle
@@ -70,10 +97,71 @@ end
 
 function return_handle!(cache::HandleCache{K,V}, key::K, handle::V) where {K,V}
     @lock cache.lock begin
+        delete!(cache.owners, key=>handle)
         delete!(cache.active_handles, key=>handle)
         push!(get!(Vector{V}, cache.idle_handles, key), handle)
     end
     return
+end
+
+"""
+    handle_finalizer(release, wrapper, cache::HandleCache, key, handle; ctx=context()) -> wrapper
+
+Register `release(wrapper)` to put `handle`, obtained with `pop!(cache, key)`, back in the
+cache once `wrapper` is collected, like [`resource_finalizer`](@ref) with `blocking=false`.
+`wrapper` holds the handle in the current task's local state, so once the task has finished,
+`pop!` may also call `release` to reuse the handle, instead of waiting for the garbage
+collector to collect the task. Either way, `release` is called at most once.
+
+`release` must not capture `wrapper` or wait for the GPU, and should put the handle back
+with `push!(cache, key, handle)` after releasing anything else. Neither the handle nor what
+is released along with it may be used after the task has finished (e.g., by returning it
+from the task).
+"""
+function handle_finalizer(release, wrapper, cache::HandleCache{K,V}, key::K, handle::V;
+                          ctx=context()) where {K,V}
+    claim = HandleClaim(false)
+    resource_finalizer(wrapper; blocking=false, ctx) do wrapper
+        claim!(claim) && release(wrapper)
+    end
+    @lock cache.lock begin
+        cache.owners[key=>handle] =
+            HandleOwner(WeakRef(current_task()), WeakRef(wrapper), claim, release, ctx)
+    end
+    return wrapper
+end
+
+# release a handle for `key` whose task has finished, returning whether one was found
+function reclaim_finished!(cache::HandleCache{K,V}, key::K) where {K,V}
+    # (releasing is deferred while capturing)
+    active_captures[] > 0 && return false
+    owner, wrapper = @lock cache.lock begin
+        found = nothing, nothing
+        stale = Pair{K,V}[]
+        for (entry, owner) in cache.owners
+            wrapper = owner.wrapper.value
+            if wrapper === nothing
+                # collected, so its finalizer takes care of it
+                push!(stale, entry)
+                continue
+            end
+            entry.first == key || continue
+            task = owner.task.value
+            # (the wrappers of a collected task are released by the garbage collector)
+            task !== nothing && istaskdone(task) || continue
+            push!(stale, entry)
+            found = owner, wrapper
+            break
+        end
+        foreach(entry -> delete!(cache.owners, entry), stale)
+        found
+    end
+    owner === nothing && return false
+    # (unless the garbage collector claimed it first)
+    if claim!(owner.claim)
+        discard(ReleaseAction(owner.release, wrapper, owner.ctx, false))
+    end
+    return true
 end
 
 # shorthand version to put a handle back without having to remember the key
