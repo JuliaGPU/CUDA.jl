@@ -76,6 +76,7 @@ const idle_dense_handles =
 # itself: once no one references this struct (e.g. after the owning task dies
 # or we clear it from task-local storage on reclaim), GC runs the finalizer
 # which returns the buffers to the pool and the raw handle to the idle cache.
+# Once the owning task has finished, the handle cache may also release it early.
 mutable struct DnHandle
     const handle::cusolverDnHandle_t
     const ctx::CuContext
@@ -109,7 +110,8 @@ function dense_handle()
         info = CuVector{Cint}(undef, 1)
         fat_handle = DnHandle(new_handle, cuda.context, workspace_gpu,
                                       workspace_cpu, info)
-        resource_finalizer(dense_handle_finalizer, fat_handle; blocking=false)
+        CUDACore.handle_finalizer(dense_handle_finalizer, fat_handle,
+                                  idle_dense_handles, cuda.context, new_handle)
 
         cusolverDnSetStream(new_handle, cuda.stream)
 
@@ -172,7 +174,8 @@ function sparse_handle()
     @noinline function new_state(cuda)
         new_handle = pop!(idle_sparse_handles, cuda.context)
         wrapped = SpHandle(new_handle, cuda.context)
-        resource_finalizer(sparse_handle_finalizer, wrapped; blocking=false)
+        CUDACore.handle_finalizer(sparse_handle_finalizer, wrapped,
+                                  idle_sparse_handles, cuda.context, new_handle)
 
         cusolverSpSetStream(new_handle, cuda.stream)
 
