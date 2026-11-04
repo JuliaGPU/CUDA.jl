@@ -294,13 +294,23 @@ function drain_retired(limit::Int=typemax(Int))
     drain_running[] = true
     try
       releasing() do
+        # an exhaustive drain also releases the resources retired after the backlog, but
+        # not those retired by the resources it releases
+        pending = nothing
         if (Base.@atomic :monotonic retired_backlog.head) === nothing
           Base.@atomic :monotonic retired_backlog.head =
             Base.@atomicswap :acquire retired_memory.head = nothing
+        elseif limit == typemax(Int)
+          pending = Base.@atomicswap :acquire retired_memory.head = nothing
         end
         while n[] < limit
           node = Base.@atomic :monotonic retired_backlog.head
-          node === nothing && break
+          if node === nothing
+            pending === nothing && break
+            Base.@atomic :monotonic retired_backlog.head = pending
+            pending = nothing
+            continue
+          end
           Base.@atomic :monotonic retired_backlog.head = node.next
           try
             release_now(node.resource)
