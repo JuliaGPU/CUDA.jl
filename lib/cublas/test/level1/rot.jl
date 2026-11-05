@@ -119,6 +119,7 @@ using LinearAlgebra
             @test Array(dx) ≈ ex
             @test Array(dy) ≈ ey
         end
+        @test_throws BoundsError cuBLAS.rotg!(CuArray{T}(undef, 0), CuArray{T}(undef, 0))
     end
 
     if T <: Real
