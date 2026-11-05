@@ -41,29 +41,34 @@ function checked_scalar_pointer(t::Tensor, value, refs)
     return Base.unsafe_convert(Ptr{T}, ref)
 end
 
-function execute!(g::Graph, bindings::AbstractDict)
-    g.plan === nothing && throw(ArgumentError("cuDNN graph must be built before execute!"))
-
+# Look up and check the bindings of `tensors`. Returns their uids and pointers, and the
+# objects that must be kept alive while the graph executes.
+function bind(tensors::Vector{Tensor}, bindings::AbstractDict)
+    uids = Int64[]
     pointers = Any[]
-    arrays = Any[]
-    refs = Any[]
-    for t in g.variant_tensors
+    roots = Any[]
+    for t in tensors
         haskey(bindings, t) || throw(ArgumentError("missing binding for cuDNN graph tensor $(t.name)"))
         value = bindings[t]
+        push!(uids, t.uid)
         if t.by_value
-            push!(pointers, checked_scalar_pointer(t, value, refs))
+            push!(pointers, checked_scalar_pointer(t, value, roots))
         else
-            push!(arrays, value)
+            push!(roots, value)
             push!(pointers, checked_array_pointer(t, value))
         end
     end
+    return uids, pointers, roots
+end
 
-    uids = Int64[t.uid for t in g.variant_tensors]
+function execute!(g::Graph, bindings::AbstractDict)
+    g.plan === nothing && throw(ArgumentError("cuDNN graph must be built before execute!"))
+    uids, pointers, roots = bind(g.variant_tensors, bindings)
     with_workspace(g.workspace_size) do workspace
         ws = sizeof(workspace) == 0 ? C_NULL : pointer(workspace)
-        vp = variant_pack(uids=uids, pointers=pointers, workspace=ws)
+        vp = variant_pack(; uids, pointers, workspace=ws)
         try
-            GC.@preserve g arrays refs vp begin
+            GC.@preserve g roots vp begin
                 cudnnBackendExecute(handle(), g.plan.ptr, vp.ptr)
             end
         finally

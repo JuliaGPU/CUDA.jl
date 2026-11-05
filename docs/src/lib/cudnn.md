@@ -26,7 +26,9 @@ objects contain metadata; `execute!` binds them to arrays or scalar values.
 
 `build!` validates and lowers the graph, queries cuDNN heuristics, and selects an execution
 plan. `deterministic`, `math_mode`, and `max_workspace` constrain plan selection.
-`is_supported` performs the same build and returns a boolean.
+`is_supported` performs the same build and returns a boolean. `autotune!(graph, bindings)`
+instead times every plan that satisfies the constraints on the given bindings, overwriting
+the outputs, and keeps the fastest.
 
 `cached_graph` caches plans and unsupported configurations per cuDNN handle.
 `graph_unsupported` identifies errors suitable for an equivalent fallback.
@@ -38,7 +40,9 @@ plan. `deterministic`, `math_mode`, and `max_workspace` constrain plan selection
   bottom-right aligned), sliding windows and other diagonal bands, and sequence-length
   masks, and for packed variable-length sequences in `(head_dim, heads, tokens)` arrays.
 - `convolution!` and its gradient methods support grouped and asymmetric convolutions,
-  optional bias and residual inputs, and pointwise activation.
+  optional bias and residual inputs, and pointwise activation. `cuDNN.autotune!(true)`
+  makes them select their engine by timing the candidates, which pays off when the same
+  shapes are used many times, as when training a model.
 - `maxpool!`, `meanpool!`, `∇maxpool!`, and `∇meanpool!` use the fixed-function API, which
   is faster, for symmetric padding, and graph resampling for asymmetric padding.
 - `batchnorm_training!`, `batchnorm_inference!`, and `batchnorm_gradient!` implement spatial

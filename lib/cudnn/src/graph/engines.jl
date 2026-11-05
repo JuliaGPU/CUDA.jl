@@ -39,10 +39,13 @@ function keep_engine_config(cfg::BackendDescriptor, g::Graph;
     end
 end
 
-function select_plan(g::Graph, opgraph::BackendDescriptor;
-                     heuristics=(CUDNN_HEUR_MODE_A, CUDNN_HEUR_MODE_FALLBACK),
-                     deterministic::Bool=false, math_mode=CUDACore.math_mode(),
-                     max_workspace::Union{Nothing,Integer}=nothing)
+# Call `f(plan, workspace_size)` with an execution plan for every engine config that the
+# heuristics propose and that satisfies the constraints, in the heuristics' order, until it
+# returns `true`. `f` takes ownership of the plan. Returns the number of proposed configs.
+function foreach_plan(f, g::Graph, opgraph::BackendDescriptor;
+                      heuristics=(CUDNN_HEUR_MODE_A, CUDNN_HEUR_MODE_FALLBACK),
+                      deterministic::Bool=false, math_mode=CUDACore.math_mode(),
+                      max_workspace::Union{Nothing,Integer}=nothing)
     deviceprop = backend_deviceprop()
     cfgs = BackendDescriptor[]
     try
@@ -58,11 +61,10 @@ function select_plan(g::Graph, opgraph::BackendDescriptor;
                     unsafe_destroy!(plan)
                     continue
                 end
-                return plan, ws
+                f(plan, ws)::Bool && return length(cfgs)
             end
         end
-        throw(UnsupportedGraphError("cuDNN: no supported engine for graph " *
-                                    graph_signature(g) * " ($(length(cfgs)) candidate configs)"))
+        return length(cfgs)
     finally
         for cfg in cfgs
             unsafe_destroy!(cfg)
@@ -71,16 +73,30 @@ function select_plan(g::Graph, opgraph::BackendDescriptor;
     end
 end
 
-function build!(g::Graph;
-                mode::cudnnBackendOperationGraphMode_t=CUDNN_OPERATIONGRAPH_MODE_AUTO,
-                kwargs...)
+function no_engine_error(g::Graph, ncfgs)
+    UnsupportedGraphError("cuDNN: no supported engine for graph " * graph_signature(g) *
+                          " ($ncfgs candidate configs)")
+end
+
+function select_plan(g::Graph, opgraph::BackendDescriptor; kwargs...)
+    selected = Ref{Any}(nothing)
+    ncfgs = foreach_plan(g, opgraph; kwargs...) do plan, ws
+        selected[] = (plan, ws)
+        return true
+    end
+    selected[] === nothing && throw(no_engine_error(g, ncfgs))
+    return selected[]::Tuple{BackendDescriptor,Int}
+end
+
+# Lower the graph and install the plan that `select(g, opgraph)` returns.
+function build_with!(select, g::Graph, mode::cudnnBackendOperationGraphMode_t)
     g.plan === nothing || unsafe_destroy!(g)
     validate!(g)
     assign_uids!(g)
     try
         opgraph, intermediates = lower_graph(g; mode)
         try
-            plan, workspace_size = select_plan(g, opgraph; kwargs...)
+            plan, workspace_size = select(g, opgraph)
             g.plan = plan
             g.workspace_size = workspace_size
             g.variant_tensors = [t for t in g.tensors if !t.virtual]
@@ -95,6 +111,14 @@ function build!(g::Graph;
                                     " ($(name(e)))"))
     end
     return g
+end
+
+function build!(g::Graph;
+                mode::cudnnBackendOperationGraphMode_t=CUDNN_OPERATIONGRAPH_MODE_AUTO,
+                kwargs...)
+    build_with!(g, mode) do g, opgraph
+        select_plan(g, opgraph; kwargs...)
+    end
 end
 
 function is_supported(g::Graph; kwargs...)

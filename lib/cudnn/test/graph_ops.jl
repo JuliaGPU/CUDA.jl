@@ -206,6 +206,15 @@ let W=8, H=7, C=3, N=2, K=5
     if is_supported(g)
         execute!(g, tx=>x, tw=>w, ty=>y)
         @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+
+        # timing the plans on the bindings selects one that computes the same
+        for max_workspace in (nothing, 0)
+            fill!(y, NaN)
+            cuDNN.autotune!(g, tx=>x, tw=>w, ty=>y; max_workspace)
+            fill!(y, NaN)
+            execute!(g, tx=>x, tw=>w, ty=>y)
+            @test Float32.(Array(y)) ≈ ref rtol=3f-2 atol=3f-2
+        end
     else
         @test_skip is_supported(g)
     end

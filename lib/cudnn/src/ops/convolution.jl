@@ -66,13 +66,15 @@ function padded_convolution_input(x, pre, post)
 end
 
 function convolution_key(y, x, w, pre_padding, post_padding, stride, dilation, mode,
-                          compute_type, alpha, beta, deterministic, math_mode, max_workspace)
+                          compute_type, alpha, beta, deterministic, math_mode,
+                          max_workspace, autotune)
     (:conv_fprop, eltype(x),
      size(x), strides(x), pointer_alignment(x),
      size(w), strides(w), pointer_alignment(w),
      size(y), strides(y), pointer_alignment(y),
      Tuple(pre_padding), Tuple(post_padding), Tuple(stride), Tuple(dilation), mode,
-     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace)
+     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace,
+     autotune)
 end
 
 conv_optional_array_key(::Nothing) = nothing
@@ -81,48 +83,66 @@ conv_optional_array_key(a::StridedCuArray) =
 
 function fused_convolution_key(y, x, w, z, bias, activation, pre_padding, post_padding,
                                 stride, dilation, mode, compute_type, alpha, beta,
-                                deterministic, math_mode, max_workspace)
+                                deterministic, math_mode, max_workspace, autotune)
     (:conv_fprop_fused, eltype(x),
      size(x), strides(x), pointer_alignment(x),
      size(w), strides(w), pointer_alignment(w),
      size(y), strides(y), pointer_alignment(y),
      conv_optional_array_key(z), conv_optional_array_key(bias), activation,
      Tuple(pre_padding), Tuple(post_padding), Tuple(stride), Tuple(dilation), mode,
-     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace)
+     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace,
+     autotune)
 end
 
 function convolution_dgrad_key(dx, dy, w, pre_padding, post_padding, stride, dilation,
                                 mode, compute_type, alpha, beta, deterministic, math_mode,
-                                max_workspace)
+                                max_workspace, autotune)
     (:conv_dgrad, eltype(dx),
      size(dx), strides(dx), pointer_alignment(dx),
      size(dy), strides(dy), pointer_alignment(dy),
      size(w), strides(w), pointer_alignment(w),
      Tuple(pre_padding), Tuple(post_padding), Tuple(stride), Tuple(dilation), mode,
-     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace)
+     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace,
+     autotune)
 end
 
 function convolution_wgrad_key(dw, x, dy, pre_padding, post_padding, stride, dilation,
                                 mode, compute_type, alpha, beta, deterministic, math_mode,
-                                max_workspace)
+                                max_workspace, autotune)
     (:conv_wgrad, eltype(dw),
      size(dw), strides(dw), pointer_alignment(dw),
      size(x), strides(x), pointer_alignment(x),
      size(dy), strides(dy), pointer_alignment(dy),
      Tuple(pre_padding), Tuple(post_padding), Tuple(stride), Tuple(dilation), mode,
-     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace)
+     compute_type, Float64(alpha), Float64(beta), deterministic, math_mode, max_workspace,
+     autotune)
+end
+
+# Select the plan of a convolution graph, by timing the candidates on its arguments when
+# autotuning. `accumulated` is an output that the graph also reads, which is preserved.
+function select_conv_plan!(g, bindings, accumulated; autotune, kwargs...)
+    autotune || return build!(g; kwargs...)
+    accumulated === nothing && return autotune!(g, bindings; kwargs...)
+    saved = copy(accumulated)
+    try
+        autotune!(() -> copyto!(accumulated, saved), g, bindings; kwargs...)
+    finally
+        copyto!(accumulated, saved)
+        CUDACore.unsafe_free!(saved)
+    end
 end
 
 function build_convolution_graph(y, x, w, pre_padding, post_padding, stride, dilation,
                                   mode, compute_type, alpha, beta;
-                                  deterministic, math_mode, max_workspace)
+                                  deterministic, math_mode, max_workspace, autotune)
     g = Graph(io_dtype=eltype(x), intermediate_dtype=Float32, compute_dtype=compute_type)
     tx = tensor!(g, x; name="X")
     tw = tensor!(g, w; name="W")
     ty = tensor!(g, y; name="Y", output=true)
     conv_fprop!(g, tx, tw; y=ty, pre_padding, post_padding, stride, dilation, mode,
                 compute_dtype=compute_type, alpha, beta)
-    build!(g; deterministic, math_mode, max_workspace)
+    select_conv_plan!(g, IdDict{Tensor,Any}(tx=>x, tw=>w, ty=>y), beta == 0 ? nothing : y;
+                      autotune, deterministic, math_mode, max_workspace)
 end
 
 function check_conv_broadcast(name, a::StridedCuArray, y::StridedCuArray)
@@ -163,9 +183,9 @@ end
 
 function generic_fused_convolution!(y, x, w, z, bias, activation; padding, stride,
                                      dilation, groups, mode, alpha, beta, compute_type,
-                                     deterministic, math_mode, max_workspace)
+                                     deterministic, math_mode, max_workspace, autotune)
     convolution!(y, x, w; padding, stride, dilation, groups, mode, alpha, beta=0,
-                 compute_type, deterministic, math_mode, max_workspace)
+                 compute_type, deterministic, math_mode, max_workspace, autotune)
     z === nothing || (@. y = y + beta * z)
     bias === nothing || (@. y = y + bias)
     apply_conv_activation!(y, activation)
@@ -174,7 +194,7 @@ end
 function build_fused_convolution_graph(y, x, w, z, bias, activation, pre_padding,
                                         post_padding, stride, dilation, mode,
                                         compute_type, alpha, beta;
-                                        deterministic, math_mode, max_workspace)
+                                        deterministic, math_mode, max_workspace, autotune)
     g = Graph(io_dtype=eltype(x), intermediate_dtype=Float32, compute_dtype=compute_type)
     tx = tensor!(g, x; name="X")
     tw = tensor!(g, w; name="W")
@@ -199,31 +219,40 @@ function build_fused_convolution_graph(y, x, w, z, bias, activation, pre_padding
     end
     activation === nothing ||
         pointwise!(g, activation, t; y=ty, compute_dtype=compute_type, name="Activation")
-    build!(g; deterministic, math_mode, max_workspace)
+    bindings = IdDict{Tensor,Any}(tx=>x, tw=>w, ty=>y)
+    tz === nothing || (bindings[tz] = z)
+    tbias === nothing || (bindings[tbias] = bias)
+    # `z` and `bias` don't alias `y`, which is only written
+    select_conv_plan!(g, bindings, nothing; autotune, deterministic, math_mode,
+                      max_workspace)
 end
 
 function build_convolution_dgrad_graph(dx, dy, w, pre_padding, post_padding, stride,
                                         dilation, mode, compute_type, alpha, beta;
-                                        deterministic, math_mode, max_workspace)
+                                        deterministic, math_mode, max_workspace, autotune)
     g = Graph(io_dtype=eltype(dx), intermediate_dtype=Float32, compute_dtype=compute_type)
     tdy = tensor!(g, dy; name="dY")
     tw = tensor!(g, w; name="W")
     tdx = tensor!(g, dx; name="dX", output=true)
     conv_dgrad!(g, tdy, tw; dx=tdx, pre_padding, post_padding, stride, dilation, mode,
                 compute_dtype=compute_type, alpha, beta)
-    build!(g; deterministic, math_mode, max_workspace)
+    select_conv_plan!(g, IdDict{Tensor,Any}(tdy=>dy, tw=>w, tdx=>dx),
+                      beta == 0 ? nothing : dx;
+                      autotune, deterministic, math_mode, max_workspace)
 end
 
 function build_convolution_wgrad_graph(dw, x, dy, pre_padding, post_padding, stride,
                                         dilation, mode, compute_type, alpha, beta;
-                                        deterministic, math_mode, max_workspace)
+                                        deterministic, math_mode, max_workspace, autotune)
     g = Graph(io_dtype=eltype(dw), intermediate_dtype=Float32, compute_dtype=compute_type)
     tx = tensor!(g, x; name="X")
     tdy = tensor!(g, dy; name="dY")
     tdw = tensor!(g, dw; name="dW", output=true)
     conv_wgrad!(g, tdy, tx; dw=tdw, pre_padding, post_padding, stride, dilation, mode,
                 compute_dtype=compute_type, alpha, beta)
-    build!(g; deterministic, math_mode, max_workspace)
+    select_conv_plan!(g, IdDict{Tensor,Any}(tx=>x, tdy=>dy, tdw=>dw),
+                      beta == 0 ? nothing : dw;
+                      autotune, deterministic, math_mode, max_workspace)
 end
 
 function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuArray{T};
@@ -231,7 +260,8 @@ function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuAr
                       mode=:cross_correlation, alpha::Real=1, beta::Real=0, bias=nothing,
                       activation=nothing, z=nothing, compute_type=nothing,
                       deterministic::Bool=false, math_mode=CUDACore.math_mode(),
-                      max_workspace::Union{Nothing,Integer}=nothing) where {T}
+                      max_workspace::Union{Nothing,Integer}=nothing,
+                      autotune::Bool=cuDNN.autotune()) where {T}
     isempty(y) && return y
     x, bias = cudnn_input(x), cudnn_input(bias)
     # `beta` scales `z`, so it goes unread when zero
@@ -240,7 +270,8 @@ function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuAr
     # a staged `y` holds its old contents, so it can stand in for the default `z`
     describable(y) || return cudnn_output(y, beta) do y
         convolution!(y, x, w; padding, stride, dilation, groups, mode, alpha, beta, bias,
-                     activation, z, compute_type, deterministic, math_mode, max_workspace)
+                     activation, z, compute_type, deterministic, math_mode, max_workspace,
+                     autotune)
     end
     spatial_rank = ndims(x) - 2
     pre, post = convolution_padding(padding, spatial_rank)
@@ -255,12 +286,12 @@ function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuAr
                              size(w, ndims(w)), groups)
     if bias === nothing && pact === nothing && (zsrc === nothing || zsrc === y)
         key = convolution_key(y, x, w, pre, post, str, dil, cmode, ctype, alpha, beta,
-                               deterministic, math_mode, max_workspace)
+                               deterministic, math_mode, max_workspace, autotune)
         try
             g = cached_graph(key) do
                 build_convolution_graph(y, x, w, pre, post, str, dil, cmode, ctype,
                                          alpha, beta; deterministic, math_mode,
-                                         max_workspace)
+                                         max_workspace, autotune)
             end
             execute!(g, tensor(g, "X")=>x, tensor(g, "W")=>w, tensor(g, "Y")=>y)
             return y
@@ -271,18 +302,19 @@ function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuAr
         padded_x, pad = padded_convolution_input(x, pre, post)
         return convolution!(y, padded_x, w; padding=pad, stride=str, dilation=dil,
                             groups, mode, alpha, beta, compute_type=ctype,
-                            deterministic, math_mode, max_workspace)
+                            deterministic, math_mode, max_workspace, autotune)
     else
         zarg = zsrc === nothing ? nothing : conv_graph_input("z", zsrc, y)
         biasarg = bias === nothing ? nothing : conv_graph_input("bias", bias, y)
         key = fused_convolution_key(y, x, w, zarg, biasarg, pact, pre, post, str, dil,
                                      cmode, ctype, alpha, beta, deterministic, math_mode,
-                                     max_workspace)
+                                     max_workspace, autotune)
         try
             g = cached_graph(key) do
                 build_fused_convolution_graph(y, x, w, zarg, biasarg, pact, pre, post,
                                                str, dil, cmode, ctype, alpha, beta;
-                                               deterministic, math_mode, max_workspace)
+                                               deterministic, math_mode, max_workspace,
+                                               autotune)
             end
             bindings = IdDict{Tensor,Any}(
                 tensor(g, "X") => x,
@@ -298,7 +330,7 @@ function convolution!(y::StridedCuArray{T}, x::StridedCuArray{T}, w::StridedCuAr
             return generic_fused_convolution!(y, x, w, zarg, biasarg, pact; padding,
                                                stride, dilation, groups, mode, alpha, beta,
                                                compute_type=ctype, deterministic,
-                                               math_mode, max_workspace)
+                                               math_mode, max_workspace, autotune)
         end
     end
 end
@@ -310,13 +342,14 @@ function convolution_data_gradient!(dx::StridedCuArray{T}, dy::StridedCuArray{T}
                                     beta::Real=0, compute_type=nothing,
                                     deterministic::Bool=false,
                                     math_mode=CUDACore.math_mode(),
-                                    max_workspace::Union{Nothing,Integer}=nothing) where {T}
+                                    max_workspace::Union{Nothing,Integer}=nothing,
+                                    autotune::Bool=cuDNN.autotune()) where {T}
     isempty(dx) && return dx
     dy, w = cudnn_input(dy), cudnn_input(w, dense_layout)
     describable(dx) || return cudnn_output(dx, beta) do dx
         convolution_data_gradient!(dx, dy, w; padding, stride, dilation, groups, mode,
                                    alpha, beta, compute_type, deterministic, math_mode,
-                                   max_workspace)
+                                   max_workspace, autotune)
     end
     spatial_rank = ndims(dx) - 2
     pre, post = convolution_padding(padding, spatial_rank)
@@ -327,12 +360,13 @@ function convolution_data_gradient!(dx::StridedCuArray{T}, dy::StridedCuArray{T}
     check_convolution_groups(size(dx, ndims(dx)-1), size(w, ndims(w)-1),
                              size(w, ndims(w)), groups)
     key = convolution_dgrad_key(dx, dy, w, pre, post, str, dil, cmode, ctype,
-                                 alpha, beta, deterministic, math_mode, max_workspace)
+                                 alpha, beta, deterministic, math_mode, max_workspace,
+                                 autotune)
     try
         g = cached_graph(key) do
             build_convolution_dgrad_graph(dx, dy, w, pre, post, str, dil, cmode, ctype,
                                            alpha, beta; deterministic, math_mode,
-                                           max_workspace)
+                                           max_workspace, autotune)
         end
         execute!(g, tensor(g, "dY")=>dy, tensor(g, "W")=>w, tensor(g, "dX")=>dx)
         return dx
@@ -344,7 +378,7 @@ function convolution_data_gradient!(dx::StridedCuArray{T}, dy::StridedCuArray{T}
     dx_padded = similar(dx, padded_size)
     convolution_data_gradient!(dx_padded, dy, w; padding=pad, stride=str,
                                dilation=dil, groups, mode, alpha, compute_type=ctype,
-                               deterministic, math_mode, max_workspace)
+                               deterministic, math_mode, max_workspace, autotune)
     interior = view(dx_padded, ranges...)
     beta == 0 ? copyto!(dx, interior) : (dx .= interior .+ beta .* dx)
     return dx
@@ -357,13 +391,14 @@ function convolution_filter_gradient!(dw::StridedCuArray{T}, x::StridedCuArray{T
                                       beta::Real=0, compute_type=nothing,
                                       deterministic::Bool=false,
                                       math_mode=CUDACore.math_mode(),
-                                      max_workspace::Union{Nothing,Integer}=nothing) where {T}
+                                      max_workspace::Union{Nothing,Integer}=nothing,
+                                    autotune::Bool=cuDNN.autotune()) where {T}
     isempty(dw) && return dw
     x, dy = cudnn_input(x), cudnn_input(dy)
     dense_layout(dw) || return cudnn_output(dw, beta, dense_layout) do dw
         convolution_filter_gradient!(dw, x, dy; padding, stride, dilation, groups, mode,
                                      alpha, beta, compute_type, deterministic, math_mode,
-                                     max_workspace)
+                                     max_workspace, autotune)
     end
     spatial_rank = ndims(x) - 2
     pre, post = convolution_padding(padding, spatial_rank)
@@ -380,14 +415,16 @@ function convolution_filter_gradient!(dw::StridedCuArray{T}, x::StridedCuArray{T
         return convolution_filter_gradient!(dw, padded_x, dy; padding=pad, stride=str,
                                             dilation=dil, groups, mode=cmode,
                                             alpha, beta, compute_type=ctype,
-                                            deterministic, math_mode, max_workspace)
+                                            deterministic, math_mode, max_workspace,
+                                            autotune)
     end
     key = convolution_wgrad_key(dw, x, dy, pre, post, str, dil, cmode, ctype,
-                                 alpha, beta, deterministic, math_mode, max_workspace)
+                                 alpha, beta, deterministic, math_mode, max_workspace,
+                                 autotune)
     g = cached_graph(key) do
         build_convolution_wgrad_graph(dw, x, dy, pre, post, str, dil, cmode, ctype,
                                        alpha, beta; deterministic, math_mode,
-                                       max_workspace)
+                                       max_workspace, autotune)
     end
     execute!(g, tensor(g, "X")=>x, tensor(g, "dY")=>dy, tensor(g, "dW")=>dw)
     return dw
@@ -415,7 +452,9 @@ so plain calls compute `alpha * conv(x, w) + beta * y`.
 by the filter gradient, which first copies `x` into a zero-padded array.
 `mode=:convolution` flips the kernel. `compute_type` defaults to `Float32` for
 `Float16`/`BFloat16` data. Engine selection can be constrained with the `deterministic`,
-`math_mode`, and `max_workspace` keywords.
+`math_mode`, and `max_workspace` keywords. With `autotune=true`, which defaults to
+`cuDNN.autotune()`, the fastest engine is selected by timing the candidates on the
+arguments, instead of trusting cuDNN's heuristics.
 """
 convolution!, convolution_data_gradient!, convolution_filter_gradient!
 

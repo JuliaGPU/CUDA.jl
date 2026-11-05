@@ -361,3 +361,53 @@ end
               Array(convolution_filter_gradient!(similar(wd), x, dy; padding=1))
     end
 end
+
+@testset "autotune" begin
+    C, K = 4, 5
+    channels(a, n) = view(a, :, :, n+1:2n, :)
+    x = channels(CuArray(rand(Float32, 9, 8, 3C, 2)), C)
+    w = CuArray(rand(Float32, 3, 3, C, K))
+    bias = CuArray(rand(Float32, 1, 1, K, 1))
+    @testset "padding $padding" for padding in (1, (1, 0, 0, 1))
+        ysize = (9 + sum(padding isa Integer ? (2padding,) : padding[1:2]) - 2,
+                 8 + sum(padding isa Integer ? (2padding,) : padding[3:4]) - 2)
+        y0 = CuArray(rand(Float32, ysize..., K, 2))
+        dy = channels(CuArray(rand(Float32, ysize..., 3K, 2)), K)
+        dx0 = CuArray(rand(Float32, size(x)))
+        dw0 = CuArray(rand(Float32, size(w)))
+        # outputs that are also read, with `beta`, keep their contents while timing
+        for beta in (0, 2)
+            outputs = map((false, true)) do autotune
+                y = channels(repeat(y0, 1, 1, 3, 1), K)
+                convolution!(y, x, w; padding, beta, autotune)
+                yf = copy(y0)
+                convolution!(yf, x, w; padding, beta, bias, activation=:relu, autotune)
+                dx = channels(repeat(dx0, 1, 1, 3, 1), C)
+                convolution_data_gradient!(dx, dy, w; padding, beta, autotune)
+                dw = copy(dw0)
+                convolution_filter_gradient!(dw, x, dy; padding, beta, autotune)
+                Array.((y, yf, dx, dw))
+            end
+            for (heuristic, tuned) in zip(outputs...)
+                @test tuned ≈ heuristic
+            end
+        end
+    end
+
+    # the setting is the default, and plans selected before it is enabled are not reused
+    x = CuArray(rand(Float32, 7, 7, C, 1))
+    y = CuArray{Float32}(undef, 5, 5, K, 1)
+    convolution!(y, x, w)
+    enabled = cuDNN.autotune()
+    try
+        cuDNN.autotune!(true)
+        @test cuDNN.autotune()
+        # autotuning executes the convolution, which it can't do while capturing
+        @test_throws CUDACore.CaptureError capture(() -> convolution!(y, x, w))
+        convolution!(y, x, w)
+        graph = capture(() -> convolution!(y, x, w))
+        @test graph isa CuGraph
+    finally
+        cuDNN.autotune!(enabled)
+    end
+end
