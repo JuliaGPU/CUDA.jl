@@ -77,6 +77,24 @@ julia> copyto!(b, a)
  2
 ```
 
+To copy part of an array, such as the halo of a 3D grid, pass the block to copy from each
+array as `CartesianIndices`. The arrays don't need to have the same size, and the block
+doesn't need to be contiguous in either of them:
+
+```julia
+julia> host = zeros(Float32, 64, 64, 64);
+
+julia> dev = CUDA.rand(Float32, 64, 64, 64);
+
+julia> copyto!(host, CartesianIndices((1:64, 1:64, 1:1)),     # first plane on the host
+               dev,  CartesianIndices((1:64, 1:64, 64:64)));  # last plane on the GPU
+```
+
+Unlike indexing with an integer, a range of length one such as `64:64` keeps the dimension,
+so that both blocks have the same shape. The copy is ordered on the task's stream like
+other copies (pick another one with `stream!`); it returns once the host array can be read
+or modified.
+
 
 ## Higher-order abstractions
 
