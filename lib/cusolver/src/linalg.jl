@@ -448,6 +448,24 @@ _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
 _svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
 _svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
 
+# like LinearAlgebra, derive the SVD of a Hermitian matrix from its eigendecomposition,
+# but without the scalar indexing of the generic implementation
+const CuHermOrSym{T} = Union{Symmetric{T,<:CuMatrix{T}}, Hermitian{T,<:CuMatrix{T}},
+                             Hermitian{Complex{T},<:CuMatrix{Complex{T}}}} where {T<:BlasReal}
+
+function LinearAlgebra.svd(A::CuHermOrSym; full::Bool=false)
+    vals, vecs = eigen(A)
+    p = sortperm(abs.(vals); rev=true)
+    vals = vals[p]
+    U = vecs[:, p]
+    # move the sign of negative eigenvalues to the right-singular vectors
+    signs = ifelse.(vals .< 0, -one(eltype(vals)), one(eltype(vals)))
+    Vt = U' .* signs
+    return SVD(U, abs.(vals), Vt)
+end
+
+LinearAlgebra.svdvals(A::CuHermOrSym) = sort!(abs.(eigvals(A)); rev=true)
+
 ### opnorm2, enabled by svdvals
 
 function LinearAlgebra.opnorm2(A::CuMatrix{T}) where {T}
