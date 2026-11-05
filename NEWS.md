@@ -202,6 +202,13 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
   `∇meanpool!`, and graph tensors, accept strided views, such as a range of
   channels, which run as fast as dense arrays instead of needing a copy
   ([#3472](https://github.com/JuliaGPU/CUDA.jl/issues/3472)).
+- cuDNN's convolutions can select their engine by timing the candidates, instead of
+  taking the first one proposed by cuDNN's heuristics, like PyTorch's
+  `torch.backends.cudnn.benchmark`. Enable it with `cuDNN.autotune!(true)`, or per call
+  with `autotune=true`. On an RTX 5080, this reduces the convolution time of a
+  ResNet-18 training step on 64×64 images by 12%, at the cost of a few hundred
+  milliseconds for every new shape. Graphs can be autotuned with `cuDNN.autotune!(graph,
+  bindings)` ([#3506](https://github.com/JuliaGPU/CUDA.jl/issues/3506)).
 
 *Bug fixes*:
 

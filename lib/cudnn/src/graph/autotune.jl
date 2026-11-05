@@ -112,4 +112,35 @@ function time_plan(h, plan, vp, stream, start, stop, cutoff)
     return time
 end
 
-@public autotune!
+const autotune_enabled = Threads.Atomic{Bool}(false)
+
+"""
+    autotune() -> Bool
+
+Whether convolutions select their execution plan by timing the candidates. See
+`autotune!(::Bool)`.
+"""
+autotune() = autotune_enabled[]
+
+"""
+    autotune!(enabled::Bool)
+
+Set whether convolutions select their execution plan by timing every plan that satisfies
+the constraints, instead of taking the first one proposed by cuDNN's heuristics, for the
+whole process. This is the default of the `autotune` keyword of `convolution!`,
+`convolution_data_gradient!` and `convolution_filter_gradient!`, and is disabled by
+default.
+
+The selected plans are cached, so this pays off for workloads that run the same shapes
+many times, such as training a model. Selecting a plan takes a few hundred milliseconds
+for each new shape, and allocates the largest workspace that the candidates need, leaving
+out the ones whose workspace does not fit in memory; `max_workspace` excludes plans that
+need more. Autotuning cannot be done while capturing
+a CUDA graph, so run the operations once before capturing them.
+"""
+function autotune!(enabled::Bool)
+    autotune_enabled[] = enabled
+    return enabled
+end
+
+@public autotune, autotune!

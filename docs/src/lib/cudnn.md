@@ -40,7 +40,9 @@ the outputs, and keeps the fastest.
   bottom-right aligned), sliding windows and other diagonal bands, and sequence-length
   masks, and for packed variable-length sequences in `(head_dim, heads, tokens)` arrays.
 - `convolution!` and its gradient methods support grouped and asymmetric convolutions,
-  optional bias and residual inputs, and pointwise activation.
+  optional bias and residual inputs, and pointwise activation. `cuDNN.autotune!(true)`
+  makes them select their engine by timing the candidates, which pays off when the same
+  shapes are used many times, as when training a model.
 - `maxpool!`, `meanpool!`, `∇maxpool!`, and `∇meanpool!` use the fixed-function API, which
   is faster, for symmetric padding, and graph resampling for asymmetric padding.
 - `batchnorm_training!`, `batchnorm_inference!`, and `batchnorm_gradient!` implement spatial
