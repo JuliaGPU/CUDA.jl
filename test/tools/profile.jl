@@ -789,10 +789,11 @@ location(frame) = (basename(frame.file), frame.line)
     @test rows(1000) == 0
 
     # frames inlined at their own location (`macro expansion`) aren't repeated in unrolled
-    # code, like the loads in a reduction
+    # code, like the loads in a reduction. the reduction is short, so sample more often
+    # than the default to be sure to hit it on small devices (e.g. MIG slices).
     x = CUDA.rand(Float32, 2^20)
     sum(x)
-    chains = [chain for f in @retry_busy CUDA.@sample(sum(x)).functions
+    chains = [chain for f in @retry_busy CUDA.@sample(period=10, sum(x)).functions
                     for chain in f.instructions.source]
     @test any(chain -> length(chain) > 1, chains)
     for chain in chains
