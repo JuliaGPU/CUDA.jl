@@ -43,7 +43,7 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
 #
-# The bounds from CUDA 12.0 through 13.4 were measured rather than inferred, by pinning
+# The bounds from CUDA 12.0 through 13.5 were measured rather than inferred, by pinning
 # `CUDA_SDK_jll` to each release in a temporary environment and reading the `--gpu-name`
 # list off that toolkit's ptxas; older entries are retained from the historical support
 # table. Use the same measurement when adding entries.
@@ -152,6 +152,7 @@ const ptxas_ptx_db = Dict(
     v"9.2" => between(v"13.2", highest),
     v"9.3" => between(v"13.3", highest),
     v"9.4" => between(v"13.4", highest),
+    v"9.5" => between(v"13.5", highest),
 )
 
 function ptxas_ptx_support(ver::VersionNumber)
