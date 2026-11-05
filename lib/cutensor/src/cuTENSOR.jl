@@ -82,7 +82,8 @@ function handle()
     @noinline function new_state(cuda)
         new_handle = pop!(idle_handles, cuda.context)
         wrapped = Handle(new_handle, cuda.context)
-        resource_finalizer(handle_finalizer, wrapped; blocking=false)
+        CUDACore.handle_finalizer(handle_finalizer, wrapped,
+                                  idle_handles, cuda.context, new_handle)
 
         (; handle=wrapped)
     end

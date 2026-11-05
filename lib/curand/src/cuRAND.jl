@@ -78,7 +78,8 @@ function library_rng()
     @noinline function new_state(cuda)
         new_rng = pop!(idle_library_rngs, cuda.context)
         wrapped = BorrowedLibraryRNG(new_rng, cuda.context)
-        resource_finalizer(library_rng_finalizer, wrapped; blocking=false)
+        CUDACore.handle_finalizer(library_rng_finalizer, wrapped,
+                                  idle_library_rngs, cuda.context, new_rng)
         Random.seed!(new_rng)
         wrapped
     end
