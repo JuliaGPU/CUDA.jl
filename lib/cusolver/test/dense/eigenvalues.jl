@@ -116,6 +116,26 @@ end
     end
 end
 
+# the wrapped parent is not symmetric, so reading the wrong triangle gives a different matrix
+@testset "Hermitian/Symmetric wrappers, elty = $elty, uplo = $uplo" for
+    elty in [Float32, Float64, ComplexF32, ComplexF64], uplo in (:U, :L)
+
+    A = rand(elty, m, m)
+    d_A = CuArray(A)
+    wrappers = elty <: Real ? (Hermitian, Symmetric) : (Hermitian,)
+    @testset "$wrap" for wrap in wrappers
+        h_A = wrap(A, uplo)
+        d_wA = wrap(d_A, uplo)
+        @test collect(eigvals(d_wA)) ≈ eigvals(h_A)
+        d_eig = eigen(d_wA)
+        @test collect(d_eig.values) ≈ eigvals(h_A)
+        h_V = collect(d_eig.vectors)
+        @test h_V * Diagonal(collect(d_eig.values)) * h_V' ≈ h_A
+        @test abs.(eigvecs(h_A)' * collect(eigvecs(d_wA))) ≈ I
+        @test collect(parent(exp(d_wA))) ≈ exp(h_A)
+    end
+end
+
 @testset "sygvd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     A              = rand(elty, m, m)
     B              = rand(elty, m, m)

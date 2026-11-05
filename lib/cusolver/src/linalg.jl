@@ -121,11 +121,11 @@ Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix})
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', 'U', A2)...)
+    return Eigen(Xsyevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasComplex}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', 'U', A2)...)
+    return Eigen(Xsyevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasReal}
     return eigen(Symmetric(A))
@@ -168,11 +168,11 @@ end
 
 function LinearAlgebra.eigvals(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
     A2 = copy(A.data)
-    return Xsyevd!('N', 'U', A2)
+    return Xsyevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
     A2 = copy(A.data)
-    return Xsyevd!('N', 'U', A2)
+    return Xsyevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
     return eigvals(Symmetric(A))
