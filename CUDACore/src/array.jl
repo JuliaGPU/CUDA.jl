@@ -856,6 +856,121 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,Ho
 end
 
 
+# optimization: copy strided blocks between host and device memory with a single 3D copy.
+#
+# GPUArrays packs a non-contiguous block into a dense temporary first, and copies that to
+# the block on the host with Base's block copy. a 3D copy avoids both temporaries and is up
+# to 4x faster, but only with wide rows: with narrow ones, the copy engine is slower than
+# packing (with 32-byte rows from pageable memory, by up to 30x).
+
+const MEMCPY3D_MIN_ROW_BYTES = 256
+
+# describe the copy of a block as a 3D copy: after skipping singleton dimensions and merging
+# those that are contiguous in both arrays, there must be at most three dimensions left, the
+# first contiguous, the others whole multiples of the row pitch. strides are in elements.
+function memcpy3d_layout(dest::AbstractArray{T,N}, Rdest::CartesianIndices{N},
+                         src::AbstractArray{T,N}, Rsrc::CartesianIndices{N}) where {T,N}
+    dims = NTuple{3,Int}[]  # extent, destination stride, source stride
+    for d in 1:N
+        n = length(Rdest.indices[d])
+        n == 1 && continue
+        dstride = step(Rdest.indices[d]) * prod(size(dest)[1:d-1])
+        sstride = step(Rsrc.indices[d]) * prod(size(src)[1:d-1])
+        if !isempty(dims)
+            m, dprev, sprev = dims[end]
+            if dstride == m*dprev && sstride == m*sprev
+                dims[end] = (m*n, dprev, sprev)
+                continue
+            end
+        end
+        push!(dims, (n, dstride, sstride))
+    end
+    1 <= length(dims) <= 3 || return nothing
+
+    width, drow, srow = dims[1]
+    drow == srow == 1 || return nothing
+    height, dpitch, spitch = length(dims) >= 2 ? dims[2] : (1, width, width)
+    depth, dslice, sslice = length(dims) >= 3 ? dims[3] : (1, height*dpitch, height*spitch)
+    dpitch >= width && spitch >= width || return nothing
+    dslice % dpitch == 0 && sslice % spitch == 0 || return nothing
+    dheight, sheight = dslice ÷ dpitch, sslice ÷ spitch
+    dheight >= height && sheight >= height || return nothing
+    max(dpitch, spitch) * aligned_sizeof(T) <= typemax(Int32) || return nothing
+
+    return (; width, height, depth, dpitch, dheight, spitch, sheight)
+end
+
+# whether to copy a block between host and device with a 3D copy, and how
+function memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest::Bool)
+    T = eltype(dest)
+    isbitstype(T) && !in_capture(stream()) || return nothing
+    size(Rdest) == size(Rsrc) || return nothing
+    checkbounds(Bool, dest, Rdest) && checkbounds(Bool, src, Rsrc) || return nothing
+    layout = memcpy3d_layout(dest, Rdest, src, Rsrc)
+    layout === nothing && return nothing
+    layout.width * aligned_sizeof(T) >= MEMCPY3D_MIN_ROW_BYTES || return nothing
+
+    # a contiguous host block needs no packing on the host
+    hpitch, hheight = host_is_dest ? (layout.dpitch, layout.dheight) :
+                                     (layout.spitch, layout.sheight)
+    hpitch == layout.width && (layout.depth == 1 || hheight == layout.height) &&
+        return nothing
+
+    return layout
+end
+
+function Base.copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
+                      src::DenseCuArray{T,N,DeviceMemory}, Rsrc::CartesianIndices{N}) where {T,N}
+    isempty(Rdest) && return dest
+    layout = memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest=true)
+    if layout === nothing
+        return @invoke copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
+                               src::AbstractGPUArray{T,N}, Rsrc::CartesianIndices{N})
+    end
+
+    context!(context(src)) do
+        # see `unsafe_copyto!(::Array, ...)`
+        synchronize(src)
+        GC.@preserve src dest begin
+            unsafe_copy3d!(pointer(dest, LinearIndices(dest)[first(Rdest)]), HostMemory,
+                           pointer(src, LinearIndices(src)[first(Rsrc)]), DeviceMemory,
+                           layout.width, layout.height, layout.depth;
+                           dstPitch=layout.dpitch*aligned_sizeof(T), dstHeight=layout.dheight,
+                           srcPitch=layout.spitch*aligned_sizeof(T), srcHeight=layout.sheight)
+        end
+    end
+    return dest
+end
+
+function Base.copyto!(dest::DenseCuArray{T,N,DeviceMemory}, Rdest::CartesianIndices{N},
+                      src::Array{T,N}, Rsrc::CartesianIndices{N}) where {T,N}
+    isempty(Rdest) && return dest
+    layout = memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest=false)
+    if layout === nothing
+        return @invoke copyto!(dest::AbstractGPUArray{T,N}, Rdest::CartesianIndices{N},
+                               src::Array{T,N}, Rsrc::CartesianIndices{N})
+    end
+
+    context!(context(dest)) do
+        s = stream()
+        capture_submission(s) do
+            GC.@preserve src dest with_managed_arrays(dest) do
+                # (synchronously, so that the caller can modify `src` when this returns)
+                unsafe_copy3d!(unmanaged_pointer(dest, LinearIndices(dest)[first(Rdest)]),
+                               DeviceMemory,
+                               pointer(src, LinearIndices(src)[first(Rsrc)]), HostMemory,
+                               layout.width, layout.height, layout.depth;
+                               dstPitch=layout.dpitch*aligned_sizeof(T),
+                               dstHeight=layout.dheight,
+                               srcPitch=layout.spitch*aligned_sizeof(T),
+                               srcHeight=layout.sheight, stream=s)
+            end
+        end
+    end
+    return dest
+end
+
+
 ## regular gpu array adaptor
 
 # We don't convert isbits types in `adapt`, since they are already

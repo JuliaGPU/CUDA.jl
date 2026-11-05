@@ -1352,6 +1352,50 @@ end
   @test Array(d) == [1, nothing, 3, nothing]
 end
 
+@testset "copies of blocks between host and device" begin
+  # strided blocks on the host with wide rows, which are copied with a single 3D copy
+  host = rand(64, 9, 8, 5)
+  dev = CuArray(host)
+  for (Rh, Rd) in ((CartesianIndices((2:33, 1:9, 1:8, 1:5)), CartesianIndices((3:34, 1:9, 1:8, 1:5))),
+                   (CartesianIndices((1:40, 2:6, 3:3, 2:4)), CartesianIndices((5:44, 1:5, 8:8, 3:5))),
+                   (CartesianIndices((1:64, 1:3:9, 1:8, 2:2)), CartesianIndices((1:64, 1:3, 1:8, 4:4))),
+                   # blocks that a 3D copy can't express, or with rows too narrow for one
+                   (CartesianIndices((2:63, 2:8, 2:7, 2:4)), CartesianIndices((2:63, 2:8, 2:7, 2:4))),
+                   (CartesianIndices((1:4, 1:9, 1:8, 1:5)), CartesianIndices((5:8, 1:9, 1:8, 1:5))),
+                   (CartesianIndices((33:64, 1:9, 1:8, 1:1)), CartesianIndices((1:32, 1:9, 1:8, 5:5))))
+    h = copy(host)
+    copyto!(h, Rh, dev, Rd)
+    @test h == copyto!(copy(host), Rh, host, Rd)
+
+    d = copy(dev)
+    copyto!(d, Rd, host, Rh)
+    @test Array(d) == copyto!(copy(host), Rd, host, Rh)
+  end
+
+  # stream ordering: wait for kernels writing the source, and don't read the host source
+  # after returning
+  busy = CUDA.zeros(Int, 1)
+  @cuda slow_fill(busy, 0, 1)
+  can_pin = attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
+  R = CartesianIndices((1:32, 1:4))
+  for pinned in (can_pin ? (false, true) : (false,))
+    d = CUDA.zeros(Int, 32, 4)
+    h = zeros(Int, 64, 4)
+    pinned && CUDA.pin(h)
+    copyto!(h, R, d, R)  # so that compiling doesn't delay the copy below
+    @cuda slow_fill(d, 42, 100_000_000)
+    copyto!(h, R, d, R)
+    @test all(==(42), h[R])
+
+    h .= 1
+    copyto!(d, R, h, R)
+    @cuda slow_fill(busy, 0, 100_000_000)
+    copyto!(d, R, h, R)
+    h .= 0
+    @test all(==(1), Array(d))
+  end
+end
+
 if length(devices()) > 1
 @testset "multigpu" begin
   dev = device()
