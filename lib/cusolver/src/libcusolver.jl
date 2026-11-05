@@ -57,6 +57,8 @@ const cusolverDnParams_t = Ptr{cusolverDnParams}
     CUSOLVERDN_SYEVBATCHED = 2
     CUSOLVERDN_GEQRF = 3
     CUSOLVERDN_SYEVD = 4
+    CUSOLVERDN_GESVD = 5
+    CUSOLVERDN_GEEV = 6
 end
 
 const cusolver_int_t = Cint
@@ -3673,6 +3675,67 @@ end
                                                d_info::Ptr{Cint})::cusolverStatus_t
 end
 
+@checked function cusolverDnXsygvStridedBatched_bufferSize(handle, params, itype, jobz,
+                                                           uplo, n, dataTypeA, A, lda,
+                                                           strideA, dataTypeB, B, ldb,
+                                                           strideB, dataTypeW, W, strideW,
+                                                           computeType, batchSize,
+                                                           workspaceInBytesOnDevice,
+                                                           workspaceInBytesOnHost)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXsygvStridedBatched_bufferSize(handle::cusolverDnHandle_t,
+                                                                       params::cusolverDnParams_t,
+                                                                       itype::cusolverEigType_t,
+                                                                       jobz::cusolverEigMode_t,
+                                                                       uplo::cublasFillMode_t,
+                                                                       n::Int64,
+                                                                       dataTypeA::cudaDataType,
+                                                                       A::CuPtr{Cvoid},
+                                                                       lda::Int64,
+                                                                       strideA::Int64,
+                                                                       dataTypeB::cudaDataType,
+                                                                       B::CuPtr{Cvoid},
+                                                                       ldb::Int64,
+                                                                       strideB::Int64,
+                                                                       dataTypeW::cudaDataType,
+                                                                       W::CuPtr{Cvoid},
+                                                                       strideW::Int64,
+                                                                       computeType::cudaDataType,
+                                                                       batchSize::Int64,
+                                                                       workspaceInBytesOnDevice::Ptr{Csize_t},
+                                                                       workspaceInBytesOnHost::Ptr{Csize_t})::cusolverStatus_t
+end
+
+@checked function cusolverDnXsygvStridedBatched(handle, params, itype, jobz, uplo, n,
+                                                dataTypeA, A, lda, strideA, dataTypeB, B,
+                                                ldb, strideB, dataTypeW, W, strideW,
+                                                computeType, batchSize, bufferOnDevice,
+                                                workspaceInBytesOnDevice, bufferOnHost,
+                                                workspaceInBytesOnHost, info)
+    initialize_context()
+    @gcsafe_ccall libcusolver.cusolverDnXsygvStridedBatched(handle::cusolverDnHandle_t,
+                                                            params::cusolverDnParams_t,
+                                                            itype::cusolverEigType_t,
+                                                            jobz::cusolverEigMode_t,
+                                                            uplo::cublasFillMode_t,
+                                                            n::Int64,
+                                                            dataTypeA::cudaDataType,
+                                                            A::CuPtr{Cvoid}, lda::Int64,
+                                                            strideA::Int64,
+                                                            dataTypeB::cudaDataType,
+                                                            B::CuPtr{Cvoid}, ldb::Int64,
+                                                            strideB::Int64,
+                                                            dataTypeW::cudaDataType,
+                                                            W::CuPtr{Cvoid}, strideW::Int64,
+                                                            computeType::cudaDataType,
+                                                            batchSize::Int64,
+                                                            bufferOnDevice::CuPtr{Cvoid},
+                                                            workspaceInBytesOnDevice::Csize_t,
+                                                            bufferOnHost::Ptr{Cvoid},
+                                                            workspaceInBytesOnHost::Csize_t,
+                                                            info::CuPtr{Cint})::cusolverStatus_t
+end
+
 @checked function cusolverDnXsygvdx_bufferSize(handle, params, itype, jobz, uplo, n,
                                                dataTypeA, d_A, lda, dataTypeB, d_B, ldb, vl,
                                                vu, il, iu, meig, dataTypeW, d_W,
@@ -5115,7 +5178,7 @@ end
     @gcsafe_ccall libcusolver.cusolverDnLoggerSetMask(mask::Cint)::cusolverStatus_t
 end
 
-# no prototype is found for this function at cusolverDn.h:5037:32, please use with caution
+# no prototype is found for this function at cusolverDn.h:5107:32, please use with caution
 @checked function cusolverDnLoggerForceDisable()
     @gcsafe_ccall libcusolver.cusolverDnLoggerForceDisable()::cusolverStatus_t
 end

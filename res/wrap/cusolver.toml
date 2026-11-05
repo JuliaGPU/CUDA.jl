@@ -1265,6 +1265,18 @@ needs_context = false
 12 = "CuPtr{Cvoid}"
 16 = "CuPtr{Cint}"
 
+[api.cusolverDnXsygvStridedBatched_bufferSize.argtypes]
+8 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+
+[api.cusolverDnXsygvStridedBatched.argtypes]
+8 = "CuPtr{Cvoid}"
+12 = "CuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
+20 = "CuPtr{Cvoid}"
+24 = "CuPtr{Cint}"
+
 [api.cusolverDnXgeev_bufferSize.argtypes]
 7 = "CuPtr{Cvoid}"
 10 = "CuPtr{Cvoid}"

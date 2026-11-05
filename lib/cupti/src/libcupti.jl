@@ -190,7 +190,9 @@ end
     CUPTI_CBID_RESOURCE_STREAM_ATTRIBUTE_CHANGED = 21
     CUPTI_CBID_RESOURCE_GRAPH_NODE_UPDATED = 22
     CUPTI_CBID_RESOURCE_GRAPH_NODE_SET_PARAMS = 23
-    CUPTI_CBID_RESOURCE_SIZE = 24
+    CUPTI_CBID_RESOURCE_LOGICAL_ENDPOINT_CREATED = 24
+    CUPTI_CBID_RESOURCE_LOGICAL_ENDPOINT_DESTROYED = 25
+    CUPTI_CBID_RESOURCE_SIZE = 26
     CUPTI_CBID_RESOURCE_FORCE_INT = 2147483647
 end
 
@@ -223,27 +225,27 @@ struct CUpti_CallbackData
     correlationId::UInt32
 end
 
-struct var"##Ctag#389"
+struct var"##Ctag#258"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#389"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#258"}, f::Symbol)
     f === :stream && return Ptr{CUstream}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#389", f::Symbol)
-    r = Ref{var"##Ctag#389"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#389"}, r)
+function Base.getproperty(x::var"##Ctag#258", f::Symbol)
+    r = Ref{var"##Ctag#258"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#258"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#389"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#258"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#389", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#258", private::Bool=false)
     return (:stream, if private
                 fieldnames(typeof(x))
             else
@@ -257,7 +259,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ResourceData}, f::Symbol)
     f === :context && return Ptr{CUcontext}(x + 0)
-    f === :resourceHandle && return Ptr{var"##Ctag#389"}(x + 8)
+    f === :resourceHandle && return Ptr{var"##Ctag#258"}(x + 8)
     f === :resourceDescriptor && return Ptr{Ptr{Cvoid}}(x + 16)
     return getfield(x, f)
 end
@@ -295,6 +297,75 @@ struct CUpti_GraphData
     nodeType::CUgraphNodeType
     dependency::CUgraphNode
     graphExec::CUgraphExec
+end
+
+@cenum CUpti_LogicalEndpointType::UInt32 begin
+    CUPTI_LOGICAL_ENDPOINT_TYPE_INVALID = 0
+    CUPTI_LOGICAL_ENDPOINT_TYPE_UNICAST = 1
+    CUPTI_LOGICAL_ENDPOINT_TYPE_MULTICAST = 2
+    CUPTI_LOGICAL_ENDPOINT_TYPE_FORCE_INT = 2147483647
+end
+
+struct var"##Ctag#231"
+    data::NTuple{4,UInt8}
+end
+
+function Base.getproperty(x::Ptr{var"##Ctag#231"}, f::Symbol)
+    f === :unicastDeviceId && return Ptr{UInt32}(x + 0)
+    f === :multicastTeamSize && return Ptr{UInt32}(x + 0)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::var"##Ctag#231", f::Symbol)
+    r = Ref{var"##Ctag#231"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#231"}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{var"##Ctag#231"}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::var"##Ctag#231", private::Bool=false)
+    return (:unicastDeviceId, :multicastTeamSize, if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct CUpti_LogicalEndpointResourceData
+    data::NTuple{24,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_LogicalEndpointResourceData}, f::Symbol)
+    f === :logicalEndpointId && return Ptr{UInt32}(x + 0)
+    f === :type && return Ptr{CUpti_LogicalEndpointType}(x + 4)
+    f === :size && return Ptr{UInt64}(x + 8)
+    f === :typeInfo && return Ptr{var"##Ctag#231"}(x + 16)
+    f === :flags && return Ptr{UInt32}(x + 20)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_LogicalEndpointResourceData, f::Symbol)
+    r = Ref{CUpti_LogicalEndpointResourceData}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_LogicalEndpointResourceData}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_LogicalEndpointResourceData}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUpti_LogicalEndpointResourceData, private::Bool=false)
+    return (:logicalEndpointId, :type, :size, :typeInfo, :flags,
+            if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
 end
 
 struct CUpti_SynchronizeData
@@ -1045,8 +1116,8 @@ struct CUpti_ActivityObjectKindId
 end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityObjectKindId}, f::Symbol)
-    f === :pt && return Ptr{var"##Ctag#407"}(x + 0)
-    f === :dcs && return Ptr{var"##Ctag#408"}(x + 0)
+    f === :pt && return Ptr{var"##Ctag#276"}(x + 0)
+    f === :dcs && return Ptr{var"##Ctag#277"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1198,14 +1269,14 @@ end
 end
 
 @cenum CUpti_EnvironmentClocksThrottleReason::UInt32 begin
-    CUPTI_CLOCKS_THROTTLE_REASON_GPU_IDLE = 1
-    CUPTI_CLOCKS_THROTTLE_REASON_USER_DEFINED_CLOCKS = 2
-    CUPTI_CLOCKS_THROTTLE_REASON_SW_POWER_CAP = 4
-    CUPTI_CLOCKS_THROTTLE_REASON_HW_SLOWDOWN = 8
+    CUPTI_CLOCKS_THROTTLE_REASON_GPU_IDLE = 0x0000000000000001
+    CUPTI_CLOCKS_THROTTLE_REASON_USER_DEFINED_CLOCKS = 0x0000000000000002
+    CUPTI_CLOCKS_THROTTLE_REASON_SW_POWER_CAP = 0x0000000000000004
+    CUPTI_CLOCKS_THROTTLE_REASON_HW_SLOWDOWN = 0x0000000000000008
     CUPTI_CLOCKS_THROTTLE_REASON_UNKNOWN = 0x0000000080000000
-    CUPTI_CLOCKS_THROTTLE_REASON_UNSUPPORTED = 1073741824
-    CUPTI_CLOCKS_THROTTLE_REASON_NONE = 0
-    CUPTI_CLOCKS_THROTTLE_REASON_FORCE_INT = 2147483647
+    CUPTI_CLOCKS_THROTTLE_REASON_UNSUPPORTED = 0x0000000040000000
+    CUPTI_CLOCKS_THROTTLE_REASON_NONE = 0x0000000000000000
+    CUPTI_CLOCKS_THROTTLE_REASON_FORCE_INT = 0x000000007fffffff
 end
 
 @cenum CUpti_ActivityUnifiedMemoryCounterScope::UInt32 begin
@@ -1770,28 +1841,28 @@ function Base.propertynames(x::CUpti_ActivityMemory, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#324"
+struct var"##Ctag#189"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#324"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#189"}, f::Symbol)
     f === :size && return Ptr{UInt64}(x + 0)
     f === :processId && return Ptr{UInt64}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#324", f::Symbol)
-    r = Ref{var"##Ctag#324"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#324"}, r)
+function Base.getproperty(x::var"##Ctag#189", f::Symbol)
+    r = Ref{var"##Ctag#189"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#189"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#324"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#189"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#324", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#189", private::Bool=false)
     return (:size, :processId, if private
                 fieldnames(typeof(x))
             else
@@ -1799,32 +1870,32 @@ function Base.propertynames(x::var"##Ctag#324", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#323"
+struct var"##Ctag#188"
     data::NTuple{40,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#323"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#188"}, f::Symbol)
     f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 0)
     f === :pad2 && return Ptr{UInt32}(x + 4)
     f === :address && return Ptr{UInt64}(x + 8)
     f === :releaseThreshold && return Ptr{UInt64}(x + 16)
-    f === :pool && return Ptr{var"##Ctag#324"}(x + 24)
+    f === :pool && return Ptr{var"##Ctag#189"}(x + 24)
     f === :utilizedSize && return Ptr{UInt64}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#323", f::Symbol)
-    r = Ref{var"##Ctag#323"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#323"}, r)
+function Base.getproperty(x::var"##Ctag#188", f::Symbol)
+    r = Ref{var"##Ctag#188"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#188"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#323"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#188"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#323", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#188", private::Bool=false)
     return (:memoryPoolType, :pad2, :address, :releaseThreshold, :pool, :utilizedSize,
             if private
                 fieldnames(typeof(x))
@@ -1985,28 +2056,28 @@ end
     CUPTI_FUNC_EXECUTION_MODEL_FORCE_INT = 2147483647
 end
 
-struct var"##Ctag#289"
+struct var"##Ctag#154"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#289"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#154"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#290"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#155"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#289", f::Symbol)
-    r = Ref{var"##Ctag#289"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#289"}, r)
+function Base.getproperty(x::var"##Ctag#154", f::Symbol)
+    r = Ref{var"##Ctag#154"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#154"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#289"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#154"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#289", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#154", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -2020,7 +2091,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel13}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#289"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#154"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -2162,28 +2233,28 @@ end
     KERNEL_FIELD_MAX = 49
 end
 
-struct var"##Ctag#321"
+struct var"##Ctag#186"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#321"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#186"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#322"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#187"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#321", f::Symbol)
-    r = Ref{var"##Ctag#321"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#321"}, r)
+function Base.getproperty(x::var"##Ctag#186", f::Symbol)
+    r = Ref{var"##Ctag#186"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#186"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#321"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#186"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#321", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#186", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -2197,7 +2268,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityCdpKernel}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#321"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#186"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :start && return Ptr{UInt64}(x + 8)
@@ -2710,28 +2781,28 @@ end
     DEVICE_FIELD_MAX = 38
 end
 
-struct var"##Ctag#375"
+struct var"##Ctag#244"
     data::NTuple{4,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#375"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#244"}, f::Symbol)
     f === :cu && return Ptr{CUdevice_attribute}(x + 0)
     f === :cupti && return Ptr{CUpti_DeviceAttribute}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#375", f::Symbol)
-    r = Ref{var"##Ctag#375"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#375"}, r)
+function Base.getproperty(x::var"##Ctag#244", f::Symbol)
+    r = Ref{var"##Ctag#244"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#244"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#375"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#244"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#375", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#244", private::Bool=false)
     return (:cu, :cupti, if private
                 fieldnames(typeof(x))
             else
@@ -2739,11 +2810,11 @@ function Base.propertynames(x::var"##Ctag#375", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#376"
+struct var"##Ctag#245"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#376"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#245"}, f::Symbol)
     f === :vDouble && return Ptr{Cdouble}(x + 0)
     f === :vUint32 && return Ptr{UInt32}(x + 0)
     f === :vUint64 && return Ptr{UInt64}(x + 0)
@@ -2752,18 +2823,18 @@ function Base.getproperty(x::Ptr{var"##Ctag#376"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#376", f::Symbol)
-    r = Ref{var"##Ctag#376"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#376"}, r)
+function Base.getproperty(x::var"##Ctag#245", f::Symbol)
+    r = Ref{var"##Ctag#245"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#245"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#376"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#245"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#376", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#245", private::Bool=false)
     return (:vDouble, :vUint32, :vUint64, :vInt32, :vInt64, if private
                 fieldnames(typeof(x))
             else
@@ -2779,8 +2850,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityDeviceAttribute}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
     f === :flags && return Ptr{CUpti_ActivityFlag}(x + 4)
     f === :deviceId && return Ptr{UInt32}(x + 8)
-    f === :attribute && return Ptr{var"##Ctag#375"}(x + 12)
-    f === :value && return Ptr{var"##Ctag#376"}(x + 16)
+    f === :attribute && return Ptr{var"##Ctag#244"}(x + 12)
+    f === :value && return Ptr{var"##Ctag#245"}(x + 16)
     return getfield(x, f)
 end
 
@@ -3066,11 +3137,11 @@ struct CUpti_ActivityEnvironmentCooling
     fanSpeed::UInt32
 end
 
-struct var"##Ctag#370"
+struct var"##Ctag#239"
     data::NTuple{20,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#370"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#239"}, f::Symbol)
     f === :speed && return Ptr{CUpti_ActivityEnvironmentSpeed}(x + 0)
     f === :temperature && return Ptr{CUpti_ActivityEnvironmentTemperature}(x + 0)
     f === :power && return Ptr{CUpti_ActivityEnvironmentPower}(x + 0)
@@ -3078,18 +3149,18 @@ function Base.getproperty(x::Ptr{var"##Ctag#370"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#370", f::Symbol)
-    r = Ref{var"##Ctag#370"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#370"}, r)
+function Base.getproperty(x::var"##Ctag#239", f::Symbol)
+    r = Ref{var"##Ctag#239"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#239"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#370"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#239"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#370", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#239", private::Bool=false)
     return (:speed, :temperature, :power, :cooling, if private
                 fieldnames(typeof(x))
             else
@@ -3106,7 +3177,7 @@ function Base.getproperty(x::Ptr{CUpti_ActivityEnvironment}, f::Symbol)
     f === :deviceId && return Ptr{UInt32}(x + 4)
     f === :timestamp && return Ptr{UInt64}(x + 8)
     f === :environmentKind && return Ptr{CUpti_ActivityEnvironmentKind}(x + 16)
-    f === :data && return Ptr{var"##Ctag#370"}(x + 20)
+    f === :data && return Ptr{var"##Ctag#239"}(x + 20)
     return getfield(x, f)
 end
 
@@ -3412,11 +3483,11 @@ function Base.propertynames(x::CUpti_ActivitySharedAccess, private::Bool=false)
             end...)
 end
 
-struct CUpti_ActivityCudaEvent2
-    data::NTuple{56,UInt8}
+struct CUpti_ActivityCudaEvent3
+    data::NTuple{80,UInt8}
 end
 
-function Base.getproperty(x::Ptr{CUpti_ActivityCudaEvent2}, f::Symbol)
+function Base.getproperty(x::Ptr{CUpti_ActivityCudaEvent3}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
     f === :correlationId && return Ptr{UInt32}(x + 4)
     f === :contextId && return Ptr{UInt32}(x + 8)
@@ -3428,23 +3499,28 @@ function Base.getproperty(x::Ptr{CUpti_ActivityCudaEvent2}, f::Symbol)
     f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 32)
     f === :deviceTimestamp && return Ptr{UInt64}(x + 40)
     f === :cudaEventSyncId && return Ptr{UInt64}(x + 48)
+    f === :graphNodeId && return Ptr{UInt64}(x + 56)
+    f === :graphId && return Ptr{UInt32}(x + 64)
+    f === :sourceGraphId && return Ptr{UInt32}(x + 68)
+    f === :sourceGraphNodeId && return Ptr{UInt64}(x + 72)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::CUpti_ActivityCudaEvent2, f::Symbol)
-    r = Ref{CUpti_ActivityCudaEvent2}(x)
-    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityCudaEvent2}, r)
+function Base.getproperty(x::CUpti_ActivityCudaEvent3, f::Symbol)
+    r = Ref{CUpti_ActivityCudaEvent3}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityCudaEvent3}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{CUpti_ActivityCudaEvent2}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{CUpti_ActivityCudaEvent3}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::CUpti_ActivityCudaEvent2, private::Bool=false)
+function Base.propertynames(x::CUpti_ActivityCudaEvent3, private::Bool=false)
     return (:kind, :correlationId, :contextId, :streamId, :eventId, :pad, :deviceId, :pad2,
-            :reserved0, :deviceTimestamp, :cudaEventSyncId, if private
+            :reserved0, :deviceTimestamp, :cudaEventSyncId, :graphNodeId, :graphId,
+            :sourceGraphId, :sourceGraphNodeId, if private
                 fieldnames(typeof(x))
             else
                 ()
@@ -3460,7 +3536,11 @@ end
     CUDA_EVENT_FIELD_DEVICE_ID = 5
     CUDA_EVENT_FIELD_DEVICE_TIMESTAMP = 6
     CUDA_EVENT_FIELD_CUDA_EVENT_SYNC_ID = 7
-    CUDA_EVENT_FIELD_MAX = 8
+    CUDA_EVENT_FIELD_GRAPH_NODE_ID = 8
+    CUDA_EVENT_FIELD_GRAPH_ID = 9
+    CUDA_EVENT_FIELD_SOURCE_GRAPH_ID = 10
+    CUDA_EVENT_FIELD_SOURCE_GRAPH_NODE_ID = 11
+    CUDA_EVENT_FIELD_MAX = 12
 end
 
 struct CUpti_ActivityStream
@@ -4078,28 +4158,28 @@ struct CUpti_ActivityNvLinkNpu
     domainId::UInt32
 end
 
-struct var"##Ctag#411"
+struct var"##Ctag#280"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#411"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#280"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
     f === :npu && return Ptr{CUpti_ActivityNvLinkNpu}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#411", f::Symbol)
-    r = Ref{var"##Ctag#411"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#411"}, r)
+function Base.getproperty(x::var"##Ctag#280", f::Symbol)
+    r = Ref{var"##Ctag#280"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#280"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#411"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#280"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#411", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#280", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -4107,28 +4187,28 @@ function Base.propertynames(x::var"##Ctag#411", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#412"
+struct var"##Ctag#281"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#412"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#281"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
     f === :npu && return Ptr{CUpti_ActivityNvLinkNpu}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#412", f::Symbol)
-    r = Ref{var"##Ctag#412"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#412"}, r)
+function Base.getproperty(x::var"##Ctag#281", f::Symbol)
+    r = Ref{var"##Ctag#281"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#281"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#412"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#281"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#412", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#281", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -4145,8 +4225,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink5}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#411"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#412"}(x + 32)
+    f === :idDev0 && return Ptr{var"##Ctag#280"}(x + 16)
+    f === :idDev1 && return Ptr{var"##Ctag#281"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{Ptr{UInt32}}(x + 56)
@@ -4212,28 +4292,28 @@ struct CUpti_ActivityPcieBridgeAttr
     pad0::UInt16
 end
 
-struct var"##Ctag#371"
+struct var"##Ctag#240"
     data::NTuple{4,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#371"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#240"}, f::Symbol)
     f === :devId && return Ptr{CUdevice}(x + 0)
     f === :bridgeId && return Ptr{UInt32}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#371", f::Symbol)
-    r = Ref{var"##Ctag#371"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#371"}, r)
+function Base.getproperty(x::var"##Ctag#240", f::Symbol)
+    r = Ref{var"##Ctag#240"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#240"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#371"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#240"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#371", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#240", private::Bool=false)
     return (:devId, :bridgeId, if private
                 fieldnames(typeof(x))
             else
@@ -4241,28 +4321,28 @@ function Base.propertynames(x::var"##Ctag#371", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#372"
+struct var"##Ctag#241"
     data::NTuple{144,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#372"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#241"}, f::Symbol)
     f === :gpuAttr && return Ptr{CUpti_ActivityPcieGpuAttr}(x + 0)
     f === :bridgeAttr && return Ptr{CUpti_ActivityPcieBridgeAttr}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#372", f::Symbol)
-    r = Ref{var"##Ctag#372"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#372"}, r)
+function Base.getproperty(x::var"##Ctag#241", f::Symbol)
+    r = Ref{var"##Ctag#241"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#241"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#372"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#241"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#372", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#241", private::Bool=false)
     return (:gpuAttr, :bridgeAttr, if private
                 fieldnames(typeof(x))
             else
@@ -4277,13 +4357,13 @@ end
 function Base.getproperty(x::Ptr{CUpti_ActivityPcie}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
     f === :type && return Ptr{CUpti_PcieDeviceType}(x + 4)
-    f === :id && return Ptr{var"##Ctag#371"}(x + 8)
+    f === :id && return Ptr{var"##Ctag#240"}(x + 8)
     f === :domain && return Ptr{UInt32}(x + 12)
     f === :pcieGeneration && return Ptr{UInt16}(x + 16)
     f === :linkRate && return Ptr{UInt16}(x + 18)
     f === :linkWidth && return Ptr{UInt16}(x + 20)
     f === :upstreamBus && return Ptr{UInt16}(x + 22)
-    f === :attr && return Ptr{var"##Ctag#372"}(x + 24)
+    f === :attr && return Ptr{var"##Ctag#241"}(x + 24)
     return getfield(x, f)
 end
 
@@ -4856,7 +4936,8 @@ end
     CUPTI_ACTIVITY_ATTR_THREAD_ID_TYPE = 21
     CUPTI_ACTIVITY_ATTR_TIMESTAMP_CALLBACK = 22
     CUPTI_ACTIVITY_ATTR_ENABLE_CIG_MODE = 23
-    CUPTI_ACTIVITY_ATTR_COUNT = 24
+    CUPTI_ACTIVITY_ATTR_HES_BUFFER_SIZE = 24
+    CUPTI_ACTIVITY_ATTR_COUNT = 25
     CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_FORCE_INT = 2147483647
 end
 
@@ -5729,28 +5810,28 @@ function Base.propertynames(x::CUpti_ActivityKernel, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#373"
+struct var"##Ctag#242"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#373"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#242"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#374"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#243"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#373", f::Symbol)
-    r = Ref{var"##Ctag#373"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#373"}, r)
+function Base.getproperty(x::var"##Ctag#242", f::Symbol)
+    r = Ref{var"##Ctag#242"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#242"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#373"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#242"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#373", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#242", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -5764,7 +5845,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel2}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#373"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#242"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :start && return Ptr{UInt64}(x + 8)
@@ -5813,28 +5894,28 @@ function Base.propertynames(x::CUpti_ActivityKernel2, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#291"
+struct var"##Ctag#156"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#291"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#156"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#292"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#157"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#291", f::Symbol)
-    r = Ref{var"##Ctag#291"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#291"}, r)
+function Base.getproperty(x::var"##Ctag#156", f::Symbol)
+    r = Ref{var"##Ctag#156"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#156"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#291"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#156"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#291", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#156", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -5848,7 +5929,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel3}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#291"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#156"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -5902,28 +5983,28 @@ function Base.propertynames(x::CUpti_ActivityKernel3, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#325"
+struct var"##Ctag#190"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#325"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#190"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#326"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#191"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#325", f::Symbol)
-    r = Ref{var"##Ctag#325"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#325"}, r)
+function Base.getproperty(x::var"##Ctag#190", f::Symbol)
+    r = Ref{var"##Ctag#190"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#190"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#325"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#190"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#325", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#190", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -5937,7 +6018,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel4}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#325"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#190"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6000,28 +6081,28 @@ function Base.propertynames(x::CUpti_ActivityKernel4, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#359"
+struct var"##Ctag#227"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#359"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#227"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#360"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#228"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#359", f::Symbol)
-    r = Ref{var"##Ctag#359"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#359"}, r)
+function Base.getproperty(x::var"##Ctag#227", f::Symbol)
+    r = Ref{var"##Ctag#227"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#227"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#359"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#227"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#359", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#227", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6035,7 +6116,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel5}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#359"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#227"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6101,28 +6182,28 @@ function Base.propertynames(x::CUpti_ActivityKernel5, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#295"
+struct var"##Ctag#160"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#295"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#160"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#296"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#161"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#295", f::Symbol)
-    r = Ref{var"##Ctag#295"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#295"}, r)
+function Base.getproperty(x::var"##Ctag#160", f::Symbol)
+    r = Ref{var"##Ctag#160"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#160"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#295"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#160"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#295", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#160", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6136,7 +6217,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel6}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#295"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#160"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6203,28 +6284,28 @@ function Base.propertynames(x::CUpti_ActivityKernel6, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#309"
+struct var"##Ctag#174"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#309"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#174"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#310"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#175"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#309", f::Symbol)
-    r = Ref{var"##Ctag#309"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#309"}, r)
+function Base.getproperty(x::var"##Ctag#174", f::Symbol)
+    r = Ref{var"##Ctag#174"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#174"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#309"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#174"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#309", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#174", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6238,7 +6319,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel7}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#309"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#174"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6308,28 +6389,28 @@ function Base.propertynames(x::CUpti_ActivityKernel7, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#387"
+struct var"##Ctag#256"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#387"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#256"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#388"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#257"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#387", f::Symbol)
-    r = Ref{var"##Ctag#387"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#387"}, r)
+function Base.getproperty(x::var"##Ctag#256", f::Symbol)
+    r = Ref{var"##Ctag#256"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#256"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#387"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#256"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#387", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#256", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6343,7 +6424,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel8}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#387"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#256"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6419,28 +6500,28 @@ function Base.propertynames(x::CUpti_ActivityKernel8, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#368"
+struct var"##Ctag#237"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#368"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#237"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#369"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#238"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#368", f::Symbol)
-    r = Ref{var"##Ctag#368"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#368"}, r)
+function Base.getproperty(x::var"##Ctag#237", f::Symbol)
+    r = Ref{var"##Ctag#237"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#237"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#368"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#237"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#368", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#237", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6454,7 +6535,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel9}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#368"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#237"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6532,28 +6613,28 @@ function Base.propertynames(x::CUpti_ActivityKernel9, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#361"
+struct var"##Ctag#229"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#361"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#229"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#362"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#230"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#361", f::Symbol)
-    r = Ref{var"##Ctag#361"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#361"}, r)
+function Base.getproperty(x::var"##Ctag#229", f::Symbol)
+    r = Ref{var"##Ctag#229"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#229"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#361"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#229"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#361", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#229", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6567,7 +6648,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel10}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#361"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#229"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6648,28 +6729,28 @@ function Base.propertynames(x::CUpti_ActivityKernel10, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#409"
+struct var"##Ctag#278"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#409"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#278"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#410"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#279"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#409", f::Symbol)
-    r = Ref{var"##Ctag#409"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#409"}, r)
+function Base.getproperty(x::var"##Ctag#278", f::Symbol)
+    r = Ref{var"##Ctag#278"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#278"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#409"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#278"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#409", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#278", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6683,7 +6764,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel11}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#409"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#278"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -6766,28 +6847,28 @@ function Base.propertynames(x::CUpti_ActivityKernel11, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#394"
+struct var"##Ctag#263"
     data::NTuple{1,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#394"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#263"}, f::Symbol)
     f === :both && return Ptr{UInt8}(x + 0)
-    f === :config && return Ptr{var"##Ctag#395"}(x + 0)
+    f === :config && return Ptr{var"##Ctag#264"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#394", f::Symbol)
-    r = Ref{var"##Ctag#394"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#394"}, r)
+function Base.getproperty(x::var"##Ctag#263", f::Symbol)
+    r = Ref{var"##Ctag#263"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#263"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#394"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#263"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#394", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#263", private::Bool=false)
     return (:both, :config, if private
                 fieldnames(typeof(x))
             else
@@ -6801,7 +6882,7 @@ end
 
 function Base.getproperty(x::Ptr{CUpti_ActivityKernel12}, f::Symbol)
     f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
-    f === :cacheConfig && return Ptr{var"##Ctag#394"}(x + 4)
+    f === :cacheConfig && return Ptr{var"##Ctag#263"}(x + 4)
     f === :sharedMemoryConfig && return Ptr{UInt8}(x + 5)
     f === :registersPerThread && return Ptr{UInt16}(x + 6)
     f === :partitionedGlobalCacheRequested &&
@@ -7346,28 +7427,28 @@ function Base.propertynames(x::CUpti_ActivityMemset4, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#346"
+struct var"##Ctag#211"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#346"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#211"}, f::Symbol)
     f === :size && return Ptr{UInt64}(x + 0)
     f === :processId && return Ptr{UInt64}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#346", f::Symbol)
-    r = Ref{var"##Ctag#346"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#346"}, r)
+function Base.getproperty(x::var"##Ctag#211", f::Symbol)
+    r = Ref{var"##Ctag#211"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#211"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#346"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#211"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#346", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#211", private::Bool=false)
     return (:size, :processId, if private
                 fieldnames(typeof(x))
             else
@@ -7375,31 +7456,31 @@ function Base.propertynames(x::var"##Ctag#346", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#345"
+struct var"##Ctag#210"
     data::NTuple{32,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#345"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#210"}, f::Symbol)
     f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 0)
     f === :pad2 && return Ptr{UInt32}(x + 4)
     f === :address && return Ptr{UInt64}(x + 8)
     f === :releaseThreshold && return Ptr{UInt64}(x + 16)
-    f === :pool && return Ptr{var"##Ctag#346"}(x + 24)
+    f === :pool && return Ptr{var"##Ctag#211"}(x + 24)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#345", f::Symbol)
-    r = Ref{var"##Ctag#345"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#345"}, r)
+function Base.getproperty(x::var"##Ctag#210", f::Symbol)
+    r = Ref{var"##Ctag#210"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#210"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#345"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#210"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#345", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#210", private::Bool=false)
     return (:memoryPoolType, :pad2, :address, :releaseThreshold, :pool,
             if private
                 fieldnames(typeof(x))
@@ -7453,28 +7534,28 @@ function Base.propertynames(x::CUpti_ActivityMemory2, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#330"
+struct var"##Ctag#195"
     data::NTuple{8,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#330"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#195"}, f::Symbol)
     f === :size && return Ptr{UInt64}(x + 0)
     f === :processId && return Ptr{UInt64}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#330", f::Symbol)
-    r = Ref{var"##Ctag#330"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#330"}, r)
+function Base.getproperty(x::var"##Ctag#195", f::Symbol)
+    r = Ref{var"##Ctag#195"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#195"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#330"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#195"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#330", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#195", private::Bool=false)
     return (:size, :processId, if private
                 fieldnames(typeof(x))
             else
@@ -7482,32 +7563,32 @@ function Base.propertynames(x::var"##Ctag#330", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#329"
+struct var"##Ctag#194"
     data::NTuple{40,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#329"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#194"}, f::Symbol)
     f === :memoryPoolType && return Ptr{CUpti_ActivityMemoryPoolType}(x + 0)
     f === :pad2 && return Ptr{UInt32}(x + 4)
     f === :address && return Ptr{UInt64}(x + 8)
     f === :releaseThreshold && return Ptr{UInt64}(x + 16)
-    f === :pool && return Ptr{var"##Ctag#330"}(x + 24)
+    f === :pool && return Ptr{var"##Ctag#195"}(x + 24)
     f === :utilizedSize && return Ptr{UInt64}(x + 32)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#329", f::Symbol)
-    r = Ref{var"##Ctag#329"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#329"}, r)
+function Base.getproperty(x::var"##Ctag#194", f::Symbol)
+    r = Ref{var"##Ctag#194"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#194"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#329"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#194"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#329", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#194", private::Bool=false)
     return (:memoryPoolType, :pad2, :address, :releaseThreshold, :pool, :utilizedSize,
             if private
                 fieldnames(typeof(x))
@@ -7941,28 +8022,28 @@ function Base.propertynames(x::CUpti_ActivityUnifiedMemoryCounter2, private::Boo
             end...)
 end
 
-struct var"##Ctag#277"
+struct var"##Ctag#142"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#277"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#142"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#278"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#143"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#277", f::Symbol)
-    r = Ref{var"##Ctag#277"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#277"}, r)
+function Base.getproperty(x::var"##Ctag#142", f::Symbol)
+    r = Ref{var"##Ctag#142"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#142"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#277"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#142"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#277", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#142", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -7970,28 +8051,28 @@ function Base.propertynames(x::var"##Ctag#277", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#279"
+struct var"##Ctag#144"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#279"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#144"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#280"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#145"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#279", f::Symbol)
-    r = Ref{var"##Ctag#279"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#279"}, r)
+function Base.getproperty(x::var"##Ctag#144", f::Symbol)
+    r = Ref{var"##Ctag#144"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#144"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#279"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#144"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#279", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#144", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -8008,8 +8089,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#277"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#279"}(x + 32)
+    f === :idDev0 && return Ptr{var"##Ctag#142"}(x + 16)
+    f === :idDev1 && return Ptr{var"##Ctag#144"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{4,Int8}}(x + 56)
@@ -8039,28 +8120,28 @@ function Base.propertynames(x::CUpti_ActivityNvLink, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#317"
+struct var"##Ctag#182"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#317"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#182"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#318"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#183"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#317", f::Symbol)
-    r = Ref{var"##Ctag#317"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#317"}, r)
+function Base.getproperty(x::var"##Ctag#182", f::Symbol)
+    r = Ref{var"##Ctag#182"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#182"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#317"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#182"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#317", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#182", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -8068,28 +8149,28 @@ function Base.propertynames(x::var"##Ctag#317", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#319"
+struct var"##Ctag#184"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#319"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#184"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#320"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#185"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#319", f::Symbol)
-    r = Ref{var"##Ctag#319"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#319"}, r)
+function Base.getproperty(x::var"##Ctag#184", f::Symbol)
+    r = Ref{var"##Ctag#184"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#184"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#319"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#184"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#319", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#184", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -8106,8 +8187,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink2}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#317"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#319"}(x + 32)
+    f === :idDev0 && return Ptr{var"##Ctag#182"}(x + 16)
+    f === :idDev1 && return Ptr{var"##Ctag#184"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{16,Int8}}(x + 56)
@@ -8137,28 +8218,28 @@ function Base.propertynames(x::CUpti_ActivityNvLink2, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#311"
+struct var"##Ctag#176"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#311"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#176"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#312"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#177"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#311", f::Symbol)
-    r = Ref{var"##Ctag#311"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#311"}, r)
+function Base.getproperty(x::var"##Ctag#176", f::Symbol)
+    r = Ref{var"##Ctag#176"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#176"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#311"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#176"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#311", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#176", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -8166,28 +8247,28 @@ function Base.propertynames(x::var"##Ctag#311", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#313"
+struct var"##Ctag#178"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#313"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#178"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#314"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#179"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#313", f::Symbol)
-    r = Ref{var"##Ctag#313"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#313"}, r)
+function Base.getproperty(x::var"##Ctag#178", f::Symbol)
+    r = Ref{var"##Ctag#178"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#178"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#313"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#178"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#313", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#178", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -8204,8 +8285,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink3}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#311"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#313"}(x + 32)
+    f === :idDev0 && return Ptr{var"##Ctag#176"}(x + 16)
+    f === :idDev1 && return Ptr{var"##Ctag#178"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{16,Int8}}(x + 56)
@@ -8237,28 +8318,28 @@ function Base.propertynames(x::CUpti_ActivityNvLink3, private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#363"
+struct var"##Ctag#232"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#363"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#232"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#364"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#233"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#363", f::Symbol)
-    r = Ref{var"##Ctag#363"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#363"}, r)
+function Base.getproperty(x::var"##Ctag#232", f::Symbol)
+    r = Ref{var"##Ctag#232"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#232"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#363"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#232"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#363", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#232", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -8266,28 +8347,28 @@ function Base.propertynames(x::var"##Ctag#363", private::Bool=false)
             end...)
 end
 
-struct var"##Ctag#365"
+struct var"##Ctag#234"
     data::NTuple{16,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#365"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#234"}, f::Symbol)
     f === :uuidDev && return Ptr{CUuuid}(x + 0)
-    f === :npu && return Ptr{var"##Ctag#366"}(x + 0)
+    f === :npu && return Ptr{var"##Ctag#235"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#365", f::Symbol)
-    r = Ref{var"##Ctag#365"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#365"}, r)
+function Base.getproperty(x::var"##Ctag#234", f::Symbol)
+    r = Ref{var"##Ctag#234"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#234"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#365"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#234"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#365", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#234", private::Bool=false)
     return (:uuidDev, :npu, if private
                 fieldnames(typeof(x))
             else
@@ -8304,8 +8385,8 @@ function Base.getproperty(x::Ptr{CUpti_ActivityNvLink4}, f::Symbol)
     f === :nvlinkVersion && return Ptr{UInt32}(x + 4)
     f === :typeDev0 && return Ptr{CUpti_DevType}(x + 8)
     f === :typeDev1 && return Ptr{CUpti_DevType}(x + 12)
-    f === :idDev0 && return Ptr{var"##Ctag#363"}(x + 16)
-    f === :idDev1 && return Ptr{var"##Ctag#365"}(x + 32)
+    f === :idDev0 && return Ptr{var"##Ctag#232"}(x + 16)
+    f === :idDev1 && return Ptr{var"##Ctag#234"}(x + 32)
     f === :flag && return Ptr{UInt32}(x + 48)
     f === :physicalNvLinkCount && return Ptr{UInt32}(x + 52)
     f === :portDev0 && return Ptr{NTuple{32,Int8}}(x + 56)
@@ -8527,6 +8608,45 @@ end
 function Base.propertynames(x::CUpti_ActivityCudaEvent, private::Bool=false)
     return (:kind, :correlationId, :contextId, :streamId, :eventId, :pad,
             if private
+                fieldnames(typeof(x))
+            else
+                ()
+            end...)
+end
+
+struct CUpti_ActivityCudaEvent2
+    data::NTuple{56,UInt8}
+end
+
+function Base.getproperty(x::Ptr{CUpti_ActivityCudaEvent2}, f::Symbol)
+    f === :kind && return Ptr{CUpti_ActivityKind}(x + 0)
+    f === :correlationId && return Ptr{UInt32}(x + 4)
+    f === :contextId && return Ptr{UInt32}(x + 8)
+    f === :streamId && return Ptr{UInt32}(x + 12)
+    f === :eventId && return Ptr{UInt32}(x + 16)
+    f === :pad && return Ptr{UInt32}(x + 20)
+    f === :deviceId && return Ptr{UInt32}(x + 24)
+    f === :pad2 && return Ptr{UInt32}(x + 28)
+    f === :reserved0 && return Ptr{Ptr{Cvoid}}(x + 32)
+    f === :deviceTimestamp && return Ptr{UInt64}(x + 40)
+    f === :cudaEventSyncId && return Ptr{UInt64}(x + 48)
+    return getfield(x, f)
+end
+
+function Base.getproperty(x::CUpti_ActivityCudaEvent2, f::Symbol)
+    r = Ref{CUpti_ActivityCudaEvent2}(x)
+    ptr = Base.unsafe_convert(Ptr{CUpti_ActivityCudaEvent2}, r)
+    fptr = getproperty(ptr, f)
+    GC.@preserve r unsafe_load(fptr)
+end
+
+function Base.setproperty!(x::Ptr{CUpti_ActivityCudaEvent2}, f::Symbol, v)
+    return unsafe_store!(getproperty(x, f), v)
+end
+
+function Base.propertynames(x::CUpti_ActivityCudaEvent2, private::Bool=false)
+    return (:kind, :correlationId, :contextId, :streamId, :eventId, :pad, :deviceId, :pad2,
+            :reserved0, :deviceTimestamp, :cudaEventSyncId, if private
                 fieldnames(typeof(x))
             else
                 ()
@@ -8811,64 +8931,64 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuModuleUnload = 22
     CUPTI_DRIVER_TRACE_CBID_cuModuleGetFunction = 23
     CUPTI_DRIVER_TRACE_CBID_cuModuleGetGlobal = 24
-    CUPTI_DRIVER_TRACE_CBID_cu64ModuleGetGlobal = 25
+    CUPTI_DRIVER_TRACE_CBID_cuda25 = 25
     CUPTI_DRIVER_TRACE_CBID_cuModuleGetTexRef = 26
     CUPTI_DRIVER_TRACE_CBID_cuMemGetInfo = 27
-    CUPTI_DRIVER_TRACE_CBID_cu64MemGetInfo = 28
+    CUPTI_DRIVER_TRACE_CBID_cuda28 = 28
     CUPTI_DRIVER_TRACE_CBID_cuMemAlloc = 29
-    CUPTI_DRIVER_TRACE_CBID_cu64MemAlloc = 30
+    CUPTI_DRIVER_TRACE_CBID_cuda30 = 30
     CUPTI_DRIVER_TRACE_CBID_cuMemAllocPitch = 31
-    CUPTI_DRIVER_TRACE_CBID_cu64MemAllocPitch = 32
+    CUPTI_DRIVER_TRACE_CBID_cuda32 = 32
     CUPTI_DRIVER_TRACE_CBID_cuMemFree = 33
-    CUPTI_DRIVER_TRACE_CBID_cu64MemFree = 34
+    CUPTI_DRIVER_TRACE_CBID_cuda34 = 34
     CUPTI_DRIVER_TRACE_CBID_cuMemGetAddressRange = 35
-    CUPTI_DRIVER_TRACE_CBID_cu64MemGetAddressRange = 36
+    CUPTI_DRIVER_TRACE_CBID_cuda36 = 36
     CUPTI_DRIVER_TRACE_CBID_cuMemAllocHost = 37
     CUPTI_DRIVER_TRACE_CBID_cuMemFreeHost = 38
     CUPTI_DRIVER_TRACE_CBID_cuMemHostAlloc = 39
     CUPTI_DRIVER_TRACE_CBID_cuMemHostGetDevicePointer = 40
-    CUPTI_DRIVER_TRACE_CBID_cu64MemHostGetDevicePointer = 41
+    CUPTI_DRIVER_TRACE_CBID_cuda41 = 41
     CUPTI_DRIVER_TRACE_CBID_cuMemHostGetFlags = 42
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyHtoD = 43
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyHtoD = 44
+    CUPTI_DRIVER_TRACE_CBID_cuda44 = 44
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyDtoH = 45
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyDtoH = 46
+    CUPTI_DRIVER_TRACE_CBID_cuda46 = 46
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyDtoD = 47
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyDtoD = 48
+    CUPTI_DRIVER_TRACE_CBID_cuda48 = 48
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyDtoA = 49
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyDtoA = 50
+    CUPTI_DRIVER_TRACE_CBID_cuda50 = 50
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyAtoD = 51
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyAtoD = 52
+    CUPTI_DRIVER_TRACE_CBID_cuda52 = 52
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyHtoA = 53
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyAtoH = 54
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyAtoA = 55
     CUPTI_DRIVER_TRACE_CBID_cuMemcpy2D = 56
     CUPTI_DRIVER_TRACE_CBID_cuMemcpy2DUnaligned = 57
     CUPTI_DRIVER_TRACE_CBID_cuMemcpy3D = 58
-    CUPTI_DRIVER_TRACE_CBID_cu64Memcpy3D = 59
+    CUPTI_DRIVER_TRACE_CBID_cuda59 = 59
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyHtoDAsync = 60
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyHtoDAsync = 61
+    CUPTI_DRIVER_TRACE_CBID_cuda61 = 61
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyDtoHAsync = 62
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyDtoHAsync = 63
+    CUPTI_DRIVER_TRACE_CBID_cuda63 = 63
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyDtoDAsync = 64
-    CUPTI_DRIVER_TRACE_CBID_cu64MemcpyDtoDAsync = 65
+    CUPTI_DRIVER_TRACE_CBID_cuda65 = 65
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyHtoAAsync = 66
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyAtoHAsync = 67
     CUPTI_DRIVER_TRACE_CBID_cuMemcpy2DAsync = 68
     CUPTI_DRIVER_TRACE_CBID_cuMemcpy3DAsync = 69
-    CUPTI_DRIVER_TRACE_CBID_cu64Memcpy3DAsync = 70
+    CUPTI_DRIVER_TRACE_CBID_cuda70 = 70
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD8 = 71
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD8 = 72
+    CUPTI_DRIVER_TRACE_CBID_cuda72 = 72
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD16 = 73
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD16 = 74
+    CUPTI_DRIVER_TRACE_CBID_cuda74 = 74
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD32 = 75
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD32 = 76
+    CUPTI_DRIVER_TRACE_CBID_cuda76 = 76
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD2D8 = 77
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD2D8 = 78
+    CUPTI_DRIVER_TRACE_CBID_cuda78 = 78
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD2D16 = 79
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD2D16 = 80
+    CUPTI_DRIVER_TRACE_CBID_cuda80 = 80
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD2D32 = 81
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD2D32 = 82
+    CUPTI_DRIVER_TRACE_CBID_cuda82 = 82
     CUPTI_DRIVER_TRACE_CBID_cuFuncSetBlockShape = 83
     CUPTI_DRIVER_TRACE_CBID_cuFuncSetSharedSize = 84
     CUPTI_DRIVER_TRACE_CBID_cuFuncGetAttribute = 85
@@ -8882,15 +9002,15 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuTexRefDestroy = 93
     CUPTI_DRIVER_TRACE_CBID_cuTexRefSetArray = 94
     CUPTI_DRIVER_TRACE_CBID_cuTexRefSetAddress = 95
-    CUPTI_DRIVER_TRACE_CBID_cu64TexRefSetAddress = 96
+    CUPTI_DRIVER_TRACE_CBID_cuda96 = 96
     CUPTI_DRIVER_TRACE_CBID_cuTexRefSetAddress2D = 97
-    CUPTI_DRIVER_TRACE_CBID_cu64TexRefSetAddress2D = 98
+    CUPTI_DRIVER_TRACE_CBID_cuda98 = 98
     CUPTI_DRIVER_TRACE_CBID_cuTexRefSetFormat = 99
     CUPTI_DRIVER_TRACE_CBID_cuTexRefSetAddressMode = 100
     CUPTI_DRIVER_TRACE_CBID_cuTexRefSetFilterMode = 101
     CUPTI_DRIVER_TRACE_CBID_cuTexRefSetFlags = 102
     CUPTI_DRIVER_TRACE_CBID_cuTexRefGetAddress = 103
-    CUPTI_DRIVER_TRACE_CBID_cu64TexRefGetAddress = 104
+    CUPTI_DRIVER_TRACE_CBID_cuda104 = 104
     CUPTI_DRIVER_TRACE_CBID_cuTexRefGetArray = 105
     CUPTI_DRIVER_TRACE_CBID_cuTexRefGetAddressMode = 106
     CUPTI_DRIVER_TRACE_CBID_cuTexRefGetFilterMode = 107
@@ -8917,7 +9037,7 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsUnregisterResource = 128
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsSubResourceGetMappedArray = 129
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsResourceGetMappedPointer = 130
-    CUPTI_DRIVER_TRACE_CBID_cu64GraphicsResourceGetMappedPointer = 131
+    CUPTI_DRIVER_TRACE_CBID_cuda131 = 131
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsResourceSetMapFlags = 132
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsMapResources = 133
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsUnmapResources = 134
@@ -8977,50 +9097,50 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsVDPAURegisterVideoSurface = 188
     CUPTI_DRIVER_TRACE_CBID_cuGraphicsVDPAURegisterOutputSurface = 189
     CUPTI_DRIVER_TRACE_CBID_cuModuleGetSurfRef = 190
-    CUPTI_DRIVER_TRACE_CBID_cuSurfRefCreate = 191
-    CUPTI_DRIVER_TRACE_CBID_cuSurfRefDestroy = 192
-    CUPTI_DRIVER_TRACE_CBID_cuSurfRefSetFormat = 193
+    CUPTI_DRIVER_TRACE_CBID_cuda191 = 191
+    CUPTI_DRIVER_TRACE_CBID_cuda192 = 192
+    CUPTI_DRIVER_TRACE_CBID_cuda193 = 193
     CUPTI_DRIVER_TRACE_CBID_cuSurfRefSetArray = 194
-    CUPTI_DRIVER_TRACE_CBID_cuSurfRefGetFormat = 195
+    CUPTI_DRIVER_TRACE_CBID_cuda195 = 195
     CUPTI_DRIVER_TRACE_CBID_cuSurfRefGetArray = 196
-    CUPTI_DRIVER_TRACE_CBID_cu64DeviceTotalMem = 197
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D10ResourceGetMappedPointer = 198
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D10ResourceGetMappedSize = 199
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D10ResourceGetMappedPitch = 200
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D10ResourceGetSurfaceDimensions = 201
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D9ResourceGetSurfaceDimensions = 202
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D9ResourceGetMappedPointer = 203
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D9ResourceGetMappedSize = 204
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D9ResourceGetMappedPitch = 205
-    CUPTI_DRIVER_TRACE_CBID_cu64D3D9MapVertexBuffer = 206
-    CUPTI_DRIVER_TRACE_CBID_cu64GLMapBufferObject = 207
-    CUPTI_DRIVER_TRACE_CBID_cu64GLMapBufferObjectAsync = 208
+    CUPTI_DRIVER_TRACE_CBID_cuda197 = 197
+    CUPTI_DRIVER_TRACE_CBID_cuda198 = 198
+    CUPTI_DRIVER_TRACE_CBID_cuda199 = 199
+    CUPTI_DRIVER_TRACE_CBID_cuda200 = 200
+    CUPTI_DRIVER_TRACE_CBID_cuda201 = 201
+    CUPTI_DRIVER_TRACE_CBID_cuda202 = 202
+    CUPTI_DRIVER_TRACE_CBID_cuda203 = 203
+    CUPTI_DRIVER_TRACE_CBID_cuda204 = 204
+    CUPTI_DRIVER_TRACE_CBID_cuda205 = 205
+    CUPTI_DRIVER_TRACE_CBID_cuda206 = 206
+    CUPTI_DRIVER_TRACE_CBID_cuda207 = 207
+    CUPTI_DRIVER_TRACE_CBID_cuda208 = 208
     CUPTI_DRIVER_TRACE_CBID_cuD3D11GetDevices = 209
     CUPTI_DRIVER_TRACE_CBID_cuD3D11CtxCreateOnDevice = 210
     CUPTI_DRIVER_TRACE_CBID_cuD3D10GetDevices = 211
     CUPTI_DRIVER_TRACE_CBID_cuD3D10CtxCreateOnDevice = 212
     CUPTI_DRIVER_TRACE_CBID_cuD3D9GetDevices = 213
     CUPTI_DRIVER_TRACE_CBID_cuD3D9CtxCreateOnDevice = 214
-    CUPTI_DRIVER_TRACE_CBID_cu64MemHostAlloc = 215
+    CUPTI_DRIVER_TRACE_CBID_cuda215 = 215
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD8Async = 216
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD8Async = 217
+    CUPTI_DRIVER_TRACE_CBID_cuda217 = 217
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD16Async = 218
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD16Async = 219
+    CUPTI_DRIVER_TRACE_CBID_cuda219 = 219
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD32Async = 220
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD32Async = 221
+    CUPTI_DRIVER_TRACE_CBID_cuda221 = 221
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD2D8Async = 222
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD2D8Async = 223
+    CUPTI_DRIVER_TRACE_CBID_cuda223 = 223
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD2D16Async = 224
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD2D16Async = 225
+    CUPTI_DRIVER_TRACE_CBID_cuda225 = 225
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD2D32Async = 226
-    CUPTI_DRIVER_TRACE_CBID_cu64MemsetD2D32Async = 227
-    CUPTI_DRIVER_TRACE_CBID_cu64ArrayCreate = 228
-    CUPTI_DRIVER_TRACE_CBID_cu64ArrayGetDescriptor = 229
-    CUPTI_DRIVER_TRACE_CBID_cu64Array3DCreate = 230
-    CUPTI_DRIVER_TRACE_CBID_cu64Array3DGetDescriptor = 231
-    CUPTI_DRIVER_TRACE_CBID_cu64Memcpy2D = 232
-    CUPTI_DRIVER_TRACE_CBID_cu64Memcpy2DUnaligned = 233
-    CUPTI_DRIVER_TRACE_CBID_cu64Memcpy2DAsync = 234
+    CUPTI_DRIVER_TRACE_CBID_cuda227 = 227
+    CUPTI_DRIVER_TRACE_CBID_cuda228 = 228
+    CUPTI_DRIVER_TRACE_CBID_cuda229 = 229
+    CUPTI_DRIVER_TRACE_CBID_cuda230 = 230
+    CUPTI_DRIVER_TRACE_CBID_cuda231 = 231
+    CUPTI_DRIVER_TRACE_CBID_cuda232 = 232
+    CUPTI_DRIVER_TRACE_CBID_cuda233 = 233
+    CUPTI_DRIVER_TRACE_CBID_cuda234 = 234
     CUPTI_DRIVER_TRACE_CBID_cuCtxCreate_v2 = 235
     CUPTI_DRIVER_TRACE_CBID_cuD3D10CtxCreate_v2 = 236
     CUPTI_DRIVER_TRACE_CBID_cuD3D11CtxCreate_v2 = 237
@@ -9034,7 +9154,7 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuMemFree_v2 = 245
     CUPTI_DRIVER_TRACE_CBID_cuMemGetAddressRange_v2 = 246
     CUPTI_DRIVER_TRACE_CBID_cuMemHostGetDevicePointer_v2 = 247
-    CUPTI_DRIVER_TRACE_CBID_cuMemcpy_v2 = 248
+    CUPTI_DRIVER_TRACE_CBID_cuda248 = 248
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD8_v2 = 249
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD16_v2 = 250
     CUPTI_DRIVER_TRACE_CBID_cuMemsetD32_v2 = 251
@@ -9057,7 +9177,7 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuD3D9MapVertexBuffer_v2 = 268
     CUPTI_DRIVER_TRACE_CBID_cuGLMapBufferObject_v2 = 269
     CUPTI_DRIVER_TRACE_CBID_cuGLMapBufferObjectAsync_v2 = 270
-    CUPTI_DRIVER_TRACE_CBID_cuMemHostAlloc_v2 = 271
+    CUPTI_DRIVER_TRACE_CBID_cuda271 = 271
     CUPTI_DRIVER_TRACE_CBID_cuArrayCreate_v2 = 272
     CUPTI_DRIVER_TRACE_CBID_cuArrayGetDescriptor_v2 = 273
     CUPTI_DRIVER_TRACE_CBID_cuArray3DCreate_v2 = 274
@@ -9101,9 +9221,9 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuDeviceCanAccessPeer = 312
     CUPTI_DRIVER_TRACE_CBID_cuCtxEnablePeerAccess = 313
     CUPTI_DRIVER_TRACE_CBID_cuCtxDisablePeerAccess = 314
-    CUPTI_DRIVER_TRACE_CBID_cuMemPeerRegister = 315
-    CUPTI_DRIVER_TRACE_CBID_cuMemPeerUnregister = 316
-    CUPTI_DRIVER_TRACE_CBID_cuMemPeerGetDevicePointer = 317
+    CUPTI_DRIVER_TRACE_CBID_cuda315 = 315
+    CUPTI_DRIVER_TRACE_CBID_cuda316 = 316
+    CUPTI_DRIVER_TRACE_CBID_cuda317 = 317
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyPeer = 318
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyPeerAsync = 319
     CUPTI_DRIVER_TRACE_CBID_cuMemcpy3DPeer = 320
@@ -9161,8 +9281,8 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuGetErrorString = 372
     CUPTI_DRIVER_TRACE_CBID_cuGetErrorName = 373
     CUPTI_DRIVER_TRACE_CBID_cuOccupancyMaxActiveBlocksPerMultiprocessor = 374
-    CUPTI_DRIVER_TRACE_CBID_cuCompilePtx = 375
-    CUPTI_DRIVER_TRACE_CBID_cuBinaryFree = 376
+    CUPTI_DRIVER_TRACE_CBID_cuda375 = 375
+    CUPTI_DRIVER_TRACE_CBID_cuda376 = 376
     CUPTI_DRIVER_TRACE_CBID_cuStreamAttachMemAsync = 377
     CUPTI_DRIVER_TRACE_CBID_cuPointerSetAttribute = 378
     CUPTI_DRIVER_TRACE_CBID_cuMemHostRegister_v2 = 379
@@ -9250,12 +9370,12 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuStreamWriteValue32_ptsz = 461
     CUPTI_DRIVER_TRACE_CBID_cuStreamBatchMemOp = 462
     CUPTI_DRIVER_TRACE_CBID_cuStreamBatchMemOp_ptsz = 463
-    CUPTI_DRIVER_TRACE_CBID_reserved464 = 464
-    CUPTI_DRIVER_TRACE_CBID_reserved465 = 465
+    CUPTI_DRIVER_TRACE_CBID_cuda464 = 464
+    CUPTI_DRIVER_TRACE_CBID_cuda465 = 465
     CUPTI_DRIVER_TRACE_CBID_cuNNSetAllocator = 466
     CUPTI_DRIVER_TRACE_CBID_cuMemPrefetchAsync = 467
     CUPTI_DRIVER_TRACE_CBID_cuMemPrefetchAsync_ptsz = 468
-    CUPTI_DRIVER_TRACE_CBID_reserved469 = 469
+    CUPTI_DRIVER_TRACE_CBID_cuda469 = 469
     CUPTI_DRIVER_TRACE_CBID_cuEGLStreamConsumerConnectWithFlags = 470
     CUPTI_DRIVER_TRACE_CBID_cuMemRangeGetAttribute = 471
     CUPTI_DRIVER_TRACE_CBID_cuMemRangeGetAttributes = 472
@@ -9345,8 +9465,8 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuMemGetAllocationGranularity = 556
     CUPTI_DRIVER_TRACE_CBID_cuMemGetAllocationPropertiesFromHandle = 557
     CUPTI_DRIVER_TRACE_CBID_cuMemGetAccess = 558
-    CUPTI_DRIVER_TRACE_CBID_cuStreamSetFlags = 559
-    CUPTI_DRIVER_TRACE_CBID_cuStreamSetFlags_ptsz = 560
+    CUPTI_DRIVER_TRACE_CBID_cuda559 = 559
+    CUPTI_DRIVER_TRACE_CBID_cuda560 = 560
     CUPTI_DRIVER_TRACE_CBID_cuGraphExecUpdate = 561
     CUPTI_DRIVER_TRACE_CBID_cuGraphExecMemcpyNodeSetParams = 562
     CUPTI_DRIVER_TRACE_CBID_cuGraphExecMemsetNodeSetParams = 563
@@ -9572,15 +9692,15 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuStreamBeginCaptureToCig = 783
     CUPTI_DRIVER_TRACE_CBID_cuMemPrefetchBatchAsync = 784
     CUPTI_DRIVER_TRACE_CBID_cuMemPrefetchBatchAsync_ptsz = 785
-    CUPTI_DRIVER_TRACE_CBID_reserved786 = 786
-    CUPTI_DRIVER_TRACE_CBID_reserved787 = 787
-    CUPTI_DRIVER_TRACE_CBID_reserved788 = 788
+    CUPTI_DRIVER_TRACE_CBID_cuda786 = 786
+    CUPTI_DRIVER_TRACE_CBID_cuda787 = 787
+    CUPTI_DRIVER_TRACE_CBID_cuda788 = 788
     CUPTI_DRIVER_TRACE_CBID_cuMemDiscardBatchAsync = 789
     CUPTI_DRIVER_TRACE_CBID_cuMemDiscardBatchAsync_ptsz = 790
     CUPTI_DRIVER_TRACE_CBID_cuMemDiscardAndPrefetchBatchAsync = 791
     CUPTI_DRIVER_TRACE_CBID_cuMemDiscardAndPrefetchBatchAsync_ptsz = 792
-    CUPTI_DRIVER_TRACE_CBID_reserved793 = 793
-    CUPTI_DRIVER_TRACE_CBID_reserved794 = 794
+    CUPTI_DRIVER_TRACE_CBID_cuda793 = 793
+    CUPTI_DRIVER_TRACE_CBID_cuda794 = 794
     CUPTI_DRIVER_TRACE_CBID_cuCtxGetDevice_v2 = 795
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyBatchAsync_v2 = 796
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyBatchAsync_v2_ptsz = 797
@@ -9592,7 +9712,7 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuMemSetMemPool = 803
     CUPTI_DRIVER_TRACE_CBID_cuDeviceGetP2PAtomicCapabilities = 804
     CUPTI_DRIVER_TRACE_CBID_cuDeviceGetHostAtomicCapabilities = 805
-    CUPTI_DRIVER_TRACE_CBID_reserved806 = 806
+    CUPTI_DRIVER_TRACE_CBID_cuda806 = 806
     CUPTI_DRIVER_TRACE_CBID_cuStreamGetDevResource = 807
     CUPTI_DRIVER_TRACE_CBID_cuStreamGetDevResource_ptsz = 808
     CUPTI_DRIVER_TRACE_CBID_cuGraphNodeGetContainingGraph = 809
@@ -9603,24 +9723,24 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuStreamBeginCaptureToCig_ptsz = 814
     CUPTI_DRIVER_TRACE_CBID_cuStreamEndCaptureToCig = 815
     CUPTI_DRIVER_TRACE_CBID_cuStreamEndCaptureToCig_ptsz = 816
-    CUPTI_DRIVER_TRACE_CBID_reserved817 = 817
-    CUPTI_DRIVER_TRACE_CBID_reserved818 = 818
-    CUPTI_DRIVER_TRACE_CBID_reserved819 = 819
+    CUPTI_DRIVER_TRACE_CBID_cuda817 = 817
+    CUPTI_DRIVER_TRACE_CBID_cuda818 = 818
+    CUPTI_DRIVER_TRACE_CBID_cuda819 = 819
     CUPTI_DRIVER_TRACE_CBID_cuMulticastBindMem_v2 = 820
     CUPTI_DRIVER_TRACE_CBID_cuMulticastBindAddr_v2 = 821
     CUPTI_DRIVER_TRACE_CBID_cuDevSmResourceSplit = 822
-    CUPTI_DRIVER_TRACE_CBID_reserved823 = 823
-    CUPTI_DRIVER_TRACE_CBID_reserved824 = 824
-    CUPTI_DRIVER_TRACE_CBID_reserved825 = 825
-    CUPTI_DRIVER_TRACE_CBID_reserved826 = 826
-    CUPTI_DRIVER_TRACE_CBID_reserved827 = 827
-    CUPTI_DRIVER_TRACE_CBID_reserved828 = 828
-    CUPTI_DRIVER_TRACE_CBID_reserved829 = 829
-    CUPTI_DRIVER_TRACE_CBID_reserved830 = 830
+    CUPTI_DRIVER_TRACE_CBID_cuda823 = 823
+    CUPTI_DRIVER_TRACE_CBID_cuda824 = 824
+    CUPTI_DRIVER_TRACE_CBID_cuda825 = 825
+    CUPTI_DRIVER_TRACE_CBID_cuda826 = 826
+    CUPTI_DRIVER_TRACE_CBID_cuda827 = 827
+    CUPTI_DRIVER_TRACE_CBID_cuda828 = 828
+    CUPTI_DRIVER_TRACE_CBID_cuda829 = 829
+    CUPTI_DRIVER_TRACE_CBID_cuda830 = 830
     CUPTI_DRIVER_TRACE_CBID_cuLaunchHostFunc_v2 = 831
     CUPTI_DRIVER_TRACE_CBID_cuLaunchHostFunc_v2_ptsz = 832
-    CUPTI_DRIVER_TRACE_CBID_reserved833 = 833
-    CUPTI_DRIVER_TRACE_CBID_reserved834 = 834
+    CUPTI_DRIVER_TRACE_CBID_cuda833 = 833
+    CUPTI_DRIVER_TRACE_CBID_cuda834 = 834
     CUPTI_DRIVER_TRACE_CBID_cuFuncGetParamCount = 835
     CUPTI_DRIVER_TRACE_CBID_cuKernelGetParamCount = 836
     CUPTI_DRIVER_TRACE_CBID_cuMemcpyWithAttributesAsync = 837
@@ -9648,13 +9768,22 @@ end
     CUPTI_DRIVER_TRACE_CBID_cuLogicalEndpointQuery = 859
     CUPTI_DRIVER_TRACE_CBID_cuMemGetLocationInfo = 860
     CUPTI_DRIVER_TRACE_CBID_cuCheckpointOperationComplete = 861
-    CUPTI_DRIVER_TRACE_CBID_reserved862 = 862
+    CUPTI_DRIVER_TRACE_CBID_cuda862 = 862
     CUPTI_DRIVER_TRACE_CBID_cuGraphAddNode_v3 = 863
     CUPTI_DRIVER_TRACE_CBID_cuGraphNodeSetParams_v2 = 864
     CUPTI_DRIVER_TRACE_CBID_cuDeviceGetFabricClusterUuid = 865
     CUPTI_DRIVER_TRACE_CBID_cuDeviceGetCliqueCount = 866
     CUPTI_DRIVER_TRACE_CBID_cuDeviceGetCliqueInfo = 867
-    CUPTI_DRIVER_TRACE_CBID_SIZE = 868
+    CUPTI_DRIVER_TRACE_CBID_cuda868 = 868
+    CUPTI_DRIVER_TRACE_CBID_cuda869 = 869
+    CUPTI_DRIVER_TRACE_CBID_cuda870 = 870
+    CUPTI_DRIVER_TRACE_CBID_cuda871 = 871
+    CUPTI_DRIVER_TRACE_CBID_cuda872 = 872
+    CUPTI_DRIVER_TRACE_CBID_cuda873 = 873
+    CUPTI_DRIVER_TRACE_CBID_cuda874 = 874
+    CUPTI_DRIVER_TRACE_CBID_cuda875 = 875
+    CUPTI_DRIVER_TRACE_CBID_cuda876 = 876
+    CUPTI_DRIVER_TRACE_CBID_SIZE = 877
     CUPTI_DRIVER_TRACE_CBID_FORCE_INT = 2147483647
 end
 
@@ -10227,7 +10356,8 @@ const CUpti_driver_api_trace_cbid = CUpti_driver_api_trace_cbid_enum
     CUPTI_RUNTIME_TRACE_CBID_cudaStreamBeginRecaptureToGraph_ptsz_v13030 = 563
     CUPTI_RUNTIME_TRACE_CBID_cuda564 = 564
     CUPTI_RUNTIME_TRACE_CBID_cudaMemGetLocationInfo_v13040 = 565
-    CUPTI_RUNTIME_TRACE_CBID_SIZE = 566
+    CUPTI_RUNTIME_TRACE_CBID_cuda566 = 566
+    CUPTI_RUNTIME_TRACE_CBID_SIZE = 567
     CUPTI_RUNTIME_TRACE_CBID_FORCE_INT = 2147483647
 end
 
@@ -11069,36 +11199,36 @@ end
     CUPTI_PC_SAMPLING_CONFIGURATION_ATTR_TYPE_FORCE_INT = 2147483647
 end
 
-struct var"##Ctag#298"
+struct var"##Ctag#163"
     data::NTuple{24,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#298"}, f::Symbol)
-    f === :invalidData && return Ptr{var"##Ctag#299"}(x + 0)
-    f === :samplingPeriodData && return Ptr{var"##Ctag#300"}(x + 0)
-    f === :stallReasonData && return Ptr{var"##Ctag#301"}(x + 0)
-    f === :scratchBufferSizeData && return Ptr{var"##Ctag#302"}(x + 0)
-    f === :hardwareBufferSizeData && return Ptr{var"##Ctag#303"}(x + 0)
-    f === :collectionModeData && return Ptr{var"##Ctag#304"}(x + 0)
-    f === :enableStartStopControlData && return Ptr{var"##Ctag#305"}(x + 0)
-    f === :outputDataFormatData && return Ptr{var"##Ctag#306"}(x + 0)
-    f === :samplingDataBufferData && return Ptr{var"##Ctag#307"}(x + 0)
-    f === :workerThreadPeriodicSleepSpanData && return Ptr{var"##Ctag#308"}(x + 0)
+function Base.getproperty(x::Ptr{var"##Ctag#163"}, f::Symbol)
+    f === :invalidData && return Ptr{var"##Ctag#164"}(x + 0)
+    f === :samplingPeriodData && return Ptr{var"##Ctag#165"}(x + 0)
+    f === :stallReasonData && return Ptr{var"##Ctag#166"}(x + 0)
+    f === :scratchBufferSizeData && return Ptr{var"##Ctag#167"}(x + 0)
+    f === :hardwareBufferSizeData && return Ptr{var"##Ctag#168"}(x + 0)
+    f === :collectionModeData && return Ptr{var"##Ctag#169"}(x + 0)
+    f === :enableStartStopControlData && return Ptr{var"##Ctag#170"}(x + 0)
+    f === :outputDataFormatData && return Ptr{var"##Ctag#171"}(x + 0)
+    f === :samplingDataBufferData && return Ptr{var"##Ctag#172"}(x + 0)
+    f === :workerThreadPeriodicSleepSpanData && return Ptr{var"##Ctag#173"}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#298", f::Symbol)
-    r = Ref{var"##Ctag#298"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#298"}, r)
+function Base.getproperty(x::var"##Ctag#163", f::Symbol)
+    r = Ref{var"##Ctag#163"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#163"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#298"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#163"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#298", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#163", private::Bool=false)
     return (:invalidData, :samplingPeriodData, :stallReasonData, :scratchBufferSizeData,
             :hardwareBufferSizeData, :collectionModeData, :enableStartStopControlData,
             :outputDataFormatData, :samplingDataBufferData,
@@ -11116,7 +11246,7 @@ end
 function Base.getproperty(x::Ptr{CUpti_PCSamplingConfigurationInfo}, f::Symbol)
     f === :attributeType && return Ptr{CUpti_PCSamplingConfigurationAttributeType}(x + 0)
     f === :attributeStatus && return Ptr{CUptiResult}(x + 4)
-    f === :attributeData && return Ptr{var"##Ctag#298"}(x + 8)
+    f === :attributeData && return Ptr{var"##Ctag#163"}(x + 8)
     return getfield(x, f)
 end
 
@@ -11388,680 +11518,680 @@ const CUpti_ComputeCrcCallbackFunc = Ptr{Cvoid}
     @gcsafe_ccall libcupti.cuptiRegisterComputeCrcCallback(funcComputeCubinCrc::CUpti_ComputeCrcCallbackFunc)::CUptiResult
 end
 
-struct var"##Ctag#278"
+struct var"##Ctag#143"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#278"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#143"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#278", f::Symbol)
-    r = Ref{var"##Ctag#278"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#278"}, r)
+function Base.getproperty(x::var"##Ctag#143", f::Symbol)
+    r = Ref{var"##Ctag#143"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#143"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#278"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#143"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#280"
+struct var"##Ctag#145"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#280"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#145"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#280", f::Symbol)
-    r = Ref{var"##Ctag#280"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#280"}, r)
+function Base.getproperty(x::var"##Ctag#145", f::Symbol)
+    r = Ref{var"##Ctag#145"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#145"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#280"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#145"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#290"
+struct var"##Ctag#155"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#290"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#155"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#290", f::Symbol)
-    r = Ref{var"##Ctag#290"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#290"}, r)
+function Base.getproperty(x::var"##Ctag#155", f::Symbol)
+    r = Ref{var"##Ctag#155"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#155"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#290"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#155"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#292"
+struct var"##Ctag#157"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#292"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#157"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#292", f::Symbol)
-    r = Ref{var"##Ctag#292"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#292"}, r)
+function Base.getproperty(x::var"##Ctag#157", f::Symbol)
+    r = Ref{var"##Ctag#157"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#157"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#292"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#157"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#296"
+struct var"##Ctag#161"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#296"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#161"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#296", f::Symbol)
-    r = Ref{var"##Ctag#296"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#296"}, r)
+function Base.getproperty(x::var"##Ctag#161", f::Symbol)
+    r = Ref{var"##Ctag#161"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#161"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#296"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#161"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#299"
+struct var"##Ctag#164"
     data::NTuple{3,UInt64}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#299"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#164"}, f::Symbol)
     f === :data && return Ptr{NTuple{3,UInt64}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#299", f::Symbol)
-    r = Ref{var"##Ctag#299"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#299"}, r)
+function Base.getproperty(x::var"##Ctag#164", f::Symbol)
+    r = Ref{var"##Ctag#164"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#164"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#299"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#164"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#300"
+struct var"##Ctag#165"
     samplingPeriod::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#300"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#165"}, f::Symbol)
     f === :samplingPeriod && return Ptr{UInt32}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#300", f::Symbol)
-    r = Ref{var"##Ctag#300"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#300"}, r)
+function Base.getproperty(x::var"##Ctag#165", f::Symbol)
+    r = Ref{var"##Ctag#165"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#165"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#300"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#165"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#301"
+struct var"##Ctag#166"
     stallReasonCount::Csize_t
     pStallReasonIndex::Ptr{UInt32}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#301"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#166"}, f::Symbol)
     f === :stallReasonCount && return Ptr{Csize_t}(x + 0)
     f === :pStallReasonIndex && return Ptr{Ptr{UInt32}}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#301", f::Symbol)
-    r = Ref{var"##Ctag#301"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#301"}, r)
+function Base.getproperty(x::var"##Ctag#166", f::Symbol)
+    r = Ref{var"##Ctag#166"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#166"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#301"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#166"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#302"
+struct var"##Ctag#167"
     scratchBufferSize::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#302"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#167"}, f::Symbol)
     f === :scratchBufferSize && return Ptr{Csize_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#302", f::Symbol)
-    r = Ref{var"##Ctag#302"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#302"}, r)
+function Base.getproperty(x::var"##Ctag#167", f::Symbol)
+    r = Ref{var"##Ctag#167"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#167"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#302"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#167"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#303"
+struct var"##Ctag#168"
     hardwareBufferSize::Csize_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#303"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#168"}, f::Symbol)
     f === :hardwareBufferSize && return Ptr{Csize_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#303", f::Symbol)
-    r = Ref{var"##Ctag#303"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#303"}, r)
+function Base.getproperty(x::var"##Ctag#168", f::Symbol)
+    r = Ref{var"##Ctag#168"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#168"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#303"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#168"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#304"
+struct var"##Ctag#169"
     collectionMode::CUpti_PCSamplingCollectionMode
 end
-function Base.getproperty(x::Ptr{var"##Ctag#304"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#169"}, f::Symbol)
     f === :collectionMode && return Ptr{CUpti_PCSamplingCollectionMode}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#304", f::Symbol)
-    r = Ref{var"##Ctag#304"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#304"}, r)
+function Base.getproperty(x::var"##Ctag#169", f::Symbol)
+    r = Ref{var"##Ctag#169"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#169"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#304"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#169"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#305"
+struct var"##Ctag#170"
     enableStartStopControl::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#305"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#170"}, f::Symbol)
     f === :enableStartStopControl && return Ptr{UInt32}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#305", f::Symbol)
-    r = Ref{var"##Ctag#305"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#305"}, r)
+function Base.getproperty(x::var"##Ctag#170", f::Symbol)
+    r = Ref{var"##Ctag#170"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#170"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#305"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#170"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#306"
+struct var"##Ctag#171"
     outputDataFormat::CUpti_PCSamplingOutputDataFormat
 end
-function Base.getproperty(x::Ptr{var"##Ctag#306"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#171"}, f::Symbol)
     f === :outputDataFormat && return Ptr{CUpti_PCSamplingOutputDataFormat}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#306", f::Symbol)
-    r = Ref{var"##Ctag#306"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#306"}, r)
+function Base.getproperty(x::var"##Ctag#171", f::Symbol)
+    r = Ref{var"##Ctag#171"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#171"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#306"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#171"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#307"
+struct var"##Ctag#172"
     samplingDataBuffer::Ptr{Cvoid}
 end
-function Base.getproperty(x::Ptr{var"##Ctag#307"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#172"}, f::Symbol)
     f === :samplingDataBuffer && return Ptr{Ptr{Cvoid}}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#307", f::Symbol)
-    r = Ref{var"##Ctag#307"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#307"}, r)
+function Base.getproperty(x::var"##Ctag#172", f::Symbol)
+    r = Ref{var"##Ctag#172"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#172"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#307"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#172"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#308"
+struct var"##Ctag#173"
     workerThreadPeriodicSleepSpan::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#308"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#173"}, f::Symbol)
     f === :workerThreadPeriodicSleepSpan && return Ptr{UInt32}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#308", f::Symbol)
-    r = Ref{var"##Ctag#308"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#308"}, r)
+function Base.getproperty(x::var"##Ctag#173", f::Symbol)
+    r = Ref{var"##Ctag#173"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#173"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#308"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#173"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#310"
+struct var"##Ctag#175"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#310"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#175"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#310", f::Symbol)
-    r = Ref{var"##Ctag#310"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#310"}, r)
+function Base.getproperty(x::var"##Ctag#175", f::Symbol)
+    r = Ref{var"##Ctag#175"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#175"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#310"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#175"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#312"
+struct var"##Ctag#177"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#312"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#177"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#312", f::Symbol)
-    r = Ref{var"##Ctag#312"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#312"}, r)
+function Base.getproperty(x::var"##Ctag#177", f::Symbol)
+    r = Ref{var"##Ctag#177"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#177"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#312"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#177"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#314"
+struct var"##Ctag#179"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#314"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#179"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#314", f::Symbol)
-    r = Ref{var"##Ctag#314"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#314"}, r)
+function Base.getproperty(x::var"##Ctag#179", f::Symbol)
+    r = Ref{var"##Ctag#179"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#179"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#314"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#179"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#318"
+struct var"##Ctag#183"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#318"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#183"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#318", f::Symbol)
-    r = Ref{var"##Ctag#318"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#318"}, r)
+function Base.getproperty(x::var"##Ctag#183", f::Symbol)
+    r = Ref{var"##Ctag#183"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#183"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#318"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#183"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#320"
+struct var"##Ctag#185"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#320"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#185"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#320", f::Symbol)
-    r = Ref{var"##Ctag#320"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#320"}, r)
+function Base.getproperty(x::var"##Ctag#185", f::Symbol)
+    r = Ref{var"##Ctag#185"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#185"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#320"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#185"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#322"
+struct var"##Ctag#187"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#322"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#187"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#322", f::Symbol)
-    r = Ref{var"##Ctag#322"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#322"}, r)
+function Base.getproperty(x::var"##Ctag#187", f::Symbol)
+    r = Ref{var"##Ctag#187"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#187"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#322"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#187"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#326"
+struct var"##Ctag#191"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#326"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#191"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#326", f::Symbol)
-    r = Ref{var"##Ctag#326"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#326"}, r)
+function Base.getproperty(x::var"##Ctag#191", f::Symbol)
+    r = Ref{var"##Ctag#191"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#191"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#326"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#191"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#360"
+struct var"##Ctag#228"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#360"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#228"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#360", f::Symbol)
-    r = Ref{var"##Ctag#360"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#360"}, r)
+function Base.getproperty(x::var"##Ctag#228", f::Symbol)
+    r = Ref{var"##Ctag#228"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#228"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#360"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#228"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#362"
+struct var"##Ctag#230"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#362"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#230"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#362", f::Symbol)
-    r = Ref{var"##Ctag#362"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#362"}, r)
+function Base.getproperty(x::var"##Ctag#230", f::Symbol)
+    r = Ref{var"##Ctag#230"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#230"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#362"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#230"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#364"
+struct var"##Ctag#233"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#364"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#233"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#364", f::Symbol)
-    r = Ref{var"##Ctag#364"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#364"}, r)
+function Base.getproperty(x::var"##Ctag#233", f::Symbol)
+    r = Ref{var"##Ctag#233"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#233"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#364"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#233"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#366"
+struct var"##Ctag#235"
     index::UInt32
     domainId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#366"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#235"}, f::Symbol)
     f === :index && return Ptr{UInt32}(x + 0)
     f === :domainId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#366", f::Symbol)
-    r = Ref{var"##Ctag#366"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#366"}, r)
+function Base.getproperty(x::var"##Ctag#235", f::Symbol)
+    r = Ref{var"##Ctag#235"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#235"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#366"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#235"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#369"
+struct var"##Ctag#238"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#369"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#238"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#369", f::Symbol)
-    r = Ref{var"##Ctag#369"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#369"}, r)
+function Base.getproperty(x::var"##Ctag#238", f::Symbol)
+    r = Ref{var"##Ctag#238"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#238"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#369"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#238"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#374"
+struct var"##Ctag#243"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#374"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#243"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#374", f::Symbol)
-    r = Ref{var"##Ctag#374"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#374"}, r)
+function Base.getproperty(x::var"##Ctag#243", f::Symbol)
+    r = Ref{var"##Ctag#243"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#243"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#374"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#243"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#388"
+struct var"##Ctag#257"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#388"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#257"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#388", f::Symbol)
-    r = Ref{var"##Ctag#388"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#388"}, r)
+function Base.getproperty(x::var"##Ctag#257", f::Symbol)
+    r = Ref{var"##Ctag#257"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#257"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#388"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#257"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#395"
+struct var"##Ctag#264"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#395"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#264"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#395", f::Symbol)
-    r = Ref{var"##Ctag#395"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#395"}, r)
+function Base.getproperty(x::var"##Ctag#264", f::Symbol)
+    r = Ref{var"##Ctag#264"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#264"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#395"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#264"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#407"
+struct var"##Ctag#276"
     processId::UInt32
     threadId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#407"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#276"}, f::Symbol)
     f === :processId && return Ptr{UInt32}(x + 0)
     f === :threadId && return Ptr{UInt32}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#407", f::Symbol)
-    r = Ref{var"##Ctag#407"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#407"}, r)
+function Base.getproperty(x::var"##Ctag#276", f::Symbol)
+    r = Ref{var"##Ctag#276"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#276"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#407"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#276"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#408"
+struct var"##Ctag#277"
     deviceId::UInt32
     contextId::UInt32
     streamId::UInt32
 end
-function Base.getproperty(x::Ptr{var"##Ctag#408"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#277"}, f::Symbol)
     f === :deviceId && return Ptr{UInt32}(x + 0)
     f === :contextId && return Ptr{UInt32}(x + 4)
     f === :streamId && return Ptr{UInt32}(x + 8)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#408", f::Symbol)
-    r = Ref{var"##Ctag#408"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#408"}, r)
+function Base.getproperty(x::var"##Ctag#277", f::Symbol)
+    r = Ref{var"##Ctag#277"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#277"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#408"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#277"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#410"
+struct var"##Ctag#279"
     requested::UInt8
     executed::UInt8
 end
-function Base.getproperty(x::Ptr{var"##Ctag#410"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#279"}, f::Symbol)
     f === :requested && return (Ptr{UInt8}(x + 0), 0, 4)
     f === :executed && return (Ptr{UInt8}(x + 0), 4, 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#410", f::Symbol)
-    r = Ref{var"##Ctag#410"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#410"}, r)
+function Base.getproperty(x::var"##Ctag#279", f::Symbol)
+    r = Ref{var"##Ctag#279"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#279"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#410"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#279"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
