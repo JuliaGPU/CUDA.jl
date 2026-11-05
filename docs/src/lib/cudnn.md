@@ -26,7 +26,9 @@ objects contain metadata; `execute!` binds them to arrays or scalar values.
 
 `build!` validates and lowers the graph, queries cuDNN heuristics, and selects an execution
 plan. `deterministic`, `math_mode`, and `max_workspace` constrain plan selection.
-`is_supported` performs the same build and returns a boolean.
+`is_supported` performs the same build and returns a boolean. `autotune!(graph, bindings)`
+instead times every plan that satisfies the constraints on the given bindings, overwriting
+the outputs, and keeps the fastest.
 
 `cached_graph` caches plans and unsupported configurations per cuDNN handle.
 `graph_unsupported` identifies errors suitable for an equivalent fallback.
