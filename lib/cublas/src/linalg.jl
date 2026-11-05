@@ -262,6 +262,24 @@ function LinearAlgebra.reflect!(x::StridedCuArray{T}, y::StridedCuArray{T}, c::N
     x, y
 end
 
+# `Givens{T}` stores the cosine as a `T`, so complex rotations carry a complex `c` with a
+# zero imaginary part; cuBLAS takes a real one.
+function LinearAlgebra.lmul!(G::LinearAlgebra.Givens, A::StridedCuVecOrMat{T}) where T<:CublasFloat
+    if G.i2 > size(A, 1)
+        throw(DimensionMismatch("column indices for rotation are outside the matrix"))
+    end
+    rotate!(view(A, G.i1, :), view(A, G.i2, :), convert(real(T), G.c), G.s)
+    return A
+end
+
+function LinearAlgebra.rmul!(A::StridedCuMatrix{T}, G::LinearAlgebra.Givens) where T<:CublasFloat
+    if G.i2 > size(A, 2)
+        throw(DimensionMismatch("column indices for rotation are outside the matrix"))
+    end
+    rotate!(view(A, :, G.i1), view(A, :, G.i2), convert(real(T), G.c), -conj(G.s))
+    return A
+end
+
 
 
 #

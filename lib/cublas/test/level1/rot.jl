@@ -28,6 +28,39 @@ using LinearAlgebra
         end
     end
 
+    @testset "Givens" begin # JuliaGPU/CUDA.jl#115
+        n = 7
+        A = rand(T, m, n)
+        @testset for GT in unique((real(T), T))
+            G = LinearAlgebra.Givens{GT}(2, 5, rand(real(T)), rand(GT))
+            @test testf(A -> lmul!(G, A), A)
+            @test testf(A -> lmul!(G', A), A)
+            @test testf(A -> rmul!(A, G), copy(A'))
+            @test testf(A -> G * A, A)
+            @test testf(A -> A * G', copy(A'))
+            @test testf(x -> lmul!(G, x), rand(T, m))
+            @test testf(A -> (G * G') * A, A)
+            @test testf(A -> lmul!(G, A), zeros(T, m, 0))
+        end
+
+        # complex Givens rotations store a complex cosine with zero imaginary part
+        G, _ = givens(A[1, 1], A[3, 1], 1, 3)
+        @test testf(A -> lmul!(G, A), A)
+
+        # only the rotated rows or columns need to be strided
+        G = LinearAlgebra.Givens(1, 3, rand(real(T)), rand(T))
+        dA = CuArray(rand(T, 2m, 2n))
+        rows, cols = view(dA, 2:2:2m, 1:2:2n), view(dA, 1:2:2m, 2:2:2n)
+        A, B = Array(rows), Array(cols)
+        @test lmul!(G, rows) === rows
+        @test Array(rows) ≈ lmul!(G, A)
+        @test Array(rmul!(cols, G)) ≈ rmul!(B, G)
+
+        @test_throws DimensionMismatch lmul!(LinearAlgebra.Givens(1, m+1, one(T), zero(T)),
+                                             CuArray(A))
+        @test_throws DimensionMismatch rmul!(CuArray(A), LinearAlgebra.Givens(1, n+1, one(T), zero(T)))
+    end
+
     @testset "rotg!" begin
         a = rand(T)
         b = rand(T)
