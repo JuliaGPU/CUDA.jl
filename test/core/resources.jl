@@ -271,6 +271,27 @@ end
     @test CUDACore.drain_retired() == 344
     @test count[] == 600
 
+    # a drain that finds a backlog also releases what was retired after it
+    for _ in 1:300
+        CUDACore.retire!(CUDACore.ReleaseAction(_ -> (count[] += 1), nothing, nothing, false))
+    end
+    @test CUDACore.drain_retired(CUDACore.ALLOC_DRAIN_LIMIT) == 256
+    CUDACore.retire!(CUDACore.ReleaseAction(_ -> (count[] += 1), nothing, nothing, false))
+    @test CUDACore.drain_retired() == 45
+    @test count[] == 901
+
+    # but not what those resources retire
+    CUDACore.retire!(CUDACore.ReleaseAction(nothing, nothing, false) do _
+        CUDACore.retire!(CUDACore.ReleaseAction(_ -> (count[] += 1), nothing, nothing, false))
+    end)
+    for _ in 1:256
+        CUDACore.retire!(CUDACore.ReleaseAction(_ -> (count[] += 1), nothing, nothing, false))
+    end
+    @test CUDACore.drain_retired(CUDACore.ALLOC_DRAIN_LIMIT) == 256
+    @test CUDACore.drain_retired() == 1
+    @test CUDACore.drain_retired() == 1
+    @test count[] == 1158
+
     calls = Int[]
     CUDACore.retire!(CUDACore.ReleaseAction(nothing, nothing, false) do _
         push!(calls, 1)
