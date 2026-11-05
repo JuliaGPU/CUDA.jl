@@ -13,7 +13,7 @@ changes to support floors; those are labeled separately below. Patch releases
 are listed as subsections of the minor release they belong to.
 
 
-## v6.5 (unreleased)
+## v6.5 (October 2026)
 
 CUDA.jl now requires GPUArrays.jl 12, which implements sorting, scans,
 reductions, `findall`, logical indexing and `reverse` once for every GPU back-end
