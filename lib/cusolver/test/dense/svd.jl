@@ -114,6 +114,29 @@ end
     end
 end
 
+@testset "svd of $wrap($elty), uplo = $uplo" for
+    elty in [Float32, Float64, ComplexF32, ComplexF64],
+    wrap in (Hermitian, Symmetric), uplo in (:U, :L)
+
+    elty <: Complex && wrap === Symmetric && continue
+    # a singular matrix with eigenvalues of both signs
+    A = rand(elty, m, m)
+    A = A + A' - 2I
+    A[:, end] .= 0
+    A[end, :] .= 0
+    h_A = wrap(A, uplo)
+    d_A = wrap(CuArray(A), uplo)
+
+    F = svd(d_A)
+    h_U, h_S, h_Vt = collect(F.U), collect(F.S), collect(F.Vt)
+    @test h_S ≈ svdvals(h_A)
+    @test issorted(h_S; rev=true)
+    @test h_U * Diagonal(h_S) * h_Vt ≈ h_A
+    @test h_U' * h_U ≈ I
+    @test h_Vt * h_Vt' ≈ I
+    @test collect(svdvals(d_A)) ≈ svdvals(h_A)
+end
+
 @testset "2-opnorm($sz x $elty)" for
     elty in [Float32, Float64, ComplexF32, ComplexF64],
     sz in [(2, 0), (2, 3)]

@@ -121,11 +121,11 @@ Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix})
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', 'U', A2)...)
+    return Eigen(Xsyevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasComplex}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', 'U', A2)...)
+    return Eigen(Xsyevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasReal}
     return eigen(Symmetric(A))
@@ -168,11 +168,11 @@ end
 
 function LinearAlgebra.eigvals(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
     A2 = copy(A.data)
-    return Xsyevd!('N', 'U', A2)
+    return Xsyevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
     A2 = copy(A.data)
-    return Xsyevd!('N', 'U', A2)
+    return Xsyevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
     return eigvals(Symmetric(A))
@@ -447,6 +447,24 @@ _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
     gesvdj_fits('N', 1, A) ? gesvdj!('N', 1, A)[2] : svdvals_xgesvd!(A)
 _svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
 _svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
+
+# like LinearAlgebra, derive the SVD of a Hermitian matrix from its eigendecomposition,
+# but without the scalar indexing of the generic implementation
+const CuHermOrSym{T} = Union{Symmetric{T,<:CuMatrix{T}}, Hermitian{T,<:CuMatrix{T}},
+                             Hermitian{Complex{T},<:CuMatrix{Complex{T}}}} where {T<:BlasReal}
+
+function LinearAlgebra.svd(A::CuHermOrSym; full::Bool=false)
+    vals, vecs = eigen(A)
+    p = sortperm(abs.(vals); rev=true)
+    vals = vals[p]
+    U = vecs[:, p]
+    # move the sign of negative eigenvalues to the right-singular vectors
+    signs = ifelse.(vals .< 0, -one(eltype(vals)), one(eltype(vals)))
+    Vt = U' .* signs
+    return SVD(U, abs.(vals), Vt)
+end
+
+LinearAlgebra.svdvals(A::CuHermOrSym) = sort!(abs.(eigvals(A)); rev=true)
 
 ### opnorm2, enabled by svdvals
 
