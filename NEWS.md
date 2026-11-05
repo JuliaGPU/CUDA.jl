@@ -13,6 +13,22 @@ changes to support floors; those are labeled separately below. Patch releases
 are listed as subsections of the minor release they belong to.
 
 
+## v6.6 (unreleased)
+
+CUDA.jl now supports CUDA 13.5, which becomes the default toolkit on systems with a
+CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
+
+*New features*:
+
+- Added support for CUDA 13.5: the wrappers were regenerated, and the compatibility
+  databases record PTX ISA 9.5. cuSOLVER's `cusolverDnXsygvStridedBatched` and
+  cuSPARSE's `CUSPARSE_SPSV_ALG2` triangular-solve algorithm are available through
+  the low-level wrappers. On systems with a driver older than R620, CUDA_Driver_jll
+  13.5 can load NVIDIA's forward-compatible 620.70.06 driver.
+- Added support for cuDNN 9.28 (requires CUDNN_jll 9.28), including the low-level
+  wrappers for its graph attention (GAT) operations.
+
+
 ## v6.5 (October 2026)
 
 CUDA.jl now requires GPUArrays.jl 12, which implements sorting, scans,
