@@ -196,6 +196,12 @@ line of PTX code with `CUDATools.code_ptx`. This requires CUDA 13 or later.
   `compute_type=Float32` to accumulate products of `Float16` matrices in
   `Float32` instead of `Float16`
   ([#2020](https://github.com/JuliaGPU/CUDA.jl/issues/2020)).
+- cuBLAS's Givens rotation wrappers accept device-side scalars, i.e., a `CuRef`
+  or a one-element `CuArray`, and then do not synchronize with the GPU:
+  `rotg!(a, b)` updates `a` and `b` in place and returns `c` and `s` as
+  `CuRef`s that can be passed directly to `rot!`, and `rotmg!` updates `d1`,
+  `d2` and `x` in place. `rot!` itself accepts device-side `c` and `s` as
+  well; before, those calls threw a `MethodError`.
 
 - cuDNN's `convolution!`, `convolution_data_gradient!`,
   `convolution_filter_gradient!`, `maxpool!`, `meanpool!`, `∇maxpool!` and

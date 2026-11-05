@@ -84,7 +84,7 @@ needs_context = false
 
 [api.cublasNrm2Ex.argtypes]
 3 = "CuPtr{Cvoid}"
-6 = "PtrOrCuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏nrm2_v2".argtypes]
 3 = "CuPtr{T}"
@@ -101,12 +101,12 @@ needs_context = false
 [api.cublasDotEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "CuPtr{Cvoid}"
-9 = "PtrOrCuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
 
 [api.cublasDotcEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "CuPtr{Cvoid}"
-9 = "PtrOrCuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏dot_v2".argtypes]
 3 = "CuPtr{T}"
@@ -124,7 +124,7 @@ needs_context = false
 7 = "CuRef{T}"
 
 [api.cublasScalEx.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
 5 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏scal_v2".argtypes]
@@ -140,7 +140,7 @@ needs_context = false
 4 = "CuPtr{cuDoubleComplex}"
 
 [api.cublasAxpyEx.argtypes]
-3 = "PtrOrCuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
 5 = "CuPtr{Cvoid}"
 8 = "CuPtr{Cvoid}"
 
@@ -207,7 +207,7 @@ needs_context = false
 
 [api.cublasAsumEx.argtypes]
 3 = "CuPtr{Cvoid}"
-6 = "PtrOrCuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏asum_v2".argtypes]
 3 = "CuPtr{T}"
@@ -242,42 +242,44 @@ needs_context = false
 [api.cublasRotEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "CuPtr{Cvoid}"
-9 = "PtrOrCuPtr{Cvoid}"
-10 = "PtrOrCuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏rotg_v2".argtypes]
 2 = "CuRef{T}"
 3 = "CuRef{T}"
-4 = "PtrOrCuPtr{S}"
-5 = "PtrOrCuPtr{T}"
+4 = "CuRef{S}"
+5 = "CuRef{T}"
 
 [api.cublasRotgEx.argtypes]
-5 = "PtrOrCuPtr{Cvoid}"
-6 = "PtrOrCuPtr{Cvoid}"
+2 = "CuPtr{Cvoid}"
+3 = "CuPtr{Cvoid}"
+5 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏rotm_v2".argtypes]
 3 = "CuPtr{T}"
 5 = "CuPtr{T}"
-7 = "PtrOrCuPtr{T}"
+7 = "CuPtr{T}"
 
 [api.cublasRotmEx.argtypes]
 3 = "CuPtr{Cvoid}"
 6 = "CuPtr{Cvoid}"
-9 = "PtrOrCuPtr{Cvoid}"
+9 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏rotmg_v2".argtypes]
 2 = "CuRef{T}"
 3 = "CuRef{T}"
 4 = "CuRef{T}"
 5 = "CuRef{T}"
-6 = "PtrOrCuPtr{T}"
+6 = "CuPtr{T}"
 
 [api.cublasRotmgEx.argtypes]
-2 = "PtrOrCuPtr{Cvoid}"
-4 = "PtrOrCuPtr{Cvoid}"
-6 = "PtrOrCuPtr{Cvoid}"
-8 = "PtrOrCuPtr{Cvoid}"
-10 = "PtrOrCuPtr{Cvoid}"
+2 = "CuPtr{Cvoid}"
+4 = "CuPtr{Cvoid}"
+6 = "CuPtr{Cvoid}"
+8 = "CuPtr{Cvoid}"
+10 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏gemv_v2".argtypes]
 5 = "CuRef{T}"
@@ -499,10 +501,10 @@ needs_context = false
 15 = "CuPtr{Cvoid}"
 
 [api.cublasGemmEx.argtypes]
-7 = "PtrOrCuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
 8 = "CuPtr{Cvoid}"
 11 = "CuPtr{Cvoid}"
-14 = "PtrOrCuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
 15 = "CuPtr{Cvoid}"
 
 [api.cublasUint8gemmBias.argtypes]
@@ -614,17 +616,17 @@ needs_context = false
 13 = "CuPtr{Ptr{T}}"
 
 [api.cublasGemmBatchedEx.argtypes]
-7 = "PtrOrCuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
 8 = "CuPtr{Ptr{Cvoid}}"
 11 = "CuPtr{Ptr{Cvoid}}"
-14 = "PtrOrCuPtr{Cvoid}"
+14 = "CuPtr{Cvoid}"
 15 = "CuPtr{Ptr{Cvoid}}"
 
 [api.cublasGemmStridedBatchedEx.argtypes]
-7 = "PtrOrCuPtr{Cvoid}"
+7 = "CuPtr{Cvoid}"
 8 = "CuPtr{Cvoid}"
 12 = "CuPtr{Cvoid}"
-16 = "PtrOrCuPtr{Cvoid}"
+16 = "CuPtr{Cvoid}"
 17 = "CuPtr{Cvoid}"
 
 [api."cublas𝕏gemmStridedBatched".argtypes]

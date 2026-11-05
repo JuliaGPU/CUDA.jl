@@ -129,6 +129,7 @@ end
             cuBLAS.gemm!('N','N',CuRef(α),d_A,d_B,CuArray([β]),d_C1)
             @test (α*A)*B + β*C1 ≈ Array(d_C1)
             @test_throws ArgumentError cuBLAS.gemm!('N','N',CuRef(1),d_A,d_B,β,d_C1)
+            @test_throws ArgumentError cuBLAS.gemm!('N','N',[α],d_A,d_B,β,d_C1)
         end
         @testset "empty dimensions" begin
             C = rand(elty,m,n)

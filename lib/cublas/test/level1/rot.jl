@@ -14,6 +14,24 @@ using LinearAlgebra
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
     end
 
+    @testset "rot! with device-side scalars" begin
+        x, y = rand(T, m), rand(T, m)
+        c = rand(real(T))
+        @testset for S in unique((real(T), T))
+            s = rand(S)
+            ex, ey = rotate!(copy(x), copy(y), c, s)
+            # a view selects the element it starts at, not the first of its parent
+            offset_view(v) = view(CuArray([zero(v), v, zero(v)]), 2:3)
+            wraps = (identity, CuRef, v -> CuArray([v]), offset_view)
+            for cwrap in wraps, swrap in wraps
+                dx, dy = CuArray(x), CuArray(y)
+                cuBLAS.rot!(m, dx, dy, cwrap(c), swrap(s))
+                @test Array(dx) ≈ ex
+                @test Array(dy) ≈ ey
+            end
+        end
+    end
+
     @testset "negative strides" begin # JuliaGPU/CUDA.jl#3410
         rev(a) = view(a, lastindex(a):-2:1)
         fwd(a) = view(a, 1:2:lastindex(a))
@@ -75,6 +93,34 @@ using LinearAlgebra
         @test c^2 + abs2(s) ≈ one(T)
     end
 
+    @testset "rotg! with device-side scalars" begin
+        a, b = rand(T), rand(T)
+        ha, hb, hc, hs = cuBLAS.rotg!(a, b)
+        for wrap in (CuRef, v -> CuArray([v]))
+            da, db = wrap(a), wrap(b)
+            ra, rb, c, s = cuBLAS.rotg!(da, db)
+            @test ra === da && rb === db
+            @test c isa CUDACore.AbstractCuRef{real(T)}
+            @test s isa CUDACore.AbstractCuRef{T}
+            @test CUDACore.@allowscalar(da[]) ≈ ha
+            @test CUDACore.@allowscalar(db[]) ≈ hb
+            @test c[] ≈ hc
+            @test s[] ≈ hs
+
+            dc, ds = wrap(zero(real(T))), wrap(zero(T))
+            _, _, rc, rs = cuBLAS.rotg!(wrap(a), wrap(b), dc, ds)
+            @test rc === dc && rs === ds
+            @test CUDACore.@allowscalar(dc[]) ≈ hc
+            @test CUDACore.@allowscalar(ds[]) ≈ hs
+            x, y = rand(T, m), rand(T, m)
+            dx, dy = CuArray(x), CuArray(y)
+            cuBLAS.rot!(m, dx, dy, dc, ds)
+            ex, ey = rotate!(copy(x), copy(y), hc, hs)
+            @test Array(dx) ≈ ex
+            @test Array(dy) ≈ ey
+        end
+    end
+
     if T <: Real
         H = rand(T, 2, 2)
         @testset "rotm! flag=$flag" for (flag, flag_H) in ((T(-2), [one(T) zero(T); zero(T) one(T)]),
@@ -128,6 +174,25 @@ using LinearAlgebra
             end
             out = H * [(√d1) * x1_copy; (√d2) * y1_copy]
             @test out[2] ≈ zero(T)
+        end
+
+        @testset "rotmg! with device-side scalars" begin
+            d1, d2, x1, y1 = rand(T), rand(T), rand(T), rand(T)
+            host_param = CuArray(zeros(T, 5))
+            hd1, hd2, hx1, _ = cuBLAS.rotmg!(d1, d2, x1, y1, host_param)
+            for wrap in (CuRef, v -> CuArray([v])), y in (y1, wrap(y1))
+                param = CuArray(zeros(T, 5))
+                dd1, dd2, dx1 = wrap(d1), wrap(d2), wrap(x1)
+                r = cuBLAS.rotmg!(dd1, dd2, dx1, y, param)
+                @test r[1] === dd1 && r[2] === dd2 && r[3] === dx1 && r[5] === param
+                @test CUDACore.@allowscalar(dd1[]) ≈ hd1
+                @test CUDACore.@allowscalar(dd2[]) ≈ hd2
+                @test CUDACore.@allowscalar(dx1[]) ≈ hx1
+                @test Array(param) ≈ Array(host_param)
+            end
+            @test_throws DimensionMismatch cuBLAS.rotmg!(d1, d2, x1, y1, CuArray{T}(undef, 4))
+            @test_throws DimensionMismatch cuBLAS.rotm!(2, CuArray(rand(T, 2)), CuArray(rand(T, 2)),
+                                                        CuArray{T}(undef, 4))
         end
     end
 end
