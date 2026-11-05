@@ -133,7 +133,7 @@ cuDNN). Beyond that, we will try to keep some level of support for older
 toolkits such that CUDA.jl can be run on embedded devices that are still
 supported by NVIDIA.
 
-| Host platform | CUDA 12.0–13.3 | CUDA 11.x | CUDA 10.x | CUDA ≤ 9.x |
+| Host platform | CUDA 12.0–13.5 | CUDA 11.x | CUDA 10.x | CUDA ≤ 9.x |
 |---|:---:|:---:|:---:|:---:|
 | Linux x86-64 | 🔵 | 🟡 | 🟡 | 🔴 |
 | Linux ARM64/SBSA | 🟢 | 🟡 | — | — |
