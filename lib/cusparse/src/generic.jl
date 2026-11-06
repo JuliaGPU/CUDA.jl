@@ -520,139 +520,25 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
     return C
 end
 
-# AB and C must have the same sparsity pattern if β ≠ 0.
-function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
-               beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
-    version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
-
-    m,k = size(A)
-    n = size(C)[2]
-
-    if transa == 'N' && transb == 'N'
-        chkmmdims(B,C,k,n,m,n)
-    else
-        throw(ArgumentError("Sparse matrix-matrix multiplication only supports transa ($transa) = 'N' and transb ($transb) = 'N'"))
-    end
-
-    alpha_ref = Ref{T}(alpha)
-    beta_ref  = Ref{T}(beta)
-
-    descA = CuSparseMatrixDescriptor(A, index)
-    descB = CuSparseMatrixDescriptor(B, index)
-    descC = CuSparseMatrixDescriptor(C, index)
-
-    spgemm_desc = CuSpGEMMDescriptor()
-
-    buffer1 = CuVector{UInt8}(undef, 0)
-    buffer2 = CuVector{UInt8}(undef, 0)
-    GC.@preserve buffer1 buffer2 begin
-        # compute an upper bound of the memory required for the intermediate products
-        function buffer1Size()
-            out = Ref{Csize_t}(0)
-            cusparseSpGEMM_workEstimation(
-                handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
-                descC, T, algo, spgemm_desc, out, CU_NULL)
-            return out[]
-        end
-        with_workspace(buffer1, buffer1Size) do buffer
-            out = Ref{Csize_t}(sizeof(buffer))
-            cusparseSpGEMM_workEstimation(
-                handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
-                descC, T, algo, spgemm_desc, out, buffer)
-        end
-
-        # compute the structure of the output matrix and its values in a temporary buffer
-        if algo == CUSPARSE_SPGEMM_DEFAULT || algo == CUSPARSE_SPGEMM_ALG1
-            function buffer2Size()
-                out = Ref{Csize_t}(0)
-                cusparseSpGEMM_compute(
-                    handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
-                    descC, T, algo, spgemm_desc, out, CU_NULL)
-                return out[]
-            end
-            with_workspace(buffer2, buffer2Size) do buffer
-                out = Ref{Csize_t}(sizeof(buffer))
-                cusparseSpGEMM_compute(
-                    handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
-                    descC, T, algo, spgemm_desc, out, buffer)
-            end
-        elseif algo == CUSPARSE_SPGEMM_ALG2 || algo == CUSPARSE_SPGEMM_ALG3
-            chunk_fraction = Cfloat(0.2) # as per NVIDIA example (make it configurable?)
-            function buffer3Size()
-                out = Ref{Csize_t}(0)
-                cusparseSpGEMM_estimateMemory(
-                    handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
-                    descC, T, algo, spgemm_desc, chunk_fraction, out, CU_NULL, 0)
-                return out[]
-            end
-            with_workspace(buffer3Size) do buffer3
-                function estimatedBuffer2Size()
-                    out = Ref{Csize_t}(0)
-                    cusparseSpGEMM_estimateMemory(
-                        handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
-                        descC, T, algo, spgemm_desc, chunk_fraction, sizeof(buffer3),
-                        buffer3, out)
-                    return out[]
-                end
-                with_workspace(buffer2, estimatedBuffer2Size) do buffer
-                    unsafe_free!(buffer3)
-
-                    out = Ref{Csize_t}(sizeof(buffer))
-                    cusparseSpGEMM_compute(
-                        handle(), transa, transb, alpha_ref, descA, descB, beta_ref,
-                        descC, T, algo, spgemm_desc, out, buffer)
-                end
-            end
-        else
-            throw(ArgumentError("Unsupported SpGEMM algorithm: $algo"))
-        end
-        CUDACore.unsafe_free!(buffer1)
-
-        # retrieve the size of the output matrix and the number of non-zero elements
-        nnzC = Ref{Int64}()
-        cusparseSpMatGetSize(descC, Ref{Int64}(), Ref{Int64}(), nnzC)
-        # assume that AB and C have the same sparsity pattern if they have the same number
-        # of non-zero elements.
-        #
-        # XXX: even if AB and C have the same number of non-zero elements they could have
-        #      different sparsity patterns and the result will be wrong with β ≠ 0...
-        if nnz(C) ≠ nnzC[]
-            beta ≠ zero(T) && throw(ErrorException("AB and C must have the same sparsity pattern."))
-            # AB and C don't have the same sparsity pattern but we are still able to
-            # reallocate the memory to store the result of αAB in C because β = 0.
-            unsafe_free!(C.rowPtr)
-            unsafe_free!(C.colVal)
-            unsafe_free!(C.nzVal)
-            C.rowPtr = CuVector{Cint}(undef, m+1)
-            C.colVal = CuVector{Cint}(undef, nnzC[])
-            C.nzVal  = CuVector{T}(undef, nnzC[])
-            C.nnz    = nnzC[]
-            ## update the descriptor
-            cusparseCsrSetPointers(descC, C.rowPtr, C.colVal, C.nzVal)
-        end
-
-        # copy the offsets, column indices, and values to the output matrix
-        cusparseSpGEMM_copy(handle(), transa, transb, alpha_ref, descA, descB,
-                            beta_ref, descC, T, algo, spgemm_desc)
-        CUDACore.unsafe_free!(buffer2)
-    end
-
-    return C
+# C = αAB + βC, where C gets the union of the structures of both terms (its buffers are
+# resized, so it must not share them with another array)
+function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number,
+               A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T}, beta::Number,
+               C::CuSparseMatrixCSR{T}, index::SparseChar,
+               algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    P = gemm(transa, transb, alpha, A, B, index, algo)
+    size(P) == size(C) ||
+        throw(DimensionMismatch("C has dimensions $(size(C)), the product has $(size(P))"))
+    copyto!(C, iszero(beta) ? P : P .+ beta .* C)
 end
-
-function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T},
-               beta::Number, C::CuSparseMatrixCSC{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
-    # C = AB <---> Cᵀ = BᵀAᵀ
-    Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
-    Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, reverse(size(B)))
-    Cᵀ = CuSparseMatrixCSR(C.colPtr, C.rowVal, C.nzVal, reverse(size(C)))
-    gemm!(transb, transa, alpha, Bᵀ, Aᵀ, beta, Cᵀ, index, algo)
-    # if the number of non-zeros changed, Cᵀ's arrays were reallocated (freeing C's)
-    C.colPtr = Cᵀ.rowPtr
-    C.rowVal = Cᵀ.colVal
-    C.nzVal = Cᵀ.nzVal
-    C.nnz = Cᵀ.nnz
-    return C
+function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number,
+               A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T}, beta::Number,
+               C::CuSparseMatrixCSC{T}, index::SparseChar,
+               algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+    P = gemm(transa, transb, alpha, A, B, index, algo)
+    size(P) == size(C) ||
+        throw(DimensionMismatch("C has dimensions $(size(C)), the product has $(size(P))"))
+    copyto!(C, iszero(beta) ? P : P .+ beta .* C)
 end
 
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
@@ -757,6 +643,8 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
         CUDACore.unsafe_free!(buffer2)
     end
 
+    # (only recent versions document that the columns of each row come out sorted)
+    version() < v"12.6" && (C = sort_csr(C))
     return C
 end
 
@@ -789,7 +677,7 @@ function gemv(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
     p = length(x)
     p == n || throw(DimensionMismatch("dimensions must match: x has length $p, A has length $m × $n"))
     # we model x as a CuSparseMatrixCSC with one column.
-    B = CuSparseMatrixCSC(x)
+    B = CuSparseMatrixCSC{T,SparseArrays.indtype(A)}(x)
     C = gemm(transa, 'N', alpha, A, B, index, algo)
     y = CuSparseVector(C)
     return y
@@ -801,7 +689,7 @@ function gemv(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
     p = length(x)
     p == n || throw(DimensionMismatch("dimensions must match: x has length $p, A has length $m × $n"))
     # we model x as a CuSparseMatrixCSR with one column.
-    B = CuSparseMatrixCSR(x)
+    B = CuSparseMatrixCSR{T,SparseArrays.indtype(A)}(x)
     C = gemm(transa, 'N', alpha, A, B, index, algo)
     y = CuSparseVector(C)
     return y

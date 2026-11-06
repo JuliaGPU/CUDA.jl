@@ -34,7 +34,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                                  (:cusparseCcsric02_bufferSize, :cusparseCcsric02_analysis, :cusparseCcsric02, :ComplexF32),
                                  (:cusparseZcsric02_bufferSize, :cusparseZcsric02_analysis, :cusparseZcsric02, :ComplexF64))
     @eval begin
-        function ic02!(A::CuSparseMatrixCSR{$elty}, index::SparseChar='O')
+        function ic02!(A::CuSparseMatrixCSR{$elty,Cint}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -72,7 +72,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                                  (:cusparseCcsric02_bufferSize, :cusparseCcsric02_analysis, :cusparseCcsric02, :ComplexF32),
                                  (:cusparseZcsric02_bufferSize, :cusparseZcsric02_analysis, :cusparseZcsric02, :ComplexF64))
     @eval begin
-        function ic02!(A::CuSparseMatrixCSC{$elty}, index::SparseChar='O')
+        function ic02!(A::CuSparseMatrixCSC{$elty,Cint}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -110,7 +110,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                                  (:cusparseCcsrilu02_bufferSize, :cusparseCcsrilu02_analysis, :cusparseCcsrilu02, :ComplexF32),
                                  (:cusparseZcsrilu02_bufferSize, :cusparseZcsrilu02_analysis, :cusparseZcsrilu02, :ComplexF64))
     @eval begin
-        function ilu02!(A::CuSparseMatrixCSR{$elty}, index::SparseChar='O')
+        function ilu02!(A::CuSparseMatrixCSR{$elty,Cint}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -149,7 +149,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                                  (:cusparseCcsrilu02_bufferSize, :cusparseCcsrilu02_analysis, :cusparseCcsrilu02, :ComplexF32),
                                  (:cusparseZcsrilu02_bufferSize, :cusparseZcsrilu02_analysis, :cusparseZcsrilu02, :ComplexF64))
     @eval begin
-        function ilu02!(A::CuSparseMatrixCSC{$elty}, index::SparseChar='O')
+        function ilu02!(A::CuSparseMatrixCSC{$elty,Cint}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
             if m != n
@@ -188,7 +188,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                                  (:cusparseCbsric02_bufferSize, :cusparseCbsric02_analysis, :cusparseCbsric02, :ComplexF32),
                                  (:cusparseZbsric02_bufferSize, :cusparseZbsric02_analysis, :cusparseZbsric02, :ComplexF64))
     @eval begin
-        function ic02!(A::CuSparseMatrixBSR{$elty}, index::SparseChar='O')
+        function ic02!(A::CuSparseMatrixBSR{$elty,Cint}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -227,7 +227,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                                  (:cusparseCbsrilu02_bufferSize, :cusparseCbsrilu02_analysis, :cusparseCbsrilu02, :ComplexF32),
                                  (:cusparseZbsrilu02_bufferSize, :cusparseZbsrilu02_analysis, :cusparseZbsrilu02, :ComplexF64))
     @eval begin
-        function ilu02!(A::CuSparseMatrixBSR{$elty}, index::SparseChar='O')
+        function ilu02!(A::CuSparseMatrixBSR{$elty,Cint}, index::SparseChar='O')
             desc = CuMatrixDescriptor('G', 'U', 'N', index)
             m,n = size(A)
             if m != n
@@ -324,5 +324,15 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         function gtsv2(dl::CuVector{$elty}, d::CuVector{$elty}, du::CuVector{$elty}, B::CuVecOrMat{$elty}, index::SparseChar='O'; pivoting::Bool=true)
             gtsv2!(dl, d, du, copy(B), index; pivoting)
         end
+    end
+end
+
+# The legacy routines take 32-bit indices; other matrices are factorized through a view
+# with `Cint` indices that shares their values.
+for f in (:ic02!, :ilu02!)
+    @eval function $f(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC,CuSparseMatrixBSR}, index::SparseChar='O')
+        check_forwarding($f, A)
+        $f(cint_view(A), index)
+        return A
     end
 end

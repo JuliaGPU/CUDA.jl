@@ -289,3 +289,17 @@ for (sname, dname, elty, relty) in ((:cusolverSpScsrcholSolve, :cusolverSpScsrch
         end
     end
 end
+
+# The factorizations use the legacy routines, which take 32-bit indices; other matrices
+# are passed as a view with `Cint` indices that shares their values.
+SparseQR(A::CuSparseMatrixCSR{<:BlasFloat}, index::Char='O') =
+    (cuSPARSE.check_forwarding(SparseQR, A); SparseQR(cuSPARSE.cint_view(A), index))
+SparseCholesky(A::Union{CuSparseMatrixCSC{<:BlasFloat},CuSparseMatrixCSR{<:BlasFloat}}, index::Char='O') =
+    (cuSPARSE.check_forwarding(SparseCholesky, A); SparseCholesky(cuSPARSE.cint_view(A), index))
+for f in (:spqr_analyse, :spqr_buffer, :spqr_factorise, :spqr_factorise_solve,
+          :spcholesky_analyse, :spcholesky_buffer, :spcholesky_factorise)
+    @eval function $f(F, A::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}, args...)
+        cuSPARSE.check_forwarding($f, A)
+        $f(F, cuSPARSE.cint_view(A), args...)
+    end
+end

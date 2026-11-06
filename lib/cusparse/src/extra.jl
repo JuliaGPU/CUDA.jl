@@ -59,6 +59,8 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
                            (:cusparseZcsrgeam2_bufferSizeExt, :cusparseZcsrgeam2, :ComplexF64))
     @eval begin
         function geam_csrgeam2(alpha::Number, A::CuSparseMatrixCSR{$elty}, beta::Number, B::CuSparseMatrixCSR{$elty}, index::SparseChar)
+            # (the legacy routine takes 32-bit indices)
+            A, B = cint_view(A), cint_view(B)
             m, n = size(A)
             (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
             descrA = CuMatrixDescriptor('G', 'L', 'N', index)
@@ -118,19 +120,19 @@ Performs `z = alpha * x + beta * y`. `x` and `y` are sparse vectors.
 """
 axpby(alpha::Number, x::CuSparseVector, beta::Number, y::CuSparseVector, index::SparseChar)
 
-function axpby(alpha::Number, x::CuSparseVector{T}, beta::Number, y::CuSparseVector{T}, index::SparseChar) where {T <: BlasFloat}
+function axpby(alpha::Number, x::CuSparseVector{T,Ti}, beta::Number, y::CuSparseVector{T,Ti}, index::SparseChar) where {T <: BlasFloat, Ti}
     n = length(x)
     n == length(y) || throw(DimensionMismatch("dimensions must match: x has length $(length(x)), y has length $(length(y))"))
 
     # we model x as a CuSparseMatrixCSR with one row.
-    rowPtrA = CuVector{Int32}([1; nnz(x)+1])
-    A = CuSparseMatrixCSR(rowPtrA, x.iPtr, nonzeros(x), (1,n))
+    rowPtrA = CuVector{Ti}([1; nnz(x)+1])
+    A = CuSparseMatrixCSR(rowPtrA, nonzeroinds(x), nonzeros(x), (1,n))
 
     # we model y as a CuSparseMatrixCSR with one row.
-    rowPtrB = CuVector{Int32}([1; nnz(y)+1])
-    B = CuSparseMatrixCSR(rowPtrB, y.iPtr, nonzeros(y), (1,n))
+    rowPtrB = CuVector{Ti}([1; nnz(y)+1])
+    B = CuSparseMatrixCSR(rowPtrB, nonzeroinds(y), nonzeros(y), (1,n))
 
     C = geam(alpha, A, beta, B, index)
-    z = CuSparseVector(C.colVal, C.nzVal, n)
+    z = CuSparseVector{T,Ti}(C.colVal, C.nzVal, n)
     return z
 end

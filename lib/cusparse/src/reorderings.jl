@@ -22,7 +22,7 @@ for (fname, subty, elty) in ((:cusparseScsrcolor, :Float32, :Float32),
                              (:cusparseCcsrcolor, :Float32, :ComplexF32),
                              (:cusparseZcsrcolor, :Float64, :ComplexF64))
     @eval begin
-        function color(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}, index::SparseChar; percentage::Number=1.0)
+        function color(A::Union{CuSparseMatrixCSR{$elty,Cint},CuSparseMatrixCSC{$elty,Cint}}, index::SparseChar; percentage::Number=1.0)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m, n = size(A)
             (m != n) && throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -43,4 +43,10 @@ for (fname, subty, elty) in ((:cusparseScsrcolor, :Float32, :Float32),
             ncolors[], coloring, reordering
         end
     end
+end
+
+# (the legacy routines take 32-bit indices)
+function color(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}, index::SparseChar; kwargs...)
+    check_forwarding(color, A)
+    color(cint_view(A), index; kwargs...)
 end

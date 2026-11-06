@@ -32,3 +32,31 @@ function chkbmmdims(B, C, k, l, m, n)
         throw(DimensionMismatch("C has dimensions $(size(C)) but needs ($m,$n)"))
     end
 end
+
+"""
+    cint_view(A)
+
+The legacy routines of cuSPARSE and cuSOLVER only take 32-bit indices. Return `A` with
+`Cint` indices, sharing its values (which in-place routines update), or `A` itself if its
+indices are `Cint` already.
+"""
+cint_view(A::Union{CuSparseMatrixCSR{<:Any,Cint},CuSparseMatrixCSC{<:Any,Cint},
+                   CuSparseMatrixCOO{<:Any,Cint},CuSparseVector{<:Any,Cint}}) = A
+cint_view(A::CuSparseMatrixBSR{<:Any,Cint}) = A
+function cint_view(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC,CuSparseMatrixCOO,CuSparseVector})
+    max(size(A)..., nnz(A) + 1) <= typemax(Cint) ||
+        throw(ArgumentError("this cuSPARSE routine takes 32-bit indices, which cannot represent a $(join(size(A), '×')) array with $(nnz(A)) stored entries"))
+    buffers = GPUArrays.sparse_buffers(A)
+    return typeof(A).name.wrapper(map(b -> convert(CuVector{Cint}, b), Base.front(buffers))...,
+                                  last(buffers), A isa CuSparseVector ? length(A) : size(A))
+end
+cint_view(A::CuSparseMatrixBSR) =
+    CuSparseMatrixBSR{eltype(A),Cint}(A.rowPtr, A.colVal, nonzeros(A), size(A), A.blockDim,
+                                      A.dir, A.nnzb)
+
+# the forwarding methods for other index types use this, to avoid recursing forever when the
+# element type is not supported either
+function check_forwarding(f, A)
+    A === cint_view(A) && throw(MethodError(f, (A,)))
+    return
+end

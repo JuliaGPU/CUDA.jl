@@ -443,10 +443,12 @@ if cuSPARSE.version() >= v"11"
                         dF = gemm(transa, transb, alpha, dA, dB, beta, dE, 'O', algo, same_pattern=false)
                         @test F ≈ SparseMatrixCSC(dF)
 
-                        # not same pattern
+                        # not the same pattern: C gets the union of both
                         G = sprand(T, 25, 35, 0.4)
                         dG = SparseMatrixType(G)
-                        @test_throws ErrorException("AB and C must have the same sparsity pattern.") gemm!(transa, transb, gamma, dA, dB, beta, dG, 'O', algo)
+                        gemm!(transa, transb, gamma, dA, dB, beta, dG, 'O', algo)
+                        @test gamma * opa(A) * opb(B) + beta * G ≈ SparseMatrixCSC(dG)
+                        dG = SparseMatrixType(G)
                         gemm!(transa, transb, gamma, dA, dB, zero(T), dG, 'O', algo)
                         H = gamma * opa(A) * opa(B) + zero(T) * G
                         @test H ≈ SparseMatrixCSC(dG)

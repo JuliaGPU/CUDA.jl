@@ -24,7 +24,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                       uplo::SparseChar,
                       diag::SparseChar,
                       alpha::Number,
-                      A::CuSparseMatrixBSR{$elty},
+                      A::CuSparseMatrixBSR{$elty,Cint},
                       X::StridedCuMatrix{$elty},
                       index::SparseChar)
 
@@ -91,4 +91,10 @@ end
 function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
              A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T}, index::SparseChar) where T
     sm2!(transa,transxy,uplo,'N',one(T),A,copy(X),index)
+end
+
+# (the legacy routines take 32-bit indices)
+function sm2!(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number, A::CuSparseMatrixBSR, X::StridedCuMatrix, index::SparseChar)
+    check_forwarding(sm2!, A)
+    sm2!(transa, transxy, uplo, diag, alpha, cint_view(A), X, index)
 end

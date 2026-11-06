@@ -62,7 +62,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                              (:cusolverSpCcsrlsvqr, :ComplexF32, :Float32),
                              (:cusolverSpZcsrlsvqr, :ComplexF64, :Float64))
     @eval begin
-        function csrlsvqr!(A::CuSparseMatrixCSR{$elty},
+        function csrlsvqr!(A::CuSparseMatrixCSR{$elty,Cint},
                            b::CuVector{$elty},
                            x::CuVector{$elty},
                            tol::$relty,
@@ -81,7 +81,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
 
             desca = CuMatrixDescriptor('G', 'L', 'N', inda)
             singularity = Ref{Cint}(1)
-            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+            $fname(sparse_handle(), n, nnz(A), desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
             if singularity[] != -1
                 throw(SingularException(singularity[]))
@@ -98,7 +98,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                              (:cusolverSpCcsrlsvchol, :ComplexF32, :Float32),
                              (:cusolverSpZcsrlsvchol, :ComplexF64, :Float64))
     @eval begin
-        function csrlsvchol!(A::CuSparseMatrixCSR{$elty},
+        function csrlsvchol!(A::CuSparseMatrixCSR{$elty,Cint},
                              b::CuVector{$elty},
                              x::CuVector{$elty},
                              tol::$relty,
@@ -117,7 +117,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
 
             desca = CuMatrixDescriptor('G', 'L', 'N', inda)
             singularity = zeros(Cint,1)
-            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+            $fname(sparse_handle(), n, nnz(A), desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
             if singularity[1] != -1
                 throw(SingularException(singularity[1]))
@@ -171,7 +171,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                              (:cusolverSpCcsreigvsi, :ComplexF32, :Float32),
                              (:cusolverSpZcsreigvsi, :ComplexF64, :Float64))
     @eval begin
-        function csreigvsi(A::CuSparseMatrixCSR{$elty},
+        function csreigvsi(A::CuSparseMatrixCSR{$elty,Cint},
                            μ_0::$elty,
                            x_0::CuVector{$elty},
                            tol::$relty,
@@ -188,7 +188,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
             desca = CuMatrixDescriptor('G', 'L', 'N', inda)
             x       = copy(x_0)
             μ       = CUDACore.zeros($elty,1)
-            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal,
+            $fname(sparse_handle(), n, nnz(A), desca, A.nzVal, A.rowPtr, A.colVal,
                    μ_0, x_0, maxite, tol, μ, x)
 
             collect(μ)[1], x
@@ -296,5 +296,13 @@ for (fname, elty) in ((:cusolverSpScsrzfdHost, :Float32),
             (numnz[] < n) && throw(SingularException(n - numnz[]))
             return p
         end
+    end
+end
+
+# (the legacy routines take 32-bit indices)
+for f in (:csrlsvqr!, :csrlsvchol!, :csreigvsi)
+    @eval function $f(A::CuSparseMatrixCSR, args...)
+        cuSPARSE.check_forwarding($f, A)
+        $f(cuSPARSE.cint_view(A), args...)
     end
 end

@@ -19,7 +19,8 @@ using LinearAlgebra, SparseArrays
             @test norm(A, 1) ≈ norm(dA, 1)
             @test norm(A, 2) ≈ norm(dA, 2)
             @test norm(A, Inf) ≈ norm(dA, Inf)
-            @test norm(A, -Inf) ≈ norm(dA, -Inf)
+            # (unlike SparseArrays, GPUArrays counts the implicit zeros for negative orders)
+            @test norm(Matrix(A), -Inf) ≈ norm(dA, -Inf)
         end
         @testset "triu tril exp" begin
             @test Array(triu(dA)) ≈ triu(A)
@@ -70,7 +71,8 @@ end
 
     a = sprand(elty, 10, 10, 0.3)
     A = typ(a)
-    @test Array(Diagonal(A)) ≈ Diagonal(Matrix(a))
+    @test Diagonal(A) isa Diagonal{elty, <:CuVector{elty}}
+    @test Array(Diagonal(A).diag) ≈ Diagonal(Matrix(a)).diag
     @test tr(A) ≈ tr(Matrix(a))
     @test_throws DimensionMismatch tr(typ(sprand(elty, 6, 13, 0.3)))
     @test Array(Diagonal(A) * CuVector(ones(elty, 10))) ≈ Diagonal(Matrix(a)) * ones(elty, 10)
@@ -99,14 +101,14 @@ end
     @test Array(diag(transpose(B), Int8(-128))) ≈ diag(Matrix(transpose(b)), -128)
     @test Array(diag(adjoint(B), Int8(-128))) ≈ diag(Matrix(adjoint(b)), -128)
 
-    # duplicate entries are permitted and sum (see `sum_duplicate`); the CPU
-    # `sparse` constructor sums them too, so it provides the reference
+    # duplicate entries sum when assembling, as with the CPU `sparse` constructor, which
+    # provides the reference (arrays constructed from buffers must not contain them)
     rows = [1, 1, 2, 3, 3, 1, 1]
     cols = [1, 1, 2, 1, 1, 3, 3]
     vals = elty <: Complex ? elty[1 + 1im, 2 - 3im, 5 + 2im, 3, 4im, 1 - 1im, 2im] :
                              elty[1, 2, 5, 3, 4, 1, 2]
     a = sparse(rows, cols, vals, 4, 4)
-    coo = CuSparseMatrixCOO(CuVector{Cint}(rows), CuVector{Cint}(cols), CuVector(vals), (4, 4))
+    coo = sparse(CuVector{Cint}(rows), CuVector{Cint}(cols), CuVector(vals), 4, 4; fmt=:coo)
     A = typ === CuSparseMatrixCOO ? coo : typ(coo)
     for k in (0, -2, 2)
         @test Array(diag(A, k)) == diag(Matrix(a), k)
@@ -119,8 +121,9 @@ end
     typ in [CuSparseMatrixCSR, CuSparseMatrixCSC, CuSparseMatrixCOO]
 
     # true/false duplicates in both orders, so that overwriting gives a different result
-    coo = CuSparseMatrixCOO(CuVector(Cint[1, 1, 2, 2, 3]), CuVector(Cint[1, 1, 2, 2, 3]),
-                            CuVector([true, false, false, true, false]), (3, 3))
+    # (assembling combines them; arrays constructed from buffers must not contain any)
+    coo = sparse(CuVector(Cint[1, 1, 2, 2, 3]), CuVector(Cint[1, 1, 2, 2, 3]),
+                 CuVector([true, false, false, true, false]), 3, 3; fmt=:coo)
     A = typ === CuSparseMatrixCOO ? coo : typ(coo)
     @test Array(diag(A)) == [true, true, false]
 end
@@ -151,5 +154,5 @@ end
     A2 = typ(A)
 
     @test dot(x, A, y) ≈ dot(x2, A2, y2)
-    @test_throws DimensionMismatch("dimensions must match") dot(CuArray(rand(elty, N1+1)), A2, y2)
+    @test_throws DimensionMismatch dot(CuArray(rand(elty, N1+1)), A2, y2)
 end

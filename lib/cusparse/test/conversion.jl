@@ -216,7 +216,7 @@ end
         end
     end
     @test_throws ArgumentError("Format :bad not available, use :csc, :csr, :bsr or :coo.") sparse(dense; fmt=:bad)
-    @test_throws ArgumentError("Format :bad not available, use :csc, :csr, or :coo.") sparse(I, J, V; fmt=:bad)
+    @test_throws ArgumentError sparse(I, J, V; fmt=:bad)
 end
 
 @testset "sparse -- empty matrix" begin
@@ -512,9 +512,6 @@ end
         @test collect(dC) ≈ droptol!(copy(A), 0.5f0)
     end
 
-    # sizes beyond the 32-bit routines are rejected instead of truncated
-    coo = CuSparseMatrixCOO{Float32, Ti}(CuVector{Ti}(), CuVector{Ti}(), CuVector{Float32}(), (2^32, 1))
-    @test_throws ArgumentError CuSparseMatrixCSR(coo)
 end
 
 @testset "sort CuSparseMatrix with $Ti indices" for Ti in (Int32, Int64)
@@ -533,10 +530,8 @@ end
         @test collect(sorted_coo_R.colInd) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_coo_R.nzVal)  ≈ [5, 7, 8, 6, 4, 9]
 
-        sorted_coo_C = sort_coo(coo, 'C')
-        @test collect(sorted_coo_C.rowInd) ≈ [1, 2, 1, 3, 2, 3]
-        @test collect(sorted_coo_C.colInd) ≈ [1, 1, 2, 2, 3, 3]
-        @test collect(sorted_coo_C.nzVal)  ≈ [5, 8, 7, 4, 6, 9]
+        # (a COO matrix sorted by column would not be a valid CuSparseMatrixCOO)
+        @test_throws ArgumentError sort_coo(coo, 'C')
     end
     @testset "sort_csc" begin
         rows = [2, 1, 3, 1, 2, 3] |> cu

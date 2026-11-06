@@ -10,7 +10,7 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
     @eval begin
         function mv2!(transa::SparseChar,
                       alpha::Number,
-                      A::CuSparseMatrixBSR{$elty},
+                      A::CuSparseMatrixBSR{$elty,Cint},
                       X::CuVector{$elty},
                       beta::Number,
                       Y::CuVector{$elty},
@@ -57,7 +57,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                       uplo::SparseChar,
                       diag::SparseChar,
                       alpha::Number,
-                      A::CuSparseMatrixBSR{$elty},
+                      A::CuSparseMatrixBSR{$elty,Cint},
                       X::CuVector{$elty},
                       index::SparseChar)
 
@@ -126,7 +126,7 @@ for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float3
         function gemvi!(transa::SparseChar,
                         alpha::Number,
                         A::CuMatrix{$elty},
-                        X::CuSparseVector{$elty},
+                        X::CuSparseVector{$elty,Cint},
                         beta::Number,
                         Y::CuVector{$elty},
                         index::SparseChar)
@@ -150,4 +150,18 @@ for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float3
             Y
         end
     end
+end
+
+# (the legacy routines take 32-bit indices)
+function mv2!(transa::SparseChar, alpha::Number, A::CuSparseMatrixBSR, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
+    check_forwarding(mv2!, A)
+    mv2!(transa, alpha, cint_view(A), X, beta, Y, index)
+end
+function sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
+    check_forwarding(sv2!, A)
+    sv2!(transa, uplo, diag, alpha, cint_view(A), X, index)
+end
+function gemvi!(transa::SparseChar, alpha::Number, A::CuMatrix, X::CuSparseVector, beta::Number, Y::CuVector, index::SparseChar)
+    check_forwarding(gemvi!, X)
+    gemvi!(transa, alpha, A, cint_view(X), beta, Y, index)
 end
