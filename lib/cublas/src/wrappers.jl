@@ -179,7 +179,9 @@ scal!(n::Integer, alpha::Number, x::StridedCuVecOrDenseMat{Float16}) =
 for (fname, fname_64, elty, celty) in ((:cublasCsscal_v2, :cublasCsscal_v2_64, :Float32, :ComplexF32),
                                        (:cublasZdscal_v2, :cublasZdscal_v2_64, :Float64, :ComplexF64))
     @eval begin
-        function scal!(n::Integer, alpha::Union{Ref{$elty}, $elty, AbstractArray{$elty}}, x::StridedCuVecOrDenseMat{$celty})
+        function scal!(n::Integer,
+                       alpha::Union{$elty, CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}},
+                       x::StridedCuVecOrDenseMat{$celty})
             GC.@preserve x begin
                 px, incx = vec_pointer_stride(n, x)
                 if cuBLAS.version() >= v"12.0"
@@ -405,22 +407,20 @@ function axpy!(n::Integer, alpha, dx::StridedCuVecOrDenseMat{ComplexF16}, dy::St
 end
 
 ## rot
-for (fname, fname_64, elty, sty) in (
-        (:cublasSrot_v2, :cublasSrot_v2_64, :Float32, :Number),
-        (:cublasDrot_v2, :cublasDrot_v2_64, :Float64, :Number),
-        (:cublasCrot_v2, :cublasCrot_v2_64, :ComplexF32, :Number),
-        (:cublasCsrot_v2, :cublasCsrot_v2_64, :ComplexF32, :Real),
-        (:cublasZrot_v2, :cublasZrot_v2_64, :ComplexF64, :Number),
-        (:cublasZdrot_v2, :cublasZdrot_v2_64, :ComplexF64, :Real),
+for (fname, fname_64, elty, cty, sty, host_sty) in (
+        (:cublasSrot_v2, :cublasSrot_v2_64, :Float32, :Float32, :Float32, :Number),
+        (:cublasDrot_v2, :cublasDrot_v2_64, :Float64, :Float64, :Float64, :Number),
+        (:cublasCrot_v2, :cublasCrot_v2_64, :ComplexF32, :Float32, :ComplexF32, :Number),
+        (:cublasCsrot_v2, :cublasCsrot_v2_64, :ComplexF32, :Float32, :Float32, :Real),
+        (:cublasZrot_v2, :cublasZrot_v2_64, :ComplexF64, :Float64, :ComplexF64, :Number),
+        (:cublasZdrot_v2, :cublasZdrot_v2_64, :ComplexF64, :Float64, :Float64, :Real),
     )
     @eval begin
         function rot!(n::Integer,
                       x::StridedCuVecOrDenseMat{$elty},
                       y::StridedCuVecOrDenseMat{$elty},
-                      c::C,
-                      s::S,
-                     ) where {C<:Union{Ref{Real}, Real, AbstractArray{Real}},
-                              S<:Union{Ref{$sty}, $sty, AbstractArray{$sty}}}
+                      c::Union{Real, CUDACore.AbstractCuRef{$cty}, StridedCuArray{$cty}},
+                      s::Union{$host_sty, CUDACore.AbstractCuRef{$sty}, StridedCuArray{$sty}})
             GC.@preserve x y begin
                 px, incx = vec_pointer_stride(n, x)
                 py, incy = vec_pointer_stride(n, y)
@@ -442,15 +442,35 @@ for (fname, elty) in ((:cublasSrotg_v2, :Float32),
                       (:cublasZrotg_v2, :ComplexF64),
                      )
     @eval begin
-        function rotg!(a::$elty, b::$elty)
-            c = CuRef{real($elty)}()
-            s = CuRef{$elty}()
-            ref_a = CuRef(a)
-            ref_b = CuRef(b)
-            $fname(handle(), ref_a, ref_b, c, s)
-            ref_a[], ref_b[], c[], s[]
+        function rotg!(a::Union{CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}},
+                       b::Union{CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}},
+                       c::Union{CUDACore.AbstractCuRef{real($elty)}, StridedCuArray{real($elty)}},
+                       s::Union{CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}})
+            $fname(handle(), a, b, c, s)
+            a, b, c, s
         end
     end
+end
+
+"""
+    rotg!(a, b) -> a, b, c, s
+    rotg!(a, b, c, s) -> a, b, c, s
+
+Construct the Givens rotation `[c s; -conj(s) c]` that zeroes out `b`, overwriting `a`
+with the rotated value (and, for real inputs, `b` with the reconstruction parameter).
+
+When `a` and `b` are numbers, the results are returned as numbers. When they are device-side
+scalars (a `CuRef` or a one-element `CuArray`), they are updated in place and `c` and `s` are
+returned as device-side scalars as well, without synchronizing with the GPU. These outputs
+can be passed directly to `rot!`. Preallocated device-side `c` and `s` can be passed too.
+"""
+function rotg!(a::Union{CUDACore.AbstractCuRef{T}, StridedCuArray{T}},
+               b::Union{CUDACore.AbstractCuRef{T}, StridedCuArray{T}}) where {T<:CublasFloat}
+    rotg!(a, b, CuRef{real(T)}(), CuRef{T}())
+end
+function rotg!(a::T, b::T) where {T<:CublasFloat}
+    ref_a, ref_b, c, s = rotg!(CuRef(a), CuRef(b))
+    ref_a[], ref_b[], c[], s[]
 end
 
 ## rotm
@@ -462,6 +482,8 @@ for (fname, fname_64, elty) in ((:cublasSrotm_v2, :cublasSrotm_v2_64, :Float32),
                        x::StridedCuVecOrDenseMat{$elty},
                        y::StridedCuVecOrDenseMat{$elty},
                        param::CuVector{$elty})
+            length(param) == 5 ||
+                throw(DimensionMismatch("rotm! param must have 5 elements, got $(length(param))"))
             GC.@preserve x y begin
                 px, incx = vec_pointer_stride(n, x)
                 py, incy = vec_pointer_stride(n, y)
@@ -480,19 +502,33 @@ end
 for (fname, elty) in ((:cublasSrotmg_v2, :Float32),
                       (:cublasDrotmg_v2, :Float64))
     @eval begin
-        function rotmg!(d1::$elty,
-                        d2::$elty,
-                        x::$elty,
-                        y::$elty,
+        function rotmg!(d1::Union{CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}},
+                        d2::Union{CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}},
+                        x::Union{CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}},
+                        y::Union{$elty, CUDACore.AbstractCuRef{$elty}, StridedCuArray{$elty}},
                         param::CuVector{$elty})
-            ref_d1 = CuRef(d1)
-            ref_d2 = CuRef(d2)
-            ref_x  = CuRef(x)
-            ref_y  = CuRef(y)
-            $fname(handle(), ref_d1, ref_d2, ref_x, ref_y, param)
-            ref_d1[], ref_d2[], ref_x[], ref_y[], param
+            length(param) == 5 ||
+                throw(DimensionMismatch("rotmg! param must have 5 elements, got $(length(param))"))
+            $fname(handle(), d1, d2, x, y, param)
+            d1, d2, x, y, param
         end
     end
+end
+
+"""
+    rotmg!(d1, d2, x, y, param) -> d1, d2, x, y, param
+
+Construct the modified Givens rotation that zeroes out the second component of
+`(sqrt(d1)*x, sqrt(d2)*y)`, storing its flag and matrix in the 5-element `param`.
+
+When `d1`, `d2` and `x` are numbers, their updated values are returned as numbers. When they
+are device-side scalars (a `CuRef` or a one-element `CuArray`), they are updated in place
+without synchronizing with the GPU; `y` is only read and can be either.
+"""
+function rotmg!(d1::T, d2::T, x::T, y::T, param::CuVector{T}) where {T<:Union{Float32, Float64}}
+    ref_d1, ref_d2, ref_x = CuRef(d1), CuRef(d2), CuRef(x)
+    rotmg!(ref_d1, ref_d2, ref_x, y, param)
+    ref_d1[], ref_d2[], ref_x[], y, param
 end
 
 ## swap
@@ -1266,10 +1302,10 @@ end
 # alpha and beta are passed in the scale type of the compute type. scalars that already
 # reside on the device are passed as is, so they need to be of that type.
 gemm_scalar(::Type{T}, x::Number) where {T} = CuRef{T}(x)
-gemm_scalar(::Type{T}, x::Union{CUDACore.AbstractCuRef{T}, AbstractArray{T}}) where {T} =
+gemm_scalar(::Type{T}, x::Union{CUDACore.AbstractCuRef{T}, StridedCuArray{T}}) where {T} =
     convert(CuRef{T}, x)
 gemm_scalar(::Type{T}, x) where {T} =
-    throw(ArgumentError("a GEMM with scalars of type $T cannot use a device-side scalar of type $(eltype(x))"))
+    throw(ArgumentError("a GEMM with scalars of type $T needs a number, or a device-side scalar (a CuRef or CuArray) of type $T; got a $(typeof(x))"))
 
 function gemmExComputeType(TA, TB, TC, m, k, n)
     if TA !== TB

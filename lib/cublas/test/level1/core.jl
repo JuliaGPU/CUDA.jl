@@ -115,6 +115,18 @@ end
     end
 end
 
+@testset "scal! of complex vectors with real device-side scalars" begin
+    @testset for T in [ComplexF32, ComplexF64]
+        x = rand(T, 20)
+        α = rand(real(T))
+        for wrap in (CuRef, v -> CuArray([v]))
+            @test Array(cuBLAS.scal!(20, wrap(α), CuArray(x))) ≈ α * x
+        end
+        @test_throws MethodError cuBLAS.scal!(20, [α], CuArray(x))
+        @test_throws MethodError cuBLAS.scal!(20, Ref(α), CuArray(x))
+    end
+end
+
 @testset "views BLAS can't address as a vector" begin
     A = rand(Float32, 3, 4)
     dA = CuArray(A)

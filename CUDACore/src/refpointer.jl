@@ -106,7 +106,11 @@ end
 struct CuRefArray{T,A<:AbstractArray{T}} <: AbstractCuRef{T}
     x::A
     i::Int
-    CuRefArray{T,A}(x,i) where {T,A<:AbstractArray{T}} = new(x,i)
+    # libraries dereference this on the device, where an out-of-bounds access is fatal
+    function CuRefArray{T,A}(x,i) where {T,A<:AbstractArray{T}}
+        checkbounds(x, i)
+        new(x,i)
+    end
 end
 CuRefArray{T}(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T,typeof(x)}(x, i)
 CuRefArray(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T}(x, i)

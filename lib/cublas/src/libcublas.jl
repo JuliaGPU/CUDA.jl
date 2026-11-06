@@ -443,39 +443,37 @@ end
 @checked function cublasSrotg_v2(handle, a, b, c, s)
     initialize_context()
     @gcsafe_ccall libcublas.cublasSrotg_v2(handle::cublasHandle_t, a::CuRef{Cfloat},
-                                           b::CuRef{Cfloat}, c::PtrOrCuPtr{Cfloat},
-                                           s::PtrOrCuPtr{Cfloat})::cublasStatus_t
+                                           b::CuRef{Cfloat}, c::CuRef{Cfloat},
+                                           s::CuRef{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotg_v2(handle, a, b, c, s)
     initialize_context()
     @gcsafe_ccall libcublas.cublasDrotg_v2(handle::cublasHandle_t, a::CuRef{Cdouble},
-                                           b::CuRef{Cdouble}, c::PtrOrCuPtr{Cdouble},
-                                           s::PtrOrCuPtr{Cdouble})::cublasStatus_t
+                                           b::CuRef{Cdouble}, c::CuRef{Cdouble},
+                                           s::CuRef{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasCrotg_v2(handle, a, b, c, s)
     initialize_context()
     @gcsafe_ccall libcublas.cublasCrotg_v2(handle::cublasHandle_t, a::CuRef{cuComplex},
-                                           b::CuRef{cuComplex}, c::PtrOrCuPtr{Cfloat},
-                                           s::PtrOrCuPtr{cuComplex})::cublasStatus_t
+                                           b::CuRef{cuComplex}, c::CuRef{Cfloat},
+                                           s::CuRef{cuComplex})::cublasStatus_t
 end
 
 @checked function cublasZrotg_v2(handle, a, b, c, s)
     initialize_context()
     @gcsafe_ccall libcublas.cublasZrotg_v2(handle::cublasHandle_t,
                                            a::CuRef{cuDoubleComplex},
-                                           b::CuRef{cuDoubleComplex},
-                                           c::PtrOrCuPtr{Cdouble},
-                                           s::PtrOrCuPtr{cuDoubleComplex})::cublasStatus_t
+                                           b::CuRef{cuDoubleComplex}, c::CuRef{Cdouble},
+                                           s::CuRef{cuDoubleComplex})::cublasStatus_t
 end
 
 @checked function cublasSrotm_v2(handle, n, x, incx, y, incy, param)
     initialize_context()
     @gcsafe_ccall libcublas.cublasSrotm_v2(handle::cublasHandle_t, n::Cint,
                                            x::CuPtr{Cfloat}, incx::Cint, y::CuPtr{Cfloat},
-                                           incy::Cint,
-                                           param::PtrOrCuPtr{Cfloat})::cublasStatus_t
+                                           incy::Cint, param::CuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotm_v2(handle, n, x, incx, y, incy, param)
@@ -483,7 +481,7 @@ end
     @gcsafe_ccall libcublas.cublasDrotm_v2(handle::cublasHandle_t, n::Cint,
                                            x::CuPtr{Cdouble}, incx::Cint, y::CuPtr{Cdouble},
                                            incy::Cint,
-                                           param::PtrOrCuPtr{Cdouble})::cublasStatus_t
+                                           param::CuPtr{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasSrotmg_v2(handle, d1, d2, x1, y1, param)
@@ -491,7 +489,7 @@ end
     @gcsafe_ccall libcublas.cublasSrotmg_v2(handle::cublasHandle_t, d1::CuRef{Cfloat},
                                             d2::CuRef{Cfloat}, x1::CuRef{Cfloat},
                                             y1::CuRef{Cfloat},
-                                            param::PtrOrCuPtr{Cfloat})::cublasStatus_t
+                                            param::CuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotmg_v2(handle, d1, d2, x1, y1, param)
@@ -499,7 +497,7 @@ end
     @gcsafe_ccall libcublas.cublasDrotmg_v2(handle::cublasHandle_t, d1::CuRef{Cdouble},
                                             d2::CuRef{Cdouble}, x1::CuRef{Cdouble},
                                             y1::CuRef{Cdouble},
-                                            param::PtrOrCuPtr{Cdouble})::cublasStatus_t
+                                            param::CuPtr{Cdouble})::cublasStatus_t
 end
 
 @cenum cublasOperation_t::UInt32 begin
@@ -1863,7 +1861,7 @@ end
     @gcsafe_ccall libcublas.cublasSrotm_v2_64(handle::cublasHandle_t, n::Int64,
                                               x::CuPtr{Cfloat}, incx::Int64,
                                               y::CuPtr{Cfloat}, incy::Int64,
-                                              param::PtrOrCuPtr{Cfloat})::cublasStatus_t
+                                              param::CuPtr{Cfloat})::cublasStatus_t
 end
 
 @checked function cublasDrotm_v2_64(handle, n, x, incx, y, incy, param)
@@ -1871,7 +1869,7 @@ end
     @gcsafe_ccall libcublas.cublasDrotm_v2_64(handle::cublasHandle_t, n::Int64,
                                               x::CuPtr{Cdouble}, incx::Int64,
                                               y::CuPtr{Cdouble}, incy::Int64,
-                                              param::PtrOrCuPtr{Cdouble})::cublasStatus_t
+                                              param::CuPtr{Cdouble})::cublasStatus_t
 end
 
 @checked function cublasSgemv_v2_64(handle, trans, m, n, alpha, A, lda, x, incx, beta, y,
@@ -3356,8 +3354,7 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasNrm2Ex(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
                                          xType::cudaDataType, incx::Cint,
-                                         result::PtrOrCuPtr{Cvoid},
-                                         resultType::cudaDataType,
+                                         result::CuPtr{Cvoid}, resultType::cudaDataType,
                                          executionType::cudaDataType)::cublasStatus_t
 end
 
@@ -3366,7 +3363,7 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasNrm2Ex_64(handle::cublasHandle_t, n::Int64,
                                             x::CuPtr{Cvoid}, xType::cudaDataType,
-                                            incx::Int64, result::PtrOrCuPtr{Cvoid},
+                                            incx::Int64, result::CuPtr{Cvoid},
                                             resultType::cudaDataType,
                                             executionType::cudaDataType)::cublasStatus_t
 end
@@ -3377,7 +3374,7 @@ end
     @gcsafe_ccall libcublas.cublasDotEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
                                         xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
                                         yType::cudaDataType, incy::Cint,
-                                        result::PtrOrCuPtr{Cvoid}, resultType::cudaDataType,
+                                        result::CuPtr{Cvoid}, resultType::cudaDataType,
                                         executionType::cudaDataType)::cublasStatus_t
 end
 
@@ -3388,8 +3385,7 @@ end
                                            x::CuPtr{Cvoid}, xType::cudaDataType,
                                            incx::Int64, y::CuPtr{Cvoid},
                                            yType::cudaDataType, incy::Int64,
-                                           result::PtrOrCuPtr{Cvoid},
-                                           resultType::cudaDataType,
+                                           result::CuPtr{Cvoid}, resultType::cudaDataType,
                                            executionType::cudaDataType)::cublasStatus_t
 end
 
@@ -3399,8 +3395,7 @@ end
     @gcsafe_ccall libcublas.cublasDotcEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
                                          xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
                                          yType::cudaDataType, incy::Cint,
-                                         result::PtrOrCuPtr{Cvoid},
-                                         resultType::cudaDataType,
+                                         result::CuPtr{Cvoid}, resultType::cudaDataType,
                                          executionType::cudaDataType)::cublasStatus_t
 end
 
@@ -3411,15 +3406,14 @@ end
                                             x::CuPtr{Cvoid}, xType::cudaDataType,
                                             incx::Int64, y::CuPtr{Cvoid},
                                             yType::cudaDataType, incy::Int64,
-                                            result::PtrOrCuPtr{Cvoid},
-                                            resultType::cudaDataType,
+                                            result::CuPtr{Cvoid}, resultType::cudaDataType,
                                             executionType::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasScalEx(handle, n, alpha, alphaType, x, xType, incx, executionType)
     initialize_context()
     @gcsafe_ccall libcublas.cublasScalEx(handle::cublasHandle_t, n::Cint,
-                                         alpha::PtrOrCuPtr{Cvoid}, alphaType::cudaDataType,
+                                         alpha::CuPtr{Cvoid}, alphaType::cudaDataType,
                                          x::CuPtr{Cvoid}, xType::cudaDataType, incx::Cint,
                                          executionType::cudaDataType)::cublasStatus_t
 end
@@ -3428,9 +3422,9 @@ end
                                   executionType)
     initialize_context()
     @gcsafe_ccall libcublas.cublasScalEx_64(handle::cublasHandle_t, n::Int64,
-                                            alpha::PtrOrCuPtr{Cvoid},
-                                            alphaType::cudaDataType, x::CuPtr{Cvoid},
-                                            xType::cudaDataType, incx::Int64,
+                                            alpha::CuPtr{Cvoid}, alphaType::cudaDataType,
+                                            x::CuPtr{Cvoid}, xType::cudaDataType,
+                                            incx::Int64,
                                             executionType::cudaDataType)::cublasStatus_t
 end
 
@@ -3438,7 +3432,7 @@ end
                                executiontype)
     initialize_context()
     @gcsafe_ccall libcublas.cublasAxpyEx(handle::cublasHandle_t, n::Cint,
-                                         alpha::PtrOrCuPtr{Cvoid}, alphaType::cudaDataType,
+                                         alpha::CuPtr{Cvoid}, alphaType::cudaDataType,
                                          x::CuPtr{Cvoid}, xType::cudaDataType, incx::Cint,
                                          y::CuPtr{Cvoid}, yType::cudaDataType, incy::Cint,
                                          executiontype::cudaDataType)::cublasStatus_t
@@ -3448,11 +3442,10 @@ end
                                   incy, executiontype)
     initialize_context()
     @gcsafe_ccall libcublas.cublasAxpyEx_64(handle::cublasHandle_t, n::Int64,
-                                            alpha::PtrOrCuPtr{Cvoid},
-                                            alphaType::cudaDataType, x::CuPtr{Cvoid},
-                                            xType::cudaDataType, incx::Int64,
-                                            y::CuPtr{Cvoid}, yType::cudaDataType,
-                                            incy::Int64,
+                                            alpha::CuPtr{Cvoid}, alphaType::cudaDataType,
+                                            x::CuPtr{Cvoid}, xType::cudaDataType,
+                                            incx::Int64, y::CuPtr{Cvoid},
+                                            yType::cudaDataType, incy::Int64,
                                             executiontype::cudaDataType)::cublasStatus_t
 end
 
@@ -3522,8 +3515,7 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasAsumEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
                                          xType::cudaDataType, incx::Cint,
-                                         result::PtrOrCuPtr{Cvoid},
-                                         resultType::cudaDataType,
+                                         result::CuPtr{Cvoid}, resultType::cudaDataType,
                                          executiontype::cudaDataType)::cublasStatus_t
 end
 
@@ -3532,7 +3524,7 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasAsumEx_64(handle::cublasHandle_t, n::Int64,
                                             x::CuPtr{Cvoid}, xType::cudaDataType,
-                                            incx::Int64, result::PtrOrCuPtr{Cvoid},
+                                            incx::Int64, result::CuPtr{Cvoid},
                                             resultType::cudaDataType,
                                             executiontype::cudaDataType)::cublasStatus_t
 end
@@ -3542,9 +3534,8 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasRotEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
                                         xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
-                                        yType::cudaDataType, incy::Cint,
-                                        c::PtrOrCuPtr{Cvoid}, s::PtrOrCuPtr{Cvoid},
-                                        csType::cudaDataType,
+                                        yType::cudaDataType, incy::Cint, c::CuPtr{Cvoid},
+                                        s::CuPtr{Cvoid}, csType::cudaDataType,
                                         executiontype::cudaDataType)::cublasStatus_t
 end
 
@@ -3555,16 +3546,16 @@ end
                                            x::CuPtr{Cvoid}, xType::cudaDataType,
                                            incx::Int64, y::CuPtr{Cvoid},
                                            yType::cudaDataType, incy::Int64,
-                                           c::PtrOrCuPtr{Cvoid}, s::PtrOrCuPtr{Cvoid},
+                                           c::CuPtr{Cvoid}, s::CuPtr{Cvoid},
                                            csType::cudaDataType,
                                            executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasRotgEx(handle, a, b, abType, c, s, csType, executiontype)
     initialize_context()
-    @gcsafe_ccall libcublas.cublasRotgEx(handle::cublasHandle_t, a::Ptr{Cvoid},
-                                         b::Ptr{Cvoid}, abType::cudaDataType,
-                                         c::PtrOrCuPtr{Cvoid}, s::PtrOrCuPtr{Cvoid},
+    @gcsafe_ccall libcublas.cublasRotgEx(handle::cublasHandle_t, a::CuPtr{Cvoid},
+                                         b::CuPtr{Cvoid}, abType::cudaDataType,
+                                         c::CuPtr{Cvoid}, s::CuPtr{Cvoid},
                                          csType::cudaDataType,
                                          executiontype::cudaDataType)::cublasStatus_t
 end
@@ -3575,7 +3566,7 @@ end
     @gcsafe_ccall libcublas.cublasRotmEx(handle::cublasHandle_t, n::Cint, x::CuPtr{Cvoid},
                                          xType::cudaDataType, incx::Cint, y::CuPtr{Cvoid},
                                          yType::cudaDataType, incy::Cint,
-                                         param::PtrOrCuPtr{Cvoid}, paramType::cudaDataType,
+                                         param::CuPtr{Cvoid}, paramType::cudaDataType,
                                          executiontype::cudaDataType)::cublasStatus_t
 end
 
@@ -3586,19 +3577,18 @@ end
                                             x::CuPtr{Cvoid}, xType::cudaDataType,
                                             incx::Int64, y::CuPtr{Cvoid},
                                             yType::cudaDataType, incy::Int64,
-                                            param::PtrOrCuPtr{Cvoid},
-                                            paramType::cudaDataType,
+                                            param::CuPtr{Cvoid}, paramType::cudaDataType,
                                             executiontype::cudaDataType)::cublasStatus_t
 end
 
 @checked function cublasRotmgEx(handle, d1, d1Type, d2, d2Type, x1, x1Type, y1, y1Type,
                                 param, paramType, executiontype)
     initialize_context()
-    @gcsafe_ccall libcublas.cublasRotmgEx(handle::cublasHandle_t, d1::PtrOrCuPtr{Cvoid},
-                                          d1Type::cudaDataType, d2::PtrOrCuPtr{Cvoid},
-                                          d2Type::cudaDataType, x1::PtrOrCuPtr{Cvoid},
-                                          x1Type::cudaDataType, y1::PtrOrCuPtr{Cvoid},
-                                          y1Type::cudaDataType, param::PtrOrCuPtr{Cvoid},
+    @gcsafe_ccall libcublas.cublasRotmgEx(handle::cublasHandle_t, d1::CuPtr{Cvoid},
+                                          d1Type::cudaDataType, d2::CuPtr{Cvoid},
+                                          d2Type::cudaDataType, x1::CuPtr{Cvoid},
+                                          x1Type::cudaDataType, y1::CuPtr{Cvoid},
+                                          y1Type::cudaDataType, param::CuPtr{Cvoid},
                                           paramType::cudaDataType,
                                           executiontype::cudaDataType)::cublasStatus_t
 end
@@ -3958,11 +3948,10 @@ end
     initialize_context()
     @gcsafe_ccall libcublas.cublasGemmEx(handle::cublasHandle_t, transa::cublasOperation_t,
                                          transb::cublasOperation_t, m::Cint, n::Cint,
-                                         k::Cint, alpha::PtrOrCuPtr{Cvoid}, A::CuPtr{Cvoid},
+                                         k::Cint, alpha::CuPtr{Cvoid}, A::CuPtr{Cvoid},
                                          Atype::cudaDataType, lda::Cint, B::CuPtr{Cvoid},
-                                         Btype::cudaDataType, ldb::Cint,
-                                         beta::PtrOrCuPtr{Cvoid}, C::CuPtr{Cvoid},
-                                         Ctype::cudaDataType, ldc::Cint,
+                                         Btype::cudaDataType, ldb::Cint, beta::CuPtr{Cvoid},
+                                         C::CuPtr{Cvoid}, Ctype::cudaDataType, ldc::Cint,
                                          computeType::cublasComputeType_t,
                                          algo::cublasGemmAlgo_t)::cublasStatus_t
 end
@@ -3973,11 +3962,10 @@ end
     @gcsafe_ccall libcublas.cublasGemmEx_64(handle::cublasHandle_t,
                                             transa::cublasOperation_t,
                                             transb::cublasOperation_t, m::Int64, n::Int64,
-                                            k::Int64, alpha::PtrOrCuPtr{Cvoid},
-                                            A::CuPtr{Cvoid}, Atype::cudaDataType,
-                                            lda::Int64, B::CuPtr{Cvoid},
-                                            Btype::cudaDataType, ldb::Int64,
-                                            beta::PtrOrCuPtr{Cvoid}, C::CuPtr{Cvoid},
+                                            k::Int64, alpha::CuPtr{Cvoid}, A::CuPtr{Cvoid},
+                                            Atype::cudaDataType, lda::Int64,
+                                            B::CuPtr{Cvoid}, Btype::cudaDataType,
+                                            ldb::Int64, beta::CuPtr{Cvoid}, C::CuPtr{Cvoid},
                                             Ctype::cudaDataType, ldc::Int64,
                                             computeType::cublasComputeType_t,
                                             algo::cublasGemmAlgo_t)::cublasStatus_t
@@ -4583,12 +4571,12 @@ end
     @gcsafe_ccall libcublas.cublasGemmBatchedEx(handle::cublasHandle_t,
                                                 transa::cublasOperation_t,
                                                 transb::cublasOperation_t, m::Cint, n::Cint,
-                                                k::Cint, alpha::PtrOrCuPtr{Cvoid},
+                                                k::Cint, alpha::CuPtr{Cvoid},
                                                 Aarray::CuPtr{Ptr{Cvoid}},
                                                 Atype::cudaDataType, lda::Cint,
                                                 Barray::CuPtr{Ptr{Cvoid}},
                                                 Btype::cudaDataType, ldb::Cint,
-                                                beta::PtrOrCuPtr{Cvoid},
+                                                beta::CuPtr{Cvoid},
                                                 Carray::CuPtr{Ptr{Cvoid}},
                                                 Ctype::cudaDataType, ldc::Cint,
                                                 batchCount::Cint,
@@ -4603,13 +4591,12 @@ end
     @gcsafe_ccall libcublas.cublasGemmBatchedEx_64(handle::cublasHandle_t,
                                                    transa::cublasOperation_t,
                                                    transb::cublasOperation_t, m::Int64,
-                                                   n::Int64, k::Int64,
-                                                   alpha::PtrOrCuPtr{Cvoid},
+                                                   n::Int64, k::Int64, alpha::CuPtr{Cvoid},
                                                    Aarray::CuPtr{Ptr{Cvoid}},
                                                    Atype::cudaDataType, lda::Int64,
                                                    Barray::CuPtr{Ptr{Cvoid}},
                                                    Btype::cudaDataType, ldb::Int64,
-                                                   beta::PtrOrCuPtr{Cvoid},
+                                                   beta::CuPtr{Cvoid},
                                                    Carray::CuPtr{Ptr{Cvoid}},
                                                    Ctype::cudaDataType, ldc::Int64,
                                                    batchCount::Int64,
@@ -4626,15 +4613,14 @@ end
                                                        transa::cublasOperation_t,
                                                        transb::cublasOperation_t, m::Cint,
                                                        n::Cint, k::Cint,
-                                                       alpha::PtrOrCuPtr{Cvoid},
-                                                       A::CuPtr{Cvoid}, Atype::cudaDataType,
-                                                       lda::Cint, strideA::Clonglong,
-                                                       B::CuPtr{Cvoid}, Btype::cudaDataType,
-                                                       ldb::Cint, strideB::Clonglong,
-                                                       beta::PtrOrCuPtr{Cvoid},
-                                                       C::CuPtr{Cvoid}, Ctype::cudaDataType,
-                                                       ldc::Cint, strideC::Clonglong,
-                                                       batchCount::Cint,
+                                                       alpha::CuPtr{Cvoid}, A::CuPtr{Cvoid},
+                                                       Atype::cudaDataType, lda::Cint,
+                                                       strideA::Clonglong, B::CuPtr{Cvoid},
+                                                       Btype::cudaDataType, ldb::Cint,
+                                                       strideB::Clonglong,
+                                                       beta::CuPtr{Cvoid}, C::CuPtr{Cvoid},
+                                                       Ctype::cudaDataType, ldc::Cint,
+                                                       strideC::Clonglong, batchCount::Cint,
                                                        computeType::cublasComputeType_t,
                                                        algo::cublasGemmAlgo_t)::cublasStatus_t
 end
@@ -4648,14 +4634,14 @@ end
                                                           transa::cublasOperation_t,
                                                           transb::cublasOperation_t,
                                                           m::Int64, n::Int64, k::Int64,
-                                                          alpha::PtrOrCuPtr{Cvoid},
+                                                          alpha::CuPtr{Cvoid},
                                                           A::CuPtr{Cvoid},
                                                           Atype::cudaDataType, lda::Int64,
                                                           strideA::Clonglong,
                                                           B::CuPtr{Cvoid},
                                                           Btype::cudaDataType, ldb::Int64,
                                                           strideB::Clonglong,
-                                                          beta::PtrOrCuPtr{Cvoid},
+                                                          beta::CuPtr{Cvoid},
                                                           C::CuPtr{Cvoid},
                                                           Ctype::cudaDataType, ldc::Int64,
                                                           strideC::Clonglong,

@@ -77,6 +77,9 @@ end
     cuarr = CuArray([1])
     @test Base.cconvert(CuRef{Int}, cuarr) isa CUDACore.CuRefArray{Int, typeof(cuarr)}
     @test Base.unsafe_convert(CuRef{Int}, Base.cconvert(CuRef{Int}, cuarr)) == Base.bitcast(CuRef{Int}, pointer(cuarr))
+    @test_throws BoundsError Base.cconvert(CuRef{Int}, CuArray{Int}(undef, 0))
+    @test_throws BoundsError CUDACore.CuRefArray(cuarr, 2)
+    @test_throws BoundsError CUDACore.CuRefArray(cuarr, 0)
 
     ref = CuRef{Int64}(1)
     @test eltype(ref) == Int64
