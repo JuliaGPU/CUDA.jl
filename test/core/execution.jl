@@ -155,6 +155,8 @@ end
           (v"9.0", v"9.3")
     @test CUDACore.default_ptx_versions(llvm22, CUDACore.ptxas_compat(v"13.4")) ==
           (v"9.0", v"9.4")
+    @test CUDACore.default_ptx_versions(llvm22, CUDACore.ptxas_compat(v"13.5")) ==
+          (v"9.0", v"9.5")
 
     # Don't assume the compatibility sets are contiguous.
     llvm_support = (ptx=Set([v"8.7", v"9.0"]),)

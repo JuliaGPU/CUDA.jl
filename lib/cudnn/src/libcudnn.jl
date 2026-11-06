@@ -413,6 +413,7 @@ end
     CUDNN_ATTR_EXECUTION_PLAN_JSON_REPRESENTATION = 405
     CUDNN_ATTR_EXECUTION_PLAN_KERNEL_CACHE = 406
     CUDNN_ATTR_EXECUTION_PLAN_DEVICEPROP = 407
+    CUDNN_ATTR_EXECUTION_PLAN_CUDA_GRAPH_RETENTION = 408
     CUDNN_ATTR_INTERMEDIATE_INFO_UNIQUE_ID = 500
     CUDNN_ATTR_INTERMEDIATE_INFO_SIZE = 501
     CUDNN_ATTR_INTERMEDIATE_INFO_DEPENDENT_DATA_UIDS = 502
@@ -722,6 +723,12 @@ end
     CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH = 2867
     CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_INPUT_UID = 2868
     CUDNN_ATTR_OPERATION_SDPA_BWD_SUBGRAPH_OUTPUT_UID = 2869
+    CUDNN_ATTR_OPERATION_SDPA_BWD_CU_SEQ_LEN_QDESC = 2870
+    CUDNN_ATTR_OPERATION_SDPA_BWD_CU_SEQ_LEN_KVDESC = 2871
+    CUDNN_ATTR_OPERATION_SDPA_BWD_DROPOUT_SEED_DESC = 2872
+    CUDNN_ATTR_OPERATION_SDPA_BWD_DROPOUT_OFFSET_DESC = 2873
+    CUDNN_ATTR_OPERATION_SDPA_BWD_DROPOUT_PROBABILITY = 2874
+    CUDNN_ATTR_OPERATION_SDPA_BWD_DBIAS_DESC = 2875
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MODE = 2900
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_MATH_PREC = 2901
     CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_TOKEN_DESC = 2902
@@ -789,6 +796,7 @@ end
     CUDNN_TYPE_MOE_GROUPED_MATMUL_MODE = 30
     CUDNN_TYPE_RESHAPE_MODE = 31
     CUDNN_TYPE_OPERATIONGRAPH_MODE = 32
+    CUDNN_TYPE_CUDA_GRAPH_RETENTION = 33
 end
 
 @cenum cudnnBackendDescriptorType_t::UInt32 begin
@@ -984,6 +992,11 @@ end
     CUDNN_OPERATIONGRAPH_MODE_SDPA_BWD = 29
     CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_FWD = 30
     CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_BWD = 31
+end
+
+@cenum cudnnCudaGraphRetention_t::UInt32 begin
+    CUDNN_CUDA_GRAPH_RETENTION_PER_GRAPH = 0
+    CUDNN_CUDA_GRAPH_RETENTION_NONE = 1
 end
 
 @checked function cudnnBackendCreateDescriptor(descriptorType, descriptor)
@@ -3997,6 +4010,7 @@ struct cudnnGnnCscGraph_t
     nDstNodes::Int64
     nIndices::Int64
     idxType::cudnnDataType_t
+    cscRevOffsets::Ptr{Cvoid}
 end
 
 @checked function cudnnGnnAggSimpleForward(stream, graph, nodeFeatures, edgeFeatures,
@@ -4033,6 +4047,122 @@ end
                                                      concatFeatDim::Cint,
                                                      dataType::cudnnDataType_t,
                                                      aggOp::cudnnGnnAggOp_t)::cudnnStatus_t
+end
+
+@cenum cudnnGnnActivationOp_t::UInt32 begin
+    CUDNN_GNN_ACT_LINEAR = 0
+    CUDNN_GNN_ACT_RELU = 1
+    CUDNN_GNN_ACT_SIGMOID = 2
+    CUDNN_GNN_ACT_TANH = 3
+    CUDNN_GNN_ACT_ELU = 4
+    CUDNN_GNN_ACT_SCALAR = 5
+    CUDNN_GNN_ACT_LEAKY_RELU = 6
+end
+
+struct cudnnGnnMhaParams_t
+    activation::cudnnGnnActivationOp_t
+    activationAlpha::Cfloat
+    numHeads::Cint
+    concatHeads::Cint
+end
+
+@checked function cudnnGnnMhaGatForward(stream, graph, srcFeatures, dstFeatures,
+                                        edgeFeatures, attnWeights, dropoutMask, output,
+                                        smScores, dimNode, dimEdge, params, dataType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGnnMhaGatForward(stream::cudaStream_t,
+                                                 graph::Ref{cudnnGnnCscGraph_t},
+                                                 srcFeatures::CuPtr{Cvoid},
+                                                 dstFeatures::CuPtr{Cvoid},
+                                                 edgeFeatures::CuPtr{Cvoid},
+                                                 attnWeights::CuPtr{Cvoid},
+                                                 dropoutMask::CuPtr{Cfloat},
+                                                 output::CuPtr{Cvoid},
+                                                 smScores::CuPtr{Cvoid}, dimNode::Cint,
+                                                 dimEdge::Cint,
+                                                 params::Ref{cudnnGnnMhaParams_t},
+                                                 dataType::cudnnDataType_t)::cudnnStatus_t
+end
+
+@checked function cudnnGnnMhaGatBackward(stream, graph, gradOut, srcFeatures, dstFeatures,
+                                         edgeFeatures, attnWeights, smScores, dropoutMask,
+                                         gradAttention, gradSrcFeatures, gradDstFeatures,
+                                         gradEdgeFeatures, gradWeights, gradSmScores,
+                                         gradWspaceFeat, gradWspaceWeights, dimNode,
+                                         dimEdge, params, dataType, gradDataType,
+                                         gradWeightType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGnnMhaGatBackward(stream::cudaStream_t,
+                                                  graph::Ref{cudnnGnnCscGraph_t},
+                                                  gradOut::CuPtr{Cvoid},
+                                                  srcFeatures::CuPtr{Cvoid},
+                                                  dstFeatures::CuPtr{Cvoid},
+                                                  edgeFeatures::CuPtr{Cvoid},
+                                                  attnWeights::CuPtr{Cvoid},
+                                                  smScores::CuPtr{Cvoid},
+                                                  dropoutMask::CuPtr{Cfloat},
+                                                  gradAttention::CuPtr{Cfloat},
+                                                  gradSrcFeatures::CuPtr{Cvoid},
+                                                  gradDstFeatures::CuPtr{Cvoid},
+                                                  gradEdgeFeatures::CuPtr{Cvoid},
+                                                  gradWeights::CuPtr{Cvoid},
+                                                  gradSmScores::CuPtr{Cvoid},
+                                                  gradWspaceFeat::CuPtr{Cvoid},
+                                                  gradWspaceWeights::CuPtr{Cvoid},
+                                                  dimNode::Cint, dimEdge::Cint,
+                                                  params::Ref{cudnnGnnMhaParams_t},
+                                                  dataType::cudnnDataType_t,
+                                                  gradDataType::cudnnDataType_t,
+                                                  gradWeightType::cudnnDataType_t)::cudnnStatus_t
+end
+
+@checked function cudnnGnnMhaGatV2Forward(stream, graph, srcFeatures, dstFeatures,
+                                          edgeFeatures, attnWeights, dropoutMask, output,
+                                          smScores, actScores, dimNode, params, dataType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGnnMhaGatV2Forward(stream::cudaStream_t,
+                                                   graph::Ref{cudnnGnnCscGraph_t},
+                                                   srcFeatures::CuPtr{Cvoid},
+                                                   dstFeatures::CuPtr{Cvoid},
+                                                   edgeFeatures::CuPtr{Cvoid},
+                                                   attnWeights::CuPtr{Cvoid},
+                                                   dropoutMask::CuPtr{Cfloat},
+                                                   output::CuPtr{Cvoid},
+                                                   smScores::CuPtr{Cvoid},
+                                                   actScores::CuPtr{Cvoid}, dimNode::Cint,
+                                                   params::Ref{cudnnGnnMhaParams_t},
+                                                   dataType::cudnnDataType_t)::cudnnStatus_t
+end
+
+@checked function cudnnGnnMhaGatV2Backward(stream, graph, gradOut, srcFeatures, dstFeatures,
+                                           edgeFeatures, attnWeights, smScores, actScores,
+                                           dropoutMask, gradAttention, gradSrcFeatures,
+                                           gradDstFeatures, gradEdgeFeatures, gradWeights,
+                                           gradSmScores, gradWspaceFeat, gradWspaceWeights,
+                                           dimNode, params, dataType, gradType)
+    initialize_context()
+    @gcsafe_ccall libcudnn.cudnnGnnMhaGatV2Backward(stream::cudaStream_t,
+                                                    graph::Ref{cudnnGnnCscGraph_t},
+                                                    gradOut::CuPtr{Cvoid},
+                                                    srcFeatures::CuPtr{Cvoid},
+                                                    dstFeatures::CuPtr{Cvoid},
+                                                    edgeFeatures::CuPtr{Cvoid},
+                                                    attnWeights::CuPtr{Cvoid},
+                                                    smScores::CuPtr{Cvoid},
+                                                    actScores::CuPtr{Cvoid},
+                                                    dropoutMask::CuPtr{Cfloat},
+                                                    gradAttention::CuPtr{Cfloat},
+                                                    gradSrcFeatures::CuPtr{Cvoid},
+                                                    gradDstFeatures::CuPtr{Cvoid},
+                                                    gradEdgeFeatures::CuPtr{Cvoid},
+                                                    gradWeights::CuPtr{Cvoid},
+                                                    gradSmScores::CuPtr{Cvoid},
+                                                    gradWspaceFeat::CuPtr{Cvoid},
+                                                    gradWspaceWeights::CuPtr{Cvoid},
+                                                    dimNode::Cint,
+                                                    params::Ref{cudnnGnnMhaParams_t},
+                                                    dataType::cudnnDataType_t,
+                                                    gradType::cudnnDataType_t)::cudnnStatus_t
 end
 
 const CUDNN_MAX_SM_MAJOR_NUMBER = 12

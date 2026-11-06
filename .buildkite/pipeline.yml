@@ -117,11 +117,11 @@ steps:
         matrix:
           setup:
             cuda:
-              - "13.4"
+              - "13.5"
         commands: |
           # use the newest compiler in each major, including the EA compiler for CUDA 13
           case "{{matrix.cuda}}" in
-            13.*) compiler="13.4" ;;
+            13.*) compiler="13.5" ;;
             12.*) compiler="12.9" ;;
             *) exit 1 ;;
           esac
@@ -170,6 +170,7 @@ steps:
         matrix:
           setup:
             cuda:
+              - "13.4"
               - "13.3"
               - "13.2"
               - "13.1"

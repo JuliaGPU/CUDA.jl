@@ -5242,6 +5242,20 @@ end
 @cenum cusparseSpMatAttribute_t::UInt32 begin
     CUSPARSE_SPMAT_FILL_MODE = 0
     CUSPARSE_SPMAT_DIAG_TYPE = 1
+    CUSPARSE_SPMAT_STORAGE = 2
+    CUSPARSE_SPMAT_SYMMETRY_TYPE = 3
+end
+
+@cenum cusparseSpMatStorage_t::UInt32 begin
+    CUSPARSE_STORE_FULL = 0
+    CUSPARSE_STORE_LOWER = 1
+    CUSPARSE_STORE_UPPER = 2
+end
+
+@cenum cusparseSymmetryType_t::UInt32 begin
+    CUSPARSE_GENERAL = 0
+    CUSPARSE_SYMMETRIC = 1
+    CUSPARSE_HERMITIAN = 2
 end
 
 @checked function cusparseSpMatGetAttribute(spMatDescr, attribute, data, dataSize)
@@ -5832,6 +5846,8 @@ end
 
 @cenum cusparseSpSVAlg_t::UInt32 begin
     CUSPARSE_SPSV_ALG_DEFAULT = 0
+    CUSPARSE_SPSV_ALG1 = 1
+    CUSPARSE_SPSV_ALG2 = 2
 end
 
 @cenum cusparseSpSVUpdate_t::UInt32 begin

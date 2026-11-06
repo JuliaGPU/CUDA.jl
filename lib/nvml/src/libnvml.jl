@@ -517,14 +517,14 @@ end
     NVML_THERMAL_CONTROLLER_UNKNOWN = -1
 end
 
-struct var"##Ctag#183"
+struct var"##Ctag#147"
     controller::nvmlThermalController_t
     defaultMinTemp::Cint
     defaultMaxTemp::Cint
     currentTemp::Cint
     target::nvmlThermalTarget_t
 end
-function Base.getproperty(x::Ptr{var"##Ctag#183"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#147"}, f::Symbol)
     f === :controller && return Ptr{nvmlThermalController_t}(x + 0)
     f === :defaultMinTemp && return Ptr{Cint}(x + 4)
     f === :defaultMaxTemp && return Ptr{Cint}(x + 8)
@@ -533,14 +533,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#183"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#183", f::Symbol)
-    r = Ref{var"##Ctag#183"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#183"}, r)
+function Base.getproperty(x::var"##Ctag#147", f::Symbol)
+    r = Ref{var"##Ctag#147"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#147"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#183"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#147"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -550,7 +550,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuThermalSettings_t}, f::Symbol)
     f === :count && return Ptr{Cuint}(x + 0)
-    f === :sensor && return Ptr{NTuple{3,var"##Ctag#183"}}(x + 4)
+    f === :sensor && return Ptr{NTuple{3,var"##Ctag#147"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -741,28 +741,28 @@ struct nvmlPerfMetricsPfpp1xSample_t
     estimatedMetrics::nvmlPwrModelMetricsPfpp1x_t
 end
 
-struct var"##Ctag#178"
+struct var"##Ctag#142"
     data::NTuple{2208,UInt8}
 end
 
-function Base.getproperty(x::Ptr{var"##Ctag#178"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#142"}, f::Symbol)
     f === :dlppc2x && return Ptr{nvmlPerfMetricsDlppc2xSample_t}(x + 0)
     f === :pfpp1x && return Ptr{nvmlPerfMetricsPfpp1xSample_t}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#178", f::Symbol)
-    r = Ref{var"##Ctag#178"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#178"}, r)
+function Base.getproperty(x::var"##Ctag#142", f::Symbol)
+    r = Ref{var"##Ctag#142"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#142"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#178"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#142"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-function Base.propertynames(x::var"##Ctag#178", private::Bool=false)
+function Base.propertynames(x::var"##Ctag#142", private::Bool=false)
     return (:dlppc2x, :pfpp1x, if private
                 fieldnames(typeof(x))
             else
@@ -776,7 +776,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlPerfMetricControllerSample_t}, f::Symbol)
     f === :controllerType && return Ptr{Cuint}(x + 0)
-    f === :data && return Ptr{var"##Ctag#178"}(x + 8)
+    f === :data && return Ptr{var"##Ctag#142"}(x + 8)
     return getfield(x, f)
 end
 
@@ -813,6 +813,10 @@ struct nvmlBBXTimeData_v1_t
     timeRun::Cuint
 end
 
+struct nvmlGpuUptime_v1_t
+    uptime::Cuint
+end
+
 @cenum nvmlEnableState_enum::UInt32 begin
     NVML_FEATURE_DISABLED = 0
     NVML_FEATURE_ENABLED = 1
@@ -847,8 +851,8 @@ const nvmlDramEncryptionInfo_t = nvmlDramEncryptionInfo_v1_t
     NVML_BRAND_GEFORCE_RTX = 15
     NVML_BRAND_TITAN_RTX = 16
     NVML_BRAND_NVIDIA_DLA = 17
-    NVML_BRAND_NVIDIA_VGAMEDEV = 18
     NVML_BRAND_NVIDIA_NPU = 19
+    NVML_BRAND_NVIDIA_VGAMEDEV = 18
     NVML_BRAND_COUNT = 20
 end
 
@@ -1215,13 +1219,13 @@ const nvmlPowerSource_t = Cuint
     NVML_GPU_UTILIZATION_DOMAIN_BUS = 3
 end
 
-struct var"##Ctag#181"
+struct var"##Ctag#145"
     bIsPresent::Cuint
     percentage::Cuint
     incThreshold::Cuint
     decThreshold::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#181"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#145"}, f::Symbol)
     f === :bIsPresent && return Ptr{Cuint}(x + 0)
     f === :percentage && return Ptr{Cuint}(x + 4)
     f === :incThreshold && return Ptr{Cuint}(x + 8)
@@ -1229,14 +1233,14 @@ function Base.getproperty(x::Ptr{var"##Ctag#181"}, f::Symbol)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#181", f::Symbol)
-    r = Ref{var"##Ctag#181"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#181"}, r)
+function Base.getproperty(x::var"##Ctag#145", f::Symbol)
+    r = Ref{var"##Ctag#145"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#145"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#181"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#145"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -1246,7 +1250,7 @@ end
 
 function Base.getproperty(x::Ptr{nvmlGpuDynamicPstatesInfo_st}, f::Symbol)
     f === :flags && return Ptr{Cuint}(x + 0)
-    f === :utilization && return Ptr{NTuple{8,var"##Ctag#181"}}(x + 4)
+    f === :utilization && return Ptr{NTuple{8,var"##Ctag#145"}}(x + 4)
     return getfield(x, f)
 end
 
@@ -1360,7 +1364,8 @@ const nvmlVgpuDriverCapability_t = nvmlVgpuDriverCapability_enum
     NVML_DEVICE_VGPU_CAP_HOMOGENEOUS_PLACEMENTS = 9
     NVML_DEVICE_VGPU_CAP_MIG_TIMESLICING_SUPPORTED = 10
     NVML_DEVICE_VGPU_CAP_MIG_TIMESLICING_ENABLED = 11
-    NVML_DEVICE_VGPU_CAP_COUNT = 12
+    NVML_DEVICE_VGPU_CAP_UVM_STUN = 12
+    NVML_DEVICE_VGPU_CAP_COUNT = 13
 end
 
 const nvmlDeviceVgpuCapability_t = nvmlDeviceVgpuCapability_enum
@@ -1536,8 +1541,8 @@ struct nvmlVgpuSchedulerParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#179"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#180"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#143"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#144"}(x + 0)
     return getfield(x, f)
 end
 
@@ -1644,8 +1649,8 @@ struct nvmlVgpuSchedulerSetParams_t
 end
 
 function Base.getproperty(x::Ptr{nvmlVgpuSchedulerSetParams_t}, f::Symbol)
-    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#184"}(x + 0)
-    f === :vgpuSchedData && return Ptr{var"##Ctag#185"}(x + 0)
+    f === :vgpuSchedDataWithARR && return Ptr{var"##Ctag#148"}(x + 0)
+    f === :vgpuSchedData && return Ptr{var"##Ctag#149"}(x + 0)
     return getfield(x, f)
 end
 
@@ -2286,6 +2291,15 @@ end
 
 const nvmlSystemConfComputeSettings_t = nvmlSystemConfComputeSettings_v1_t
 
+struct nvmlSystemConfComputeSettings_v2_t
+    version::Cuint
+    environment::Cuint
+    ccFeature::Cuint
+    devToolsMode::Cuint
+    multiGpuMode::Cuint
+    tdispState::Cuint
+end
+
 struct nvmlConfComputeMemSizeInfo_st
     protectedMemSizeKib::Culonglong
     unprotectedMemSizeKib::Culonglong
@@ -2763,6 +2777,12 @@ end
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetBBXTimeData_v1(device::nvmlDevice_t,
                                                       timeData::Ptr{nvmlBBXTimeData_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetGpuUptime_v1(device, uptime)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetGpuUptime_v1(device::nvmlDevice_t,
+                                                    uptime::Ptr{nvmlGpuUptime_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlDeviceGetDisplayMode(device, display)
@@ -3565,6 +3585,11 @@ end
     @gcsafe_ccall libnvml.nvmlSystemGetConfComputeSettings(settings::Ptr{nvmlSystemConfComputeSettings_t})::nvmlReturn_t
 end
 
+@checked function nvmlSystemGetConfComputeSettings_v2(settings)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlSystemGetConfComputeSettings_v2(settings::Ptr{nvmlSystemConfComputeSettings_v2_t})::nvmlReturn_t
+end
+
 @checked function nvmlDeviceGetGspFirmwareVersion(device, version)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetGspFirmwareVersion(device::nvmlDevice_t,
@@ -3948,6 +3973,12 @@ end
 
 const nvmlNvLinkInfo_t = nvmlNvLinkInfo_v2_t
 
+struct nvmlNvLinkInfo_v3_t
+    isNvleEnabled::Cuint
+    firmwareInfo::nvmlNvlinkFirmwareInfo_t
+    isNvleReady::Cuint
+end
+
 @checked function nvmlDeviceGetNvLinkState(device, link, isActive)
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetNvLinkState(device::nvmlDevice_t, link::Cuint,
@@ -4080,6 +4111,12 @@ end
                                                   info::Ptr{nvmlNvLinkInfo_t})::nvmlReturn_t
 end
 
+@checked function nvmlDeviceGetNvLinkInfo_v3(device, info)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetNvLinkInfo_v3(device::nvmlDevice_t,
+                                                     info::Ptr{nvmlNvLinkInfo_v3_t})::nvmlReturn_t
+end
+
 @cenum nvmlNvlinkTelemetrySampleType_t::UInt32 begin
     NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_THROUGHPUT_RAW_TX = 0
     NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_THROUGHPUT_RAW_RX = 1
@@ -4103,6 +4140,65 @@ end
     initialize_context()
     @gcsafe_ccall libnvml.nvmlDeviceGetNvLinkTelemetrySamples_v1(device::nvmlDevice_t,
                                                                  samples::Ptr{nvmlNvlinkTelemetrySamples_v1_t})::nvmlReturn_t
+end
+
+struct nvmlNvlinkGetRemapTableInfo_v1_t
+    alid::Cuint
+    flaRemapTabAddr::NTuple{4096,Cuint}
+    gpaRemapTabAddr::NTuple{4096,Cuint}
+    remapTabSize::Cuint
+end
+
+@checked function nvmlDeviceGetNvlinkRemapTableInfo_v1(device, remapTableInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetNvlinkRemapTableInfo_v1(device::nvmlDevice_t,
+                                                               remapTableInfo::Ptr{nvmlNvlinkGetRemapTableInfo_v1_t})::nvmlReturn_t
+end
+
+struct nvmlNvlinkSetNvleReady_v1_t
+    bNvleReady::Cuchar
+end
+
+@checked function nvmlDeviceSetNvlinkNvleReady_v1(device, setNvleReady)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceSetNvlinkNvleReady_v1(device::nvmlDevice_t,
+                                                          setNvleReady::Ptr{nvmlNvlinkSetNvleReady_v1_t})::nvmlReturn_t
+end
+
+struct nvmlNvlinkLockRemapTable_v1_t
+    bRemapTableLocked::Cuchar
+    bRemapTableLockDisabled::Cuchar
+end
+
+@checked function nvmlDeviceLockNvlinkRemapTable_v1(device, remapTableLockInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceLockNvlinkRemapTable_v1(device::nvmlDevice_t,
+                                                            remapTableLockInfo::Ptr{nvmlNvlinkLockRemapTable_v1_t})::nvmlReturn_t
+end
+
+struct nvmlNvlinkNvlePrivateInfo_v1_t
+    data::NTuple{256,Cuchar}
+    size::Cuint
+end
+
+struct nvmlNvlinkSetupNvleEncryptionKey_v1_t
+    nvleKey::NTuple{32,Cuchar}
+    localGpuAlid::Cuint
+    remoteGpuAlid::Cuint
+    localGpuNvlePrivateInfo::nvmlNvlinkNvlePrivateInfo_v1_t
+    remoteGpuNvlePrivateInfo::nvmlNvlinkNvlePrivateInfo_v1_t
+end
+
+@checked function nvmlDeviceSetupNvlinkNvleEncryptionKey_v1(device, encryptionKey)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceSetupNvlinkNvleEncryptionKey_v1(device::nvmlDevice_t,
+                                                                    encryptionKey::Ptr{nvmlNvlinkSetupNvleEncryptionKey_v1_t})::nvmlReturn_t
+end
+
+@checked function nvmlDeviceGetNvlinkNvlePrivateInfo_v1(device, privateInfo)
+    initialize_context()
+    @gcsafe_ccall libnvml.nvmlDeviceGetNvlinkNvlePrivateInfo_v1(device::nvmlDevice_t,
+                                                                privateInfo::Ptr{nvmlNvlinkNvlePrivateInfo_v1_t})::nvmlReturn_t
 end
 
 @checked function nvmlEventSetCreate(set)
@@ -5779,26 +5875,26 @@ mutable struct nvmlGpmSample_st end
 
 const nvmlGpmSample_t = Ptr{nvmlGpmSample_st}
 
-struct var"##Ctag#182"
+struct var"##Ctag#146"
     shortName::Cstring
     longName::Cstring
     unit::Cstring
 end
-function Base.getproperty(x::Ptr{var"##Ctag#182"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#146"}, f::Symbol)
     f === :shortName && return Ptr{Cstring}(x + 0)
     f === :longName && return Ptr{Cstring}(x + 8)
     f === :unit && return Ptr{Cstring}(x + 16)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#182", f::Symbol)
-    r = Ref{var"##Ctag#182"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#182"}, r)
+function Base.getproperty(x::var"##Ctag#146", f::Symbol)
+    r = Ref{var"##Ctag#146"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#146"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#182"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#146"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -5810,7 +5906,7 @@ function Base.getproperty(x::Ptr{nvmlGpmMetric_t}, f::Symbol)
     f === :metricId && return Ptr{Cuint}(x + 0)
     f === :nvmlReturn && return Ptr{nvmlReturn_t}(x + 4)
     f === :value && return Ptr{Cdouble}(x + 8)
-    f === :metricInfo && return Ptr{var"##Ctag#182"}(x + 16)
+    f === :metricInfo && return Ptr{var"##Ctag#146"}(x + 16)
     return getfield(x, f)
 end
 
@@ -6229,83 +6325,83 @@ end
                                                    pending::Ptr{nvmlDriverModel_t})::nvmlReturn_t
 end
 
-struct var"##Ctag#179"
+struct var"##Ctag#143"
     avgFactor::Cuint
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#179"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#143"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :timeslice && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#179", f::Symbol)
-    r = Ref{var"##Ctag#179"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#179"}, r)
+function Base.getproperty(x::var"##Ctag#143", f::Symbol)
+    r = Ref{var"##Ctag#143"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#143"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#179"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#143"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#180"
+struct var"##Ctag#144"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#180"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#144"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#180", f::Symbol)
-    r = Ref{var"##Ctag#180"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#180"}, r)
+function Base.getproperty(x::var"##Ctag#144", f::Symbol)
+    r = Ref{var"##Ctag#144"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#144"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#180"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#144"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#184"
+struct var"##Ctag#148"
     avgFactor::Cuint
     frequency::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#184"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#148"}, f::Symbol)
     f === :avgFactor && return Ptr{Cuint}(x + 0)
     f === :frequency && return Ptr{Cuint}(x + 4)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#184", f::Symbol)
-    r = Ref{var"##Ctag#184"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#184"}, r)
+function Base.getproperty(x::var"##Ctag#148", f::Symbol)
+    r = Ref{var"##Ctag#148"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#148"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#184"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#148"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
-struct var"##Ctag#185"
+struct var"##Ctag#149"
     timeslice::Cuint
 end
-function Base.getproperty(x::Ptr{var"##Ctag#185"}, f::Symbol)
+function Base.getproperty(x::Ptr{var"##Ctag#149"}, f::Symbol)
     f === :timeslice && return Ptr{Cuint}(x + 0)
     return getfield(x, f)
 end
 
-function Base.getproperty(x::var"##Ctag#185", f::Symbol)
-    r = Ref{var"##Ctag#185"}(x)
-    ptr = Base.unsafe_convert(Ptr{var"##Ctag#185"}, r)
+function Base.getproperty(x::var"##Ctag#149", f::Symbol)
+    r = Ref{var"##Ctag#149"}(x)
+    ptr = Base.unsafe_convert(Ptr{var"##Ctag#149"}, r)
     fptr = getproperty(ptr, f)
     GC.@preserve r unsafe_load(fptr)
 end
 
-function Base.setproperty!(x::Ptr{var"##Ctag#185"}, f::Symbol, v)
+function Base.setproperty!(x::Ptr{var"##Ctag#149"}, f::Symbol, v)
     return unsafe_store!(getproperty(x, f), v)
 end
 
@@ -7273,7 +7369,11 @@ const NVML_FI_DEV_BANK_REMAPPER_HISTOGRAM_NONE = 306
 
 const NVML_FI_DEV_PENDING_BANK_REMAPPING = 307
 
-const NVML_FI_MAX = 308
+const NVML_FI_DEV_GPU_TEMP = 308
+
+const NVML_FI_PWR_SMOOTHING_LIMITED_TIME = 309
+
+const NVML_FI_MAX = 310
 
 const NVML_MCLK_SWITCH_TYPE_NOT_SUPPORTED = 0x00
 
@@ -7429,9 +7529,17 @@ const NVML_CC_SYSTEM_CPU_CAPS_AMD_SEV_SNP = 3
 
 const NVML_CC_SYSTEM_CPU_CAPS_AMD_SNP_VTOM = 4
 
+const NVML_CC_SYSTEM_CPU_CAPS_ARM_CCA = 5
+
+const NVML_CC_SYSTEM_CPU_CAPS_INTEL_TDX_CONNECT = 6
+
+const NVML_CC_SYSTEM_CPU_CAPS_AMD_SEV_TIO = 7
+
 const NVML_CC_SYSTEM_GPUS_CC_NOT_CAPABLE = 0
 
 const NVML_CC_SYSTEM_GPUS_CC_CAPABLE = 1
+
+const NVML_CC_SYSTEM_GPUS_CC_BMSAI_CAPABLE = 2
 
 const NVML_CC_SYSTEM_DEVTOOLS_MODE_OFF = 0
 
@@ -7447,6 +7555,8 @@ const NVML_CC_SYSTEM_FEATURE_DISABLED = 0
 
 const NVML_CC_SYSTEM_FEATURE_ENABLED = 1
 
+const NVML_CC_SYSTEM_FEATURE_BMSAI_ENABLED = 2
+
 const NVML_CC_SYSTEM_MULTIGPU_NONE = 0
 
 const NVML_CC_SYSTEM_MULTIGPU_PROTECTED_PCIE = 1
@@ -7454,6 +7564,14 @@ const NVML_CC_SYSTEM_MULTIGPU_PROTECTED_PCIE = 1
 const NVML_CC_SYSTEM_MULTIGPU_NVLE = 2
 
 const nvmlSystemConfComputeSettings_v1 = @NVML_STRUCT_VERSION(SystemConfComputeSettings, 1)
+
+const NVML_CC_SYSTEM_TDISP_STATE_DISABLED = 0
+
+const NVML_CC_SYSTEM_TDISP_STATE_NOT_READY = 1
+
+const NVML_CC_SYSTEM_TDISP_STATE_READY = 2
+
+const nvmlSystemConfComputeSettings_v2 = @NVML_STRUCT_VERSION(SystemConfComputeSettings, 2)
 
 const NVML_CC_ACCEPTING_CLIENT_REQUESTS_FALSE = 0
 
@@ -7672,6 +7790,14 @@ const NVML_NVLINK_FIRMWARE_UCODE_TYPE_NETIR_DLN = 0x05
 const NVML_NVLINK_FIRMWARE_VERSION_LENGTH = 100
 
 const nvmlNvLinkInfo_v2 = @NVML_STRUCT_VERSION(NvLinkInfo, 2)
+
+const NVML_NVLINK_MAX_REMAP_TABLE_ENTRIES_V2 = 4096
+
+const NVML_NVLINK_REMAP_TABLE_ENTRIES_CHUNK = 128
+
+const NVML_NVLINK_NVLE_PRIVATE_INFO_SIZE = 256
+
+const NVML_NVLINK_NVLE_AES_256_GCM_KEY_SIZE_BYTES = 32
 
 const NVML_PRM_DATA_MAX_SIZE = 496
 
