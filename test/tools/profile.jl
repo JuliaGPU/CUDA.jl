@@ -390,13 +390,20 @@ end
 end
 
 @testset "attribution" begin
-    # the number of warps uniquely identifies each launch
-    p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum"] begin
-        @sync for task in 1:4
-            Threads.@spawn for i in 1:4
-                @cuda threads=32 blocks=10task+i increment(a)
+    # the number of warps uniquely identifies each launch. on MIG, the counters also include
+    # work that other processes run on the same GPU instance (a documented limitation of
+    # NVIDIA's profilers), which only ever adds warps to random ranges, so measure again
+    # when that happens. an attribution bug would show up in every attempt.
+    local p
+    for attempt in 1:5
+        p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum"] begin
+            @sync for task in 1:4
+                Threads.@spawn for i in 1:4
+                    @cuda threads=32 blocks=10task+i increment(a)
+                end
             end
         end
+        p.values[:, 1] == [grid.x for grid in p.kernels.grid] && break
     end
     @test length(p.kernels.id) == 16
     @test p.values[:, 1] == [grid.x for grid in p.kernels.grid]
