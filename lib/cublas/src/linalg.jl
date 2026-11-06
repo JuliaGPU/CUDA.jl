@@ -234,6 +234,22 @@ end
 LinearAlgebra.norm(x::Diagonal{T, <:StridedCuVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, CublasFloat}} = norm(x.diag, p)
 LinearAlgebra.norm2(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
 
+# keep the 2-norm on the GPU, so that normalizing doesn't wait for it to be copied back.
+# Unlike LinearAlgebra on Julia 1.14, this doesn't rescale and recompute a subnormal norm,
+# which would cost two more passes over `x` for every call.
+function LinearAlgebra.normalize!(x::StridedCuVecOrDenseMat{T}, p::Real=2) where {T<:Union{Float16, CublasFloat}}
+    if p == 2
+        nrm = CuArray{real(T)}(undef)
+        nrm2(x, nrm)
+        x ./= nrm
+        return x
+    else
+        return invoke(normalize!, Tuple{AbstractArray, Real}, x, p)
+    end
+end
+LinearAlgebra.normalize(x::StridedCuVecOrDenseMat{T}, p::Real=2) where {T<:Union{Float16, CublasFloat}} =
+    normalize!(copy(x), p)
+
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
 function LinearAlgebra.axpy!(alpha::Number, x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:Union{Float16, ComplexF16, CublasFloat}

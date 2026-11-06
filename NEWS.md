@@ -27,6 +27,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   13.5 can load NVIDIA's forward-compatible 620.70.06 driver.
 - Added support for cuDNN 9.28 (requires CUDNN_jll 9.28), including the low-level
   wrappers for its graph attention (GAT) operations.
+- `normalize!` and `normalize` of `Float16`, `Float32`, `Float64`, `ComplexF32` and
+  `ComplexF64` arrays keep the 2-norm on the GPU, and no longer synchronize to copy
+  it back.
 
 
 ## v6.5 (October 2026)

@@ -1,11 +1,29 @@
 using LinearAlgebra
 using StaticArrays: SVector
 
-@testset "normalize!" begin
-    x = rand(ComplexF32, 10)
-    dx = CuVector{ComplexF32}(x)
-    @test isreal(norm(dx, 2))
-    @test norm(normalize!(dx)) ≈ 1
+@testset "normalize" begin
+    @testset for T in [Float16, Float32, Float64, ComplexF16, ComplexF32, ComplexF64]
+        @test isreal(norm(CuArray(rand(T, 10)), 2))
+        for p in (2, 2.0, 1, Inf)
+            @test testf(normalize!, rand(T, 10), Ref(p))
+            @test testf(normalize, rand(T, 10), Ref(p))
+        end
+        @test testf(normalize!, rand(T, 5, 7))
+        @test testf(normalize, rand(T, 0))
+        # JuliaGPU/CUDA.jl#3410; the generic fallback for ComplexF16 scalar-indexes views
+        if T != ComplexF16
+            @test testf(x -> (normalize!(view(x, lastindex(x):-2:1)); x), rand(T, 10))
+            @test testf(x -> normalize(view(x, lastindex(x):-2:1)), rand(T, 10))
+        end
+    end
+
+    # the 2-norm stays on the GPU, so normalizing doesn't synchronize
+    dx = CuArray(rand(Float32, 10))
+    exec = instantiate(capture(() -> normalize!(dx)))
+    x = rand(Float32, 10)
+    copyto!(dx, x)
+    exec()
+    @test Array(dx) ≈ normalize(x)
 end
 
 @testset "dot" begin
