@@ -113,10 +113,7 @@ end
         @test Array(z) == fill(Float32(i + 1), 1024)
         @test Array(y) == fill(Float32(2(i + 1)), 1024)
     end
-    # Physical pool accounting is unavailable with JULIA_CUDA_MEMORY_POOL=none.
-    if used !== missing
-        @test CUDA.used_memory() == used
-    end
+    @test CUDA.used_memory() == used
 
     # memory allocated during capture can be used right away
     local w

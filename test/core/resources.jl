@@ -8,9 +8,7 @@ using CUDACore: resource_finalizer, TaskLocalCache
     before = CUDA.used_memory()
     allocate()
     CUDA.reclaim()
-    if before !== missing
-        @test CUDA.used_memory() <= before
-    end
+    @test CUDA.used_memory() <= before
 end
 
 @testset "resource_finalizer" begin
@@ -86,9 +84,7 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_E
             end
         end
         @test_logs CUDA.reclaim()
-        if used !== missing
-            @test CUDA.used_memory() <= used
-        end
+        @test CUDA.used_memory() <= used
     end
 
     @testset "memory last used in a destroyed context" begin

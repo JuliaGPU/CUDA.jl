@@ -326,6 +326,10 @@ function take_ownership!(managed::Managed{M}; state=active_state(),
     managed.captured = true
   end
 
+  # a stream that the task submits work to without having activated it (e.g., with `@cuda
+  # stream=s`) mustn't be handed to another task meanwhile (see `claim_stream!`)
+  stream === state.stream || bind_submitter!(stream)
+
   # accessing memory on another device: ensure the data is ready and accessible
   if M == DeviceMemory && state.context != managed.mem.ctx
     maybe_synchronize(managed)

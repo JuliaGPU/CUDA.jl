@@ -214,11 +214,9 @@ function xt_handle()
         CUDACore.handle_finalizer(xt_handle_finalizer, wrapped,
                                   idle_xt_handles, ctxs, new_handle)
 
-        # if we're using the stream-ordered allocator,
         # make sure allocations are visible on all devices
-        async_devs = filter(memory_pools_supported, devices())
-        for dev in async_devs
-            other_devs = filter(!isequal(dev), async_devs)
+        for dev in devices()
+            other_devs = filter(!isequal(dev), collect(devices()))
             # only grant access to peer-capable devices: cuMemPoolSetAccess on a
             # fresh pool can succeed even when the devices are not peer capable,
             # deferring the failure to a later allocation.
@@ -226,9 +224,7 @@ function xt_handle()
             for other in setdiff(other_devs, accessible_devs)
                 @warn "cublasXt: $other cannot access memory on $dev; operations on device arrays may fail" maxlog=1
             end
-            isempty(accessible_devs) && continue
-            pool = CUDACore.pool_create(dev)
-            access!(pool, accessible_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
+            CUDACore.grant_access!(CUDACore.allocator(dev), accessible_devs)
         end
 
         devs = convert.(Cint, devices())
