@@ -52,6 +52,8 @@ function __init__()
         libcufft = CUDA_Runtime_jll.libcufft
     end
 
+    CUDACore.register_reclaimable!(idle_handles)
+
     _initialized[] = true
 end
 
