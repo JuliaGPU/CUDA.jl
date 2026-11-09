@@ -249,6 +249,25 @@ Error showing value of type CuArray{Int64,1,Nothing}:
 ERROR: AssertionError: Use of freed memory
 ```
 
+### Early garbage collection
+
+When GPU memory use is high, CUDA.jl runs the Julia garbage collector before allocating
+memory or waiting for the GPU, so that unreachable arrays are freed before memory runs
+out. If your code already collects garbage at better moments, e.g., a training loop that
+calls `GC.gc(false)` between steps, these extra collections can add needless pauses.
+Disable them for a block of code with `CUDA.early_gc!`:
+
+```julia
+CUDA.early_gc!(false) do
+    train_step!(model, batch)
+end
+GC.gc(false)
+```
+
+The setting applies to the tasks that the block runs and spawns. To disable early
+collection everywhere, set the environment variable `JULIA_CUDA_GC_EARLY=false`. In both
+cases, an allocation that runs out of memory still runs the garbage collector and retries.
+
 
 ## Batching iterator
 

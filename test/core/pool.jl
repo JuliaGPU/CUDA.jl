@@ -118,3 +118,43 @@ end
         @test gpu_rss_nvml() < before + unpooled_size ÷ 2
     end
 end
+
+@testset "early_gc!" begin
+    # with a 64 MiB limit, keeping a 56 MiB array alive puts the pool above the pressure
+    # at which allocations run the GC
+    script = """
+        using CUDA, Test
+
+        function alloc_collects()
+            # a collection resets Julia's allocation counter, so that the few bytes the
+            # loop allocates can't make Julia collect by itself
+            GC.gc()
+            before = Base.gc_num().pause
+            for _ in 1:4
+                CuArray{UInt8}(undef, 1024)
+            end
+            Base.gc_num().pause > before
+        end
+        disabled() = CUDA.early_gc!(alloc_collects, false)
+        disabled_task() = CUDA.early_gc!(false) do
+            fetch(Threads.@spawn alloc_collects())
+        end
+        reenabled() = CUDA.early_gc!(false) do
+            CUDA.early_gc!(alloc_collects, true)
+        end
+
+        # compile everything before there's pressure, so that the compiler doesn't run the GC
+        @assert !disabled() && !disabled_task() && !reenabled()
+
+        keep = CuArray{UInt8}(undef, 56*2^20)
+        @test !disabled()
+        @test !disabled_task()
+        @test reenabled()
+        """
+    proc, out, err = julia_exec(`-e $script`, "JULIA_CUDA_HARD_MEMORY_LIMIT" => "64MiB")
+    if !success(proc)
+        println(out)
+        println(err)
+    end
+    @test success(proc)
+end
