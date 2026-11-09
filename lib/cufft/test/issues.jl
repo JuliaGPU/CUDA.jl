@@ -121,3 +121,12 @@ end
     mul!(CuArray{Float32}(undef, 14, 4), p, d_c)
     @test Array(d_c) == c
 end
+
+@testset "inverse plan outlives its real-to-complex plan" begin
+    x = CuArray(rand(Float32, 64, 8))
+    y = rfft(x)
+    make_inv(x) = inv(plan_rfft(x))
+    pinv = make_inv(x)
+    GC.gc(true)
+    @test Array(pinv * y) ≈ Array(x)
+end
