@@ -40,6 +40,12 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
   CUPTI can request one while Julia collects garbage.
 
+*Bug fixes*:
+
+- Finalizers now run while `CUDA.@profile`, `CUDA.@metrics`, `CUDA.@sample` and SASS
+  reflection execute code, so profiled code that relies on the GC to free GPU memory no
+  longer runs out of it.
+
 
 ## v6.5 (October 2026)
 

@@ -100,11 +100,63 @@ _has_profiling_access(path) =
 
 
 #
+# sessions
+#
+
+# a lock that claims CUPTI for a session, which runs user code while holding it. unlike a
+# plain `ReentrantLock`, holding it doesn't keep finalizers from running, as the code being
+# profiled may need them to free memory. CUDA.jl's finalizers don't take these locks or
+# call into CUDA.
+mutable struct SessionLock <: Base.AbstractLock
+    const lock::ReentrantLock
+    # only changed by the task holding the lock
+    owner::Union{Nothing,Task}
+    depth::Int
+end
+SessionLock() = SessionLock(ReentrantLock(), nothing, 0)
+
+function acquired!(l::SessionLock)
+    l.owner = current_task()
+    l.depth += 1
+    # the first acquisition of a `ReentrantLock` disables finalizers. undo that only after
+    # updating the depth, as enabling them may run pending finalizers, which could use
+    # this lock too.
+    l.depth == 1 && GC.enable_finalizers()
+    return
+end
+
+function Base.lock(l::SessionLock)
+    lock(l.lock)
+    acquired!(l)
+end
+
+function Base.trylock(l::SessionLock)
+    trylock(l.lock) || return false
+    acquired!(l)
+    return true
+end
+
+function Base.unlock(l::SessionLock)
+    # leave unbalanced unlocks for `ReentrantLock` to reject
+    if l.owner === current_task()
+        l.depth -= 1
+        if l.depth == 0
+            l.owner = nothing
+            GC.disable_finalizers()
+        end
+    end
+    unlock(l.lock)
+end
+
+Base.islocked(l::SessionLock) = islocked(l.lock)
+
+
+#
 # callback API
 #
 
 # multiple subscribers aren't supported, so make sure we only call CUPTI once
-const callback_lock = ReentrantLock()
+const callback_lock = SessionLock()
 
 function callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
                   id::CUpti_CallbackId, data_ptr::Ptr{Cvoid})
@@ -187,7 +239,7 @@ end
 
 ActivityConfig(activity_kinds) = ActivityConfig(activity_kinds, ActivityBuffer[])
 
-const activity_lock = ReentrantLock()
+const activity_lock = SessionLock()
 
 # CUPTI requests activity buffers through a callback on the thread that records an
 # activity, and returns them through another on a worker thread. The recording thread can
