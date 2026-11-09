@@ -52,6 +52,34 @@ function finalizes_within(session)
     return seen[]
 end
 
+# profiler results with the given events, which take place between the synchronizations
+# that delimit the profiled code (from 1 to 99 s). rows only need to specify some columns.
+function synthetic_results(; host=[], device=[], nvtx=[], kwargs...)
+    h = (id=Int[], start=Float64[], stop=Float64[], name=String[], tid=Int[],
+         details=Union{Missing,String}[])
+    sync(id, t) = (; id, start=t - 1, stop=t, name="cuCtxSynchronize", tid=1)
+    for row in [sync(1, 1.0); host; sync(1000, 99.0)]
+        push_row!(h, merge((; tid=1), row))
+    end
+    d = (id=Int[], start=Float64[], stop=Float64[], name=String[],
+         device=Int[], context=Int[], stream=Int[],
+         grid=Union{Missing,CUDACore.CuDim3}[], block=Union{Missing,CUDACore.CuDim3}[],
+         registers=Union{Missing,Int64}[],
+         shared_mem=Union{Missing,@NamedTuple{static::Int64,dynamic::Int64}}[],
+         local_mem=Union{Missing,@NamedTuple{thread::Int64,total::Int64}}[],
+         size=Union{Missing,Int64}[], details=Union{Missing,String}[])
+    for row in device
+        push_row!(d, merge((; name="kernel", device=0, context=1, stream=1), row))
+    end
+    n = (id=Int[], start=Float64[], type=Symbol[], tid=Int[],
+         name=Union{Missing,String}[], domain=Union{Missing,String}[],
+         payload=Any[], color=Union{Nothing,UInt32}[], category=Union{Missing,UInt32}[])
+    for row in nvtx
+        push_row!(n, merge((; tid=1, color=nothing), row))
+    end
+    CUDA.Profile.ProfileResults(; host=h, device=d, nvtx=n, kwargs...)
+end
+
 @testset "profiler" begin
 
 ############################################################################################
@@ -360,6 +388,41 @@ let
     json = JSON.parse(repr("application/json", results))
     @test json["raw"]
     @test any(row -> row["name"] == "cuCtxSynchronize", json["host"])
+end
+
+# operations that overlap count once towards the time the GPU was busy
+let
+    function wait_cycles(cycles)
+        t0 = clock(UInt64)
+        while clock(UInt64) - t0 < cycles end
+        return
+    end
+    streams = [CuStream() for _ in 1:2]
+    launch() = for s in streams
+        @cuda stream=s wait_cycles(UInt64(10_000_000))
+    end
+    launch()
+    synchronize()
+
+    results = CUDA.@profile launch()
+    json = JSON.parse(repr("application/json", results))
+    kernels = filter(row -> occursin("wait_cycles", row["name"]), json["device"])
+    @test only(kernels)["calls"] == 2
+    device = only(json["devices"])
+    @test device["busy_ns"] == json["device_busy_ns"]
+    @test device["busy_ns"] + device["idle_ns"] ≈ json["duration_ns"]
+    @test only(kernels)["max_ns"] <= device["busy_ns"] < only(kernels)["total_ns"]
+    @test occursin(r"GPU was busy for .* and idle for", string(results))
+
+    # intervals that are disjoint, overlap, and nest, from 1 s into the trace
+    results = synthetic_results(;
+        host=[(; id=2, start=1.5, stop=1.6, name="cuLaunchKernel")],
+        device=[(; id=2, start=2.0 + t0, stop=2.0 + t1)
+                for (t0, t1) in [(0, 2), (1, 3), (1.5, 2.5), (5, 6), (6, 7)]])
+    json = JSON.parse(repr("application/json", results))
+    @test json["device_busy_ns"] ≈ 5e9
+    @test only(json["devices"])["idle_ns"] ≈ 93e9
+    @test json["device_time_ns"] ≈ 7e9
 end
 
 end
