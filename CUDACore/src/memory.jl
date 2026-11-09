@@ -64,17 +64,50 @@ end
 # so we track them globally and size them against system RAM rather than GPU memory.
 const _host_stats = MemoryStats()
 
-# lazily-initialized mutable flag controlling whether `maybe_collect` runs.
-# `nothing` means uninitialized; once set it's read directly. mutable so we can
-# disable it at runtime if `cuMemGetInfo` starts failing (see below).
-const _early_gc = Ref{Union{Nothing,Bool}}(nothing)
-function maybe_collect(will_block::Bool=false)
-  enabled = _early_gc[]
+# whether `maybe_collect` may run the GC: set by `early_gc!`, or `nothing` to use the
+# default from `JULIA_CUDA_GC_EARLY` (read when first needed, not at load time)
+const early_gc_scope = ScopedValues.ScopedValue{Union{Nothing,Bool}}(nothing)
+const early_gc_default = Ref{Union{Nothing,Bool}}(nothing)
+
+# set when `cuMemGetInfo` fails (see below), overriding `early_gc!`
+const early_gc_failed = Ref(false)
+
+function early_gc_enabled()
+  early_gc_failed[] && return false
+  enabled = early_gc_scope[]
+  enabled === nothing || return enabled
+  enabled = early_gc_default[]
   if enabled === nothing
     enabled = parse(Bool, get(ENV, "JULIA_CUDA_GC_EARLY", "true"))
-    _early_gc[] = enabled
+    early_gc_default[] = enabled
   end
-  enabled || return
+  return enabled
+end
+
+"""
+    early_gc!(f, enabled::Bool)
+
+Run `f` with early garbage collection enabled or disabled.
+
+When GPU memory use is high, CUDA.jl runs the Julia garbage collector before allocating
+memory or waiting for the GPU, to free arrays that are no longer reachable before memory
+runs out. Code that already runs the GC at better moments, e.g. a training loop collecting
+between steps, can disable these collections with `early_gc!(false) do ... end`. Allocations
+that run out of memory still run the GC and retry.
+
+The setting applies to the tasks that `f` runs and spawns, but not to tasks that were
+started outside of it. Outside of `early_gc!`, early collection is enabled unless the
+`JULIA_CUDA_GC_EARLY` environment variable is set to `false`.
+
+!!! note
+
+    On Julia 1.10, `Logging.with_logger` hides the setting from the code it runs.
+    Use `ScopedValues.with_logger` instead.
+"""
+early_gc!(f::Function, enabled::Bool) = ScopedValues.with(f, early_gc_scope => enabled)
+
+function maybe_collect(will_block::Bool=false)
+  early_gc_enabled() || return
   stats = memory_stats()
   current_time = time()
 
@@ -98,7 +131,7 @@ function maybe_collect(will_block::Bool=false)
         @warn "Failed to query free GPU memory; disabling early GC. \
                This usually indicates a prior CUDA error left the context in \
                a bad state." exception=(err, catch_backtrace())
-        _early_gc[] = false
+        early_gc_failed[] = true
         return
       end
       size = free + stats.live
@@ -478,7 +511,7 @@ macro timed(ex)
     end
 end
 @public @allocated, @time, @timed, used_memory, cached_memory, pool_status, reclaim,
-        RECLAIM_PURGE, RECLAIM_SYNC, RECLAIM_GC, RECLAIM_DROP
+        early_gc!, RECLAIM_PURGE, RECLAIM_SYNC, RECLAIM_GC, RECLAIM_DROP
 
 """
     used_memory()

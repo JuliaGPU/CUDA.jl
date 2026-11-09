@@ -30,6 +30,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `normalize!` and `normalize` of `Float16`, `Float32`, `Float64`, `ComplexF32` and
   `ComplexF64` arrays keep the 2-norm on the GPU, and no longer synchronize to copy
   it back.
+- `CUDA.early_gc!(f, false)` runs `f` without the garbage collections that CUDA.jl
+  starts when GPU memory use is high, for code that paces collections itself, such as
+  training loops ([#3532](https://github.com/JuliaGPU/CUDA.jl/issues/3532)).
 
 *Bug fixes*:
 
