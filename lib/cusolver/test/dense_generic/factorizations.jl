@@ -6,7 +6,7 @@ n = 10
 p = 5
 
 if cuSOLVER.version() >= v"11"
-@testset "trtri! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "Xtrtri! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     for uplo in ('L', 'U')
         for diag in ('N', 'U')
             A = rand(elty, n, n)
@@ -14,7 +14,7 @@ if cuSOLVER.version() >= v"11"
             A = diag == 'N' ? A : A - Diagonal(A) + I
             d_A = CuMatrix(A)
             d_B = copy(d_A)
-            cuSOLVER.trtri!(uplo, diag, d_B)
+            cuSOLVER.Xtrtri!(uplo, diag, d_B)
             @test collect(d_A * d_B) ≈ I
         end
     end
@@ -60,7 +60,7 @@ end
 end
 
 if cuSOLVER.version() >= v"11.6.0"
-    @testset "larft! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "Xlarft! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "direct = $direct" for direct in ('F', 'B')
             direct == 'B' && continue
             A = rand(elty, m, n)
@@ -81,13 +81,13 @@ if cuSOLVER.version() >= v"11.6.0"
             end
             dv = CuArray(v)
             dt = CuMatrix(t)
-            dt = cuSOLVER.larft!(direct, 'C', dv, dτ, dt)
+            dt = cuSOLVER.Xlarft!(direct, 'C', dv, dτ, dt)
             @test dI - dv * dt * dv' ≈ dH
         end
     end
 end
 
-@testset "sytrs! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+@testset "Xsytrs! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "uplo = $uplo" for uplo in ('L', 'U')
         @testset "pivoting = $pivoting" for pivoting in (false, true)
             !pivoting && (cuSOLVER.version() < v"11.7.2") && continue
@@ -105,8 +105,8 @@ end
             if pivoting
                 d_A, d_ipiv, _ = cuSOLVER.sytrf!(uplo, d_A; pivoting)
                 d_ipiv = CuVector{Int64}(d_ipiv)
-                cuSOLVER.sytrs!(uplo, d_A, d_ipiv, d_B)
-                cuSOLVER.sytrs!(uplo, d_A, d_ipiv, d_C)
+                cuSOLVER.Xsytrs!(uplo, d_A, d_ipiv, d_B)
+                cuSOLVER.Xsytrs!(uplo, d_A, d_ipiv, d_C)
                 A, ipiv, _ = LAPACK.sytrf!(uplo, A)
                 LAPACK.sytrs!(uplo, A, ipiv, B)
                 LAPACK.sytrs!(uplo, A, ipiv, C)
@@ -114,8 +114,8 @@ end
                 @test C ≈ collect(d_C)
             else
                 d_A, _ = cuSOLVER.sytrf!(uplo, d_A; pivoting)
-                cuSOLVER.sytrs!(uplo, d_A, d_B)
-                cuSOLVER.sytrs!(uplo, d_A, d_C)
+                cuSOLVER.Xsytrs!(uplo, d_A, d_B)
+                cuSOLVER.Xsytrs!(uplo, d_A, d_C)
                 # Verify correctness directly: non-pivoting cusolver cannot be
                 # compared against LAPACK (which always pivots), so instead check
                 # that A * x ≈ b for the original inputs.

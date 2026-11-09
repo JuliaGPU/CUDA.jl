@@ -122,7 +122,7 @@ function Xgeqrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
 end
 
 # Xsytrs
-function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+function Xsytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
     version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
     chkuplo(uplo)
     n = checksquare(A)
@@ -150,7 +150,7 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::Stride
     B
 end
 
-function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+function Xsytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
     version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
     chkuplo(uplo)
     n = checksquare(A)
@@ -179,7 +179,7 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) wher
 end
 
 # Xtrtri
-function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+function Xtrtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
     chkuplo(uplo)
     chkdiag(diag)
@@ -205,7 +205,7 @@ function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasF
 end
 
 # Xlarft!
-function larft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t::StridedCuMatrix{T}) where {T <: BlasFloat}
+function Xlarft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t::StridedCuMatrix{T}) where {T <: BlasFloat}
     cuSOLVER.version() < v"11.6.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n, k = size(v)
     ktau = length(tau)
@@ -592,7 +592,7 @@ end
 # LAPACK
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
-        LinearAlgebra.LAPACK.sytrs!(uplo::Char, A::StridedCuMatrix{$elty}, p::CuVector{Int64}, B::StridedCuVecOrMat{$elty}) = cuSOLVER.sytrs!(uplo, A, p, B)
-        LinearAlgebra.LAPACK.trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{$elty}) = cuSOLVER.trtri!(uplo, diag, A)
+        LinearAlgebra.LAPACK.sytrs!(uplo::Char, A::StridedCuMatrix{$elty}, p::CuVector{Int64}, B::StridedCuVecOrMat{$elty}) = cuSOLVER.Xsytrs!(uplo, A, p, B)
+        LinearAlgebra.LAPACK.trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{$elty}) = cuSOLVER.Xtrtri!(uplo, diag, A)
     end
 end

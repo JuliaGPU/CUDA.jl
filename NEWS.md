@@ -40,6 +40,12 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
   CUPTI can request one while Julia collects garbage.
 
+*Minor changes*:
+
+- cuSOLVER's `sytrs!`, `trtri!` and `larft!` are renamed to `Xsytrs!`, `Xtrtri!`
+  and `Xlarft!`, like the other wrappers of cuSOLVER's generic `cusolverDnX` API.
+  The old names are deprecated ([#3085](https://github.com/JuliaGPU/CUDA.jl/issues/3085)).
+
 
 ## v6.5 (October 2026)
 

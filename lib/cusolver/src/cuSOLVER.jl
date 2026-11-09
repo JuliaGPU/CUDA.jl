@@ -372,5 +372,8 @@ include("precompile.jl")
 
 # deprecated binding for backwards compatibility
 Base.@deprecate_binding CUSOLVER cuSOLVER false
+Base.@deprecate sytrs! Xsytrs! false
+Base.@deprecate trtri! Xtrtri! false
+Base.@deprecate larft! Xlarft! false
 
 end

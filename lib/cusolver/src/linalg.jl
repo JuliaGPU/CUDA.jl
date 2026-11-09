@@ -72,7 +72,7 @@ function Base.:\(_A::Symmetric{<:Any,<:CuMatOrAdj}, _B::CuOrAdj)
     # LDLᴴ decomposition with partial pivoting
     factors, ipiv, info = sytrf!(uplo, A)
     ipiv = CuVector{Int64}(ipiv)
-    X = sytrs!(uplo, factors, ipiv, B)
+    X = Xsytrs!(uplo, factors, ipiv, B)
     return X
 end
 
@@ -542,7 +542,7 @@ function LinearAlgebra.inv(A::Symmetric{T,<:StridedCuMatrix{T}}) where T <: Blas
     factors, ipiv, info = sytrf!(A.uplo, F)
     ipiv = CuVector{Int64}(ipiv)
     B = CuMatrix{T}(I, n, n)
-    sytrs!(A.uplo, factors, ipiv, B)
+    Xsytrs!(A.uplo, factors, ipiv, B)
     return B
 end
 
@@ -554,7 +554,7 @@ for (triangle, uplo, diag) in ((:LowerTriangular, 'L', 'N'),
         function LinearAlgebra.inv(A::$triangle{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
             n = checksquare(A)
             B = copy(parent(A))
-            trtri!($uplo, $diag, B)
+            Xtrtri!($uplo, $diag, B)
             return $triangle(B)
         end
     end
