@@ -18,6 +18,8 @@ using CEnum: @cenum
 
 using Libdl
 
+using LLVM: LLVM
+
 
 # core library
 include("libcupti.jl")
@@ -29,6 +31,9 @@ include("pcsampling.jl")
 
 
 function __init__()
+    native_callbacks[] = nothing
+    native_jit[] = nothing
+
     CUDACore.functional() || return
 
     # find the library

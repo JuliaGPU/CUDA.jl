@@ -152,6 +152,19 @@ end
 # activity API
 #
 
+# memory that owns a buffer allocated by the `request` callback below. on Julia 1.11+, it
+# is a `Memory`: wrapping a pointer as an `Array` there allocates the array after the
+# memory took ownership, so an allocation failure in between would free the buffer twice.
+const BufferMemory = VERSION >= v"1.11" ? Memory{UInt8} : Vector{UInt8}
+
+# a buffer of activity records, returned by CUPTI
+struct ActivityBuffer
+    ctx::CUcontext
+    stream_id::UInt32
+    data::BufferMemory
+    valid_size::Int
+end
+
 """
     cfg = CUPTI.ActivityConfig(activity_kinds)
 
@@ -168,73 +181,157 @@ High-level interface to the CUPTI activity API.
 struct ActivityConfig
     activity_kinds::Vector{CUpti_ActivityKind}
 
-    available_buffers::Vector{Vector{UInt8}}
-    active_buffers::Vector{Vector{UInt8}}
-
-    results::Vector{Any}
+    # completed activity buffers, in the order CUPTI completed them
+    results::Vector{ActivityBuffer}
 end
 
-function ActivityConfig(activity_kinds)
-    # pre-allocate a couple of buffers to avoid allocating while profiling
-    available_buffers = [allocate_buffer() for _ in 1:5]
-
-    ActivityConfig(activity_kinds, available_buffers, Vector{UInt8}[], [])
-end
-
-function allocate_buffer()
-    # "for typical workloads, it's suggested to choose a size between 1 and 10 MB."
-    Array{UInt8}(undef, 8 * 1024 * 1024)  # 8 MB
-end
+ActivityConfig(activity_kinds) = ActivityConfig(activity_kinds, ActivityBuffer[])
 
 const activity_lock = ReentrantLock()
-const activity_config = Ref{Union{Nothing,ActivityConfig}}(nothing)
 
-function request_buffer(dest_ptr, sz_ptr, max_num_records_ptr)
-    # this function is called by CUPTI, but directly from the application, so it should be
-    # fine to perform I/O or allocate memory here.
+# CUPTI requests activity buffers through a callback on the thread that records an
+# activity, and returns them through another on a worker thread. The recording thread can
+# be one that is collecting garbage, e.g. when a GC hook emits an NVTX range, where Julia
+# code can't run: entering a `@cfunction` waits for the collection to finish. Both
+# callbacks are therefore native functions, compiled from the LLVM IR below when they are
+# first needed. `request` allocates buffers with `malloc`, and `complete` pushes them onto
+# a lock-free list, which Julia takes after flushing.
+#
+# On Windows, the functions have no registered unwind information. Julia's stack walker
+# stops at them (e.g. when the profiler samples a thread in `malloc` called by `request`),
+# and nothing throws through them.
+#
+# They are compiled with an LLJIT rather than `llvmcall`, whose functions have no usable
+# address in package images built for several CPU targets.
 
-    dest = Base.unsafe_wrap(Array, dest_ptr, 1)
-    sz = Base.unsafe_wrap(Array, sz_ptr, 1)
-    max_num_records = Base.unsafe_wrap(Array, max_num_records_ptr, 1)
+const buffer_size = 8 * 1024 * 1024    # CUPTI suggests 1 to 10 MB
 
-    cfg = activity_config[]
-    if cfg !== nothing
-        buf = if isempty(cfg.available_buffers)
-            allocate_buffer()
-        else
-            pop!(cfg.available_buffers)
+# every buffer ends with a trailer that `complete` fills in: the next buffer in the list,
+# the context, the stream ID, and the number of bytes of records
+const trailer_size = 32
+
+const callback_ir = """
+    @malloc = global ptr null, align 8      ; Julia's `malloc`, so that it can free buffers
+    @completed = global ptr null, align 8   ; the list of completed buffers
+    @failures = global i64 0, align 8       ; the number of failed allocations
+
+    define void @request(ptr %buffer, ptr %size, ptr %max_records) nounwind {
+    entry:
+        %malloc = load ptr, ptr @malloc, align 8
+        %buf = call ptr %malloc(i64 $(buffer_size + trailer_size))
+        %failed = icmp eq ptr %buf, null
+        br i1 %failed, label %fail, label %done
+    fail:
+        %old = atomicrmw add ptr @failures, i64 1 monotonic, align 8
+        br label %done
+    done:
+        %sz = select i1 %failed, i64 0, i64 $buffer_size
+        store ptr %buf, ptr %buffer, align 8
+        store i64 %sz, ptr %size, align 8
+        store i64 0, ptr %max_records, align 8
+        ret void
+    }
+
+    define void @complete(ptr %ctx, i32 %stream_id, ptr %buf, i64 %size,
+                          i64 %valid_size) nounwind {
+    entry:
+        %null = icmp eq ptr %buf, null
+        br i1 %null, label %done, label %fill
+    fill:
+        %trailer = getelementptr i8, ptr %buf, i64 $buffer_size
+        %ctx_ptr = getelementptr i8, ptr %trailer, i64 8
+        store ptr %ctx, ptr %ctx_ptr, align 8
+        %stream_ptr = getelementptr i8, ptr %trailer, i64 16
+        %stream = zext i32 %stream_id to i64
+        store i64 %stream, ptr %stream_ptr, align 8
+        %valid_ptr = getelementptr i8, ptr %trailer, i64 24
+        store i64 %valid_size, ptr %valid_ptr, align 8
+        %head = load atomic ptr, ptr @completed monotonic, align 8
+        br label %push
+    push:
+        %next = phi ptr [ %head, %fill ], [ %seen, %push ]
+        store ptr %next, ptr %trailer, align 8
+        %pair = cmpxchg ptr @completed, ptr %next, ptr %buf release monotonic, align 8
+        %seen = extractvalue { ptr, i1 } %pair, 0
+        %ok = extractvalue { ptr, i1 } %pair, 1
+        br i1 %ok, label %done, label %push
+    done:
+        ret void
+    }
+    """
+
+const NativeCallbacks = @NamedTuple{request::Ptr{Cvoid}, complete::Ptr{Cvoid},
+                                    completed::Ptr{Ptr{UInt8}}, failures::Ptr{Int}}
+
+# compiled once per process, while holding `activity_lock`. `__init__` resets these, as
+# compiled code doesn't survive precompilation.
+const native_callbacks = Ref{Union{Nothing,NativeCallbacks}}(nothing)
+const native_jit = Ref{Union{Nothing,LLVM.LLJIT}}(nothing)  # never disposed
+
+function get_native_callbacks()
+    callbacks = native_callbacks[]
+    callbacks === nothing || return callbacks
+
+    jit = LLVM.LLJIT(; tm=LLVM.JITTargetMachine())
+    LLVM.@dispose ts_ctx=LLVM.ThreadSafeContext(; opaque_pointers=true) begin
+        ts_mod = LLVM.ThreadSafeModule("cupti_callbacks")
+        ts_mod() do mod
+            LLVM.link!(mod, parse(LLVM.Module, callback_ir))
         end
-        ptr = pointer(buf)
-        push!(cfg.active_buffers, buf)
-        sizehint!(cfg.results, length(cfg.active_buffers))
-
-        dest[] = pointer(buf)
-        sz[] = sizeof(buf)
-        max_num_records[] = 0
-    else
-        dest[] = C_NULL
-        sz[] = 0
-        max_num_records[] = 0
+        LLVM.add!(jit, jit.main_dylib, ts_mod)
     end
+    address(name) = Ptr{Cvoid}(pointer(LLVM.lookup(jit, name)))
+    unsafe_store!(Ptr{Ptr{Cvoid}}(address("malloc")), cglobal(:malloc))
 
-    return
+    native_jit[] = jit
+    native_callbacks[] = (; request=address("request"), complete=address("complete"),
+                            completed=Ptr{Ptr{UInt8}}(address("completed")),
+                            failures=Ptr{Int}(address("failures")))
 end
 
-function complete_buffer(ctx_handle, stream_id, buf_ptr, sz, valid_sz)
-    # this function is called by a CUPTI worker thread while our application may be waiting
-    # for `cuptiActivityFlushAll` to complete. that means we cannot do I/O here, or we could
-    # yield while the application cannot make any progress.
-    #
-    # we also may not trigger GC, because the main application cannot reach a safepoint.
-    # to prevent this, we call `sizehint!` in `request_buffer`.
-    # XXX: `sizehint!` isn't a guarantee; use `resize!` and a cursor?
+take_completed() =
+    Base.unsafe_swap!(get_native_callbacks().completed, Ptr{UInt8}(C_NULL), :acquire)
 
-    cfg = activity_config[]
-    if cfg !== nothing
-        push!(cfg.results, (ctx_handle, stream_id, buf_ptr, sz, valid_sz))
+function free_buffers(buf::Ptr{UInt8})
+    while buf != C_NULL
+        next = unsafe_load(Ptr{Ptr{UInt8}}(buf + buffer_size))
+        Libc.free(buf)
+        buf = next
     end
+end
 
-    return
+take_failures() = Base.unsafe_swap!(get_native_callbacks().failures, 0, :monotonic)
+
+# free the buffers completed outside of a session, e.g. by a session that failed to flush
+function discard_buffers()
+    take_failures()
+    free_buffers(take_completed())
+end
+
+# append the completed buffers to `results`, and return how many buffers couldn't be
+# allocated
+function take_buffers!(results::Vector{ActivityBuffer})
+    taken = ActivityBuffer[]
+    failures = take_failures()
+    buf = take_completed()
+    try
+        while buf != C_NULL
+            trailer = buf + buffer_size
+            next = unsafe_load(Ptr{Ptr{UInt8}}(trailer))
+            ctx = unsafe_load(Ptr{CUcontext}(trailer + 8))
+            stream_id = unsafe_load(Ptr{UInt64}(trailer + 16)) % UInt32
+            valid_size = Int(unsafe_load(Ptr{UInt64}(trailer + 24)))
+            # this frees the buffer, and counts all of it towards GC pressure
+            data = unsafe_wrap(BufferMemory, buf, buffer_size + trailer_size; own=true)
+            buf = next
+            push!(taken, ActivityBuffer(ctx, stream_id, data, valid_size))
+        end
+    finally
+        free_buffers(buf)   # the buffers that weren't wrapped, if wrapping failed
+    end
+    # the list is last in, first out
+    append!(results, Iterators.reverse(taken))
+    return failures
 end
 
 """
@@ -249,18 +346,9 @@ macro enable!(cfg, expr)
         _cfg = $(esc(cfg))
         if _cfg isa $mod.ActivityConfig
             @lock $mod.activity_lock begin
-                $mod.activity_config[] = _cfg
-
-                # set-up callbacks
-                request_buffer_ptr =
-                    @cfunction($mod.request_buffer, Cvoid,
-                               (Ptr{Ptr{UInt8}}, Ptr{Csize_t}, Ptr{Csize_t}))
-                complete_buffer_ptr =
-                    @cfunction($mod.complete_buffer, Cvoid,
-                               (CUDACore.CUcontext, UInt32, Ptr{UInt8}, Csize_t, Csize_t))
-                $mod.cuptiActivityRegisterCallbacks(request_buffer_ptr, complete_buffer_ptr)
-
-                $mod.activity_config[] = _cfg
+                $mod.discard_buffers()
+                callbacks = $mod.get_native_callbacks()
+                $mod.cuptiActivityRegisterCallbacks(callbacks.request, callbacks.complete)
 
                 # enable the requested activity kinds. which kinds a CUPTI supports
                 # depends on the version and the platform -- Tegra's CUPTI rejects the
@@ -286,15 +374,21 @@ macro enable!(cfg, expr)
 
                     $(esc(expr))
                 finally
-                    # disable activity kinds
-                    for activity_kind in enabled_kinds
-                        $mod.cuptiActivityDisable(activity_kind)
+                    try
+                        for activity_kind in enabled_kinds
+                            $mod.cuptiActivityDisable(activity_kind)
+                        end
+                    finally
+                        # flush all activity records, even incomplete ones
+                        try
+                            $mod.cuptiActivityFlushAll($mod.CUPTI_ACTIVITY_FLAG_FLUSH_FORCED)
+                        finally
+                            failures = $mod.take_buffers!(_cfg.results)
+                            if failures > 0
+                                @warn "Could not allocate $failures CUPTI activity buffers; some activity was not recorded."
+                            end
+                        end
                     end
-
-                    # flush all activity records, even incomplete ones
-                    $mod.cuptiActivityFlushAll($mod.CUPTI_ACTIVITY_FLAG_FLUSH_FORCED)
-
-                    $mod.activity_config[] = nothing
                 end
             end
         elseif _cfg isa $mod.CallbackConfig
@@ -431,12 +525,14 @@ function process(f, cfg::ActivityConfig)
         end
 
     # extract typed activity records
-    for (ctx_handle, stream_id, buf_ptr, sz, valid_sz) in cfg.results
-        ctx = ctx_handle == C_NULL ? nothing : unsafe_wrap(CuContext, ctx_handle)
+    for buf in cfg.results
+        ctx = buf.ctx == C_NULL ? nothing : unsafe_wrap(CuContext, buf.ctx)
+        stream_id, data, valid_sz = buf.stream_id, buf.data, buf.valid_size
         # XXX: can we reconstruct the stream from the stream ID?
 
         record_ptr = Ref{Ptr{CUpti_Activity}}(C_NULL)
-        while true
+        buf_ptr = pointer(data)
+        GC.@preserve data while true
             try
                 cuptiActivityGetNextRecord(buf_ptr, valid_sz, record_ptr)
                 record = unsafe_load(record_ptr[])

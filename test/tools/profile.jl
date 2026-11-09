@@ -87,6 +87,27 @@ end
     @test filtered.val == [25, 30]
 end
 
+@testset "native buffer callbacks" begin
+    # CUPTI may call them while Julia collects garbage (#3536), so they only call `malloc`,
+    # through a pointer, and use atomics for the state they share between threads
+    LLVM = CUPTI.LLVM
+    ctx = LLVM.Context(; opaque_pointers=true)
+    try
+        mod = parse(LLVM.Module, CUPTI.callback_ir)
+        LLVM.verify(mod)
+        @test sort([LLVM.name(f) for f in LLVM.functions(mod)]) == ["complete", "request"]
+        insts = [inst for f in LLVM.functions(mod) for bb in LLVM.blocks(f)
+                      for inst in LLVM.instructions(bb)]
+        calls = filter(inst -> inst isa LLVM.CallInst, insts)
+        @test length(calls) == 1
+        @test !(LLVM.called_operand(only(calls)) isa LLVM.Function)
+        @test any(inst -> inst isa LLVM.AtomicCmpXchgInst, insts)
+        @test any(inst -> inst isa LLVM.AtomicRMWInst, insts)
+    finally
+        LLVM.dispose(ctx)
+    end
+end
+
 @testset "detect_cupti" begin
     @test @inferred(CUDA.Profile.detect_cupti()) isa Bool
 end
@@ -117,8 +138,15 @@ end
 
 @testset "activity cleanup" begin
     @test_throws ErrorException CUDA.@profile error("profiled code failed")
-    @test CUPTI.activity_config[] === nothing
     @test CUDA.@profile(identity(nothing)) isa CUDA.Profile.ProfileResults
+end
+
+@testset "many activity records" begin
+    # more records than fit in one activity buffer
+    results = CUDA.@profile for _ in 1:100_000
+        @cuda identity(nothing)
+    end
+    @test count(contains("identity"), results.device.name) == 100_000
 end
 
 @testset "profiled allocation" begin
@@ -139,7 +167,6 @@ if CUDACore.is_tegra() && CUDA.runtime_version() < v"12"
             CUDA.synchronize()
         end
         @test ran[]
-        @test CUPTI.activity_config[] === nothing
     end
 end
 
@@ -219,6 +246,35 @@ let
     str = string(CUDA.@profile trace=true NVTX.@mark "a marker")
     @test occursin("NVTX marker", str)
     @test occursin("a marker", str)
+end
+
+# with NVTX's GC hooks, collections record NVTX ranges while profiling, which made CUPTI
+# call back into Julia from within the collection when it needed a new buffer (#3536)
+let
+    script = """
+        using CUDA
+        a = CUDA.zeros(Float32, 16)
+        CUDA.@profile nothing
+        results = CUDA.@profile for i in 1:200_000
+            a .+= 1f0
+            i % 50 == 0 && GC.gc(false)
+        end
+        print(count(isequal("GC"), results.nvtx.name))
+        """
+    cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) --color=no -e $script`
+    out, err = Pipe(), Pipe()
+    proc = run(pipeline(addenv(cmd, "JULIA_NVTX_CALLBACKS" => "gc"); stdout=out, stderr=err);
+               wait=false)
+    close(out.in)
+    close(err.in)
+    output, errors = @async(read(out, String)), @async(read(err, String))
+    if timedwait(() -> process_exited(proc), 600) != :ok
+        kill(proc, Base.SIGKILL)  # the deadlocked process ignores SIGTERM
+    end
+    wait(proc)
+    success(proc) || print(fetch(errors))
+    @test success(proc)
+    @test parse(Int, fetch(output)) >= 4000
 end
 
 # NVTX ranges
