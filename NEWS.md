@@ -31,6 +31,12 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `ComplexF64` arrays keep the 2-norm on the GPU, and no longer synchronize to copy
   it back.
 
+*Bug fixes*:
+
+- `CUDA.@profile` no longer deadlocks when NVTX.jl's GC hooks are enabled
+  (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
+  CUPTI can request one while Julia collects garbage.
+
 
 ## v6.5 (October 2026)
 
