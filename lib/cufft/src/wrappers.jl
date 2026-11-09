@@ -10,6 +10,15 @@ version() = VersionNumber(cufftGetProperty(CUDACore.MAJOR_VERSION),
                           cufftGetProperty(CUDACore.MINOR_VERSION),
                           cufftGetProperty(CUDACore.PATCH_LEVEL))
 
+# cuFFT batches transforms using a single distance, which only covers the dimensions that
+# aren't transformed if no transformed dimension lies in between them. Dimensions of size 1
+# don't matter either way.
+function batchable(sz::Dims, region)
+    batch_dims = filter(d -> d ∉ region && sz[d] > 1, 1:length(sz))
+    isempty(batch_dims) && return true
+    return all(d -> d ∉ region || sz[d] == 1, first(batch_dims):last(batch_dims))
+end
+
 """
     cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, input_size::Dims, region)
 
@@ -45,10 +54,12 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
     nrank = length(region)
 
     sz = ntuple((d) -> input_size[region[d]], nrank)
-    csz = ntuple((d) -> (d==1) ? div(input_size[region[d]], 2) + 1 : input_size[region[d]], nrank)
 
-    # all sizes which are not part of the dimensions specified by region are batch dimensions.
-    num_internal_batches = prod(input_size) ÷ prod(sz)
+    # layouts that aren't batchable are permuted first, see `staging_permutation`
+    batchable(input_size, region) ||
+        throw(ArgumentError("cuFFT cannot batch over the dimensions around region $region for size $input_size"))
+    first_batch_dim = findfirst(d -> d ∉ region && input_size[d] > 1, 1:length(input_size))
+    num_batches = prod(input_size) ÷ prod(sz)
     cdims = ntuple((d) -> (d==region[1]) ? div(input_size[d], 2) + 1 : input_size[d], length(input_size))
 
     # make the plan
@@ -59,56 +70,50 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
     end
 
     # initialize the plan handle. the work area is allocated from the memory pool for every
-    # execution (see `execute!`), so that idle plans hold no memory and concurrent
+    # execution (see `execute!`), so that idle plans don't hold on to one and concurrent
     # executions of one plan don't share it.
     handle_ref = Ref{cufftHandle}()
     cufftCreate(handle_ref)
     handle = handle_ref[]
 
-    cufftSetAutoAllocation(handle, false)
-    if region === ntuple(identity, nrank)
-        # handle simple case, transforming the first nrank dimensions, ... simply! (for robustness)
-        # arguments are: plan, rank, transform-sizes, inembed, istride, idist, itype, onembed, ostride, odist, otype, batch
+    try
+        cufftSetAutoAllocation(handle, false)
         execution_type = promote_type(input_type, output_type)
-        cufftXtMakePlanMany(handle, nrank, Clonglong[rsz...],
-                            C_NULL, 1, 1, convert(cudaDataType, input_type),
-                            C_NULL, 1, 1, convert(cudaDataType, output_type),
-                            num_internal_batches, worksize_ref, convert(cudaDataType, execution_type))
-    else
-        # reduce the array to the final transform direction.
-        # This situation will be picked up in the application of the plan later 
-        # so the plan needs to only include internal dims.
-        internal_batch_dims, external_batch_dims = get_batch_dims(region, input_size)
+        if region === ntuple(identity, nrank)
+            # the transformed dimensions come first, followed by the batch: the default layout
+            cufftXtMakePlanMany(handle, nrank, Clonglong[rsz...],
+                                C_NULL, 1, 1, convert(cudaDataType, input_type),
+                                C_NULL, 1, 1, convert(cudaDataType, output_type),
+                                num_batches, worksize_ref, convert(cudaDataType, execution_type))
+        else
+            # stride between consecutive elements of the innermost transformed dimension
+            istride = prod(input_size[1:region[1]-1])
 
-        # Stride between consecutive elements in the innermost transform dim
-        istride = prod(input_size[1:region[1]-1])
-        # The internal batching is over the largest consecutive batch indices.
-        # Since they are consecutive they can all be batched by a single batch_stride "i_dist".
-        # Distance between consecutive internal batches
-        idist = prod(input_size[1:internal_batch_dims[1]-1])
-        cdist = prod(cdims[1:internal_batch_dims[1]-1])
+            # distance between consecutive transforms of the batch
+            idist = first_batch_dim === nothing ? prod(input_size) : prod(input_size[1:first_batch_dim-1])
+            cdist = first_batch_dim === nothing ? prod(cdims) : prod(cdims[1:first_batch_dim-1])
 
-        # Embedded storage sizes (C-order): cuFFT requires the first entry >= n[0]
-        # (the outermost transform size, which in C-order is rsz[1]). Use idist when
-        # it already satisfies this; otherwise pad up to n[0].
-        # Remaining entries are products of sizes between consecutive transform dims.
-        inembed = Clonglong[max(idist, rsz[1]), (prod(input_size[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
-        cnembed = Clonglong[max(cdist, rsz[1]), (prod(cdims[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
+            # embedded storage sizes, in C order. the first entry only has to be at least
+            # the outermost transform size; the others are the distances between consecutive
+            # elements of each transformed dimension, in units of the stride.
+            inembed = Clonglong[max(idist, rsz[1]), (prod(input_size[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
+            cnembed = Clonglong[max(cdist, rsz[1]), (prod(cdims[region[i]:region[i+1]-1]) for i in nrank-1:-1:1)...]
 
-        num_internal_batches = prod(input_size[collect(internal_batch_dims)])
+            # the complex side of a real transform is laid out like the halved array
+            ostride = istride
+            onembed, odist = input_type <: Real ? (cnembed, cdist) : (inembed, idist)
+            if output_type <: Real
+                inembed, idist = cnembed, cdist
+            end
 
-        ostride = istride
-        # R2C: output uses half-complex layout; C2R: input uses half-complex layout
-        onembed, odist = input_type <: Real ? (cnembed, cdist) : (inembed, idist)
-        if output_type <: Real
-            inembed, idist = cnembed, cdist
+            cufftXtMakePlanMany(handle, nrank, Clonglong[rsz...],
+                                inembed, istride, idist, convert(cudaDataType, input_type),
+                                onembed, ostride, odist, convert(cudaDataType, output_type),
+                                num_batches, worksize_ref, convert(cudaDataType, execution_type))
         end
-
-        execution_type = promote_type(input_type, output_type)
-        cufftXtMakePlanMany(handle, nrank, Clonglong[rsz...],
-                            inembed, istride, idist, convert(cudaDataType, input_type),
-                            onembed, ostride, odist, convert(cudaDataType, output_type),
-                            num_internal_batches, worksize_ref, convert(cudaDataType, execution_type))
+    catch
+        cufftDestroy(handle)
+        rethrow()
     end
 
     handle, worksize_ref[]
@@ -117,11 +122,6 @@ end
 
 ## plan cache
 
-# The cache key includes the full input size (not just the transform/internal-
-# batch dims), so plans that differ only in *external* batch dim sizes are not
-# shared. For typical workloads the cache stays small; if a caller iterates
-# over many distinct batch dim sizes, consider keying on a normalised shape
-# instead.
 const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
 function handle_ctor((ctx, args...))
     context!(ctx) do

@@ -77,10 +77,9 @@ end
     @test maximum(abs.(Array(y) .- fft(xh, (2, 3)))) < 1e-4
 end
 
-@testset "PR3052: scratch-buffer copy preserves input across alignment hazard" begin
-    # Float32 rfft with odd dim sizes between/before transform dims forces
-    # multiple external batches at misaligned linear offsets. Verify that
-    # (a) the input array is not mutated, and (b) the result matches CPU FFTW.
+@testset "PR3052: real transforms with odd sizes around the transformed dims" begin
+    # odd sizes between or before the transformed dims put batches at odd real offsets.
+    # verify that (a) the input array is not mutated, and (b) the result matches FFTW.
     for region in [(1, 3), (1, 4), (3, 4)]
         x = CuArray(rand(Float32, 5, 3, 7, 9))
         xref = copy(x)
@@ -90,7 +89,7 @@ end
     end
 end
 
-@testset "PR3052: rfft → irfft round-trip exercises C2R external-batch path" begin
+@testset "PR3052: rfft → irfft round-trip with non-adjacent batch dims" begin
     x = CuArray(rand(Float32, 5, 3, 7, 9))
     xref = copy(x)
     y = rfft(x, (1, 3))
@@ -145,4 +144,29 @@ end
     pinv = make_inv(x)
     GC.gc(true)
     @test Array(pinv * y) ≈ Array(x)
+end
+
+@testset "CUDA.jl#2641" begin
+    # transforms whose batch dimensions aren't adjacent run on a permuted copy
+    X = rand(ComplexF32, 4, 5, 6)
+    @test Array(fft(CuArray(X), 2)) ≈ fft(X, 2)
+
+    d_X = CuArray(X)
+    plan_fft!(d_X, 2) * d_X
+    @test Array(d_X) ≈ fft(X, 2)
+
+    d_Y = CUDACore.zeros(ComplexF32, 4, 7, 6)
+    mul!(view(d_Y, :, 2:6, :), plan_fft(CuArray(X), 2), CuArray(X))
+    @test Array(d_Y)[:, 2:6, :] ≈ fft(X, 2)
+
+    R = rand(Float32, 4, 5, 6)
+    @test Array(rfft(CuArray(R), 2)) ≈ rfft(R, 2)
+    @test Array(irfft(CuArray(rfft(R, 2)), 5, 2)) ≈ R
+
+    # dimensions of size 1 don't separate the batch
+    X = rand(ComplexF32, 4, 1, 6, 8)
+    @test Array(fft(CuArray(X), 4)) ≈ fft(X, 4)
+    R = rand(Float32, 8, 4, 1, 6)
+    @test Array(rfft(CuArray(R), 1)) ≈ rfft(R, 1)
+    @test Array(irfft(rfft(CuArray(R), 1), 8, 1)) ≈ R
 end
