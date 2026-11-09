@@ -135,6 +135,19 @@ Here, every call is prefixed with an ID, which can be used to correlate host and
 events. For example, here we can see that the host-side `cuLaunchKernel` call with ID 6
 corresponds to the device-side `broadcast` kernel.
 
+To inspect the activity on a timeline, write it as a trace with
+[`Profile.write_trace`](@ref CUDATools.Profile.write_trace), and open the file with
+[Perfetto](https://ui.perfetto.dev):
+
+```julia
+julia> p = CUDA.@profile sin.(a);
+
+julia> CUDA.Profile.write_trace("trace.json", p)
+```
+
+The trace shows the API calls and NVTX ranges of every host thread, and the operations on
+every stream of each GPU, with arrows from API calls to the operations they launched.
+
 Integrated profiling requires CUPTI 11 or later. CUPTI 10 can crash when profiling
 kernels that use dynamic parallelism; use an external profiler with older toolkits.
 
