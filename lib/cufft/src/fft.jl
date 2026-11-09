@@ -35,10 +35,14 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R} <: Plan{S}
     # to handle more transform cases such as individual directions
     handle::cufftHandle
     ctx::CuContext
-    stream::CuStream
     input_size::NTuple{N,Int}   # Julia size of input array
     output_size::NTuple{N,Int}  # Julia size of output array
     region::NTuple{R,Int}
+    workspace_size::Int
+    # a plan can be shared by tasks, which execute it on their own streams. this lock
+    # serializes configuring the handle's stream and work area with enqueueing the
+    # transform; every execution uses its own work area, so the kernels may overlap.
+    lock::ReentrantLock
     pinv::ScaledPlan{T}         # required by AbstractFFTs API, will be defined by AbstractFFTs if needed
 
     function CuFFTPlan{T,S,K,inplace,N,R}(handle::cufftHandle,
@@ -47,7 +51,10 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R} <: Plan{S}
                                           ) where {T<:cufftNumber,S<:cufftNumber,K,inplace,N,R}
         abs(K) == 1 || throw(ArgumentError("FFT direction must be either -1 (forward) or +1 (inverse)"))
         inplace isa Bool || throw(ArgumentError("FFT inplace argument must be a Bool"))
-        p = new{T,S,K,inplace,N,R}(handle, context(), stream(), input_size, output_size, region)
+        workspace_size = Ref{Csize_t}()
+        cufftGetSize(handle, workspace_size)
+        p = new{T,S,K,inplace,N,R}(handle, context(), input_size, output_size, region,
+                                   Int(workspace_size[]), ReentrantLock())
         resource_finalizer(unsafe_free!, p; blocking=false)
         p
     end
@@ -91,19 +98,6 @@ Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
 Base.convert(::Type{cufftHandle}, p::ScaledPlan{T,P}) where {T,P<:CuFFTPlan} = convert(cufftHandle, p.p)
 
 Base.size(p::CuFFTPlan) = p.input_size
-
-# FFT plans can be user-created on a different task, whose stream might be different from
-# the one used in the current task. call this function before every API call that performs
-# operations on a stream to ensure the plan is using the correct task-local stream.
-@inline function update_stream(plan::CuFFTPlan)
-    new_stream = stream()
-    if plan.stream != new_stream
-        plan.stream = new_stream
-        cufftSetStream(plan, new_stream)
-    end
-    return
-end
-
 
 ## plan methods
 
@@ -350,8 +344,22 @@ function assert_applicable(p::CuFFTPlan{T,S,K,inplace}, X::StridedCuArray{S},
 end
 
 
+# Enqueue the transform of `x` into `y` on the current stream.
+function execute!(plan::CuFFTPlan, x::DenseCuArray, y::DenseCuArray)
+    @lock plan.lock begin
+        cufftSetStream(plan, stream())
+        if plan.workspace_size == 0
+            unsafe_execute_external_batches!(plan, x, y)
+        else
+            with_workspace(plan.workspace_size) do workspace
+                cufftSetWorkArea(plan, workspace)
+                unsafe_execute_external_batches!(plan, x, y)
+            end
+        end
+    end
+end
+
 function unsafe_execute!(plan::CuFFTPlan{T,S,K,inplace}, x::DenseCuArray{S}, y::DenseCuArray{T}) where {T,S,K,inplace}
-    update_stream(plan)
     cufftXtExec(plan, x, y, K)
 end
 
@@ -475,7 +483,7 @@ function LinearAlgebra.mul!(y::StridedCuArray{T}, p::CuFFTPlan{T,S,K,inplace}, x
         z = T<:Real || !(x isa DenseCuArray) || Base.mightalias(x, y) ? copy1(S, x) : x
         w = y isa DenseCuArray ? y : CuArray{T}(undef, p.output_size)
     end
-    unsafe_execute_external_batches!(p, z, w)
+    execute!(p, z, w)
     w === y || copyto!(y, w)
     z === x || unsafe_free!(z)
     w === y || w === z || unsafe_free!(w)
@@ -497,7 +505,7 @@ function Base.:(*)(p::CuFFTPlan{T,S,K,false}, x::StridedCuArray{S1,M}) where {T,
     # being overwritten by an out-of-place complex-to-real transform
     z = T<:Real || S1 != S || !(x isa DenseCuArray) ? copy1(S, x) : x
     y = CuArray{T,M}(undef, p.output_size)
-    unsafe_execute_external_batches!(p, z, y)
+    execute!(p, z, y)
     z === x || unsafe_free!(z)
     y
 end

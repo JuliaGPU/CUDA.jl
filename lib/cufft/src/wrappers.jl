@@ -58,11 +58,14 @@ function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cuff
         throw(ArgumentError("only up to three transform dimensions are allowed in one plan"))
     end
 
-    # initialize the plan handle
+    # initialize the plan handle. the work area is allocated from the memory pool for every
+    # execution (see `execute!`), so that idle plans hold no memory and concurrent
+    # executions of one plan don't share it.
     handle_ref = Ref{cufftHandle}()
     cufftCreate(handle_ref)
     handle = handle_ref[]
 
+    cufftSetAutoAllocation(handle, false)
     if region === ntuple(identity, nrank)
         # handle simple case, transforming the first nrank dimensions, ... simply! (for robustness)
         # arguments are: plan, rank, transform-sizes, inembed, istride, idist, itype, onembed, ostride, odist, otype, batch
@@ -123,10 +126,7 @@ const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
 function handle_ctor((ctx, args...))
     context!(ctx) do
         # make the plan
-        handle, worksize = cufftMakePlan(args...)
-
-        # NOTE: we currently do not use the worksize to allocate our own workarea,
-        #       instead relying on the automatic allocation strategy.
+        handle, _ = cufftMakePlan(args...)
         handle
     end
 end
@@ -139,11 +139,7 @@ const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}(handle_ctor, 
 
 function cufftGetPlan(args...)
     ctx = context()
-    handle = pop!(idle_handles, (ctx, args...))
-
-    cufftSetStream(handle, stream())
-
-    return handle
+    return pop!(idle_handles, (ctx, args...))
 end
 function cufftReleasePlan(plan)
     push!(idle_handles, plan)

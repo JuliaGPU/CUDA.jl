@@ -122,6 +122,22 @@ end
     @test Array(d_c) == c
 end
 
+@testset "plan shared by concurrent streams" begin
+    # a size with a work area, so that overlapping executions would share it
+    x1 = CuArray(rand(ComplexF32, 3^11, 16))
+    x2 = CuArray(rand(ComplexF32, 3^11, 16))
+    p = plan_fft(x1, 1)
+    r1, r2 = Array(p * x1), Array(p * x2)
+    s1, s2 = CuStream(), CuStream()
+    ok = true
+    for _ in 1:10
+        y1 = stream!(() -> p * x1, s1)
+        y2 = stream!(() -> p * x2, s2)
+        ok &= Array(y1) ≈ r1 && Array(y2) ≈ r2
+    end
+    @test ok
+end
+
 @testset "inverse plan outlives its real-to-complex plan" begin
     x = CuArray(rand(Float32, 64, 8))
     y = rfft(x)
