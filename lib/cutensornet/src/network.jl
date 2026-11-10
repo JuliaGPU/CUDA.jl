@@ -37,7 +37,6 @@ function allocate!(ws::Workspace; preference::cutensornetWorksizePref_t=CUTENSOR
     return ws
 end
 
-# must be called when the input data of a contraction with a cache has changed
 function purge_cache!(ws::Workspace, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
     cutensornetWorkspacePurgeCache(handle(), ws, memspace)
     return ws
@@ -46,9 +45,15 @@ end
 
 ## autotuning
 
+"""
+    NetworkAutotunePreferences(; max_iterations=3, intermediate_modes=2)
+
+Settings for [`autotune!`](@ref). `max_iterations` is the number of iterations to time the
+candidate kernels for, and `intermediate_modes` whether to also tune the mode order of
+intermediate tensors (`0` off, `1` on, `2` lets cuTensorNet decide).
+"""
 Base.@kwdef struct NetworkAutotunePreferences
     max_iterations::Int32=3
-    # 0 is off, 1 is on, and 2 lets the library decide
     intermediate_modes::Int32=2
 end
 
@@ -78,6 +83,34 @@ end
 
 ## networks
 
+@public CuNetwork, append_tensor!, set_output!, attribute, attribute!, tensor_ids,
+        rehearse_contraction, set_optimizer_info!, prepare_contraction!, set_gradient!,
+        set_adjoint!, autotune!, contract!, purge_cache!, compute_gradients!,
+        NetworkAutotunePreferences, pack, unpack!
+
+"""
+    CuNetwork{T}()
+
+An empty tensor network with elements of type `T`, to be contracted on the GPU. Add input
+tensors with [`append_tensor!`](@ref) and the output tensor with [`set_output!`](@ref). Then
+find a contraction path with [`rehearse_contraction`](@ref) (or reuse one with
+[`set_optimizer_info!`](@ref)), allocate the workspace with [`prepare_contraction!`](@ref),
+and contract the network with [`contract!`](@ref) as often as needed. The network keeps its
+tensors alive and uses their memory directly: their contents can change between
+contractions, but call [`purge_cache!`](@ref) when that of a `constant` input does.
+
+```julia
+net = CuNetwork{Float64}()
+append_tensor!(net, A, [1, 2])  # C[i,k] = A[i,j] B[j,k]
+append_tensor!(net, B, [2, 3])
+set_output!(net, C, [1, 3])
+rehearse_contraction(net, 2^30)
+prepare_contraction!(net)
+contract!(net)
+```
+
+Wraps `cutensornetNetworkDescriptor_t`, as created by `cutensornetCreateNetwork`.
+"""
 mutable struct CuNetwork{T}
     handle::cutensornetNetworkDescriptor_t
     # the descriptor refers to this memory once it has been set. inputs are keyed by the id
@@ -99,6 +132,18 @@ end
 Base.unsafe_convert(::Type{cutensornetNetworkDescriptor_t}, net::CuNetwork) = net.handle
 Base.eltype(::CuNetwork{T}) where {T} = T
 
+"""
+    append_tensor!(net::CuNetwork{T}, tensor::CuArray{T}, modes;
+                   conjugate=false, constant=false, requires_gradient=false) -> Int64
+
+Add `tensor` as an input of the network, with an integer label for each of its modes, and
+return the id the network gives it. Modes with the same label are contracted. `conjugate`
+uses the complex conjugate of the tensor, `constant` promises that its contents don't change
+between contractions so that intermediate results can be cached, and `requires_gradient`
+makes [`compute_gradients!`](@ref) compute the gradient with respect to it.
+
+Wraps `cutensornetNetworkAppendTensor`.
+"""
 function append_tensor!(net::CuNetwork{T}, tensor::CuArray{T}, modes; conjugate::Bool=false, constant::Bool=false, requires_gradient::Bool=false) where {T}
     ndims(tensor) == length(modes) || throw(DimensionMismatch("tensor has $(ndims(tensor)) dimensions, but $(length(modes)) modes were specified."))
     qualifiers = Ref(cutensornetTensorQualifiers_t(conjugate, constant, requires_gradient))
@@ -108,6 +153,14 @@ function append_tensor!(net::CuNetwork{T}, tensor::CuArray{T}, modes; conjugate:
     return id[]
 end
 
+"""
+    set_output!(net::CuNetwork{T}, tensor::CuArray{T}, modes) -> net
+
+Set `tensor` as the output of the network, with an integer label for each of its modes.
+Modes of the inputs that are not in `modes` are summed over.
+
+Wraps `cutensornetNetworkSetOutputTensor`.
+"""
 function set_output!(net::CuNetwork{T}, tensor::CuArray{T}, modes) where {T}
     ndims(tensor) == length(modes) || throw(DimensionMismatch("tensor has $(ndims(tensor)) dimensions, but $(length(modes)) modes were specified."))
     cutensornetNetworkSetOutputTensor(handle(), net, ndims(tensor), convert(Vector{Int32}, collect(modes)), T)
@@ -115,19 +168,47 @@ function set_output!(net::CuNetwork{T}, tensor::CuArray{T}, modes) where {T}
     return net
 end
 
+"""
+    attribute(net::CuNetwork, attr::cutensornetNetworkAttributes_t, R) -> R
+
+Read an attribute of a network, given by NVIDIA's attribute enum (e.g.
+`CUTENSORNET_NETWORK_COMPUTE_TYPE`), as a value of type `R`, the type that NVIDIA documents
+for the attribute. This only works for attributes with a scalar value: use
+[`tensor_ids`](@ref) for the lists of input tensors.
+
+Wraps `cutensornetNetworkGetAttribute`.
+"""
 function attribute(net::CuNetwork, attr::cutensornetNetworkAttributes_t, ::Type{R}) where {R}
     attr_buf = Ref{R}()
     cutensornetNetworkGetAttribute(handle(), net, attr, attr_buf, sizeof(R))
     return attr_buf[]
 end
 
+"""
+    attribute!(net::CuNetwork, attr::cutensornetNetworkAttributes_t, value) -> net
+    attribute!(info::CuTensorNetworkContractionOptimizerInfo,
+               attr::cutensornetContractionOptimizerInfoAttributes_t, value) -> info
+
+Set an attribute of a network or of a contraction path, given by NVIDIA's attribute enum.
+`value` must have the type that NVIDIA documents for the attribute, e.g.
+`attribute!(net, CUTENSORNET_NETWORK_COMPUTE_TYPE, CUTENSORNET_COMPUTE_64F)`. A changed
+contraction path must be attached again with [`set_optimizer_info!`](@ref).
+
+Wraps `cutensornetNetworkSetAttribute` and `cutensornetContractionOptimizerInfoSetAttribute`.
+"""
 function attribute!(net::CuNetwork, attr::cutensornetNetworkAttributes_t, value)
     attr_buf = Ref(value)
     cutensornetNetworkSetAttribute(handle(), net, attr, attr_buf, sizeof(attr_buf))
     return net
 end
 
-# the ids of the input tensors with a certain qualifier, e.g. `CUTENSORNET_NETWORK_INPUT_TENSORS_CONSTANT`
+"""
+    tensor_ids(net::CuNetwork, num_attr, list_attr) -> Vector{Int32}
+
+The ids of the input tensors with a qualifier, given by the network attributes for their
+number and their list, e.g. `CUTENSORNET_NETWORK_INPUT_TENSORS_NUM_CONSTANT` and
+`CUTENSORNET_NETWORK_INPUT_TENSORS_CONSTANT`.
+"""
 function tensor_ids(net::CuNetwork, num_attr::cutensornetNetworkAttributes_t, list_attr::cutensornetNetworkAttributes_t)
     ids = Vector{Int32}(undef, attribute(net, num_attr, Int32))
     GC.@preserve ids begin
@@ -137,6 +218,16 @@ function tensor_ids(net::CuNetwork, num_attr::cutensornetNetworkAttributes_t, li
     return ids
 end
 
+"""
+    rehearse_contraction(net::CuNetwork, max_workspace_size, config=OptimizerConfig())
+        -> CuTensorNetworkContractionOptimizerInfo
+
+Find a contraction path for the network that needs at most `max_workspace_size` bytes of
+workspace, slicing the contraction if needed, and attach it to the network. The search is
+configured with [`OptimizerConfig`](@ref).
+
+Wraps `cutensornetContractionOptimize`.
+"""
 function rehearse_contraction(net::CuNetwork, max_workspace_size::Integer, optimizer_conf::OptimizerConfig=OptimizerConfig())
     info = CuTensorNetworkContractionOptimizerInfo(net)
     config = CuTensorNetworkContractionOptimizerConfig(optimizer_conf)
@@ -145,13 +236,31 @@ function rehearse_contraction(net::CuNetwork, max_workspace_size::Integer, optim
     return info
 end
 
-# reuse a contraction path, e.g. one computed for another network of the same shape
+"""
+    set_optimizer_info!(net::CuNetwork, info::CuTensorNetworkContractionOptimizerInfo) -> net
+
+Use the contraction path `info` for the network, e.g. one found for another network of the
+same shape, or one changed with [`attribute!`](@ref) or [`unpack!`](@ref).
+
+Wraps `cutensornetNetworkSetOptimizerInfo`.
+"""
 function set_optimizer_info!(net::CuNetwork, info::CuTensorNetworkContractionOptimizerInfo)
     cutensornetNetworkSetOptimizerInfo(handle(), net, info)
     net.info = info
     return net
 end
 
+"""
+    prepare_contraction!(net::CuNetwork; gradients=false,
+                         preference=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED) -> net
+
+Allocate the workspace for contracting the network along its contraction path, and prepare
+the contraction. This is needed before [`autotune!`](@ref) and [`contract!`](@ref), and with
+`gradients = true` before [`compute_gradients!`](@ref). `preference` (a
+`cutensornetWorksizePref_t`) selects how much workspace to allocate.
+
+Wraps `cutensornetNetworkPrepareContraction` and `cutensornetNetworkPrepareGradientsBackward`.
+"""
 function prepare_contraction!(net::CuNetwork; gradients::Bool=false, preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED)
     net.info === nothing && throw(ArgumentError("the network has no contraction path; call `rehearse_contraction` or `set_optimizer_info!` first."))
     net.output === nothing && throw(ArgumentError("the network has no output tensor; call `set_output!` first."))
@@ -168,7 +277,15 @@ function prepare_contraction!(net::CuNetwork; gradients::Bool=false, preference:
     return net
 end
 
-# the buffer that receives the gradient with respect to the input with the given id
+"""
+    set_gradient!(net::CuNetwork{T}, id, gradient::CuArray{T}) -> net
+
+Set the array that [`compute_gradients!`](@ref) writes the gradient with respect to input
+`id` to. It has the size of that input, which must have been added with
+`requires_gradient = true`.
+
+Wraps `cutensornetNetworkSetGradientTensorMemory`.
+"""
 function set_gradient!(net::CuNetwork{T}, id::Integer, gradient::CuArray{T}) where {T}
     haskey(net.inputs, id) || throw(ArgumentError("the network has no input tensor with id $id."))
     size(gradient) == size(net.inputs[id]) || throw(DimensionMismatch("gradient must have the size of the input tensor."))
@@ -177,7 +294,15 @@ function set_gradient!(net::CuNetwork{T}, id::Integer, gradient::CuArray{T}) whe
     return net
 end
 
-# the seed of the backward pass, with the size of the output tensor
+"""
+    set_adjoint!(net::CuNetwork{T}, adjoint::CuArray{T}) -> net
+
+Set the adjoint of the output, which seeds the backward pass of [`compute_gradients!`](@ref).
+It is the derivative of the final result with respect to the output tensor, and has the
+size of the output.
+
+Wraps `cutensornetNetworkSetAdjointTensorMemory`.
+"""
 function set_adjoint!(net::CuNetwork{T}, adjoint::CuArray{T}) where {T}
     size(adjoint) == size(net.output) || throw(DimensionMismatch("adjoint must have the size of the output tensor."))
     cutensornetNetworkSetAdjointTensorMemory(handle(), net, adjoint, C_NULL)
@@ -190,12 +315,32 @@ function require_prepared(net::CuNetwork)
     return net.workspace
 end
 
-function autotune!(net::CuNetwork; prefs::CuNetworkAutotunePreference=CuNetworkAutotunePreference(), stream::CuStream=stream())
+"""
+    autotune!(net::CuNetwork; prefs=NetworkAutotunePreferences(), stream=stream()) -> net
+
+Time the kernels for each pairwise contraction of the prepared network on its tensors, and
+use the fastest ones in later contractions. See [`NetworkAutotunePreferences`](@ref).
+
+Wraps `cutensornetNetworkAutotuneContraction`.
+"""
+function autotune!(net::CuNetwork; prefs::Union{NetworkAutotunePreferences,CuNetworkAutotunePreference}=NetworkAutotunePreferences(), stream::CuStream=stream())
     CUDACore.check_owned(stream)
+    if prefs isa NetworkAutotunePreferences
+        prefs = CuNetworkAutotunePreference(prefs)
+    end
     cutensornetNetworkAutotuneContraction(handle(), net, require_prepared(net), prefs, stream)
     return net
 end
 
+"""
+    contract!(net::CuNetwork; accumulate=false, slices=nothing, stream=stream()) -> output
+
+Contract the prepared network into its output tensor, which is returned. With `accumulate`,
+the result is added to the output. `slices`, a [`CuTensorNetworkSliceGroup`](@ref), limits
+the contraction to some of the slices, e.g. to distribute it.
+
+Wraps `cutensornetNetworkContract`.
+"""
 function contract!(net::CuNetwork; accumulate::Bool=false, slices::Union{Nothing,CuTensorNetworkSliceGroup}=nothing, stream::CuStream=stream())
     CUDACore.check_owned(stream)
     slice_group = slices === nothing ? C_NULL : slices.handle
@@ -203,6 +348,30 @@ function contract!(net::CuNetwork; accumulate::Bool=false, slices::Union{Nothing
     return net.output
 end
 
+"""
+    purge_cache!(net::CuNetwork) -> net
+
+Drop the intermediate results cached because of inputs added with `constant = true`. Call
+this after changing the contents of such an input.
+
+Wraps `cutensornetWorkspacePurgeCache`.
+"""
+function purge_cache!(net::CuNetwork, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
+    purge_cache!(require_prepared(net), memspace)
+    return net
+end
+
+"""
+    compute_gradients!(net::CuNetwork; accumulate=false, slices=nothing, stream=stream())
+        -> Dict{Int64,CuArray}
+
+Compute the gradients of the contraction with respect to the inputs added with
+`requires_gradient = true`, after a call to [`contract!`](@ref). They are written to the
+arrays set with [`set_gradient!`](@ref), for the adjoint set with [`set_adjoint!`](@ref),
+and returned by input id. The network must have been prepared with `gradients = true`.
+
+Wraps `cutensornetNetworkComputeGradientsBackward`.
+"""
 function compute_gradients!(net::CuNetwork; accumulate::Bool=false, slices::Union{Nothing,CuTensorNetworkSliceGroup}=nothing, stream::CuStream=stream())
     CUDACore.check_owned(stream)
     slice_group = slices === nothing ? C_NULL : slices.handle
@@ -225,7 +394,14 @@ function attribute!(info::CuTensorNetworkContractionOptimizerInfo, attr::cutenso
     return info
 end
 
-# serialization of a contraction path, so that it can be reused without optimizing again
+"""
+    pack(info::CuTensorNetworkContractionOptimizerInfo) -> Vector{UInt8}
+
+Serialize a contraction path, so that it can be reused without searching again, with
+[`unpack!`](@ref) or [`CuTensorNetworkContractionOptimizerInfo`](@ref).
+
+Wraps `cutensornetContractionOptimizerInfoPackData`.
+"""
 function pack(info::CuTensorNetworkContractionOptimizerInfo)
     size = Ref{Csize_t}()
     cutensornetContractionOptimizerInfoGetPackedSize(handle(), info, size)
@@ -240,7 +416,14 @@ function CuTensorNetworkContractionOptimizerInfo(net, data::Vector{UInt8})
     return CuTensorNetworkContractionOptimizerInfo(info_ref[])
 end
 
-# the info of a `CuNetwork` must be attached to it again with `set_optimizer_info!` afterwards
+"""
+    unpack!(info::CuTensorNetworkContractionOptimizerInfo, data::Vector{UInt8}) -> info
+
+Replace the contraction path in `info` by one serialized with [`pack`](@ref). A path that
+belongs to a network must be attached to it again with [`set_optimizer_info!`](@ref).
+
+Wraps `cutensornetUpdateContractionOptimizerInfoFromPackedData`.
+"""
 function unpack!(info::CuTensorNetworkContractionOptimizerInfo, data::Vector{UInt8})
     cutensornetUpdateContractionOptimizerInfoFromPackedData(handle(), data, sizeof(data), info)
     return info

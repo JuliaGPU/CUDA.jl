@@ -1,5 +1,10 @@
 export CUTENSORNETError
 
+"""
+    CUTENSORNETError(code::cutensornetStatus_t)
+
+The exception thrown when a cuTensorNet call fails, with the status code it returned.
+"""
 struct CUTENSORNETError <: Exception
     code::cutensornetStatus_t
 end

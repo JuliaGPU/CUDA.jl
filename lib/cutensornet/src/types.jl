@@ -84,54 +84,19 @@ end
 
 Base.unsafe_convert(::Type{cutensornetTensorDescriptor_t}, desc::CuTensorDescriptor) = desc.handle
 
-mutable struct CuTensorNetworkDescriptor
-    handle::cutensornetNetworkDescriptor_t
-    function CuTensorNetworkDescriptor(numInputs::Int32, numModesIn::Vector{Int32}, extentsIn::Vector{Vector{Int64}},
-                                       stridesIn, modesIn::Vector{Vector{Int32}}, qualifiersIn::Vector{cutensornetTensorQualifiers_t},
-                                       numModesOut::Int32, extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}},
-                                       modesOut::Vector{Int32}, dataType::Type, computeType::Type)
-        desc_ref = Ref{cutensornetNetworkDescriptor_t}()
-        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, qualifiersIn, numModesOut,
-                                           extentsOut, stridesOut, modesOut, dataType, computeType, desc_ref)
-        obj = new(desc_ref[])
-        resource_finalizer(cutensornetDestroyNetworkDescriptor, obj)
-        return obj
-    end
-end
-Base.unsafe_convert(::Type{cutensornetNetworkDescriptor_t}, desc::CuTensorNetworkDescriptor) = desc.handle
+@public CuTensorSVDInfo, full_extent, reduced_extent, discarded_weight,
+        CuTensorNetworkContractionOptimizerInfo, OptimizerConfig, SVDConfig,
+        CuTensorNetworkSliceGroup
 
-function compute_type(T::DataType)
-    if T == Float16
-        return Float16
-    elseif T == Float32
-        return Float32
-    elseif T == Float64
-        return Float64
-    end
-end
+"""
+    CuTensorSVDInfo()
 
-mutable struct CuTensorNetwork{T}
-    desc::CuTensorNetworkDescriptor
-    input_modes::Vector{Vector{Int32}}
-    input_extents::Vector{Vector{Int32}}
-    input_strides::Vector{<:Union{Ptr{Nothing}, Vector{Int64}}}
-    input_qualifiers::Vector{cutensornetTensorQualifiers_t}
-    input_arrs::Vector{CuArray{T}}
-    output_modes::Vector{Int32}
-    output_extents::Vector{Int32}
-    output_strides::Union{Ptr{Nothing}, Vector{Int64}}
-    output_arr::CuArray{T}
-end
-function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_qualifiers, output_modes, output_extents, output_strides)
-    input_qualifiers = [cutensornetTensorQualifiers_t(isConjugate, 0, 0) for isConjugate in input_qualifiers]
-    # TODO: expose isConstant & requiresGradient?
-    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_qualifiers,
-                                     Int32(length(output_modes)), output_extents, output_strides, output_modes, T, compute_type(real(T)))
+Information about a truncated SVD, returned by [`tensor_svd!`](@ref) and
+[`gate_split!`](@ref). Query it with [`full_extent`](@ref), [`reduced_extent`](@ref) and
+[`discarded_weight`](@ref).
 
-    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_qualifiers,
-                              Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, CUDACore.zeros(T, 0))
-end
-
+Wraps `cutensornetTensorSVDInfo_t`.
+"""
 mutable struct CuTensorSVDInfo
     handle::cutensornetTensorSVDInfo_t
     function CuTensorSVDInfo()
@@ -143,24 +108,58 @@ mutable struct CuTensorSVDInfo
     end
 end
 Base.unsafe_convert(::Type{cutensornetTensorSVDInfo_t}, info::CuTensorSVDInfo) = info.handle
+"""
+    full_extent(info::CuTensorSVDInfo) -> Int64
+
+The number of singular values before truncation.
+"""
 function full_extent(info::CuTensorSVDInfo)
     extent = Ref{Int64}()
     cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_FULL_EXTENT, extent, sizeof(Int64))
     return extent[]
 end
 
+"""
+    reduced_extent(info::CuTensorSVDInfo) -> Int64
+
+The number of singular values kept after truncation, `k`. Only the first `k` singular values
+are valid. When `k` is smaller than the extent of the mode that `U` and `V` share, the
+factors are stored packed, as arrays with extent `k` for that mode in the first elements of
+`U` and `V`: for a `kmax×n` matrix `V`, the factor is `reshape(view(V, 1:k*n), k, n)`, not
+`V[1:k, :]`.
+"""
 function reduced_extent(info::CuTensorSVDInfo)
     extent = Ref{Int64}()
     cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_REDUCED_EXTENT, extent, sizeof(Int64))
     return extent[]
 end
 
+"""
+    discarded_weight(info::CuTensorSVDInfo) -> Float64
+
+The discarded weight of the truncation: the sum of the squares of the discarded singular
+values, relative to the sum of the squares of all of them.
+"""
 function discarded_weight(info::CuTensorSVDInfo)
     weight = Ref{Float64}()
     cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_DISCARDED_WEIGHT, weight, sizeof(Float64))
     return weight[]
 end
 
+"""
+    CuTensorNetworkContractionOptimizerInfo(net::CuNetwork)
+    CuTensorNetworkContractionOptimizerInfo(net::CuNetwork, data::Vector{UInt8})
+
+The contraction path of a network, with its slicing, as found by
+[`rehearse_contraction`](@ref). The first form creates an empty one for `net`, to be filled
+with [`unpack!`](@ref) or [`attribute!`](@ref); the second one recreates a path saved with
+[`pack`](@ref), for a network with the same shape. Attach it to a network with
+[`set_optimizer_info!`](@ref).
+
+Query it with [`num_slices`](@ref), [`num_sliced_modes`](@ref) and [`flop_count`](@ref).
+
+Wraps `cutensornetContractionOptimizerInfo_t`.
+"""
 mutable struct CuTensorNetworkContractionOptimizerInfo
     handle::cutensornetContractionOptimizerInfo_t
     function CuTensorNetworkContractionOptimizerInfo(info::cutensornetContractionOptimizerInfo_t)
@@ -190,23 +189,17 @@ end
 
 Base.unsafe_convert(::Type{cutensornetWorkspaceDescriptor_t}, desc::CuTensorNetworkWorkspaceDescriptor) = desc.handle
 
-mutable struct CuTensorNetworkContractionPlan
-    handle::cutensornetContractionPlan_t
-    function CuTensorNetworkContractionPlan(net_desc::CuTensorNetworkDescriptor, info::CuTensorNetworkContractionOptimizerInfo, ws_desc::CuTensorNetworkWorkspaceDescriptor)
-        desc_ref = Ref{cutensornetContractionPlan_t}()
-        cutensornetCreateContractionPlan(handle(), net_desc, info, ws_desc, desc_ref)
-        obj = new(desc_ref[])
-        resource_finalizer(cutensornetDestroyContractionPlan, obj)
-        return obj
-    end
-end
+"""
+    OptimizerConfig(; num_graph_partitions=8, graph_cutoff_size=8, ..., seed=0, ...)
 
-Base.unsafe_convert(::Type{cutensornetContractionPlan_t}, desc::CuTensorNetworkContractionPlan) = desc.handle
-
-abstract type UseAutotuning end
-struct NoAutoTune <: UseAutotuning end
-struct AutoTune   <: UseAutotuning end
-
+Settings for the search for a contraction path by [`rehearse_contraction`](@ref). Each
+keyword sets the `CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_*` attribute with the
+corresponding name (e.g. `graph_num_cuts` sets `GRAPH_NUM_CUTS`, and `num_graph_partitions`
+`GRAPH_NUM_PARTITIONS`); see NVIDIA's documentation of these attributes. The defaults are
+those of the struct, which differ from NVIDIA's for some keywords, such as
+`slicer_slice_factor` and `hyper_num_threads`. `hyper_num_samples > 0` makes the search try
+several paths, and `seed` makes it reproducible.
+"""
 Base.@kwdef struct OptimizerConfig
     num_graph_partitions::Int32=8
     graph_cutoff_size::Int32=8
@@ -267,6 +260,17 @@ end
 
 Base.unsafe_convert(::Type{cutensornetContractionOptimizerConfig_t}, desc::CuTensorNetworkContractionOptimizerConfig) = desc.handle
 
+"""
+    SVDConfig(; abs_cutoff=0.0, rel_cutoff=0.0,
+              s_normalization=CUTENSORNET_TENSOR_SVD_NORMALIZATION_NONE,
+              s_partition=CUTENSORNET_TENSOR_SVD_PARTITION_NONE)
+
+Settings for the truncated SVD of [`tensor_svd!`](@ref) and [`gate_split!`](@ref). Singular
+values below `abs_cutoff`, or below `rel_cutoff` times the largest one, are discarded.
+`s_normalization` (a `cutensornetTensorSVDNormalization_t`) normalizes the singular values
+that are kept, and `s_partition` (a `cutensornetTensorSVDPartition_t`) absorbs them into
+`U`, `V` or both.
+"""
 Base.@kwdef struct SVDConfig
     abs_cutoff::Float64=0.0
     rel_cutoff::Float64=0.0
@@ -318,28 +322,17 @@ function normalization(conf::CuTensorSVDConfig)
 end
 Base.unsafe_convert(::Type{cutensornetTensorSVDConfig_t}, desc::CuTensorSVDConfig) = desc.handle
 
-Base.@kwdef struct AutotunePreferences
-    max_iterations::Int32=3
-end
+"""
+    CuTensorNetworkSliceGroup(start, stop, step)
+    CuTensorNetworkSliceGroup(ids::Vector{Int64})
 
-mutable struct CuTensorNetworkAutotunePreference
-    handle::cutensornetContractionAutotunePreference_t
-    function CuTensorNetworkAutotunePreference(prefs::AutotunePreferences)
-        pref_ref = Ref{cutensornetContractionAutotunePreference_t}()
-        cutensornetCreateContractionAutotunePreference(handle(), pref_ref)
-        obj = new(pref_ref[])
-        resource_finalizer(cutensornetDestroyContractionAutotunePreference, obj)
-        # apply preference options
-        for attr in (:max_iterations=>CUTENSORNET_CONTRACTION_AUTOTUNE_MAX_ITERATIONS,)
-            attr_buf = Ref(Base.getproperty(prefs, attr[1]))
-            cutensornetContractionAutotunePreferenceSetAttribute(handle(), pref_ref[], attr[2], attr_buf, sizeof(attr_buf))
-        end
-        return obj
-    end
-end
-Base.unsafe_convert(::Type{cutensornetContractionAutotunePreference_t}, prefs::CuTensorNetworkAutotunePreference)   = prefs.handle
-Base.unsafe_convert(::Type{CuTensorNetworkAutotunePreference}, prefs::AutotunePreferences) = cutensornetContractionAutotunePreference(prefs)
+A set of slices of a sliced contraction, given as the range from `start` up to but not
+including `stop`, or as a list of slice ids. Slice ids are 0-based and less than
+[`num_slices`](@ref). Pass it to [`contract!`](@ref) or [`compute_gradients!`](@ref) to
+compute part of a contraction.
 
+Wraps `cutensornetSliceGroup_t`.
+"""
 mutable struct CuTensorNetworkSliceGroup
     handle::cutensornetSliceGroup_t
     function CuTensorNetworkSliceGroup(sliceStart::Int64, sliceStop::Int64, sliceStep::Int64)
@@ -351,7 +344,10 @@ mutable struct CuTensorNetworkSliceGroup
     end
     function CuTensorNetworkSliceGroup(slices::Vector{Int64})
         group_ref = Ref{cutensornetSliceGroup_t}()
-        cutensornetCreateSliceGroupFromIDs(handle(), pointer(slices), pointer(slices, length(slices)), group_ref)
+        # the end of the sequence is one past its last element
+        GC.@preserve slices begin
+            cutensornetCreateSliceGroupFromIDs(handle(), pointer(slices), pointer(slices) + sizeof(slices), group_ref)
+        end
         obj = new(group_ref[])
         resource_finalizer(cutensornetDestroySliceGroup, obj)
         return obj
