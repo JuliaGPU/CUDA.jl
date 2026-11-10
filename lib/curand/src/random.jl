@@ -4,9 +4,20 @@ using Random
 
 
 """
-    cuRAND.LibraryRNG()
+    cuRAND.LibraryRNG(typ=CURAND_RNG_PSEUDO_DEFAULT; stream=stream())
 
-A random number generator backed by the cuRAND library.
+A random number generator backed by the cuRAND library, using cuRAND's pseudo-random
+generator `typ` (a `curandRngType`, e.g. `CURAND_RNG_PSEUDO_PHILOX4_32_10`). Use it with
+Random's `rand`, `randn`, `rand!` and `randn!`, and with [`rand_logn`](@ref),
+[`rand_poisson`](@ref) and their in-place versions. It generates uniformly distributed
+`Float32`, `Float64` and `UInt32` numbers, normally and log-normally distributed `Float32`
+and `Float64` numbers, and Poisson-distributed `UInt32` numbers, into `CuArray`s. It runs
+on the stream of the task that uses it.
+
+A new generator uses cuRAND's default seed. `Random.seed!(rng[, seed]; offset=0)` seeds it,
+randomly when no `seed` is given, and skips `offset` numbers ahead in the sequence. A `LibraryRNG` converts to a
+`curandGenerator_t`, for use with cuRAND's C API, and is destroyed when it is garbage
+collected.
 """
 mutable struct LibraryRNG <: Random.AbstractRNG
     handle::curandGenerator_t
@@ -121,6 +132,13 @@ end
 # log-normal
 const LognormalType = Union{Type{Float32},Type{Float64}}
 const LognormalArray = DenseCuArray{<:Union{Float32,Float64}}
+"""
+    cuRAND.rand_logn!([rng::LibraryRNG,] A::CuArray{<:Union{Float32,Float64}}; mean=0, stddev=1) -> A
+
+Fill `A` with log-normally distributed random numbers: `exp(x)` for normally distributed `x`
+with mean `mean` and standard deviation `stddev`. Without `rng`, the task's
+[`library_rng`](@ref) is used. Wraps `curandGenerateLogNormal(Double)`.
+"""
 function rand_logn!(rng::LibraryRNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
     isempty(A) && return A
     update_stream(rng)
@@ -137,6 +155,12 @@ end
 # poisson
 const PoissonType = Union{Type{Cuint}}
 const PoissonArray = DenseCuArray{Cuint}
+"""
+    cuRAND.rand_poisson!([rng::LibraryRNG,] A::CuArray{UInt32}; lambda=1) -> A
+
+Fill `A` with Poisson-distributed random numbers with mean `lambda`. Without `rng`, the
+task's [`library_rng`](@ref) is used. Wraps `curandGeneratePoisson`.
+"""
 function rand_poisson!(rng::LibraryRNG, A::DenseCuArray{Cuint}; lambda=1)
     isempty(A) && return A
     update_stream(rng)

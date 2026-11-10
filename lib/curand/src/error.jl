@@ -1,5 +1,10 @@
 export CURANDError
 
+"""
+    CURANDError(code::curandStatus_t)
+
+The exception thrown when a cuRAND call fails. `code` is the status that cuRAND returned.
+"""
 struct CURANDError <: Exception
     code::curandStatus_t
 end
