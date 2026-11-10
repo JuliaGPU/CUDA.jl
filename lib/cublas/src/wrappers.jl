@@ -2699,7 +2699,7 @@ for (fname, elty) in ((:cublasDgeqrfBatched, :Float64),
             unsafe_free!(Tauptrs)
 
             if info[] != 0
-                throw(ArgumentError,string("Invalid value at ",-info[]))
+                throw(ArgumentError(string("Invalid value at ", -info[])))
             end
 
             TauArray, A
@@ -2750,7 +2750,7 @@ for (fname, elty) in ((:cublasDgelsBatched, :Float64),
             unsafe_free!(Aptrs)
 
             if info[] != 0
-                throw(ArgumentError,string("Invalid value at ",-info[]))
+                throw(ArgumentError(string("Invalid value at ", -info[])))
             end
 
             A, C, infoarray
