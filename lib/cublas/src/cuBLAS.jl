@@ -45,6 +45,7 @@ include("wrappers.jl")
 
 # high-level integrations
 include("linalg.jl")
+include("deprecated.jl")
 
 function math_mode!(handle, mode, precision=CUDACore.math_precision())
     flags = 0
@@ -180,17 +181,18 @@ function xt_handle_finalizer(h::XtHandle)
     push!(idle_xt_handles, h.ctxs, h.handle)
 end
 
-function devices!(devs::Vector{CuDevice})
+# the devices cuBLASXt distributes its work over
+function xt_devices!(devs::Vector{CuDevice})
     task_local_storage(:CUBLASxt_devices, sort(devs; by=deviceid))
     return
 end
 
-devices() = get!(task_local_storage(), :CUBLASxt_devices) do
+xt_devices() = get!(task_local_storage(), :CUBLASxt_devices) do
     # by default, select all devices
     sort(collect(CUDACore.devices()); by=deviceid)
 end::Vector{CuDevice}
 
-ndevices() = length(devices())
+xt_ndevices() = length(xt_devices())
 
 const XtLibraryState = @NamedTuple{handle::XtHandle}
 const xt_state_cache = CUDACore.TaskLocalCache{UInt, XtLibraryState}(:CUBLASxt)
@@ -200,14 +202,14 @@ function xt_handle()
 
     # for performance, don't use a tuple of contexts to index the TLS
     key = zero(UInt)
-    for dev in devices()
+    for dev in xt_devices()
         key = hash(context(dev), key)
     end
 
     # get library state
     @noinline function new_state(cuda)
         # these are the actual contexts
-        ctxs = [context(dev) for dev in devices()]
+        ctxs = [context(dev) for dev in xt_devices()]
 
         new_handle = pop!(idle_xt_handles, ctxs)
         wrapped = XtHandle(new_handle, ctxs)
@@ -216,7 +218,7 @@ function xt_handle()
 
         # if we're using the stream-ordered allocator,
         # make sure allocations are visible on all devices
-        async_devs = filter(memory_pools_supported, devices())
+        async_devs = filter(memory_pools_supported, xt_devices())
         for dev in async_devs
             other_devs = filter(!isequal(dev), async_devs)
             # only grant access to peer-capable devices: cuMemPoolSetAccess on a
@@ -231,7 +233,7 @@ function xt_handle()
             access!(pool, accessible_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
         end
 
-        devs = convert.(Cint, devices())
+        devs = convert.(Cint, xt_devices())
         cublasXtDeviceSelect(new_handle, length(devs), devs)
 
         (; handle=wrapped)

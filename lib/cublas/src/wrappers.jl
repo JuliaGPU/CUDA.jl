@@ -2091,13 +2091,13 @@ for (fname, fname_64, elty) in ((:cublasZhemm_v2, :cublasZhemm_v2_64, :ComplexF6
         end
     end
 end
-function hemm(uplo::Char, trans::Char, alpha,
+function hemm(side::Char, uplo::Char, alpha,
               A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where T
     m,n = size(B)
-    hemm!( uplo, trans, alpha, A, B, zero(T), similar(B, (m,n) ) )
+    hemm!(side, uplo, alpha, A, B, zero(T), similar(B, (m,n) ) )
 end
-function hemm(uplo::Char, trans::Char, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where T
-    hemm(uplo, trans, one(T), A, B)
+function hemm(side::Char, uplo::Char, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where T
+    hemm(side, uplo, one(T), A, B)
 end
 
 ## herk
@@ -2413,9 +2413,9 @@ function geam(
         geam!(transa, transb, alpha, A, beta, B, similar(B, (m,n) ) )
     end
 end
-function geam(uplo::Char, trans::Char,
+function geam(transa::Char, transb::Char,
               A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where T
-    geam(uplo, trans, one(T), A, one(T), B)
+    geam(transa, transb, one(T), A, one(T), B)
 end
 
 ## getrfBatched - performs LU factorizations
@@ -2425,7 +2425,7 @@ for (fname, elty) in ((:cublasDgetrfBatched, :Float64),
                       (:cublasZgetrfBatched, :ComplexF64),
                       (:cublasCgetrfBatched, :ComplexF32))
     @eval begin
-        function getrf_batched!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::TP, _info::TI) where
+        function getrf_batched_ptrs!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::TP, _info::TI) where
                     {TP<:Union{Bool,DenseCuArray{<:Any, 2}},
                      TI<:Union{Nothing,CuArray{Cint}}}
             batchSize = length(ptrs)
@@ -2460,7 +2460,7 @@ function getrf_batched!(A::Vector{<:StridedCuMatrix},
     lda = leading_dim(A)
 
     Aptrs = unsafe_batch(A)
-    return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
+    return getrf_batched_ptrs!(n, Aptrs, lda, pivot, info)..., A
 end
 function getrf_batched(A::Vector{<:StridedCuMatrix},
                        pivot::Union{Bool,DenseCuArray{<:Any, 2}},
@@ -2479,7 +2479,7 @@ function getrf_strided_batched!(A::DenseCuArray{<:Any, 3},
     lda = leading_dim(A)
 
     Aptrs = unsafe_strided_batch(A)
-    return getrf_batched!(n, Aptrs, lda, pivot, info)..., A
+    return getrf_batched_ptrs!(n, Aptrs, lda, pivot, info)..., A
 end
 function getrf_strided_batched(A::DenseCuArray{<:Any, 3},
                                pivot::Union{Bool,DenseCuArray{<:Any, 2}},
@@ -2495,8 +2495,8 @@ for (fname, elty) in ((:cublasDgetrsBatched, :Float64),
                       (:cublasZgetrsBatched, :ComplexF64),
                       (:cublasCgetrsBatched, :ComplexF32))
     @eval begin
-        function getrs_batched!(trans::Char,
-                                n, nrhs,
+        function getrs_batched_ptrs!(trans::Char,
+                                     n, nrhs,
                                 Aptrs::CuVector{CuPtr{$elty}}, lda,
                                 pivotArray::CuPtr,
                                 Bptrs::CuVector{CuPtr{$elty}}, ldb)
@@ -2533,7 +2533,7 @@ function getrs_batched!(trans::Char,
     Aptrs = unsafe_batch(A)
     Bptrs = unsafe_batch(B)
     pivotptr = T==Nothing ? CU_NULL : pointer(pivotArray)
-    return getrs_batched!(trans, n, nrhs, Aptrs, lda, pivotptr, Bptrs, ldb), B
+    return getrs_batched_ptrs!(trans, n, nrhs, Aptrs, lda, pivotptr, Bptrs, ldb), B
 end
 function getrs_batched(trans::Char,
                        A::Vector{<:StridedCuMatrix},
@@ -2562,7 +2562,7 @@ function getrs_strided_batched!(trans::Char,
     Aptrs = unsafe_strided_batch(A)
     Bptrs = unsafe_strided_batch(B)
     pivotptr = T==Nothing ? CU_NULL : pointer(pivotArray)
-    return getrs_batched!(trans, n, nrhs, Aptrs, lda, pivotptr, Bptrs, ldb), B
+    return getrs_batched_ptrs!(trans, n, nrhs, Aptrs, lda, pivotptr, Bptrs, ldb), B
 end
 function getrs_strided_batched(trans::Char,
                                A::DenseCuArray{<:Any, 3},
@@ -2601,7 +2601,7 @@ for (fname, elty) in ((:cublasDgetriBatched, :Float64),
             pivotArray, info, C
         end
 
-        function getri_batched!(n, Aptrs::CuVector{CuPtr{$elty}},
+        function getri_batched_ptrs!(n, Aptrs::CuVector{CuPtr{$elty}},
                                 lda, Cptrs::CuVector{CuPtr{$elty}},ldc,
                                 pivotArray::CuArray{Cint})
             batchSize = length(Aptrs)
@@ -2640,7 +2640,7 @@ function getri_strided_batched!(A::CuArray{<:Any,3}, C::CuArray{<:Any,3}, pivot:
     lda = leading_dim(A)
     Cptrs = unsafe_strided_batch(C)
     Aptrs = unsafe_strided_batch(A)
-    return getri_batched!(n, Aptrs, lda, Cptrs, ldc, pivot)
+    return getri_batched_ptrs!(n, Aptrs, lda, Cptrs, ldc, pivot)
 end
 
 ## matinvBatched - performs batched matrix inversion
@@ -2873,18 +2873,18 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
         end
     end
 end
-function xt_hemm(uplo::Char,
-                 trans::Char,
+function xt_hemm(side::Char,
+                 uplo::Char,
                  alpha::Number,
                  A::Union{StridedMatrix{T}, StridedCuMatrix{T}},
                  B::Union{StridedMatrix{T}, StridedCuMatrix{T}}) where T
     m,n = size(B)
-    xt_hemm!(uplo, trans, alpha, A, B, zero(T), similar(B, (m,n) ))
+    xt_hemm!(side, uplo, alpha, A, B, zero(T), similar(B, (m,n) ))
 end
-xt_hemm(uplo::Char, trans::Char,
+xt_hemm(side::Char, uplo::Char,
         A::Union{StridedMatrix{T}, StridedCuMatrix{T}},
         B::Union{StridedMatrix{T}, StridedCuMatrix{T}}) where T =
-    xt_hemm(uplo, trans, one(T), A, B)
+    xt_hemm(side, uplo, one(T), A, B)
 
 for (fname, elty) in ((:cublasXtDsymm,:Float64),
                       (:cublasXtSsymm,:Float32),
