@@ -160,6 +160,10 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `CuTensorNetwork`'s custom strides have no replacement: NVIDIA's new API only takes
   tensors in the default (column-major) layout.
 
+- `NVML.compute_processes` always returns a
+  `Dict{Int,@NamedTuple{used_gpu_memory::Union{Int,Missing}}}`, also when no process
+  uses the GPU, instead of an untyped `Dict()`.
+
 
 ## v6.5 (October 2026)
 

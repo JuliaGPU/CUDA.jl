@@ -100,32 +100,34 @@ function compute_capability(dev::Device)
     return VersionNumber(major[], minor[])
 end
 
+const ProcessInfo = @NamedTuple{used_gpu_memory::Union{Int,Missing}}
+
 function compute_processes(dev::Device)
+    processes = Dict{Int,ProcessInfo}()
+
     count_ref = Ref{Cuint}(0)
     res = unchecked_nvmlDeviceGetComputeRunningProcesses(dev, count_ref, C_NULL)
     if res == NVML_SUCCESS
-        return Dict()
+        return processes
     elseif res !== NVML_ERROR_INSUFFICIENT_SIZE
         throw_api_error(res)
     end
 
     # "Allocate more space for infos table in case new compute processes are spawned."
-    count::Cuint = count_ref[] + 2
+    count_ref[] += 2
+    infos = Vector{nvmlProcessInfo_v1_t}(undef, count_ref[])
+    nvmlDeviceGetComputeRunningProcesses(dev, count_ref, infos)
 
-    infos = Vector{nvmlProcessInfo_v1_t}(undef, count)
-    nvmlDeviceGetComputeRunningProcesses(dev, Ref(count), infos)
-
-    return Dict(map(infos[1:count_ref[]]) do info
-            pid = Int(info.pid)
-            used_gpu_memory = if info.usedGpuMemory == (NVML.NVML_VALUE_NOT_AVAILABLE %
-                                                        typeof(info.usedGpuMemory))
-                missing
-            else
-                Int(info.usedGpuMemory)
-            end
-            pid => (used_gpu_memory=used_gpu_memory,)
+    for info in view(infos, 1:count_ref[])
+        used_gpu_memory = if info.usedGpuMemory == (NVML_VALUE_NOT_AVAILABLE %
+                                                    typeof(info.usedGpuMemory))
+            missing
+        else
+            Int(info.usedGpuMemory)
         end
-    )
+        processes[Int(info.pid)] = (; used_gpu_memory)
+    end
+    return processes
 end
 
 
