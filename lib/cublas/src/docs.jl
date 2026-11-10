@@ -50,7 +50,7 @@ handle
     copy!(n, x, y) -> y
 
 Copy the first `n` elements of `x` to `y`. Wraps `cublas<t>copy`; `Float16` and `ComplexF16`
-arrays are copied with `copyto!` instead, which copies all elements.
+arrays, which cuBLAS can't copy, are copied by a kernel.
 """
 copy!
 

@@ -9,6 +9,11 @@ using LinearAlgebra
         B = CuArray{T}(undef, m)
         cuBLAS.copy!(m, A, B)
         @test Array(A) == Array(B)
+
+        # only the first n elements
+        B = CUDACore.zeros(T, m)
+        cuBLAS.copy!(3, A, B)
+        @test Array(B) == [Array(A)[1:3]; zeros(T, m - 3)]
     end
 
     @test testf(rmul!, rand(T, 6, 9, 3), rand())
@@ -92,6 +97,11 @@ end
         B = CuArray{T}(undef, m)
         cuBLAS.copy!(m, A, B)
         @test Array(A) == Array(B)
+
+        # only the first n elements
+        B = CUDACore.zeros(T, m)
+        cuBLAS.copy!(3, A, B)
+        @test Array(B) == [Array(A)[1:3]; zeros(T, m - 3)]
     end
 
     @test testf(rmul!, rand(T, 6, 9, 3), rand())
@@ -170,12 +180,12 @@ end
         @test Array(da) ≈ a
     end
 
-    if T <: cuBLAS.CublasFloat
-        a, da = copy(y), copy(dy)
-        copyto!(fwd(a), rev(x))
-        cuBLAS.copy!(m ÷ 2, rev(dx), fwd(da))
-        @test Array(da) == a
+    a, da = copy(y), copy(dy)
+    a[1:2:2(m ÷ 2 - 1)] = rev(x)[1:m ÷ 2 - 1]
+    cuBLAS.copy!(m ÷ 2 - 1, rev(dx), fwd(da))
+    @test Array(da) == a
 
+    if T <: cuBLAS.CublasFloat
         a, b, da, db = copy(x), copy(y), copy(dx), copy(dy)
         a[1:2:end], b[end:-2:1] = b[end:-2:1], a[1:2:end]
         cuBLAS.swap!(m ÷ 2, fwd(da), rev(db))

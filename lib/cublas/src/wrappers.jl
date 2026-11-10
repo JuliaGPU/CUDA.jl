@@ -142,7 +142,10 @@ for (fname, fname_64, elty) in ((:cublasDcopy_v2, :cublasDcopy_v2_64, :Float64),
 end
 function copy!(n::Integer, x::StridedCuVecOrDenseMat{T},
                y::StridedCuVecOrDenseMat{T}) where {T <: Union{Float16, ComplexF16}}
-    copyto!(y, x) # bad
+    # cuBLAS has no 16-bit copy. BLAS's convention for negative increments addresses the
+    # elements in the order Julia indexes a reversed view, so a linear copy matches it.
+    n > 0 && copyto!(y, 1, x, 1, n)
+    return y
 end
 
 ## scal
