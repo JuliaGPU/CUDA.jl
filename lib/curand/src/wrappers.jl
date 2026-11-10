@@ -12,6 +12,12 @@ function curandGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
+"""
+    cuRAND.version() -> VersionNumber
+
+The version of the cuRAND library in use. This is the library's own version, which differs
+from that of the CUDA toolkit it ships with.
+"""
 version() = VersionNumber(curandGetProperty(CUDACore.MAJOR_VERSION),
                           curandGetProperty(CUDACore.MINOR_VERSION),
                           curandGetProperty(CUDACore.PATCH_LEVEL))

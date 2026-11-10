@@ -16,12 +16,17 @@ else
 end
 
 
-@public functional
+@public functional, version
 @public rand, randn, seed!
 @public rand_logn, rand_logn!, rand_poisson, rand_poisson!
 @public LibraryRNG, NativeRNG, library_rng, native_rng, gpuarrays_rng
 
 const _initialized = Ref{Bool}(false)
+"""
+    cuRAND.functional() -> Bool
+
+Whether cuRAND was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
 # core library
@@ -39,6 +44,8 @@ include("native.jl")
 
 # CUDACore.rand/randn integration
 include("cuda_integration.jl")
+
+include("deprecated.jl")
 
 
 ## handles
@@ -72,6 +79,15 @@ end
 
 const library_state_cache = CUDACore.TaskLocalCache{CuContext, BorrowedLibraryRNG}(:CURAND)
 
+"""
+    cuRAND.library_rng() -> LibraryRNG
+
+The cuRAND generator of the current task, for its active context. `cuRAND.rand`, `randn`,
+`rand_logn`, `rand_poisson` and the in-place `rand!`, `randn!`, `rand_logn!` and
+`rand_poisson!` use it for the element types cuRAND supports. It is seeded randomly when a
+task first uses it, and by [`cuRAND.seed!`](@ref). The generator is borrowed: seed it or
+generate numbers with it, but don't destroy it or change its settings.
+"""
 function library_rng()
     cuda = CUDACore.active_state()
 
