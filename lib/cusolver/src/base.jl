@@ -6,6 +6,11 @@ function cusolverGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
+"""
+    cuSOLVER.version() -> VersionNumber
+
+The version of the cuSOLVER library in use.
+"""
 version() = VersionNumber(cusolverGetProperty(CUDACore.MAJOR_VERSION),
                           cusolverGetProperty(CUDACore.MINOR_VERSION),
                           cusolverGetProperty(CUDACore.PATCH_LEVEL))

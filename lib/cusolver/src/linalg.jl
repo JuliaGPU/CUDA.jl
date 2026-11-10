@@ -121,11 +121,11 @@ Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix})
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', A.uplo, A2)...)
+    return Eigen(syevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasComplex}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', A.uplo, A2)...)
+    return Eigen(syevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasReal}
     return eigen(Symmetric(A))
@@ -134,9 +134,9 @@ end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
     if issymmetric(A)
-        return Eigen(Xsyevd!('V', 'U', A2)...)
+        return Eigen(syevd!('V', 'U', A2)...)
     else
-        W, _, VR = Xgeev!('N', 'V', A2)
+        W, _, VR = geev!('N', 'V', A2)
         C = Complex{T}
         U = CuMatrix{C}([1.0 1.0; im -im])
         VR = CuMatrix{C}(VR)
@@ -157,9 +157,9 @@ end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
     if ishermitian(A)
-        return Eigen(Xsyevd!('V', 'U', A2)...)
+        return Eigen(syevd!('V', 'U', A2)...)
     else
-        r = Xgeev!('N', 'V', A2)
+        r = geev!('N', 'V', A2)
         return Eigen(r[1], r[3])
     end
 end
@@ -168,11 +168,11 @@ end
 
 function LinearAlgebra.eigvals(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
     A2 = copy(A.data)
-    return Xsyevd!('N', A.uplo, A2)
+    return syevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
     A2 = copy(A.data)
-    return Xsyevd!('N', A.uplo, A2)
+    return syevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
     return eigvals(Symmetric(A))
@@ -181,17 +181,17 @@ end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
     A2 = copy(A)
     if issymmetric(A)
-        return Xsyevd!('N', 'U', A2)
+        return syevd!('N', 'U', A2)
     else
-        return Xgeev!('N', 'N', A2)[1]
+        return geev!('N', 'N', A2)[1]
     end
 end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
     A2 = copy(A)
     if ishermitian(A)
-        return Xsyevd!('N', 'U', A2)
+        return syevd!('N', 'U', A2)
     else
-        return Xgeev!('N', 'N', A2)[1]
+        return geev!('N', 'N', A2)[1]
     end
 end
 
@@ -361,10 +361,28 @@ LinearAlgebra.rmul!(A::CuVecOrMat{T},
 
 ## SVD
 
+@public QRAlgorithm, JacobiAlgorithm, ApproximateAlgorithm, CuSVDBatched
+
 abstract type SVDAlgorithm end
+
+"""
+    QRAlgorithm()
+    JacobiAlgorithm()
+    ApproximateAlgorithm()
+
+Algorithms for `svd(A; alg)`, `svd!(A; alg)`, `svdvals(A; alg)` and `svdvals!(A; alg)` with a
+`CuMatrix` or a 3-D `CuArray` holding a batch of matrices:
+
+- `JacobiAlgorithm()`, the default, uses [`gesvdj!`](@ref) and, for a batch,
+  [`gesvdjBatched!`](@ref). Matrices too large for `gesvdj!` use `gesvd!` instead.
+- `QRAlgorithm()` uses [`gesvd!`](@ref). It does not support batches.
+- `ApproximateAlgorithm()` uses [`gesvdaStridedBatched!`](@ref) and only supports batches.
+
+For a batch, the result is a [`CuSVDBatched`](@ref).
+"""
 struct QRAlgorithm <: SVDAlgorithm end
-struct JacobiAlgorithm <: SVDAlgorithm end
-struct ApproximateAlgorithm <: SVDAlgorithm end
+@doc (@doc QRAlgorithm) struct JacobiAlgorithm <: SVDAlgorithm end
+@doc (@doc QRAlgorithm) struct ApproximateAlgorithm <: SVDAlgorithm end
 
 const CuMatOrBatched{T} = Union{CuMatrix{T}, CuArray{T,3}} where T
 
@@ -381,8 +399,8 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     return SVD(U, S, Vt)
 end
 function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
-    gesvdj_fits('V', Int(!full), A) || return svd_xgesvd!(A, full)
-    U, S, V = gesvdj!('V', Int(!full), A)
+    gesvdj_fits('V', !full, A) || return svd_gesvd!(A, full)
+    U, S, V = gesvdj!('V', !full, A)
     return SVD(U, S, V')
 end
 
@@ -390,13 +408,13 @@ end
 # large matrices. Use the QR algorithm of the 64-bit API instead, which requires
 # m ≥ n, so decompose Aᴴ when A is wide. Vt is returned as is: at these sizes
 # every extra copy of a factor matters.
-function svd_xgesvd!(A::CuMatrix{T}, full::Bool) where T
+function svd_gesvd!(A::CuMatrix{T}, full::Bool) where T
     job = full ? 'A' : 'S'
     if size(A, 1) >= size(A, 2)
-        U, S, Vt = Xgesvd!(job, job, A)
+        U, S, Vt = gesvd!(job, job, A)
     else
         Ah = copy(A')
-        U2, S, Vt2 = Xgesvd!(job, job, Ah)
+        U2, S, Vt2 = gesvd!(job, job, Ah)
         unsafe_free!(Ah)
         U = copy(Vt2')
         unsafe_free!(Vt2)
@@ -406,23 +424,31 @@ function svd_xgesvd!(A::CuMatrix{T}, full::Bool) where T
     return SVD(U, S, Vt)
 end
 
-function svdvals_xgesvd!(A::CuMatrix{T}) where T
-    size(A, 1) >= size(A, 2) && return Xgesvd!('N', 'N', A)[2]
+function svdvals_gesvd!(A::CuMatrix{T}) where T
+    size(A, 1) >= size(A, 2) && return gesvd!('N', 'N', A)[2]
     Ah = copy(A')
-    S = Xgesvd!('N', 'N', Ah)[2]
+    S = gesvd!('N', 'N', Ah)[2]
     unsafe_free!(Ah)
     return S
 end
 function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
-    U, S, V = gesvdj!('V', A)
+    U, S, V = gesvdjBatched!('V', A)
     return CuSVDBatched(U, S, V)
 end
 
 function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm; rank::Int=min(size(A,1), size(A,2))) where T
-    U, S, V = gesvda!('V', A; rank=rank)
+    U, S, V = gesvdaStridedBatched!('V', A; rank=rank)
     return CuSVDBatched(U, S, V)
 end
 
+"""
+    CuSVDBatched
+
+The singular value decompositions of a batch of matrices, returned by `svd(A)` for a 3-D
+`CuArray` `A`. The fields `U` and `V` are 3-D arrays and `S` is a matrix, holding the
+factors of each matrix `A[:, :, i]` in `U[:, :, i]`, `S[:, i]` and `V[:, :, i]`. Destructures
+into `U, S, V`.
+"""
 struct CuSVDBatched{T,Tr,A<:AbstractArray{T,3}} <: LinearAlgebra.Factorization{T}
     U::CuArray{T,3}
     S::CuMatrix{Tr}
@@ -444,9 +470,9 @@ _svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
 _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
-    gesvdj_fits('N', 1, A) ? gesvdj!('N', 1, A)[2] : svdvals_xgesvd!(A)
-_svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
-_svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
+    gesvdj_fits('N', true, A) ? gesvdj!('N', true, A)[2] : svdvals_gesvd!(A)
+_svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdjBatched!('N', A::CuArray{T,3})[2]
+_svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvdaStridedBatched!('N', A::CuArray{T,3}; rank=rank)[2]
 
 # like LinearAlgebra, derive the SVD of a Hermitian matrix from its eigendecomposition,
 # but without the scalar indexing of the generic implementation

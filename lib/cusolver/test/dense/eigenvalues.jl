@@ -57,7 +57,7 @@ end
     d_A            = CuArray(A)
     local d_W, d_V
     if elty <: Complex
-        d_W, d_V   = cuSOLVER.heevd!('V', 'U', d_A)
+        d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
     else
         d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
     end
@@ -70,7 +70,7 @@ end
     @test abs.(Eig.vectors'*h_V) ≈ I
     d_A            = CuArray(A)
     if elty <: Complex
-        d_W   = cuSOLVER.heevd!('N', 'U', d_A)
+        d_W   = cuSOLVER.syevd!('N', 'U', d_A)
     else
         d_W   = cuSOLVER.syevd!('N', 'U', d_A)
     end
@@ -145,7 +145,7 @@ end
     d_B            = CuArray(B)
     local d_W, d_VA, d_VB
     if elty <: Complex
-        d_W, d_VA, d_VB = cuSOLVER.hegvd!(1, 'V', 'U', d_A, d_B)
+        d_W, d_VA, d_VB = cuSOLVER.sygvd!(1, 'V', 'U', d_A, d_B)
     else
         d_W, d_VA, d_VB = cuSOLVER.sygvd!(1, 'V', 'U', d_A, d_B)
     end
@@ -161,7 +161,7 @@ end
     d_A            = CuArray(A)
     d_B            = CuArray(B)
     if elty <: Complex
-        d_W   = cuSOLVER.hegvd!(1, 'N', 'U', d_A, d_B)
+        d_W   = cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
     else
         d_W   = cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
     end
@@ -169,7 +169,7 @@ end
     @test Eig.values ≈ h_W
     d_B            = CuArray(rand(elty, m+1, m+1))
     if elty <: Complex
-        @test_throws DimensionMismatch cuSOLVER.hegvd!(1, 'N', 'U', d_A, d_B)
+        @test_throws DimensionMismatch cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
     else
         @test_throws DimensionMismatch cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
     end
@@ -184,7 +184,7 @@ end
     d_B            = CuArray(B)
     local d_W, d_VA, d_VB
     if elty <: Complex
-        d_W, d_VA, d_VB = cuSOLVER.hegvj!(1, 'V', 'U', d_A, d_B)
+        d_W, d_VA, d_VB = cuSOLVER.sygvj!(1, 'V', 'U', d_A, d_B)
     else
         d_W, d_VA, d_VB = cuSOLVER.sygvj!(1, 'V', 'U', d_A, d_B)
     end
@@ -199,7 +199,7 @@ end
     d_A            = CuArray(A)
     d_B            = CuArray(B)
     if elty <: Complex
-        d_W   = cuSOLVER.hegvj!(1, 'N', 'U', d_A, d_B)
+        d_W   = cuSOLVER.sygvj!(1, 'N', 'U', d_A, d_B)
     else
         d_W   = cuSOLVER.sygvj!(1, 'N', 'U', d_A, d_B)
     end
@@ -215,7 +215,7 @@ end
 
     local d_W, d_V
     if elty <: Complex
-        d_W, d_V   = cuSOLVER.heevjBatched!('V', 'U', d_A)
+        d_W, d_V   = cuSOLVER.syevjBatched!('V', 'U', d_A)
     else
         d_W, d_V   = cuSOLVER.syevjBatched!('V', 'U', d_A)
     end
@@ -233,7 +233,7 @@ end
     d_A = CuArray(A)
     local d_W2
     if elty <: Complex
-        d_W2   = cuSOLVER.heevjBatched!('N', 'U', d_A)
+        d_W2   = cuSOLVER.syevjBatched!('N', 'U', d_A)
     else
         d_W2   = cuSOLVER.syevjBatched!('N', 'U', d_A)
     end

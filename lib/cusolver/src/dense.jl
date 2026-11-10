@@ -18,8 +18,8 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
                             (:cusolverDnCpotrf_bufferSize, :cusolverDnCpotrf, :ComplexF32),
                             (:cusolverDnZpotrf_bufferSize, :cusolverDnZpotrf, :ComplexF64))
     @eval begin
-        function potrf!(uplo::Char,
-                        A::StridedCuMatrix{$elty})
+        function legacy_potrf!(uplo::Char,
+                               A::StridedCuMatrix{$elty})
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
@@ -50,9 +50,9 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
                      (:cusolverDnCpotrs, :ComplexF32),
                      (:cusolverDnZpotrs, :ComplexF64))
     @eval begin
-        function potrs!(uplo::Char,
-                        A::StridedCuMatrix{$elty},
-                        B::StridedCuVecOrMat{$elty})
+        function legacy_potrs!(uplo::Char,
+                               A::StridedCuMatrix{$elty},
+                               B::StridedCuVecOrMat{$elty})
             chkuplo(uplo)
             n = checksquare(A)
             if size(B, 1) != n
@@ -145,7 +145,7 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
                             (:cusolverDnCgeqrf_bufferSize, :cusolverDnCgeqrf, :ComplexF32),
                             (:cusolverDnZgeqrf_bufferSize, :cusolverDnZgeqrf, :ComplexF64))
     @eval begin
-        function geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty})
+        function legacy_geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty})
             m, n = size(A)
             lda  = max(1, stride(A, 2))
             dh = dense_handle()
@@ -165,12 +165,6 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
             chkargsok(BlasInt(info))
 
             A, tau
-        end
-
-        function geqrf!(A::StridedCuMatrix{$elty})
-            m, n = size(A)
-            tau = similar(A, $elty, min(m,n))
-            geqrf!(A, tau)
         end
     end
 end
@@ -631,27 +625,14 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
                                     (:cusolverDnCgesvd_bufferSize, :cusolverDnCgesvd, :ComplexF32, :Float32),
                                     (:cusolverDnZgesvd_bufferSize, :cusolverDnZgesvd, :ComplexF64, :Float64))
     @eval begin
-        function gesvd!(jobu::Char,
-                        jobvt::Char,
-                        A::StridedCuMatrix{$elty})
+        function legacy_gesvd!(jobu::Char,
+                               jobvt::Char,
+                               A::StridedCuMatrix{$elty})
             m, n = size(A)
             (m < n) && throw(ArgumentError("CUSOLVER's gesvd requires m ≥ n"))
             k = min(m, n)
             lda = max(1, stride(A, 2))
             dh = dense_handle()
-
-            # this routine reports its workspace size as a 32-bit element count, and
-            # its query rejects matrices of about 2^31 elements and more (and fewer
-            # when they are very tall). The same algorithm in the 64-bit API has no
-            # such limit and the same interface, so hand those problems to it.
-            max(m, n, lda) > typemax(Cint) && return Xgesvd!(jobu, jobvt, A)
-            lwork = Ref{Cint}(0)
-            status = $(Symbol(:unchecked_, bname))(dh, m, n, lwork)
-            if status == CUSOLVER_STATUS_INVALID_VALUE || lwork[] < 0
-                return Xgesvd!(jobu, jobvt, A)
-            elseif status != CUSOLVER_STATUS_SUCCESS
-                throw_api_error(status)
-            end
 
             U = if jobu === 'A'
                 similar(A, $elty, (m, m))
@@ -689,7 +670,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             unsafe_free!(rwork)
 
             info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            chklapackerror(BlasInt(info))
 
             return U, S, Vt
         end
@@ -707,7 +688,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
         # [2^31, 2^32) elements -- square matrices from about 32767^2 -- it reports
         # success with a size of 0. Ask with placeholder outputs so that nothing of
         # the size of A needs to be allocated to find out.
-        function gesvdj_fits(jobz::Char, econ::Int, A::StridedCuMatrix{$elty})
+        function gesvdj_fits(jobz::Char, econ::Bool, A::StridedCuMatrix{$elty})
             m, n = size(A)
             lda = max(1, stride(A, 2))
             max(m, n, lda) > typemax(Cint) && return false
@@ -732,17 +713,17 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
         end
 
         function gesvdj!(jobz::Char,
-                         econ::Int,
+                         econ::Bool,
                          A::StridedCuMatrix{$elty};
                          tol::$relty=eps($relty),
                          max_sweeps::Int=100)
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
             gesvdj_fits(jobz, econ, A) ||
-                throw(ArgumentError("CUSOLVER's gesvdj cannot handle a $m×$n matrix: its 32-bit workspace size overflows. Use svd(A; alg=QRAlgorithm()) or Xgesvd! instead."))
+                throw(ArgumentError("CUSOLVER's gesvdj cannot handle a $m×$n matrix: its 32-bit workspace size overflows. Use svd(A; alg=QRAlgorithm()) or gesvd! instead."))
             # Warning! For some reason, the solver needs to access U and V even
             # when only the values are requested
-            U = if jobz === 'V' && econ == 1 && m > n
+            U = if jobz === 'V' && econ && m > n
                 similar(A, $elty, (m ,n))
             else
                 similar(A, $elty, (m, m))
@@ -751,7 +732,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
 
             S       = similar(A, $relty, min(m,n))
 
-            V = if jobz === 'V' && econ == 1 && m < n
+            V = if jobz === 'V' && econ && m < n
                 similar(A, $elty, (n, m))
             else
                 similar(A, $elty, (n, n))
@@ -791,8 +772,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
                                     (:cusolverDnCgesvdjBatched_bufferSize, :cusolverDnCgesvdjBatched, :ComplexF32, :Float32),
                                     (:cusolverDnZgesvdjBatched_bufferSize, :cusolverDnZgesvdjBatched, :ComplexF64, :Float64))
     @eval begin
-        function gesvdj!(jobz::Char,
-                         A::StridedCuArray{$elty,3};
+        function gesvdjBatched!(jobz::Char,
+                                A::StridedCuArray{$elty,3};
                          tol::$relty=eps($relty),
                          max_sweeps::Int=100)
             m, n, batchSize = size(A)
@@ -848,8 +829,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
                                     (:cusolverDnCgesvdaStridedBatched_bufferSize, :cusolverDnCgesvdaStridedBatched, :ComplexF32, :Float32),
                                     (:cusolverDnZgesvdaStridedBatched_bufferSize, :cusolverDnZgesvdaStridedBatched, :ComplexF64, :Float64))
     @eval begin
-        function gesvda!(jobz::Char,
-                         A::StridedCuArray{$elty,3};
+        function gesvdaStridedBatched!(jobz::Char,
+                                       A::StridedCuArray{$elty,3};
                          rank::Int=min(size(A,1), size(A,2)))
             m, n, batchSize = size(A)
             if m < n
@@ -902,12 +883,12 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
     end
 end
 
-for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSize, :cusolverDnSsyevd, :Float32, :Float32),
-                                           (:syevd!, :cusolverDnDsyevd_bufferSize, :cusolverDnDsyevd, :Float64, :Float64),
-                                           (:heevd!, :cusolverDnCheevd_bufferSize, :cusolverDnCheevd, :ComplexF32, :Float32),
-                                           (:heevd!, :cusolverDnZheevd_bufferSize, :cusolverDnZheevd, :ComplexF64, :Float64))
+for (bname, fname, elty, relty) in ((:cusolverDnSsyevd_bufferSize, :cusolverDnSsyevd, :Float32, :Float32),
+                                    (:cusolverDnDsyevd_bufferSize, :cusolverDnDsyevd, :Float64, :Float64),
+                                    (:cusolverDnCheevd_bufferSize, :cusolverDnCheevd, :ComplexF32, :Float32),
+                                    (:cusolverDnZheevd_bufferSize, :cusolverDnZheevd, :ComplexF64, :Float64))
     @eval begin
-        function $jname(jobz::Char,
+        function legacy_syevd!(jobz::Char,
                         uplo::Char,
                         A::StridedCuMatrix{$elty})
             chkuplo(uplo)
@@ -941,8 +922,8 @@ end
 
 for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSize, :cusolverDnSsygvd, :Float32, :Float32),
                                            (:sygvd!, :cusolverDnDsygvd_bufferSize, :cusolverDnDsygvd, :Float64, :Float64),
-                                           (:hegvd!, :cusolverDnChegvd_bufferSize, :cusolverDnChegvd, :ComplexF32, :Float32),
-                                           (:hegvd!, :cusolverDnZhegvd_bufferSize, :cusolverDnZhegvd, :ComplexF64, :Float64))
+                                           (:sygvd!, :cusolverDnChegvd_bufferSize, :cusolverDnChegvd, :ComplexF32, :Float32),
+                                           (:sygvd!, :cusolverDnZhegvd_bufferSize, :cusolverDnZhegvd, :ComplexF64, :Float64))
     @eval begin
         function $jname(itype::Int,
                         jobz::Char,
@@ -985,8 +966,8 @@ end
 
 for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSize, :cusolverDnSsygvj, :Float32, :Float32),
                                            (:sygvj!, :cusolverDnDsygvj_bufferSize, :cusolverDnDsygvj, :Float64, :Float64),
-                                           (:hegvj!, :cusolverDnChegvj_bufferSize, :cusolverDnChegvj, :ComplexF32, :Float32),
-                                           (:hegvj!, :cusolverDnZhegvj_bufferSize, :cusolverDnZhegvj, :ComplexF64, :Float64))
+                                           (:sygvj!, :cusolverDnChegvj_bufferSize, :cusolverDnChegvj, :ComplexF32, :Float32),
+                                           (:sygvj!, :cusolverDnZhegvj_bufferSize, :cusolverDnZhegvj, :ComplexF64, :Float64))
     @eval begin
         function $jname(itype::Int,
                         jobz::Char,
@@ -1038,8 +1019,8 @@ end
 
 for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBatched_bufferSize, :cusolverDnSsyevjBatched, :Float32, :Float32),
                                            (:syevjBatched!, :cusolverDnDsyevjBatched_bufferSize, :cusolverDnDsyevjBatched, :Float64, :Float64),
-                                           (:heevjBatched!, :cusolverDnCheevjBatched_bufferSize, :cusolverDnCheevjBatched, :ComplexF32, :Float32),
-                                           (:heevjBatched!, :cusolverDnZheevjBatched_bufferSize, :cusolverDnZheevjBatched, :ComplexF64, :Float64))
+                                           (:syevjBatched!, :cusolverDnCheevjBatched_bufferSize, :cusolverDnCheevjBatched, :ComplexF32, :Float32),
+                                           (:syevjBatched!, :cusolverDnZheevjBatched_bufferSize, :cusolverDnZheevjBatched, :ComplexF64, :Float64))
     @eval begin
         function $jname(jobz::Char,
                         uplo::Char,
@@ -1284,6 +1265,158 @@ function gels!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Boo
     return X, info
 end
 
+
+## documentation of the wrappers above, which are defined per element type
+
+@public potri!, sytrf!, ormqr!, orgqr!, gebrd!, gesvdj!, gesvdjBatched!, gesvdaStridedBatched!,
+        sygvd!, sygvj!, syevjBatched!, potrfBatched!, potrsBatched!
+
+"""
+    potri!(uplo, A) -> A
+
+Invert the Hermitian positive definite matrix whose Cholesky factorization
+[`potrf!`](@ref) stored in `A`, in place, in the triangle selected by `uplo`.
+
+Wraps `cusolverDn<t>potri`.
+"""
+potri!
+
+"""
+    sytrf!(uplo, A[, ipiv]) -> A, ipiv, info
+    sytrf!(uplo, A; pivoting=false) -> A, info
+
+Compute the Bunch-Kaufman factorization `A = L D Lᵀ` (or `U D Uᵀ`) of the symmetric matrix
+`A` in place, in the triangle selected by `uplo`, storing the pivots in the
+`CuVector{Cint}` `ipiv`. Also for complex `A` the factorization is symmetric, not Hermitian.
+With `pivoting=false`, no pivoting is done (cuSOLVER 11.7.2 or later). Use
+[`sytrs!`](@ref) to solve with the result.
+
+Wraps `cusolverDn<t>sytrf`.
+"""
+sytrf!
+
+"""
+    ormqr!(side, trans, A, tau, C) -> C
+
+Multiply `C` in place by `Q`, `Qᵀ` or `Qᴴ` (`trans` is `'N'`, `'T'` or `'C'`; `'T'` only
+for real matrices), from the left
+(`side = 'L'`) or the right (`'R'`), where `Q` is stored in `A` and `tau` as computed by
+[`geqrf!`](@ref).
+
+Wraps `cusolverDn<t>ormqr` (`unmqr` for complex matrices).
+"""
+ormqr!
+
+"""
+    orgqr!(A, tau) -> A
+
+Overwrite `A` with the first `size(A, 2)` columns of the `Q` that [`geqrf!`](@ref) stored
+in `A` and `tau`.
+
+Wraps `cusolverDn<t>orgqr` (`ungqr` for complex matrices).
+"""
+orgqr!
+
+"""
+    gebrd!(A) -> A, D, E, tauq, taup
+
+Reduce `A` to bidiagonal form `B = Qᴴ A P` in place. The diagonal and off-diagonal of `B`
+are returned in `D` and `E`; `Q` and `P` are stored in `A` as Householder reflectors with
+scalar factors `tauq` and `taup`.
+
+Wraps `cusolverDn<t>gebrd`.
+"""
+gebrd!
+
+"""
+    gesvdj!(jobz, econ, A; tol=eps(real(eltype(A))), max_sweeps=100) -> U, S, V
+
+Compute the singular value decomposition `A = U * Diagonal(S) * V'` with the Jacobi
+method, to tolerance `tol` in at most `max_sweeps` sweeps. With `jobz = 'N'` only `S` is
+computed. With `econ = true`, `U` or `V` has only `min(size(A)...)` columns. Throws an
+`ArgumentError` for matrices too large for the 32-bit API; use [`gesvd!`](@ref) for those.
+
+Wraps `cusolverDn<t>gesvdj`.
+"""
+gesvdj!
+
+"""
+    gesvdjBatched!(jobz, A; tol=eps(real(eltype(A))), max_sweeps=100) -> U, S, V
+
+Compute the singular value decomposition of each matrix `A[:, :, i]` of a 3-D array, as
+[`gesvdj!`](@ref) does. The matrices can be at most 32×32. `U`, `S` and `V` are 3-D and
+2-D arrays holding the results for each matrix.
+
+Wraps `cusolverDn<t>gesvdjBatched`.
+"""
+gesvdjBatched!
+
+"""
+    gesvdaStridedBatched!(jobz, A; rank=min(size(A, 1), size(A, 2))) -> U, S, V
+
+Approximate the `rank` largest singular values and corresponding singular vectors of each
+`m×n` matrix `A[:, :, i]` of a 3-D array, with `m ≥ n`. `U` is `m×rank×batch`, `S` is
+`rank×batch` and `V` is `n×rank×batch`; with `jobz = 'N'` only `S` is computed.
+
+Wraps `cusolverDn<t>gesvdaStridedBatched`.
+"""
+gesvdaStridedBatched!
+
+"""
+    sygvd!(itype, jobz, uplo, A, B) -> W            # jobz = 'N'
+    sygvd!(itype, jobz, uplo, A, B) -> W, A, B      # jobz = 'V'
+
+Solve a generalized symmetric-definite eigenproblem. It is `A x = λ B x` for `itype = 1`,
+`A B x = λ x` for `itype = 2` and `B A x = λ x` for `itype = 3`, where `A` is symmetric or
+Hermitian and `B` positive definite, reading the triangles selected by `uplo`. With
+`jobz = 'V'` the eigenvectors overwrite `A`. `B` is overwritten by its Cholesky factor.
+
+Wraps `cusolverDn<t>sygvd` (`hegvd` for complex matrices).
+"""
+sygvd!
+
+"""
+    sygvj!(itype, jobz, uplo, A, B; tol=eps(real(eltype(A))), max_sweeps=100) -> W[, A, B]
+
+Like [`sygvd!`](@ref), but with the Jacobi method.
+
+Wraps `cusolverDn<t>sygvj` (`hegvj` for complex matrices).
+"""
+sygvj!
+
+"""
+    syevjBatched!(jobz, uplo, A; tol=eps(real(eltype(A))), max_sweeps=100) -> W         # jobz = 'N'
+    syevjBatched!(jobz, uplo, A; tol=eps(real(eltype(A))), max_sweeps=100) -> W, A      # jobz = 'V'
+
+Compute the eigenvalues, and with `jobz = 'V'` the eigenvectors, of each symmetric or
+Hermitian matrix `A[:, :, i]` of a 3-D array with the Jacobi method. The matrices can be at
+most 32×32. Column `i` of `W` holds the eigenvalues of matrix `i`.
+
+Wraps `cusolverDn<t>syevjBatched` (`heevjBatched` for complex matrices).
+"""
+syevjBatched!
+
+"""
+    potrfBatched!(uplo, A::Vector{<:CuMatrix}) -> A, info
+
+Compute the Cholesky factorization of each matrix in `A`, as [`potrf!`](@ref) does.
+`info[i] > 0` means that the leading minor of that order of `A[i]` is not positive
+definite.
+
+Wraps `cusolverDn<t>potrfBatched`.
+"""
+potrfBatched!
+
+"""
+    potrsBatched!(uplo, A::Vector{<:CuMatrix}, B::Vector{<:CuVecOrMat}) -> B
+
+Solve `A[i] X = B[i]` in place in each `B[i]`, using the Cholesky factorizations computed by
+[`potrfBatched!`](@ref). Each `B[i]` can have only one column.
+
+Wraps `cusolverDn<t>potrsBatched`.
+"""
+potrsBatched!
+
 # LAPACK
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
@@ -1292,11 +1425,13 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LAPACK.potri!(uplo::Char, A::StridedCuMatrix{$elty}) = potri!(uplo, A)
         LAPACK.getrf!(A::StridedCuMatrix{$elty}) = getrf!(A)
         LAPACK.getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = getrf!(A, ipiv)
+        LAPACK.getrf!(A::StridedCuMatrix{$elty}, ipiv::CuVector{Int64}) = getrf!(A, ipiv)
         LAPACK.geqrf!(A::StridedCuMatrix{$elty}) = geqrf!(A)
         LAPACK.geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = geqrf!(A, tau)
         LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}) = sytrf!(uplo, A)
         LAPACK.sytrf!(uplo::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}) = sytrf!(uplo, A, ipiv)
         LAPACK.getrs!(trans::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Cint}, B::StridedCuVecOrMat{$elty}) = getrs!(trans, A, ipiv, B)
+        LAPACK.getrs!(trans::Char, A::StridedCuMatrix{$elty}, ipiv::CuVector{Int64}, B::StridedCuVecOrMat{$elty}) = getrs!(trans, A, ipiv, B)
         LAPACK.ormqr!(side::Char, trans::Char, A::CuMatrix{$elty}, tau::CuVector{$elty}, C::CuVecOrMat{$elty}) = ormqr!(side, trans, A, tau, C)
         LAPACK.orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = orgqr!(A, tau)
         LAPACK.gebrd!(A::StridedCuMatrix{$elty}) = gebrd!(A)
@@ -1313,8 +1448,8 @@ end
 
 for elty in (:ComplexF32, :ComplexF64)
     @eval begin
-        LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
-        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = hegvd!(itype, jobz, uplo, A, B)
+        LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
+        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = sygvd!(itype, jobz, uplo, A, B)
     end
 end
 
@@ -1326,6 +1461,6 @@ end
 
 for elty in (:ComplexF32, :ComplexF64)
     @eval begin
-        LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = heevd!(jobz, uplo, A)
+        LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
     end
 end

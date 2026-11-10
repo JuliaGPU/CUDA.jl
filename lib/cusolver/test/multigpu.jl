@@ -13,7 +13,7 @@ if ndevices() > 1
     @testset "calling device outside the grid" begin
         m = 256
         device!(last(collect(devices())))
-        cuSOLVER.devices!([first(devices())])
+        cuSOLVER.mg_devices!([first(devices())])
         try
             for elty in [Float32, ComplexF64]
                 A = rand(elty, m, m)
@@ -35,13 +35,13 @@ end
 # use a grid of all available devices, or of the same device twice on single-GPU systems,
 # so that the multi-device code paths are covered either way.
 if ndevices() == 1
-    cuSOLVER.devices!([device(), device()])
+    cuSOLVER.mg_devices!([device(), device()])
 else
-    cuSOLVER.devices!(collect(devices()))
+    cuSOLVER.mg_devices!(collect(devices()))
 end
 
 # the wrappers split columns evenly across the grid, without a remainder
-m = 128 * cuSOLVER.ndevices()
+m = 128 * cuSOLVER.mg_ndevices()
 
 @testset "mg_syevd!" begin
     @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
