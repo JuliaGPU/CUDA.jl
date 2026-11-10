@@ -191,7 +191,7 @@ function collapseByBitStringBatched!(sv::CuStateVec, n_svs::Int, bitstrings::Vec
     sv_stride    = div(length(sv.data), n_svs)
     n_index_bits = Int(log2(div(length(sv.data), n_svs)))
     with_workspace(handle().cache, bufferSize) do buffer
-        custatevecCollapseByBitStringBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, convert(Vector{custatevecIndex_t}, bitstrings), convert(Vector{Int32}, bitordering), n_index_bits, norms, buffer, sizeof(buffer))
+        custatevecCollapseByBitStringBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, convert(Vector{custatevecIndex_t}, bitstrings), convert(Vector{Int32}, bitordering), length(bitordering), norms, buffer, sizeof(buffer))
     end
     return sv
 end
@@ -227,7 +227,7 @@ function abs2SumArrayBatched(sv::CuStateVec, n_svs::Int, bitordering::Vector{<:I
     sv_stride    = div(length(sv.data), n_svs)
     n_index_bits = Int(log2(div(length(sv.data), n_svs)))
     sum_stride   = 2^length(bitordering)
-    custatevecAbs2SumArrayBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, abs2sum, sum_stride, convert(Vector{Int32}, bitordering), length(bitordering), convert(Vector{Int32}, maskBitStrings), convert(Vector{Int32}, maskOrdering), length(maskOrdering))
+    custatevecAbs2SumArrayBatched(handle(), sv.data, eltype(sv), n_index_bits, n_svs, sv_stride, abs2sum, sum_stride, convert(Vector{Int32}, bitordering), length(bitordering), convert(Vector{custatevecIndex_t}, maskBitStrings), convert(Vector{Int32}, maskOrdering), length(maskOrdering))
     return abs2sum
 end
 

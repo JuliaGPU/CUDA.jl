@@ -75,6 +75,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   passed to them; they copied the vector holding the matrices, but not the matrices.
 - `cuBLAS.copy!(n, x, y)` of `Float16` and `ComplexF16` arrays copies only the first `n`
   elements, like it does for the other element types, instead of all of them.
+- cuStateVec's `abs2SumArrayBatched` passes its mask bit strings to cuStateVec as 64-bit
+  integers, as it expects, and `collapseByBitStringBatched!` works with bit strings that
+  cover only some of the index bits.
 
 *Minor changes*:
 
