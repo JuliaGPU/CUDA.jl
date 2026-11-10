@@ -275,6 +275,17 @@ bind!(s::CuStream) = (s.order === nothing || bind!(s.order); return)
 # only bumped while holding `stream_pool_lock` and `stream_disposal_lock`, but read without them
 generation(s::CuStream) = Base.@atomic :acquire s.generation
 
+# whether several tasks have submitted work to the stream (see `bind!`)
+shared(s::CuStream) = s.order !== nothing && Base.@atomic(s.order.shared)
+
+# whether a task other than `task` that is still running submits work to the stream
+function bound_elsewhere(s::CuStream, task::Task)
+    s.order === nothing && return false
+    owner = Base.@atomic s.order.owner
+    previous = owner === nothing ? nothing : owner.value
+    return previous !== nothing && previous !== task && !istaskdone(previous)
+end
+
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 

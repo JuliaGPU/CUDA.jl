@@ -157,6 +157,11 @@ function priority_increment!(a, cycles)
     return
 end
 
+function add_one!(a)
+    a[1] += 1
+    return
+end
+
 @testset "stream recycling" begin
     idle_limit = CUDACore.STREAM_POOL_IDLE
 
@@ -232,6 +237,66 @@ end
         end
         @test gate[2] == 0
     end
+
+    # a stream that another task activated with `stream!` isn't handed to new tasks after its
+    # owner has finished, as that other task may still submit work to it
+    release = Base.Event()
+    activated = Channel{CuStream}(1)
+    user = Ref{Task}()
+    s = fetch(Threads.@spawn begin
+        s = stream()
+        user[] = Threads.@spawn begin
+            stream!(s)
+            put!(activated, stream())
+            wait(release)
+        end
+        take!(activated)
+    end)
+    synchronize(s)
+    @test all(_ -> fetch(Threads.@spawn stream()) != s, 1:8)
+    notify(release)
+    wait(user[])
+
+    # the same goes for a task that activates the stream after its owner has finished
+    release = Base.Event()
+    s = fetch(Threads.@spawn stream())
+    synchronize(s)
+    user = Threads.@spawn begin
+        stream!(s)
+        put!(activated, stream())
+        wait(release)
+    end
+    @test take!(activated) == s
+    @test all(_ -> fetch(Threads.@spawn stream()) != s, 1:8)
+    notify(release)
+    wait(user)
+
+    # or that submits work to it without activating it (e.g., with `@cuda stream=s`)
+    ready = Channel{Nothing}(1)
+    launched = Channel{CuStream}(1)
+    release = Base.Event()
+    a = CUDA.zeros(Float32, 1)
+    s_ref = Ref{CuStream}()
+    owner = Threads.@spawn begin
+        s_ref[] = stream()
+        take!(ready)
+    end
+    user = Threads.@spawn begin
+        # (getting a stream of its own while the other stream's owner is alive)
+        stream()
+        put!(ready, nothing)
+        wait(owner)
+        s = s_ref[]
+        synchronize(s)
+        @cuda stream=s add_one!(a)
+        put!(launched, s)
+        wait(release)
+    end
+    s = take!(launched)
+    @test all(_ -> fetch(Threads.@spawn stream()) != s, 1:8)
+    notify(release)
+    wait(user)
+    @test Array(a) == [1f0]
 
     # streams that have been destroyed aren't handed out again
     s = fetch(Threads.@spawn stream())
