@@ -6,9 +6,9 @@ function Base.:(+)(A::CuTensor, B::CuTensor)
     α = convert(eltype(A), 1.0)
     γ = convert(eltype(B), 1.0)
     C = similar(B)
-    elementwise_binary_execute!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY,
-                                γ, B.data, B.inds, CUTENSOR_OP_IDENTITY,
-                                C.data, C.inds, CUTENSOR_OP_ADD)
+    elementwise_binary!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY,
+                        γ, B.data, B.inds, CUTENSOR_OP_IDENTITY,
+                        C.data, C.inds, CUTENSOR_OP_ADD)
     return C
 end
 
@@ -16,9 +16,9 @@ function Base.:(-)(A::CuTensor, B::CuTensor)
     α = convert(eltype(A), 1.0)
     γ = convert(eltype(B), -1.0)
     C = similar(B)
-    elementwise_binary_execute!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY,
-                                γ, B.data, B.inds, CUTENSOR_OP_IDENTITY,
-                                C.data, C.inds, CUTENSOR_OP_ADD)
+    elementwise_binary!(α, A.data, A.inds, CUTENSOR_OP_IDENTITY,
+                        γ, B.data, B.inds, CUTENSOR_OP_IDENTITY,
+                        C.data, C.inds, CUTENSOR_OP_ADD)
     return C
 end
 
@@ -40,16 +40,16 @@ end
 using LinearAlgebra
 
 function LinearAlgebra.axpy!(a, X::CuTensor, Y::CuTensor)
-    elementwise_binary_execute!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY,
-                                one(eltype(Y)), Y.data, Y.inds, CUTENSOR_OP_IDENTITY,
-                                Y.data, Y.inds, CUTENSOR_OP_ADD)
+    elementwise_binary!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY,
+                        one(eltype(Y)), Y.data, Y.inds, CUTENSOR_OP_IDENTITY,
+                        Y.data, Y.inds, CUTENSOR_OP_ADD)
     return Y
 end
 
 function LinearAlgebra.axpby!(a, X::CuTensor, b, Y::CuTensor)
-    elementwise_binary_execute!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY,
-                                b, Y.data, Y.inds, CUTENSOR_OP_IDENTITY,
-                                Y.data, Y.inds, CUTENSOR_OP_ADD)
+    elementwise_binary!(a, X.data, X.inds, CUTENSOR_OP_IDENTITY,
+                        b, Y.data, Y.inds, CUTENSOR_OP_IDENTITY,
+                        Y.data, Y.inds, CUTENSOR_OP_ADD)
     return Y
 end
 

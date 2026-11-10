@@ -7,10 +7,31 @@ const ModeType = AbstractVector{<:Union{Char, Integer}}
 @enum_without_prefix visibility=:public cutensorAlgo_t CUTENSOR_
 @enum_without_prefix visibility=:public cutensorJitMode_t CUTENSOR_
 
+@public contract!, permute!, reduce!, elementwise_binary!, elementwise_trinary!,
+        plan_contraction, plan_permutation, plan_reduction,
+        plan_elementwise_binary, plan_elementwise_trinary
+
 is_unary(op::cutensorOperator_t) =  (op ∈ (OP_IDENTITY, OP_SQRT, OP_RELU, OP_CONJ, OP_RCP))
 is_binary(op::cutensorOperator_t) = (op ∈ (OP_ADD, OP_MUL, OP_MAX, OP_MIN))
 
-function elementwise_trinary_execute!(
+"""
+    elementwise_trinary!(alpha, A, Ainds, opA, beta, B, Binds, opB, gamma, C, Cinds, opC,
+                         D, Dinds, opAB, opABC;
+                         workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+                         compute_type=nothing, plan=nothing) -> D
+    elementwise_trinary!(plan::CuTensorPlan, alpha, A, beta, B, gamma, C, D) -> D
+
+Combine three tensors elementwise. Computes
+`D = opABC(opAB(alpha * opA(A), beta * opB(B)), gamma * opC(C))`, where `A` and `B` are
+permuted to match `C`'s modes, and returns `D`. `opA`, `opB` and `opC` are unary operators,
+`opAB` and `opABC` binary ones (`OP_ADD`, `OP_MUL`, `OP_MAX`, `OP_MIN`). `D` must have the
+same size, strides and element type as `C`, and may be `C` itself; it takes `C`'s modes,
+so `Dinds` is not used. See [`contract!`](@ref) for the modes, keyword arguments and the
+second form, which takes a plan from [`plan_elementwise_trinary`](@ref).
+
+Wraps `cutensorCreateElementwiseTrinary` and `cutensorElementwiseTrinaryExecute`.
+"""
+function elementwise_trinary!(
         @nospecialize(alpha::Number),
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
@@ -34,7 +55,7 @@ function elementwise_trinary_execute!(
         plan
     end
 
-    elementwise_trinary_execute!(actual_plan, alpha, A, beta, B, gamma, C, D)
+    elementwise_trinary!(actual_plan, alpha, A, beta, B, gamma, C, D)
 
     if plan === nothing
         CUDACore.unsafe_free!(actual_plan)
@@ -43,14 +64,14 @@ function elementwise_trinary_execute!(
     return D
 end
 
-function elementwise_trinary_execute!(plan::CuTensorPlan,
-                                      @nospecialize(alpha::Number),
-                                      @nospecialize(A::AbstractArray),
-                                      @nospecialize(beta::Number),
-                                      @nospecialize(B::AbstractArray),
-                                      @nospecialize(gamma::Number),
-                                      @nospecialize(C::AbstractArray),
-                                      @nospecialize(D::AbstractArray))
+function elementwise_trinary!(plan::CuTensorPlan,
+                              @nospecialize(alpha::Number),
+                              @nospecialize(A::AbstractArray),
+                              @nospecialize(beta::Number),
+                              @nospecialize(B::AbstractArray),
+                              @nospecialize(gamma::Number),
+                              @nospecialize(C::AbstractArray),
+                              @nospecialize(D::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorElementwiseTrinaryExecute(handle(), plan,
                                       Ref{scalar_type}(alpha), A,
@@ -60,6 +81,15 @@ function elementwise_trinary_execute!(plan::CuTensorPlan,
     return D
 end
 
+"""
+    plan_elementwise_trinary(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, D, Dinds, opAB, opABC;
+                             jit=JIT_MODE_NONE, workspace=WORKSPACE_DEFAULT,
+                             algo=ALGO_DEFAULT, compute_type=nothing) -> CuTensorPlan
+
+Plan the operation of [`elementwise_trinary!`](@ref) for arrays with the sizes, strides,
+element types and modes of `A`, `B`, `C` and `D`, to execute it several times. Wraps
+`cutensorCreateElementwiseTrinary` and `cutensorCreatePlan`.
+"""
 function plan_elementwise_trinary(
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::AbstractArray), Binds::ModeType, opB::cutensorOperator_t,
@@ -110,7 +140,22 @@ function plan_elementwise_trinary(
     return plan
 end
 
-function elementwise_binary_execute!(
+"""
+    elementwise_binary!(alpha, A, Ainds, opA, gamma, C, Cinds, opC, D, Dinds, opAC;
+                        workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+                        compute_type=nothing, plan=nothing) -> D
+    elementwise_binary!(plan::CuTensorPlan, alpha, A, gamma, C, D) -> D
+
+Combine two tensors elementwise. Computes `D = opAC(alpha * opA(A), gamma * opC(C))`,
+where `A` is permuted to match `C`'s modes, and returns `D`. `opA` and `opC` are unary
+operators, `opAC` is a binary one (`OP_ADD`, `OP_MUL`, `OP_MAX`, `OP_MIN`). `D` must have
+the same size, strides and element type as `C`, and may be `C` itself; it takes `C`'s
+modes, so `Dinds` is not used. See [`contract!`](@ref) for the modes, keyword arguments
+and the second form, which takes a plan from [`plan_elementwise_binary`](@ref).
+
+Wraps `cutensorCreateElementwiseBinary` and `cutensorElementwiseBinaryExecute`.
+"""
+function elementwise_binary!(
         @nospecialize(alpha::Number),
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(gamma::Number),
@@ -129,7 +174,7 @@ function elementwise_binary_execute!(
         plan
     end
 
-    elementwise_binary_execute!(actual_plan, alpha, A, gamma, C, D)
+    elementwise_binary!(actual_plan, alpha, A, gamma, C, D)
 
     if plan === nothing
         CUDACore.unsafe_free!(actual_plan)
@@ -138,12 +183,12 @@ function elementwise_binary_execute!(
     return D
 end
 
-function elementwise_binary_execute!(plan::CuTensorPlan,
-                                     @nospecialize(alpha::Number),
-                                     @nospecialize(A::AbstractArray),
-                                     @nospecialize(gamma::Number),
-                                     @nospecialize(C::AbstractArray),
-                                     @nospecialize(D::AbstractArray))
+function elementwise_binary!(plan::CuTensorPlan,
+                             @nospecialize(alpha::Number),
+                             @nospecialize(A::AbstractArray),
+                             @nospecialize(gamma::Number),
+                             @nospecialize(C::AbstractArray),
+                             @nospecialize(D::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorElementwiseBinaryExecute(handle(), plan,
                                      Ref{scalar_type}(alpha), A,
@@ -152,6 +197,15 @@ function elementwise_binary_execute!(plan::CuTensorPlan,
     return D
 end
 
+"""
+    plan_elementwise_binary(A, Ainds, opA, C, Cinds, opC, D, Dinds, opAC;
+                            jit=JIT_MODE_NONE, workspace=WORKSPACE_DEFAULT,
+                            algo=ALGO_DEFAULT, compute_type=eltype(C)) -> CuTensorPlan
+
+Plan the operation of [`elementwise_binary!`](@ref) for arrays with the sizes, strides,
+element types and modes of `A`, `C` and `D`, to execute it several times. Wraps
+`cutensorCreateElementwiseBinary` and `cutensorCreatePlan`.
+"""
 function plan_elementwise_binary(
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,
@@ -195,6 +249,21 @@ function plan_elementwise_binary(
     return plan
 end
 
+"""
+    cuTENSOR.permute!(alpha, A, Ainds, opA, B, Binds;
+                      workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+                      compute_type=nothing, plan=nothing) -> B
+    cuTENSOR.permute!(plan::CuTensorPlan, alpha, A, B) -> B
+
+Permute the dimensions of a tensor. Computes `B = alpha * opA(A)`, with `A`'s dimensions
+reordered from the modes `Ainds` to the modes `Binds`, and returns `B`. `opA` is a unary
+operator. See [`contract!`](@ref) for the modes, keyword arguments and the second form,
+which takes a plan from [`plan_permutation`](@ref).
+
+This function is not `Base.permute!`, which permutes a vector; call it qualified.
+
+Wraps `cutensorCreatePermutation` and `cutensorPermute`.
+"""
 function permute!(
         @nospecialize(alpha::Number),
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
@@ -231,6 +300,15 @@ function permute!(plan::CuTensorPlan,
     return B
 end
 
+"""
+    plan_permutation(A, Ainds, opA, B, Binds;
+                     jit=JIT_MODE_NONE, workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+                     compute_type=nothing) -> CuTensorPlan
+
+Plan the operation of [`permute!`](@ref) for arrays with the sizes, strides, element types
+and modes of `A` and `B`, to execute it several times. Wraps
+`cutensorCreatePermutation` and `cutensorCreatePlan`.
+"""
 function plan_permutation(
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::AbstractArray), Binds::ModeType;
@@ -265,6 +343,45 @@ function plan_permutation(
     return plan
 end
 
+"""
+    contract!(alpha, A, Ainds, opA, B, Binds, opB, beta, C, Cinds, opC, opOut;
+              jit=JIT_MODE_NONE, workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+              compute_type=nothing, plan=nothing) -> C
+    contract!(plan::CuTensorPlan, alpha, A, B, beta, C) -> C
+
+Contract two tensors. Computes `C = alpha * opA(A) * opB(B) + beta * C`, summing over the
+modes that `A` and `B` share but `C` does not, and returns `C`.
+
+The modes `Ainds`, `Binds` and `Cinds` label the dimensions of each array, one `Char` or
+integer per dimension; dimensions with the same label are matched. The arrays are dense
+`CuArray`s. `opA` and `opB` are unary operators applied to the elements (`OP_IDENTITY`,
+`OP_CONJ`, `OP_SQRT`, `OP_RELU` or `OP_RCP`). `opC` must be `OP_IDENTITY`, and `opOut`
+must be a unary operator but is not used.
+
+The keyword arguments, shared by the other operations, are:
+
+- `jit`: `JIT_MODE_DEFAULT` to compile a kernel for this operation, which can be faster
+  on recent GPUs (see [`write_cache!`](@ref)), or `JIT_MODE_NONE`. Only `contract!` and
+  the `plan_*` functions take it;
+- `workspace`: how much workspace memory cuTENSOR may use (`WORKSPACE_MIN`,
+  `WORKSPACE_DEFAULT` or `WORKSPACE_MAX`);
+- `algo`: the algorithm (`ALGO_DEFAULT`, `ALGO_DEFAULT_PATIENT`, `ALGO_GETT`,
+  `ALGO_TGETT` or `ALGO_TTGT`);
+- `compute_type`: the precision to compute in, as a type (`Float16`, `Float32` or
+  `Float64`) or a [`cutensorComputeDescriptorEnum`](@ref) value such as
+  `COMPUTE_DESC_TF32`. By default it follows from the element types;
+- `plan`: a [`CuTensorPlan`](@ref) from [`plan_contraction`](@ref) to use instead of
+  making a new one. Without it, a plan is made and freed for every call.
+
+The second form executes a plan made by [`plan_contraction`](@ref) on arrays with the
+sizes, strides and element types it was planned for, so that repeated contractions don't
+pay for planning. It does not free the plan.
+
+`contract!` also contracts block-sparse tensors ([`CuTensorBS`](@ref)), with an extra
+`reproducible::Bool` keyword argument; this is experimental.
+
+Wraps `cutensorCreateContraction` and `cutensorContract`.
+"""
 function contract!(
         @nospecialize(alpha::Number),
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
@@ -307,6 +424,15 @@ function contract!(plan::CuTensorPlan,
     return C
 end
 
+"""
+    plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut;
+                     jit=JIT_MODE_NONE, workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+                     compute_type=nothing) -> CuTensorPlan
+
+Plan the contraction of [`contract!`](@ref) for arrays with the sizes, strides, element
+types and modes of `A`, `B` and `C`, to execute it several times. Wraps
+`cutensorCreateContraction` and `cutensorCreatePlan`.
+"""
 function plan_contraction(
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(B::AbstractArray), Binds::ModeType, opB::cutensorOperator_t,
@@ -355,6 +481,21 @@ function plan_contraction(
     return plan
 end
 
+"""
+    reduce!(alpha, A, Ainds, opA, beta, C, Cinds, opC, opReduce;
+            workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+            compute_type=nothing, plan=nothing) -> C
+    reduce!(plan::CuTensorPlan, alpha, A, beta, C) -> C
+
+Reduce a tensor over some of its dimensions. Computes
+`C = alpha * opReduce(opA(A)) + beta * opC(C)`, where the binary operator `opReduce`
+(`OP_ADD`, `OP_MUL`, `OP_MAX`, `OP_MIN`) combines the elements along the modes of `A` that
+are not in `Cinds`, and returns `C`. `opA` and `opC` are unary operators. See
+[`contract!`](@ref) for the modes, keyword arguments and the second form, which takes a
+plan from [`plan_reduction`](@ref).
+
+Wraps `cutensorCreateReduction` and `cutensorReduce`.
+"""
 function reduce!(
         @nospecialize(alpha::Number),
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
@@ -393,6 +534,15 @@ function reduce!(plan::CuTensorPlan,
     return C
 end
 
+"""
+    plan_reduction(A, Ainds, opA, C, Cinds, opC, opReduce;
+                   jit=JIT_MODE_NONE, workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
+                   compute_type=nothing) -> CuTensorPlan
+
+Plan the reduction of [`reduce!`](@ref) for arrays with the sizes, strides, element types
+and modes of `A` and `C`, to execute it several times. Wraps
+`cutensorCreateReduction` and `cutensorCreatePlan`.
+"""
 function plan_reduction(
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(C::AbstractArray), Cinds::ModeType, opC::cutensorOperator_t,

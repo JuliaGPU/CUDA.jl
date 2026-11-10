@@ -1,5 +1,11 @@
 export CUTENSORError
 
+"""
+    CUTENSORError(code::cutensorStatus_t)
+
+The exception thrown when a cuTENSOR call fails. `code` is the status that cuTENSOR
+returned.
+"""
 struct CUTENSORError <: Exception
     code::cutensorStatus_t
 end
