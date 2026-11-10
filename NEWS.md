@@ -45,6 +45,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `CUDA.@profile` no longer deadlocks when NVTX.jl's GC hooks are enabled
   (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
   CUPTI can request one while Julia collects garbage.
+- `CUPTI.library_version()` works on Windows with CUDA 13.5, whose CUPTI DLL no longer
+  has the release version in its file name. On Windows, the version is now read from the
+  DLL's version resource.
 
 
 ## v6.5 (October 2026)

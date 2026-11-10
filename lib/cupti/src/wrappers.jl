@@ -64,25 +64,49 @@ end
 
 The release version of the loaded CUPTI library, e.g. `v"2026.4.0"`, which recent CUPTI
 releases number by year. It changes with every release, so use it to work around bugs in a
-specific CUPTI library, and [`CUPTI.version`](@ref) to check for API features. It is read
-from the file name of the library, as NVIDIA suggests.
+specific CUPTI library, and [`CUPTI.version`](@ref) to check for API features. CUPTI has
+no API for it, so it is read from the library's file name on Linux, as NVIDIA suggests, and
+from the DLL's version resource on Windows.
 """
 function library_version()
-    filename = basename(realpath(libcupti))
-    rx = if Sys.islinux()
-        r"libcupti.so.(\d+)\.(\d+)\.(\d+)"
+    if Sys.islinux()
+        filename = basename(realpath(libcupti))
+        m = match(r"libcupti.so.(\d+)\.(\d+)\.(\d+)", filename)
+        if m === nothing
+            error("Could not extract version number from CUPTI library `$filename`; please file an issue.")
+        end
+        VersionNumber(parse(Int, m.captures[1]),
+                      parse(Int, m.captures[2]),
+                      parse(Int, m.captures[3]))
     elseif Sys.iswindows()
-        r"cupti64_(\d+).(\d+).(\d+).dll"
+        # from CUDA 13.5 the DLL is named after the CUDA major version only (`cupti64_13.dll`)
+        dll_file_version(libcupti)
     else
         error("Unsupported platform; please file an issue with the following information:\n$(sprint(versioninfo))")
     end
-    m = match(rx, filename)
-    if m === nothing
-        error("Could not extract version number from CUPTI library `$filename`; please file an issue.")
+end
+
+# the first three components of the FileVersion in a DLL's version resource
+function dll_file_version(path::AbstractString)
+    size = @ccall "version".GetFileVersionInfoSizeW(path::Cwstring, C_NULL::Ptr{UInt32})::UInt32
+    size == 0 && Base.windowserror(:GetFileVersionInfoSizeW)
+    data = Vector{UInt8}(undef, size)
+    GC.@preserve data begin
+        ok = @ccall "version".GetFileVersionInfoW(path::Cwstring, 0::UInt32, size::UInt32,
+                                                  data::Ptr{UInt8})::Cint
+        ok == 0 && Base.windowserror(:GetFileVersionInfoW)
+
+        # "\" selects the language-independent VS_FIXEDFILEINFO, whose fields are UInt32s:
+        # dwSignature, dwStrucVersion, dwFileVersionMS, dwFileVersionLS, ...
+        info = Ref{Ptr{UInt32}}()
+        len = Ref{UInt32}()
+        ok = @ccall "version".VerQueryValueW(data::Ptr{UInt8}, "\\"::Cwstring,
+                                             info::Ptr{Ptr{UInt32}}, len::Ptr{UInt32})::Cint
+        ok == 0 && error("CUPTI library `$path` has no version resource; please file an issue.")
+        ms = unsafe_load(info[], 3)
+        ls = unsafe_load(info[], 4)
     end
-    VersionNumber(parse(Int, m.captures[1]),
-                  parse(Int, m.captures[2]),
-                  parse(Int, m.captures[3]))
+    VersionNumber(ms >> 16, ms & 0xffff, ls >> 16)
 end
 
 """
