@@ -1,5 +1,11 @@
 export CUSPARSEError
 
+"""
+    CUSPARSEError
+
+Exception thrown when a cuSPARSE call returns an error status. The `code` field holds the
+`cusparseStatus_t`.
+"""
 struct CUSPARSEError <: Exception
     code::cusparseStatus_t
 end

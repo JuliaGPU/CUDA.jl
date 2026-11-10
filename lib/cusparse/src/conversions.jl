@@ -54,7 +54,7 @@ function SparseArrays.sparse(I::CuVector{Cint}, J::CuVector{Cint}, V::CuVector{T
     # find groups of values that correspond to the same position in the matrix.
     # if there's no duplicates, `groups` will just be a vector of ones.
     # otherwise, it will contain gaps of zeros that indicates duplicate values.
-    coo = sort_coo(coo, 'R')
+    coo = sort_coo(coo)
     groups = similar(I, Int)
     function find_groups(groups, I, J)
         i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
@@ -192,7 +192,15 @@ end
 
 cint_indices(x::CuVector) = convert(CuVector{Cint}, x)
 
-function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}, index::SparseChar='O') where {Tv,Ti}
+"""
+    sort_csc(A::CuSparseMatrixCSC; index='O') -> CuSparseMatrixCSC
+
+Return a copy of `A` with the row indices sorted within each column.
+
+Wraps `cusparseXcscsort`, which uses 32-bit indices: an error is thrown when the size or
+number of nonzeros of `A` doesn't fit.
+"""
+function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}; index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
     check_cint_indices("sort_csc", m, n, nnz(A) + 1)
@@ -216,7 +224,15 @@ function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}, index::SparseChar='O') where {Tv,
     CuSparseMatrixCSC{Tv,Ti}(sorted_colPtr, sorted_rowVal, sorted_nzVal, size(A))
 end
 
-function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}, index::SparseChar='O') where {Tv,Ti}
+"""
+    sort_csr(A::CuSparseMatrixCSR; index='O') -> CuSparseMatrixCSR
+
+Return a copy of `A` with the column indices sorted within each row.
+
+Wraps `cusparseXcsrsort`, which uses 32-bit indices: an error is thrown when the size or
+number of nonzeros of `A` doesn't fit.
+"""
+function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}; index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
     (iszero(m) || iszero(n)) && return A
@@ -241,9 +257,18 @@ function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}, index::SparseChar='O') where {Tv,
     CuSparseMatrixCSR{Tv,Ti}(sorted_rowPtr, sorted_colVal, sorted_nzVal, size(A))
 end
 
-function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,Ti}
+"""
+    sort_coo(A::CuSparseMatrixCOO; by=:row) -> CuSparseMatrixCOO
 
-    type == 'R' || type == 'C' || throw(ArgumentError("type=$type was used and only type='R' and type='C' are supported."))
+Return a copy of `A` with its entries sorted by row (`by = :row`), or by column
+(`by = :col`).
+
+Wraps `cusparseXcoosortByRow` and `cusparseXcoosortByColumn`, which use 32-bit indices: an
+error is thrown when the size or number of nonzeros of `A` doesn't fit.
+"""
+function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}; by::Symbol=:row) where {Tv,Ti}
+
+    by in (:row, :col) || throw(ArgumentError("sort_coo can sort by :row or :col, not :$by"))
 
     m,n = size(A)
     check_cint_indices("sort_coo", m, n, nnz(A))
@@ -262,8 +287,8 @@ function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,T
         return out[]
     end
     with_workspace(bufferSize) do buffer
-        type == 'R' && cusparseXcoosortByRow(handle(), m, n, nnz(A), sorted_rowInd, sorted_colInd, perm, buffer)
-        type == 'C' && cusparseXcoosortByColumn(handle(), m, n, nnz(A), sorted_rowInd, sorted_colInd, perm, buffer)
+        by == :row && cusparseXcoosortByRow(handle(), m, n, nnz(A), sorted_rowInd, sorted_colInd, perm, buffer)
+        by == :col && cusparseXcoosortByColumn(handle(), m, n, nnz(A), sorted_rowInd, sorted_colInd, perm, buffer)
     end
 
     perm .+= one(Cint)
@@ -272,10 +297,24 @@ function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}, type::SparseChar='R') where {Tv,T
     CuSparseMatrixCOO{Tv,Ti}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(A))
 end
 
+@public prune
+
+"""
+    prune(A, threshold; index='O')
+
+Return a copy of the sparse CSR or CSC matrix `A` without the entries whose absolute value is
+not larger than `threshold`.
+
+Wraps `cusparse<t>pruneCsr2csr`, which NVIDIA has deprecated, for the `Float32` and
+`Float64` element types. It uses 32-bit indices: an error is thrown when the size or number
+of nonzeros of `A` doesn't fit.
+"""
+function prune end
+
 for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusparseSpruneCsr2csrNnz, :cusparseSpruneCsr2csr, :Float32),
                                     (:cusparseDpruneCsr2csr_bufferSizeExt, :cusparseDpruneCsr2csrNnz, :cusparseDpruneCsr2csr, :Float64))
     @eval begin
-        function prune(A::CuSparseMatrixCSR{$elty, Ti}, threshold::Number, index::SparseChar) where {Ti}
+        function prune(A::CuSparseMatrixCSR{$elty, Ti}, threshold::Number; index::SparseChar='O') where {Ti}
             m, n = size(A)
             check_cint_indices("prune", m, n, nnz(A) + 1)
             rowPtr = cint_indices(A.rowPtr)
@@ -305,7 +344,7 @@ for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusp
             end
         end
 
-        function prune(A::CuSparseMatrixCSC{$elty, Ti}, threshold::Number, index::SparseChar) where {Ti}
+        function prune(A::CuSparseMatrixCSC{$elty, Ti}, threshold::Number; index::SparseChar='O') where {Ti}
             m, n = size(A)
             check_cint_indices("prune", m, n, nnz(A) + 1)
             colPtr = cint_indices(A.colPtr)
@@ -545,7 +584,7 @@ CUDACore.CuVector(x::CuSparseVector{T}) where {T} = CuVector{T}(x)
 function CUDACore.CuVector{T}(sv::CuSparseVector{T}) where {T}
     n = length(sv)
     dv = CUDACore.zeros(T, n)
-    scatter!(dv, sv, 'O')
+    scatter!(dv, sv)
 end
 
 ## CSR to BSR and vice-versa
@@ -682,7 +721,7 @@ function CuSparseMatrixCSR{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::Sparse
         # cusparseXcoo2csr does not initialize csrRowPtr correctly if m == 0
         csrRowPtr .= (index == 'O' ? one(Cint) : zero(Cint))
     end
-    coo = sort_coo(coo, 'R')
+    coo = sort_coo(coo)
     cusparseXcoo2csr(handle(), cint_indices(coo.rowInd), nnz(coo), m, csrRowPtr, index)
     CuSparseMatrixCSR{Tv,Ti}(csrRowPtr, coo.colInd, nonzeros(coo), size(coo))
 end
@@ -709,7 +748,7 @@ function CuSparseMatrixCSC{Tv, Ti}(coo::CuSparseMatrixCOO{Tv, Ti}; index::Sparse
         # cusparseXcoo2csr does not initialize cscColPtr correctly if n == 0
         cscColPtr .= (index == 'O' ? one(Cint) : zero(Cint))
     end
-    coo = sort_coo(coo, 'C')
+    coo = sort_coo(coo; by=:col)
     cusparseXcoo2csr(handle(), cint_indices(coo.colInd), nnz(coo), n, cscColPtr, index)
     CuSparseMatrixCSC{Tv,Ti}(cscColPtr, coo.rowInd, nonzeros(coo), size(coo))
 end
@@ -722,7 +761,7 @@ function CuSparseMatrixCOO{Tv, Ti}(csc::CuSparseMatrixCSC{Tv, Ti}; index::Sparse
     cooColInd = CuVector{Cint}(undef, nnz(csc))
     cusparseXcsr2coo(handle(), cint_indices(csc.colPtr), nnz(csc), n, cooColInd, index)
     coo = CuSparseMatrixCOO{Tv,Ti}(csc.rowVal, cooColInd, nonzeros(csc), size(csc))
-    coo = sort_coo(coo, 'R')
+    coo = sort_coo(coo)
 end
 CuSparseMatrixCOO{Tv}(csc::CuSparseMatrixCSC{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCOO{Tv, Ti}(csc; index)
 CuSparseMatrixCOO(csc::CuSparseMatrixCSC{Tv, Ti}; index::SparseChar='O') where {Tv, Ti} = CuSparseMatrixCOO{Tv, Ti}(csc; index)
@@ -752,13 +791,13 @@ Base.copyto!(dest::Matrix{T}, src::AbstractCuSparseMatrix{T}) where T = copyto!(
 
 function CuSparseMatrixCSR(A::CuMatrix{T}; index::SparseChar='O', sorted::Bool=false) where {T}
     csr = densetosparse(A, :csr, index)
-    csr = sorted ? sort_csr(csr, index) : csr
+    csr = sorted ? sort_csr(csr; index) : csr
     return csr
 end
 
 function CuSparseMatrixCSC(A::CuMatrix{T}; index::SparseChar='O', sorted::Bool=false) where {T}
     csc = densetosparse(A, :csc, index)
-    csc = sorted ? sort_csc(csc, index) : csc
+    csc = sorted ? sort_csc(csc; index) : csc
     return csc
 end
 

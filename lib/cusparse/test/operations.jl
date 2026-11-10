@@ -9,9 +9,9 @@
                                               CuSparseMatrixCSC(A)]
             d_x = CuArray(x)
             d_y = CuArray(y)
-            @test_throws DimensionMismatch cuSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
-            @test_throws DimensionMismatch cuSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-            cuSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch cuSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y)
+            @test_throws DimensionMismatch cuSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x)
+            cuSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y)
             h_z = collect(d_y)
             z = alpha * A * x + beta * y
             @test z ≈ h_z
@@ -19,12 +19,22 @@
         @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixBSR(A, blockdim)]
             d_x = CuArray(x)
             d_y = CuArray(y)
-            @test_throws DimensionMismatch cuSPARSE.mv2!('T',alpha,d_A,d_x,beta,d_y,'O')
-            @test_throws DimensionMismatch cuSPARSE.mv2!('N',alpha,d_A,d_y,beta,d_x,'O')
-            cuSPARSE.mv2!('N',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch cuSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y)
+            @test_throws DimensionMismatch cuSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x)
+            cuSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y)
             h_z = collect(d_y)
             z = alpha * A * x + beta * y
             @test z ≈ h_z
+
+            # the bsrmv fallback that mv! uses before cuSPARSE 12.6.3, also for matrices
+            # with 64-bit indices and sizes that are not a multiple of the block size
+            d_A64 = CuSparseMatrixBSR{elty, Int64}(CuSparseMatrixCSR{elty, Int64}(A), blockdim)
+            for d_A in (d_A, d_A64, CuSparseMatrixBSR(CuSparseMatrixCSR(A), 4))
+                d_y = CuArray(y)
+                @test_throws DimensionMismatch cuSPARSE.bsrmv!('N',alpha,d_A,d_y,beta,d_y,'O')
+                cuSPARSE.bsrmv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                @test collect(d_y) ≈ z
+            end
         end
     end
 
@@ -39,9 +49,9 @@
                                               CuSparseMatrixCSC(A)]
             d_x = CuArray(x)
             d_y = CuArray(y)
-            @test_throws DimensionMismatch cuSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
-            @test_throws DimensionMismatch cuSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-            cuSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch cuSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y)
+            @test_throws DimensionMismatch cuSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x)
+            cuSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y)
             h_z = collect(d_y)
             z = alpha * A * x + beta * y
             @test z ≈ h_z
@@ -64,11 +74,11 @@ end
                                               CuSparseMatrixCSC(A)]
             d_B = CuArray(B)
             d_C = CuArray(C)
-            @test_throws DimensionMismatch cuSPARSE.mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch cuSPARSE.mm!('T','N',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch cuSPARSE.mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch cuSPARSE.mm!('N','N',alpha,d_A,d_B,beta,d_B,'O')
-            cuSPARSE.mm!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+            @test_throws DimensionMismatch cuSPARSE.mm!('N','T',alpha,d_A,d_B,beta,d_C)
+            @test_throws DimensionMismatch cuSPARSE.mm!('T','N',alpha,d_A,d_B,beta,d_C)
+            @test_throws DimensionMismatch cuSPARSE.mm!('T','T',alpha,d_A,d_B,beta,d_C)
+            @test_throws DimensionMismatch cuSPARSE.mm!('N','N',alpha,d_A,d_B,beta,d_B)
+            cuSPARSE.mm!('N','N',alpha,d_A,d_B,beta,d_C)
             h_D = collect(d_C)
             D = alpha * A * B + beta * C
             @test D ≈ h_D
@@ -93,7 +103,7 @@ end
             dy = CuArray(y)
             alpha = rand(elty)
             beta = rand(elty)
-            gemvi!(transa,alpha,dA,dx,beta,dy,'O')
+            gemvi!(transa,alpha,dA,dx,beta,dy)
             z = alpha * opa(A) * x + beta * y
             @test z ≈ collect(dy)
         end
@@ -106,7 +116,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
             A = sprand(T, 50, 50, 0.03)
             A = A + A'
             dA = SparseMatrixType(A)
-            ncolors, coloring, reordering = color(dA, 'O')
+            ncolors, coloring, reordering = color(dA)
             @test 1 ≤ ncolors ≤ 50
             @test maximum(coloring) == ncolors
             @test minimum(reordering) == 1
@@ -127,7 +137,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR]
             # {1, 3, 4} and another one for {2, 5}.
             @testset "5x5 example -- color $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
                 dA = SparseMatrixType{T}(A)
-                ncolors, coloring, reordering = color(dA, 'O')
+                ncolors, coloring, reordering = color(dA)
                 @test ncolors == 2
                 @test minimum(reordering) == 1
                 @test maximum(reordering) == 5

@@ -1,13 +1,15 @@
 export geam, axpby
 
 """
-    geam(alpha::Number, A::CuSparseMatrix, beta::Number, B::CuSparseMatrix, index::SparseChar)
+    geam(alpha, A, beta, B; index='O') -> C
 
-Performs `C = alpha * A + beta * B`. `A` and `B` are sparse matrices defined in CSR or CSC storage formats.
+Compute `C = alpha * A + beta * B` into a new sparse matrix, for sparse matrices `A` and `B`
+that are both in CSR or both in CSC format. This is what `A + B` and `A - B` use.
+
+Wraps `cusparseSpGEAM` from cuSPARSE 12.8.1, and `cusparse<t>csrgeam2` before, for the
+`Float32`, `Float64`, `ComplexF32` and `ComplexF64` element types.
 """
-geam(alpha::Number, A::CuSparseMatrixCSR, beta::Number, B::CuSparseMatrixCSR, index::SparseChar)
-
-function geam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::CuSparseMatrixCSR{T}, index::SparseChar) where {T <: BlasFloat}
+function geam(alpha::Number, A::CuSparseMatrixCSR{T}, beta::Number, B::CuSparseMatrixCSR{T}; index::SparseChar='O') where {T <: BlasFloat}
     # the generic SpGEAM API was added in cuSPARSE 12.8.1 (CUDA 13.3); use the
     # legacy csrgeam2 path on older versions.
     version() >= v"12.8.1" ? geam_spgeam(alpha, A, beta, B, index) :
@@ -99,26 +101,28 @@ for (bname,gname,elty) in ((:cusparseScsrgeam2_bufferSizeExt, :cusparseScsrgeam2
     end
 end
 
-function geam(alpha::Number, A::CuSparseMatrixCSC{T}, beta::Number, B::CuSparseMatrixCSC{T}, index::SparseChar) where {T <: BlasFloat}
+function geam(alpha::Number, A::CuSparseMatrixCSC{T}, beta::Number, B::CuSparseMatrixCSC{T}; index::SparseChar='O') where {T <: BlasFloat}
     m, n = size(A)
     (m, n) == size(B) || throw(DimensionMismatch("dimensions must match: A has dims $(size(A)), B has dims $(size(B))"))
 
     Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, (n, m))
     Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, (n, m))
-    Cᵀ = geam(alpha, Aᵀ, beta, Bᵀ, index)
+    Cᵀ = geam(alpha, Aᵀ, beta, Bᵀ; index)
 
     C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, (m, n))
     return C
 end
 
 """
-    axpby(alpha::Number, x::CuSparseVector, beta::Number, y::CuSparseVector, index::SparseChar)
+    axpby(alpha, x::CuSparseVector, beta, y::CuSparseVector; index='O') -> CuSparseVector
 
-Performs `z = alpha * x + beta * y`. `x` and `y` are sparse vectors.
+Compute `alpha * x + beta * y` into a new sparse vector, for sparse vectors `x` and `y`. This
+is what `x + y` and `x - y` use. To add a sparse vector to a dense one in place, use
+[`axpby!`](@ref).
+
+Computed with [`geam`](@ref), treating `x` and `y` as sparse matrices with one row.
 """
-axpby(alpha::Number, x::CuSparseVector, beta::Number, y::CuSparseVector, index::SparseChar)
-
-function axpby(alpha::Number, x::CuSparseVector{T}, beta::Number, y::CuSparseVector{T}, index::SparseChar) where {T <: BlasFloat}
+function axpby(alpha::Number, x::CuSparseVector{T}, beta::Number, y::CuSparseVector{T}; index::SparseChar='O') where {T <: BlasFloat}
     n = length(x)
     n == length(y) || throw(DimensionMismatch("dimensions must match: x has length $(length(x)), y has length $(length(y))"))
 
@@ -130,7 +134,7 @@ function axpby(alpha::Number, x::CuSparseVector{T}, beta::Number, y::CuSparseVec
     rowPtrB = CuVector{Int32}([1; nnz(y)+1])
     B = CuSparseMatrixCSR(rowPtrB, y.iPtr, nonzeros(y), (1,n))
 
-    C = geam(alpha, A, beta, B, index)
+    C = geam(alpha, A, beta, B; index)
     z = CuSparseVector(C.colVal, C.nzVal, n)
     return z
 end

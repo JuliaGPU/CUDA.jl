@@ -407,7 +407,7 @@ end
             A = sprand(T, 20, 10, 0.7)
             threshold = T(0.5)
             dA = SparseMatrixType(A)
-            dC = cuSPARSE.prune(dA, threshold, 'O')
+            dC = cuSPARSE.prune(dA, threshold)
             @test droptol!(A, threshold) ≈ collect(dC)
         end
     end
@@ -507,7 +507,7 @@ end
 
     A = sprand(Float32, 10, 8, 0.7)
     for T in (CuSparseMatrixCSC, CuSparseMatrixCSR)
-        dC = cuSPARSE.prune(with_indices(T(A)), 0.5f0, 'O')
+        dC = cuSPARSE.prune(with_indices(T(A)), 0.5f0)
         @test dC isa T{Float32, Ti}
         @test collect(dC) ≈ droptol!(copy(A), 0.5f0)
     end
@@ -527,13 +527,13 @@ end
         vals = [9, 7, 8, 4, 6, 5] |> cu
         coo = CuSparseMatrixCOO{Int, Ti}(rows, cols, vals, (3,3))
 
-        sorted_coo_R = sort_coo(coo, 'R')
+        sorted_coo_R = sort_coo(coo; by=:row)
         @test sorted_coo_R isa CuSparseMatrixCOO{Int, Ti}
         @test collect(sorted_coo_R.rowInd) ≈ [1, 1, 2, 2, 3, 3]
         @test collect(sorted_coo_R.colInd) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_coo_R.nzVal)  ≈ [5, 7, 8, 6, 4, 9]
 
-        sorted_coo_C = sort_coo(coo, 'C')
+        sorted_coo_C = sort_coo(coo; by=:col)
         @test collect(sorted_coo_C.rowInd) ≈ [1, 2, 1, 3, 2, 3]
         @test collect(sorted_coo_C.colInd) ≈ [1, 1, 2, 2, 3, 3]
         @test collect(sorted_coo_C.nzVal)  ≈ [5, 8, 7, 4, 6, 9]

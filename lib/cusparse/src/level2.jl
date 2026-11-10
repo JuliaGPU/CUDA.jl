@@ -1,51 +1,75 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-export sv2!, sv2, mv2!, gemvi!
+export sv2!, sv2, gemvi!
 
+# bsrmv, used by `mv!` for BSR matrices before cuSPARSE 12.6.3
 for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseDbsrmv, :Float64),
                      (:cusparseCbsrmv, :ComplexF32),
                      (:cusparseZbsrmv, :ComplexF64))
     @eval begin
-        function mv2!(transa::SparseChar,
-                      alpha::Number,
-                      A::CuSparseMatrixBSR{$elty},
-                      X::CuVector{$elty},
-                      beta::Number,
-                      Y::CuVector{$elty},
-                      index::SparseChar)
+        function bsrmv!(transa::SparseChar,
+                        alpha::Number,
+                        A::CuSparseMatrixBSR{$elty},
+                        X::DenseCuVector{$elty},
+                        beta::Number,
+                        Y::DenseCuVector{$elty},
+                        index::SparseChar)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
 
-            desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
-            mb = div(m,A.blockDim)
-            nb = div(n,A.blockDim)
             if transa == 'N'
                 chkmvdims(X,n,Y,m)
             end
             if transa == 'T' || transa == 'C'
                 chkmvdims(X,m,Y,n)
             end
+            mb = cld(m, A.blockDim)
+            nb = cld(n, A.blockDim)
+            check_cint_indices("bsrmv", mb, nb, A.nnzb + 1)
+            rowPtr = cint_indices(A.rowPtr)
+            colVal = cint_indices(A.colVal)
+            desc = CuMatrixDescriptor('G', 'L', 'N', index)
+            # bsrmv accesses whole blocks of X and Y, so pad them when the dimensions of
+            # A are not a multiple of the block size
+            Xp, Yp = X, Y
+            if length(X) % A.blockDim != 0
+                Xp = CUDACore.zeros($elty, cld(length(X), A.blockDim) * A.blockDim)
+                copyto!(Xp, 1, X, 1, length(X))
+            end
+            if length(Y) % A.blockDim != 0
+                Yp = CUDACore.zeros($elty, cld(length(Y), A.blockDim) * A.blockDim)
+                copyto!(Yp, 1, Y, 1, length(Y))
+            end
             $fname(handle(), A.dir, transa, mb, nb,
-                   nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
-                   A.colVal, A.blockDim, X, beta, Y)
+                   A.nnzb, alpha, desc, nonzeros(A), rowPtr,
+                   colVal, A.blockDim, Xp, beta, Yp)
+            Yp === Y || copyto!(Y, 1, Yp, 1, length(Y))
             Y
         end
     end
 end
+bsrmv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixBSR, X::DenseCuVector,
+       beta::Number, Y::DenseCuVector, index::SparseChar) =
+    throw(ErrorException("This operation is not supported by the current CUDA version."))
 
 """
-    sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
+    sv2!(transa, uplo, diag, alpha, A::CuSparseMatrixBSR, X::CuVector; index='O') -> X
 
-Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), transpose
-(`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense vector, and `uplo`
-tells `sv2!` which triangle of the block sparse matrix `A` to reference.
-If the triangle has unit diagonal, set `diag` to 'U'.
+Solve `op(A) * Y = alpha * X` in place in `X`, where `A` is a sparse triangular matrix in BSR
+format and `transa` selects `op` (`'N'`, `'T'` or `'C'`).
+
+`uplo` selects the triangle of `A` to use (`'U'` or `'L'`), and `diag` is `'U'` for a unit
+diagonal, which is not read, or `'N'`. An error is thrown when the diagonal has a structural
+or numerical zero. For CSR, CSC and COO matrices, use [`sv!`](@ref).
+
+Wraps `cusparse<t>bsrsv2_solve`, which NVIDIA has deprecated, for the `Float32`, `Float64`,
+`ComplexF32` and `ComplexF64` element types.
 """
-sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
+function sv2! end
 
 # bsrsv2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_analysis, :cusparseSbsrsv2_solve, :Float32),
@@ -58,8 +82,8 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                       diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixBSR{$elty},
-                      X::CuVector{$elty},
-                      index::SparseChar)
+                      X::CuVector{$elty};
+                      index::SparseChar='O')
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -104,20 +128,36 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
     end
 end
 
+"""
+    sv2(transa, uplo, [diag='N'], [alpha=1], A::CuSparseMatrixBSR, X::CuVector; index='O') -> Y
+
+Solve `op(A) * Y = alpha * X` for `Y`, like [`sv2!`](@ref) but without overwriting `X`.
+`alpha` can only be given together with `diag`.
+"""
 function sv2(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-             A::CuSparseMatrixBSR{T}, X::CuVector{T}, index::SparseChar) where T
-    sv2!(transa,uplo,diag,alpha,A,copy(X),index)
+             A::CuSparseMatrixBSR{T}, X::CuVector{T}; index::SparseChar='O') where T
+    sv2!(transa,uplo,diag,alpha,A,copy(X); index)
 end
 function sv2(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
-             A::CuSparseMatrixBSR{T}, X::CuVector{T}, index::SparseChar) where T
-    sv2!(transa,uplo,diag,one(T),A,copy(X),index)
+             A::CuSparseMatrixBSR{T}, X::CuVector{T}; index::SparseChar='O') where T
+    sv2!(transa,uplo,diag,one(T),A,copy(X); index)
 end
 function sv2(transa::SparseChar, uplo::SparseChar,
-             A::CuSparseMatrixBSR{T}, X::CuVector{T}, index::SparseChar) where T
-    sv2!(transa,uplo,'N',one(T),A,copy(X),index)
+             A::CuSparseMatrixBSR{T}, X::CuVector{T}; index::SparseChar='O') where T
+    sv2!(transa,uplo,'N',one(T),A,copy(X); index)
 end
 
-# gemvi!
+"""
+    gemvi!(transa, alpha, A::CuMatrix, X::CuSparseVector, beta, Y::CuVector; index='O') -> Y
+
+Compute `Y = alpha * op(A) * X + beta * Y` for a dense matrix `A`, a sparse vector `X` and a
+dense vector `Y`, where `transa` selects `op` (`'N'`, `'T'` or, for real matrices, `'C'`).
+
+Wraps `cusparse<t>gemvi`, which NVIDIA deprecated in CUDA 12.8, for the `Float32`,
+`Float64`, `ComplexF32` and `ComplexF64` element types.
+"""
+function gemvi! end
+
 for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float32),
                            (:cusparseDgemvi_bufferSize, :cusparseDgemvi, :Float64),
                            (:cusparseCgemvi_bufferSize, :cusparseCgemvi, :ComplexF32),
@@ -128,8 +168,8 @@ for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float3
                         A::CuMatrix{$elty},
                         X::CuSparseVector{$elty},
                         beta::Number,
-                        Y::CuVector{$elty},
-                        index::SparseChar)
+                        Y::CuVector{$elty};
+                        index::SparseChar='O')
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa

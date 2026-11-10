@@ -11,8 +11,25 @@ using LinearAlgebra: BlasFloat
 using SparseArrays
 using SparseArrays: nonzeroinds, nonzeros, rowvals, getcolptr, dimlub
 abstract type AbstractCuSparseVector{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 1} end
+
+"""
+    AbstractCuSparseMatrix{Tv, Ti}
+
+Abstract supertype of [`CuSparseMatrixBSR`](@ref) and [`CuSparseMatrixCOO`](@ref).
+[`CuSparseMatrixCSC`](@ref) and [`CuSparseMatrixCSR`](@ref) are subtypes of GPUArrays'
+abstract CSC and CSR types instead, so use [`CuSparseMatrix`](@ref) to dispatch on all
+sparse matrix formats.
+"""
 abstract type AbstractCuSparseMatrix{Tv, Ti} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, 2} end
 
+"""
+    CuSparseVector{Tv, Ti}
+
+Sparse vector on the GPU, holding the indices of its nonzeros (`Ti`, `Cint` by default) and
+their values (`Tv`), like `SparseVector`. Construct it from a `SparseVector`, as
+`CuSparseVector(x)`, or from its parts as `CuSparseVector(nzind::CuVector, nzval::CuVector,
+len)`.
+"""
 mutable struct CuSparseVector{Tv, Ti} <: AbstractCuSparseVector{Tv, Ti}
     iPtr::CuVector{Ti}
     nzVal::CuVector{Tv}
@@ -32,10 +49,12 @@ function CUDACore.unsafe_free!(xs::CuSparseVector)
 end
 
 """
-    CuSparseMatrixCSC
+    CuSparseMatrixCSC{Tv, Ti}
 
 Container to hold sparse matrices in compressed sparse column (CSC) format on the
-GPU.
+GPU, like `SparseMatrixCSC`. Construct it from a `SparseMatrixCSC`, a dense `CuMatrix`
+(with the `index` keyword), another sparse format, or from its parts as
+`CuSparseMatrixCSC(colPtr, rowVal, nzVal, dims)`.
 
 !!! note
     Most CUSPARSE operations work with CSR formatted matrices, rather
@@ -70,10 +89,11 @@ function CUDACore.unsafe_free!(xs::CuSparseMatrixCSC)
 end
 
 """
-    CuSparseMatrixCSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
+    CuSparseMatrixCSR{Tv, Ti}
 
 Container to hold sparse matrices in compressed sparse row (CSR) format on the
-GPU.
+GPU. Construct it from a `SparseMatrixCSC`, a dense `CuMatrix` (with the `index` keyword),
+another sparse format, or from its parts as `CuSparseMatrixCSR(rowPtr, colVal, nzVal, dims)`.
 
 !!! note
     Most CUSPARSE operations work with CSR formatted matrices, rather
@@ -113,11 +133,15 @@ GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSC}) = CuArray
 GPUArrays.dense_array_type(::Type{<:CuSparseMatrixCSR}) = CuArray
 
 """
-    CuSparseMatrixBSR
+    CuSparseMatrixBSR{Tv, Ti}
 
 Container to hold sparse matrices in block compressed sparse row (BSR) format on
 the GPU. BSR format is also used in Intel MKL, and is suited to matrices that are
 "block" sparse - rare blocks of non-sparse regions.
+
+Construct it from another sparse format or a dense `CuMatrix` and a block size, as
+`CuSparseMatrixBSR(A, blockDim)`. The blocks are stored row-major, unless converted from a
+CSR matrix with `CuSparseMatrixBSR{Tv}(A, blockDim; dir='C')`.
 """
 mutable struct CuSparseMatrixBSR{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     rowPtr::CuVector{Ti}
@@ -145,11 +169,15 @@ function CUDACore.unsafe_free!(xs::CuSparseMatrixBSR)
 end
 
 """
-    CuSparseMatrixCOO
+    CuSparseMatrixCOO{Tv, Ti}
 
 Container to hold sparse matrices in coordinate (COO) format on the GPU. COO
 format is mainly useful to initially construct sparse matrices, afterwards
 switch to [`CuSparseMatrixCSR`](@ref) for more functionality.
+
+Construct it from its parts as `CuSparseMatrixCOO(rowInd, colInd, nzVal, dims)`, or with
+`sparse(I::CuVector, J::CuVector, V::CuVector, m, n; fmt=:coo)`, which also sorts the
+entries and combines duplicates.
 """
 mutable struct CuSparseMatrixCOO{Tv, Ti} <: AbstractCuSparseMatrix{Tv, Ti}
     rowInd::CuVector{Ti}
@@ -167,6 +195,14 @@ end
 
 CuSparseMatrixCOO(A::CuSparseMatrixCOO) = A
 
+"""
+    CuSparseArrayCSR{Tv, Ti, N}
+
+A batch of CSR matrices of the same size and number of nonzeros on the GPU, with the
+matrices along the third and later dimensions. Their row pointers, column indices and
+values are the columns of `N-1`-dimensional arrays. Construct it by concatenating CSR
+matrices with `cat(As...; dims=3)`. Used by [`bmm!`](@ref).
+"""
 mutable struct CuSparseArrayCSR{Tv, Ti, N} <: GPUArrays.AbstractGPUSparseArray{Tv, Ti, N}
     rowPtr::CuArray{Ti}
     colVal::CuArray{Ti}
@@ -194,6 +230,8 @@ ptrstride(A::CuSparseArrayCSR) = size(A.rowPtr, 2) > 1 ? stride(A.rowPtr, 2) : 0
 valstride(A::CuSparseArrayCSR) = size(A.nzVal, 2) > 1 ? stride(A.nzVal, 2) : 0
 
 """
+    CuSparseMatrix{Tv, Ti}
+
 Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
 [`CuSparseMatrixBSR`](@ref), [`CuSparseMatrixCOO`](@ref).
 """
@@ -204,6 +242,11 @@ const CuSparseMatrix{Tv, Ti} = Union{
     CuSparseMatrixCOO{Tv, Ti}
 }
 
+"""
+    CuSparseVecOrMat
+
+Union type of [`CuSparseVector`](@ref) and [`CuSparseMatrix`](@ref).
+"""
 const CuSparseVecOrMat = Union{CuSparseVector,CuSparseMatrix}
 const CuSparseMatrixAdjOrTrans = Union{
     Transpose{<:Any,<:Union{CuSparseMatrixCSC,CuSparseMatrixCSR,CuSparseMatrixCOO}},

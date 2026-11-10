@@ -10,16 +10,16 @@
                 d_X = CuArray(X)
                 d_A = CuSparseMatrixCSR(sparse(A))
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                d_X = cuSPARSE.sv2!('N','U',diag,alpha,d_A,d_X,'O')
+                d_X = cuSPARSE.sv2!('N','U',diag,alpha,d_A,d_X)
                 h_Y = collect(d_X)
                 Y = A\(alpha * X)
                 @test Y ≈ h_Y
                 d_X = CuArray(rand(elty,n))
-                @test_throws DimensionMismatch cuSPARSE.sv2!('N','U',diag,alpha,d_A,d_X,'O')
+                @test_throws DimensionMismatch cuSPARSE.sv2!('N','U',diag,alpha,d_A,d_X)
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSR(A)
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                @test_throws DimensionMismatch cuSPARSE.sv2!('N','U',diag,alpha,d_A,d_X,'O')
+                @test_throws DimensionMismatch cuSPARSE.sv2!('N','U',diag,alpha,d_A,d_X)
             end
         end
 
@@ -34,13 +34,13 @@
                 d_X = CuArray(X)
                 d_Al = CuSparseMatrixCSR(sparse(Al))
                 d_Al = CuSparseMatrixBSR(d_Al, blockdim)
-                d_Y = cuSPARSE.sv2('N','L',diag,alpha,d_Al,d_X,'O')
+                d_Y = cuSPARSE.sv2('N','L',diag,alpha,d_Al,d_X)
                 h_Y = collect(d_Y)
                 Y = Al\(alpha * X)
                 @test Y ≈ h_Y
                 d_A = CuSparseMatrixCSR(sparse(A))
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                d_Y = cuSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
+                d_Y = cuSPARSE.sv2('N','U',diag,alpha,d_A,d_X)
                 h_Y = collect(d_Y)
                 Y = A\(alpha * X)
                 @test Y ≈ h_Y
@@ -67,7 +67,7 @@
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSR(A)
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                @test_throws DimensionMismatch cuSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
+                @test_throws DimensionMismatch cuSPARSE.sv2('N','U',diag,alpha,d_A,d_X)
             end
         end
     end
@@ -85,16 +85,16 @@ end
                 d_X = CuArray(X)
                 d_A = CuSparseMatrixCSR(sparse(A))
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                d_X = cuSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X,'O')
+                d_X = cuSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X)
                 h_Y = collect(d_X)
                 Y = A\(alpha * X)
                 @test Y ≈ h_Y
                 d_X = CuArray(rand(elty,n,n))
-                @test_throws DimensionMismatch cuSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X,'O')
+                @test_throws DimensionMismatch cuSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X)
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSR(A)
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                @test_throws DimensionMismatch cuSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X,'O')
+                @test_throws DimensionMismatch cuSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X)
             end
         end
 
@@ -109,13 +109,13 @@ end
                 d_X = CuArray(X)
                 d_Al = CuSparseMatrixCSR(sparse(Al))
                 d_Al = CuSparseMatrixBSR(d_Al, blockdim)
-                d_Y = cuSPARSE.sm2('N','N','L',diag,alpha,d_Al,d_X,'O')
+                d_Y = cuSPARSE.sm2('N','N','L',diag,alpha,d_Al,d_X)
                 h_Y = collect(d_Y)
                 Y = Al\(alpha * X)
                 @test Y ≈ h_Y
                 d_A = CuSparseMatrixCSR(sparse(A))
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                d_Y = cuSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
+                d_Y = cuSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X)
                 h_Y = collect(d_Y)
                 Y = A\(alpha * X)
                 @test Y ≈ h_Y
@@ -142,7 +142,7 @@ end
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSR(A)
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                @test_throws DimensionMismatch cuSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
+                @test_throws DimensionMismatch cuSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X)
             end
         end
     end
@@ -161,7 +161,7 @@ end
                         d_T = CuSparseMatrixBSR(CuSparseMatrixCSR(T), blockdim)
                         x = rand(elty,n)
                         d_x = CuVector{elty}(x)
-                        d_y = cuSPARSE.sv2(trans, uplo, diag, d_T, d_x, 'O')
+                        d_y = cuSPARSE.sv2(trans, uplo, diag, d_T, d_x)
                         y = op(T) \ x
                         @test collect(d_y) ≈ y
                     end
@@ -182,7 +182,7 @@ end
                                 d_T = CuSparseMatrixBSR(CuSparseMatrixCSR(T), blockdim)
                                 X = transX == 'N' ? rand(elty,n,p) : rand(elty,p,n)
                                 d_X = CuMatrix{elty}(X)
-                                d_Y = cuSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X, 'O')
+                                d_Y = cuSPARSE.sm2(transT, transX, uplo, diag, d_T, d_X)
                                 Y = opT(T) \ opX(X)
                                 @test collect(d_Y) ≈ (transX == 'N' ? Y : transpose(Y))
                             end

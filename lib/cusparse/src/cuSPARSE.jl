@@ -1,3 +1,8 @@
+"""
+    cuSPARSE
+
+Sparse arrays on the GPU and wrappers of NVIDIA's cuSPARSE library.
+"""
 module cuSPARSE
 
 using CUDACore
@@ -26,9 +31,14 @@ end
 const SparseChar = Char
 
 
-@public functional, enable_logging
+@public functional, enable_logging, version, handle
 
 const _initialized = Ref{Bool}(false)
+"""
+    cuSPARSE.functional() -> Bool
+
+Whether cuSPARSE was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
 # core library
@@ -57,6 +67,7 @@ include("generic.jl")
 include("interfaces.jl")
 
 include("batched.jl")
+include("deprecated.jl")
 
 
 ## handles
@@ -90,6 +101,14 @@ end
 const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUSPARSE)
 
+"""
+    cuSPARSE.handle()
+
+The cuSPARSE handle of the current task, for its active context and stream, for calling the
+C API of cuSPARSE (`cuSPARSE.cusparse*`) directly. It converts to a `cusparseHandle_t`. The
+handle is borrowed: don't destroy it, or change its stream or other settings. Its fields are
+not part of the API.
+"""
 function handle()
     cuda = CUDACore.active_state()
 

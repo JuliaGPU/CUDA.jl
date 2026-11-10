@@ -14,20 +14,20 @@ if cuSPARSE.version() >= v"11"
     dy = adapt(CuArray, y)
 
     dA = adapt(CuArray, A)
-    mv!('N', one(T), dA, dx, zero(T), dy, 'O')
+    mv!('N', one(T), dA, dx, zero(T), dy)
     @test Array(dy) ≈ A * x
 
     dA = CuSparseMatrixCSR(dA)
-    mv!('N', one(T), dA, dx, zero(T), dy, 'O')
+    mv!('N', one(T), dA, dx, zero(T), dy)
     @test Array(dy) ≈ A * x
 
     A_bad = sprand(T, m+1, m, 0.1)
     dA_bad = adapt(CuArray, A_bad)
-    @test_throws DimensionMismatch("Y must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy, 'O')
+    @test_throws DimensionMismatch("Y must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy)
 
     A_bad = sprand(T, m, m+1, 0.1)
     dA_bad = adapt(CuArray, A_bad)
-    @test_throws DimensionMismatch("X must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy, 'O')
+    @test_throws DimensionMismatch("X must have length $(m+1), but has length $m") mv!('N', one(T), dA_bad, dx, zero(T), dy)
 end
 end
 
@@ -86,7 +86,7 @@ for SparseMatrixType in keys(SPMV_ALGOS)
 
                 alpha = rand(T)
                 beta = rand(T)
-                mv!(transa, alpha, dA, dB, beta, dC, 'O', algo)
+                mv!(transa, alpha, dA, dB, beta, dC, algo)
                 @test alpha * opa(A) * B + beta * C ≈ collect(dC)
             end
         end
@@ -118,21 +118,21 @@ for SparseMatrixType in keys(SPMM_ALGOS)
                     beta = rand(T)
 
                     dC = CuArray(C)
-                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, algo)
                     @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
 
                     cuSPARSE.version() < v"11" && continue
                     dCt = CuArray(Ct)
-                    mm!(transa, transb, alpha, dA, transpose(dBt), beta, transpose(dCt), 'O', algo)
+                    mm!(transa, transb, alpha, dA, transpose(dBt), beta, transpose(dCt), algo)
                     @test alpha * opa(A) * opb(B) + beta * C ≈ transpose(collect(dCt))
 
                     cuSPARSE.version() < v"12.5.8" && continue
                     dC = CuArray(C)
-                    mm!(transa, transb, alpha, dA, transpose(dBt), beta, dC, 'O', algo)
+                    mm!(transa, transb, alpha, dA, transpose(dBt), beta, dC, algo)
                     @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
 
                     dCt = CuArray(Ct)
-                    mm!(transa, transb, alpha, dA, dB, beta, transpose(dCt), 'O', algo)
+                    mm!(transa, transb, alpha, dA, dB, beta, transpose(dCt), algo)
                     @test alpha * opa(A) * opb(B) + beta * C ≈ transpose(collect(dCt))
                 end
             end
@@ -160,7 +160,7 @@ end
 
         alpha = T(2)
         beta = T(3)
-        mm!('N', 'N', alpha, dA, dB, beta, dC, 'O')
+        mm!('N', 'N', alpha, dA, dB, beta, dC)
 
         Cref = refT(alpha) .* (refT.(A) * refT.(B)) .+ refT(beta) .* refT.(C)
         @test collect(dC) ≈ Cref rtol=2e-3
@@ -207,7 +207,7 @@ for SparseMatrixType in keys(SPMM_ALGOS)
 
                     alpha = rand(T)
                     beta = rand(T)
-                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, algo)
                     @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
 
                     # add tests for very small matrices (see #2296)
@@ -223,7 +223,7 @@ for SparseMatrixType in keys(SPMM_ALGOS)
 
                     alpha = rand(T)
                     beta = rand(T)
-                    mm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                    mm!(transa, transb, alpha, dA, dB, beta, dC, algo)
                     @test alpha * opa(A) * opb(B) + beta * C ≈ collect(dC)
                 end
             end
@@ -259,7 +259,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
                             dB = CuArray(B)
                             dC = CuArray(C)
                             alpha = rand(T)
-                            sv!(transa, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                            sv!(transa, uplo, diag, alpha, dA, dB, dC, algo)
                             @test opa(A) \ (alpha * B) ≈ collect(dC)
                         end
                     end
@@ -288,7 +288,7 @@ for SparseMatrixType in [CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixCOO
                                 dB = CuArray(B)
                                 dC = CuArray(C)
                                 alpha = rand(T)
-                                sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, 'O', algo)
+                                sm!(transa, transb, uplo, diag, alpha, dA, dB, dC, algo)
                                 @test opa(A) \ (alpha * opb(B)) ≈ collect(dC)
                             end
                         end
@@ -335,7 +335,7 @@ end
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
         dY = CuVector{T}(Y)
-        result = vv!(transx, dX, dY, 'O')
+        result = vv!(transx, dX, dY)
         @test sum(opx(X[i]) * Y[i] for i=1:20) ≈ result
     end
 end
@@ -347,7 +347,7 @@ if cuSPARSE.version() >= v"11"
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
         dY = CuVector{T}(Y)
-        cuSPARSE.gather!(dX, dY, 'O')
+        cuSPARSE.gather!(dX, dY)
         Z = copy(X)
         for i = 1:nnz(X)
             Z[X.nzind[i]] = Y[X.nzind[i]]
@@ -360,7 +360,7 @@ if cuSPARSE.version() >= v"11"
         dX = CuSparseVector{T}(X)
         Y = rand(T, 20)
         dY = CuVector{T}(Y)
-        cuSPARSE.scatter!(dY, dX, 'O')
+        cuSPARSE.scatter!(dY, dX)
         Z = copy(Y)
         for i = 1:nnz(X)
             Z[X.nzind[i]] = X.nzval[i]
@@ -375,7 +375,7 @@ if cuSPARSE.version() >= v"11"
         dY = CuVector{T}(Y)
         alpha = rand(T)
         beta = rand(T)
-        cuSPARSE.axpby!(alpha, dX, beta, dY, 'O')
+        cuSPARSE.axpby!(alpha, dX, beta, dY)
         @test alpha * X + beta * Y ≈ collect(dY)
     end
 
@@ -386,7 +386,7 @@ if cuSPARSE.version() >= v"11"
         dY = CuVector{T}(Y)
         c = rand(T)
         s = rand(T)
-        cuSPARSE.rot!(dX, dY, c, s, 'O')
+        cuSPARSE.rot!(dX, dY, c, s)
         W = copy(X)
         Z = copy(Y)
         for i = 1:nnz(X)
@@ -424,30 +424,30 @@ if cuSPARSE.version() >= v"11"
                         dB = SparseMatrixType(B)
                         alpha = rand(T)
                         C = alpha * opa(A) * opb(B)
-                        dC = gemm(transa, transb, alpha, dA, dB, 'O', algo)
+                        dC = gemm(transa, transb, alpha, dA, dB, algo)
                         @test C ≈ SparseMatrixCSC(dC)
 
                         beta = rand(T)
                         gamma = rand(T)
                         D = gamma * opa(A) * opa(B) + beta * C
 
-                        dD = gemm(transa, transb, gamma, dA, dB, beta, dC, 'O', algo, same_pattern=true)
+                        dD = gemm(transa, transb, gamma, dA, dB, beta, dC, algo, same_pattern=true)
                         @test D ≈ SparseMatrixCSC(dD)
 
-                        gemm!(transa, transb, gamma, dA, dB, beta, dC, 'O', algo)
+                        gemm!(transa, transb, gamma, dA, dB, beta, dC, algo)
                         @test D ≈ SparseMatrixCSC(dC)
 
                         E = sprand(T,25,35,0.1)
                         dE = SparseMatrixType(E)
                         F = alpha * opa(A) * opb(B) + beta * E
-                        dF = gemm(transa, transb, alpha, dA, dB, beta, dE, 'O', algo, same_pattern=false)
+                        dF = gemm(transa, transb, alpha, dA, dB, beta, dE, algo, same_pattern=false)
                         @test F ≈ SparseMatrixCSC(dF)
 
                         # not same pattern
                         G = sprand(T, 25, 35, 0.4)
                         dG = SparseMatrixType(G)
-                        @test_throws ErrorException("AB and C must have the same sparsity pattern.") gemm!(transa, transb, gamma, dA, dB, beta, dG, 'O', algo)
-                        gemm!(transa, transb, gamma, dA, dB, zero(T), dG, 'O', algo)
+                        @test_throws ErrorException("AB and C must have the same sparsity pattern.") gemm!(transa, transb, gamma, dA, dB, beta, dG, algo)
+                        gemm!(transa, transb, gamma, dA, dB, zero(T), dG, algo)
                         H = gamma * opa(A) * opa(B) + zero(T) * G
                         @test H ≈ SparseMatrixCSC(dG)
                     end
@@ -459,7 +459,7 @@ if cuSPARSE.version() >= v"11"
                     dB = SparseMatrixType(B)
                     C  = A * B
                     dC = SparseMatrixType(C)
-                    @test_throws ArgumentError("Sparse matrix-matrix multiplication only supports transa (T) = 'N' and transb (C) = 'N'") gemm!('T', 'C', one(T), dA, dB, zero(T), dC, 'O', algo)
+                    @test_throws ArgumentError("Sparse matrix-matrix multiplication only supports transa (T) = 'N' and transb (C) = 'N'") gemm!('T', 'C', one(T), dA, dB, zero(T), dC, algo)
                 end
             end
         end
@@ -472,7 +472,7 @@ if cuSPARSE.version() >= v"11"
                 db = CuSparseVector(b)
                 alpha = rand(T)
                 y = alpha * opa(A) * b
-                dy = gemv(transa, alpha, dA, db, 'O')
+                dy = gemv(transa, alpha, dA, db)
                 @test collect(dy) ≈ y
             end
         end
@@ -509,7 +509,7 @@ if cuSPARSE.version() >= v"11.4.1"
                         beta = rand(T)
 
                         D = alpha * (opa(A) * opb(B)) .* spyC + beta * C
-                        sddmm!(transa, transb, alpha, dA, dB, beta, dC, 'O', algo)
+                        sddmm!(transa, transb, alpha, dA, dB, beta, dC, algo)
                         @test collect(dC) ≈ D
                     end
                 end
@@ -525,7 +525,7 @@ if cuSPARSE.version() < v"11"
         C = similar(B)
         for (b, c, transb) in ((B, C, 'T'), (B, C, 'C'),
                                 (transpose(B), C, 'N'), (B, transpose(C), 'N'))
-            @test_throws "SpMM operand layouts require cuSPARSE 11" mm!('N', transb, 1f0, A, b, 0f0, c, 'O')
+            @test_throws "SpMM operand layouts require cuSPARSE 11" mm!('N', transb, 1f0, A, b, 0f0, c)
         end
     end
 end

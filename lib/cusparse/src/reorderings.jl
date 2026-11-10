@@ -3,17 +3,18 @@
 export color
 
 """
-    color(A::CuSparseMatrixCSC, index::SparseChar; percentage::Number=1.0)
-    color(A::CuSparseMatrixCSR, index::SparseChar; percentage::Number=1.0)
+    color(A; index='O', percentage=1.0) -> ncolors, coloring, reordering
 
-This function performs the coloring of the adjacency graph associated with the matrix A.
-The coloring is an assignment of colors (integer numbers) to nodes, such that neighboring nodes have distinct colors.
-An approximate coloring algorithm is used in this routine, and is stopped when a certain percentage of nodes has been colored.
-The rest of the nodes are assigned distinct colors (an increasing sequence of integers numbers, starting from the last integer used previously).
-The reordering is such that nodes that have been assigned the same color are reordered to be next to each other.
+Color the adjacency graph of the square sparse CSR or CSC matrix `A`, which must have a
+symmetric sparsity pattern: pass `A + transpose(A)` otherwise. Neighbouring nodes get
+different colors.
 
-The matrix A passed to this routine, must be stored as a general matrix and have a symmetric sparsity pattern.
-If the matrix is non-symmetric the user should pass A + Aᵀ as a parameter to this routine.
+The coloring is approximate, and stops when `percentage` of the nodes are colored; the
+other nodes get distinct colors after the last one used. `coloring[i]` is the color of node
+`i`, and `reordering` is a permutation that groups nodes of the same color together.
+
+Wraps `cusparse<t>csrcolor`, which NVIDIA has deprecated, for the `Float32`, `Float64`,
+`ComplexF32` and `ComplexF64` element types.
 """
 function color end
 
@@ -22,7 +23,7 @@ for (fname, subty, elty) in ((:cusparseScsrcolor, :Float32, :Float32),
                              (:cusparseCcsrcolor, :Float32, :ComplexF32),
                              (:cusparseZcsrcolor, :Float64, :ComplexF64))
     @eval begin
-        function color(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}, index::SparseChar; percentage::Number=1.0)
+        function color(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}; index::SparseChar='O', percentage::Number=1.0)
             desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m, n = size(A)
             (m != n) && throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
