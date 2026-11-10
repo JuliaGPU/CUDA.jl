@@ -11,8 +11,9 @@ generator `typ` (a `curandRngType`, e.g. `CURAND_RNG_PSEUDO_PHILOX4_32_10`). Use
 Random's `rand`, `randn`, `rand!` and `randn!`, and with [`rand_logn`](@ref),
 [`rand_poisson`](@ref) and their in-place versions. It generates uniformly distributed
 `Float32`, `Float64` and `UInt32` numbers, normally and log-normally distributed `Float32`
-and `Float64` numbers, and Poisson-distributed `UInt32` numbers, into `CuArray`s. It runs
-on the stream of the task that uses it.
+and `Float64` numbers, and Poisson-distributed `UInt32` numbers, into `CuArray`s. Other
+arrays, such as an `Array`, are filled by generating into a temporary `CuArray` and copying
+it over. It runs on the stream of the task that uses it.
 
 A new generator uses cuRAND's default seed. `Random.seed!(rng[, seed]; offset=0)` seeds it,
 randomly when no `seed` is given, and skips `offset` numbers ahead in the sequence. A `LibraryRNG` converts to a
@@ -137,7 +138,8 @@ const LognormalArray = DenseCuArray{<:Union{Float32,Float64}}
 
 Fill `A` with log-normally distributed random numbers: `exp(x)` for normally distributed `x`
 with mean `mean` and standard deviation `stddev`. Without `rng`, the task's
-[`library_rng`](@ref) is used. Wraps `curandGenerateLogNormal(Double)`.
+[`library_rng`](@ref) is used. With `rng`, `A` can also be another array, such as an
+`Array`. Wraps `curandGenerateLogNormal(Double)`.
 """
 function rand_logn!(rng::LibraryRNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
     isempty(A) && return A
@@ -159,7 +161,8 @@ const PoissonArray = DenseCuArray{Cuint}
     cuRAND.rand_poisson!([rng::LibraryRNG,] A::CuArray{UInt32}; lambda=1) -> A
 
 Fill `A` with Poisson-distributed random numbers with mean `lambda`. Without `rng`, the
-task's [`library_rng`](@ref) is used. Wraps `curandGeneratePoisson`.
+task's [`library_rng`](@ref) is used. With `rng`, `A` can also be another array, such as an
+`Array`. Wraps `curandGeneratePoisson`.
 """
 function rand_poisson!(rng::LibraryRNG, A::DenseCuArray{Cuint}; lambda=1)
     isempty(A) && return A
@@ -168,31 +171,40 @@ function rand_poisson!(rng::LibraryRNG, A::DenseCuArray{Cuint}; lambda=1)
     return A
 end
 
-# CPU arrays
-function Random.rand!(rng::LibraryRNG, A::AbstractArray{T}) where {T <: UniformType}
+# CPU arrays and non-contiguous GPU arrays: generate into a temporary CuArray and copy over.
+# The element types are listed one by one, as an array of a union would recurse.
+function fill_via_cuarray!(f!, A::AbstractArray{T}) where {T}
     isempty(A) && return A
     B = CuArray{T}(undef, size(A))
-    rand!(rng, B)
-    copyto!(A, B)
+    f!(B)
+    if A isa Union{Array,AnyCuArray}
+        copyto!(A, B)
+    else
+        # copyto! from a CuArray only supports Arrays in host memory
+        copyto!(A, Array(B))
+    end
+    CUDACore.unsafe_free!(B)
+    return A
 end
-function Random.randn!(rng::LibraryRNG, A::AbstractArray{T}) where {T <: NormalType}
-    isempty(A) && return A
-    B = CuArray{T}(undef, size(A))
-    randn!(rng, B)
-    copyto!(A, B)
-end
-function rand_logn!(rng::LibraryRNG, A::AbstractArray{T}) where {T <: LognormalType}
-    isempty(A) && return A
-    B = CuArray{T}(undef, size(A))
-    rand_logn!(rng, B)
-    copyto!(A, B)
-end
-function rand_poisson!(rng::LibraryRNG, A::AbstractArray{T}) where {T <: PoissonType}
-    isempty(A) && return A
-    B = CuArray{T}(undef, size(A))
-    rand_poisson!(rng, B)
-    copyto!(A, B)
-end
+Random.rand!(rng::LibraryRNG,
+             A::Union{AbstractArray{Float32},AbstractArray{Float64},AbstractArray{UInt32}}) =
+    fill_via_cuarray!(B->rand!(rng, B), A)
+Random.randn!(rng::LibraryRNG, A::Union{AbstractArray{Float32},AbstractArray{Float64}};
+              kwargs...) =
+    fill_via_cuarray!(B->randn!(rng, B; kwargs...), A)
+rand_logn!(rng::LibraryRNG, A::Union{AbstractArray{Float32},AbstractArray{Float64}};
+           kwargs...) =
+    fill_via_cuarray!(B->rand_logn!(rng, B; kwargs...), A)
+rand_poisson!(rng::LibraryRNG, A::AbstractArray{Cuint}; kwargs...) =
+    fill_via_cuarray!(B->rand_poisson!(rng, B; kwargs...), A)
+# more specific than GPUArrays' `rand!(::AbstractRNG, ::AnyGPUArray)` and `randn!` (which
+# would otherwise be ambiguous with the above), and taking `randn!`'s keyword arguments
+Random.rand!(rng::LibraryRNG,
+             A::Union{AnyCuArray{Float32},AnyCuArray{Float64},AnyCuArray{UInt32}}) =
+    fill_via_cuarray!(B->rand!(rng, B), A)
+Random.randn!(rng::LibraryRNG, A::Union{AnyCuArray{Float32},AnyCuArray{Float64}};
+              kwargs...) =
+    fill_via_cuarray!(B->randn!(rng, B; kwargs...), A)
 
 
 ## out of place

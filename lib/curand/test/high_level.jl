@@ -91,6 +91,46 @@
         @test cuRAND.rand_poisson(rng) isa Cuint
         @test cuRAND.rand_poisson(rng, Cuint; lambda=5) isa Cuint
     end
+
+    # CPU arrays and views, generated on the GPU and copied over
+    rng = cuRAND.library_rng()
+    for (f,T) in ((rand!,Float32), (rand!,Float64), (rand!,Cuint),
+                  (randn!,Float32), (randn!,Float64),
+                  (rand_logn!,Float32), (rand_logn!,Float64),
+                  (rand_poisson!,Cuint))
+        # a value to tell which elements were written (uniform UInt32 draws produce
+        # typemax once in 2^32)
+        x = T == Cuint ? typemax(Cuint) : T(NaN)
+
+        for d in (0, 2, (2,2), 3, (3,3))
+            A = fill(x, d)
+            @test f(rng, A) === A
+            @test all(!isequal(x), A)
+        end
+
+        B = fill(x, 4, 3)
+        f(rng, view(B, 1:2:4, :))
+        @test all(!isequal(x), B[1:2:4, :])
+        @test all(isequal(x), B[2:2:4, :])
+
+        C = CuArray(fill(x, 4, 3))
+        f(rng, view(C, 1:2:4, :))
+        @test all(!isequal(x), Array(C)[1:2:4, :])
+        @test all(isequal(x), Array(C)[2:2:4, :])
+    end
+    @test randn!(rng, zeros(Float32, 3); mean=2, stddev=0) == fill(2f0, 3)
+    @test rand_logn!(rng, zeros(Float64, 3); mean=0, stddev=0) == fill(1.0, 3)
+    if VERSION >= v"1.11"
+        # dense, but not an Array, which copyto! from a CuArray does not support
+        M = fill!(Memory{Float32}(undef, 3), NaN32)
+        @test all(!isnan, rand!(rng, M))
+    end
+    # element types that cuRAND does not generate keep using Random's fallback
+    @test_throws MethodError rand!(rng, Vector{Union{Float32,Float64}}(undef, 2))
+    @test all(>(1000), rand_poisson!(rng, zeros(Cuint, 3); lambda=10_000))
+    C = CuArray(zeros(Float32, 4))
+    randn!(rng, view(C, 1:2:4); mean=2, stddev=0)
+    @test Array(C) == [2, 0, 2, 0]
 end
 
 @testset "seeding idempotency" begin
