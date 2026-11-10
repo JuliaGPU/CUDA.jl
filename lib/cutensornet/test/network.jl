@@ -38,6 +38,10 @@ end
         contract!(net; slices=CuTensorNetworkSliceGroup(0, 1, 1))
         CUDACore.synchronize()
         @test collect(C) ≈ collect(A) * collect(B)
+        C .= 0
+        contract!(net; slices=CuTensorNetworkSliceGroup(Int64[0]))
+        CUDACore.synchronize()
+        @test collect(C) ≈ collect(A) * collect(B)
 
         autotune!(net)
         autotune!(net; prefs=CuNetworkAutotunePreference(NetworkAutotunePreferences(max_iterations=1)))

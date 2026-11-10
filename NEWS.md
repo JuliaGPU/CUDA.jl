@@ -98,6 +98,8 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - cuSPARSE's `ic02` and `ilu02` accept `Symmetric` and `Hermitian` CSR and CSC matrices.
   Their methods for these wrappers never matched, and would have factored only the stored
   triangle.
+- cuTensorNet's `CuTensorNetworkSliceGroup(ids)` includes the last slice id of `ids`; it
+  was left out, and a group of one slice crashed the contraction.
 
 *Minor changes*:
 
@@ -138,8 +140,6 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   | `gtsv2!(dl, d, du, B, index)`, `gtsv2(dl, d, du, B, index)` | `gtsv2!(dl, d, du, B)`, `gtsv2(dl, d, du, B)` |
   | `sort_coo(A, 'R')`, `sort_coo(A, 'C')` | `sort_coo(A; by=:row)`, `sort_coo(A; by=:col)` |
   | `mv2!` | `mv!` |
-
-*Minor changes*:
 
 - cuTensorNet's contraction API built on network descriptors and contraction plans,
   which NVIDIA deprecated, is deprecated in favor of `CuNetwork`, and the decompositions

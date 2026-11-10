@@ -344,7 +344,10 @@ mutable struct CuTensorNetworkSliceGroup
     end
     function CuTensorNetworkSliceGroup(slices::Vector{Int64})
         group_ref = Ref{cutensornetSliceGroup_t}()
-        cutensornetCreateSliceGroupFromIDs(handle(), pointer(slices), pointer(slices, length(slices)), group_ref)
+        # the end of the sequence is one past its last element
+        GC.@preserve slices begin
+            cutensornetCreateSliceGroupFromIDs(handle(), pointer(slices), pointer(slices) + sizeof(slices), group_ref)
+        end
         obj = new(group_ref[])
         resource_finalizer(cutensornetDestroySliceGroup, obj)
         return obj
