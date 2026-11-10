@@ -49,7 +49,13 @@ rand_poisson!(A::PoissonArray; kwargs...) = rand_poisson!(library_rng(), A; kwar
 
 # GPUArrays RNG fallback for types not supported by cuRAND
 Random.rand!(A::AnyCuArray) = Random.rand!(gpuarrays_rng(), A)
-Random.randn!(A::AnyCuArray) = Random.randn!(gpuarrays_rng(), A)
+function Random.randn!(A::AnyCuArray; mean=0, stddev=1)
+    Random.randn!(gpuarrays_rng(), A)
+    if mean != 0 || stddev != 1
+        A .= A .* stddev .+ mean
+    end
+    return A
+end
 rand_logn!(A::AnyCuArray; kwargs...) =
     error("cuRAND does not support generating lognormally-distributed random numbers of type $(eltype(A))")
 rand_poisson!(A::AnyCuArray; kwargs...) =

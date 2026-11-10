@@ -224,7 +224,8 @@ rand_poisson(rng::LibraryRNG, T::PoissonType, dim1::Integer, dims::Integer...; k
     rand_poisson(rng, T, Dims((dim1, dims...)); kwargs...)
 
 # scalars
-Random.rand(rng::LibraryRNG, T::UniformType=Float32) = rand(rng, T, 1)[]
-Random.randn(rng::LibraryRNG, T::NormalType=Float32; kwargs...) = randn(rng, T, 1; kwargs...)[]
+Random.rand(rng::LibraryRNG, T::UniformType=Float32) = Random.rand(rng, T, 1)[]
+Random.randn(rng::LibraryRNG, T::NormalType=Float32; kwargs...) =
+    Random.randn(rng, T, 1; kwargs...)[]
 rand_logn(rng::LibraryRNG, T::LognormalType=Float32; kwargs...) = rand_logn(rng, T, 1; kwargs...)[]
-rand_poisson(rng::LibraryRNG, T::PoissonType=Float32; kwargs...) = rand_poisson(rng, T, 1; kwargs...)[]
+rand_poisson(rng::LibraryRNG, T::PoissonType=Cuint; kwargs...) = rand_poisson(rng, T, 1; kwargs...)[]

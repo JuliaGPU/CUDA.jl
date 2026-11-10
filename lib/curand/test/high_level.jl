@@ -44,6 +44,13 @@
         f(A)
     end
 
+    # the fallback supports the same keyword arguments
+    for T in (Float16, ComplexF32)
+        @test Array(cuRAND.randn(T, 3; mean=2, stddev=0)) == fill(T(2), 3)
+        @test Array(cuRAND.randn(T, 2, 2; mean=2, stddev=0)) == fill(T(2), 2, 2)
+        @test Array(randn!(CuArray{T}(undef, 3); mean=2, stddev=0)) == fill(T(2), 3)
+    end
+
     @test_throws ErrorException rand_logn!(CuArray{Cuint}(undef, 10))
     @test_throws ErrorException rand_poisson!(CuArray{Float64}(undef, 10))
 
@@ -74,6 +81,15 @@
         cuRAND.rand_logn(Float32)
         cuRAND.rand_poisson()
         cuRAND.rand_poisson(Cuint)
+
+        rng = cuRAND.library_rng()
+        @test rand(rng) isa Float32
+        @test rand(rng, Float64) isa Float64
+        @test randn(rng) isa Float32
+        @test randn(rng, Float64; mean=1, stddev=0) == 1
+        @test cuRAND.rand_logn(rng) isa Float32
+        @test cuRAND.rand_poisson(rng) isa Cuint
+        @test cuRAND.rand_poisson(rng, Cuint; lambda=5) isa Cuint
     end
 end
 
