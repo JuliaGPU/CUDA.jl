@@ -19,18 +19,10 @@ function batchable(sz::Dims, region)
     return all(d -> d ∉ region || sz[d] == 1, first(batch_dims):last(batch_dims))
 end
 
-"""
-    cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, input_size::Dims, region)
-
-low level interface to the CUDA library CuFFT for the function cufftXtMakePlanMany
-
-# Parameters:
-* `output_type`: type of the output array
-* `input_type`: type of the input array
-* `input_size`: size of the array to transform in units of the type
-* `region`: dimensions of the array to transform
-"""
-function cufftMakePlan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, input_size::Dims, region)
+# create a cuFFT plan (cufftXtMakePlanMany) that transforms the dimensions `region` of an
+# array of size `input_size` and type `input_type` into one of type `output_type`. returns
+# the handle and the size of the work area it needs.
+function make_plan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, input_size::Dims, region)
     if any(diff(collect(region)) .< 1)
         throw(ArgumentError("FFT region dimensions must be in strictly increasing order; got $region"))
     end
@@ -126,7 +118,7 @@ const cufftHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any}
 function handle_ctor((ctx, args...))
     context!(ctx) do
         # make the plan
-        handle, _ = cufftMakePlan(args...)
+        handle, _ = make_plan(args...)
         handle
     end
 end
@@ -137,10 +129,10 @@ function handle_dtor((ctx, args...), handle)
 end
 const idle_handles = HandleCache{cufftHandleCacheKey, cufftHandle}(handle_ctor, handle_dtor)
 
-function cufftGetPlan(args...)
+function get_plan(args...)
     ctx = context()
     return pop!(idle_handles, (ctx, args...))
 end
-function cufftReleasePlan(plan)
+function release_plan(plan)
     push!(idle_handles, plan)
 end

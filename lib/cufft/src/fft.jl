@@ -57,9 +57,9 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R} <: Plan{S}
         real_size = S <: Real ? input_size : output_size
         perm = staging_permutation(real_size, region)
         handle = if perm === nothing
-            cufftGetPlan(T, S, real_size, region)
+            get_plan(T, S, real_size, region)
         else
-            cufftGetPlan(T, S, permute(real_size, perm), map(d -> findfirst(==(d), perm)::Int, region))
+            get_plan(T, S, permute(real_size, perm), map(d -> findfirst(==(d), perm)::Int, region))
         end
 
         workspace_size = Ref{Csize_t}()
@@ -74,7 +74,7 @@ end
 function CUDACore.unsafe_free!(plan::CuFFTPlan)
     if plan.handle != C_NULL
         context!(plan.ctx) do
-            cufftReleasePlan(plan.handle)
+            release_plan(plan.handle)
         end
         plan.handle = C_NULL
     end
