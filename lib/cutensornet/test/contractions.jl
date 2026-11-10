@@ -21,6 +21,19 @@ m = 16
         @test cuTensorNet.reduced_extent(info)   == n
         @test cuTensorNet.discarded_weight(info) ≈ 0.0
         @test collect(U)*diagm(collect(S))*collect(V) ≈ collect(A)
+
+        # truncating a matrix of rank 2 stores the factors packed
+        k = 2
+        A = CuArray(rand(elty, n, k) * rand(elty, k, n))
+        U = CUDACore.zeros(elty, n, n)
+        V = CUDACore.zeros(elty, n, n)
+        config = cuTensorNet.SVDConfig(rel_cutoff=1e-4)
+        U, S, V, info = tensor_svd!(A, ['n','m'], U, ['n', 'o'], S, V, ['o', 'm']; svd_config=config)
+        @test cuTensorNet.reduced_extent(info) == k
+        Uk = reshape(collect(U)[1:n*k], n, k)
+        Vk = reshape(collect(V)[1:k*n], k, n)
+        @test Uk * diagm(collect(S)[1:k]) * Vk ≈ collect(A)
+
         config = cuTensorNet.CuTensorSVDConfig()
         @test cuTensorNet.abs_cutoff(config) == 0.0
         @test cuTensorNet.rel_cutoff(config) == 0.0

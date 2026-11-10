@@ -84,6 +84,19 @@ end
 
 Base.unsafe_convert(::Type{cutensornetTensorDescriptor_t}, desc::CuTensorDescriptor) = desc.handle
 
+@public CuTensorSVDInfo, full_extent, reduced_extent, discarded_weight,
+        CuTensorNetworkContractionOptimizerInfo, OptimizerConfig, SVDConfig,
+        CuTensorNetworkSliceGroup
+
+"""
+    CuTensorSVDInfo()
+
+Information about a truncated SVD, returned by [`tensor_svd!`](@ref) and
+[`gate_split!`](@ref). Query it with [`full_extent`](@ref), [`reduced_extent`](@ref) and
+[`discarded_weight`](@ref).
+
+Wraps `cutensornetTensorSVDInfo_t`.
+"""
 mutable struct CuTensorSVDInfo
     handle::cutensornetTensorSVDInfo_t
     function CuTensorSVDInfo()
@@ -95,24 +108,58 @@ mutable struct CuTensorSVDInfo
     end
 end
 Base.unsafe_convert(::Type{cutensornetTensorSVDInfo_t}, info::CuTensorSVDInfo) = info.handle
+"""
+    full_extent(info::CuTensorSVDInfo) -> Int64
+
+The number of singular values before truncation.
+"""
 function full_extent(info::CuTensorSVDInfo)
     extent = Ref{Int64}()
     cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_FULL_EXTENT, extent, sizeof(Int64))
     return extent[]
 end
 
+"""
+    reduced_extent(info::CuTensorSVDInfo) -> Int64
+
+The number of singular values kept after truncation, `k`. Only the first `k` singular values
+are valid. When `k` is smaller than the extent of the mode that `U` and `V` share, the
+factors are stored packed, as arrays with extent `k` for that mode in the first elements of
+`U` and `V`: for a `kmax×n` matrix `V`, the factor is `reshape(view(V, 1:k*n), k, n)`, not
+`V[1:k, :]`.
+"""
 function reduced_extent(info::CuTensorSVDInfo)
     extent = Ref{Int64}()
     cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_REDUCED_EXTENT, extent, sizeof(Int64))
     return extent[]
 end
 
+"""
+    discarded_weight(info::CuTensorSVDInfo) -> Float64
+
+The discarded weight of the truncation: the sum of the squares of the discarded singular
+values, relative to the sum of the squares of all of them.
+"""
 function discarded_weight(info::CuTensorSVDInfo)
     weight = Ref{Float64}()
     cutensornetTensorSVDInfoGetAttribute(handle(), info, CUTENSORNET_TENSOR_SVD_INFO_DISCARDED_WEIGHT, weight, sizeof(Float64))
     return weight[]
 end
 
+"""
+    CuTensorNetworkContractionOptimizerInfo(net::CuNetwork)
+    CuTensorNetworkContractionOptimizerInfo(net::CuNetwork, data::Vector{UInt8})
+
+The contraction path of a network, with its slicing, as found by
+[`rehearse_contraction`](@ref). The first form creates an empty one for `net`, to be filled
+with [`unpack!`](@ref) or [`attribute!`](@ref); the second one recreates a path saved with
+[`pack`](@ref), for a network with the same shape. Attach it to a network with
+[`set_optimizer_info!`](@ref).
+
+Query it with [`num_slices`](@ref), [`num_sliced_modes`](@ref) and [`flop_count`](@ref).
+
+Wraps `cutensornetContractionOptimizerInfo_t`.
+"""
 mutable struct CuTensorNetworkContractionOptimizerInfo
     handle::cutensornetContractionOptimizerInfo_t
     function CuTensorNetworkContractionOptimizerInfo(info::cutensornetContractionOptimizerInfo_t)
@@ -142,6 +189,17 @@ end
 
 Base.unsafe_convert(::Type{cutensornetWorkspaceDescriptor_t}, desc::CuTensorNetworkWorkspaceDescriptor) = desc.handle
 
+"""
+    OptimizerConfig(; num_graph_partitions=8, graph_cutoff_size=8, ..., seed=0, ...)
+
+Settings for the search for a contraction path by [`rehearse_contraction`](@ref). Each
+keyword sets the `CUTENSORNET_CONTRACTION_OPTIMIZER_CONFIG_*` attribute with the
+corresponding name (e.g. `graph_num_cuts` sets `GRAPH_NUM_CUTS`, and `num_graph_partitions`
+`GRAPH_NUM_PARTITIONS`); see NVIDIA's documentation of these attributes. The defaults are
+those of the struct, which differ from NVIDIA's for some keywords, such as
+`slicer_slice_factor` and `hyper_num_threads`. `hyper_num_samples > 0` makes the search try
+several paths, and `seed` makes it reproducible.
+"""
 Base.@kwdef struct OptimizerConfig
     num_graph_partitions::Int32=8
     graph_cutoff_size::Int32=8
@@ -202,6 +260,17 @@ end
 
 Base.unsafe_convert(::Type{cutensornetContractionOptimizerConfig_t}, desc::CuTensorNetworkContractionOptimizerConfig) = desc.handle
 
+"""
+    SVDConfig(; abs_cutoff=0.0, rel_cutoff=0.0,
+              s_normalization=CUTENSORNET_TENSOR_SVD_NORMALIZATION_NONE,
+              s_partition=CUTENSORNET_TENSOR_SVD_PARTITION_NONE)
+
+Settings for the truncated SVD of [`tensor_svd!`](@ref) and [`gate_split!`](@ref). Singular
+values below `abs_cutoff`, or below `rel_cutoff` times the largest one, are discarded.
+`s_normalization` (a `cutensornetTensorSVDNormalization_t`) normalizes the singular values
+that are kept, and `s_partition` (a `cutensornetTensorSVDPartition_t`) absorbs them into
+`U`, `V` or both.
+"""
 Base.@kwdef struct SVDConfig
     abs_cutoff::Float64=0.0
     rel_cutoff::Float64=0.0
@@ -253,6 +322,17 @@ function normalization(conf::CuTensorSVDConfig)
 end
 Base.unsafe_convert(::Type{cutensornetTensorSVDConfig_t}, desc::CuTensorSVDConfig) = desc.handle
 
+"""
+    CuTensorNetworkSliceGroup(start, stop, step)
+    CuTensorNetworkSliceGroup(ids::Vector{Int64})
+
+A set of slices of a sliced contraction, given as the range from `start` up to but not
+including `stop`, or as a list of slice ids. Slice ids are 0-based and less than
+[`num_slices`](@ref). Pass it to [`contract!`](@ref) or [`compute_gradients!`](@ref) to
+compute part of a contraction.
+
+Wraps `cutensornetSliceGroup_t`.
+"""
 mutable struct CuTensorNetworkSliceGroup
     handle::cutensornetSliceGroup_t
     function CuTensorNetworkSliceGroup(sliceStart::Int64, sliceStop::Int64, sliceStep::Int64)

@@ -1,15 +1,33 @@
+@public num_slices, num_sliced_modes, flop_count, tensor_qr!, tensor_svd!, gate_split!
+
+"""
+    num_slices(info::CuTensorNetworkContractionOptimizerInfo) -> Int64
+
+The number of slices the contraction is split into, so that it fits the workspace limit
+given to [`rehearse_contraction`](@ref).
+"""
 function num_slices(info::CuTensorNetworkContractionOptimizerInfo)
     n = Ref{Int64}()
     cutensornetContractionOptimizerInfoGetAttribute(handle(), info, CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_NUM_SLICES, n, sizeof(Int64))
     return n[]
 end
 
+"""
+    num_sliced_modes(info::CuTensorNetworkContractionOptimizerInfo) -> Int32
+
+The number of modes that are sliced over.
+"""
 function num_sliced_modes(info::CuTensorNetworkContractionOptimizerInfo)
     n = Ref{Int32}()
     cutensornetContractionOptimizerInfoGetAttribute(handle(), info, CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_NUM_SLICED_MODES, n, sizeof(Int32))
     return n[]
 end
 
+"""
+    flop_count(info::CuTensorNetworkContractionOptimizerInfo) -> Float64
+
+The estimated number of floating-point operations of the contraction along this path.
+"""
 function flop_count(info::CuTensorNetworkContractionOptimizerInfo)
     n = Ref{Float64}()
     cutensornetContractionOptimizerInfoGetAttribute(handle(), info, CUTENSORNET_CONTRACTION_OPTIMIZER_INFO_FLOP_COUNT, n, sizeof(Float64))
@@ -35,6 +53,19 @@ function with_host_workspace(f, workspace_desc, workspace_preference)
     end
 end
 
+"""
+    tensor_qr!(A, modes_a, Q, modes_q, R, modes_r; stream, workspace_preference, memspace)
+        -> Q, R
+    tensor_qr!(A::CuTensor, Q::CuTensor, R::CuTensor; ...) -> Q, R
+
+Compute the QR decomposition of the tensor `A`, writing the factors to `Q` and `R`. The modes
+of `A` are split between `Q` and `R` by their labels: `Q` and `R` share one new mode, the
+modes of `Q` are rows and those of `R` are columns of the matrix being decomposed. Mode
+labels can be integers or characters. `A` is not modified.
+
+Wraps `cutensornetTensorQR`. `workspace_preference` is a `cutensornetWorksizePref_t`, and
+`memspace` a `cutensornetMemspace_t`.
+"""
 function tensor_qr!(tensor_in::CuArray{T,N}, modes_in, tensor_q::CuArray{T, Q}, modes_q, tensor_r::CuArray{T, R}, modes_r; stream::CuStream=stream(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T<:Number, N, Q, R}
     # (the arrays and the workspace are used as if on the task's stream)
     CUDACore.check_owned(stream)
@@ -56,6 +87,20 @@ end
 
 tensor_qr!(tensor_in::CuTensor{T,N}, tensor_q::CuTensor{T, Q}, tensor_r::CuTensor{T, R}; kwargs...) where {T<:Number, N, Q, R} = tensor_qr!(tensor_in.data, tensor_in.inds, tensor_q.data, tensor_q.inds, tensor_r.data, tensor_r.inds; kwargs...)
 
+"""
+    tensor_svd!(A, modes_a, U, modes_u, S, V, modes_v; svd_config=SVDConfig(), stream, ...)
+        -> U, S, V, info
+    tensor_svd!(A::CuTensor, U::CuTensor, S, V::CuTensor; ...) -> U, S, V, info
+
+Compute the (truncated) singular value decomposition of the tensor `A`, writing the factors to
+`U` and `V`, and the singular values to the real vector `S`. The modes of `A` are split
+between `U` and `V` as in [`tensor_qr!`](@ref). The truncation is configured with
+[`SVDConfig`](@ref), and its result described by the returned [`CuTensorSVDInfo`](@ref).
+When it reduces the shared mode, the factors are stored packed, as described at
+[`reduced_extent`](@ref).
+
+Wraps `cutensornetTensorSVD`.
+"""
 function tensor_svd!(tensor_in::CuArray{T,N}, modes_in, tensor_u::CuArray{T, U}, modes_u, s::CuVector{S}, tensor_v::CuArray{T, V}, modes_v; svd_config::SVDConfig=SVDConfig(), stream::CuStream=stream(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T<:Number, S<:Real, N, U, V}
     # (the arrays and the workspace are used as if on the task's stream)
     CUDACore.check_owned(stream)
@@ -78,6 +123,21 @@ function tensor_svd!(tensor_in::CuArray{T,N}, modes_in, tensor_u::CuArray{T, U},
 end
 tensor_svd!(tensor_in::CuTensor{T,N}, tensor_u::CuTensor{T, U}, s::CuVector{S}, tensor_v::CuTensor{T, V}; kwargs...) where {T<:Number, S<:Real, N, U, V} = tensor_svd!(tensor_in.data, tensor_in.inds, tensor_u.data, tensor_u.inds, s, tensor_v.data, tensor_v.inds; kwargs...)
 
+"""
+    gate_split!(A, modes_a, B, modes_b, G, modes_g, U, modes_u, S, V, modes_v;
+                algo=CUTENSORNET_GATE_SPLIT_ALGO_DIRECT, svd_config=SVDConfig(), stream, ...)
+        -> U, S, V, info
+    gate_split!(A::CuTensor, B::CuTensor, G::CuTensor, U::CuTensor, S, V::CuTensor; ...)
+        -> U, S, V, info
+
+Apply the two-site gate `G` to the tensors `A` and `B`, and split the result again. This is
+how a gate is applied to a matrix product state: `A` and `B` share a bond, and the result is
+split with a truncated SVD into `U` and `V`, with singular values `S`. `algo` (a `cutensornetGateSplitAlgo_t`) selects
+whether the full tensor is decomposed (`DIRECT`) or `A` and `B` are first reduced by QR
+(`REDUCED`), and `svd_config` the truncation, as in [`tensor_svd!`](@ref).
+
+Wraps `cutensornetGateSplit`.
+"""
 function gate_split!(A::CuArray{T, NA}, modes_a, B::CuArray{T, NB}, modes_b, G::CuArray{T, NG}, modes_g, tensor_u::CuArray{T, U}, modes_u, s::CuVector{S}, tensor_v::CuArray{T, V}, modes_v; algo::cutensornetGateSplitAlgo_t=CUTENSORNET_GATE_SPLIT_ALGO_DIRECT, svd_config::SVDConfig=SVDConfig(), stream::CuStream=stream(), workspace_preference::cutensornetWorksizePref_t=CUTENSORNET_WORKSIZE_PREF_RECOMMENDED, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE) where {T<:Number, S<:Real, NA, NB, NG, U, V}
     # (the arrays and the workspace are used as if on the task's stream)
     CUDACore.check_owned(stream)

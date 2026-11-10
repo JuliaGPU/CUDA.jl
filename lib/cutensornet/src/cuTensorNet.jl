@@ -18,9 +18,14 @@ else
 end
 
 
-@public functional, enable_logging
+@public functional, enable_logging, handle, version, cuda_version
 
 const _initialized = Ref{Bool}(false)
+"""
+    cuTensorNet.functional() -> Bool
+
+Whether cuTensorNet was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
 
@@ -70,6 +75,14 @@ end
 const LibraryState = @NamedTuple{handle::Handle}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:cuTensorNet)
 
+"""
+    cuTensorNet.handle()
+
+The cuTensorNet handle of the current task, for its active context, for calling the C API of
+cuTensorNet (`cuTensorNet.cutensornet*`) directly. It converts to a `cutensornetHandle_t`.
+The handle is borrowed: don't destroy it or change its settings, and don't keep it across
+tasks. Its fields are not part of the API.
+"""
 function handle()
     cuda = CUDACore.active_state()
 

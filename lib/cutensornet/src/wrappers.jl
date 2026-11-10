@@ -4,6 +4,11 @@ function cutensornetCreate()
     handle[]
 end
 
+"""
+    cuTensorNet.version() -> VersionNumber
+
+The version of the cuTensorNet library in use, not that of the CUDA toolkit.
+"""
 function version()
   ver = cutensornetGetVersion()
   major, ver = divrem(ver, 10000)
@@ -12,6 +17,11 @@ function version()
   VersionNumber(major, minor, patch)
 end
 
+"""
+    cuTensorNet.cuda_version() -> VersionNumber
+
+The version of the CUDA runtime that cuTensorNet was built with.
+"""
 function cuda_version()
   ver = cutensornetGetCudartVersion()
   major, ver = divrem(ver, 1000)

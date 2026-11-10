@@ -59,6 +59,16 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   public too, as is `cuSPARSE.prune`.
 - cuSPARSE's `mv!` multiplies BSR matrices with every cuSPARSE version, using the legacy
   `bsrmv` routine before cuSPARSE 12.6.3. This makes `A * x` work for BSR matrices there.
+- cuTensorNet's wrappers are documented public API, covered by semantic versioning: the
+  network contraction API (`CuNetwork`, `append_tensor!`, `set_output!`,
+  `rehearse_contraction`, `prepare_contraction!`, `autotune!`, `contract!`,
+  `compute_gradients!` and related functions), the tensor decompositions (`tensor_qr!`,
+  `tensor_svd!`, `gate_split!`), and the state API (`CuNetworkState`, `CuNetworkOperator`,
+  `apply!`, `compute!`, `CuStateAccessor`, `CuStateExpectation`, `CuStateMarginal`,
+  `CuStateSampler`, `CuStateProjectionMPS` and related functions). For calling the C API
+  directly, `cuTensorNet.handle()`, `version()` and `cuda_version()` are public too.
+  `autotune!` now takes `NetworkAutotunePreferences` directly, and `purge_cache!` the
+  network.
 
 *Bug fixes*:
 
@@ -128,6 +138,24 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   | `gtsv2!(dl, d, du, B, index)`, `gtsv2(dl, d, du, B, index)` | `gtsv2!(dl, d, du, B)`, `gtsv2(dl, d, du, B)` |
   | `sort_coo(A, 'R')`, `sort_coo(A, 'C')` | `sort_coo(A; by=:row)`, `sort_coo(A; by=:col)` |
   | `mv2!` | `mv!` |
+
+*Minor changes*:
+
+- cuTensorNet's contraction API built on network descriptors and contraction plans,
+  which NVIDIA deprecated, is deprecated in favor of `CuNetwork`, and the decompositions
+  no longer extend `LinearAlgebra.qr!` and `svd!`. The old names keep working with a
+  deprecation warning:
+
+  | Deprecated | Replacement |
+  |:--|:--|
+  | `CuTensorNetwork`, `perform_contraction!` | `CuNetwork` with `append_tensor!`, `set_output!`, `prepare_contraction!` and `contract!` |
+  | `perform_contraction!(..., AutoTune(); prefs=AutotunePreferences(...))` | `autotune!(net; prefs=NetworkAutotunePreferences(...))` before `contract!` |
+  | `qr!(A, modes_a, Q, modes_q, R, modes_r)` and the `CuTensor` method | `tensor_qr!` |
+  | `svd!(A, modes_a, U, modes_u, S, V, modes_v)` and the `CuTensor` method | `tensor_svd!` |
+  | `gateSplit!(...; gateAlgo)` | `gate_split!(...; algo)` |
+
+  `CuTensorNetwork`'s custom strides have no replacement: NVIDIA's new API only takes
+  tensors in the default (column-major) layout.
 
 
 ## v6.5 (October 2026)
