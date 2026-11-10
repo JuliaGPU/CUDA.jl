@@ -7,6 +7,8 @@ using CUDACore: @checked, @gcsafe_ccall
 
 using CEnum: @cenum
 
+using Random: AbstractRNG, default_rng
+
 if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
@@ -122,6 +124,7 @@ end
 include("types.jl")
 include("wrappers.jl")
 include("statevec.jl")
+include("deprecated.jl")
 
 
 ## logging

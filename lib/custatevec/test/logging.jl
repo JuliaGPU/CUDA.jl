@@ -3,7 +3,7 @@ using Base.CoreLogging: Debug
 @testset "logging" begin
     cuStateVec.enable_logging()
     try
-        sv = CuStateVec(ComplexF32, 2)
+        sv = CuStateVec{ComplexF32}(2)
         X = ComplexF32[0 1; 1 0]
 
         @test_logs (:debug, r"custatevecApplyMatrix") min_level=Debug match_mode=:any begin

@@ -3,9 +3,9 @@ function initialize!(sv::CuStateVec, sv_type::custatevecStateVectorType_t)
     return sv
 end
 
-function applyPauliExp!(sv::CuStateVec, theta::Float64, paulis::Vector{<:Pauli}, targets::Vector{Int32}, controls::Vector{Int32}, controlValues::Vector{Int32}=fill(one(Int32), length(controls)))
+function applyPauliRotation!(sv::CuStateVec, theta::Real, paulis::Vector{<:Pauli}, targets::Vector{<:Integer}, controls::Vector{<:Integer}, controlValues::Vector{<:Integer}=fill(one(Int32), length(controls)))
     cupaulis = CuStateVecPauli.(paulis)
-    custatevecApplyPauliRotation(handle(), sv.data, eltype(sv), sv.nbits, theta, cupaulis, targets, length(targets), controls, controlValues, length(controls))
+    custatevecApplyPauliRotation(handle(), sv.data, eltype(sv), sv.nbits, theta, cupaulis, convert(Vector{Int32}, targets), length(targets), convert(Vector{Int32}, controls), convert(Vector{Int32}, controlValues), length(controls))
     return sv
 end
 
@@ -128,7 +128,7 @@ function batchMeasureWithOffset!(sv::CuStateVec, bitordering::Vector{<:Integer},
     return sv, bitstring
 end
 
-function expectation(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, basis_bits::Vector{<:Integer})
+function computeExpectation(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, basis_bits::Vector{<:Integer})
     CT = compute_type(eltype(sv), eltype(matrix))
     function bufferSize()
         out = Ref{Csize_t}()
@@ -141,10 +141,10 @@ function expectation(sv::CuStateVec, matrix::Union{Matrix, CuMatrix}, basis_bits
         custatevecComputeExpectation(handle(), sv.data, eltype(sv), sv.nbits, expVal, Float64, residualNorm, matrix, eltype(matrix), CUSTATEVEC_MATRIX_LAYOUT_COL, convert(Vector{Int32}, basis_bits), length(basis_bits), CT, buffer, sizeof(buffer))
         synchronize()
     end
-    return expVal, residualNorm
+    return expVal[]
 end
 
-function expectationBatched(sv::CuStateVec, n_svs::Int, matrices::Union{Vector, CuVector}, n_matrices::Int, basis_bits::Vector{<:Integer})
+function computeExpectationBatched(sv::CuStateVec, n_svs::Int, matrices::Union{Vector, CuVector}, n_matrices::Int, basis_bits::Vector{<:Integer})
     sv_stride    = div(length(sv.data), n_svs)
     n_index_bits = Int(log2(sv_stride))
     CT = compute_type(eltype(sv), eltype(matrices))
@@ -163,19 +163,24 @@ function expectationBatched(sv::CuStateVec, n_svs::Int, matrices::Union{Vector, 
     return reshape(expVals, n_matrices, n_svs)
 end
 
-function expectationsOnPauliBasis(sv::CuStateVec, pauliOps::Vector{Vector{Pauli}}, basisInds::Vector{Vector{Int}})
+function computeExpectationsOnPauliBasis(sv::CuStateVec, pauliOps::AbstractVector{<:AbstractVector{<:Pauli}}, basisInds::AbstractVector{<:AbstractVector{<:Integer}})
+    length(pauliOps) == length(basisInds) || throw(DimensionMismatch("need as many sets of basis bits as Pauli products."))
+    all(i -> length(pauliOps[i]) == length(basisInds[i]), eachindex(pauliOps, basisInds)) || throw(DimensionMismatch("each Pauli product needs a basis bit for every Pauli matrix."))
     exp_vals = zeros(Float64, length(pauliOps))
     cupaulis = [[CuStateVecPauli(O) for O in op] for op in pauliOps]
-    custatevecComputeExpectationsOnPauliBasis(handle(), sv.data, eltype(sv), sv.nbits, exp_vals, cupaulis, length(pauliOps), convert(Vector{Vector{Int32}}, basisInds), convert(Vector{UInt32}, length.(basisInds)))
+    custatevecComputeExpectationsOnPauliBasis(handle(), sv.data, eltype(sv), sv.nbits, exp_vals, cupaulis, length(pauliOps), [convert(Vector{Int32}, b) for b in basisInds], convert(Vector{UInt32}, length.(basisInds)))
     return exp_vals
 end
 
-function sample(sv::CuStateVec, sampled_bits::Vector{<:Integer}, shot_count)
+sample(sv::CuStateVec, sampled_bits::Vector{<:Integer}, shot_count) =
+    sample(default_rng(), sv, sampled_bits, shot_count)
+
+function sample(rng::AbstractRNG, sv::CuStateVec, sampled_bits::Vector{<:Integer}, shot_count)
     sampler = CuStateVecSampler(sv, UInt32(shot_count))
     bitstrings = Vector{custatevecIndex_t}(undef, shot_count)
     with_workspace(handle().cache, sampler.ws_size) do buffer
         custatevecSamplerPreprocess(handle(), sampler, buffer, sizeof(buffer))
-        custatevecSamplerSample(handle(), sampler, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
+        custatevecSamplerSample(handle(), sampler, bitstrings, convert(Vector{Int32}, sampled_bits), length(sampled_bits), rand(rng, shot_count), shot_count, CUSTATEVEC_SAMPLER_OUTPUT_RANDNUM_ORDER)
     end
     return bitstrings
 end
@@ -185,7 +190,7 @@ function swapIndexBits!(sv::CuStateVec, bitSwaps::Vector{Pair{T, T}}, maskBitStr
     return sv
 end
 
-function swapIndexBitsMultiDevice!(sub_svs::Vector{<:CuStateVec}, devices::Vector{CuDevice}, indexBitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}, device_network_type::custatevecDeviceNetworkType_t) where {T<:Integer}
+function multiDeviceSwapIndexBits!(sub_svs::Vector{<:CuStateVec}, devices::Vector{CuDevice}, indexBitSwaps::Vector{Pair{T, T}}, maskBitString::Vector{<:Integer}, maskOrdering::Vector{<:Integer}, device_network_type::custatevecDeviceNetworkType_t) where {T<:Integer}
     all(sv->sv.nbits == first(sub_svs).nbits, sub_svs) || throw(ArgumentError("all sub-vectors of the state vector must have the same number of index bits."))
     all(sv->eltype(sv) == eltype(first(sub_svs)), sub_svs) || throw(ArgumentError("all sub-vectors of the state vector must have the same element type."))
     n_global_bits = trailing_zeros(length(sub_svs))

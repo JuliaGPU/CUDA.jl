@@ -45,7 +45,7 @@ end
                                             (CUDACore.DEFAULT_MATH, nothing, cuStateVec.CUSTATEVEC_MATH_MODE_DEFAULT))
             CUDACore.math_mode!(mode; precision)
             @test cuStateVec.mathMode() == expected
-            sv = CuStateVec(ComplexF32, 2)
+            sv = CuStateVec{ComplexF32}(2)
             applyMatrix!(sv, ComplexF32[0 1; 1 0], false, [0], Int[])
             @test collect(sv.data) ≈ ComplexF32[0, 1, 0, 0]
         end
