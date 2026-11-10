@@ -44,6 +44,14 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   routines and the cuBLASXt (`xt_*`) wrappers are documented public API, covered by
   semantic versioning. For calling the C API directly, `cuBLAS.handle()` and
   `cuBLAS.version()` are public too.
+- cuStateVec's wrappers are documented public API, covered by semantic versioning:
+  `CuStateVec` and the functions that apply gates, measure, sample, compute expectation
+  values and access or reorder its elements (`applyMatrix!`, `measureOnZBasis!`,
+  `computeExpectation`, `sample`, `swapIndexBits!`, ...), the helper objects
+  `CuStateVecSampler`, `CuStateVecAccessor`, `CuStateVecDistIndexBitSwapScheduler` and
+  `CuStateVecSubSVMigrator`, and `Pauli`. For calling the C API directly,
+  `cuStateVec.handle()` and `version()` are public too. `sample` takes an optional random
+  number generator.
 
 *Bug fixes*:
 
@@ -67,6 +75,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   passed to them; they copied the vector holding the matrices, but not the matrices.
 - `cuBLAS.copy!(n, x, y)` of `Float16` and `ComplexF16` arrays copies only the first `n`
   elements, like it does for the other element types, instead of all of them.
+- cuStateVec's `abs2SumArrayBatched` passes its mask bit strings to cuStateVec as 64-bit
+  integers, as it expects, and `collapseByBitStringBatched!` works with bit strings that
+  cover only some of the index bits.
 
 *Minor changes*:
 
@@ -81,6 +92,21 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   are renamed `xt_devices()`, `xt_ndevices()` and `xt_devices!()`; the old names are
   deprecated. The methods of `getrf_batched!`, `getrs_batched!` and `getri_batched!` that
   take arrays of device pointers are deprecated in favour of those taking arrays.
+
+*Minor changes*:
+
+- cuStateVec's wrappers are named after the routine they call. The old names are
+  deprecated:
+
+  | Deprecated | Replacement |
+  |:--|:--|
+  | `applyPauliExp!` | `applyPauliRotation!` |
+  | `swapIndexBitsMultiDevice!` | `multiDeviceSwapIndexBits!` |
+  | `expectation`, `expectationBatched`, `expectationsOnPauliBasis` | `computeExpectation`, `computeExpectationBatched`, `computeExpectationsOnPauliBasis` |
+  | `CuStateVec(T, n_qubits)` | `CuStateVec{T}(n_qubits)` |
+
+  `computeExpectation` returns the expectation value, where `expectation` returned it in a
+  `Ref`, together with one for a residual norm that cuStateVec doesn't compute.
 
 
 ## v6.5 (October 2026)

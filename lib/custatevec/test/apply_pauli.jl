@@ -1,11 +1,15 @@
-@testset "applyPauliExp" begin
+@testset "applyPauliRotation!" begin
     @testset for elty in [ComplexF32, ComplexF64]
         h_sv = 1.0/√8 .* elty[0.0, im, 0.0, im, 0.0, im, 0.0, im]
         h_sv_result = 1.0/√8 * elty[0.0, im, 0.0, -1.0, 0.0, im, 0.0, 1.0]
         sv   = CuStateVec(h_sv)
-        sv   = applyPauliExp!(sv, π/2, [PauliZ()], Int32[2], Int32[1], Int32[1])
+        sv   = applyPauliRotation!(sv, π/2, [PauliZ()], Int32[2], Int32[1], Int32[1])
         sv_result = collect(sv.data)
         @test sv_result ≈ h_sv_result
+
+        # integer vectors of any width
+        sv = applyPauliRotation!(CuStateVec(h_sv), π/2, [PauliZ()], [2], [1], [1])
+        @test collect(sv.data) ≈ h_sv_result
     end
 end
 @testset "applyGeneralizedPermutationMatrix" begin

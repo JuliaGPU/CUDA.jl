@@ -1,5 +1,10 @@
 export CUSTATEVECError
 
+"""
+    CUSTATEVECError(code::custatevecStatus_t)
+
+The exception thrown when a cuStateVec call fails, with the status code it returned.
+"""
 struct CUSTATEVECError <: Exception
     code::custatevecStatus_t
 end

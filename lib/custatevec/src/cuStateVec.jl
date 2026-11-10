@@ -7,6 +7,8 @@ using CUDACore: @checked, @gcsafe_ccall
 
 using CEnum: @cenum
 
+using Random: AbstractRNG, default_rng
+
 if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery
 else
@@ -14,9 +16,14 @@ else
 end
 
 
-@public functional, enable_logging
+@public functional, enable_logging, handle, version
 
 const _initialized = Ref{Bool}(false)
+"""
+    cuStateVec.functional() -> Bool
+
+Whether cuStateVec was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
 
@@ -73,6 +80,14 @@ end
 const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode, math_precision::Symbol}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUQUANTUM)
 
+"""
+    cuStateVec.handle()
+
+The cuStateVec handle of the current task, for its active context and stream, for calling the
+C API of cuStateVec (`cuStateVec.custatevec*`) directly. It converts to a
+`custatevecHandle_t`. The handle is borrowed: don't destroy it, or change its stream, math
+mode or other settings. Its fields are not part of the API.
+"""
 function handle()
     cuda = CUDACore.active_state()
 
@@ -122,6 +137,7 @@ end
 include("types.jl")
 include("wrappers.jl")
 include("statevec.jl")
+include("deprecated.jl")
 
 
 ## logging

@@ -22,6 +22,11 @@ end
             sv      = CuStateVec(h_sv)
             abs2sum = abs2SumArrayBatched(sv, n_svs, bit_ordering, Int[], Int[])
             @test abs2sum ≈ a2s_result
+
+            # a mask bit string for each state vector, here selecting bit 2 = 1 and 0
+            abs2sum = abs2SumArrayBatched(sv, n_svs, bit_ordering, [1, 0], [2])
+            h = abs2.(h_sv)
+            @test abs2sum ≈ [h[5] + h[6], h[7] + h[8], h[9] + h[10], h[11] + h[12]]
         end
     end
 end
@@ -38,5 +43,13 @@ end
             sv_result  = collect(d_sv.data)
             @test sv_result ≈ h_sv_result
         end
+
+        # bit strings that cover only some of the index bits
+        h_sv = rand(elty, 16)
+        masks = [[i & 0b011 == 0b01 for i in 0:7], [i & 0b011 == 0b10 for i in 0:7]]
+        norms = Float64[sum(abs2, h_sv[1:8][masks[1]]), sum(abs2, h_sv[9:16][masks[2]])]
+        sv = collapseByBitStringBatched!(CuStateVec(h_sv), 2, [1, 2], [0, 1], norms)
+        expected = vcat(h_sv[1:8] .* masks[1] ./ sqrt(norms[1]), h_sv[9:16] .* masks[2] ./ sqrt(norms[2]))
+        @test collect(sv.data) ≈ expected
     end
 end
