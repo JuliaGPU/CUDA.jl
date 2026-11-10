@@ -65,6 +65,8 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   error or a `MethodError`. They take the same keyword arguments as with a `CuArray`.
 - `cuBLAS.geqrf_batched` and `cuBLAS.trsm_batched` no longer overwrite the matrices
   passed to them; they copied the vector holding the matrices, but not the matrices.
+- `cuBLAS.copy!(n, x, y)` of `Float16` and `ComplexF16` arrays copies only the first `n`
+  elements, like it does for the other element types, instead of all of them.
 
 *Minor changes*:
 
