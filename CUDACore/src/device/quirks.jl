@@ -16,6 +16,15 @@ macro gputhrow(subtype, reason)
     end
 end
 
+# GPUToolbox's shared overrides throw through `device_throw`; report those exceptions like
+# the ones thrown by the quirks below. Both arguments are constants, so the strings fold.
+@device_override @noinline function GPUToolbox.Overlays.device_throw(::Type{E}, reason::Val) where {E<:Exception}
+    info = kernel_state().exception_info
+    info.subtype = _strptr(Val(nameof(E)))
+    info.reason = _strptr(reason)
+    throw(nothing)
+end
+
 # math.jl
 @device_override @noinline Base.Math.throw_complex_domainerror(f::Symbol, x) =
     @gputhrow "DomainError" "This operation requires a complex input to return a complex result"
@@ -92,10 +101,6 @@ end
 # rational.jl
 @device_override @noinline Base.__throw_rational_argerror_zero(::Type{T}) where {T} =
     @gputhrow "ArgumentError" "invalid rational: 0//0"
-@static if VERSION < v"1.11.0-DEV.708"
-@device_override @noinline Base.__throw_rational_argerror_typemin(::Type{T}) where {T} =
-    @gputhrow "OverflowError" "rational numerator is typemin"
-end
 
 # Float vs Rational comparisons in Base use `widemul` of the decomposed components,
 # which produces Int128 and requires the `__divti3` / `__udivti3` compiler-rt routines

@@ -104,6 +104,54 @@ end
     @test count("Out-of-bounds array access", out) == 1
 end
 
+@testset "Rational arithmetic" begin
+    # on Julia 1.10 and 1.11, Base's helpers that throw for `Rational` overflow interpolate
+    # the integer type into their message; GPUToolbox overrides them with constant messages.
+    function rational_kernel(out, a, b, c)
+        i = threadIdx().x
+        out[i] = -muladd(a[i], b[i], c[i])
+        return
+    end
+    a = [1//2, -3//4, 5//6]
+    b = [2//3, 1//5, -7//8]
+    c = [1//7, 2//9, 3//11]
+    out = CuArray{Rational{Int}}(undef, 3)
+    @cuda threads=3 rational_kernel(out, CuArray(a), CuArray(b), CuArray(c))
+    @test Array(out) == -muladd.(a, b, c)
+end
+
+@testset "Rational exceptions" begin
+    function rational_ctor_kernel(out, num, den)
+        out[] = Rational(num, den)
+        return
+    end
+    out = exception_output() do
+        @cuda rational_ctor_kernel(CuArray([0//1]), 1, typemin(Int))
+    end
+    @test occursin(device_error_re, out)
+    if isdefined(Base, :__throw_rational_argerror_typemin)   # Julia 1.10
+        @test occursin("ArgumentError", out)
+        @test occursin("invalid rational: denominator can't be typemin", out)
+    else    # negating the denominator overflows
+        @test occursin("OverflowError", out)
+    end
+
+    function rational_neg_kernel(out, x)
+        out[] = -x
+        return
+    end
+    out = exception_output() do
+        @cuda rational_neg_kernel(CuArray([0//1]), typemin(Int)//1)
+    end
+    @test occursin(device_error_re, out)
+    # Julia 1.12 builds the message lazily, so Base's method compiles and is only reported
+    # as an exception of unknown type
+    if VERSION < v"1.12-"
+        @test occursin("OverflowError", out)
+        @test occursin("rational numerator is typemin", out)
+    end
+end
+
 @testset "exception output while unrelated work is running" begin
     function bad_kernel(a, i)
         a[i] = 1

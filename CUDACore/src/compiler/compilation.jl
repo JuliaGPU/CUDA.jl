@@ -51,6 +51,11 @@ end
 
 GPUCompiler.method_table(@nospecialize(job::AnyCUDAJob)) = method_table
 
+# GPUToolbox's overrides of Base methods that throw with messages built at run time, which
+# report their exceptions through our `device_throw`
+GPUCompiler.method_tables(@nospecialize(job::AnyCUDAJob)) =
+    (method_table, GPUToolbox.Overlays.throw_overrides)
+
 GPUCompiler.kernel_state_type(job::AnyCUDAJob) = KernelState
 
 function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
