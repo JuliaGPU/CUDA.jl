@@ -2,7 +2,18 @@
 # available from cuSOLVER 11. Where the legacy 32-bit API offers the same routine, it is
 # used on older versions.
 
-# potrf
+@public potrf!, potrs!, getrf!, getrs!, geqrf!, sytrs!, trtri!, larft!, gesvd!, gesvdp!,
+        gesvdr!, syevd!, syevdx!, geev!, syevBatched!
+
+"""
+    potrf!(uplo, A) -> A, info
+
+Compute the Cholesky factorization of the Hermitian positive definite matrix `A` in place,
+in the triangle selected by `uplo` (`'U'` or `'L'`). `info > 0` means that the leading minor
+of that order is not positive definite.
+
+Wraps `cusolverDnXpotrf`, or `cusolverDn<t>potrf` before cuSOLVER 11.
+"""
 function potrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     version() < v"11" && return legacy_potrf!(uplo, A)
     chkuplo(uplo)
@@ -29,7 +40,14 @@ function potrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     A, flag
 end
 
-# potrs
+"""
+    potrs!(uplo, A, B) -> B
+
+Solve `A X = B` in place in `B`, using the Cholesky factorization of `A` computed by
+[`potrf!`](@ref) with the same `uplo`.
+
+Wraps `cusolverDnXpotrs`, or `cusolverDn<t>potrs` before cuSOLVER 11.
+"""
 function potrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
     version() < v"11" && return legacy_potrs!(uplo, A, B)
     chkuplo(uplo)
@@ -48,7 +66,17 @@ function potrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) wher
     B
 end
 
-# getrf (the methods taking 32-bit pivots use the legacy API, see dense.jl)
+"""
+    getrf!(A[, ipiv]) -> A, ipiv, info
+
+Compute the LU factorization of `A` with partial pivoting in place, storing the pivot
+indices in `ipiv`, a `CuVector{Int64}` or `CuVector{Cint}` of length `min(size(A)...)`. When
+`ipiv` is not given, a `CuVector{Cint}` is allocated. `info > 0` means that `U[info, info]`
+is exactly zero.
+
+Wraps `cusolverDnXgetrf` for 64-bit pivots, and `cusolverDn<t>getrf` for 32-bit pivots or
+before cuSOLVER 11.
+"""
 function getrf!(A::StridedCuMatrix{T}, ipiv::CuVector{Int64}) where {T <: BlasFloat}
     if version() < v"11"
         ipiv32 = CuVector{Cint}(undef, length(ipiv))
@@ -79,7 +107,15 @@ function getrf!(A::StridedCuMatrix{T}, ipiv::CuVector{Int64}) where {T <: BlasFl
     A, ipiv, flag
 end
 
-# getrs
+"""
+    getrs!(trans, A, ipiv, B) -> B
+
+Solve `op(A) X = B` in place in `B`, where `trans` selects `op` (`'N'`, `'T'` or `'C'`),
+using the LU factorization `A` and pivots `ipiv` computed by [`getrf!`](@ref).
+
+Wraps `cusolverDnXgetrs` for 64-bit pivots, and `cusolverDn<t>getrs` for 32-bit pivots or
+before cuSOLVER 11.
+"""
 function getrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
     version() < v"11" && return getrs!(trans, A, CuVector{Cint}(ipiv), B)
     # support trans = 'C' for real matrices
@@ -105,7 +141,15 @@ function getrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::St
     B
 end
 
-# geqrf
+"""
+    geqrf!(A[, tau]) -> A, tau
+
+Compute the QR factorization of `A` in place: `R` in the upper triangle, and `Q` as
+Householder reflectors below it with their scalar factors in `tau`. Use [`orgqr!`](@ref) to
+form `Q` and [`ormqr!`](@ref) to multiply by it.
+
+Wraps `cusolverDnXgeqrf`, or `cusolverDn<t>geqrf` before cuSOLVER 11.
+"""
 function geqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
     version() < v"11" && return legacy_geqrf!(A, tau)
     m, n = size(A)
@@ -137,9 +181,18 @@ function geqrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
     geqrf!(A, tau)
 end
 
-# Xsytrs
+"""
+    sytrs!(uplo, A, [ipiv,] B) -> B
+
+Solve `A X = B` in place in `B`, using the factorization of the symmetric matrix `A`
+computed by [`sytrf!`](@ref) with the same `uplo`. `ipiv` is a `CuVector{Int64}`: convert
+the pivots `sytrf!` returns with `CuVector{Int64}(ipiv)`. Leave it out for a factorization
+computed with `pivoting=false`.
+
+Wraps `cusolverDnXsytrs`. Requires cuSOLVER 11.2 (CUDA 11.4).
+"""
 function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
-    version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
+    version() < v"11.2" && error("This operation requires cuSOLVER 11.2 or later.")
     chkuplo(uplo)
     n = checksquare(A)
     nrhs = size(B, 2)
@@ -167,7 +220,7 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::Stride
 end
 
 function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
-    version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
+    version() < v"11.2" && error("This operation requires cuSOLVER 11.2 or later.")
     chkuplo(uplo)
     n = checksquare(A)
     nrhs = size(B, 2)
@@ -194,9 +247,16 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) wher
     B
 end
 
-# Xtrtri
+"""
+    trtri!(uplo, diag, A) -> A
+
+Invert the triangular matrix `A` in place. `uplo` selects the triangle, and `diag` is `'U'`
+for a unit diagonal, which is not read, or `'N'`.
+
+Wraps `cusolverDnXtrtri`. Requires cuSOLVER 11.2 (CUDA 11.4).
+"""
 function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    version() < v"11" && error("This operation requires cuSOLVER 11 or later.")
+    version() < v"11.2" && error("This operation requires cuSOLVER 11.2 or later.")
     chkuplo(uplo)
     chkdiag(diag)
     n = checksquare(A)
@@ -220,7 +280,16 @@ function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasF
     A
 end
 
-# Xlarft!
+"""
+    larft!(direct, storev, V, tau, T) -> T
+
+Form the triangular factor `T` of the block reflector `H = I - V T Vᴴ` of the `k`
+elementary reflectors stored in the columns of the `n×k` matrix `V`, with scalar factors
+`tau`, as LAPACK's `larft` does. `direct` is `'F'` for `H = H(1)⋯H(k)` and `'B'` for
+`H = H(k)⋯H(1)`; `storev` must be `'C'`.
+
+Wraps `cusolverDnXlarft`. Requires cuSOLVER 11.6.
+"""
 function larft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedCuVector{T}, t::StridedCuMatrix{T}) where {T <: BlasFloat}
     cuSOLVER.version() < v"11.6.0" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n, k = size(v)
@@ -250,7 +319,17 @@ function larft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedC
     t
 end
 
-# gesvd
+"""
+    gesvd!(jobu, jobvt, A) -> U, S, Vt
+
+Compute the singular value decomposition `A = U * Diagonal(S) * Vt` of an `m×n` matrix with
+`m ≥ n`, using the QR algorithm. `jobu` and `jobvt` select which columns of `U` and rows of
+`Vt` to compute: `'A'` for all, `'S'` for the first `min(m, n)`, `'O'` to overwrite `A` with
+them, and `'N'` for none. For `'O'` and `'N'`, `CU_NULL` is returned in their place. `A` is
+destroyed. Throws a `LAPACKException` if the algorithm does not converge.
+
+Wraps `cusolverDnXgesvd`, or `cusolverDn<t>gesvd` before cuSOLVER 11.
+"""
 function gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     version() < v"11" && return legacy_gesvd!(jobu, jobvt, A)
     m, n = size(A)
@@ -301,7 +380,16 @@ function gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Blas
     U, Σ, Vt
 end
 
-# gesvdp
+"""
+    gesvdp!(jobz, econ, A) -> U, S, V, err     # jobz = 'V'
+    gesvdp!(jobz, econ, A) -> S, err           # jobz = 'N'
+
+Compute the singular value decomposition `A = U * Diagonal(S) * V'` using the polar
+decomposition. With `econ = true`, `U` and `V` have `min(size(A)...)` columns. `err` is an
+estimate of the error in the singular values. `A` is destroyed.
+
+Wraps `cusolverDnXgesvdp`. Requires cuSOLVER 11.
+"""
 function gesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     m, n = size(A)
     p = min(m, n)
@@ -344,9 +432,19 @@ function gesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: Blas
     end
 end
 
-# gesvdr
+"""
+    gesvdr!(jobu, jobv, A, k; niters=2, p=2k) -> U, S, V
+
+Compute a rank-`k` approximation `A ≈ U[:, 1:k] * Diagonal(S[1:k]) * V[:, 1:k]'` of `A`
+with a randomized algorithm that uses `p` oversampling vectors and `niters` power
+iterations. The singular vectors in `U` and `V` are only computed when `jobu` and `jobv` are
+`'S'`, not when they are `'N'`. `A` is destroyed.
+
+Wraps `cusolverDnXgesvdr`. Requires cuSOLVER 11.1 (CUDA 11.2).
+"""
 function gesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
                   niters::Integer=2, p::Integer=2*k) where {T <: BlasFloat}
+    version() < v"11.1" && error("This operation requires cuSOLVER 11.1 or later.")
     m, n = size(A)
     ℓ = min(m,n)
     p = min(p, ℓ-k)  # Ensure that p + k ≤ ℓ
@@ -394,7 +492,16 @@ function gesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
     U, Σ, V
 end
 
-# syevd (heevd for complex matrices)
+"""
+    syevd!(jobz, uplo, A) -> W         # jobz = 'N'
+    syevd!(jobz, uplo, A) -> W, A      # jobz = 'V'
+
+Compute the eigenvalues `W`, in ascending order, of the symmetric or Hermitian matrix `A`
+from the triangle selected by `uplo`, using a divide-and-conquer algorithm. With
+`jobz = 'V'`, the eigenvectors overwrite `A`.
+
+Wraps `cusolverDnXsyevd`, or `cusolverDn<t>syevd`/`cusolverDn<t>heevd` before cuSOLVER 11.
+"""
 function syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     version() < v"11" && return legacy_syevd!(jobz, uplo, A)
     chkuplo(uplo)
@@ -428,7 +535,17 @@ function syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasF
     end
 end
 
-# syevdx
+"""
+    syevdx!(jobz, range, uplo, A; vl=0.0, vu=Inf, il=1, iu=n) -> W, m        # jobz = 'N'
+    syevdx!(jobz, range, uplo, A; vl=0.0, vu=Inf, il=1, iu=n) -> W, A, m     # jobz = 'V'
+
+Like [`syevd!`](@ref), but compute only some of the eigenvalues: all of them with
+`range = 'A'`, those in the interval `(vl, vu]` with `range = 'V'`, and the `il`-th through
+`iu`-th with `range = 'I'`. The first `m` entries of `W`, and columns of `A`, hold the
+result.
+
+Wraps `cusolverDnXsyevdx`. Requires cuSOLVER 11.
+"""
 function syevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
                   vl::Real=0.0, vu::Real=Inf, il::Integer=1, iu::Integer=0) where {T <: BlasFloat}
     chkuplo(uplo)
@@ -469,7 +586,17 @@ function syevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
     end
 end
 
-# geev
+"""
+    geev!(jobvl, jobvr, A) -> W, VL, VR
+
+Compute the eigenvalues `W` of the square matrix `A`, which are complex also for real `A`,
+and with `jobvl` and `jobvr` set to `'V'` its left and right eigenvectors (`'N'` returns
+`CU_NULL` in their place). For real `A`, the eigenvectors are real and stored as LAPACK's
+`geev` does: a complex conjugate pair occupies two columns, holding the real and imaginary
+part of the first vector. `A` is destroyed.
+
+Wraps `cusolverDnXgeev`. Requires cuSOLVER 11.7.1 (CUDA 12.6.2).
+"""
 function geev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     cuSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n = checksquare(A)
@@ -515,7 +642,16 @@ function geev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: Blas
     return W, VL, VR
 end
 
-# syevBatched
+"""
+    syevBatched!(jobz, uplo, A) -> W         # jobz = 'N'
+    syevBatched!(jobz, uplo, A) -> W, A      # jobz = 'V'
+
+Compute the eigenvalues, and with `jobz = 'V'` the eigenvectors, of each symmetric or
+Hermitian matrix `A[:, :, i]` of a 3-D array, as [`syevd!`](@ref) does. Column `i` of `W`
+holds the eigenvalues of matrix `i`.
+
+Wraps `cusolverDnXsyevBatched`. Requires cuSOLVER 11.7.1.
+"""
 function syevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T <: BlasFloat}
     minimum_version = v"11.7.1"
     cuSOLVER.version() < minimum_version && throw(ErrorException("This operation requires cuSOLVER

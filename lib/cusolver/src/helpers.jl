@@ -36,6 +36,13 @@ Base.unsafe_convert(::Type{csrcholInfo_t}, info::SparseCholeskyInfo) = info.info
 
 ## CuSolverParameters
 
+"""
+    CuSolverParameters()
+
+Create the options object (`cusolverDnParams_t`) that the routines of cuSOLVER's generic
+API (`cusolverDnX*` in the C API) take. It converts to a `cusolverDnParams_t` and is
+destroyed when it is garbage collected. Requires cuSOLVER 11.
+"""
 mutable struct CuSolverParameters
     parameters::cusolverDnParams_t
 

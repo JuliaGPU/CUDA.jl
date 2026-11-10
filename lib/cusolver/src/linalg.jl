@@ -361,10 +361,28 @@ LinearAlgebra.rmul!(A::CuVecOrMat{T},
 
 ## SVD
 
+@public QRAlgorithm, JacobiAlgorithm, ApproximateAlgorithm, CuSVDBatched
+
 abstract type SVDAlgorithm end
+
+"""
+    QRAlgorithm()
+    JacobiAlgorithm()
+    ApproximateAlgorithm()
+
+Algorithms for `svd(A; alg)`, `svd!(A; alg)`, `svdvals(A; alg)` and `svdvals!(A; alg)` with a
+`CuMatrix` or a 3-D `CuArray` holding a batch of matrices:
+
+- `JacobiAlgorithm()`, the default, uses [`gesvdj!`](@ref) and, for a batch,
+  [`gesvdjBatched!`](@ref). Matrices too large for `gesvdj!` use `gesvd!` instead.
+- `QRAlgorithm()` uses [`gesvd!`](@ref). It does not support batches.
+- `ApproximateAlgorithm()` uses [`gesvdaStridedBatched!`](@ref) and only supports batches.
+
+For a batch, the result is a [`CuSVDBatched`](@ref).
+"""
 struct QRAlgorithm <: SVDAlgorithm end
-struct JacobiAlgorithm <: SVDAlgorithm end
-struct ApproximateAlgorithm <: SVDAlgorithm end
+@doc (@doc QRAlgorithm) struct JacobiAlgorithm <: SVDAlgorithm end
+@doc (@doc QRAlgorithm) struct ApproximateAlgorithm <: SVDAlgorithm end
 
 const CuMatOrBatched{T} = Union{CuMatrix{T}, CuArray{T,3}} where T
 
@@ -423,6 +441,14 @@ function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm; rank::Int
     return CuSVDBatched(U, S, V)
 end
 
+"""
+    CuSVDBatched
+
+The singular value decompositions of a batch of matrices, returned by `svd(A)` for a 3-D
+`CuArray` `A`. The fields `U` and `V` are 3-D arrays and `S` is a matrix, holding the
+factors of each matrix `A[:, :, i]` in `U[:, :, i]`, `S[:, i]` and `V[:, :, i]`. Destructures
+into `U, S, V`.
+"""
 struct CuSVDBatched{T,Tr,A<:AbstractArray{T,3}} <: LinearAlgebra.Factorization{T}
     U::CuArray{T,3}
     S::CuMatrix{Tr}

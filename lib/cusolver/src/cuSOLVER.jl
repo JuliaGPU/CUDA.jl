@@ -23,11 +23,22 @@ else
 end
 
 
-@public functional, has_cusolvermg, enable_logging
+@public functional, has_cusolvermg, enable_logging, version, dense_handle, CuSolverParameters
 
 const _initialized = Ref{Bool}(false)
+"""
+    cuSOLVER.functional() -> Bool
+
+Whether cuSOLVER was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
+"""
+    cuSOLVER.has_cusolvermg(show_reason=false) -> Bool
+
+Whether the CUDA toolkit provides cusolverMg, the multi-GPU solver library. With
+`show_reason = true`, an error explains why it is missing.
+"""
 function has_cusolvermg(show_reason::Bool=false)
     if !@isdefined(libcusolverMg)
         show_reason && error("CUDA toolkit does not contain cuSolverMG")
@@ -97,6 +108,14 @@ end
 const DenseLibraryState = @NamedTuple{handle::DnHandle, stream::CuStream}
 const dense_state_cache = CUDACore.TaskLocalCache{CuContext, DenseLibraryState}(:CUSOLVER_dense)
 
+"""
+    cuSOLVER.dense_handle()
+
+The cuSOLVER dense handle of the current task, for its active context and stream, for
+calling the C API of cuSOLVER (`cuSOLVER.cusolverDn*`) directly. It converts to a
+`cusolverDnHandle_t`. The handle is borrowed: don't destroy it, or change its stream or
+other settings. Its fields are not part of the API.
+"""
 function dense_handle()
     cuda = CUDACore.active_state()
 

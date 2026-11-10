@@ -88,6 +88,19 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `cuFFT.CuFFTPlan`, the type of the plans that AbstractFFTs' `plan_*` functions return
   for `CuArray`s (directly, or wrapped in a `ScaledPlan`), is documented public API, including the meaning of its type parameters,
   and so is `cuFFT.version()`.
+- cuSOLVER's dense wrappers are documented public API, covered by semantic versioning:
+  `potrf!`, `potrs!`, `potri!`, `getrf!`, `getrs!`, `geqrf!`, `ormqr!`, `orgqr!`,
+  `larft!`, `sytrf!`, `sytrs!`, `trtri!`, `gebrd!`, `gesvd!`, `gesvdj!`, `gesvdp!`,
+  `gesvdr!`, `syevd!`, `syevdx!`, `sygvd!`, `sygvj!`, `geev!` and their batched
+  versions, as well as `QRAlgorithm`, `JacobiAlgorithm`, `ApproximateAlgorithm` and
+  `CuSVDBatched`, which select and hold the result of `svd`'s algorithm. For calling the C
+  API directly, `cuSOLVER.dense_handle()`, `cuSOLVER.CuSolverParameters` and
+  `cuSOLVER.version()` are public too.
+- cuSOLVER's wrappers use the 64-bit generic API (`cusolverDnX*`) for routines that it
+  offers alongside the legacy API, from cuSOLVER 11. This makes `gesvd!`, and
+  `svd(A; alg=QRAlgorithm())`, 2-3x faster when computing singular vectors of large
+  matrices. `getrf!` and `getrs!` take 64-bit pivots, using the generic API, as well as
+  32-bit pivots, using the legacy one; `getrf!(A)` keeps returning 32-bit pivots.
 
 *Bug fixes*:
 
@@ -125,6 +138,7 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - Finalizers now run while `CUDA.@profile`, `CUDA.@metrics`, `CUDA.@sample` and SASS
   reflection execute code, so profiled code that relies on the GC to free GPU memory no
   longer runs out of it.
+- cuSOLVER's `getrs!` with 64-bit pivots checks the dimensions of its arguments.
 
 *Minor changes*:
 
@@ -193,6 +207,24 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   |:--|:--|
   | `elementwise_binary_execute!` | `elementwise_binary!` |
   | `elementwise_trinary_execute!` | `elementwise_trinary!` |
+
+- cuSOLVER's wrappers have one name per routine, after LAPACK's. The old names are
+  deprecated:
+
+  | Deprecated | Replacement |
+  |:--|:--|
+  | `Xpotrf!`, `Xpotrs!`, `Xgeqrf!`, `Xgesvd!`, `Xsyevd!` | `potrf!`, `potrs!`, `geqrf!`, `gesvd!`, `syevd!` |
+  | `Xgetrf!(A)`, `Xgetrf!(A, ipiv)`, `Xgetrs!` | `getrf!(A, CuVector{Int64}(undef, minimum(size(A))))`, `getrf!(A, ipiv)`, `getrs!` |
+  | `Xgesvdp!`, `Xgesvdr!`, `Xsyevdx!`, `Xgeev!`, `XsyevBatched!` | `gesvdp!`, `gesvdr!`, `syevdx!`, `geev!`, `syevBatched!` |
+  | `heevd!`, `hegvd!`, `hegvj!`, `heevjBatched!` | `syevd!`, `sygvd!`, `sygvj!`, `syevjBatched!` |
+  | `gesvdj!(jobz, A::CuArray{T,3})`, `gesvda!` | `gesvdjBatched!`, `gesvdaStridedBatched!` |
+  | `gesvdj!(jobz, econ::Int, A)`, `Xgesvdp!(jobz, econ::Int, A)` | `gesvdj!(jobz, econ::Bool, A)`, `gesvdp!(jobz, econ::Bool, A)` |
+  | `cuSOLVER.devices()`, `ndevices()`, `devices!()` | `cuSOLVER.mg_devices()`, `mg_ndevices()`, `mg_devices!()` |
+
+  `XsyevBatched!` on an `n×(n⋅batch)` matrix has no replacement: pass a 3-D array to
+  `syevBatched!`.
+- cuSOLVER's `gesvd!` throws a `LAPACKException` when the algorithm does not converge, as
+  `LinearAlgebra.LAPACK.gesvd!` does, instead of returning an inaccurate result.
 
 
 ## v6.5 (October 2026)

@@ -1265,6 +1265,158 @@ function gels!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Boo
     return X, info
 end
 
+
+## documentation of the wrappers above, which are defined per element type
+
+@public potri!, sytrf!, ormqr!, orgqr!, gebrd!, gesvdj!, gesvdjBatched!, gesvdaStridedBatched!,
+        sygvd!, sygvj!, syevjBatched!, potrfBatched!, potrsBatched!
+
+"""
+    potri!(uplo, A) -> A
+
+Invert the Hermitian positive definite matrix whose Cholesky factorization
+[`potrf!`](@ref) stored in `A`, in place, in the triangle selected by `uplo`.
+
+Wraps `cusolverDn<t>potri`.
+"""
+potri!
+
+"""
+    sytrf!(uplo, A[, ipiv]) -> A, ipiv, info
+    sytrf!(uplo, A; pivoting=false) -> A, info
+
+Compute the Bunch-Kaufman factorization `A = L D Lᵀ` (or `U D Uᵀ`) of the symmetric matrix
+`A` in place, in the triangle selected by `uplo`, storing the pivots in the
+`CuVector{Cint}` `ipiv`. Also for complex `A` the factorization is symmetric, not Hermitian.
+With `pivoting=false`, no pivoting is done (cuSOLVER 11.7.2 or later). Use
+[`sytrs!`](@ref) to solve with the result.
+
+Wraps `cusolverDn<t>sytrf`.
+"""
+sytrf!
+
+"""
+    ormqr!(side, trans, A, tau, C) -> C
+
+Multiply `C` in place by `Q`, `Qᵀ` or `Qᴴ` (`trans` is `'N'`, `'T'` or `'C'`; `'T'` only
+for real matrices), from the left
+(`side = 'L'`) or the right (`'R'`), where `Q` is stored in `A` and `tau` as computed by
+[`geqrf!`](@ref).
+
+Wraps `cusolverDn<t>ormqr` (`unmqr` for complex matrices).
+"""
+ormqr!
+
+"""
+    orgqr!(A, tau) -> A
+
+Overwrite `A` with the first `size(A, 2)` columns of the `Q` that [`geqrf!`](@ref) stored
+in `A` and `tau`.
+
+Wraps `cusolverDn<t>orgqr` (`ungqr` for complex matrices).
+"""
+orgqr!
+
+"""
+    gebrd!(A) -> A, D, E, tauq, taup
+
+Reduce `A` to bidiagonal form `B = Qᴴ A P` in place. The diagonal and off-diagonal of `B`
+are returned in `D` and `E`; `Q` and `P` are stored in `A` as Householder reflectors with
+scalar factors `tauq` and `taup`.
+
+Wraps `cusolverDn<t>gebrd`.
+"""
+gebrd!
+
+"""
+    gesvdj!(jobz, econ, A; tol=eps(real(eltype(A))), max_sweeps=100) -> U, S, V
+
+Compute the singular value decomposition `A = U * Diagonal(S) * V'` with the Jacobi
+method, to tolerance `tol` in at most `max_sweeps` sweeps. With `jobz = 'N'` only `S` is
+computed. With `econ = true`, `U` or `V` has only `min(size(A)...)` columns. Throws an
+`ArgumentError` for matrices too large for the 32-bit API; use [`gesvd!`](@ref) for those.
+
+Wraps `cusolverDn<t>gesvdj`.
+"""
+gesvdj!
+
+"""
+    gesvdjBatched!(jobz, A; tol=eps(real(eltype(A))), max_sweeps=100) -> U, S, V
+
+Compute the singular value decomposition of each matrix `A[:, :, i]` of a 3-D array, as
+[`gesvdj!`](@ref) does. The matrices can be at most 32×32. `U`, `S` and `V` are 3-D and
+2-D arrays holding the results for each matrix.
+
+Wraps `cusolverDn<t>gesvdjBatched`.
+"""
+gesvdjBatched!
+
+"""
+    gesvdaStridedBatched!(jobz, A; rank=min(size(A, 1), size(A, 2))) -> U, S, V
+
+Approximate the `rank` largest singular values and corresponding singular vectors of each
+`m×n` matrix `A[:, :, i]` of a 3-D array, with `m ≥ n`. `U` is `m×rank×batch`, `S` is
+`rank×batch` and `V` is `n×rank×batch`; with `jobz = 'N'` only `S` is computed.
+
+Wraps `cusolverDn<t>gesvdaStridedBatched`.
+"""
+gesvdaStridedBatched!
+
+"""
+    sygvd!(itype, jobz, uplo, A, B) -> W            # jobz = 'N'
+    sygvd!(itype, jobz, uplo, A, B) -> W, A, B      # jobz = 'V'
+
+Solve a generalized symmetric-definite eigenproblem. It is `A x = λ B x` for `itype = 1`,
+`A B x = λ x` for `itype = 2` and `B A x = λ x` for `itype = 3`, where `A` is symmetric or
+Hermitian and `B` positive definite, reading the triangles selected by `uplo`. With
+`jobz = 'V'` the eigenvectors overwrite `A`. `B` is overwritten by its Cholesky factor.
+
+Wraps `cusolverDn<t>sygvd` (`hegvd` for complex matrices).
+"""
+sygvd!
+
+"""
+    sygvj!(itype, jobz, uplo, A, B; tol=eps(real(eltype(A))), max_sweeps=100) -> W[, A, B]
+
+Like [`sygvd!`](@ref), but with the Jacobi method.
+
+Wraps `cusolverDn<t>sygvj` (`hegvj` for complex matrices).
+"""
+sygvj!
+
+"""
+    syevjBatched!(jobz, uplo, A; tol=eps(real(eltype(A))), max_sweeps=100) -> W         # jobz = 'N'
+    syevjBatched!(jobz, uplo, A; tol=eps(real(eltype(A))), max_sweeps=100) -> W, A      # jobz = 'V'
+
+Compute the eigenvalues, and with `jobz = 'V'` the eigenvectors, of each symmetric or
+Hermitian matrix `A[:, :, i]` of a 3-D array with the Jacobi method. The matrices can be at
+most 32×32. Column `i` of `W` holds the eigenvalues of matrix `i`.
+
+Wraps `cusolverDn<t>syevjBatched` (`heevjBatched` for complex matrices).
+"""
+syevjBatched!
+
+"""
+    potrfBatched!(uplo, A::Vector{<:CuMatrix}) -> A, info
+
+Compute the Cholesky factorization of each matrix in `A`, as [`potrf!`](@ref) does.
+`info[i] > 0` means that the leading minor of that order of `A[i]` is not positive
+definite.
+
+Wraps `cusolverDn<t>potrfBatched`.
+"""
+potrfBatched!
+
+"""
+    potrsBatched!(uplo, A::Vector{<:CuMatrix}, B::Vector{<:CuVecOrMat}) -> B
+
+Solve `A[i] X = B[i]` in place in each `B[i]`, using the Cholesky factorizations computed by
+[`potrfBatched!`](@ref). Each `B[i]` can have only one column.
+
+Wraps `cusolverDn<t>potrsBatched`.
+"""
+potrsBatched!
+
 # LAPACK
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
