@@ -174,7 +174,7 @@ using LinearAlgebra, SparseArrays
                             @test C ≈ collect(dC)
                             if opa == opb == identity && SparseMatrixType != CuSparseMatrixCOO
                                 C  = alpha * geam_A + beta * geam_B
-                                dC = geam(alpha, d_geam_A, beta, d_geam_B, 'O')
+                                dC = geam(alpha, d_geam_A, beta, d_geam_B)
                                 @test C ≈ collect(dC)
                             end
                         end

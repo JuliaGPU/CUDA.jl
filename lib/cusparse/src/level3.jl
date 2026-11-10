@@ -25,8 +25,8 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                       diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixBSR{$elty},
-                      X::StridedCuMatrix{$elty},
-                      index::SparseChar)
+                      X::StridedCuMatrix{$elty};
+                      index::SparseChar='O')
 
             # Support transa = 'C' and transxy = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -80,15 +80,15 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
 end
 
 function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar,
-             alpha::Number, A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T},
-             index::SparseChar) where T
-    sm2!(transa,transxy,uplo,diag,alpha,A,copy(X),index)
+             alpha::Number, A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T};
+             index::SparseChar='O') where T
+    sm2!(transa,transxy,uplo,diag,alpha,A,copy(X); index)
 end
 function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar,
-              A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T}, index::SparseChar) where T
-    sm2!(transa,transxy,uplo,diag,one(T),A,copy(X),index)
+              A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T}; index::SparseChar='O') where T
+    sm2!(transa,transxy,uplo,diag,one(T),A,copy(X); index)
 end
 function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar,
-             A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T}, index::SparseChar) where T
-    sm2!(transa,transxy,uplo,'N',one(T),A,copy(X),index)
+             A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T}; index::SparseChar='O') where T
+    sm2!(transa,transxy,uplo,'N',one(T),A,copy(X); index)
 end

@@ -14,7 +14,7 @@ using LinearAlgebra, SparseArrays
         dB = CuSparseVector(B)
 
         C  = alpha * A + beta * B
-        dC = axpby(alpha, dA, beta, dB, 'O')
+        dC = axpby(alpha, dA, beta, dB)
         @test C ≈ collect(dC)
 
         C  = A + B

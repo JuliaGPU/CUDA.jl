@@ -77,8 +77,8 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                       diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixBSR{$elty},
-                      X::CuVector{$elty},
-                      index::SparseChar)
+                      X::CuVector{$elty};
+                      index::SparseChar='O')
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
@@ -124,16 +124,16 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
 end
 
 function sv2(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
-             A::CuSparseMatrixBSR{T}, X::CuVector{T}, index::SparseChar) where T
-    sv2!(transa,uplo,diag,alpha,A,copy(X),index)
+             A::CuSparseMatrixBSR{T}, X::CuVector{T}; index::SparseChar='O') where T
+    sv2!(transa,uplo,diag,alpha,A,copy(X); index)
 end
 function sv2(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
-             A::CuSparseMatrixBSR{T}, X::CuVector{T}, index::SparseChar) where T
-    sv2!(transa,uplo,diag,one(T),A,copy(X),index)
+             A::CuSparseMatrixBSR{T}, X::CuVector{T}; index::SparseChar='O') where T
+    sv2!(transa,uplo,diag,one(T),A,copy(X); index)
 end
 function sv2(transa::SparseChar, uplo::SparseChar,
-             A::CuSparseMatrixBSR{T}, X::CuVector{T}, index::SparseChar) where T
-    sv2!(transa,uplo,'N',one(T),A,copy(X),index)
+             A::CuSparseMatrixBSR{T}, X::CuVector{T}; index::SparseChar='O') where T
+    sv2!(transa,uplo,'N',one(T),A,copy(X); index)
 end
 
 # gemvi!
@@ -147,8 +147,8 @@ for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float3
                         A::CuMatrix{$elty},
                         X::CuSparseVector{$elty},
                         beta::Number,
-                        Y::CuVector{$elty},
-                        index::SparseChar)
+                        Y::CuVector{$elty};
+                        index::SparseChar='O')
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa

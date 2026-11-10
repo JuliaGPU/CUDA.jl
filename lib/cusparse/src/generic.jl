@@ -227,7 +227,7 @@ end
 
 Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
 """
-function gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+function gather!(X::CuSparseVector, Y::CuVector; index::SparseChar='O')
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -240,7 +240,7 @@ end
 
 Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
 """
-function scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+function scatter!(Y::CuVector, X::CuSparseVector; index::SparseChar='O')
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -253,7 +253,7 @@ end
 
 Computes `alpha * X + beta * Y` for sparse `X` and dense `Y`.
 """
-function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
+function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -266,7 +266,7 @@ end
 
 Performs the Givens rotation specified by `c` and `s` to sparse `X` and dense `Y`.
 """
-function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number, index::SparseChar) where {T}
+function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -274,7 +274,7 @@ function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number, index:
     return X, Y
 end
 
-function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}, index::SparseChar) where {T}
+function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}; index::SparseChar='O') where {T}
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
     result = Ref{T}()
@@ -291,7 +291,7 @@ function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}, inde
 end
 
 function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseCuVector{T},
-             beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_SPMV_ALG_DEFAULT) where {TA, T}
+             beta::Number, Y::DenseCuVector{T}, algo::cusparseSpMVAlg_t=CUSPARSE_SPMV_ALG_DEFAULT; index::SparseChar='O') where {TA, T}
 
     # the generic SpMV supports BSR matrices from cuSPARSE 12.6.3
     if A isa CuSparseMatrixBSR && cuSPARSE.version() < v"12.6.3"
@@ -345,7 +345,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseC
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix{T},
-             B::Union{DenseCuMatrix{T}, Transpose{T, <:DenseCuMatrix{T}}}, beta::Number, C::Union{DenseCuMatrix{T}, Transpose{T, <:DenseCuMatrix{T}}}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T}
+             B::Union{DenseCuMatrix{T}, Transpose{T, <:DenseCuMatrix{T}}}, beta::Number, C::Union{DenseCuMatrix{T}, Transpose{T, <:DenseCuMatrix{T}}}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where {T}
 
     (A isa CuSparseMatrixBSR) && (cuSPARSE.version() < v"12.5.1") && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
@@ -416,40 +416,40 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     return C
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::CuSparseMatrixCSC{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where T
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::CuSparseMatrixCSC{T}, beta::Number, C::DenseCuMatrix{T}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where T
     _B = CuSparseMatrixCSR{T}(B.colPtr, B.rowVal, B.nzVal, reverse(B.dims))
-    mm!(transb, transa, alpha, _B, transpose(A), beta, transpose(C), index, algo)
+    mm!(transb, transa, alpha, _B, transpose(A), beta, transpose(C), algo; index)
     return C
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::CuSparseMatrixCSR{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where T
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::CuSparseMatrixCSR{T}, beta::Number, C::DenseCuMatrix{T}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where T
     _B = CuSparseMatrixCSC{T}(B.rowPtr, B.colVal, B.nzVal, reverse(B.dims))
-    mm!(transb, transa, alpha, _B, transpose(A), beta, transpose(C), index, algo)
+    mm!(transb, transa, alpha, _B, transpose(A), beta, transpose(C), algo; index)
     return C
 end
 
-function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::CuSparseMatrixCOO{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where T
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::CuSparseMatrixCOO{T}, beta::Number, C::DenseCuMatrix{T}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where T
     if T <: Real || transb == 'N' || transb == 'T'
-        mm!((transb == 'N') ? 'T' : 'N', transa, alpha, B, transpose(A), beta, transpose(C), index, algo)
+        mm!((transb == 'N') ? 'T' : 'N', transa, alpha, B, transpose(A), beta, transpose(C), algo; index)
     else # transb == 'C'
         _B = CuSparseMatrixCOO{T}(B.rowInd, B.colInd, conj.(B.nzVal), B.dims)
-        mm!('N', transa, alpha, _B, transpose(A), beta, transpose(C), index, algo)
+        mm!('N', transa, alpha, _B, transpose(A), beta, transpose(C), algo; index)
     end
     return C
 end
 
 function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,N},
-              B::DenseCuArray{T,N}, beta::Number, C::DenseCuArray{T,N}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti,N}
+              B::DenseCuArray{T,N}, beta::Number, C::DenseCuArray{T,N}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where {T,Ti,N}
     Ar = reshape(A, :, :, :)
     Br = reshape(B, size(B,1), size(B,2), :)
     Cr = reshape(C, size(C,1), size(C,2), :)
-    bmm!(transa, transb, alpha, Ar, Br, beta, Cr, index, algo)
+    bmm!(transa, transb, alpha, Ar, Br, beta, Cr, algo; index)
     return C
 end
 
 # batched sparse * dense -> dense matmul
 function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,3},
-              B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, index::SparseChar, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT) where {T,Ti}
+              B::DenseCuArray{T,3}, beta::Number, C::DenseCuArray{T,3}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where {T,Ti}
 
     if cuSPARSE.version() < v"11.7.2"
         throw(ErrorException("Batched sparse-matrix times batched dense-matrix (bmm!) requires a CUSPARSE version ≥ 11.7.2 (yours: $(cuSPARSE.version()))."))
@@ -525,7 +525,7 @@ end
 
 # AB and C must have the same sparsity pattern if β ≠ 0.
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
-               beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+               beta::Number, C::CuSparseMatrixCSR{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     m,k = size(A)
@@ -644,12 +644,12 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
 end
 
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, B::CuSparseMatrixCSC{T},
-               beta::Number, C::CuSparseMatrixCSC{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+               beta::Number, C::CuSparseMatrixCSC{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     # C = AB <---> Cᵀ = BᵀAᵀ
     Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
     Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, reverse(size(B)))
     Cᵀ = CuSparseMatrixCSR(C.colPtr, C.rowVal, C.nzVal, reverse(size(C)))
-    gemm!(transb, transa, alpha, Bᵀ, Aᵀ, beta, Cᵀ, index, algo)
+    gemm!(transb, transa, alpha, Bᵀ, Aᵀ, beta, Cᵀ, algo; index)
     # if the number of non-zeros changed, Cᵀ's arrays were reallocated (freeing C's)
     C.colPtr = Cᵀ.rowPtr
     C.rowVal = Cᵀ.colVal
@@ -659,7 +659,7 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
 end
 
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
-              B::CuSparseMatrixCSR{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+              B::CuSparseMatrixCSR{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     m, k = size(A)
@@ -764,11 +764,11 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 end
 
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
-              B::CuSparseMatrixCSC{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+              B::CuSparseMatrixCSC{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     # C = AB <---> Cᵀ = BᵀAᵀ
     Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, reverse(size(A)))
     Bᵀ = CuSparseMatrixCSR(B.colPtr, B.rowVal, B.nzVal, reverse(size(B)))
-    Cᵀ = gemm(transb, transa, alpha, Bᵀ, Aᵀ, index, algo)
+    Cᵀ = gemm(transb, transa, alpha, Bᵀ, Aᵀ, algo; index)
     C = CuSparseMatrixCSC(Cᵀ.rowPtr, Cᵀ.colVal, Cᵀ.nzVal, reverse(size(Cᵀ)))
     return C
 end
@@ -787,25 +787,25 @@ Supported formats for the sparse matrix are `CuSparseMatrixCSC` and `CuSparseMat
 function gemv end
 
 function gemv(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
-              x::CuSparseVector{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+              x::CuSparseVector{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     m, n = size(A)
     p = length(x)
     p == n || throw(DimensionMismatch("dimensions must match: x has length $p, A has length $m × $n"))
     # we model x as a CuSparseMatrixCSC with one column.
     B = CuSparseMatrixCSC(x)
-    C = gemm(transa, 'N', alpha, A, B, index, algo)
+    C = gemm(transa, 'N', alpha, A, B, algo; index)
     y = CuSparseVector(C)
     return y
 end
 
 function gemv(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
-              x::CuSparseVector{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT) where {T}
+              x::CuSparseVector{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     m, n = size(A)
     p = length(x)
     p == n || throw(DimensionMismatch("dimensions must match: x has length $p, A has length $m × $n"))
     # we model x as a CuSparseMatrixCSR with one column.
     B = CuSparseMatrixCSR(x)
-    C = gemm(transa, 'N', alpha, A, B, index, algo)
+    C = gemm(transa, 'N', alpha, A, B, algo; index)
     y = CuSparseVector(C)
     return y
 end
@@ -813,13 +813,13 @@ end
 for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
     @eval begin
         function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::$SparseMatrixType{T}, B::$SparseMatrixType{T},
-                      beta::Number, C::$SparseMatrixType{T}, index::SparseChar, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; same_pattern::Bool=false) where {T}
+                      beta::Number, C::$SparseMatrixType{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O', same_pattern::Bool=false) where {T}
             if same_pattern
                 D = copy(C)
-                gemm!(transa, transb, alpha, A, B, beta, D, index, algo)
+                gemm!(transa, transb, alpha, A, B, beta, D, algo; index)
             else
-                AB = gemm(transa, transb, one(T), A, B, index, algo)
-                D = geam(alpha, AB, beta, C, index)
+                AB = gemm(transa, transb, one(T), A, B, algo; index)
+                D = geam(alpha, AB, beta, C; index)
             end
             return D
         end
@@ -828,7 +828,7 @@ end
 
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, X::DenseCuVector{T},
-             Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT) where {T}
+             Y::DenseCuVector{T}, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT; index::SparseChar='O') where {T}
     version() < v"11.5" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # native CSC support was added in cuSPARSE 12.8.1 (CUDA 13.3); older versions
@@ -877,7 +877,7 @@ end
 
 function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, B::DenseCuMatrix{T},
-             C::DenseCuMatrix{T}, index::SparseChar, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT) where {T}
+             C::DenseCuMatrix{T}, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT; index::SparseChar='O') where {T}
     version() < v"11.6" && throw(ErrorException("This operation is not supported by the current CUDA version."))
 
     # Support transb = 'C' for real matrices
@@ -940,7 +940,7 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
 end
 
 function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
-                beta::Number, C::Union{CuSparseMatrixCSR{T},CuSparseMatrixBSR{T}}, index::SparseChar, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT) where {T}
+                beta::Number, C::Union{CuSparseMatrixCSR{T},CuSparseMatrixBSR{T}}, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT; index::SparseChar='O') where {T}
 
     cuSPARSE.version() < v"11.4.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     (C isa CuSparseMatrixBSR) && (cuSPARSE.version() < v"12.1.0") && throw(ErrorException("This operation is not supported by the current CUDA version."))
