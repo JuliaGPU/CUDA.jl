@@ -40,6 +40,10 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   and `range_profile` for hardware metrics, and `has_pc_sampling`,
   `check_pc_sampling_support`, `pc_sample`, `PCSamples` and `cubin_crc` for PC sampling.
 - cuRAND's public API is documented, and `cuRAND.version()` is public too.
+- cuBLAS's wrappers of the BLAS routines, their batched versions, the batched LAPACK
+  routines and the cuBLASXt (`xt_*`) wrappers are documented public API, covered by
+  semantic versioning. For calling the C API directly, `cuBLAS.handle()` and
+  `cuBLAS.version()` are public too.
 
 *Bug fixes*:
 
@@ -70,6 +74,11 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   | Deprecated | Replacement |
   |:--|:--|
   | `Random.seed!(rng::LibraryRNG, seed, offset)` | `Random.seed!(rng, seed; offset)` |
+
+- `cuBLAS.devices()`, `ndevices()` and `devices!()`, which select the devices cuBLASXt uses,
+  are renamed `xt_devices()`, `xt_ndevices()` and `xt_devices!()`; the old names are
+  deprecated. The methods of `getrf_batched!`, `getrs_batched!` and `getri_batched!` that
+  take arrays of device pointers are deprecated in favour of those taking arrays.
 
 
 ## v6.5 (October 2026)
