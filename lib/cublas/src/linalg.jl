@@ -525,33 +525,6 @@ end
 
 # Diagonal
 
-# conversions to dense matrices
-Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Array(Diagonal(Array(D.diag)))
-CUDACore.CuArray(D::Diagonal{T}) where {T} = CuMatrix(D)
-function CUDACore.CuMatrix{T}(D::Diagonal) where {T}
-    n = size(D, 1)
-    B = CUDACore.zeros(T, n, n)
-    n == 0 && return B
-
-    gpu_diag = adapt(CuArray, D.diag)
-    function fill_diagonal()
-        i = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
-        grid_stride = gridDim().x * blockDim().x
-        while i <= n
-            @inbounds B[i,i] = gpu_diag[i]
-            i += grid_stride
-        end
-        return
-    end
-    kernel = @cuda launch = false fill_diagonal()
-    config = launch_configuration(kernel.fun)
-    threads = min(config.threads, n)
-    blocks = min(config.blocks, cld(n, threads))
-    @cuda threads blocks fill_diagonal()
-
-    return B
-end
-
 function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
     Di = map(inv, D.diag)
     if any(isinf, Di)

@@ -503,6 +503,15 @@ CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
 CuArray{T,N,M}(xs::CuArray{T,N,M}) where {T,N,M} = copy(xs)
 CuArray{T,N}(xs::CuArray{T,N,M}) where {T,N,M} = copy(xs)
 
+# the generic conversions of a `Diagonal` index its diagonal element by element
+Base.Array(D::Diagonal{T, <:CuArray{T}}) where {T} = Array(Diagonal(Array(D.diag)))
+CuArray(D::Diagonal{T}) where {T} = CuMatrix(D)
+function CuMatrix{T}(D::Diagonal) where {T}
+    B = zeros(T, size(D))
+    view(B, diagind(B)) .= adapt(CuArray, D.diag)
+    return B
+end
+
 
 ## conversions
 

@@ -17,7 +17,6 @@ using LLVM.Interop: assume
 
 using CEnum: @cenum
 
-using Adapt: adapt
 
 if CUDACore.local_toolkit
     using CUDA_Runtime_Discovery

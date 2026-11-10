@@ -591,6 +591,15 @@ end
   @test view(b, :, :, 1) isa DenseCuArray
 end
 
+@testset "Diagonal conversions" begin
+  x = rand(Float32, 5)
+  @test Array(Diagonal(CuArray(x))) == Diagonal(x)
+  @test Array(CuArray(Diagonal(CuArray(x)))) == Diagonal(x)
+  @test Array(CuArray(Diagonal(x))) == Diagonal(x)
+  @test Array(CuMatrix{Float64}(Diagonal(CuArray(x)))) == Diagonal(Float64.(x))
+  @test size(CuArray(Diagonal(CuVector{Float32}(undef, 0)))) == (0, 0)
+end
+
 @testset "StridedArray" begin
   a = CuArray(rand(Int64, 2,2,2))
   @test a isa StridedCuArray

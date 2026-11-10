@@ -139,6 +139,8 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   reflection execute code, so profiled code that relies on the GC to free GPU memory no
   longer runs out of it.
 - cuSOLVER's `getrs!` with 64-bit pivots checks the dimensions of its arguments.
+- Converting a `Diagonal` backed by a `CuArray` to an `Array` or `CuArray` no longer
+  requires cuBLAS to be loaded; without it, these conversions fell back to scalar indexing.
 
 *Minor changes*:
 
