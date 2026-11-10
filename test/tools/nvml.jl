@@ -70,6 +70,9 @@ end
     let dev = NVML.Device(uuid(cuda_dev); mig)
         @test NVML.uuid(dev) == uuid(cuda_dev)
         @test NVML.name(dev) == name(cuda_dev)
+        # NVML's methods extend CUDA.jl's functions
+        @test name(dev) == NVML.name(dev)
+        @test uuid(dev) == NVML.uuid(dev)
 
         NVML.memory_info(dev)
 

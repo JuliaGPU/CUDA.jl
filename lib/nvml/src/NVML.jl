@@ -1,8 +1,14 @@
+"""
+Julia wrappers for NVML, the NVIDIA Management Library, which queries the state of the GPUs
+in the system (clocks, power, temperature, memory, processes) without creating a CUDA
+context. See [`has_nvml`](@ref) and [`NVML.Device`](@ref).
+"""
 module NVML
 
 using GPUToolbox
 
 using CUDACore
+import CUDACore: name, uuid
 
 using CEnum: @cenum
 
@@ -24,6 +30,13 @@ else
     "libnvidia-ml.so.1"
 end
 
+"""
+    has_nvml() -> Bool
+
+Whether NVML, the NVIDIA Management Library that ships with the driver, can be used. It
+can't when the library is missing or fails to initialize, and CUDA.jl doesn't use it on
+Tegra devices, where it can't look up the NVML device of a `CuDevice`. Check this before calling any other function in this module.
+"""
 function has_nvml()
     @memoize begin
         if CUDACore.is_tegra()

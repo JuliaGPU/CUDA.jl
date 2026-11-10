@@ -1,5 +1,12 @@
 export NVMLError
 
+"""
+    NVMLError
+
+The exception the functions in this module throw when an NVML call fails. Its `code` field is
+the `nvmlReturn_t` code, e.g. `ERROR_NOT_SUPPORTED` when the device doesn't support a query,
+or `ERROR_NO_PERMISSION` when it needs administrator rights.
+"""
 struct NVMLError <: Exception
     code::nvmlReturn_t
 end

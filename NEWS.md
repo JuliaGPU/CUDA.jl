@@ -69,6 +69,15 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   directly, `cuTensorNet.handle()`, `version()` and `cuda_version()` are public too.
   `autotune!` now takes `NetworkAutotunePreferences` directly, and `purge_cache!` the
   network.
+- NVML's device and system queries are documented public API, covered by semantic
+  versioning: `NVML.Device`, `devices`, `brand`, `serial`, `index`, `compute_mode`,
+  `compute_capability`, `compute_processes`, `default_applications_clock`,
+  `applications_clock`, `clock_info`, `max_clock_info`, `supported_memory_clocks`,
+  `supported_graphics_clocks`, `clock_event_reasons`, `power_usage`,
+  `energy_consumption`, `temperature`, `memory_info`, `utilization_rates`, `version`,
+  `driver_version` and `cuda_driver_version`. `NVML.name` and `NVML.uuid` are now
+  methods of CUDA.jl's `name` and `uuid`, so they also work unqualified on an
+  `NVML.Device`.
 
 *Bug fixes*:
 
