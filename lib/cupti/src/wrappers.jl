@@ -1,3 +1,6 @@
+@public version, library_version, can_profile
+@public CallbackConfig, ActivityConfig, enable!, @enable!, process
+
 # https://docs.nvidia.com/cupti/api/group__CUPTI__VERSION__API.html
 const cupti_versions = [
     v"4.0",
@@ -29,6 +32,18 @@ const cupti_versions = [
     v"12.9",
     v"12.9.1"]
 
+"""
+    CUPTI.version() -> VersionNumber
+
+The version of CUPTI's API, e.g. `v"12.9.1"` or `v"13.5.0"`, to check for API features.
+Wraps `cuptiGetVersion`. Before CUDA 13, CUPTI reports a revision number, which this
+function maps to the CUDA release that introduced it; several releases can share a
+revision (e.g. `v"10.0"` covers CUDA 10.0 to 10.2). From CUDA 13, CUPTI reports a version
+whose patch number is CUPTI's own. Either way, the version only changes when the API does,
+so it can't identify features or fixes added in an update release: look for the symbol of
+a new routine instead (as [`CUPTI.has_range_profiler`](@ref) does), or use
+[`CUPTI.library_version`](@ref).
+"""
 function version()
     version_ref = Ref{Cuint}()
     cuptiGetVersion(version_ref)
@@ -44,9 +59,14 @@ function version()
     end
 end
 
-# XXX: `cuptiGetVersion` returns something more like the API version, and doesn't change
-#      in between update releases (even when those contain functional changes/fixes)...
-#      NVIDIA suggests to instead use the version number as attached to the filename.
+"""
+    CUPTI.library_version() -> VersionNumber
+
+The release version of the loaded CUPTI library, e.g. `v"2026.4.0"`, which recent CUPTI
+releases number by year. It changes with every release, so use it to work around bugs in a
+specific CUPTI library, and [`CUPTI.version`](@ref) to check for API features. It is read
+from the file name of the library, as NVIDIA suggests.
+"""
 function library_version()
     filename = basename(realpath(libcupti))
     rx = if Sys.islinux()
@@ -133,13 +153,32 @@ function callback(userdata::Ptr{Cvoid}, domain::CUpti_CallbackDomain,
 end
 
 """
-    cfg = CUPTI.CallbackConfig(callback_kinds) do domain, id, data
-        # inspect data
-    end
+    CUPTI.CallbackConfig(callback, domains::Vector{CUpti_CallbackDomain}) -> CallbackConfig
 
-    CUPTI.enable!(cfg) do
-        # do stuff
-    end
+Configuration for CUPTI's callback API, which calls `callback(domain, id, data)` on every
+event in the callback `domains` (e.g. `CUPTI_CB_DOMAIN_DRIVER_API` or
+`CUPTI_CB_DOMAIN_RESOURCE`) while the configuration is enabled with
+[`CUPTI.enable!`](@ref). `id` identifies the event (e.g. a `CUpti_driver_api_trace_cbid`
+for the driver API domain), and `data` is a copy of the record CUPTI passes, whose type
+depends on the domain: `CUpti_CallbackData` for the driver and runtime API domains,
+`CUpti_ResourceData`, `CUpti_SynchronizeData` or `CUpti_NvtxData` for the others. The
+copy is shallow: memory that the record points to, such as the arguments of an API call,
+is only valid until `callback` returns, so copy what you want to keep.
+
+`callback` runs on the thread that triggered the event, possibly on several threads at
+once and while CUPTI or the driver hold internal locks. It must not yield, e.g. by doing
+I/O or waiting on a lock, and must not call the CUDA driver or runtime APIs, except for
+what CUPTI's documentation allows.
+
+```julia
+cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_DRIVER_API]) do domain, id, data
+    # inspect data
+end
+
+CUPTI.enable!(cfg) do
+    # do stuff
+end
+```
 """
 mutable struct CallbackConfig
     callback::Function
@@ -166,17 +205,25 @@ struct ActivityBuffer
 end
 
 """
-    cfg = CUPTI.ActivityConfig(activity_kinds)
+    CUPTI.ActivityConfig(activity_kinds::Vector{CUpti_ActivityKind}) -> ActivityConfig
 
-    CUPTI.enable!(cfg) do
-        # do stuff
-    end
+Configuration for CUPTI's activity API, which records the given kinds of activity (e.g.
+`CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL` or `CUPTI_ACTIVITY_KIND_MEMCPY`) while the
+configuration is enabled with [`CUPTI.enable!`](@ref), using `cuptiActivityEnable`. The
+records are kept in the configuration, and can be read afterwards with
+[`CUPTI.process`](@ref). Activity kinds that the loaded CUPTI doesn't support are skipped.
 
-    CUPTI.process(cfg) do ctx, stream_id, record
-        # inspect record
-    end
+```julia
+cfg = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL])
 
-High-level interface to the CUPTI activity API.
+CUPTI.enable!(cfg) do
+    # do stuff
+end
+
+CUPTI.process(cfg) do ctx, stream_id, record
+    # inspect record
+end
+```
 """
 struct ActivityConfig
     activity_kinds::Vector{CUpti_ActivityKind}
@@ -335,10 +382,10 @@ function take_buffers!(results::Vector{ActivityBuffer})
 end
 
 """
-    @enable! cfg expr
+    CUPTI.@enable! cfg expr -> value of expr
 
-Macro version of `enable!(f, cfg)` that avoids creating a closure,
-similar to `@lock` vs `lock(f, l)`.
+Macro version of [`CUPTI.enable!(f, cfg)`](@ref CUPTI.enable!) that evaluates `expr`
+without creating a closure, similar to `@lock` vs `lock(f, l)`, and returns its value.
 """
 macro enable!(cfg, expr)
     mod = @__MODULE__
@@ -433,6 +480,23 @@ macro enable!(cfg, expr)
     end
 end
 
+"""
+    CUPTI.enable!(f, cfg::Union{CUPTI.ActivityConfig,CUPTI.CallbackConfig}) -> result of f()
+
+Enable the activities or callbacks configured by `cfg` while calling `f()`, and return
+its result.
+
+For an [`ActivityConfig`](@ref), CUPTI's activity records are flushed into `cfg` when `f`
+returns (`cuptiActivityFlushAll`). Records of work that hasn't completed by then are
+incomplete or missing, so synchronize at the end of `f`. For a [`CallbackConfig`](@ref), it
+subscribes to the configured callback domains (`cuptiSubscribe` and `cuptiEnableDomain`).
+
+Only one configuration of each kind can be enabled at a time: an `enable!` in another task
+waits for the previous one to finish, while nesting `enable!` calls for the same kind of
+configuration in one task is not supported. CUPTI only supports a single callback
+subscriber per process, so a `CallbackConfig` can't be enabled while another tool (e.g. a
+profiler) is subscribed.
+"""
 function enable!(@nospecialize(f::Base.Callable), cfg::ActivityConfig)
     @enable! cfg f()
 end
@@ -441,6 +505,17 @@ function enable!(@nospecialize(f::Base.Callable), cfg::CallbackConfig)
     @enable! cfg f()
 end
 
+"""
+    CUPTI.process(f, cfg::CUPTI.ActivityConfig) -> nothing
+
+Call `f(ctx, stream_id, record)` for every activity record collected in `cfg`, in the
+order CUPTI delivered them. `ctx` and `stream_id` are the `CuContext` (or `nothing`) and
+the CUPTI stream ID that CUPTI reported for the buffer holding the record. `record` is a
+copy of the record, as the newest CUPTI struct that the loaded CUDA version writes for its
+kind: e.g. `CUpti_ActivityAPI` for driver and runtime API calls, or
+`CUpti_ActivityKernel9` for kernels on CUDA 12. Records of kinds this function doesn't
+know about are skipped with a warning. Wraps `cuptiActivityGetNextRecord`.
+"""
 function process(f, cfg::ActivityConfig)
     activity_types = Dict(
         CUPTI_ACTIVITY_KIND_DRIVER              => CUpti_ActivityAPI,
