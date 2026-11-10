@@ -43,6 +43,8 @@ include("blocksparse/operations.jl")
 include("interfaces.jl")
 include("blocksparse/interfaces.jl")
 
+include("deprecated.jl")
+
 
 ## handles
 

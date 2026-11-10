@@ -10,7 +10,7 @@ const ModeType = AbstractVector{<:Union{Char, Integer}}
 is_unary(op::cutensorOperator_t) =  (op ∈ (OP_IDENTITY, OP_SQRT, OP_RELU, OP_CONJ, OP_RCP))
 is_binary(op::cutensorOperator_t) = (op ∈ (OP_ADD, OP_MUL, OP_MAX, OP_MIN))
 
-function elementwise_trinary_execute!(
+function elementwise_trinary!(
         @nospecialize(alpha::Number),
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
@@ -34,7 +34,7 @@ function elementwise_trinary_execute!(
         plan
     end
 
-    elementwise_trinary_execute!(actual_plan, alpha, A, beta, B, gamma, C, D)
+    elementwise_trinary!(actual_plan, alpha, A, beta, B, gamma, C, D)
 
     if plan === nothing
         CUDACore.unsafe_free!(actual_plan)
@@ -43,14 +43,14 @@ function elementwise_trinary_execute!(
     return D
 end
 
-function elementwise_trinary_execute!(plan::CuTensorPlan,
-                                      @nospecialize(alpha::Number),
-                                      @nospecialize(A::AbstractArray),
-                                      @nospecialize(beta::Number),
-                                      @nospecialize(B::AbstractArray),
-                                      @nospecialize(gamma::Number),
-                                      @nospecialize(C::AbstractArray),
-                                      @nospecialize(D::AbstractArray))
+function elementwise_trinary!(plan::CuTensorPlan,
+                              @nospecialize(alpha::Number),
+                              @nospecialize(A::AbstractArray),
+                              @nospecialize(beta::Number),
+                              @nospecialize(B::AbstractArray),
+                              @nospecialize(gamma::Number),
+                              @nospecialize(C::AbstractArray),
+                              @nospecialize(D::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorElementwiseTrinaryExecute(handle(), plan,
                                       Ref{scalar_type}(alpha), A,
@@ -110,7 +110,7 @@ function plan_elementwise_trinary(
     return plan
 end
 
-function elementwise_binary_execute!(
+function elementwise_binary!(
         @nospecialize(alpha::Number),
         @nospecialize(A::AbstractArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(gamma::Number),
@@ -129,7 +129,7 @@ function elementwise_binary_execute!(
         plan
     end
 
-    elementwise_binary_execute!(actual_plan, alpha, A, gamma, C, D)
+    elementwise_binary!(actual_plan, alpha, A, gamma, C, D)
 
     if plan === nothing
         CUDACore.unsafe_free!(actual_plan)
@@ -138,12 +138,12 @@ function elementwise_binary_execute!(
     return D
 end
 
-function elementwise_binary_execute!(plan::CuTensorPlan,
-                                     @nospecialize(alpha::Number),
-                                     @nospecialize(A::AbstractArray),
-                                     @nospecialize(gamma::Number),
-                                     @nospecialize(C::AbstractArray),
-                                     @nospecialize(D::AbstractArray))
+function elementwise_binary!(plan::CuTensorPlan,
+                             @nospecialize(alpha::Number),
+                             @nospecialize(A::AbstractArray),
+                             @nospecialize(gamma::Number),
+                             @nospecialize(C::AbstractArray),
+                             @nospecialize(D::AbstractArray))
     scalar_type = plan.scalar_type
     cutensorElementwiseBinaryExecute(handle(), plan,
                                      Ref{scalar_type}(alpha), A,
