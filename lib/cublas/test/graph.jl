@@ -20,8 +20,8 @@ using LinearAlgebra
     end
 
     # higher-level operations, allocating their output
-    a = CUDA.rand(Float32, 16, 16)
-    b = CUDA.rand(Float32, 16, 16)
+    a = CuArray(rand(Float32, 16, 16))
+    b = CuArray(rand(Float32, 16, 16))
     a * b
     local c
     exec = instantiate(capture(() -> c = a * b))
@@ -33,8 +33,8 @@ using LinearAlgebra
 end
 
 @testset "tasks spawned during capture" begin
-    A = CUDA.rand(Float32, 16, 16)
-    B = CUDA.rand(Float32, 16, 16)
+    A = CuArray(rand(Float32, 16, 16))
+    B = CuArray(rand(Float32, 16, 16))
     C1 = similar(A)
     C2 = similar(A)
     mul!(C1, A, B)
