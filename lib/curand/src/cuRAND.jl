@@ -40,6 +40,8 @@ include("native.jl")
 # CUDACore.rand/randn integration
 include("cuda_integration.jl")
 
+include("deprecated.jl")
+
 
 ## handles
 
