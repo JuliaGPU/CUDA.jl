@@ -78,11 +78,11 @@ end
         B = A + A'
         A = uplo == 'L' ? tril(B) : triu(B)
         d_A = CuMatrix(A)
-        W, V = cuSOLVER.Xsyevd!('V', uplo, d_A)
+        W, V = cuSOLVER.syevd!('V', uplo, d_A)
         @test B ≈ collect(V * Diagonal(W) * V')
 
         d_A = CuMatrix(A)
-        d_W = cuSOLVER.Xsyevd!('N', uplo, d_A)
+        d_W = cuSOLVER.syevd!('N', uplo, d_A)
     end
 end
 

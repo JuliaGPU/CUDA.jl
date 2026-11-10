@@ -64,21 +64,21 @@ end
     @test_throws ArgumentError cuSOLVER.gesvdj!('V', 1, fake(40000, 40000))
 end
 
-@testset "svd through Xgesvd, elty = $elty" for
+@testset "svd through the generic gesvd, elty = $elty" for
     elty in [Float32, Float64, ComplexF32, ComplexF64],
     full in (false, true),
     (_m, _n) in ((m, n), (n, m), (n, n))
 
     A = rand(elty, _m, _n)
     k = min(_m, _n)
-    F = cuSOLVER.svd_xgesvd!(CuArray(A), full)
+    F = cuSOLVER.svd_gesvd!(CuArray(A), full)
     @test size(F.U) == (_m, full ? _m : k)
     @test size(F.Vt) == (full ? _n : k, _n)
     @test collect(F.S) ≈ svdvals(A)
     @test collect(F.U' * F.U) ≈ I
     @test collect(F.Vt * F.Vt') ≈ I
     @test collect(F.U[:, 1:k] * Diagonal(F.S) * F.Vt[1:k, :]) ≈ A
-    @test collect(cuSOLVER.svdvals_xgesvd!(CuArray(A))) ≈ svdvals(A)
+    @test collect(cuSOLVER.svdvals_gesvd!(CuArray(A))) ≈ svdvals(A)
 end
 
 # Check that constant propagation works

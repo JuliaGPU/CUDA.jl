@@ -121,11 +121,11 @@ Base.copyto!(dst::Hermitian{<:Any,<:CuMatrix}, src::Hermitian{<:Any,<:CuMatrix})
 
 function LinearAlgebra.eigen(A::Symmetric{T,<:CuMatrix}) where {T<:BlasReal}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', A.uplo, A2)...)
+    return Eigen(syevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasComplex}
     A2 = copy(A.data)
-    return Eigen(Xsyevd!('V', A.uplo, A2)...)
+    return Eigen(syevd!('V', A.uplo, A2)...)
 end
 function LinearAlgebra.eigen(A::Hermitian{T,<:CuMatrix}) where {T<:BlasReal}
     return eigen(Symmetric(A))
@@ -134,7 +134,7 @@ end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     A2 = copy(A)
     if issymmetric(A)
-        return Eigen(Xsyevd!('V', 'U', A2)...)
+        return Eigen(syevd!('V', 'U', A2)...)
     else
         W, _, VR = geev!('N', 'V', A2)
         C = Complex{T}
@@ -157,7 +157,7 @@ end
 function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     A2 = copy(A)
     if ishermitian(A)
-        return Eigen(Xsyevd!('V', 'U', A2)...)
+        return Eigen(syevd!('V', 'U', A2)...)
     else
         r = geev!('N', 'V', A2)
         return Eigen(r[1], r[3])
@@ -168,11 +168,11 @@ end
 
 function LinearAlgebra.eigvals(A::Symmetric{T, <:CuMatrix}) where {T <: BlasReal}
     A2 = copy(A.data)
-    return Xsyevd!('N', A.uplo, A2)
+    return syevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasComplex}
     A2 = copy(A.data)
-    return Xsyevd!('N', A.uplo, A2)
+    return syevd!('N', A.uplo, A2)
 end
 function LinearAlgebra.eigvals(A::Hermitian{T, <:CuMatrix}) where {T <: BlasReal}
     return eigvals(Symmetric(A))
@@ -181,7 +181,7 @@ end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
     A2 = copy(A)
     if issymmetric(A)
-        return Xsyevd!('N', 'U', A2)
+        return syevd!('N', 'U', A2)
     else
         return geev!('N', 'N', A2)[1]
     end
@@ -189,7 +189,7 @@ end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
     A2 = copy(A)
     if ishermitian(A)
-        return Xsyevd!('N', 'U', A2)
+        return syevd!('N', 'U', A2)
     else
         return geev!('N', 'N', A2)[1]
     end
@@ -381,7 +381,7 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     return SVD(U, S, Vt)
 end
 function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
-    gesvdj_fits('V', Int(!full), A) || return svd_xgesvd!(A, full)
+    gesvdj_fits('V', Int(!full), A) || return svd_gesvd!(A, full)
     U, S, V = gesvdj!('V', Int(!full), A)
     return SVD(U, S, V')
 end
@@ -390,13 +390,13 @@ end
 # large matrices. Use the QR algorithm of the 64-bit API instead, which requires
 # m ≥ n, so decompose Aᴴ when A is wide. Vt is returned as is: at these sizes
 # every extra copy of a factor matters.
-function svd_xgesvd!(A::CuMatrix{T}, full::Bool) where T
+function svd_gesvd!(A::CuMatrix{T}, full::Bool) where T
     job = full ? 'A' : 'S'
     if size(A, 1) >= size(A, 2)
-        U, S, Vt = Xgesvd!(job, job, A)
+        U, S, Vt = gesvd!(job, job, A)
     else
         Ah = copy(A')
-        U2, S, Vt2 = Xgesvd!(job, job, Ah)
+        U2, S, Vt2 = gesvd!(job, job, Ah)
         unsafe_free!(Ah)
         U = copy(Vt2')
         unsafe_free!(Vt2)
@@ -406,10 +406,10 @@ function svd_xgesvd!(A::CuMatrix{T}, full::Bool) where T
     return SVD(U, S, Vt)
 end
 
-function svdvals_xgesvd!(A::CuMatrix{T}) where T
-    size(A, 1) >= size(A, 2) && return Xgesvd!('N', 'N', A)[2]
+function svdvals_gesvd!(A::CuMatrix{T}) where T
+    size(A, 1) >= size(A, 2) && return gesvd!('N', 'N', A)[2]
     Ah = copy(A')
-    S = Xgesvd!('N', 'N', Ah)[2]
+    S = gesvd!('N', 'N', Ah)[2]
     unsafe_free!(Ah)
     return S
 end
@@ -444,7 +444,7 @@ _svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
 _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
-    gesvdj_fits('N', 1, A) ? gesvdj!('N', 1, A)[2] : svdvals_xgesvd!(A)
+    gesvdj_fits('N', 1, A) ? gesvdj!('N', 1, A)[2] : svdvals_gesvd!(A)
 _svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
 _svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
 

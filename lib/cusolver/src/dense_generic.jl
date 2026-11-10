@@ -1,5 +1,10 @@
-# Xpotrf
-function Xpotrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+# The wrappers in this file use cuSOLVER's 64-bit generic API (cusolverDnX*), which is
+# available from cuSOLVER 11. Where the legacy 32-bit API offers the same routine, it is
+# used on older versions.
+
+# potrf
+function potrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    version() < v"11" && return legacy_potrf!(uplo, A)
     chkuplo(uplo)
     n = checksquare(A)
     lda = max(1, stride(A, 2))
@@ -24,11 +29,12 @@ function Xpotrf!(uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     A, flag
 end
 
-# Xpotrs
-function Xpotrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+# potrs
+function potrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+    version() < v"11" && return legacy_potrs!(uplo, A, B)
     chkuplo(uplo)
     n = checksquare(A)
-    p, nrhs = size(B)
+    p, nrhs = size(B, 1), size(B, 2)
     (p ≠ n) && throw(DimensionMismatch("first dimension of B, $p, must match second dimension of A, $n"))
     lda = max(1, stride(A, 2))
     ldb = max(1, stride(B, 2))
@@ -42,8 +48,14 @@ function Xpotrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) whe
     B
 end
 
-# Xgetrf
-function Xgetrf!(A::StridedCuMatrix{T}, ipiv::CuVector{Int64}) where {T <: BlasFloat}
+# getrf (the methods taking 32-bit pivots use the legacy API, see dense.jl)
+function getrf!(A::StridedCuMatrix{T}, ipiv::CuVector{Int64}) where {T <: BlasFloat}
+    if version() < v"11"
+        ipiv32 = CuVector{Cint}(undef, length(ipiv))
+        _, _, info = getrf!(A, ipiv32)
+        ipiv .= ipiv32
+        return A, ipiv, info
+    end
     m, n = size(A)
     lda = max(1, stride(A, 2))
     params = CuSolverParameters()
@@ -67,16 +79,19 @@ function Xgetrf!(A::StridedCuMatrix{T}, ipiv::CuVector{Int64}) where {T <: BlasF
     A, ipiv, flag
 end
 
-function Xgetrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    m,n = size(A)
-    ipiv = CuVector{Int64}(undef, min(m, n))
-    Xgetrf!(A, ipiv)
-end
-
-# Xgetrs
-function Xgetrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+# getrs
+function getrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+    version() < v"11" && return getrs!(trans, A, CuVector{Cint}(ipiv), B)
+    # support trans = 'C' for real matrices
+    trans = T <: Real && trans == 'C' ? 'T' : trans
     chktrans(trans)
     n = checksquare(A)
+    if size(B, 1) != n
+        throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match dimension of A, $n"))
+    end
+    if length(ipiv) != n
+        throw(DimensionMismatch("length of ipiv, $(length(ipiv)), must match dimension of A, $n"))
+    end
     nrhs = size(B, 2)
     lda = max(1, stride(A, 2))
     ldb = max(1, stride(B, 2))
@@ -90,8 +105,9 @@ function Xgetrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::S
     B
 end
 
-# Xgeqrf
-function Xgeqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
+# geqrf
+function geqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
+    version() < v"11" && return legacy_geqrf!(A, tau)
     m, n = size(A)
     lda = max(1, stride(A, 2))
     params = CuSolverParameters()
@@ -115,10 +131,10 @@ function Xgeqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
     A, tau
 end
 
-function Xgeqrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
+function geqrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
     m, n = size(A)
     tau = CuVector{T}(undef, min(m,n))
-    Xgeqrf!(A, tau)
+    geqrf!(A, tau)
 end
 
 # Xsytrs
@@ -234,8 +250,9 @@ function larft!(direct::Char, storev::Char, v::StridedCuMatrix{T}, tau::StridedC
     t
 end
 
-# Xgesvd
-function Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+# gesvd
+function gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    version() < v"11" && return legacy_gesvd!(jobu, jobvt, A)
     m, n = size(A)
     R = real(T)
     (m < n) && throw(ArgumentError("The number of rows of A ($m) must be greater or equal to the number of columns of A ($n)"))
@@ -377,12 +394,9 @@ function gesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
     U, Σ, V
 end
 
-# Xsyevd
-function Xsyevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    if version() < v"11"
-        # The 64-bit generic API is only available in cuSOLVER 11 or later.
-        return T <: Complex ? heevd!(jobz, uplo, A) : syevd!(jobz, uplo, A)
-    end
+# syevd (heevd for complex matrices)
+function syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+    version() < v"11" && return legacy_syevd!(jobz, uplo, A)
     chkuplo(uplo)
     n = checksquare(A)
     R = real(T)

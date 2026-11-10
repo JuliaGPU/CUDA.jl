@@ -57,7 +57,7 @@ end
     d_A            = CuArray(A)
     local d_W, d_V
     if elty <: Complex
-        d_W, d_V   = cuSOLVER.heevd!('V', 'U', d_A)
+        d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
     else
         d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
     end
@@ -70,7 +70,7 @@ end
     @test abs.(Eig.vectors'*h_V) ≈ I
     d_A            = CuArray(A)
     if elty <: Complex
-        d_W   = cuSOLVER.heevd!('N', 'U', d_A)
+        d_W   = cuSOLVER.syevd!('N', 'U', d_A)
     else
         d_W   = cuSOLVER.syevd!('N', 'U', d_A)
     end

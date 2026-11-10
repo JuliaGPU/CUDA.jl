@@ -28,11 +28,15 @@ end
         d_A  = CuMatrix(A)
         d_B  = CuMatrix(B)
 
-        cuSOLVER.Xpotrf!(uplo, d_A)
-        cuSOLVER.Xpotrs!(uplo, d_A, d_B)
+        cuSOLVER.potrf!(uplo, d_A)
+        cuSOLVER.potrs!(uplo, d_A, d_B)
         LAPACK.potrf!(uplo, A)
         LAPACK.potrs!(uplo, A, B)
         @test B ≈ collect(d_B)
+
+        b = rand(elty, n)
+        d_b = cuSOLVER.potrs!(uplo, d_A, CuVector(b))
+        @test collect(d_b) ≈ LAPACK.potrs!(uplo, A, b)
     end
 end
 
@@ -43,18 +47,21 @@ end
         d_A = CuMatrix(A)
         d_B = CuMatrix(B)
 
-        d_A, d_ipiv, _ = cuSOLVER.Xgetrf!(d_A)
-        cuSOLVER.Xgetrs!(trans, d_A, d_ipiv, d_B)
+        d_A, d_ipiv, _ = cuSOLVER.getrf!(d_A, CuVector{Int64}(undef, n))
+        cuSOLVER.getrs!(trans, d_A, d_ipiv, d_B)
         A, ipiv, _ = LAPACK.getrf!(A)
         LAPACK.getrs!(trans, A, ipiv, B)
         @test B ≈ collect(d_B)
+
+        @test_throws DimensionMismatch cuSOLVER.getrs!(trans, d_A, d_ipiv, CuMatrix(rand(elty, n+1, p)))
+        @test_throws DimensionMismatch cuSOLVER.getrs!(trans, d_A, d_ipiv[1:n-1], d_B)
     end
 end
 
 @testset "geqrf! -- orgqr! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     A = rand(elty, m, n)
     d_A = CuMatrix(A)
-    d_A, tau = cuSOLVER.Xgeqrf!(d_A)
+    d_A, tau = cuSOLVER.geqrf!(d_A)
     cuSOLVER.orgqr!(d_A, tau)
     @test collect(d_A' * d_A) ≈ I
 end

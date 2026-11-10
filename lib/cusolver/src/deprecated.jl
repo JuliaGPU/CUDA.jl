@@ -20,3 +20,17 @@ function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuMatrix)
     B === A || copyto!(A, B)
     return vec(res[1]), A
 end
+
+@deprecate Xpotrf!(uplo::Char, A::StridedCuMatrix) potrf!(uplo, A) false
+@deprecate Xpotrs!(uplo::Char, A::StridedCuMatrix, B::StridedCuVecOrMat) potrs!(uplo, A, B) false
+@deprecate Xgetrf!(A::StridedCuMatrix, ipiv::CuVector{Int64}) getrf!(A, ipiv) false
+@deprecate Xgetrf!(A::StridedCuMatrix) getrf!(A, CuVector{Int64}(undef, minimum(size(A)))) false
+@deprecate Xgetrs!(trans::Char, A::StridedCuMatrix, ipiv::CuVector{Int64}, B::StridedCuVecOrMat) getrs!(trans, A, ipiv, B) false
+@deprecate Xgeqrf!(A::StridedCuMatrix, tau::CuVector) geqrf!(A, tau) false
+@deprecate Xgeqrf!(A::StridedCuMatrix) geqrf!(A) false
+@deprecate Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix) gesvd!(jobu, jobvt, A) false
+@deprecate Xsyevd!(jobz::Char, uplo::Char, A::StridedCuMatrix) syevd!(jobz, uplo, A) false
+
+# Deprecated in v6.6: the routines for Hermitian matrices share the name of the symmetric
+# ones, as in LinearAlgebra.LAPACK.
+@deprecate heevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{<:Complex}) syevd!(jobz, uplo, A) false
