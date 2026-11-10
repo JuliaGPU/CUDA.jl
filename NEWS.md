@@ -48,6 +48,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `CUPTI.library_version()` works on Windows with CUDA 13.5, whose CUPTI DLL no longer
   has the release version in its file name. On Windows, the version is now read from the
   DLL's version resource.
+- Drawing a single number from cuRAND's library generator works again:
+  `rand(rng)`, `randn(rng)` and `cuRAND.rand_poisson(rng)` with
+  `rng = cuRAND.library_rng()` threw a `MethodError`.
 
 
 ## v6.5 (October 2026)

@@ -74,6 +74,15 @@
         cuRAND.rand_logn(Float32)
         cuRAND.rand_poisson()
         cuRAND.rand_poisson(Cuint)
+
+        rng = cuRAND.library_rng()
+        @test rand(rng) isa Float32
+        @test rand(rng, Float64) isa Float64
+        @test randn(rng) isa Float32
+        @test randn(rng, Float64; mean=1, stddev=0) == 1
+        @test cuRAND.rand_logn(rng) isa Float32
+        @test cuRAND.rand_poisson(rng) isa Cuint
+        @test cuRAND.rand_poisson(rng, Cuint; lambda=5) isa Cuint
     end
 end
 
