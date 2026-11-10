@@ -39,7 +39,7 @@ end
 
     @test testf(dot, rand(Bool, 1024, 1024), rand(Float64, 1024, 1024))
     for T in (Int16, Int32, Float32), (m, n) in ((0, 0), (0, 3), (3, 0))
-        @test dot(CUDA.zeros(T, m), CUDA.zeros(T, m, n), CUDA.zeros(T, n)) === zero(T)
+        @test dot(CUDACore.zeros(T, m), CUDACore.zeros(T, m, n), CUDACore.zeros(T, n)) === zero(T)
     end
 
     # https://discourse.julialang.org/t/result-of-inner-product-of-two-cuarray-with-views-is-incorrect/121539
@@ -60,7 +60,7 @@ end
             y = [SVector(5f0, 6f0), SVector(7f0, 8f0)]
             @test testf(dot, x, Float32[1 2; 3 4], y)
             for T in (Int16, Int32, Float32), (m, n) in ((0, 0), (0, 3), (3, 0))
-                @test dot(CUDA.zeros(T, m), CUDA.zeros(T, m, n), CUDA.zeros(T, n)) === zero(T)
+                @test dot(CUDACore.zeros(T, m), CUDACore.zeros(T, m, n), CUDACore.zeros(T, n)) === zero(T)
             end
         finally
             CUDACore.math_mode!(old_mode)

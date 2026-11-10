@@ -60,13 +60,13 @@ end
 @testset "message assembly" begin
     CUDACore.init_logging()
     cuBLAS.flush_log_buffers()
-    CUDA.flush_logs()
+    CUDACore.flush_logs()
     @test_logs (:warn, "example\nα parameter\nTime: now\nProcess: test") begin
         callback = @cfunction(cuBLAS.log_message, Nothing, (Cstring,))
         # Some chunks have no newline; unmarked lines may start with Unicode.
         for line in ("W! example", "α parameter", "Time: now\nProcess: test\n")
             ccall(callback, Nothing, (Cstring,), line)
         end
-        CUDA.flush_logs()
+        CUDACore.flush_logs()
     end
 end
