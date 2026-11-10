@@ -867,19 +867,21 @@ function report(host::NamedTuple, device::NamedTuple, nvtx::NamedTuple, trace::B
     # them suffices (and unlike `deepcopy`, is inferred)
     host, device, nvtx = map(copy, host), map(copy, device), map(copy, nvtx)
 
-    # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize')
-    syncs = host.name .== "cuCtxSynchronize"
-    trace_first_sync = findfirst(syncs)
-    trace_first_sync === nothing && error("Could not find the start of the profiling data.")
-    trace_last_sync = findlast(syncs)
-    trace_first_sync == trace_last_sync && error("Could not find the end of the profiling data.")
+    # find the relevant part of the trace (marked by calls to 'cuCtxSynchronize'). CUPTI
+    # returns the records of every thread in separate buffers, so the rows are not in the
+    # order of the calls, but their correlation IDs are.
+    syncs = findall(==("cuCtxSynchronize"), host.name)
+    isempty(syncs) && error("Could not find the start of the profiling data.")
+    length(syncs) == 1 && error("Could not find the end of the profiling data.")
+    trace_first_sync = syncs[argmin(host.id[syncs])]
+    trace_last_sync = syncs[argmax(host.id[syncs])]
     ## truncate the trace
     if !raw || !trace
         trace_begin = host.stop[trace_first_sync]
         trace_end = host.stop[trace_last_sync]
 
-        first_id = host.id[trace_first_sync + 1]
-        last_id = host.id[trace_last_sync - 1]
+        first_id = host.id[trace_first_sync] + 1
+        last_id = host.id[trace_last_sync] - 1
         host = filtermask(host, first_id .<= host.id .<= last_id)
         device = filtermask(device, first_id .<= device.id .<= last_id)
     else
@@ -888,8 +890,8 @@ function report(host::NamedTuple, device::NamedTuple, nvtx::NamedTuple, trace::B
         # used to sink the profiler overhead.
 
         # inclusive bounds
-        trace_begin = host.start[begin]
-        trace_end = host.stop[end]
+        trace_begin = minimum(host.start)
+        trace_end = maximum(host.stop)
     end
     trace_time = trace_end - trace_begin
 

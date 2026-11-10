@@ -226,6 +226,27 @@ let
     @test occursin("cuCtxSynchronize", str)
 end
 
+# work on other threads, while the profiling thread makes no CUDA calls
+let
+    script = """
+        using CUDA
+        other_thread_kernel() = nothing
+        @cuda other_thread_kernel()
+        synchronize()
+        p = CUDA.@profile Threads.@threads :static for i in 1:2
+            if i == 2
+                @cuda other_thread_kernel()
+                synchronize()
+            end
+        end
+        print(p)
+    """
+    proc, out, err = julia_exec(`--threads=2 -e $script`)
+    @test success(proc) || println(err)
+    @test occursin("cuLaunchKernel", out)
+    @test occursin("other_thread_kernel", out)
+end
+
 # benchmarked profile
 let
     str = string(CUDA.@bprofile @cuda identity(nothing))
