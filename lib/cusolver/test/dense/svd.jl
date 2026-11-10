@@ -54,14 +54,14 @@ end
     # the query only looks at the dimensions, so a small buffer can stand in for A
     buf = CuVector{elty}(undef, 1)
     fake(m, n) = unsafe_wrap(CuArray, pointer(buf), (m, n))
-    @test cuSOLVER.gesvdj_fits('V', 1, fake(64, 64))
-    @test cuSOLVER.gesvdj_fits('N', 1, fake(64, 64))
+    @test cuSOLVER.gesvdj_fits('V', true, fake(64, 64))
+    @test cuSOLVER.gesvdj_fits('N', true, fake(64, 64))
     # the query fails outright
-    @test !cuSOLVER.gesvdj_fits('V', 1, fake(65536, 65536))
+    @test !cuSOLVER.gesvdj_fits('V', true, fake(65536, 65536))
     # the query succeeds, but reports a workspace size of 0
-    @test !cuSOLVER.gesvdj_fits('V', 1, fake(40000, 40000))
-    @test !cuSOLVER.gesvdj_fits('N', 1, fake(40000, 40000))
-    @test_throws ArgumentError cuSOLVER.gesvdj!('V', 1, fake(40000, 40000))
+    @test !cuSOLVER.gesvdj_fits('V', true, fake(40000, 40000))
+    @test !cuSOLVER.gesvdj_fits('N', true, fake(40000, 40000))
+    @test_throws ArgumentError cuSOLVER.gesvdj!('V', true, fake(40000, 40000))
 end
 
 @testset "svd through the generic gesvd, elty = $elty" for

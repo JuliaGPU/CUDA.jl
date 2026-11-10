@@ -201,19 +201,19 @@ end
 
 ## mg handles
 
-function devices!(devs::Vector{CuDevice})
+function mg_devices!(devs::Vector{CuDevice})
     task_local_storage(:CUSOLVERmg_devices, sort(devs; by=deviceid))
     return
 end
 
-devices() = get!(task_local_storage(), :CUSOLVERmg_devices) do
+mg_devices() = get!(task_local_storage(), :CUSOLVERmg_devices) do
     # by default, select only the first device
     [first(CUDACore.devices())]
     # TODO: select all devices
     #sort(collect(CUDACore.devices()); by=deviceid)
 end::Vector{CuDevice}
 
-ndevices() = length(devices())
+mg_ndevices() = length(mg_devices())
 
 # mutable wrapper so the mg handle is destroyed when its owning state struct
 # becomes unreachable, rather than being pinned for the lifetime of the task.
@@ -238,7 +238,7 @@ function mg_handle()
 
     # derive a key from the active and selected devices
     key = hash(cuda.context)
-    for dev in devices()
+    for dev in mg_devices()
         # we hash the device context to support device resets
         key = hash(context(dev), key)
     end
@@ -253,8 +253,8 @@ function mg_handle()
         # cuSOLVERMg accesses the per-device buffers from the other devices in the grid
         # and from the context it is called in, so when using the stream-ordered
         # allocator, make each grid device's pool visible to all of them.
-        for dev in filter(CUDACore.stream_ordered, devices())
-            other_devs = filter(!isequal(dev), union(devices(), [cuda.device]))
+        for dev in filter(CUDACore.stream_ordered, mg_devices())
+            other_devs = filter(!isequal(dev), union(mg_devices(), [cuda.device]))
             # only grant access to peer-capable devices: cuMemPoolSetAccess on a
             # fresh pool can succeed even when the devices are not peer capable,
             # deferring the failure to a later allocation.
@@ -267,7 +267,7 @@ function mg_handle()
             access!(pool, accessible_devs, CUDACore.CU_MEM_ACCESS_FLAGS_PROT_READWRITE)
         end
 
-        devs = convert.(Cint, devices())
+        devs = convert.(Cint, mg_devices())
         cusolverMgDeviceSelect(new_handle, length(devs), devs)
 
         (; handle=wrapped)

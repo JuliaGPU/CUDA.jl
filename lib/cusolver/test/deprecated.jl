@@ -41,6 +41,22 @@ if cuSOLVER.version() >= v"11"
         @test collect(W) ≈ eigvals(Hermitian(S))
     end
 
+    if elty <: Complex
+        W = @test_deprecated cuSOLVER.hegvd!(1, 'N', 'U', CuMatrix(S), CuMatrix(P))
+        @test collect(W) ≈ eigvals(Hermitian(S), Hermitian(P))
+        W = @test_deprecated cuSOLVER.hegvj!(1, 'N', 'U', CuMatrix(S), CuMatrix(P))
+        @test collect(W) ≈ eigvals(Hermitian(S), Hermitian(P))
+        W = @test_deprecated cuSOLVER.heevjBatched!('N', 'U', CuArray(cat(S, S; dims=3)))
+        @test collect(W) ≈ repeat(eigvals(Hermitian(S)), 1, 2)
+    end
+
+    _, Σ, _ = @test_deprecated cuSOLVER.gesvdj!('N', 1, CuMatrix(A))
+    @test collect(Σ) ≈ svdvals(A)
+    _, Σ, _ = @test_deprecated cuSOLVER.gesvdj!('N', CuArray(cat(A, A; dims=3)))
+    @test collect(Σ) ≈ repeat(svdvals(A), 1, 2)
+    _, Σ, _ = @test_deprecated cuSOLVER.gesvda!('N', CuArray(cat(A, A; dims=3)))
+    @test collect(Σ) ≈ repeat(svdvals(A), 1, 2) rtol=1e-3
+
     if cuSOLVER.version() >= v"11.7.1"
         W, _, _ = @test_deprecated cuSOLVER.Xgeev!('N', 'N', CuMatrix(A))
         @test sort(abs.(collect(W))) ≈ sort(abs.(eigvals(A)))
@@ -48,4 +64,12 @@ if cuSOLVER.version() >= v"11"
         @test collect(W) ≈ repeat(eigvals(Hermitian(S)), 1, 2)
     end
 end
+end
+
+@testset "deprecated cusolverMg device set" begin
+    devs = @test_deprecated cuSOLVER.devices()
+    @test devs == cuSOLVER.mg_devices()
+    @test (@test_deprecated cuSOLVER.ndevices()) == cuSOLVER.mg_ndevices()
+    @test_deprecated cuSOLVER.devices!(devs)
+    @test cuSOLVER.mg_devices() == devs
 end

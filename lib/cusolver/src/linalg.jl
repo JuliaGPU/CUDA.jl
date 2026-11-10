@@ -381,8 +381,8 @@ function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     return SVD(U, S, Vt)
 end
 function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
-    gesvdj_fits('V', Int(!full), A) || return svd_gesvd!(A, full)
-    U, S, V = gesvdj!('V', Int(!full), A)
+    gesvdj_fits('V', !full, A) || return svd_gesvd!(A, full)
+    U, S, V = gesvdj!('V', !full, A)
     return SVD(U, S, V')
 end
 
@@ -414,12 +414,12 @@ function svdvals_gesvd!(A::CuMatrix{T}) where T
     return S
 end
 function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
-    U, S, V = gesvdj!('V', A)
+    U, S, V = gesvdjBatched!('V', A)
     return CuSVDBatched(U, S, V)
 end
 
 function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm; rank::Int=min(size(A,1), size(A,2))) where T
-    U, S, V = gesvda!('V', A; rank=rank)
+    U, S, V = gesvdaStridedBatched!('V', A; rank=rank)
     return CuSVDBatched(U, S, V)
 end
 
@@ -444,9 +444,9 @@ _svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
 _svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
 _svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
-    gesvdj_fits('N', 1, A) ? gesvdj!('N', 1, A)[2] : svdvals_gesvd!(A)
-_svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdj!('N', A::CuArray{T,3})[2]
-_svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvda!('N', A::CuArray{T,3}; rank=rank)[2]
+    gesvdj_fits('N', true, A) ? gesvdj!('N', true, A)[2] : svdvals_gesvd!(A)
+_svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdjBatched!('N', A::CuArray{T,3})[2]
+_svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvdaStridedBatched!('N', A::CuArray{T,3}; rank=rank)[2]
 
 # like LinearAlgebra, derive the SVD of a Hermitian matrix from its eigendecomposition,
 # but without the scalar indexing of the generic implementation

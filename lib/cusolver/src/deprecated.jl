@@ -34,3 +34,17 @@ end
 # Deprecated in v6.6: the routines for Hermitian matrices share the name of the symmetric
 # ones, as in LinearAlgebra.LAPACK.
 @deprecate heevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{<:Complex}) syevd!(jobz, uplo, A) false
+@deprecate hegvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{<:Complex}, B::StridedCuMatrix{<:Complex}) sygvd!(itype, jobz, uplo, A, B) false
+@deprecate hegvj!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{<:Complex}, B::StridedCuMatrix{<:Complex}; kwargs...) sygvj!(itype, jobz, uplo, A, B; kwargs...) false
+@deprecate heevjBatched!(jobz::Char, uplo::Char, A::StridedCuArray{<:Complex}; kwargs...) syevjBatched!(jobz, uplo, A; kwargs...) false
+
+# Deprecated in v6.6: batched routines are named after NVIDIA's batched routine, and flags
+# are Bool.
+@deprecate gesvdj!(jobz::Char, econ::Int, A::StridedCuMatrix; kwargs...) gesvdj!(jobz, Bool(econ), A; kwargs...) false
+@deprecate gesvdj!(jobz::Char, A::StridedCuArray{<:Any,3}; kwargs...) gesvdjBatched!(jobz, A; kwargs...) false
+@deprecate gesvda!(jobz::Char, A::StridedCuArray{<:Any,3}; kwargs...) gesvdaStridedBatched!(jobz, A; kwargs...) false
+
+# Deprecated in v6.6: the devices used by cusolverMg are not CUDACore's devices().
+@deprecate devices!(devs::Vector{CuDevice}) mg_devices!(devs) false
+@deprecate devices() mg_devices() false
+@deprecate ndevices() mg_ndevices() false
