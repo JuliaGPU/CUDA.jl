@@ -85,6 +85,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - cuStateVec's `abs2SumArrayBatched` passes its mask bit strings to cuStateVec as 64-bit
   integers, as it expects, and `collapseByBitStringBatched!` works with bit strings that
   cover only some of the index bits.
+- cuSPARSE's `ic02` and `ilu02` accept `Symmetric` and `Hermitian` CSR and CSC matrices.
+  Their methods for these wrappers never matched, and would have factored only the stored
+  triangle.
 
 *Minor changes*:
 

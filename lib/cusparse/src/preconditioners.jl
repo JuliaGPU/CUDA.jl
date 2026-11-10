@@ -287,7 +287,9 @@ end
     ic02(A; index='O')
 
 Compute the incomplete Cholesky factorization IC(0) of the sparse matrix `A`, like
-[`ic02!`](@ref) but in a copy of `A`.
+[`ic02!`](@ref) but in a copy of `A`. `A` can also be a CSR or CSC matrix wrapped in
+`Hermitian`, or for real element types in `Symmetric`, which is first expanded to the full
+matrix it represents.
 """
 function ic02 end
 
@@ -295,7 +297,8 @@ function ic02 end
     ilu02(A; index='O')
 
 Compute the incomplete LU factorization ILU(0) of the sparse matrix `A`, like
-[`ilu02!`](@ref) but in a copy of `A`.
+[`ilu02!`](@ref) but in a copy of `A`. `A` can also be a CSR or CSC matrix wrapped in
+`Symmetric` or `Hermitian`, which is first expanded to the full matrix it represents.
 """
 function ilu02 end
 
@@ -309,15 +312,25 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             isa(A, CuSparseMatrixCOO) && throw(ErrorException("IC(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
             ic02!(copy(A); index)
         end
-        function ilu02(A::HermOrSym{$elty,CuSparseMatrix{$elty}}; index::SparseChar='O')
-            isa(A, CuSparseMatrixCOO) && throw(ErrorException("ILU(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
-            ilu02!(copy(A.data); index)
-        end
-        function ic02(A::HermOrSym{$elty,CuSparseMatrix{$elty}}; index::SparseChar='O')
-            isa(A, CuSparseMatrixCOO) && throw(ErrorException("IC(0) decomposition of CuSparseMatrixCOO is not supported by the current CUDA version."))
-            ic02!(copy(A.data); index)
+        function ilu02(A::HermOrSym{$elty,<:Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}};
+                       index::SparseChar='O')
+            ilu02!(expand_symmherm(A, index))
         end
     end
+    # IC(0) treats the matrix as Hermitian, which a complex `Symmetric` matrix is not
+    W = eval(elty) <: Real ? :HermOrSym : :Hermitian
+    @eval function ic02(A::$W{$elty,<:Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}}};
+                        index::SparseChar='O')
+        ic02!(expand_symmherm(A, index))
+    end
+end
+
+# the factorizations read the full matrix, not the triangle a wrapper refers to, which
+# need not be the one cuSPARSE reads, nor be the only one stored
+function expand_symmherm(A::HermOrSym, index::SparseChar)
+    # `sparse` reads and returns one-based storage
+    index == 'O' || throw(ArgumentError("Symmetric and Hermitian matrices must use one-based indices"))
+    return sparse(A)
 end
 
 # gtsv2
