@@ -23,7 +23,9 @@ slowest 25%, while entries colored in red are among the slowest 5% of all operat
 
 The results can also be written as JSON, e.g., for processing by scripts or coding agents,
 with `show(stdout, "application/json", results)`. See
-[`Profile.ProfileResults`](@ref CUDATools.Profile.ProfileResults) for details.
+[`Profile.ProfileResults`](@ref CUDATools.Profile.ProfileResults) for details. To view
+the activity on a timeline, e.g. with Perfetto, write it as a trace with
+[`Profile.write_trace`](@ref CUDATools.Profile.write_trace).
 
 To collect hardware metrics for every kernel instead, use
 [`CUDA.@metrics`](@ref CUDATools.@metrics).
@@ -1895,6 +1897,191 @@ function json_report(p::KernelProfile, r::NamedTuple)
                                            "unit" => get(metric_units, col.kind, nothing))
                                 for col in p.columns],
                "kernels" => kernels)
+end
+
+#
+# trace export
+#
+
+"""
+    Profile.write_trace(io::IO, results::ProfileResults; raw=results.raw)
+    Profile.write_trace(path::AbstractString, results::ProfileResults; raw=results.raw)
+
+Write the activity captured by [`CUDA.@profile`](@ref CUDATools.@profile) as a timeline in
+the Chrome Trace Event Format, which can be viewed with [Perfetto](https://ui.perfetto.dev)
+or `chrome://tracing`.
+
+The trace covers the same events as the report shown with `trace=true`: host threads show
+the CUDA API calls and NVTX ranges and markers on that thread, every GPU shows the
+operations on each of its streams, and arrows connect API calls to the operations they
+launched. NVTX ranges that overlap other events on their thread without nesting, e.g.
+because they end on another thread, are shown on separate tracks of the host process. With `raw=true`, the trace
+includes all activity, as with `CUDA.@profile raw=true`.
+"""
+write_trace(path::AbstractString, results::ProfileResults; kwargs...) =
+    open(io -> write_trace(io, results; kwargs...), path, "w")
+function write_trace(io::IO, results::ProfileResults; raw::Bool=results.raw)
+    r = barrier(report, results.host, results.device, results.nvtx, true, raw)
+    events = barrier(trace_events, r)
+    buf = IOBuffer()
+    json(buf, JSONObject("traceEvents" => events, "displayTimeUnit" => "ns"))
+    write(io, take!(buf))
+    return
+end
+
+const host_pid = 1
+device_pid(device) = 2 + device
+
+# timestamps in µs, computed from whole nanoseconds so that adjacent events don't overlap
+# because of rounding
+trace_ns(t) = round(Int, t * 1e9)
+trace_us(ns::Int) = ns / 1000
+
+function trace_events(r::NamedTuple)
+    host, device, nvtx = r.host, r.device, r.nvtx
+    events = Any[]
+    metadata(pid, tid, name, value) =
+        push!(events, JSONObject("ph" => "M", "pid" => pid, "tid" => tid, "name" => name,
+                                 "args" => JSONObject(value)))
+    # `flow` connects API calls (`:out`) to the operations they launched (`:in`), by their
+    # correlation ID. one call can launch several operations, e.g. a graph.
+    function complete(name, cat, pid, tid, t0::Int, t1::Int, args; id=nothing, flow=nothing)
+        event = JSONObject("ph" => "X", "name" => name, "cat" => cat, "pid" => pid,
+                           "tid" => tid, "ts" => trace_us(t0), "dur" => trace_us(t1 - t0),
+                           "args" => args)
+        if flow !== nothing
+            push!(event.pairs, "bind_id" => id,
+                  (flow == :out ? "flow_out" : "flow_in") => true)
+        end
+        push!(events, event)
+    end
+
+    # NVTX ranges, clipped to the trace (those that didn't end extend to its end)
+    nvtx_start = [trace_ns(max(t, 0.0)) for t in nvtx.start]
+    nvtx_stop = [trace_ns(isfinite(t) ? min(t, r.time) : r.time) for t in nvtx.stop]
+
+    # synchronous events on a thread have to nest, so NVTX ranges that partially overlap
+    # another range or an API call on their thread, or that didn't end, are written as
+    # asynchronous events instead
+    nested = map(isfinite, nvtx.stop)
+    for tid in unique(nvtx.tid)
+        spans = Tuple{Int,Int,Bool,Int}[]   # start, stop, whether it's an API call, row
+        for i in eachindex(host.name)
+            if host.tid[i] == tid && host.stop[i] !== missing
+                push!(spans, (trace_ns(host.start[i]), trace_ns(host.stop[i]), true, i))
+            end
+        end
+        for i in eachindex(nvtx.name)
+            if nvtx.tid[i] == tid && nested[i]
+                push!(spans, (nvtx_start[i], nvtx_stop[i], false, i))
+            end
+        end
+        # outer spans first, and API calls before ranges that span the same time
+        sort!(spans; by=span -> (span[1], -span[2], !span[3]))
+        stack = eltype(spans)[]
+        for span in spans
+            start, stop, api, i = span
+            while !isempty(stack) && last(stack)[2] <= start
+                pop!(stack)
+            end
+            if !isempty(stack) && last(stack)[2] < stop
+                # this span ends after the ones on top of the stack, so they don't nest.
+                # API calls nest with each other, so only ranges have to give way.
+                if !api
+                    nested[i] = false
+                    continue
+                end
+                while !isempty(stack) && last(stack)[2] < stop && !last(stack)[3]
+                    nested[last(stack)[4]] = false
+                    pop!(stack)
+                end
+            end
+            push!(stack, span)
+        end
+    end
+
+    # host threads
+    metadata(host_pid, 0, "process_name", "name" => "Host")
+    metadata(host_pid, 0, "process_sort_index", "sort_index" => 0)
+    for tid in sort(unique(host.tid) ∪ unique(nvtx.tid))
+        metadata(host_pid, tid, "thread_name", "name" => "Thread $tid")
+        metadata(host_pid, tid, "thread_sort_index", "sort_index" => tid)
+    end
+    launched = Set(device.id)
+    launches = Set{Int}()
+    for i in eachindex(host.name)
+        if host.stop[i] === missing
+            # NVTX marker
+            push!(events, JSONObject("ph" => "i", "s" => "t", "name" => host.details[i],
+                                     "cat" => "marker", "pid" => host_pid,
+                                     "tid" => host.tid[i],
+                                     "ts" => trace_us(trace_ns(host.start[i]))))
+            continue
+        end
+        id = host.id[i]
+        flow = id in launched ? :out : nothing
+        flow === nothing || push!(launches, id)
+        complete(host.name[i], "api", host_pid, host.tid[i], trace_ns(host.start[i]),
+                 trace_ns(host.stop[i]), JSONObject("id" => id, "details" => host.details[i]);
+                 id, flow)
+    end
+    for i in eachindex(nvtx.name)
+        nvtx_start[i] <= nvtx_stop[i] || continue  # outside of the trace
+        label = coalesce(nvtx_name(nvtx.name[i], nvtx.domain[i]), "(unnamed)")
+        cat = coalesce(nvtx.domain[i], "nvtx")
+        payload = nvtx.payload[i]
+        args = JSONObject("payload" => (payload isa Union{Missing,Real} ? payload :
+                                                                         string(payload)),
+                          "category" => nvtx.category[i])
+        if nested[i]
+            complete(label, cat, host_pid, nvtx.tid[i], nvtx_start[i], nvtx_stop[i], args)
+        else
+            for (ph, t) in (("b", nvtx_start[i]), ("e", nvtx_stop[i]))
+                push!(events, JSONObject("ph" => ph, "id" => nvtx.id[i], "name" => label,
+                                         "cat" => cat, "pid" => host_pid,
+                                         "tid" => nvtx.tid[i], "ts" => trace_us(t),
+                                         "args" => args))
+            end
+        end
+    end
+
+    # device operations, on a track per stream
+    streams = Dict{Tuple{Int,Int},Int}()  # (context, stream) => track
+    contexts = unique(device.context)
+    for dev in sort(unique(device.device))
+        metadata(device_pid(dev), 0, "process_name",
+                 "name" => "GPU $dev: $(name(CuDevice(dev)))")
+        metadata(device_pid(dev), 0, "process_sort_index", "sort_index" => 1 + dev)
+    end
+    for i in eachindex(device.name)
+        pid = device_pid(device.device[i])
+        key = (device.context[i], device.stream[i])
+        tid = get!(streams, key) do
+            tid = length(streams) + 1
+            label = length(contexts) > 1 ? "Stream $(key[2]) (context $(key[1]))" :
+                                           "Stream $(key[2])"
+            metadata(pid, tid, "thread_name", "name" => label)
+            tid
+        end
+
+        id = device.id[i]
+        cat, args = if device.grid[i] !== missing
+            shared_mem = device.shared_mem[i]
+            "kernel", JSONObject("id" => id, "grid" => device.grid[i],
+                                 "block" => device.block[i],
+                                 "registers" => device.registers[i],
+                                 "static_shared_mem_bytes" => shared_mem.static,
+                                 "dynamic_shared_mem_bytes" => shared_mem.dynamic)
+        else
+            "memory", JSONObject("id" => id, "size_bytes" => device.size[i],
+                                 "details" => device.details[i])
+        end
+        complete(device.name[i], cat, pid, tid, trace_ns(device.start[i]),
+                 trace_ns(device.stop[i]), args;
+                 id, flow=(id in launches ? :in : nothing))
+    end
+
+    return events
 end
 
 #

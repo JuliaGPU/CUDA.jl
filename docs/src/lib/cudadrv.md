@@ -231,6 +231,7 @@ CurrentModule = CUDATools
 @metrics
 @sample
 Profile.ProfileResults
+Profile.write_trace
 Profile.KernelProfile
 Profile.PCProfile
 Profile.SampledFunction

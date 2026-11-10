@@ -390,6 +390,82 @@ let
     @test any(row -> row["name"] == "cuCtxSynchronize", json["host"])
 end
 
+# timeline export
+let
+    @cuda identity(nothing)
+    results = CUDA.@profile NVTX.@range "outer" begin
+        NVTX.@mark "a marker"
+        NVTX.@range "inner" @cuda identity(nothing)
+        NVTX.range_start(; message="open")
+    end
+    trace = JSON.parse(sprint(CUDA.Profile.write_trace, results))
+    events = trace["traceEvents"]
+    named(ph, name) = filter(e -> e["ph"] == ph && occursin(name, e["name"]), events)
+
+    # API calls are connected to the kernels they launched
+    launch = only(named("X", "cuLaunchKernel"))
+    kernel = only(named("X", "identity"))
+    @test kernel["pid"] != launch["pid"]
+    @test kernel["ts"] > launch["ts"]
+    @test launch["flow_out"] && kernel["flow_in"]
+    @test launch["bind_id"] == kernel["bind_id"]
+    @test count(e -> haskey(e, "bind_id"), events) == 2
+
+    # NVTX ranges nest on their thread, unless they don't end
+    outer, inner = only(named("X", "outer")), only(named("X", "inner"))
+    @test outer["tid"] == inner["tid"] == launch["tid"]
+    @test outer["ts"] <= inner["ts"] <= launch["ts"]
+    @test launch["ts"] + launch["dur"] <= inner["ts"] + inner["dur"] <= outer["ts"] + outer["dur"]
+    @test length(named("b", "open")) == length(named("e", "open")) == 1
+    @test only(named("i", "a marker"))["tid"] == launch["tid"]
+
+    # the tracks are named
+    names = [e["args"]["name"] for e in events if e["ph"] == "M" && e["name"] == "thread_name"]
+    @test "Thread 1" in names
+    @test any(startswith("Stream"), names)
+
+    # the trace can be written to a file
+    mktempdir() do dir
+        path = joinpath(dir, "trace.json")
+        CUDA.Profile.write_trace(path, results)
+        @test JSON.parsefile(path) == trace
+    end
+
+    # the raw trace includes everything
+    trace = JSON.parse(sprint(io -> CUDA.Profile.write_trace(io, results; raw=true)))
+    @test any(e -> e["name"] == "cuCtxSynchronize", trace["traceEvents"])
+end
+
+# timeline export of events that complicate nesting and flows
+let
+    results = synthetic_results(;
+        host=[(; id=2, start=2.0, stop=3.0, name="cuLaunchKernel"),
+              (; id=3, start=5.0, stop=6.0, name="cuMemcpyHtoDAsync")],
+        device=[(; id=2, start=4.0, stop=5.0), (; id=2, start=5.0, stop=6.0)],
+        nvtx=[# a marker where an API call starts
+              (; id=1, start=2.0, type=:instant, name="marker"),
+              # a range that starts within an API call, and ends after it
+              (; id=2, start=2.5, type=:start, name="crossing"),
+              (; id=2, start=4.0, type=:end),
+              # a range that ends within an API call
+              (; id=3, start=4.5, type=:start, name="ending"),
+              (; id=3, start=5.5, type=:end),
+              # ranges that nest with the API calls
+              (; id=4, start=1.5, type=:start, name="outer"),
+              (; id=4, start=7.0, type=:end),
+              (; id=5, start=2.0, type=:start, name="inner"),
+              (; id=5, start=2.5, type=:end)])
+    events = JSON.parse(sprint(CUDA.Profile.write_trace, results))["traceEvents"]
+    phases(name) = sort([e["ph"] for e in events if e["name"] == name])
+    @test phases("crossing") == phases("ending") == ["b", "e"]
+    @test phases("outer") == phases("inner") == ["X"]
+    @test phases("marker") == ["i"]
+
+    # the launch flows out of the API call into both operations
+    @test only(e["name"] for e in events if get(e, "flow_out", false)) == "cuLaunchKernel"
+    @test count(e -> get(e, "flow_in", false), events) == 2
+end
+
 # operations that overlap count once towards the time the GPU was busy
 let
     function wait_cycles(cycles)
