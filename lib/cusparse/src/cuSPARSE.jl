@@ -57,6 +57,7 @@ include("generic.jl")
 include("interfaces.jl")
 
 include("batched.jl")
+include("deprecated.jl")
 
 
 ## handles

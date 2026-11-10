@@ -293,7 +293,10 @@ end
 function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, index::SparseChar, algo::cusparseSpMVAlg_t=CUSPARSE_SPMV_ALG_DEFAULT) where {TA, T}
 
-    (A isa CuSparseMatrixBSR) && (cuSPARSE.version() < v"12.6.3") && throw(ErrorException("This operation is not supported by the current CUDA version."))
+    # the generic SpMV supports BSR matrices from cuSPARSE 12.6.3
+    if A isa CuSparseMatrixBSR && cuSPARSE.version() < v"12.6.3"
+        return bsrmv!(transa, alpha, A, X, beta, Y, index)
+    end
 
     if cuSPARSE.version() < v"12.0" && isa(A, CuSparseMatrixCSC) && transa == 'C' && TA <: Complex
         throw(ArgumentError("Matrix-vector multiplication with the adjoint of a complex CSC matrix" *

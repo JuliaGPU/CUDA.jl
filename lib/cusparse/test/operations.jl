@@ -19,12 +19,22 @@
         @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixBSR(A, blockdim)]
             d_x = CuArray(x)
             d_y = CuArray(y)
-            @test_throws DimensionMismatch cuSPARSE.mv2!('T',alpha,d_A,d_x,beta,d_y,'O')
-            @test_throws DimensionMismatch cuSPARSE.mv2!('N',alpha,d_A,d_y,beta,d_x,'O')
-            cuSPARSE.mv2!('N',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch cuSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch cuSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+            cuSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
             h_z = collect(d_y)
             z = alpha * A * x + beta * y
             @test z ≈ h_z
+
+            # the bsrmv fallback that mv! uses before cuSPARSE 12.6.3, also for matrices
+            # with 64-bit indices and sizes that are not a multiple of the block size
+            d_A64 = CuSparseMatrixBSR{elty, Int64}(CuSparseMatrixCSR{elty, Int64}(A), blockdim)
+            for d_A in (d_A, d_A64, CuSparseMatrixBSR(CuSparseMatrixCSR(A), 4))
+                d_y = CuArray(y)
+                @test_throws DimensionMismatch cuSPARSE.bsrmv!('N',alpha,d_A,d_y,beta,d_y,'O')
+                cuSPARSE.bsrmv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                @test collect(d_y) ≈ z
+            end
         end
     end
 

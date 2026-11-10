@@ -1,41 +1,60 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-export sv2!, sv2, mv2!, gemvi!
+export sv2!, sv2, gemvi!
 
+# bsrmv, used by `mv!` for BSR matrices before cuSPARSE 12.6.3
 for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseDbsrmv, :Float64),
                      (:cusparseCbsrmv, :ComplexF32),
                      (:cusparseZbsrmv, :ComplexF64))
     @eval begin
-        function mv2!(transa::SparseChar,
-                      alpha::Number,
-                      A::CuSparseMatrixBSR{$elty},
-                      X::CuVector{$elty},
-                      beta::Number,
-                      Y::CuVector{$elty},
-                      index::SparseChar)
+        function bsrmv!(transa::SparseChar,
+                        alpha::Number,
+                        A::CuSparseMatrixBSR{$elty},
+                        X::DenseCuVector{$elty},
+                        beta::Number,
+                        Y::DenseCuVector{$elty},
+                        index::SparseChar)
 
             # Support transa = 'C' for real matrices
             transa = $elty <: Real && transa == 'C' ? 'T' : transa
 
-            desc = CuMatrixDescriptor('G', 'L', 'N', index)
             m,n = size(A)
-            mb = div(m,A.blockDim)
-            nb = div(n,A.blockDim)
             if transa == 'N'
                 chkmvdims(X,n,Y,m)
             end
             if transa == 'T' || transa == 'C'
                 chkmvdims(X,m,Y,n)
             end
+            mb = cld(m, A.blockDim)
+            nb = cld(n, A.blockDim)
+            check_cint_indices("bsrmv", mb, nb, A.nnzb + 1)
+            rowPtr = cint_indices(A.rowPtr)
+            colVal = cint_indices(A.colVal)
+            desc = CuMatrixDescriptor('G', 'L', 'N', index)
+            # bsrmv accesses whole blocks of X and Y, so pad them when the dimensions of
+            # A are not a multiple of the block size
+            Xp, Yp = X, Y
+            if length(X) % A.blockDim != 0
+                Xp = CUDACore.zeros($elty, cld(length(X), A.blockDim) * A.blockDim)
+                copyto!(Xp, 1, X, 1, length(X))
+            end
+            if length(Y) % A.blockDim != 0
+                Yp = CUDACore.zeros($elty, cld(length(Y), A.blockDim) * A.blockDim)
+                copyto!(Yp, 1, Y, 1, length(Y))
+            end
             $fname(handle(), A.dir, transa, mb, nb,
-                   nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
-                   A.colVal, A.blockDim, X, beta, Y)
+                   A.nnzb, alpha, desc, nonzeros(A), rowPtr,
+                   colVal, A.blockDim, Xp, beta, Yp)
+            Yp === Y || copyto!(Y, 1, Yp, 1, length(Y))
             Y
         end
     end
 end
+bsrmv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixBSR, X::DenseCuVector,
+       beta::Number, Y::DenseCuVector, index::SparseChar) =
+    throw(ErrorException("This operation is not supported by the current CUDA version."))
 
 """
     sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
