@@ -45,6 +45,7 @@ using Adapt: adapt
         bd_B = CuArray{elty, 2}[CuArray(b) for b in bB]
 
         bd_C = cuBLAS.trsm_batched('L', 'U', 'N', 'N', alpha, bd_A, bd_B)
+        @test Array.(bd_B) == bB
         for i in 1:length(bd_C)
             @test alpha * (bA[i] \ bB[i]) ≈ Array(bd_C[i])
         end
