@@ -44,6 +44,13 @@
         f(A)
     end
 
+    # the fallback supports the same keyword arguments
+    for T in (Float16, ComplexF32)
+        @test Array(cuRAND.randn(T, 3; mean=2, stddev=0)) == fill(T(2), 3)
+        @test Array(cuRAND.randn(T, 2, 2; mean=2, stddev=0)) == fill(T(2), 2, 2)
+        @test Array(randn!(CuArray{T}(undef, 3); mean=2, stddev=0)) == fill(T(2), 3)
+    end
+
     @test_throws ErrorException rand_logn!(CuArray{Cuint}(undef, 10))
     @test_throws ErrorException rand_poisson!(CuArray{Float64}(undef, 10))
 
