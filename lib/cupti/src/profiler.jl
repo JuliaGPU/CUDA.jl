@@ -1,3 +1,6 @@
+@public has_range_profiler, check_profiler_support, ProfilerHost, metric_properties,
+        range_profile
+
 #
 # range profiler API
 #
@@ -57,10 +60,11 @@ end
 
 """
     CUPTI.check_profiler_support(dev::CuDevice; api=CUPTI_PROFILER_RANGE_PROFILING,
-                                 feature="hardware metrics")
+                                 feature="hardware metrics") -> nothing
 
 Throw an error explaining why `dev` doesn't support the profiling `api`, if it doesn't.
-`feature` names what the API is used for in the error message.
+`feature` names what the API is used for in the error message. Wraps
+`cuptiProfilerDeviceSupported`.
 """
 function check_profiler_support(dev::CuDevice; api::CUpti_Profiler_API=CUPTI_PROFILER_RANGE_PROFILING,
                                 feature::String="hardware metrics")
@@ -104,10 +108,12 @@ end
 ## profiler host: metric configuration and evaluation
 
 """
-    CUPTI.ProfilerHost(f, ctx::CuContext)
+    CUPTI.ProfilerHost(f, ctx::CuContext) -> result of f(host)
 
 Create a profiler host object for the device of `ctx`, which configures and evaluates
-range profiler metrics, and pass it to `f`.
+range profiler metrics, pass it to `f`, and return the result of `f`. The object is only
+valid while `f` runs, and its fields are not part of the API. Wraps
+`cuptiProfilerHostInitialize`, which needs CUPTI from CUDA 12.6 or later.
 """
 mutable struct ProfilerHost
     handle::Ptr{CUpti_Profiler_Host_Object}
@@ -140,9 +146,13 @@ end
 
 """
     CUPTI.metric_properties(host::ProfilerHost, metric::String)
+        -> @NamedTuple{description::String, hw_unit::String, dim_unit::String,
+                       type::CUpti_MetricType}
 
 Look up the description and unit of `metric` (e.g. `dram__bytes` or `dram__bytes.sum`),
 or throw a `CUPTIError` with code `CUPTI_ERROR_INVALID_METRIC_NAME` if it doesn't exist.
+Wraps `cuptiProfilerHostGetMetricProperties`, which needs CUPTI from CUDA 12.6 or
+later.
 """
 function metric_properties(host::ProfilerHost, metric::String)
     params = GC.@preserve metric begin
@@ -235,11 +245,17 @@ const profiler_active = Threads.Atomic{Bool}(false)
 
 """
     CUPTI.range_profile(f, metrics::Vector{String}; ctx=context(), max_ranges=1024)
+        -> @NamedTuple{values::Matrix{Float64}, passes::Int}
 
 Collect `metrics` for every kernel launched in `ctx` while executing `f()`, and return a
 named tuple with a `ranges × metrics` matrix of `values` and the number of `passes` each
 kernel was replayed. Ranges are numbered in the order the kernels executed, which is
 serialized by CUPTI; at most `max_ranges` kernels are profiled.
+
+This uses CUPTI's range profiler in auto-range, kernel-replay mode, which needs CUPTI from
+CUDA 12.6 Update 2 or later (see [`CUPTI.has_range_profiler`](@ref)) and a device that
+supports it (see [`CUPTI.check_profiler_support`](@ref)). Only one profiling session,
+of this function or [`CUPTI.pc_sample`](@ref), can be active at a time.
 """
 function range_profile(f, metrics::Vector{String}; ctx::CuContext=context(),
                        max_ranges::Integer=1024)

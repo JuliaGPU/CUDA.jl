@@ -1,5 +1,13 @@
 export CUPTIError
 
+"""
+    CUPTIError
+
+The exception the functions in this module throw when a CUPTI call fails. Its `code` field
+is the `CUptiResult` code, e.g. `ERROR_INSUFFICIENT_PRIVILEGES` when the user isn't
+allowed to profile, or `ERROR_HARDWARE_BUSY` when another process is using the profiling
+hardware.
+"""
 struct CUPTIError <: Exception
     code::CUptiResult
 end

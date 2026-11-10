@@ -1,3 +1,5 @@
+@public has_pc_sampling, check_pc_sampling_support, pc_sample, PCSamples, cubin_crc
+
 #
 # PC sampling API
 #
@@ -8,15 +10,17 @@
 """
     CUPTI.has_pc_sampling() -> Bool
 
-Whether the loaded CUPTI library supports PC sampling as CUDA.jl uses it (CUDA 13 or
-later).
+Whether the loaded CUPTI library supports PC sampling as [`CUPTI.pc_sample`](@ref) uses
+it: this wrapper needs CUPTI from CUDA 13 or later, although CUPTI offered PC sampling
+before.
 """
 has_pc_sampling() = isdefined(@__MODULE__, :libcupti) && version() >= v"13"
 
 """
-    CUPTI.check_pc_sampling_support(dev::CuDevice)
+    CUPTI.check_pc_sampling_support(dev::CuDevice) -> nothing
 
-Throw an error explaining why `dev` doesn't support PC sampling, if it doesn't.
+Throw an error explaining why `dev` doesn't support PC sampling, if it doesn't. Wraps
+`cuptiProfilerDeviceSupported`.
 """
 check_pc_sampling_support(dev::CuDevice) =
     check_profiler_support(dev; api=CUPTI_PROFILER_PC_SAMPLING, feature="PC sampling")
@@ -143,8 +147,14 @@ end
     CUPTI.pc_sample(f; ctx=context(), period=14) -> CUPTI.PCSamples
 
 Sample the PCs of warps executing kernels in `ctx` while executing `f()`, once every
-`2^period` cycles on each SM. The caller should synchronize the context before and after
-`f`, as samples are only collected while sampling is active.
+`2^period` cycles on each SM. Samples are only collected while `f` runs, so synchronize
+the context before calling `pc_sample`, and at the end of `f`, before it returns. Only one profiling session,
+of this function or [`CUPTI.range_profile`](@ref), can be active at a time.
+
+This uses CUPTI's PC sampling API (`cuptiPCSamplingEnable` and related routines) in
+continuous mode. This wrapper needs CUPTI from CUDA 13 or later (see
+[`CUPTI.has_pc_sampling`](@ref)) and a device that supports it (see
+[`CUPTI.check_pc_sampling_support`](@ref)).
 
 !!! warning
     With CUPTI 13.2 and later, loading a module after PC sampling was disabled makes
@@ -234,7 +244,8 @@ end
 """
     CUPTI.cubin_crc(cubin::Vector) -> UInt64
 
-The CRC that CUPTI uses to identify `cubin` in PC sampling records.
+The CRC that CUPTI uses to identify `cubin` in PC sampling records. Wraps
+`cuptiGetCubinCrc`.
 """
 function cubin_crc(cubin::Vector)
     params = GC.@preserve cubin begin

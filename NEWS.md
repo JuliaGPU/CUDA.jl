@@ -33,6 +33,12 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `CUDA.early_gc!(f, false)` runs `f` without the garbage collections that CUDA.jl
   starts when GPU memory use is high, for code that paces collections itself, such as
   training loops ([#3532](https://github.com/JuliaGPU/CUDA.jl/issues/3532)).
+- CUPTI's wrappers are documented public API, covered by semantic versioning:
+  `CUPTI.version`, `library_version`, `can_profile`, `CallbackConfig`, `ActivityConfig`,
+  `enable!`, `@enable!` and `process` for callbacks and activity tracing,
+  `has_range_profiler`, `check_profiler_support`, `ProfilerHost`, `metric_properties`
+  and `range_profile` for hardware metrics, and `has_pc_sampling`,
+  `check_pc_sampling_support`, `pc_sample`, `PCSamples` and `cubin_crc` for PC sampling.
 
 *Bug fixes*:
 

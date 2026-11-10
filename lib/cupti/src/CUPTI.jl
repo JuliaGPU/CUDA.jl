@@ -1,3 +1,9 @@
+"""
+Julia wrappers for CUPTI, the CUDA Profiling Tools Interface, which CUDA.jl's profilers
+(`CUDA.@profile`, `CUDA.@metrics`, `CUDA.@sample`) are built on. See
+[`CUPTI.ActivityConfig`](@ref), [`CUPTI.range_profile`](@ref) and
+[`CUPTI.pc_sample`](@ref).
+"""
 module CUPTI
 
 using GPUToolbox
