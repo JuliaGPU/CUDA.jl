@@ -36,6 +36,7 @@ include("wrappers.jl")
 include("tensornet.jl")
 include("network.jl")
 include("state.jl")
+include("deprecated.jl")
 
 
 ## handles

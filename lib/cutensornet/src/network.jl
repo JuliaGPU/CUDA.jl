@@ -190,8 +190,11 @@ function require_prepared(net::CuNetwork)
     return net.workspace
 end
 
-function autotune!(net::CuNetwork; prefs::CuNetworkAutotunePreference=CuNetworkAutotunePreference(), stream::CuStream=stream())
+function autotune!(net::CuNetwork; prefs::Union{NetworkAutotunePreferences,CuNetworkAutotunePreference}=NetworkAutotunePreferences(), stream::CuStream=stream())
     CUDACore.check_owned(stream)
+    if prefs isa NetworkAutotunePreferences
+        prefs = CuNetworkAutotunePreference(prefs)
+    end
     cutensornetNetworkAutotuneContraction(handle(), net, require_prepared(net), prefs, stream)
     return net
 end
@@ -201,6 +204,11 @@ function contract!(net::CuNetwork; accumulate::Bool=false, slices::Union{Nothing
     slice_group = slices === nothing ? C_NULL : slices.handle
     cutensornetNetworkContract(handle(), net, accumulate, require_prepared(net), slice_group, stream)
     return net.output
+end
+
+function purge_cache!(net::CuNetwork, memspace::cutensornetMemspace_t=CUTENSORNET_MEMSPACE_DEVICE)
+    purge_cache!(require_prepared(net), memspace)
+    return net
 end
 
 function compute_gradients!(net::CuNetwork; accumulate::Bool=false, slices::Union{Nothing,CuTensorNetworkSliceGroup}=nothing, stream::CuStream=stream())

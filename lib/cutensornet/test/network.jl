@@ -41,6 +41,7 @@ end
 
         autotune!(net)
         autotune!(net; prefs=CuNetworkAutotunePreference(NetworkAutotunePreferences(max_iterations=1)))
+        autotune!(net; prefs=NetworkAutotunePreferences(max_iterations=1))
         contract!(net)
         CUDACore.synchronize()
         @test collect(C) ≈ collect(A) * collect(B)
@@ -157,6 +158,7 @@ end
         # a new data set requires purging the cache
         A .= 2 .* A
         @test purge_cache!(net.workspace) === net.workspace
+        @test purge_cache!(net) === net
         contract!(net)
         CUDACore.synchronize()
         @test collect(c)[] ≈ sum(collect(A) .* collect(B))

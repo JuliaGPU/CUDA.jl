@@ -84,54 +84,6 @@ end
 
 Base.unsafe_convert(::Type{cutensornetTensorDescriptor_t}, desc::CuTensorDescriptor) = desc.handle
 
-mutable struct CuTensorNetworkDescriptor
-    handle::cutensornetNetworkDescriptor_t
-    function CuTensorNetworkDescriptor(numInputs::Int32, numModesIn::Vector{Int32}, extentsIn::Vector{Vector{Int64}},
-                                       stridesIn, modesIn::Vector{Vector{Int32}}, qualifiersIn::Vector{cutensornetTensorQualifiers_t},
-                                       numModesOut::Int32, extentsOut::Vector{Int64}, stridesOut::Union{Ptr{Nothing}, Vector{Int64}},
-                                       modesOut::Vector{Int32}, dataType::Type, computeType::Type)
-        desc_ref = Ref{cutensornetNetworkDescriptor_t}()
-        cutensornetCreateNetworkDescriptor(handle(), numInputs, numModesIn, extentsIn, stridesIn, modesIn, qualifiersIn, numModesOut,
-                                           extentsOut, stridesOut, modesOut, dataType, computeType, desc_ref)
-        obj = new(desc_ref[])
-        resource_finalizer(cutensornetDestroyNetworkDescriptor, obj)
-        return obj
-    end
-end
-Base.unsafe_convert(::Type{cutensornetNetworkDescriptor_t}, desc::CuTensorNetworkDescriptor) = desc.handle
-
-function compute_type(T::DataType)
-    if T == Float16
-        return Float16
-    elseif T == Float32
-        return Float32
-    elseif T == Float64
-        return Float64
-    end
-end
-
-mutable struct CuTensorNetwork{T}
-    desc::CuTensorNetworkDescriptor
-    input_modes::Vector{Vector{Int32}}
-    input_extents::Vector{Vector{Int32}}
-    input_strides::Vector{<:Union{Ptr{Nothing}, Vector{Int64}}}
-    input_qualifiers::Vector{cutensornetTensorQualifiers_t}
-    input_arrs::Vector{CuArray{T}}
-    output_modes::Vector{Int32}
-    output_extents::Vector{Int32}
-    output_strides::Union{Ptr{Nothing}, Vector{Int64}}
-    output_arr::CuArray{T}
-end
-function CuTensorNetwork(T::DataType, input_modes, input_extents, input_strides, input_qualifiers, output_modes, output_extents, output_strides)
-    input_qualifiers = [cutensornetTensorQualifiers_t(isConjugate, 0, 0) for isConjugate in input_qualifiers]
-    # TODO: expose isConstant & requiresGradient?
-    desc = CuTensorNetworkDescriptor(Int32(length(input_modes)), Int32.(length.(input_modes)), input_extents, input_strides, input_modes, input_qualifiers,
-                                     Int32(length(output_modes)), output_extents, output_strides, output_modes, T, compute_type(real(T)))
-
-    return CuTensorNetwork{T}(desc, input_modes, input_extents, input_strides, input_qualifiers,
-                              Vector{CuArray{T}}(undef, 0), output_modes, output_extents, output_strides, CUDACore.zeros(T, 0))
-end
-
 mutable struct CuTensorSVDInfo
     handle::cutensornetTensorSVDInfo_t
     function CuTensorSVDInfo()
@@ -189,23 +141,6 @@ mutable struct CuTensorNetworkWorkspaceDescriptor
 end
 
 Base.unsafe_convert(::Type{cutensornetWorkspaceDescriptor_t}, desc::CuTensorNetworkWorkspaceDescriptor) = desc.handle
-
-mutable struct CuTensorNetworkContractionPlan
-    handle::cutensornetContractionPlan_t
-    function CuTensorNetworkContractionPlan(net_desc::CuTensorNetworkDescriptor, info::CuTensorNetworkContractionOptimizerInfo, ws_desc::CuTensorNetworkWorkspaceDescriptor)
-        desc_ref = Ref{cutensornetContractionPlan_t}()
-        cutensornetCreateContractionPlan(handle(), net_desc, info, ws_desc, desc_ref)
-        obj = new(desc_ref[])
-        resource_finalizer(cutensornetDestroyContractionPlan, obj)
-        return obj
-    end
-end
-
-Base.unsafe_convert(::Type{cutensornetContractionPlan_t}, desc::CuTensorNetworkContractionPlan) = desc.handle
-
-abstract type UseAutotuning end
-struct NoAutoTune <: UseAutotuning end
-struct AutoTune   <: UseAutotuning end
 
 Base.@kwdef struct OptimizerConfig
     num_graph_partitions::Int32=8
@@ -317,28 +252,6 @@ function normalization(conf::CuTensorSVDConfig)
     return attr_buf[]
 end
 Base.unsafe_convert(::Type{cutensornetTensorSVDConfig_t}, desc::CuTensorSVDConfig) = desc.handle
-
-Base.@kwdef struct AutotunePreferences
-    max_iterations::Int32=3
-end
-
-mutable struct CuTensorNetworkAutotunePreference
-    handle::cutensornetContractionAutotunePreference_t
-    function CuTensorNetworkAutotunePreference(prefs::AutotunePreferences)
-        pref_ref = Ref{cutensornetContractionAutotunePreference_t}()
-        cutensornetCreateContractionAutotunePreference(handle(), pref_ref)
-        obj = new(pref_ref[])
-        resource_finalizer(cutensornetDestroyContractionAutotunePreference, obj)
-        # apply preference options
-        for attr in (:max_iterations=>CUTENSORNET_CONTRACTION_AUTOTUNE_MAX_ITERATIONS,)
-            attr_buf = Ref(Base.getproperty(prefs, attr[1]))
-            cutensornetContractionAutotunePreferenceSetAttribute(handle(), pref_ref[], attr[2], attr_buf, sizeof(attr_buf))
-        end
-        return obj
-    end
-end
-Base.unsafe_convert(::Type{cutensornetContractionAutotunePreference_t}, prefs::CuTensorNetworkAutotunePreference)   = prefs.handle
-Base.unsafe_convert(::Type{CuTensorNetworkAutotunePreference}, prefs::AutotunePreferences) = cutensornetContractionAutotunePreference(prefs)
 
 mutable struct CuTensorNetworkSliceGroup
     handle::cutensornetSliceGroup_t
