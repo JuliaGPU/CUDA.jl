@@ -136,7 +136,7 @@ function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasReal}
     if issymmetric(A)
         return Eigen(Xsyevd!('V', 'U', A2)...)
     else
-        W, _, VR = Xgeev!('N', 'V', A2)
+        W, _, VR = geev!('N', 'V', A2)
         C = Complex{T}
         U = CuMatrix{C}([1.0 1.0; im -im])
         VR = CuMatrix{C}(VR)
@@ -159,7 +159,7 @@ function LinearAlgebra.eigen(A::CuMatrix{T}) where {T<:BlasComplex}
     if ishermitian(A)
         return Eigen(Xsyevd!('V', 'U', A2)...)
     else
-        r = Xgeev!('N', 'V', A2)
+        r = geev!('N', 'V', A2)
         return Eigen(r[1], r[3])
     end
 end
@@ -183,7 +183,7 @@ function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasReal}
     if issymmetric(A)
         return Xsyevd!('N', 'U', A2)
     else
-        return Xgeev!('N', 'N', A2)[1]
+        return geev!('N', 'N', A2)[1]
     end
 end
 function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
@@ -191,7 +191,7 @@ function LinearAlgebra.eigvals(A::CuMatrix{T}) where {T <: BlasComplex}
     if ishermitian(A)
         return Xsyevd!('N', 'U', A2)
     else
-        return Xgeev!('N', 'N', A2)[1]
+        return geev!('N', 'N', A2)[1]
     end
 end
 

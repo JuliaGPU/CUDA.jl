@@ -284,13 +284,8 @@ function Xgesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Bla
     U, Σ, Vt
 end
 
-# Xgesvdp
-function Xgesvdp!(jobz::Char, econ::Int, A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    econ in (0, 1) || throw(ArgumentError("econ is incorrect. The values accepted are 0 and 1."))
-    return Xgesvdp!(jobz, Bool(econ), A)
-end
-
-function Xgesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+# gesvdp
+function gesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     m, n = size(A)
     p = min(m, n)
     R = real(T)
@@ -332,8 +327,8 @@ function Xgesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: Bla
     end
 end
 
-# Xgesvdr
-function Xgesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
+# gesvdr
+function gesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
                   niters::Integer=2, p::Integer=2*k) where {T <: BlasFloat}
     m, n = size(A)
     ℓ = min(m,n)
@@ -419,8 +414,8 @@ function Xsyevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: Blas
     end
 end
 
-# Xsyevdx
-function Xsyevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
+# syevdx
+function syevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
                   vl::Real=0.0, vu::Real=Inf, il::Integer=1, iu::Integer=0) where {T <: BlasFloat}
     chkuplo(uplo)
     n = checksquare(A)
@@ -460,8 +455,8 @@ function Xsyevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
     end
 end
 
-# Xgeev
-function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+# geev
+function geev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
     cuSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n = checksquare(A)
     VL = if jobvl == 'V'
@@ -506,8 +501,8 @@ function Xgeev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: Bla
     return W, VL, VR
 end
 
-# XsyevBatched
-function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T <: BlasFloat}
+# syevBatched
+function syevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T <: BlasFloat}
     minimum_version = v"11.7.1"
     cuSOLVER.version() < minimum_version && throw(ErrorException("This operation requires cuSOLVER
         $(minimum_version) or later. Current cuSOLVER version: $(cuSOLVER.version())."))
@@ -540,45 +535,6 @@ function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T
 
     info = @allowscalar collect(dh.info)
     for i in 1:batch_size
-        chkargsok(info[i] |> BlasInt)
-    end
-
-    if jobz == 'N'
-        return W
-    elseif jobz == 'V'
-        return W, A
-    end
-end
-
-function XsyevBatched!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    minimum_version = v"11.7.1"
-    cuSOLVER.version() < minimum_version && throw(ErrorException("This operation requires cuSOLVER
-        $(minimum_version) or later. Current cuSOLVER version: $(cuSOLVER.version())."))
-    chkuplo(uplo)
-    n, num_matrices = size(A)
-    batch_size = num_matrices ÷ n
-    R = real(T)
-    lda = max(1, stride(A, 2))
-    W = CuVector{R}(undef, n * batch_size)
-    params = CuSolverParameters()
-    dh = dense_handle()
-    resize!(dh.info, batch_size)
-
-    function bufferSize()
-        out_cpu = Ref{Csize_t}(0)
-        out_gpu = Ref{Csize_t}(0)
-        cusolverDnXsyevBatched_bufferSize(dh, params, jobz, uplo, n,
-                                          T, A, lda, R, W, T, out_gpu, out_cpu, batch_size)
-        out_gpu[], out_cpu[]
-    end
-    with_workspaces(dh.workspace_gpu, dh.workspace_cpu, bufferSize()...) do buffer_gpu, buffer_cpu
-        cusolverDnXsyevBatched(dh, params, jobz, uplo, n, T, A,
-                               lda, R, W, T, buffer_gpu, sizeof(buffer_gpu),
-                               buffer_cpu, sizeof(buffer_cpu), dh.info, batch_size)
-    end
-
-    info = @allowscalar collect(dh.info)
-    for i = 1:batch_size
         chkargsok(info[i] |> BlasInt)
     end
 

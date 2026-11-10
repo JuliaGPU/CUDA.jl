@@ -26,37 +26,37 @@ end
     # nrows > ncols
     A = rand(elty, m, n)
     d_A = CuMatrix(A)
-    U, Σ, V, err_sigma = cuSOLVER.Xgesvdp!('V', 0, d_A)
+    U, Σ, V, err_sigma = cuSOLVER.gesvdp!('V', false, d_A)
     @test A ≈ collect(U[:,1:n]) * Diagonal(collect(Σ)) * collect(V)'
 
     d_A = CuMatrix(A)
-    U, Σ, V, err_sigma = cuSOLVER.Xgesvdp!('V', 1, d_A)
+    U, Σ, V, err_sigma = cuSOLVER.gesvdp!('V', true, d_A)
     @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
 
     d_A = CuMatrix(A)
-    Σ2, err_sigma = cuSOLVER.Xgesvdp!('N', 0, d_A)
+    Σ2, err_sigma = cuSOLVER.gesvdp!('N', false, d_A)
     @test collect(Σ) ≈ collect(Σ2)
 
     d_A = CuMatrix(A)
-    Σ3, err_sigma = cuSOLVER.Xgesvdp!('N', 1, d_A)
+    Σ3, err_sigma = cuSOLVER.gesvdp!('N', true, d_A)
     @test collect(Σ) ≈ collect(Σ3)
 
     # nrows < ncols
     A = rand(elty, n, m)
     d_A = CuMatrix(A)
-    U, Σ, V, err_sigma = cuSOLVER.Xgesvdp!('V', 0, d_A)
+    U, Σ, V, err_sigma = cuSOLVER.gesvdp!('V', false, d_A)
     @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V[:,1:n])'
 
     d_A = CuMatrix(A)
-    U, Σ, V, err_sigma = cuSOLVER.Xgesvdp!('V', 1, d_A)
+    U, Σ, V, err_sigma = cuSOLVER.gesvdp!('V', true, d_A)
     @test A ≈ collect(U) * Diagonal(collect(Σ)) * collect(V)'
 
     d_A = CuMatrix(A)
-    Σ2, err_sigma = cuSOLVER.Xgesvdp!('N', 0, d_A)
+    Σ2, err_sigma = cuSOLVER.gesvdp!('N', false, d_A)
     @test collect(Σ) ≈ collect(Σ2)
 
     d_A = CuMatrix(A)
-    Σ3, err_sigma = cuSOLVER.Xgesvdp!('N', 1, d_A)
+    Σ3, err_sigma = cuSOLVER.gesvdp!('N', true, d_A)
     @test collect(Σ) ≈ collect(Σ3)
 end
 
@@ -76,10 +76,10 @@ end
     A = FB.Q * Σ * FC.Q
     d_A = CuMatrix(A)
 
-    d_U, d_Σ, d_V = cuSOLVER.Xgesvdr!('N', 'N', d_A, 3)
+    d_U, d_Σ, d_V = cuSOLVER.gesvdr!('N', 'N', d_A, 3)
     @test norm(diag(Σ)[1:3] - collect(d_Σ[1:3])) ≤ tol
 
-    d_U, d_Σ, d_V = cuSOLVER.Xgesvdr!('S', 'S', d_A, ℓ)
+    d_U, d_Σ, d_V = cuSOLVER.gesvdr!('S', 'S', d_A, ℓ)
     @test norm(diag(Σ) - collect(d_Σ)) ≤ tol
 end
 

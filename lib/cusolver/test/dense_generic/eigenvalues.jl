@@ -3,7 +3,7 @@ using LinearAlgebra
 
 n = 10
 
-# Xgeev! is covered via `eigen(::CuMatrix)` in dense/eigenvalues.jl
+# geev! is covered via `eigen(::CuMatrix)` in dense/eigenvalues.jl
 if cuSOLVER.version() >= v"11.7.1"
     @testset "syevBatched! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         batch_size = 5
@@ -20,7 +20,7 @@ if cuSOLVER.version() >= v"11.7.1"
                 A[:, :, i] .= S
             end
             d_A = CuArray(A)
-            d_W, d_V = cuSOLVER.XsyevBatched!('V', uplo, d_A)
+            d_W, d_V = cuSOLVER.syevBatched!('V', uplo, d_A)
             W = collect(d_W)
             V = collect(d_V)
             for i in 1:batch_size
@@ -31,11 +31,11 @@ if cuSOLVER.version() >= v"11.7.1"
             end
 
             d_A = CuArray(A)
-            d_W = cuSOLVER.XsyevBatched!('N', uplo, d_A)
+            d_W = cuSOLVER.syevBatched!('N', uplo, d_A)
         end
     end
 
-    @testset "syevBatched! updated elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    @testset "deprecated XsyevBatched! on a matrix elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         batch_size = 5
         for uplo in ('L', 'U')
             (cuSOLVER.version() < v"11.7.2") && (uplo == 'L') && (elty == ComplexF32) && continue
@@ -50,7 +50,7 @@ if cuSOLVER.version() >= v"11.7.1"
                 A[:,(i-1)*n+1:i*n] .= S
             end
             d_A = CuMatrix(A)
-            d_W, d_V = cuSOLVER.XsyevBatched!('V', uplo, d_A)
+            d_W, d_V = @test_deprecated cuSOLVER.XsyevBatched!('V', uplo, d_A)
             W = collect(d_W)
             V = collect(d_V)
             for i = 1:batch_size
@@ -60,8 +60,14 @@ if cuSOLVER.version() >= v"11.7.1"
                 @test Bᵢ * Vᵢ ≈ Vᵢ * Diagonal(Wᵢ)
             end
 
+            d_P = CuMatrix(vcat(A, zeros(elty, 3, size(A, 2))))
+            d_W, d_V = @test_deprecated cuSOLVER.XsyevBatched!('V', uplo, view(d_P, 1:n, :))
+            @test collect(d_W) ≈ W
+            @test collect(d_P)[1:n, :] ≈ V
+
             d_A = CuMatrix(A)
-            d_W = cuSOLVER.XsyevBatched!('N', uplo, d_A)
+            d_W = @test_deprecated cuSOLVER.XsyevBatched!('N', uplo, d_A)
+            @test collect(d_W) ≈ vec(collect(cuSOLVER.syevBatched!('N', uplo, reshape(CuMatrix(A), n, n, :))))
         end
     end
 end
@@ -92,15 +98,15 @@ if cuSOLVER.version() >= v"11"
             h_A = uplo == 'L' ? tril(A) : triu(A)
             d_A = CuMatrix{elty}(h_A)
 
-            d_W, d_V, neig = cuSOLVER.Xsyevdx!('V', 'A', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
+            d_W, d_V, neig = cuSOLVER.syevdx!('V', 'A', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
             @test neig == 10
             @test collect(d_W) ≈ Σ
             @test A ≈ collect(d_V * Diagonal(d_W) * d_V')
 
-            d_W, neig = cuSOLVER.Xsyevdx!('N', 'I', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
+            d_W, neig = cuSOLVER.syevdx!('N', 'I', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
             @test neig == 3
 
-            d_W, neig = cuSOLVER.Xsyevdx!('N', 'V', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
+            d_W, neig = cuSOLVER.syevdx!('N', 'V', uplo, d_A, vl=3.5, vu=7.5, il=1, iu=3)
         end
     end
 end

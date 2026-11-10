@@ -54,6 +54,7 @@ include("multigpu.jl")
 
 # high-level integrations
 include("linalg.jl")
+include("deprecated.jl")
 
 
 ## dense handles
