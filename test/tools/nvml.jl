@@ -47,7 +47,7 @@ end
         # compute properties
         @test NVML.compute_mode(dev) isa NVML.nvmlComputeMode_t
         @test NVML.compute_capability(dev) == capability(cuda_dev)
-        @test_maybe NVML.compute_processes(dev) isa Union{Nothing,Dict}
+        @test_maybe NVML.compute_processes(dev) isa Dict{Int,@NamedTuple{used_gpu_memory::Union{Int,Missing}}}
 
         # clocks
         @test_maybe NVML.default_applications_clock(dev) isa NamedTuple
@@ -70,13 +70,16 @@ end
     let dev = NVML.Device(uuid(cuda_dev); mig)
         @test NVML.uuid(dev) == uuid(cuda_dev)
         @test NVML.name(dev) == name(cuda_dev)
+        # NVML's methods extend CUDA.jl's functions
+        @test name(dev) == NVML.name(dev)
+        @test uuid(dev) == NVML.uuid(dev)
 
         NVML.memory_info(dev)
 
         context()
         # FIXME: https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
         #@test getpid() in keys(NVML.compute_processes(dev))
-        @test_maybe NVML.compute_processes(dev) isa Union{Nothing,Dict}
+        @test_maybe NVML.compute_processes(dev) isa Dict{Int,@NamedTuple{used_gpu_memory::Union{Int,Missing}}}
     end
 end
 
