@@ -29,6 +29,12 @@ end
 @public functional, enable_logging
 
 const _initialized = Ref{Bool}(false)
+
+"""
+    cuBLAS.functional() -> Bool
+
+Whether cuBLAS was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
 const cudaDataType_t = cudaDataType
@@ -398,6 +404,7 @@ function __init__()
     _initialized[] = true
 end
 
+include("docs.jl")
 include("precompile.jl")
 
 # deprecated binding for backwards compatibility
