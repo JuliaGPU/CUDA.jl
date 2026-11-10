@@ -4,14 +4,20 @@
 export sm2!, sm2
 
 """
-    sm2!(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuMatrix, index::SparseChar)
+    sm2!(transa, transxy, uplo, diag, alpha, A::CuSparseMatrixBSR, X::StridedCuMatrix; index='O') -> X
 
-Performs `X = alpha * op(A) \\ op(X)`, where `op` can be nothing (`transa = N`), transpose
-(`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense matrix, and `uplo`
-tells `sm2!` which triangle of the block sparse matrix `A` to reference.
-If the triangle has unit diagonal, set `diag` to 'U'.
+Solve `op(A) * op(Y) = alpha * op(X)` in place in `X`, for a sparse triangular matrix `A`
+in BSR format. `transa` selects `op` for `A` (`'N'`, `'T'` or `'C'`), and `transxy` for `X`
+and `Y` (`'N'` or `'T'`, and `'C'` for real matrices only).
+
+`uplo` selects the triangle of `A` to use (`'U'` or `'L'`), and `diag` is `'U'` for a unit
+diagonal, which is not read, or `'N'`. An error is thrown when the diagonal has a structural
+or numerical zero. For CSR, CSC and COO matrices, use [`sm!`](@ref).
+
+Wraps `cusparse<t>bsrsm2_solve`, which NVIDIA has deprecated, for the `Float32`, `Float64`,
+`ComplexF32` and `ComplexF64` element types.
 """
-sm2!(transa::SparseChar, transxy::SparseChar, diag::SparseChar, alpha::Number, A::CuSparseMatrixBSR, X::CuMatrix, index::SparseChar)
+function sm2! end
 
 # bsrsm2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_analysis, :cusparseSbsrsm2_solve, :Float32),
@@ -79,6 +85,12 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
     end
 end
 
+"""
+    sm2(transa, transxy, uplo, [diag='N'], [alpha=1], A::CuSparseMatrixBSR, X::StridedCuMatrix; index='O') -> Y
+
+Solve `op(A) * op(Y) = alpha * op(X)` for `Y`, like [`sm2!`](@ref) but without overwriting `X`.
+`alpha` can only be given together with `diag`.
+"""
 function sm2(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::CuSparseMatrixBSR{T}, X::StridedCuMatrix{T};
              index::SparseChar='O') where T

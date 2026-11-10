@@ -52,6 +52,13 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `CuStateVecSubSVMigrator`, and `Pauli`. For calling the C API directly,
   `cuStateVec.handle()` and `version()` are public too. `sample` takes an optional random
   number generator.
+- cuSPARSE's wrappers are documented public API, covered by semantic versioning, along
+  with the sparse array types. For calling the C API directly, `cuSPARSE.handle()`,
+  `cuSPARSE.version()` and the descriptors `CuSparseMatrixDescriptor`,
+  `CuSparseVectorDescriptor`, `CuDenseMatrixDescriptor` and `CuDenseVectorDescriptor` are
+  public too, as is `cuSPARSE.prune`.
+- cuSPARSE's `mv!` multiplies BSR matrices with every cuSPARSE version, using the legacy
+  `bsrmv` routine before cuSPARSE 12.6.3. This makes `A * x` work for BSR matrices there.
 
 *Bug fixes*:
 
@@ -93,8 +100,6 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   deprecated. The methods of `getrf_batched!`, `getrs_batched!` and `getri_batched!` that
   take arrays of device pointers are deprecated in favour of those taking arrays.
 
-*Minor changes*:
-
 - cuStateVec's wrappers are named after the routine they call. The old names are
   deprecated:
 
@@ -107,6 +112,19 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
   `computeExpectation` returns the expectation value, where `expectation` returned it in a
   `Ref`, together with one for a residual norm that cuStateVec doesn't compute.
+
+- cuSPARSE's wrappers take the index base of their sparse operands as the keyword `index`,
+  defaulting to one-based (`'O'`), like the constructors of the sparse arrays. The
+  positional forms are deprecated; algorithms stay a positional argument:
+
+  | Deprecated | Replacement |
+  |:--|:--|
+  | `mv!(transa, alpha, A, X, beta, Y, index[, algo])`, and likewise `mm!`, `bmm!`, `gemm!`, `gemm`, `gemv`, `sv!`, `sm!`, `sddmm!` | `mv!(transa, alpha, A, X, beta, Y[, algo]; index='O')` |
+  | `gather!`, `scatter!`, `axpby!`, `rot!`, `vv!`, `sv2!`, `sv2`, `sm2!`, `sm2`, `gemvi!`, `geam`, `axpby`, `color`, `prune` with a trailing `index` | the same with `; index='O'` |
+  | `ic02!`, `ic02`, `ilu02!`, `ilu02`, `sort_csr`, `sort_csc` with an `index` argument | the same with `; index='O'` |
+  | `gtsv2!(dl, d, du, B, index)`, `gtsv2(dl, d, du, B, index)` | `gtsv2!(dl, d, du, B)`, `gtsv2(dl, d, du, B)` |
+  | `sort_coo(A, 'R')`, `sort_coo(A, 'C')` | `sort_coo(A; by=:row)`, `sort_coo(A; by=:col)` |
+  | `mv2!` | `mv!` |
 
 
 ## v6.5 (October 2026)

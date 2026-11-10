@@ -192,6 +192,14 @@ end
 
 cint_indices(x::CuVector) = convert(CuVector{Cint}, x)
 
+"""
+    sort_csc(A::CuSparseMatrixCSC; index='O') -> CuSparseMatrixCSC
+
+Return a copy of `A` with the row indices sorted within each column.
+
+Wraps `cusparseXcscsort`, which uses 32-bit indices: an error is thrown when the size or
+number of nonzeros of `A` doesn't fit.
+"""
 function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}; index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
@@ -216,6 +224,14 @@ function sort_csc(A::CuSparseMatrixCSC{Tv,Ti}; index::SparseChar='O') where {Tv,
     CuSparseMatrixCSC{Tv,Ti}(sorted_colPtr, sorted_rowVal, sorted_nzVal, size(A))
 end
 
+"""
+    sort_csr(A::CuSparseMatrixCSR; index='O') -> CuSparseMatrixCSR
+
+Return a copy of `A` with the column indices sorted within each row.
+
+Wraps `cusparseXcsrsort`, which uses 32-bit indices: an error is thrown when the size or
+number of nonzeros of `A` doesn't fit.
+"""
 function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}; index::SparseChar='O') where {Tv,Ti}
 
     m,n = size(A)
@@ -241,6 +257,15 @@ function sort_csr(A::CuSparseMatrixCSR{Tv,Ti}; index::SparseChar='O') where {Tv,
     CuSparseMatrixCSR{Tv,Ti}(sorted_rowPtr, sorted_colVal, sorted_nzVal, size(A))
 end
 
+"""
+    sort_coo(A::CuSparseMatrixCOO; by=:row) -> CuSparseMatrixCOO
+
+Return a copy of `A` with its entries sorted by row (`by = :row`), or by column
+(`by = :col`).
+
+Wraps `cusparseXcoosortByRow` and `cusparseXcoosortByColumn`, which use 32-bit indices: an
+error is thrown when the size or number of nonzeros of `A` doesn't fit.
+"""
 function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}; by::Symbol=:row) where {Tv,Ti}
 
     by in (:row, :col) || throw(ArgumentError("sort_coo can sort by :row or :col, not :$by"))
@@ -271,6 +296,20 @@ function sort_coo(A::CuSparseMatrixCOO{Tv,Ti}; by::Symbol=:row) where {Tv,Ti}
     CUDACore.unsafe_free!(perm)
     CuSparseMatrixCOO{Tv,Ti}(sorted_rowInd, sorted_colInd, sorted_nzVal, size(A))
 end
+
+@public prune
+
+"""
+    prune(A, threshold; index='O')
+
+Return a copy of the sparse CSR or CSC matrix `A` without the entries whose absolute value is
+not larger than `threshold`.
+
+Wraps `cusparse<t>pruneCsr2csr`, which NVIDIA has deprecated, for the `Float32` and
+`Float64` element types. It uses 32-bit indices: an error is thrown when the size or number
+of nonzeros of `A` doesn't fit.
+"""
+function prune end
 
 for (bname, fname, pname, elty) in ((:cusparseSpruneCsr2csr_bufferSizeExt, :cusparseSpruneCsr2csrNnz, :cusparseSpruneCsr2csr, :Float32),
                                     (:cusparseDpruneCsr2csr_bufferSizeExt, :cusparseDpruneCsr2csrNnz, :cusparseDpruneCsr2csr, :Float64))

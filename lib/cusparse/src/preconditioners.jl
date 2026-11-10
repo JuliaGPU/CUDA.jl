@@ -3,28 +3,51 @@
 export ic02!, ic02, ilu02!, ilu02, gtsv2!, gtsv2
 
 """
-    ic02!(A::CuSparseMatrix, index::SparseChar='O')
+    ic02!(A; index='O') -> A
 
-Incomplete Cholesky factorization with no pivoting.
-Preserves the sparse layout of matrix `A`.
+Compute the incomplete Cholesky factorization with zero fill-in, IC(0), of a sparse
+Hermitian positive definite matrix in place, keeping the sparsity pattern of `A`. An error
+is thrown when the factorization hits a zero pivot.
+
+cuSPARSE reads the lower triangle of the matrix as stored row by row. For a CSR matrix, that
+is the lower triangle of `A`, which is overwritten with the factor `L` of `A ≈ L * L'`. A
+CSC matrix is processed as the CSR storage of its transpose: its upper triangle is read, and
+overwritten with the factor `R = L'` of `A ≈ R' * R`. BSR matrices follow the conventions of
+`bsric02`.
+
+The result is meant as a preconditioner for iterative solvers, applied with `ldiv!` on
+triangular views of it.
+
+Wraps `cusparse<t>csric02` and `cusparse<t>bsric02`, which NVIDIA has deprecated, for the
+`Float32`, `Float64`, `ComplexF32` and `ComplexF64` element types.
 """
 function ic02! end
 
 """
-    ilu02!(A::CuSparseMatrix, index::SparseChar='O')
+    ilu02!(A; index='O') -> A
 
-Incomplete LU factorization with no pivoting.
-Preserves the sparse layout of matrix `A`.
+Compute the incomplete LU factorization with zero fill-in, ILU(0), of the sparse square
+matrix `A` in place, keeping its sparsity pattern. `A` is overwritten with the factors `L`,
+with an implicit unit diagonal, and `U` of `A ≈ L * U`. An error is thrown when the
+factorization hits a zero pivot.
+
+The result is meant as a preconditioner for iterative solvers, applied with `ldiv!` on
+triangular views of it.
+
+Wraps `cusparse<t>csrilu02` and `cusparse<t>bsrilu02`, which NVIDIA has deprecated, for the
+`Float32`, `Float64`, `ComplexF32` and `ComplexF64` element types.
 """
 function ilu02! end
 
 """
-    gtsv2!(dl::CuVector, d::CuVector, du::CuVector, B::CuVecOrMat, index::SparseChar='O'; pivoting::Bool=true)
+    gtsv2!(dl::CuVector, d::CuVector, du::CuVector, B::CuVecOrMat; pivoting=true) -> B
 
-Solve the linear system `A * X = B` where `A` is a tridiagonal matrix defined
-by three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) diagonals.
-With `pivoting`, the solution is more accurate but also more expensive.
-Note that the solution `X` overwrites the right-hand side `B`.
+Solve `A * X = B` in place in `B`, for the tridiagonal matrix `A` with subdiagonal `dl`,
+diagonal `d` and superdiagonal `du`. The three vectors have the same length as the columns
+of `B`, at least 3, and `dl[1]` and `du[end]` must be zero. With `pivoting`, partial
+pivoting makes the solution more accurate but slower.
+
+Wraps `cusparse<t>gtsv2` and `cusparse<t>gtsv2_nopivot`.
 """
 function gtsv2! end
 
@@ -260,6 +283,22 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
     end
 end
 
+"""
+    ic02(A; index='O')
+
+Compute the incomplete Cholesky factorization IC(0) of the sparse matrix `A`, like
+[`ic02!`](@ref) but in a copy of `A`.
+"""
+function ic02 end
+
+"""
+    ilu02(A; index='O')
+
+Compute the incomplete LU factorization ILU(0) of the sparse matrix `A`, like
+[`ilu02!`](@ref) but in a copy of `A`.
+"""
+function ilu02 end
+
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         function ilu02(A::CuSparseMatrix{$elty}; index::SparseChar='O')
@@ -318,6 +357,14 @@ for (bname_pivot,fname_pivot,bname_nopivot,fname_nopivot,elty) in ((:cusparseSgt
         end
     end
 end
+
+"""
+    gtsv2(dl::CuVector, d::CuVector, du::CuVector, B::CuVecOrMat; pivoting=true) -> X
+
+Solve `A * X = B` for the tridiagonal matrix `A`, like [`gtsv2!`](@ref) but without
+overwriting `B`.
+"""
+function gtsv2 end
 
 for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin

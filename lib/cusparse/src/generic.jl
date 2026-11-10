@@ -4,24 +4,6 @@ export gather!, scatter!, axpby!, rot!
 export vv!, sv!, sm!, mv!, mm!, gemv, gemm, gemm!, sddmm!
 export bmm!
 
-"""
-    mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::CuVector, beta::Number, Y::CuVector, index::SparseChar)
-
-Performs `Y = alpha * op(A) * X + beta * Y`, where `op` can be nothing (`transa = N`),
-transpose (`transa = T`) or conjugate transpose (`transa = C`).
-`X` and `Y` are dense vectors.
-"""
-function mv! end
-
-"""
-    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix, B::CuMatrix, beta::Number, C::CuMatrix, index::SparseChar)
-    mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuMatrix, B::Union{CuSparseMatrixCSC,CuSparseMatrixCSR,CuSparseMatrixCOO}, beta::Number, C::CuMatrix, index::SparseChar)
-
-Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing (`transa = N`),
-transpose (`transa = T`) or conjugate transpose (`transa = C`).
-"""
-function mm! end
-
 ## API functions
 
 # implement Int conversions using reinterpreted Float
@@ -223,9 +205,12 @@ function densetosparse(A::CuMatrix{Bool}, fmt::Symbol, index::SparseChar, algo::
 end
 
 """
-    gather!(X::CuSparseVector, Y::CuVector, index::SparseChar)
+    gather!(X::CuSparseVector, Y::CuVector; index='O') -> X
 
-Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
+Gather the elements of the dense vector `Y` at the indices of the nonzeros of the sparse
+vector `X` into the nonzero values of `X`.
+
+Wraps `cusparseGather`. Requires cuSPARSE 11.
 """
 function gather!(X::CuSparseVector, Y::CuVector; index::SparseChar='O')
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
@@ -236,9 +221,12 @@ function gather!(X::CuSparseVector, Y::CuVector; index::SparseChar='O')
 end
 
 """
-    scatter!(Y::CuVector, X::CuSparseVector, index::SparseChar)
+    scatter!(Y::CuVector, X::CuSparseVector; index='O') -> Y
 
-Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
+Scatter the nonzeros of the sparse vector `X` into the dense vector `Y`, leaving the other
+elements of `Y` unchanged.
+
+Wraps `cusparseScatter`. Requires cuSPARSE 11.
 """
 function scatter!(Y::CuVector, X::CuSparseVector; index::SparseChar='O')
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
@@ -249,9 +237,14 @@ function scatter!(Y::CuVector, X::CuSparseVector; index::SparseChar='O')
 end
 
 """
-    axpby!(alpha::Number, X::CuSparseVector, beta::Number, Y::CuVector, index::SparseChar)
+    axpby!(alpha, X::CuSparseVector, beta, Y::CuVector; index='O') -> Y
 
-Computes `alpha * X + beta * Y` for sparse `X` and dense `Y`.
+Compute `Y = alpha * X + beta * Y` for a sparse vector `X` and a dense vector `Y`. To add two
+sparse vectors into a new one, use [`axpby`](@ref).
+
+This function is not `LinearAlgebra.axpby!`, which works on `CuArray`s through cuBLAS.
+
+Wraps `cusparseAxpby`, which NVIDIA deprecated in CUDA 12.8. Requires cuSPARSE 11.
 """
 function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T}; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
@@ -262,9 +255,13 @@ function axpby!(alpha::Number, X::CuSparseVector{T}, beta::Number, Y::CuVector{T
 end
 
 """
-    rot!(X::CuSparseVector, Y::CuVector, c::Number, s::Number, index::SparseChar)
+    rot!(X::CuSparseVector, Y::CuVector, c, s; index='O') -> X, Y
 
-Performs the Givens rotation specified by `c` and `s` to sparse `X` and dense `Y`.
+Apply the Givens rotation with cosine `c` and sine `s` to the sparse vector `X` and the
+dense vector `Y` at the indices of the nonzeros of `X`: `X = c * X + s * Y` and
+`Y = c * Y - s * X`.
+
+Wraps `cusparseRot`, which NVIDIA has deprecated. Requires cuSPARSE 11.
 """
 function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
@@ -274,6 +271,15 @@ function rot!(X::CuSparseVector{T}, Y::CuVector{T}, c::Number, s::Number; index:
     return X, Y
 end
 
+"""
+    vv!(transx, X::CuSparseVector, Y::DenseCuVector; index='O') -> Number
+
+Compute the dot product of the sparse vector `X` and the dense vector `Y`. With
+`transx = 'C'`, the elements of `X` are conjugated, as in `LinearAlgebra.dot(X, Y)`; with
+`'N'` they are not. Despite the `!`, neither vector is modified.
+
+Wraps `cusparseSpVV`, which NVIDIA deprecated in CUDA 12.8.
+"""
 function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}; index::SparseChar='O') where {T}
     descX = CuSparseVectorDescriptor(X, index)
     descY = CuDenseVectorDescriptor(Y)
@@ -290,6 +296,21 @@ function vv!(transx::SparseChar, X::CuSparseVector{T}, Y::DenseCuVector{T}; inde
     return result[]
 end
 
+"""
+    mv!(transa, alpha, A::CuSparseMatrix, X::DenseCuVector, beta, Y::DenseCuVector, [algo]; index='O') -> Y
+
+Compute `Y = alpha * op(A) * X + beta * Y` for a sparse matrix `A` and dense vectors `X` and
+`Y`, where `transa` selects `op` (`'N'`, `'T'` or `'C'`).
+
+`A` can be a CSR, CSC, COO or BSR matrix. `algo` is a `cusparseSpMVAlg_t`, by default
+`CUSPARSE_SPMV_ALG_DEFAULT`. `Float16` and `ComplexF16` are computed in single precision,
+from cuSPARSE 11.4 and 11.7.2 respectively.
+
+Wraps `cusparseSpMV`. Before cuSPARSE 12.6.3, BSR matrices use `cusparse<t>bsrmv` instead,
+which only supports `transa = 'N'` and the `Float32`, `Float64`, `ComplexF32` and
+`ComplexF64` element types. Before cuSPARSE 12, `transa = 'C'` is not supported for complex
+CSC matrices.
+"""
 function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseCuVector{T},
              beta::Number, Y::DenseCuVector{T}, algo::cusparseSpMVAlg_t=CUSPARSE_SPMV_ALG_DEFAULT; index::SparseChar='O') where {TA, T}
 
@@ -344,6 +365,23 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrix{TA}, X::DenseC
     return Y
 end
 
+"""
+    mm!(transa, transb, alpha, A::CuSparseMatrix, B, beta, C, [algo]; index='O') -> C
+    mm!(transa, transb, alpha, A::DenseCuMatrix, B::CuSparseMatrix, beta, C, [algo]; index='O') -> C
+
+Compute `C = alpha * op(A) * op(B) + beta * C` for a sparse and a dense matrix, where
+`transa` and `transb` select `op` (`'N'`, `'T'` or `'C'`) and `C` is a dense matrix.
+
+In the first form, `A` can be a CSR, CSC, COO or BSR matrix (BSR from cuSPARSE 12.5.1),
+and `B` and `C` can also be the `transpose` of a dense matrix, to use row-major storage. In
+the second form, `B` can be a CSR, CSC or COO matrix. `algo` is a `cusparseSpMMAlg_t`, by
+default `CUSPARSE_SPMM_ALG_DEFAULT`. `Float16` and `ComplexF16` are computed in single
+precision.
+
+Wraps `cusparseSpMM`. Before cuSPARSE 11, `B` and `C` must be column-major and, unless `A`
+is a COO matrix, `transb` must be `'N'`. Before cuSPARSE 12, `transa = 'C'` is not supported
+for complex CSC matrices.
+"""
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrix{T},
              B::Union{DenseCuMatrix{T}, Transpose{T, <:DenseCuMatrix{T}}}, beta::Number, C::Union{DenseCuMatrix{T}, Transpose{T, <:DenseCuMatrix{T}}}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where {T}
 
@@ -438,6 +476,20 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMa
     return C
 end
 
+"""
+    bmm!(transa, transb, alpha, A::CuSparseArrayCSR, B::DenseCuArray, beta, C::DenseCuArray, [algo]; index='O') -> C
+
+Compute `C[:, :, i] = alpha * op(A[:, :, i]) * op(B[:, :, i]) + beta * C[:, :, i]` for a
+batch of CSR matrices `A` and batches of dense matrices `B` and `C`. `transa` and `transb`
+select `op` (`'N'`, `'T'` or `'C'`).
+
+Dimensions beyond the third are folded into the batch dimension. A batch of size one in `A`
+or `B` is broadcast over the batch of `C`. `C` must have more than one column when the batch
+has more than one matrix. `algo` is a `cusparseSpMMAlg_t`, by default
+`CUSPARSE_SPMM_ALG_DEFAULT`.
+
+Wraps `cusparseSpMM` with strided batches. Requires cuSPARSE 11.7.2.
+"""
 function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseArrayCSR{T,Ti,N},
               B::DenseCuArray{T,N}, beta::Number, C::DenseCuArray{T,N}, algo::cusparseSpMMAlg_t=CUSPARSE_SPMM_ALG_DEFAULT; index::SparseChar='O') where {T,Ti,N}
     Ar = reshape(A, :, :, :)
@@ -524,6 +576,20 @@ function bmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 end
 
 # AB and C must have the same sparsity pattern if β ≠ 0.
+"""
+    gemm!(transa, transb, alpha, A, B, beta, C, [algo]; index='O') -> C
+
+Compute `C = alpha * A * B + beta * C` for sparse matrices `A`, `B` and `C`, all in CSR or
+all in CSC format. Only `transa = transb = 'N'` is supported.
+
+With `beta ≠ 0`, `A * B` must have the same sparsity pattern as `C`; an error is thrown if
+it has a different number of nonzeros, but a different pattern with the same number of
+nonzeros is not detected. With `beta = 0`, the storage of `C` is replaced when the number
+of nonzeros differs. `algo` is a `cusparseSpGEMMAlg_t`, by default
+`CUSPARSE_SPGEMM_DEFAULT`.
+
+Wraps `cusparseSpGEMM`. Requires cuSPARSE 11.
+"""
 function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T}, B::CuSparseMatrixCSR{T},
                beta::Number, C::CuSparseMatrixCSR{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
@@ -658,6 +724,21 @@ function gemm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSpars
     return C
 end
 
+"""
+    gemm(transa, transb, alpha, A, B, [algo]; index='O') -> C
+    gemm(transa, transb, alpha, A, B, beta, C, [algo]; index='O', same_pattern=false) -> D
+
+Compute `alpha * A * B`, or `alpha * A * B + beta * C`, into a new sparse matrix, for sparse
+matrices `A`, `B` and `C`, all in CSR or all in CSC format. Only `transa = transb = 'N'` is
+supported.
+
+With `same_pattern = true`, `A * B` must have the same sparsity pattern as `C`, and the
+result is computed in a copy of `C` with [`gemm!`](@ref). Otherwise `alpha * A * B` and
+`beta * C` are added with [`geam`](@ref). `algo` is a `cusparseSpGEMMAlg_t`, by default
+`CUSPARSE_SPGEMM_DEFAULT`.
+
+Wraps `cusparseSpGEMM`. Requires cuSPARSE 11.
+"""
 function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
               B::CuSparseMatrixCSR{T}, algo::cusparseSpGEMMAlg_t=CUSPARSE_SPGEMM_DEFAULT; index::SparseChar='O') where {T}
     version() < v"11" && throw(ErrorException("This operation is not supported by the current CUDA version."))
@@ -774,15 +855,17 @@ function gemm(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparse
 end
 
 """
-    y = gemv(transa, alpha, A, x, index, [algo])
+    gemv(transa, alpha, A, x::CuSparseVector, [algo]; index='O') -> CuSparseVector
 
-Perform a product between a `CuSparseMatrix` and a `CuSparseVector`, returning a `CuSparseVector`.
-This function should only be used for highly sparse matrices and vectors, as the result is expected
-to have many non-zeros in practice.
-For this reason, high-level functions like `mul!` and `*` internally convert the sparse vector into a
-dense vector to use a more efficient CUSPARSE routine.
+Compute `alpha * A * x` for a sparse CSR or CSC matrix `A` and a sparse vector `x`, returning
+a new sparse vector. Only `transa = 'N'` is supported.
 
-Supported formats for the sparse matrix are `CuSparseMatrixCSC` and `CuSparseMatrixCSR`.
+Like [`gemm`](@ref), this is a sparse-sparse product, computed by treating `x` as a sparse
+matrix with one column. It only pays off when the result is very sparse too: `A * x` and
+`mul!` convert `x` to a dense vector and use [`mv!`](@ref) instead. `algo` is a
+`cusparseSpGEMMAlg_t`, by default `CUSPARSE_SPGEMM_DEFAULT`.
+
+Wraps `cusparseSpGEMM`. Requires cuSPARSE 11.
 """
 function gemv end
 
@@ -826,6 +909,19 @@ for SparseMatrixType in (:CuSparseMatrixCSC, :CuSparseMatrixCSR)
     end
 end
 
+"""
+    sv!(transa, uplo, diag, alpha, A, X::DenseCuVector, Y::DenseCuVector, [algo]; index='O') -> Y
+
+Solve `op(A) * Y = alpha * X` for `Y`, where `A` is a sparse triangular matrix in CSR, CSC
+or COO format and `transa` selects `op` (`'N'`, `'T'` or `'C'`).
+
+`uplo` selects the triangle of `A` to use (`'U'` or `'L'`), and `diag` is `'U'` for a unit
+diagonal, which is not read, or `'N'`. `algo` is a `cusparseSpSVAlg_t`, by default
+`CUSPARSE_SPSV_ALG_DEFAULT`.
+
+Wraps `cusparseSpSV`. Requires cuSPARSE 11.5. Before cuSPARSE 12.8.1, `transa = 'C'` is not
+supported for complex CSC matrices.
+"""
 function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, X::DenseCuVector{T},
              Y::DenseCuVector{T}, algo::cusparseSpSVAlg_t=CUSPARSE_SPSV_ALG_DEFAULT; index::SparseChar='O') where {T}
@@ -875,6 +971,22 @@ function sv!(transa::SparseChar, uplo::SparseChar, diag::SparseChar,
     return Y
 end
 
+"""
+    sm!(transa, transb, uplo, diag, alpha, A, B::DenseCuMatrix, C::DenseCuMatrix, [algo]; index='O') -> C
+
+Solve `op(A) * C = alpha * op(B)` for `C`, where `A` is a sparse triangular matrix in CSR,
+CSC or COO format, and `transa` and `transb` select `op` (`'N'`, `'T'` or `'C'`).
+
+`uplo` selects the triangle of `A` to use (`'U'` or `'L'`), and `diag` is `'U'` for a unit
+diagonal, which is not read, or `'N'`. `algo` is a `cusparseSpSMAlg_t`, by default
+`CUSPARSE_SPSM_ALG_DEFAULT`.
+
+`B` and `C` can be the same matrix. With `transb ≠ 'N'`, the solution is then written
+transposed into it, in the shape of `B`.
+
+Wraps `cusparseSpSM`. Requires cuSPARSE 11.6. Before cuSPARSE 12.8.1, `transa = 'C'` is not
+supported for complex CSC matrices.
+"""
 function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::SparseChar,
              alpha::Number, A::Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},CuSparseMatrixCOO{T}}, B::DenseCuMatrix{T},
              C::DenseCuMatrix{T}, algo::cusparseSpSMAlg_t=CUSPARSE_SPSM_ALG_DEFAULT; index::SparseChar='O') where {T}
@@ -939,6 +1051,18 @@ function sm!(transa::SparseChar, transb::SparseChar, uplo::SparseChar, diag::Spa
     return C
 end
 
+"""
+    sddmm!(transa, transb, alpha, A::DenseCuMatrix, B::DenseCuMatrix, beta, C, [algo]; index='O') -> C
+
+Compute `C = alpha * op(A) * op(B) + beta * C` at the nonzeros of the sparse matrix `C`
+only, for dense matrices `A` and `B`. `transa` and `transb` select `op` (`'N'`, `'T'` or
+`'C'`).
+
+`C` can be a CSR matrix, or a BSR matrix from cuSPARSE 12.1. `algo` is a
+`cusparseSDDMMAlg_t`, by default `CUSPARSE_SDDMM_ALG_DEFAULT`.
+
+Wraps `cusparseSDDMM`. Requires cuSPARSE 11.4.1.
+"""
 function sddmm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::DenseCuMatrix{T}, B::DenseCuMatrix{T},
                 beta::Number, C::Union{CuSparseMatrixCSR{T},CuSparseMatrixBSR{T}}, algo::cusparseSDDMMAlg_t=CUSPARSE_SDDMM_ALG_DEFAULT; index::SparseChar='O') where {T}
 

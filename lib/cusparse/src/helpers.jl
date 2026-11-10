@@ -31,8 +31,25 @@ function CuMatrixDescriptor(MatrixType::Char, FillMode::Char, DiagType::Char, In
 end
 
 
+## descriptors of the generic API
+#
+# These are public for calling the generic API (`cusparseSpMV` etc.) directly, e.g. to
+# reuse descriptors and workspaces across calls.
+
+@public CuDenseVectorDescriptor, CuSparseVectorDescriptor, CuDenseMatrixDescriptor,
+        CuSparseMatrixDescriptor
+
 ## dense vector descriptor
 
+"""
+    CuDenseVectorDescriptor(x::DenseCuVector)
+
+A descriptor of the dense vector `x`, for calling cuSPARSE's generic API directly. It
+converts to a `cusparseDnVecDescr_t`, and is destroyed when it is garbage collected. The
+descriptor refers to the memory of `x` without keeping it alive, so `x` must be kept alive
+(e.g. with `GC.@preserve`) while the descriptor is in use. Its fields are not part of the
+API.
+"""
 mutable struct CuDenseVectorDescriptor
     handle::cusparseDnVecDescr_t
 
@@ -58,6 +75,13 @@ Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, desc::CuDenseVectorDescriptor)
 
 ## sparse vector descriptor
 
+"""
+    CuSparseVectorDescriptor(x::CuSparseVector, index::Char)
+
+A descriptor of the sparse vector `x` with index base `index` (`'O'` for one-based, `'Z'`
+for zero-based), for calling cuSPARSE's generic API directly. Like
+[`CuDenseVectorDescriptor`](@ref), it refers to the memory of `x` without keeping it alive.
+"""
 mutable struct CuSparseVectorDescriptor
     handle::cusparseSpVecDescr_t
 
@@ -76,6 +100,13 @@ Base.unsafe_convert(::Type{cusparseSpVecDescr_t}, desc::CuSparseVectorDescriptor
 
 ## dense matrix descriptor
 
+"""
+    CuDenseMatrixDescriptor(A::DenseCuMatrix; transposed=false)
+
+A descriptor of the dense matrix `A`, for calling cuSPARSE's generic API directly. With
+`transposed = true`, it describes `transpose(A)` in row-major order. Like
+[`CuDenseVectorDescriptor`](@ref), it refers to the memory of `A` without keeping it alive.
+"""
 mutable struct CuDenseMatrixDescriptor
     handle::cusparseDnMatDescr_t
 
@@ -123,6 +154,15 @@ Base.unsafe_convert(::Type{cusparseDnMatDescr_t}, desc::CuDenseMatrixDescriptor)
 
 ## sparse matrix descriptor
 
+"""
+    CuSparseMatrixDescriptor(A, index::Char; transposed=false)
+
+A descriptor of the CSR, CSC, COO or BSR matrix `A` with index base `index` (`'O'` for
+one-based, `'Z'` for zero-based), for calling cuSPARSE's generic API directly. With
+`transposed = true`, it describes `transpose(A)`, e.g. a CSC matrix as a CSR one; BSR
+matrices don't support it. Like [`CuDenseVectorDescriptor`](@ref), it refers to the memory
+of `A` without keeping it alive.
+"""
 mutable struct CuSparseMatrixDescriptor
     handle::cusparseSpMatDescr_t
 

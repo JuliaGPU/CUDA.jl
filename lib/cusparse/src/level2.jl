@@ -57,14 +57,19 @@ bsrmv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixBSR, X::DenseCuVector
     throw(ErrorException("This operation is not supported by the current CUDA version."))
 
 """
-    sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
+    sv2!(transa, uplo, diag, alpha, A::CuSparseMatrixBSR, X::CuVector; index='O') -> X
 
-Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), transpose
-(`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense vector, and `uplo`
-tells `sv2!` which triangle of the block sparse matrix `A` to reference.
-If the triangle has unit diagonal, set `diag` to 'U'.
+Solve `op(A) * Y = alpha * X` in place in `X`, where `A` is a sparse triangular matrix in BSR
+format and `transa` selects `op` (`'N'`, `'T'` or `'C'`).
+
+`uplo` selects the triangle of `A` to use (`'U'` or `'L'`), and `diag` is `'U'` for a unit
+diagonal, which is not read, or `'N'`. An error is thrown when the diagonal has a structural
+or numerical zero. For CSR, CSC and COO matrices, use [`sv!`](@ref).
+
+Wraps `cusparse<t>bsrsv2_solve`, which NVIDIA has deprecated, for the `Float32`, `Float64`,
+`ComplexF32` and `ComplexF64` element types.
 """
-sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
+function sv2! end
 
 # bsrsv2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_analysis, :cusparseSbsrsv2_solve, :Float32),
@@ -123,6 +128,12 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
     end
 end
 
+"""
+    sv2(transa, uplo, [diag='N'], [alpha=1], A::CuSparseMatrixBSR, X::CuVector; index='O') -> Y
+
+Solve `op(A) * Y = alpha * X` for `Y`, like [`sv2!`](@ref) but without overwriting `X`.
+`alpha` can only be given together with `diag`.
+"""
 function sv2(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::Number,
              A::CuSparseMatrixBSR{T}, X::CuVector{T}; index::SparseChar='O') where T
     sv2!(transa,uplo,diag,alpha,A,copy(X); index)
@@ -136,7 +147,17 @@ function sv2(transa::SparseChar, uplo::SparseChar,
     sv2!(transa,uplo,'N',one(T),A,copy(X); index)
 end
 
-# gemvi!
+"""
+    gemvi!(transa, alpha, A::CuMatrix, X::CuSparseVector, beta, Y::CuVector; index='O') -> Y
+
+Compute `Y = alpha * op(A) * X + beta * Y` for a dense matrix `A`, a sparse vector `X` and a
+dense vector `Y`, where `transa` selects `op` (`'N'`, `'T'` or, for real matrices, `'C'`).
+
+Wraps `cusparse<t>gemvi`, which NVIDIA deprecated in CUDA 12.8, for the `Float32`,
+`Float64`, `ComplexF32` and `ComplexF64` element types.
+"""
+function gemvi! end
+
 for (bname,fname,elty) in ((:cusparseSgemvi_bufferSize, :cusparseSgemvi, :Float32),
                            (:cusparseDgemvi_bufferSize, :cusparseDgemvi, :Float64),
                            (:cusparseCgemvi_bufferSize, :cusparseCgemvi, :ComplexF32),
