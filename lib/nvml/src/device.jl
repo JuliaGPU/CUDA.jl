@@ -213,15 +213,18 @@ supported_graphics_clocks(dev::Device) =
     union(supported_graphics_clocks.(Ref(dev), supported_memory_clocks(dev))...)
 
 function clock_event_reasons(dev::Device)
+    # the ClocksEventReasons API replaced ClocksThrottleReasons in the R535 driver
+    has_event_api = driver_version() >= v"535"
+
     current_events = Ref{Culonglong}()
-    if version() >= v"12.2"
+    if has_event_api
         nvmlDeviceGetCurrentClocksEventReasons(dev, current_events)
     else
         nvmlDeviceGetCurrentClocksThrottleReasons(dev, current_events)
     end
 
     supported_events = Ref{Culonglong}(0)
-    if version() >= v"12.2"
+    if has_event_api
         nvmlDeviceGetSupportedClocksEventReasons(dev, supported_events)
     else
         nvmlDeviceGetSupportedClocksThrottleReasons(dev, supported_events)

@@ -100,6 +100,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   triangle.
 - cuTensorNet's `CuTensorNetworkSliceGroup(ids)` includes the last slice id of `ids`; it
   was left out, and a group of one slice crashed the contraction.
+- `NVML.clock_event_reasons` now uses NVML's clock event reasons API on every driver
+  that provides it (R535 and later), instead of falling back to the deprecated clock
+  throttle reasons API on all CUDA 12 drivers.
 
 *Minor changes*:
 

@@ -1,3 +1,12 @@
+"""
+    NVML.version()
+
+Return the version of the NVML API. The major version is the CUDA major version the
+driver supports, while the driver part of the version string (e.g. `560.35.03` in
+`12.560.35.03`) is stored in the build suffix: `v"12.0.0+560.35.3"`. Minor versions are
+not reported, so compare against `NVML.driver_version()` or
+`NVML.cuda_driver_version()` to check for features added in a minor release.
+"""
 function version()
     buf = Vector{Cchar}(undef, NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE)
     nvmlSystemGetNVMLVersion(pointer(buf), length(buf))
