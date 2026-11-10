@@ -173,6 +173,12 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `Dict{Int,@NamedTuple{used_gpu_memory::Union{Int,Missing}}}`, also when no process
   uses the GPU, instead of an untyped `Dict()`.
 
+*Bug fixes*:
+
+- Finalizers now run while `CUDA.@profile`, `CUDA.@metrics`, `CUDA.@sample` and SASS
+  reflection execute code, so profiled code that relies on the GC to free GPU memory no
+  longer runs out of it.
+
 
 ## v6.5 (October 2026)
 

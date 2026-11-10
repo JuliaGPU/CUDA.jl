@@ -33,6 +33,25 @@ function bounded(f; timeout=120)
     end
 end
 
+# whether a finalizer runs within `session(body)`, which, being a profiling session, may
+# hold locks. the object escapes, so that the compiler can't inline its finalizer.
+const finalized = Ref(false)
+const finalizable = Any[nothing]
+@noinline function drop_finalizable()
+    finalizable[1] = finalizer(_ -> (finalized[] = true), Ref(0))
+    finalizable[1] = nothing
+end
+function finalizes_within(session)
+    finalized[] = false
+    seen = Ref(false)
+    session() do
+        drop_finalizable()
+        GC.gc()
+        seen[] = finalized[]
+    end
+    return seen[]
+end
+
 @testset "profiler" begin
 
 ############################################################################################
@@ -155,6 +174,12 @@ end
         a = CuArray([1, 2, 3])
     end
     @test Array(a) == [1, 2, 3]
+end
+
+@testset "finalizers" begin
+    # code that frees GPU memory relies on finalizers (#3530)
+    @test finalizes_within(f -> CUDA.@profile f())
+    @test finalizes_within(f -> CUDATools.code_sass(f, devnull))
 end
 
 if CUDACore.is_tegra() && CUDA.runtime_version() < v"12"
@@ -380,6 +405,10 @@ function increment(a)
 end
 
 a = CUDA.zeros(Float32, 1024)
+
+@testset "finalizers" begin
+    @test finalizes_within(f -> @retry_busy CUDA.@metrics f())
+end
 
 @testset "overview" begin
     p = @retry_busy CUDA.@metrics @cuda threads=32 blocks=32 increment(a)
@@ -820,6 +849,10 @@ synchronize()
 
 is_spin(f) = startswith(f.name, "spin(")
 location(frame) = (basename(frame.file), frame.line)
+
+@testset "finalizers" begin
+    @test finalizes_within(f -> @retry_busy CUDA.@sample f())
+end
 
 @testset "attribution" begin
     p = @retry_busy CUDA.@sample spin_kernel()
