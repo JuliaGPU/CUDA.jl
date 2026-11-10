@@ -97,13 +97,16 @@ Host-side activity: calling CUDA APIs took 437.26 µs (3.67% of the trace)
 │    0.10% │  11.92 µs │     1 │  11.92 µs │  11.92 µs │  11.92 µs │ cuMemAllocAsync │
 └──────────┴───────────┴───────┴───────────┴───────────┴───────────┴─────────────────┘
 
-Device-side activity: GPU was busy for 11.48 ms (96.20% of the trace)
+Device-side activity: GPU was busy for 11.48 ms (96.20% of the trace) and idle for 450.0 µs
 ┌──────────┬──────────┬───────┬──────────┬──────────┬──────────┬───────────────────────
 │ Time (%) │     Time │ Calls │ Avg time │ Min time │ Max time │ Name                 ⋯
 ├──────────┼──────────┼───────┼──────────┼──────────┼──────────┼───────────────────────
 │   96.20% │ 11.48 ms │     1 │ 11.48 ms │ 11.48 ms │ 11.48 ms │ _Z16broadcast_kernel ⋯
 └──────────┴──────────┴───────┴──────────┴──────────┴──────────┴───────────────────────
 ```
+
+The time the GPU was busy counts operations that overlap, e.g. on different streams, only
+once, so the time it was idle shows how much of the trace the GPU was waiting for work.
 
 By default, `CUDA.@profile` will provide a summary of host and device activities. If you
 prefer a chronological view of the events, you can set the `trace` keyword argument:
@@ -120,7 +123,7 @@ Host-side activity: calling CUDA APIs took 217.68 µs (1.86% of the trace)
 │  6 │ 29.56 µs │ 202.42 µs │  cuLaunchKernel │ -                        │
 └────┴──────────┴───────────┴─────────────────┴──────────────────────────┘
 
-Device-side activity: GPU was busy for 11.48 ms (98.01% of the trace)
+Device-side activity: GPU was busy for 11.48 ms (98.01% of the trace) and idle for 230.0 µs
 ┌────┬──────────┬──────────┬─────────┬────────┬──────┬─────────────────────────────────
 │ ID │    Start │     Time │ Threads │ Blocks │ Regs │ Name                           ⋯
 ├────┼──────────┼──────────┼─────────┼────────┼──────┼─────────────────────────────────

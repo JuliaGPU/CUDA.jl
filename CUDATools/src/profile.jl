@@ -470,8 +470,12 @@ trace, and `null` for values that are not available:
 - `view`: `"summary"`, or `"trace"` when `trace=true` was passed;
 - `duration_ns` and `events`: the duration of the trace and the number of events in it;
 - `host_time_ns`: the time the busiest thread spent calling CUDA APIs;
-- `device_time_ns`: the total duration of device activity, which exceeds the duration of
+- `device_time_ns`: the total duration of device operations, which exceeds the duration of
   the trace when operations overlap;
+- `device_busy_ns`: the time during which any device was executing an operation;
+- `devices`: for every device that executed operations, the time it was executing at least
+  one of them (`busy_ns`) and the rest of the trace (`idle_ns`). Only operations recorded by
+  the profiler count, so a GPU also used by other processes may be busier than reported;
 - `host`, `device` and `nvtx`: arrays of API calls, device operations, and NVTX ranges.
   In summary view, each entry summarizes the events with the same `name`: the number of
   `calls`, their `total_ns` and the `time_fraction` of the trace that represents, and their
@@ -1013,6 +1017,14 @@ function report(host::NamedTuple, device::NamedTuple, nvtx::NamedTuple, trace::B
     # device-side activity
     device_time = sum(device.time)
 
+    ## the time every device was executing operations, and any of them was, counting
+    ## operations that overlap (e.g. on different streams) only once
+    devices = map(sort(unique(device.device))) do dev
+        mask = device.device .== dev
+        (; device=dev, busy=busy_time(device.start[mask], device.stop[mask], trace_time))
+    end
+    device_busy = busy_time(device.start, device.stop, trace_time)
+
     ## add memory throughput information. CUPTI's timestamp resolution
     ## can round very short events down to 0 ns, so guard against the
     ## resulting Inf throughput (which would later trip up format_bytes).
@@ -1049,8 +1061,23 @@ function report(host::NamedTuple, device::NamedTuple, nvtx::NamedTuple, trace::B
         nvtx_ranges = summarize_trace(nvtx_ranges)
     end
 
-    return (; time=trace_time, events, host_time, device_time,
+    return (; time=trace_time, events, host_time, device_time, device_busy, devices,
               host, device, nvtx=nvtx_ranges)
+end
+
+# the time during which any of the intervals `starts[i]:stops[i]` is active, within [0, stop]
+function busy_time(starts::Vector{Float64}, stops::Vector{Float64}, stop::Float64)
+    busy = 0.0
+    run_start = run_stop = 0.0
+    for i in sortperm(starts)
+        t0, t1 = clamp(starts[i], 0.0, stop), clamp(stops[i], 0.0, stop)
+        if t0 > run_stop
+            busy += run_stop - run_start
+            run_start = t0
+        end
+        run_stop = max(run_stop, t1)
+    end
+    return busy + run_stop - run_start
 end
 
 show_results(io::IOContext{IOBuffer}, results::ProfileResults, crop::Symbol) =
@@ -1200,8 +1227,12 @@ function show_activity(io::IOContext{IOBuffer}, r::NamedTuple, trace::Bool, raw:
     # device-side activity
     let df = r.device
         if !isempty(df.name)
-            device_ratio = r.device_time / r.time
-            println(io, "\nDevice-side activity: GPU was busy for $(format_time(r.device_time)) ($(format_percentage(device_ratio)) of the trace)")
+            usage = map(r.devices) do d
+                device, busy = d.device, d.busy
+                gpu = length(r.devices) == 1 ? "GPU" : "GPU $device"
+                "$gpu was busy for $(format_time(busy)) ($(format_percentage(busy / r.time)) of the trace) and idle for $(format_time(r.time - busy))"
+            end
+            println(io, "\nDevice-side activity: ", join(usage, "; "))
         end
 
         if isempty(df.name)
@@ -1831,6 +1862,10 @@ function json_report(r::NamedTuple, trace::Bool, raw::Bool)
     JSONObject("schema_version" => 1, "view" => (trace ? "trace" : "summary"),
                "raw" => raw, "duration_ns" => ns(r.time), "events" => r.events,
                "host_time_ns" => ns(r.host_time), "device_time_ns" => ns(r.device_time),
+               "device_busy_ns" => ns(r.device_busy),
+               "devices" => Any[JSONObject("device" => d.device, "busy_ns" => ns(d.busy),
+                                           "idle_ns" => ns(r.time - d.busy))
+                                for d in r.devices],
                "host" => host, "device" => device, "nvtx" => nvtx)
 end
 

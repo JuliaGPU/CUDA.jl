@@ -101,6 +101,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `svd(A; alg=QRAlgorithm())`, 2-3x faster when computing singular vectors of large
   matrices. `getrf!` and `getrs!` take 64-bit pivots, using the generic API, as well as
   32-bit pivots, using the legacy one; `getrf!(A)` keeps returning 32-bit pivots.
+- `CUDA.@profile` reports how long every GPU was busy and idle, counting operations that
+  overlap only once (it used to report the sum of their durations as the time the GPU was
+  busy). The JSON output has these times as `device_busy_ns` and `devices`.
 
 *Bug fixes*:
 
