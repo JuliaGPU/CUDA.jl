@@ -3,6 +3,20 @@
 export CuTensorBS
 
 ## TODO add checks to see if size of data matches expected block size
+
+"""
+    CuTensorBS(nonzero_data::Vector{<:CuArray{T}}, blocks_per_mode, block_extents,
+               nonzero_block_coords, inds) -> CuTensorBS{T,N}
+
+A block-sparse tensor, for cuTENSOR's block-sparse contractions. Each dimension `i` is split
+into `blocks_per_mode[i]` blocks, of the sizes in the tuple `block_extents[i]`. Only the
+blocks listed in `nonzero_block_coords`, as `N`-tuples of 1-based block indices, are stored,
+each as a dense array in `nonzero_data`. `inds` labels the dimensions, as for
+[`CuTensor`](@ref). Block-sparse tensors can be multiplied with `mul!` or
+[`contract!`](@ref).
+
+The block-sparse API is experimental: its constructor and behaviour may still change.
+"""
 mutable struct CuTensorBS{T, N}
     nonzero_data::Vector{<:CuArray}
     inds::Vector{Int}

@@ -1,5 +1,10 @@
 ## data types
 
+@public CuTensorPlan, CuTensorDescriptor, cutensorComputeDescriptorEnum,
+        COMPUTE_DESC_16F, COMPUTE_DESC_32F, COMPUTE_DESC_TF32, COMPUTE_DESC_3XTF32,
+        COMPUTE_DESC_64F, COMPUTE_DESC_16BF, COMPUTE_DESC_9X16BF, COMPUTE_DESC_8XINT8,
+        COMPUTE_DESC_4X16F
+
 @enum cutensorComputeDescriptorEnum begin
     COMPUTE_DESC_16F = 1
     COMPUTE_DESC_32F = 2
@@ -11,6 +16,20 @@
     COMPUTE_DESC_8XINT8 = 8
     COMPUTE_DESC_4X16F = 9
 end
+
+"""
+    cutensorComputeDescriptorEnum
+
+The precisions that cuTENSOR operations can compute in, for their `compute_type` keyword
+argument: `COMPUTE_DESC_16F`, `COMPUTE_DESC_16BF`, `COMPUTE_DESC_TF32`,
+`COMPUTE_DESC_3XTF32`, `COMPUTE_DESC_32F`, `COMPUTE_DESC_64F`, and the emulated
+`COMPUTE_DESC_9X16BF`, `COMPUTE_DESC_8XINT8` and `COMPUTE_DESC_4X16F`. Passing a type
+instead selects `COMPUTE_DESC_16F` for `Float16`, `COMPUTE_DESC_32F` for `Float32` and
+`ComplexF32`, and `COMPUTE_DESC_64F` for `Float64` and `ComplexF64`. Which precisions an
+operation supports depends on its element types, the GPU and the cuTENSOR version; see
+NVIDIA's documentation.
+"""
+cutensorComputeDescriptorEnum
 
 const contraction_compute_types = Dict(
     # typeA,     typeB,      typeC       => typeCompute
@@ -113,6 +132,21 @@ end
 
 ## plan
 
+"""
+    CuTensorPlan(desc::cutensorOperationDescriptor_t, pref::cutensorPlanPreference_t;
+                 workspacePref=WORKSPACE_DEFAULT)
+
+A cuTENSOR plan for one operation, together with the workspace it needs. The `plan_*`
+functions ([`plan_contraction`](@ref), [`plan_permutation`](@ref), ...) return one, which
+the operations ([`contract!`](@ref), [`cuTENSOR.permute!`](@ref), ...) execute without
+planning again. Executions of a plan share its workspace, so don't execute one plan
+concurrently on several streams, and use it in the CUDA context it was created in.
+
+The constructor makes a plan for an operation descriptor and plan preference created with
+the C API (`cutensorCreateContraction`, `cutensorCreatePlanPreference`, ...), which remain
+owned by the caller. A plan converts to a `cutensorPlan_t`, and is freed when it is garbage
+collected, or earlier with `CUDA.unsafe_free!(plan)`. Its fields are not part of the API.
+"""
 mutable struct CuTensorPlan
     ctx::CuContext
     handle::cutensorPlan_t
@@ -171,6 +205,17 @@ const CUTENSOR_ALIGNMENT = UInt32(128)
 
 ## descriptor
 
+"""
+    CuTensorDescriptor(A::DenseCuArray; size=size(A), strides=strides(A), eltype=eltype(A))
+    CuTensorDescriptor(size::Vector{Int64}, strides::Vector{Int64}, eltype::DataType,
+                       alignment::UInt32=0x80)
+
+A cuTENSOR tensor descriptor: the size, strides and element type of an array, and the
+alignment in bytes of its data. The operations and `plan_*` functions describe their
+arguments with `CuTensorDescriptor(A)`, so other array types can be supported by adding a
+method to it. It converts to a `cutensorTensorDescriptor_t`, for use with the C API, and is
+destroyed when it is garbage collected. Its fields are not part of the API.
+"""
 mutable struct CuTensorDescriptor
     handle::cutensorTensorDescriptor_t
     # inner constructor handles creation and finalizer of the descriptor
@@ -206,6 +251,15 @@ end
 
 export CuTensor
 
+"""
+    CuTensor(data::CuArray{T,N}, inds::Vector) -> CuTensor{T,N}
+
+A dense tensor: the array `data` with a mode label for each of its dimensions, given as
+`Char`s or integers in `inds`. Tensors with matching labels can be added and subtracted
+(`+`, `-`, `axpy!`, `axpby!`), and multiplied (`*`, `mul!`), which contracts the modes
+they share. `data` must be aligned to 128 bytes; otherwise it is copied, with a warning.
+The fields `data` and `inds` are part of the API.
+"""
 mutable struct CuTensor{T, N}
     data::CuArray{T, N}
     inds::Vector{Int32}

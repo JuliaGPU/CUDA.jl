@@ -17,9 +17,14 @@ else
 end
 
 
-@public functional, enable_logging
+@public functional, enable_logging, version, handle, read_cache!, write_cache!
 
 const _initialized = Ref{Bool}(false)
+"""
+    cuTENSOR.functional() -> Bool
+
+Whether cuTENSOR was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
 
@@ -77,6 +82,13 @@ end
 const LibraryState = @NamedTuple{handle::Handle}
 const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:cuTENSOR)
 
+"""
+    cuTENSOR.handle()
+
+The cuTENSOR handle of the current task, for its active context, for calling the C API of
+cuTENSOR (`cuTENSOR.cutensor*`) directly. It converts to a `cutensorHandle_t`. The handle
+is borrowed: don't destroy it or change its settings. Its fields are not part of the API.
+"""
 function handle()
     cuda = CUDACore.active_state()
 

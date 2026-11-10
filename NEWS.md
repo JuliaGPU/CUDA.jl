@@ -78,6 +78,13 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `driver_version` and `cuda_driver_version`. `NVML.name` and `NVML.uuid` are now
   methods of CUDA.jl's `name` and `uuid`, so they also work unqualified on an
   `NVML.Device`.
+- cuTENSOR's operations are documented public API, covered by semantic versioning:
+  `contract!`, `permute!`, `reduce!`, `elementwise_binary!` and `elementwise_trinary!`,
+  the `plan_*` functions that plan them ahead, `CuTensorPlan`, and the
+  `cutensorComputeDescriptorEnum` precisions their `compute_type` argument takes. For
+  calling the C API directly, `cuTENSOR.handle()`, `CuTensorDescriptor` and
+  `cuTENSOR.version()` are public too, as are `read_cache!` and `write_cache!`. The
+  block-sparse `CuTensorBS` is documented as experimental.
 
 *Bug fixes*:
 
@@ -112,6 +119,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `NVML.clock_event_reasons` now uses NVML's clock event reasons API on every driver
   that provides it (R535 and later), instead of falling back to the deprecated clock
   throttle reasons API on all CUDA 12 drivers.
+- Finalizers now run while `CUDA.@profile`, `CUDA.@metrics`, `CUDA.@sample` and SASS
+  reflection execute code, so profiled code that relies on the GC to free GPU memory no
+  longer runs out of it.
 
 *Minor changes*:
 
@@ -173,11 +183,13 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `Dict{Int,@NamedTuple{used_gpu_memory::Union{Int,Missing}}}`, also when no process
   uses the GPU, instead of an untyped `Dict()`.
 
-*Bug fixes*:
+- cuTENSOR's elementwise operations are named like its other operations. The old names
+  are deprecated:
 
-- Finalizers now run while `CUDA.@profile`, `CUDA.@metrics`, `CUDA.@sample` and SASS
-  reflection execute code, so profiled code that relies on the GC to free GPU memory no
-  longer runs out of it.
+  | Deprecated | Replacement |
+  |:--|:--|
+  | `elementwise_binary_execute!` | `elementwise_binary!` |
+  | `elementwise_trinary_execute!` | `elementwise_trinary!` |
 
 
 ## v6.5 (October 2026)
