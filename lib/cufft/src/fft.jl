@@ -20,16 +20,32 @@ end
 
 ## plan structure
 
-# T is the output type
-# S is the input ("source") type
+"""
+    CuFFTPlan{T,S,K,inplace,N,R} <: AbstractFFTs.Plan{S}
 
-# K is an integer flag for forward/backward
-# also used as an alias for r2c/c2r
+A cuFFT plan, as returned by the AbstractFFTs planning functions (`plan_fft`, `plan_rfft`,
+`plan_bfft!`, ...) for `CuArray`s. Apply it with `p * x` or `mul!(y, p, x)`, and invert it
+with `inv(p)` or `p \\ x`; `plan_ifft` and `inv(p)` return an `AbstractFFTs.ScaledPlan`
+that wraps a `CuFFTPlan`. Plans are not constructed directly.
 
-# inplace is a boolean flag
+The type parameters describe the transform, so that methods can dispatch on them:
 
-# N is the number of dimensions
+- `T`: element type of the output;
+- `S`: element type of the input. Real-to-complex transforms have a real `S` and a
+  complex `T`, complex-to-real ones the reverse;
+- `K`: the direction, `cuFFT.CUFFT_FORWARD` (`-1`) or `cuFFT.CUFFT_INVERSE` (`+1`).
+  Real-to-complex transforms are forward, complex-to-real ones inverse;
+- `inplace`: whether the plan overwrites its input (`true`) or writes a separate output
+  (`false`);
+- `N`: the number of dimensions of the arrays;
+- `R`: the number of dimensions that are transformed.
 
+A plan can be applied to arrays of its input size and element type, including strided
+views, from several tasks at once, each using its own stream. It has to be used in the
+CUDA context it was created in. Its fields are not part of the API.
+The underlying cuFFT handle is returned to a cache when the plan is garbage collected, or
+earlier with `CUDA.unsafe_free!(p)`, after which the plan cannot be used any more.
+"""
 mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R} <: Plan{S}
     # handle to Cuda low level plan. Note that this plan sometimes has lower dimensions
     # to handle more transform cases such as individual directions

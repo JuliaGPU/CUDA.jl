@@ -85,6 +85,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   calling the C API directly, `cuTENSOR.handle()`, `CuTensorDescriptor` and
   `cuTENSOR.version()` are public too, as are `read_cache!` and `write_cache!`. The
   block-sparse `CuTensorBS` is documented as experimental.
+- `cuFFT.CuFFTPlan`, the type of the plans that AbstractFFTs' `plan_*` functions return
+  for `CuArray`s (directly, or wrapped in a `ScaledPlan`), is documented public API, including the meaning of its type parameters,
+  and so is `cuFFT.version()`.
 
 *Bug fixes*:
 

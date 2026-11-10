@@ -1,5 +1,10 @@
 export CUFFTError
 
+"""
+    CUFFTError(code::cufftResult)
+
+The exception thrown when a cuFFT call fails. `code` is the status that cuFFT returned.
+"""
 struct CUFFTError <: Exception
     code::cufftResult
 end

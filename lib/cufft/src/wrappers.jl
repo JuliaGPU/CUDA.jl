@@ -6,6 +6,12 @@ function cufftGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
+"""
+    cuFFT.version() -> VersionNumber
+
+The version of the cuFFT library in use. This is the library's own version, which differs
+from that of the CUDA toolkit it ships with.
+"""
 version() = VersionNumber(cufftGetProperty(CUDACore.MAJOR_VERSION),
                           cufftGetProperty(CUDACore.MINOR_VERSION),
                           cufftGetProperty(CUDACore.PATCH_LEVEL))

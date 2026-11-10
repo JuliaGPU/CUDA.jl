@@ -16,9 +16,14 @@ else
 end
 
 
-@public functional
+@public functional, version, CuFFTPlan
 
 const _initialized = Ref{Bool}(false)
+"""
+    cuFFT.functional() -> Bool
+
+Whether cuFFT was loaded and initialized successfully.
+"""
 functional() = _initialized[]
 
 # core library
