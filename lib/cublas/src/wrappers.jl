@@ -2355,7 +2355,7 @@ for (fname, fname_64, elty) in ((:cublasDtrsmBatched, :cublasDtrsmBatched_64, :F
 end
 function trsm_batched(side::Char, uplo::Char, transa::Char, diag::Char, alpha,
                       A::Vector{<:StridedCuMatrix{T}}, B::Vector{<:StridedCuMatrix{T}}) where T
-    trsm_batched!(side, uplo, transa, diag, alpha, A, copy(B) )
+    trsm_batched!(side, uplo, transa, diag, alpha, A, copy.(B))
 end
 
 # TODO: julia, tr{m,s}m, Char -> Char
@@ -2707,7 +2707,7 @@ for (fname, elty) in ((:cublasDgeqrfBatched, :Float64),
     end
 end
 function geqrf_batched(A::Vector{<:CuMatrix})
-    geqrf_batched!(copy(A))
+    geqrf_batched!(copy.(A))
 end
 
 ## gelsBatched - performs batched least squares

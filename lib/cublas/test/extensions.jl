@@ -424,6 +424,7 @@ k = 13
                 push!(d_A,CuArray(A[i]))
             end
             tau, d_B = cuBLAS.geqrf_batched(d_A)
+            @test Array.(d_A) == A
             for Bs in 1:length(d_B)
                 C   = qr(A[Bs])
                 h_B = Array(d_B[Bs])

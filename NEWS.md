@@ -59,6 +59,8 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   `CuArray` and copying the result. Since v3.5, `rand!`, `randn!`, `cuRAND.rand_logn!` and
   `cuRAND.rand_poisson!` with a `LibraryRNG` and an `Array` failed with a scalar-indexing
   error or a `MethodError`. They take the same keyword arguments as with a `CuArray`.
+- `cuBLAS.geqrf_batched` and `cuBLAS.trsm_batched` no longer overwrite the matrices
+  passed to them; they copied the vector holding the matrices, but not the matrices.
 
 *Minor changes*:
 
