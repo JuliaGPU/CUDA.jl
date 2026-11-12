@@ -69,15 +69,14 @@ mutable struct Managed{M}
   Base.@atomic leases::Int
   Base.@atomic pending::Any
 
-  function Managed(mem::AbstractMemory; stream = CUDACore.stream(), synchronizing = true,
-                   dirty = true, captured = false, owned_allocation = false)
+  function Managed(mem::AbstractMemory; stream = CUDACore.stream(), owned_allocation = false)
     # our unified allocations start out attached to the host (see `alloc_unified`)
     attachment = owned_allocation && mem isa UnifiedMemory && !mem.pooled &&
                  !concurrent_managed_access(device(mem.ctx)) ? HOST_ATTACHED : UNTRACKED
     # NOTE: memory starts as dirty, because stream-ordered allocations are only
     #       guaranteed to be physically allocated at a synchronization event.
     new{typeof(mem)}(mem, ReentrantLock(), stream, mem.ctx, generation(stream),
-                     stream_epoch(stream), synchronizing, dirty, captured, false, false,
+                     stream_epoch(stream), true, true, false, false, false,
                      owned_allocation, attachment, 0, nothing)
   end
 end

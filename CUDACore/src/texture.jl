@@ -315,7 +315,6 @@ Base.parent(tm::CuTexture) = tm.parent
 ## array interface
 
 Base.size(tm::CuTexture) = size(tm.parent)
-Base.sizeof(tm::CuTexture) = Base.elsize(x) * length(x)
 
 Base.show(io::IO, t::CuTexture{T,1}) where {T} =
     print(io, "$(length(t))-element $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name.name)) with eltype $T")

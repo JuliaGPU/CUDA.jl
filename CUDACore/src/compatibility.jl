@@ -17,8 +17,8 @@ const highest = v"999"
 #     exact CC; code compiled for sm_103a runs only on CC 10.3 devices.
 #
 # Which feature sets exist for a given CC, and which PTX ISA / LLVM versions ptxas / NVPTX
-# require for them, is encoded directly in the keys of `ptx_sm_db` below (and the equivalent
-# database in GPUCompiler): an unsupported combination simply has no entry.
+# require for them, is encoded directly in the keys of `ptx_sm_db` below: an unsupported
+# combination simply has no entry.
 
 
 ## version range
@@ -31,10 +31,6 @@ end
 Base.in(v::VersionNumber, r::VersionRange) = (v >= r.lower && v <= r.upper)
 
 between(a::VersionNumber, b::VersionNumber) = VersionRange(a, b)
-
-Base.intersect(v::VersionNumber, r::VersionRange) =
-    v < r.lower ? (r.lower:v) :
-    v > r.upper ? (v:r.upper) : (v:v)
 
 
 ## devices supported by ptxas

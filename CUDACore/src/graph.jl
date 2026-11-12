@@ -400,8 +400,7 @@ function with_task_stream(f, stream::CuStream)
     old = state.streams[devidx]
     state.streams[devidx] = stream
     try
-        # (so that the task's stream isn't changed while capturing, see `priority!`)
-        task_local_storage(f, :CUDA_capture_stream, stream)
+        f()
     finally
         state.streams[devidx] = old
     end
@@ -447,7 +446,7 @@ end
 function reserve_capture_stream(stream::CuStream, ctx::CuContext)
     # (the stream becomes the task's stream while capturing, see `stream!`)
     check_owned(stream)
-    haskey(task_local_storage(), :CUDA_capture_stream) &&
+    current_capture_scope() === nothing ||
         throw(ArgumentError("Cannot capture on a specific stream while already capturing"))
     stream.ctx == ctx ||
         throw(ArgumentError("Can only capture on a stream of the current context"))

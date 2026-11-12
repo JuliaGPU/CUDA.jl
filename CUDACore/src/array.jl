@@ -154,7 +154,7 @@ const default_memory = let str = Preferences.@load_preference("default_memory", 
   elseif str == "host"
     HostMemory
   else
-    error("unknown default memory type: $default_memory")
+    error("unknown default memory type: $str")
   end
 end
 CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N} =
@@ -758,21 +758,25 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs,
   return dest
 end
 
+# copy between arrays that the current context can access, ordered on the current stream
+function device_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
+  GC.@preserve src dest with_managed_arrays(dest, src) do
+    unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
+                   async=true)
+    if Base.isbitsunion(T)
+      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
+    end
+  end
+  return dest
+end
+
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   if device(src) == device(dest) ||
      maybe_enable_peer_access(device(src), device(dest)) == 1
     # use direct device-to-device copy
     context!(context(src)) do
-      capture_submission() do
-        GC.@preserve src dest with_managed_arrays(dest, src) do
-          unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
-                         async=true)
-          if Base.isbitsunion(T)
-            unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
-          end
-        end
-      end
+      device_copyto!(dest, doffs, src, soffs, n)
     end
   else
     # stage through host memory
@@ -832,41 +836,20 @@ end
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
                              src::DenseCuArray{T}, soffs, n) where T
   context!(context(src)) do
-    GC.@preserve src dest with_managed_arrays(dest, src) do
-      unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
-                     async=true)
-      if Base.isbitsunion(T)
-        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
-      end
-    end
+    device_copyto!(dest, doffs, src, soffs, n)
   end
-  return dest
 end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
   context!(context(dest)) do
-    GC.@preserve src dest with_managed_arrays(dest, src) do
-      unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
-                     async=true)
-      if Base.isbitsunion(T)
-        unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
-      end
-    end
+    device_copyto!(dest, doffs, src, soffs, n)
   end
-  return dest
 end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
-  GC.@preserve src dest with_managed_arrays(dest, src) do
-    unsafe_copyto!(unmanaged_pointer(dest, doffs), unmanaged_pointer(src, soffs), n;
-                   async=true)
-    if Base.isbitsunion(T)
-      unsafe_copyto!(typetagdata(dest, doffs), typetagdata(src, soffs), n; async=true)
-    end
-  end
-  return dest
+  device_copyto!(dest, doffs, src, soffs, n)
 end
 
 
@@ -971,19 +954,16 @@ function Base.copyto!(dest::DenseCuArray{T,N}, Rdest::CartesianIndices{N},
     end
 
     context!(context(dest)) do
-        s = stream()
-        capture_submission(s) do
-            GC.@preserve src dest with_managed_arrays(dest) do
-                # (synchronously, so that the caller can modify `src` when this returns)
-                unsafe_copy3d!(unmanaged_pointer(dest, LinearIndices(dest)[first(Rdest)]),
-                               memcpy3d_type(dest),
-                               pointer(src, LinearIndices(src)[first(Rsrc)]), HostMemory,
-                               layout.width, layout.height, layout.depth;
-                               dstPitch=layout.dpitch*aligned_sizeof(T),
-                               dstHeight=layout.dheight,
-                               srcPitch=layout.spitch*aligned_sizeof(T),
-                               srcHeight=layout.sheight, stream=s)
-            end
+        GC.@preserve src dest with_managed_arrays(dest) do
+            # (synchronously, so that the caller can modify `src` when this returns)
+            unsafe_copy3d!(unmanaged_pointer(dest, LinearIndices(dest)[first(Rdest)]),
+                           memcpy3d_type(dest),
+                           pointer(src, LinearIndices(src)[first(Rsrc)]), HostMemory,
+                           layout.width, layout.height, layout.depth;
+                           dstPitch=layout.dpitch*aligned_sizeof(T),
+                           dstHeight=layout.dheight,
+                           srcPitch=layout.spitch*aligned_sizeof(T),
+                           srcHeight=layout.sheight)
         end
     end
     return dest
@@ -1115,10 +1095,8 @@ function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   context!(context(A)) do
-    capture_submission() do
-      GC.@preserve A with_managed_arrays(A) do
-        memset(convert(CuPtr{U}, unmanaged_pointer(A)), y, length(A))
-      end
+    GC.@preserve A with_managed_arrays(A) do
+      memset(convert(CuPtr{U}, unmanaged_pointer(A)), y, length(A))
     end
   end
   A
