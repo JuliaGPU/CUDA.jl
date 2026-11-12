@@ -8,3 +8,8 @@
 @deprecate getrf_batched!(n, ptrs::CuVector{<:CuPtr}, lda, pivot, info) getrf_batched_ptrs!(n, ptrs, lda, pivot, info) false
 @deprecate getrs_batched!(trans::Char, n, nrhs, Aptrs::CuVector{<:CuPtr}, lda, pivotArray::CuPtr, Bptrs::CuVector{<:CuPtr}, ldb) getrs_batched_ptrs!(trans, n, nrhs, Aptrs, lda, pivotArray, Bptrs, ldb) false
 @deprecate getri_batched!(n, Aptrs::CuVector{<:CuPtr}, lda, Cptrs::CuVector{<:CuPtr}, ldc, pivotArray::CuArray{Cint}) getri_batched_ptrs!(n, Aptrs, lda, Cptrs, ldc, pivotArray) false
+
+# the `Ex` wrappers predate support for mixed element types in the regular ones
+@deprecate gemmEx!(transA::Char, transB::Char, alpha, A, B, beta, C; kwargs...) gemm!(transA, transB, alpha, A, B, beta, C; kwargs...) false
+@deprecate gemmBatchedEx!(transA::Char, transB::Char, alpha, A, B, beta, C; kwargs...) gemm_batched!(transA, transB, alpha, A, B, beta, C; kwargs...) false
+@deprecate gemmStridedBatchedEx!(transA::Char, transB::Char, alpha, A, B, beta, C; kwargs...) gemm_strided_batched!(transA, transB, alpha, A, B, beta, C; kwargs...) false

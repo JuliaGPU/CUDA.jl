@@ -1,10 +1,5 @@
 using cuBLAS
-using cuBLAS: band, bandex
-
 using LinearAlgebra
-
-using BFloat16s
-using StaticArrays
 
 m = 20
 n = 35

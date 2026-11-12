@@ -91,3 +91,24 @@ eltype_pairs = unique!(vcat(
         @inferred d_A \ d_b
     end
 end
+
+@testset "Adjoint and transposed factorizations $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    A = rand(elty, n, n) + n*I
+    B = rand(elty, n, 5)
+    b = rand(elty, n)
+    d_A = CuArray(A)
+    d_B = CuArray(B)
+    d_b = CuArray(b)
+    for (factorize, hA) in ((lu, A), (cholesky, Hermitian(A*A')))
+        d_F = factorize(hA isa Hermitian ? Hermitian(CuArray(parent(hA))) : d_A)
+        F = factorize(hA)
+        for op in (adjoint, transpose)
+            d_x = op(d_F) \ d_b
+            @test d_x isa CuVector
+            @test Array(d_x) ≈ op(F) \ b
+            d_X = op(d_F) \ d_B
+            @test d_X isa CuMatrix
+            @test Array(d_X) ≈ op(F) \ B
+        end
+    end
+end

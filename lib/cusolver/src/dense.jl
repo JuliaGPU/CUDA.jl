@@ -1436,31 +1436,8 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         LAPACK.orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty}) = orgqr!(A, tau)
         LAPACK.gebrd!(A::StridedCuMatrix{$elty}) = gebrd!(A)
         LAPACK.gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{$elty}) = gesvd!(jobu, jobvt, A)
-    end
-end
-
-for elty in (:Float32, :Float64)
-    @eval begin
         LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
-        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = sygvd!(itype, jobz, uplo, A, B)
-    end
-end
-
-for elty in (:ComplexF32, :ComplexF64)
-    @eval begin
-        LAPACK.syev!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
-        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = sygvd!(itype, jobz, uplo, A, B)
-    end
-end
-
-for elty in (:Float32, :Float64)
-    @eval begin
         LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
-    end
-end
-
-for elty in (:ComplexF32, :ComplexF64)
-    @eval begin
-        LAPACK.syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}) = syevd!(jobz, uplo, A)
+        LAPACK.sygvd!(itype::Int, jobz::Char, uplo::Char, A::StridedCuMatrix{$elty}, B::StridedCuMatrix{$elty}) = sygvd!(itype, jobz, uplo, A, B)
     end
 end
