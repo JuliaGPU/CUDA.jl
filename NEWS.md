@@ -32,6 +32,18 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   and occasionally returned an inaccurate result. The old tolerance can resolve the
   small singular values of graded matrices to a higher relative accuracy; pass
   `tol=eps(real(T))` to `gesvdj!` for it.
+- `svd`, `svd!`, `svdvals` and `svdvals!` of a `CuMatrix` default to QR iteration
+  (`alg=QRAlgorithm()`, cuSOLVER's `gesvd`) instead of the Jacobi method. On an RTX 5080,
+  QR iteration is 13-45x faster for a ComplexF64 matrix of size 512 or 1466 and 2-4x
+  faster in ComplexF32, and its singular vectors are 90-400x closer to orthonormal at
+  these sizes (`‖UᴴU - I‖` of 3e-13 instead of 7e-11 for ComplexF64 at n = 1466). Both
+  are accurate in norm, but results change: singular vectors can differ in phase and,
+  for repeated or zero singular values, in the basis they choose. Pass `alg=JacobiAlgorithm()` for the old
+  behavior: in single precision, the Jacobi method can be faster at computing singular
+  vectors (up to 1.9x for tall or wide matrices with CUDA 13.5, up to 4x with older CUDA
+  versions), and it resolves the smallest singular values of some graded matrices to a
+  higher relative accuracy. Batches of matrices (3-D arrays) still use the Jacobi method
+  by default.
 
 *New features*:
 

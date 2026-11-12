@@ -373,10 +373,18 @@ abstract type SVDAlgorithm end
 Algorithms for `svd(A; alg)`, `svd!(A; alg)`, `svdvals(A; alg)` and `svdvals!(A; alg)` with a
 `CuMatrix` or a 3-D `CuArray` holding a batch of matrices:
 
-- `JacobiAlgorithm()`, the default, uses [`gesvdj!`](@ref) and, for a batch,
-  [`gesvdjBatched!`](@ref). Matrices too large for `gesvdj!` use `gesvd!` instead.
-- `QRAlgorithm()` uses [`gesvd!`](@ref). It does not support batches.
+- `QRAlgorithm()`, the default for a matrix, uses QR iteration ([`gesvd!`](@ref)). It
+  does not support batches.
+- `JacobiAlgorithm()`, the default for a batch, uses the one-sided Jacobi method
+  ([`gesvdj!`](@ref) and, for a batch, [`gesvdjBatched!`](@ref)). Matrices too large for
+  `gesvdj!` use `gesvd!` instead.
 - `ApproximateAlgorithm()` uses [`gesvdaStridedBatched!`](@ref) and only supports batches.
+
+For a single matrix, QR iteration is faster than cuSOLVER's Jacobi method in double
+precision, and its singular vectors are closer to orthonormal in every precision. In single
+precision, the Jacobi method can be faster at computing singular vectors, mainly of tall or
+wide matrices. On some graded matrices, whose columns differ in scale by orders of
+magnitude, it also determines the smallest singular values to a higher relative accuracy.
 
 For a batch, the result is a [`CuSVDBatched`](@ref).
 """
@@ -386,10 +394,13 @@ struct QRAlgorithm <: SVDAlgorithm end
 
 const CuMatOrBatched{T} = Union{CuMatrix{T}, CuArray{T,3}} where T
 
+default_svd_algorithm(::CuMatrix) = QRAlgorithm()
+default_svd_algorithm(::CuArray{<:Any,3}) = JacobiAlgorithm()
+
 LinearAlgebra.svd!(A::CuMatOrBatched{T}; full::Bool=false,
-                   alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
+                   alg::SVDAlgorithm=default_svd_algorithm(A)) where {T} =
     svd_with!(A, full, alg)
-LinearAlgebra.svd(A::CuMatOrBatched; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
+LinearAlgebra.svd(A::CuMatOrBatched; full=false, alg::SVDAlgorithm=default_svd_algorithm(A)) =
     svd_with!(copy_cublasfloat(A), full, alg)
 
 svd_with!(A::CuMatOrBatched, full::Bool, alg::SVDAlgorithm) =
@@ -450,9 +461,9 @@ Base.iterate(S::CuSVDBatched, ::Val{:S}) = (S.S, Val(:V))
 Base.iterate(S::CuSVDBatched, ::Val{:V}) = (S.V, Val(:done))
 Base.iterate(S::CuSVDBatched, ::Val{:done}) = nothing
 
-LinearAlgebra.svdvals!(A::CuMatOrBatched{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
+LinearAlgebra.svdvals!(A::CuMatOrBatched{T}; alg::SVDAlgorithm=default_svd_algorithm(A)) where {T} =
     svdvals_with!(A, alg)
-LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=JacobiAlgorithm()) =
+LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=default_svd_algorithm(A)) =
     svdvals_with!(copy_cublasfloat(A), alg)
 
 svdvals_with!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =

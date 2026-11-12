@@ -110,6 +110,51 @@ end
     @test collect(svdvals(CuArray(A); alg=cuSOLVER.QRAlgorithm())) ≈ svdvals(A)
 end
 
+@testset "default svd, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    # tall, wide, square, and rank-deficient
+    rankdef = rand(elty, n, n)
+    rankdef[:, 2:2:end] .= rankdef[:, 1:2:end]
+    for A in (rand(elty, m, n), rand(elty, n, m), rand(elty, n, n), rankdef)
+        d_A = CuArray(A)
+        k = minimum(size(A))
+        F = svd(d_A)
+        @test collect(F.S) ≈ svdvals(A)
+        @test collect(F.U' * F.U) ≈ I
+        @test collect(F.Vt * F.Vt') ≈ I
+        @test collect(F.U * Diagonal(F.S) * F.Vt) ≈ A
+        @test collect(svdvals(d_A)) ≈ svdvals(A)
+        # the default is QR iteration
+        @test svdvals(d_A) == svdvals(d_A; alg=cuSOLVER.QRAlgorithm())
+        @test svdvals!(copy(d_A)) == svdvals(d_A)
+        @test svd!(copy(d_A); full=true).U == svd(d_A; full=true, alg=cuSOLVER.QRAlgorithm()).U
+    end
+
+    Z = CuArray(zeros(elty, m, n))
+    F = svd(Z)
+    @test all(iszero, collect(F.S))
+    @test collect(F.U' * F.U) ≈ I
+    @test collect(F.Vt * F.Vt') ≈ I
+    @test all(iszero, collect(svdvals(Z)))
+
+    # batches still use the Jacobi method
+    A3 = CuArray(rand(elty, m, n, 3))
+    @test svdvals(A3) == svdvals(A3; alg=cuSOLVER.JacobiAlgorithm())
+    @test svd(A3).S == svd(A3; alg=cuSOLVER.JacobiAlgorithm()).S
+end
+
+@testset "default svd with numerically zero singular values" begin
+    n = 128
+    Q(n) = Matrix(qr(randn(ComplexF64, n, n)).Q)
+    s = [1e-20^((i - 1) / (n - 1)) for i in 1:n]
+    A = Q(n) * Diagonal(s) * Q(n)'
+    F = svd(CuArray(A))
+    U, S, Vt = collect(F.U), collect(F.S), collect(F.Vt)
+    @test norm(U * Diagonal(S) * Vt - A) / norm(A) < 1e-13
+    @test norm(U' * U - I) < 1e-13
+    @test norm(Vt * Vt' - I) < 1e-13
+    @test S ≈ svdvals(A)
+end
+
 # Check that constant propagation works
 let
     _svd(A) = svd(A; alg=cuSOLVER.QRAlgorithm())
