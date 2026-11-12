@@ -1,3 +1,7 @@
+# Fixed-function convolution, superseded by `convolution!` in `ops/convolution.jl`. NNlib
+# 0.9.34 to 0.9.45 still call it and their compat admits cuDNN.jl 6, so it stays until
+# cuDNN.jl 7.
+
 # There is too much common code between cudnnConvolutionForward and cudnnConvolutionBiasActivationForward.
 # We will have a single interface and call one or the other based on keyword arguments.
 

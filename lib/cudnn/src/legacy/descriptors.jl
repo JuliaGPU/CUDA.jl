@@ -9,39 +9,6 @@
 
 
 """
-    cudnnAttnDescriptor(attnMode::Cuint,
-                        nHeads::Cint,
-                        smScaler::Cdouble,
-                        dataType::cudnnDataType_t,
-                        computePrec::cudnnDataType_t,
-                        mathType::cudnnMathType_t,
-                        attnDropoutDesc::cudnnDropoutDescriptor_t,
-                        postDropoutDesc::cudnnDropoutDescriptor_t,
-                        qSize::Cint,
-                        kSize::Cint,
-                        vSize::Cint,
-                        qProjSize::Cint,
-                        kProjSize::Cint,
-                        vProjSize::Cint,
-                        oProjSize::Cint,
-                        qoMaxSeqLength::Cint,
-                        kvMaxSeqLength::Cint,
-                        maxBatchSize::Cint,
-                        maxBeamSize::Cint)
-"""
-@cudnnDescriptor(Attn)
-
-
-"""
-    cudnnCTCLossDescriptor(compType::cudnnDataType_t,
-                           normMode::cudnnLossNormalizationMode_t,
-                           gradMode::cudnnNanPropagation_t,
-                           maxLabelLength::Cint)
-"""
-@cudnnDescriptor(CTCLoss, cudnnSetCTCLossDescriptor_v8)
-
-
-"""
 cudnnConvolutionDescriptor(pad::Vector{Cint},
                            stride::Vector{Cint},
                            dilation::Vector{Cint},
@@ -55,62 +22,11 @@ cudnnConvolutionDescriptor(pad::Vector{Cint},
 
 
 """
-    cudnnLRNDescriptor(lrnN::Cuint,
-                       lrnAlpha::Cdouble,
-                       lrnBeta::Cdouble,
-                       lrnK::Cdouble)
-"""
-@cudnnDescriptor(LRN)
-
-
-"""
     cudnnOpTensorDescriptor(opTensorOp::cudnnOpTensorOp_t,
                             opTensorCompType::cudnnDataType_t,
                             opTensorNanOpt::cudnnNanPropagation_t)
 """
 @cudnnDescriptor(OpTensor)
-
-
-"""
-    cudnnReduceTensorDescriptor(reduceTensorOp::cudnnReduceTensorOp_t,
-                                reduceTensorCompType::cudnnDataType_t,
-                                reduceTensorNanOpt::cudnnNanPropagation_t,
-                                reduceTensorIndices::cudnnReduceTensorIndices_t,
-                                reduceTensorIndicesType::cudnnIndicesType_t)
-"""
-@cudnnDescriptor(ReduceTensor)
-
-
-"""
-    cudnnSeqDataDescriptor(dataType::cudnnDataType_t,
-                           nbDims::Cint,
-                           dimA::Vector{Cint},
-                           axes::Vector{cudnnSeqDataAxis_t},
-                           seqLengthArraySize::Csize_t,
-                           seqLengthArray::Vector{Cint},
-                           paddingFill::Ptr{Cvoid})
-"""
-@cudnnDescriptor(SeqData)
-
-
-"""
-    cudnnSpatialTransformerDescriptor(samplerType::cudnnSamplerType_t,
-                                      dataType::cudnnDataType_t,
-                                      nbDims::Cint,
-                                      dimA::Vector{Cint})
-"""
-@cudnnDescriptor(SpatialTransformer, cudnnSetSpatialTransformerNdDescriptor)
-
-
-"""
-    cudnnTensorTransformDescriptor(nbDims::UInt32,
-                                   destFormat::cudnnTensorFormat_t,
-                                   padBeforeA::Vector{Int32},
-                                   padAfterA::Vector{Int32},
-                                   foldA::Vector{UInt32},
-                                   direction::cudnnFoldingDirection_t)
-"""
-@cudnnDescriptor(TensorTransform)
 
 
 function cudnnGetConvolutionDescriptor(d::cudnnConvolutionDescriptor)
