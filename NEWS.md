@@ -125,6 +125,8 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
 *Bug fixes*:
 
+- `svd`, `svd!`, `svdvals` and `svdvals!` with `alg=QRAlgorithm()` support wide
+  matrices, for which they threw an `ArgumentError`.
 - `CUDA.@profile` no longer deadlocks when NVTX.jl's GC hooks are enabled
   (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
   CUPTI can request one while Julia collects garbage.

@@ -36,22 +36,18 @@ end
     U, S, V        = svd(A; full=true)
     d_A            = CuArray(A)
 
-    if _m > _n || alg == cuSOLVER.JacobiAlgorithm()
-        d_U, d_S, d_V  = svd!(copy(d_A); full=true, alg=alg)
-        h_S            = collect(d_S)
-        h_U            = collect(d_U)
-        h_V            = collect(d_V)
-        @test abs.(h_U'h_U) ≈ I
-        @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
-        @test collect(svdvals(d_A; alg=alg)) ≈ svdvals(A)
-        @test svdvals!(copy(d_A); alg=alg) == svdvals(d_A; alg=alg)
-        @test abs.(h_V'*h_V) ≈ I
-        @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
-        @test collect(d_U'*d_A*d_V) ≈ U'*A*V
-        @test collect(svd(d_A; alg=alg).V') == h_V[:,1:min(_m,_n)]'
-    else
-        @test_throws ArgumentError svd(d_A; alg=alg)
-    end
+    d_U, d_S, d_V  = svd!(copy(d_A); full=true, alg=alg)
+    h_S            = collect(d_S)
+    h_U            = collect(d_U)
+    h_V            = collect(d_V)
+    @test abs.(h_U'h_U) ≈ I
+    @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
+    @test collect(svdvals(d_A; alg=alg)) ≈ svdvals(A)
+    @test svdvals!(copy(d_A); alg=alg) == svdvals(d_A; alg=alg)
+    @test abs.(h_V'*h_V) ≈ I
+    @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
+    @test collect(d_U'*d_A*d_V) ≈ U'*A*V
+    @test collect(svd(d_A; alg=alg).V') == h_V[:,1:min(_m,_n)]'
 end
 
 @testset "gesvdj convergence, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -97,21 +93,21 @@ end
     @test_throws ArgumentError cuSOLVER.gesvdj!('V', true, fake(40000, 40000))
 end
 
-@testset "svd through the generic gesvd, elty = $elty" for
+@testset "svd with QR algorithm, elty = $elty" for
     elty in [Float32, Float64, ComplexF32, ComplexF64],
     full in (false, true),
     (_m, _n) in ((m, n), (n, m), (n, n))
 
     A = rand(elty, _m, _n)
     k = min(_m, _n)
-    F = cuSOLVER.svd_gesvd!(CuArray(A), full)
+    F = svd(CuArray(A); full, alg=cuSOLVER.QRAlgorithm())
     @test size(F.U) == (_m, full ? _m : k)
     @test size(F.Vt) == (full ? _n : k, _n)
     @test collect(F.S) ≈ svdvals(A)
     @test collect(F.U' * F.U) ≈ I
     @test collect(F.Vt * F.Vt') ≈ I
     @test collect(F.U[:, 1:k] * Diagonal(F.S) * F.Vt[1:k, :]) ≈ A
-    @test collect(cuSOLVER.svdvals_gesvd!(CuArray(A))) ≈ svdvals(A)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.QRAlgorithm())) ≈ svdvals(A)
 end
 
 # Check that constant propagation works
@@ -202,12 +198,7 @@ end
         d_A = CuArray(rand(elty, _m, _n))
         d_Af = promote_type(Float32, elty).(d_A)
 
-        if _m > _n || alg == cuSOLVER.JacobiAlgorithm()
-            @test svd(d_A; alg=alg) == svd(d_Af; alg=alg)
-            @test svdvals(d_A; alg=alg) == svdvals(d_Af; alg=alg)
-        else
-            @test_throws ArgumentError svd(d_A; alg=alg)
-            @test_throws ArgumentError svdvals(d_A; alg=alg)
-        end
+        @test svd(d_A; alg=alg) == svd(d_Af; alg=alg)
+        @test svdvals(d_A; alg=alg) == svdvals(d_Af; alg=alg)
     end
 end
