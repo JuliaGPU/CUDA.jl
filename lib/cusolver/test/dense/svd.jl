@@ -11,6 +11,10 @@ n = 10
     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
     @test LAPACK.gesvd!('N', 'N', CuMatrix(A))[2] ≈ Σ
 
+    A_nan = copy(A)
+    A_nan[3, 4] = NaN
+    @test_throws LAPACKException cuSOLVER.gesvd!('S', 'S', CuMatrix(A_nan))
+
     for jobu in ('A', 'S', 'N', 'O')
         for jobvt in ('A', 'S', 'N', 'O')
             (jobu == 'A') && (jobvt == 'A') && continue
@@ -141,6 +145,21 @@ end
     else
         @test_throws ArgumentError svd(d_A; alg=alg)
     end
+end
+
+@testset "gesvdaStridedBatched failure, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    A = rand(elty, 8, 8, 3)
+    A[:, end, 2] .= 0
+    # older versions return NaNs without reporting the failure
+    if cuSOLVER.version() >= v"11.7.3"
+        @test_throws LAPACKException svd(CuArray(A); alg=cuSOLVER.ApproximateAlgorithm())
+    end
+    # without singular vectors, and when asking for fewer singular values than the rank,
+    # the decomposition succeeds
+    S = svdvals(CuArray(A); alg=cuSOLVER.ApproximateAlgorithm())
+    @test collect(S[:, 2]) ≈ svdvals(A[:, :, 2])
+    U, S, V = cuSOLVER.gesvdaStridedBatched!('V', CuArray(A); rank=4)
+    @test collect(S[:, 2]) ≈ svdvals(A[:, :, 2])[1:4]
 end
 
 @testset "svd of $wrap($elty), uplo = $uplo" for

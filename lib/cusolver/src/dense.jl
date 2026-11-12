@@ -882,11 +882,13 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, h_RnrmF, batchSize)
             end
 
+            # computing singular vectors of a matrix whose rank is below `rank` fails,
+            # returning NaN columns. without vectors, a positive info is no failure:
+            # cuSOLVER 11.7.3 to 12.2 report the same matrices, with correct values.
+            check = jobz == 'V' ? chklapackerror : chkargsok
             info = @allowscalar collect(dh.info)
-
-            # Double check the solver's exit status
             for i = 1:batchSize
-                chkargsok(BlasInt(info[i]))
+                check(BlasInt(info[i]))
             end
 
             U, S, V
@@ -1373,7 +1375,10 @@ gesvdjBatched!
 
 Approximate the `rank` largest singular values and corresponding singular vectors of each
 `m×n` matrix `A[:, :, i]` of a 3-D array, with `m ≥ n`. `U` is `m×rank×batch`, `S` is
-`rank×batch` and `V` is `n×rank×batch`; with `jobz = 'N'` only `S` is computed.
+`rank×batch` and `V` is `n×rank×batch`; with `jobz = 'N'` only `S` is computed. Throws a
+`LAPACKException` if the decomposition fails for one of the matrices, as it does when
+computing the singular vectors of a matrix whose rank is lower than `rank`. cuSOLVER only
+reports this failure from version 11.7.3 (CUDA 12.8); older versions return NaNs.
 
 Wraps `cusolverDn<t>gesvdaStridedBatched`.
 """
