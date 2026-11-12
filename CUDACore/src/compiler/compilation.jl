@@ -52,9 +52,10 @@ end
 GPUCompiler.method_table(@nospecialize(job::AnyCUDAJob)) = method_table
 
 # GPUToolbox's overrides of Base methods that throw with messages built at run time, which
-# report their exceptions through our `device_throw`
+# report their exceptions through our `device_throw`, and of the `Rational` comparisons that
+# compute with `Int128` (whose division NVPTX lacks, #2681)
 GPUCompiler.method_tables(@nospecialize(job::AnyCUDAJob)) =
-    (method_table, GPUToolbox.Overlays.throw_overrides)
+    (method_table, GPUToolbox.Overlays.throw_overrides, GPUToolbox.Overlays.int128_overrides)
 
 GPUCompiler.kernel_state_type(job::AnyCUDAJob) = KernelState
 
@@ -200,11 +201,12 @@ mutable struct CUDACompilerResults
     entry::Union{Nothing,String}
     relocations::GPUCompiler.Relocations
 
-    # session-local kernel handles, linear-scanned by context; usually holds a single entry
-    kernels::Vector{Tuple{CuContext,CuFunction}}
+    # session-local kernel handles and their state, linear-scanned by context; usually holds
+    # a single entry
+    kernels::Vector{Tuple{CuContext,CuFunction,KernelState}}
 
     CUDACompilerResults() = new(nothing, nothing, GPUCompiler.Relocations(),
-                                Tuple{CuContext,CuFunction}[])
+                                Tuple{CuContext,CuFunction,KernelState}[])
 end
 
 # cache of compiler configurations, per device (but additionally configurable via kwargs)
@@ -403,7 +405,6 @@ end
 
 # lower to PTX, and check that the kernel can be launched
 function emit_ptx(@nospecialize(job::CompilerJob))
-    # TODO: on 1.9, this actually creates a context. cache those.
     # the IR is ours: inspect it in here, and dispose of it so that it does not leak
     ptx = JuliaContext() do ctx
         asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
@@ -590,9 +591,13 @@ function link_kernel(image::Vector{UInt8}, entry::String,
     mod = try
         CuModule(image)
     catch err
+        # loading synchronizes the device first, which reports exceptions of kernels that
+        # ran before; that isn't a problem with the image.
+        err isa CuError || rethrow()
+
         # Module loading during capture is unsupported by older drivers. Let the
         # capture caller handle the original error without reporting a bad image.
-        if err isa CuError && ERROR_STREAM_CAPTURE_UNSUPPORTED <= err.code <= ERROR_STREAM_CAPTURE_IMPLICIT
+        if ERROR_STREAM_CAPTURE_UNSUPPORTED <= err.code <= ERROR_STREAM_CAPTURE_IMPLICIT
             rethrow()
         end
 

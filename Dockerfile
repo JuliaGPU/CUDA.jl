@@ -66,7 +66,7 @@ RUN julia -e 'using Pkg; \
                         "lib/cufft", "lib/curand", \
                         "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec", \
                         ""]]); \
-              using CUDA; CUDA.precompile_runtime()' && \
+              using CUDA' && \
     #= remove useless stuff =# \
     cd /usr/local/share/julia && \
     rm -rf registries scratchspaces logs

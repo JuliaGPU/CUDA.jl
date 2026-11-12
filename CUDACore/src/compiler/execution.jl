@@ -866,39 +866,24 @@ function cufunction_link(source::Core.MethodInstance; kwargs...)
         # look up (or generate) the compilation artifacts for this function
         res = compile_or_lookup(job)::CUDACompilerResults
 
-        # resolve the `CuFunction` for the active context. this is a session-local handle,
-        # so it lives in the results struct's linear cache rather than being persisted;
-        # the scan is almost always over a single entry (one `===` comparison).
+        # resolve the `CuFunction` and its state for the active context. these are
+        # session-local, so they live in the results struct's linear cache rather than being
+        # persisted; the scan is almost always over a single entry (one `===` comparison).
         ctx = cuda.context
-        fun = nothing
-        for (cached_ctx, cached_fun) in res.kernels
-            if cached_ctx === ctx
-                fun = cached_fun
-                break
-            end
+        for (cached_ctx, fun, state) in res.kernels
+            cached_ctx === ctx && return fun, state
         end
-        if fun === nothing
-            fun = link_kernel(res.image::Vector{UInt8}, res.entry::String,
-                              res.relocations)
-            # don't cache session-local handles while generating output: the results struct
-            # is serialized into the package image along with its CodeInstance, and the
-            # handles would come back dangling.
-            if ccall(:jl_generating_output, Cint, ()) != 1
-                push!(res.kernels, (ctx, fun))
-            end
-        end
-
-        state = get(_kernel_states, fun, nothing)
-        if state === nothing
-            state = KernelState(create_exceptions!(fun.mod), UInt32(0))
-            _kernel_states[fun] = state
+        fun = link_kernel(res.image::Vector{UInt8}, res.entry::String, res.relocations)
+        state = KernelState(create_exceptions!(fun.mod), UInt32(0))
+        # don't cache session-local handles while generating output: the results struct
+        # is serialized into the package image along with its CodeInstance, and the
+        # handles would come back dangling.
+        if ccall(:jl_generating_output, Cint, ()) != 1
+            push!(res.kernels, (ctx, fun, state))
         end
         return fun, state
     end
 end
-
-# the state of every kernel, which is created when the kernel is first used
-const _kernel_states = Dict{CuFunction, KernelState}()
 
 # task-local RNG for kernel launch seeds, so that launching a kernel does not
 # perturb the user-visible `rand()` stream

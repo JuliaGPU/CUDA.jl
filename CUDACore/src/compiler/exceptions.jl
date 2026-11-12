@@ -23,22 +23,24 @@ const exception_flags_lock = ReentrantLock()
 
 exception_flags() = Base.@atomic _exception_flags.entries
 
-# create a CPU/GPU exception flag for error signalling, and put it in the module
+# get the exception flag of the module's context, which kernels use to signal errors to the
+# host, creating it on first use. an existing flag is left alone: it may already hold an
+# exception of a kernel that ran before this module was loaded, which the next
+# synchronization should still report.
 function create_exceptions!(mod::CuModule)
     mem = @lock exception_flags_lock begin
         entries = exception_flags()
         i = findfirst(((ctx, _),) -> ctx == mod.ctx, entries)
         if i === nothing
             mem = alloc(HostMemory, sizeof(ExceptionInfo_st), MEMHOSTALLOC_DEVICEMAP)
+            unsafe_store!(convert(ExceptionInfo, mem), ExceptionInfo_st())
             Base.@atomic _exception_flags.entries = push!(copy(entries), (mod.ctx, mem))
             mem
         else
             entries[i][2]
         end
     end
-    exception_info = convert(ExceptionInfo, mem)
-    unsafe_store!(exception_info, ExceptionInfo_st())
-    return exception_info
+    return convert(ExceptionInfo, mem)
 end
 
 # destroying a context frees its exception flag
