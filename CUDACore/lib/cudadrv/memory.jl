@@ -667,7 +667,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         CU_MEMORYTYPE_ARRAY,
         0,
         0,
-        src::CuArrayPtr + srcOffset
+        src::CuArrayPtr
     end
 
     dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == HostMemory
@@ -689,7 +689,7 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
         CU_MEMORYTYPE_ARRAY,
         0,
         0,
-        dst::CuArrayPtr + dstOffset
+        dst::CuArrayPtr
     end
 
     params_ref = Ref(CUDA_MEMCPY3D(

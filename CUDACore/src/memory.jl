@@ -48,9 +48,6 @@ MemoryStats() = MemoryStats(0, 0.0, 0, 0.0, 0.0, 0)
 
 function account!(stats::MemoryStats, bytes::Integer)
   Base.@atomic stats.live += bytes
-  if bytes > 0
-    Base.@atomic stats.live += 1
-  end
 end
 
 function memory_stats(dev::CuDevice=device())

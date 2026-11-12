@@ -269,7 +269,7 @@ function device!(dev::CuDevice, flags=nothing)
         if isactive(CuPrimaryContext(dev))
             error("Cannot set flags for an active device. Do so before calling any CUDA function.")
         end
-        cuDevicePrimaryCtxSetFlags(dev, flags)
+        setflags!(CuPrimaryContext(dev), flags)
     end
 
     # make this device the new default
@@ -474,8 +474,7 @@ end
 
 # switching streams during a capture would move the task's work out of the graph
 function check_priority_capture(s::Union{Nothing,CuStream})
-    if haskey(task_local_storage(), :CUDA_capture_stream) ||
-       (s !== nothing && is_capturing(s))
+    if current_capture_scope() !== nothing || (s !== nothing && is_capturing(s))
         throw(ArgumentError("Cannot change task priority during graph capture"))
     end
     return

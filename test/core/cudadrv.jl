@@ -33,6 +33,20 @@ if !exclusive
 
         @test device(ctx2) == dev
 
+        # synchronizing another context waits for its work, not for the task's context
+        function spin(cycles)
+            start = clock(UInt64)
+            while clock(UInt64) - start < cycles end
+            return
+        end
+        s2 = context!(ctx2) do
+            @cuda spin(UInt64(100_000_000))
+            stream()
+        end
+        synchronize(ctx2)
+        @test context!(() -> CUDACore.isdone(s2), ctx2)
+        @test ctx == current_context()
+
         CUDA.unsafe_destroy!(ctx2)
     end
 
