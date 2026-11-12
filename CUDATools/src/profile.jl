@@ -30,9 +30,6 @@ the activity on a timeline, e.g. with Perfetto, write it as a trace with
 To collect hardware metrics for every kernel instead, use
 [`CUDA.@metrics`](@ref CUDATools.@metrics).
 
-!!! compat "Julia 1.9" 
-    This functionality is only available on Julia 1.9 and later.
-
 ## External profilers (`external=true`, when an external profiler is detected)
 
 For more advanced profiling, it is possible to use an external profiling tool, such as
@@ -530,16 +527,12 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         # memory operations
         CUPTI.CUPTI_ACTIVITY_KIND_MEMCPY,
         CUPTI.CUPTI_ACTIVITY_KIND_MEMSET,
-        # NVTX markers
+        # NVTX markers, and their (optional) payload, color and category
         CUPTI.CUPTI_ACTIVITY_KIND_MARKER,
+        CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA,
+        # internal launch API calls
+        CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API,
     ]
-    if CUPTI.version() >= v"11"
-        # internal launch API records require CUDA 11 or later
-        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API)
-        # NVTX marker data (payload, color, category) is optional, and CUPTI 10.2 rejects
-        # enabling it with CUPTI_ERROR_NOT_COMPATIBLE (observed on Jetson)
-        push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MARKER_DATA)
-    end
     if CUPTI.version() >= v"11.2"
         # Check CUPTI's API version: JetPack 5's CUDA 11.4 ships an older CUPTI.
         # Enabling MEMORY2 there corrupts the stack with the CUDA 12 compat driver.
@@ -605,7 +598,7 @@ function capture(cfg, origin::UInt64)
         # memory operations
         size        = Union{Missing,Int64}[],
     )
-    # lookup tables (replaces leftjoin at end)
+    # details and NVTX data, looked up by ID and added as columns at the end
     details = Dict{Int,String}()
     nvtx_trace = (
         id      = Int[],
@@ -774,14 +767,14 @@ function capture(cfg, origin::UInt64)
     # than demangling them one by one.
     demangle_names!(device_trace.name)
 
-    # add details column via Dict lookup (replaces leftjoin)
+    # add the details column
     host_details = Union{Missing,String}[get(details, id, missing) for id in host_trace.id]
     host = merge(host_trace, (; details=host_details))
 
     dev_details = Union{Missing,String}[get(details, id, missing) for id in device_trace.id]
     device = merge(device_trace, (; details=dev_details))
 
-    # add NVTX data columns via Dict lookup (replaces leftjoin)
+    # add the NVTX data columns
     n_nvtx = length(nvtx_trace.id)
     nvtx_payload = Vector{Any}(missing, n_nvtx)
     nvtx_color = Vector{Union{Nothing,UInt32}}(nothing, n_nvtx)
@@ -1477,22 +1470,55 @@ function lock_unless_exclusive(f, lock, msg)
     end
 end
 
+# run `f`, which runs user code, as a session that claims CUPTI for collecting hardware
+# metrics or sampling PCs (`action`, as in "Cannot $action"; `doing` for "$doing requires").
+# claim it without waiting, as that code may be waiting for whoever holds CUPTI. checking
+# `islocked` first rejects nesting in a session of this task, which the reentrant `trylock`
+# would admit. `callbacks` also claims the callback API.
+function exclusive_session(f, action::String, doing::String; callbacks::Bool=false)
+    if !CUPTI.can_profile()
+        error("""$doing relies on CUPTI, which requires additional permissions on Tegra devices.
+                 See the documentation of `CUDA.@profile` for details.""")
+    end
+    if detect_cupti()
+        error("This Julia session is already being profiled by an external tool, so CUDA.jl cannot $action.")
+    end
+
+    if islocked(CUPTI.activity_lock) || !trylock(CUPTI.activity_lock)
+        error("Cannot $action while another profiling session is active.")
+    end
+    try
+        if callbacks && (islocked(CUPTI.callback_lock) || !trylock(CUPTI.callback_lock))
+            error("Cannot $action while CUPTI callbacks are in use (e.g. by `@device_code_sass`).")
+        end
+        exclusive_active[] = true
+        try
+            f()
+        catch err
+            if err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
+                error("""$doing requires access to the GPU's performance counters,
+                         which the NVIDIA driver restricts to administrators by default. Either run Julia as
+                         root, or allow all users by loading the `nvidia` kernel module with
+                         `NVreg_RestrictProfilingToAdminUsers=0`.
+                         See https://developer.nvidia.com/ERR_NVGPUCTRPERM for details.""")
+            elseif err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_HARDWARE_BUSY
+                error("Cannot $action, as the GPU is being profiled by another process.")
+            end
+            rethrow()
+        finally
+            exclusive_active[] = false
+            callbacks && unlock(CUPTI.callback_lock)
+        end
+    finally
+        unlock(CUPTI.activity_lock)
+    end
+end
+
 function profile_metrics(@nospecialize(f); metrics=:overview, trace::Bool=false)
     columns = metric_columns(metrics)
     check_metrics_support()
-
-    # claim CUPTI for the whole session without waiting, as the code being profiled may be
-    # waiting for whoever holds it. checking `islocked` first rejects nesting in a session
-    # of this task, which the reentrant `trylock` would admit.
-    if islocked(CUPTI.activity_lock) || !trylock(CUPTI.activity_lock)
-        error("Cannot collect hardware metrics while another profiling session is active.")
-    end
-    exclusive_active[] = true
-    try
+    exclusive_session("collect hardware metrics", "Collecting hardware metrics") do
         collect_metrics(f, metrics, columns, trace)
-    finally
-        exclusive_active[] = false
-        unlock(CUPTI.activity_lock)
     end
 end
 
@@ -1502,39 +1528,26 @@ function collect_metrics(@nospecialize(f), metrics, columns, trace)
     probe = CuFunction(CuModule(probe_ptx), "cuda_jl_metrics_probe")
     activity = CUPTI.ActivityConfig([CUPTI.CUPTI_ACTIVITY_KIND_CONCURRENT_KERNEL])
     CUDACore.cuCtxSynchronize()
-    profile = try
-        if !(metrics isa AbstractVector)
-            # not every GPU supports all metrics of a preset, e.g., integrated GPUs don't
-            # report DRAM throughput
-            columns = available_columns(ctx, columns)
-        end
+    if !(metrics isa AbstractVector)
+        # not every GPU supports all metrics of a preset, e.g., integrated GPUs don't
+        # report DRAM throughput
+        columns = available_columns(ctx, columns)
+    end
 
-        # the activity API identifies the launches, which are serialized, in the order
-        # the profiler numbers them. the profiler is set up before running `f`, so that
-        # configuration errors (e.g. unknown metrics) don't execute the user's code.
-        CUPTI.@enable! activity begin
-            CUPTI.range_profile([col.metric for col in columns]; ctx,
-                                max_ranges=max_launches+1) do
-                f()
-                # the code may have left another context current
-                context!(ctx) do
-                    CUDACore.cuCtxSynchronize()
-                    cudacall(probe, Tuple{})
-                    CUDACore.cuCtxSynchronize()
-                end
+    # the activity API identifies the launches, which are serialized, in the order the
+    # profiler numbers them. the profiler is set up before running `f`, so that
+    # configuration errors (e.g. unknown metrics) don't execute the user's code.
+    profile = CUPTI.@enable! activity begin
+        CUPTI.range_profile([col.metric for col in columns]; ctx,
+                            max_ranges=max_launches+1) do
+            f()
+            # the code may have left another context current
+            context!(ctx) do
+                CUDACore.cuCtxSynchronize()
+                cudacall(probe, Tuple{})
+                CUDACore.cuCtxSynchronize()
             end
         end
-    catch err
-        if err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
-            error("""Collecting hardware metrics requires access to the GPU's performance counters,
-                     which the NVIDIA driver restricts to administrators by default. Either run Julia as
-                     root, or allow all users by loading the `nvidia` kernel module with
-                     `NVreg_RestrictProfilingToAdminUsers=0`.
-                     See https://developer.nvidia.com/ERR_NVGPUCTRPERM for details.""")
-        elseif err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_HARDWARE_BUSY
-            error("Cannot collect hardware metrics, as the GPU is being profiled by another process.")
-        end
-        rethrow()
     end
 
     kernels = kernel_launches(activity, ctx)
@@ -1571,18 +1584,11 @@ function is_available(host, metric)
 end
 
 function check_metrics_support()
-    if !CUPTI.can_profile()
-        error("""Collecting hardware metrics relies on CUPTI, which requires additional permissions on Tegra devices.
-                 See the documentation of `CUDA.@profile` for details.""")
-    end
     if !CUPTI.has_range_profiler()
         error("Collecting hardware metrics requires CUPTI from CUDA 12.6 Update 2 or later (CUPTI $(CUPTI.version()) is loaded).")
     end
     if broken_range_profiler()
         error("CUPTI $(CUPTI.version()) cannot collect hardware metrics. Use CUDA 13.2 or later.")
-    end
-    if detect_cupti()
-        error("This Julia session is already being profiled by an external tool, so CUDA.jl cannot collect hardware metrics.")
     end
 end
 

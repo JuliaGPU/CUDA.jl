@@ -1,7 +1,7 @@
 # PC sampling
 
 using ..CUDATools: SourceFrame, LineTable, line_tables, source_chain, ELFFile, symbol_index,
-                   ptx_text
+                   ptx_text, capture_cubins
 import ..CUDATools: code_sass, code_ptx
 
 """
@@ -92,45 +92,19 @@ end
 
 ## collection
 
-function check_sampling_support()
-    if !CUPTI.can_profile()
-        error("""Sampling PCs relies on CUPTI, which requires additional permissions on Tegra devices.
-                 See the documentation of `CUDA.@profile` for details.""")
-    end
-    if !CUPTI.has_pc_sampling()
-        error("Sampling PCs requires CUPTI from CUDA 13 or later (CUPTI $(CUPTI.version()) is loaded).")
-    end
-    if detect_cupti()
-        error("This Julia session is already being profiled by an external tool, so CUDA.jl cannot sample PCs.")
-    end
-end
-
 function sample_pcs(@nospecialize(f); period::Integer=14, format::Symbol=:tree,
                     noisefloor::Real=2.0)
     5 <= period <= 31 ||
         throw(ArgumentError("The sampling period must be between 5 and 31 (2^5 to 2^31 cycles)."))
     format in (:tree, :flat) ||
         throw(ArgumentError("Invalid format `:$format`; use `:tree` or `:flat`."))
-    check_sampling_support()
-
-    # claim CUPTI without waiting, as the code being sampled may be waiting for whoever
-    # holds it. besides the activity API, we use callbacks to capture cubins.
-    if islocked(CUPTI.activity_lock) || !trylock(CUPTI.activity_lock)
-        error("Cannot sample PCs while another profiling session is active.")
+    if !CUPTI.has_pc_sampling()
+        error("Sampling PCs requires CUPTI from CUDA 13 or later (CUPTI $(CUPTI.version()) is loaded).")
     end
-    try
-        if islocked(CUPTI.callback_lock) || !trylock(CUPTI.callback_lock)
-            error("Cannot sample PCs while CUPTI callbacks are in use (e.g. by `@device_code_sass`).")
-        end
-        exclusive_active[] = true
-        try
-            collect_samples(f, period, format, noisefloor)
-        finally
-            exclusive_active[] = false
-            unlock(CUPTI.callback_lock)
-        end
-    finally
-        unlock(CUPTI.activity_lock)
+
+    # besides the activity API, we use callbacks to capture cubins
+    exclusive_session("sample PCs", "Sampling PCs"; callbacks=true) do
+        collect_samples(f, period, format, noisefloor)
     end
 end
 
@@ -138,50 +112,25 @@ function collect_samples(@nospecialize(f), period, format, noisefloor)
     ctx = context()
 
     # PC samples identify the code by the CRC of its cubin, so capture the cubins that are
-    # executed. the callback runs while the driver holds locks, so only copy them. it can
-    # run concurrently on several threads, but must not yield, so guard with a spin lock.
-    cubins = Dict{UInt32,Vector{UInt8}}()
-    cubins_lock = Threads.SpinLock()
-    cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
-        id == CUPTI.CUPTI_CBID_RESOURCE_MODULE_PROFILED || return
-        desc = unsafe_load(convert(Ptr{CUPTI.CUpti_ModuleResourceData},
-                                   data.resourceDescriptor))
-        seen = @lock cubins_lock haskey(cubins, desc.moduleId)
-        seen && return
-        cubin = copy(unsafe_wrap(Vector{UInt8}, Ptr{UInt8}(pointer(desc.pCubin)), desc.cubinSize))
-        @lock cubins_lock get!(cubins, desc.moduleId, cubin)
-        return
-    end
+    # executed
+    cfg, cubins = capture_cubins(CUPTI.CUPTI_CBID_RESOURCE_MODULE_PROFILED)
 
     CUDACore.cuCtxSynchronize()
     samples = try
-        try
-            CUPTI.@enable! cfg CUPTI.pc_sample(; ctx, period) do
-                f()
-                # the code may have left another context current
-                context!(CUDACore.cuCtxSynchronize, ctx)
-            end
-        finally
-            # work around an NVIDIA bug that breaks later profiling (see `CUPTI.pc_sample`)
-            # by detaching CUPTI, which we're the only user of while holding its locks.
-            CUPTI.cuptiFinalize()
+        CUPTI.@enable! cfg CUPTI.pc_sample(; ctx, period) do
+            f()
+            # the code may have left another context current
+            context!(CUDACore.cuCtxSynchronize, ctx)
         end
-    catch err
-        if err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
-            error("""Sampling PCs requires access to the GPU's performance counters,
-                     which the NVIDIA driver restricts to administrators by default. Either run Julia as
-                     root, or allow all users by loading the `nvidia` kernel module with
-                     `NVreg_RestrictProfilingToAdminUsers=0`.
-                     See https://developer.nvidia.com/ERR_NVGPUCTRPERM for details.""")
-        elseif err isa CUPTIError && err.code == CUPTI.CUPTI_ERROR_HARDWARE_BUSY
-            error("Cannot sample PCs, as the GPU is being profiled by another process.")
-        end
-        rethrow()
+    finally
+        # work around an NVIDIA bug that breaks later profiling (see `CUPTI.pc_sample`)
+        # by detaching CUPTI, which we're the only user of while holding its locks.
+        CUPTI.cuptiFinalize()
     end
 
     PCProfile(; device=name(device(ctx)), period, total=samples.total,
                 dropped=samples.dropped, format, noisefloor,
-                sampled_functions(samples, values(cubins))...)
+                sampled_functions(samples, map(last, cubins))...)
 end
 
 const reason_prefix = "smsp__pcsamp_warps_issue_stalled_"
