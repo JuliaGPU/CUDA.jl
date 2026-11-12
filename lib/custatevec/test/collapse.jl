@@ -45,7 +45,8 @@ end
         end
 
         # bit strings that cover only some of the index bits
-        h_sv = rand(elty, 16)
+        # cuStateVec rejects norms above one, so normalize each state vector
+        h_sv = mapreduce(v -> v ./ sqrt(sum(abs2, v)), vcat, (rand(elty, 8), rand(elty, 8)))
         masks = [[i & 0b011 == 0b01 for i in 0:7], [i & 0b011 == 0b10 for i in 0:7]]
         norms = Float64[sum(abs2, h_sv[1:8][masks[1]]), sum(abs2, h_sv[9:16][masks[2]])]
         sv = collapseByBitStringBatched!(CuStateVec(h_sv), 2, [1, 2], [0, 1], norms)
