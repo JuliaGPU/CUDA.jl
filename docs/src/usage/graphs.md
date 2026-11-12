@@ -185,7 +185,7 @@ CUDA error:
 There are also some operations that can be captured, but that behave differently when
 launching the graph:
 
-- Random numbers generated within kernels using `rand()`, or by the native random number
+- Random numbers generated within kernels using `rand()`, or by the GPUArrays random number
   generator (`CUDA.RNG`, as returned by `CUDA.default_rng()`), are the same every time the
   graph is launched. `rand!(A)` and `CUDA.rand`, which use cuRAND, generate new numbers
   for every launch.

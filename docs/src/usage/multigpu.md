@@ -26,7 +26,8 @@ end
 ```
 
 Communication between nodes should happen via the CPU (the CUDA IPC APIs are available as
-`CUDA.cuIpcOpenMemHandle` and friends, but not available through high-level wrappers).
+low-level driver wrappers like `CUDACore.cuIpcGetMemHandle` and
+`CUDACore.cuIpcOpenMemHandle_v2`, but not through high-level wrappers).
 
 Alternatively, one can use [MPI.jl](https://github.com/JuliaParallel/MPI.jl) together with
 an CUDA-aware MPI implementation. In that case, `CuArray` objects can be passed as send and

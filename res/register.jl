@@ -3,14 +3,15 @@
 # Tagging script for the CUDA.jl monorepo.
 #
 # Posts `@JuliaRegistrator register` comments on a commit, wave by wave in dependency
-# order (see res/release.jl), waiting for each registration PR to be created and merged
-# in the General registry before proceeding to the next wave.
+# order, waiting for each registration PR to be created and merged in the General registry
+# before proceeding to the next wave. The packages and their dependencies are read from the
+# Project.toml files at that commit.
 #
 # Usage:
-#   res/tag.jl [--skip=Pkg1,Pkg2] <commit> [< release_notes]
+#   res/register.jl [--skip=Pkg1,Pkg2] <commit> [< release_notes]
 #
 # Release notes can be passed on stdin and will be attached to every registration:
-#   res/tag.jl abc123 <<EOD
+#   res/register.jl abc123 <<EOD
 #   Breaking changes: ...
 #   EOD
 #
@@ -31,31 +32,7 @@ const registrator_user = "JuliaRegistrator"
 
 const root = dirname(@__DIR__)
 
-# All packages in the monorepo: name => subdir relative to root ("" for the root package)
-const subdirs = Dict(
-    "CUDACore"    => "CUDACore",
-    "CUDATools"   => "CUDATools",
-    "CUPTI"       => "lib/cupti",
-    "NVML"        => "lib/nvml",
-    "cuBLAS"      => "lib/cublas",
-    "cuSPARSE"    => "lib/cusparse",
-    "cuFFT"       => "lib/cufft",
-    "cuRAND"      => "lib/curand",
-    "cuDNN"       => "lib/cudnn",
-    "cuTENSOR"    => "lib/cutensor",
-    "cuStateVec"  => "lib/custatevec",
-    "cuSOLVER"    => "lib/cusolver",
-    "cuTensorNet" => "lib/cutensornet",
-    "CUDA"        => "",
-)
-
-# Registration order; packages within a wave only depend on earlier waves
-const waves = [
-    ["CUDACore"],
-    ["CUPTI", "NVML", "cuBLAS", "cuSPARSE", "cuFFT", "cuRAND", "cuDNN", "cuTENSOR", "cuStateVec"],
-    ["CUDATools", "cuSOLVER", "cuTensorNet"],
-    ["CUDA"],
-]
+include("workspace.jl")
 
 
 ## gh CLI helpers
@@ -177,7 +154,7 @@ registrator_errors(comments) =
 ## main
 
 function usage()
-    println(stderr, "Usage: res/tag.jl [--skip=Pkg1,Pkg2] <commit> [< release_notes]")
+    println(stderr, "Usage: res/register.jl [--skip=Pkg1,Pkg2] <commit> [< release_notes]")
     exit(1)
 end
 
@@ -196,10 +173,6 @@ function main(args)
         end
     end
     commit === nothing && usage()
-    for name in skipped
-        haskey(subdirs, name) || error("unknown package in --skip: $name")
-    end
-
     # release notes from stdin, if redirected
     notes = if stdin isa Base.TTY
         nothing
@@ -212,17 +185,23 @@ function main(args)
     sha = strip(gh("api", "repos/$repo/commits/$commit", "--jq", ".sha"))
     println("Tagging $repo@$(sha[1:10])")
     notes !== nothing && println("Release notes will be attached to every registration.")
-    versions = Dict{String,String}()
-    for (name, subdir) in subdirs
+    packages = workspace_packages() do subdir
         path = isempty(subdir) ? "Project.toml" : "$subdir/Project.toml"
-        project = TOML.parse(readchomp(`git -C $root show $sha:$path`))
-        project["name"] == name ||
-            error("$path at $sha contains package $(project["name"]), expected $name")
-        versions[name] = project["version"]
+        str = try
+            readchomp(pipeline(`git -C $root show $sha:$path`; stderr=devnull))
+        catch
+            return nothing
+        end
+        TOML.parse(str)
+    end
+    subdirs = Dict(p.name => p.subdir for p in packages)
+    versions = Dict(p.name => p.project["version"] for p in packages)
+    for name in skipped
+        haskey(subdirs, name) || error("unknown package in --skip: $name")
     end
     println()
 
-    for (i, wave) in enumerate(waves)
+    for (i, wave) in enumerate(registration_waves(packages))
         println("Wave $i: $(join(wave, ", "))")
 
         # figure out which packages still need to be registered

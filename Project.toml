@@ -3,7 +3,7 @@ uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
 version = "6.5.1"
 
 [workspace]
-projects = ["test", "docs", "perf", "examples",
+projects = ["test", "docs", "perf",
             "CUDACore",
             "CUDATools",
             "lib/cupti", "lib/nvml",

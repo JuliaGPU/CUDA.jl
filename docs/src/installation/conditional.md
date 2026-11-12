@@ -5,10 +5,12 @@ users might not have a GPU. In this section, we describe two different usage sce
 how to implement them. Key to remember is that CUDA.jl **will always load**, which means you
 need to manually **check if the package is functional**.
 
-Because CUDA.jl always loads, even if the user doesn't have a GPU or CUDA, you should just
-depend on it like any other package (and not use, e.g., Requires.jl). This ensures that
-breaking changes to the GPU stack will be taken into account by the package resolver when
-installing your package.
+Because CUDA.jl always loads, even if the user doesn't have a GPU or CUDA, you can just
+depend on it like any other package. This ensures that breaking changes to the GPU stack
+will be taken into account by the package resolver when installing your package. If you
+would rather not have all users install the GPU stack, put the CUDA-specific code in a
+[package extension](https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions))
+that is loaded when the user imports CUDA.jl; the checks below then go in that extension.
 
 If you unconditionally use the functionality from CUDA.jl, you will get a run-time error
 in the case the package failed to initialize. For example, on a system without CUDA:

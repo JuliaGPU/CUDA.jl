@@ -22,28 +22,35 @@ julia> import Pkg; Pkg.add("CUDA")
 ```
 
 In some cases, you might need to use the `main` version of this package, e.g., because it
-includes a specific fix you need. Often, however, the development version of this package
-itself relies on unreleased versions of other packages. This information is recorded in the
-manifest at the root of the repository, which you can use by starting Julia from the CUDA.jl
-directory with the `--project` flag:
+includes a specific fix you need. CUDA.jl is developed as a monorepo of packages
+(CUDACore, CUDATools and the library wrappers in `lib/`) that are released together, so you
+need all of them at the same revision. On Julia 1.11 and later, the simplest way is to
+start Julia from a checkout of the repository, whose `Project.toml` points to the
+subpackages in the same tree:
 
 ```
-$ cd .julia/dev/CUDA.jl     # or wherever you have CUDA.jl checked out
+$ git clone https://github.com/JuliaGPU/CUDA.jl
+$ cd CUDA.jl
 $ julia --project
-pkg> instantiate            # to install correct dependencies
+pkg> instantiate
 julia> using CUDA
 ```
 
-In the case you want to use the development version of CUDA.jl with other packages, you
-cannot use the manifest and you need to manually install those dependencies from the master
-branch. Again, the exact requirements are recorded in CUDA.jl's manifest, but often the
-following instructions will work:
+To use the development version from another environment, or on Julia 1.10, which does not
+support `[sources]` in `Project.toml`, develop the subpackages next to CUDA.jl itself:
 
+```julia
+julia> using Pkg
+julia> cuda = "/path/to/CUDA.jl"
+julia> Pkg.develop([PackageSpec(path=joinpath(cuda, dir)) for dir in
+                    ["", "CUDACore", "CUDATools", "lib/cupti", "lib/nvml", "lib/cublas",
+                     "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand"]])
 ```
-pkg> add GPUCompiler#master
-pkg> add GPUArrays#master
-pkg> add LLVM#main
-```
+
+Add `lib/cudnn`, `lib/cutensor`, `lib/cutensornet` or `lib/custatevec` to that list if you
+use those packages. The development version sometimes also requires unreleased versions of
+other packages, like GPUCompiler.jl or GPUArrays.jl; these are recorded in the `[sources]`
+section of the `Project.toml` files, and need to be added from their repositories too.
 
 
 

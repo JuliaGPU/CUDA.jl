@@ -82,12 +82,13 @@ documentation](https://juliagpu.github.io/CUDA.jl/stable/).
 
 ## Organization
 
-From version 6.0 on, CUDA.jl is a meta-package the imports the following
+From version 6.0 on, CUDA.jl is a meta-package that imports the following
 registered subpackages:
 - CUDACore: the core package with the main CUDA API wrappers and the compiler for writing CUDA
   kernels in Julia;
-- CUDATools: developer tools including the profiler, CUPTI, NVML, and code reflection
-  utilities;
+- CUDATools: developer tools including the profiler and code reflection utilities, built on
+  the CUPTI and NVML subpackages (wrappers for the CUPTI profiling library and the NVIDIA
+  Management Library);
 - cuBLAS: wrappers for the cuBLAS library;
 - cuFFT: wrappers for the cuFFT library;
 - cuRAND: wrappers for the cuRAND library;
@@ -95,16 +96,16 @@ registered subpackages:
 - cuSOLVER: wrappers for the cuSOLVER library.
 
 Other registered subpackages that are not imported by default include:
+- cuDNN: wrappers for the cuDNN library;
 - cuTENSOR: wrappers for the cuTENSOR library;
 - cuStateVec: wrappers for the cuStateVec library;
-- cuTensorNet: wrappers for the cuTensorNet library;
-- CUDNN: wrappers for the cuDNN library.
+- cuTensorNet: wrappers for the cuTensorNet library.
 
 While importing CUDA.jl will remain the recommended way to use these packages,
 you can also import them separately in order to optimize precompilation or load
 times, or (in the future) reduce the size of the required artifacts.
 
-CUDA.jl and its subpackages are are always released together with version
+CUDA.jl and its subpackages are always released together with version
 numbers that move in lockstep.
 
 
