@@ -677,6 +677,11 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
     end
 end
 
+# On matrices with (numerically) zero singular values, the residual of the Jacobi method
+# levels off at about sqrt(n)*eps. A tolerance of eps, or cuSOLVER's own criterion for
+# large single-precision matrices, is then out of reach and gesvdj runs all its sweeps.
+gesvdj_tol(A::AbstractArray) = 2 * sqrt(max(size(A, 1), size(A, 2))) * eps(real(eltype(A)))
+
 for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnSgesvdj, :Float32, :Float32),
                                     (:cusolverDnDgesvdj_bufferSize, :cusolverDnDgesvdj, :Float64, :Float64),
                                     (:cusolverDnCgesvdj_bufferSize, :cusolverDnCgesvdj, :ComplexF32, :Float32),
@@ -715,7 +720,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
         function gesvdj!(jobz::Char,
                          econ::Bool,
                          A::StridedCuMatrix{$elty};
-                         tol::$relty=eps($relty),
+                         tol::Real=gesvdj_tol(A),
                          max_sweeps::Int=100)
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
@@ -740,9 +745,6 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
             ldv     = max(1, stride(V, 2))
 
             params  = Ref{gesvdjInfo_t}(C_NULL)
-            cusolverDnCreateGesvdjInfo(params)
-            cusolverDnXgesvdjSetTolerance(params[], tol)
-            cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
             dh = dense_handle()
 
             function bufferSize()
@@ -752,15 +754,21 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                 return out[] * sizeof($elty)
             end
 
-            with_workspace(dh.workspace_gpu, bufferSize) do buffer
-                $fname(dh, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[])
+            cusolverDnCreateGesvdjInfo(params)
+            try
+                cusolverDnXgesvdjSetTolerance(params[], tol)
+                cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
+
+                with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                    $fname(dh, jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                           buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[])
+                end
+
+                info = @allowscalar dh.info[1]
+                chklapackerror(BlasInt(info))
+            finally
+                cusolverDnDestroyGesvdjInfo(params[])
             end
-
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
-
-            cusolverDnDestroyGesvdjInfo(params[])
 
             U, S, V
         end
@@ -774,7 +782,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
     @eval begin
         function gesvdjBatched!(jobz::Char,
                                 A::StridedCuArray{$elty,3};
-                         tol::$relty=eps($relty),
+                         tol::Real=gesvdj_tol(A),
                          max_sweeps::Int=100)
             m, n, batchSize = size(A)
             if m > 32 || n > 32
@@ -791,9 +799,6 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
             ldv = max(1, stride(V, 2))
 
             params = Ref{gesvdjInfo_t}(C_NULL)
-            cusolverDnCreateGesvdjInfo(params)
-            cusolverDnXgesvdjSetTolerance(params[], tol)
-            cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
 
             dh = dense_handle()
             resize!(dh.info, batchSize)
@@ -805,19 +810,25 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
                 return out[] * sizeof($elty)
             end
 
-            with_workspace(dh.workspace_gpu, bufferSize) do buffer
-                $fname(dh, jobz, m, n, A, lda, S, U, ldu, V, ldv,
-                       buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[], batchSize)
+            cusolverDnCreateGesvdjInfo(params)
+            try
+                cusolverDnXgesvdjSetTolerance(params[], tol)
+                cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
+
+                with_workspace(dh.workspace_gpu, bufferSize) do buffer
+                    $fname(dh, jobz, m, n, A, lda, S, U, ldu, V, ldv,
+                           buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[], batchSize)
+                end
+
+                # cuSOLVER documents info[i] = min(m, n) + 1 for a matrix that did not
+                # converge, although the versions we tested never set it
+                info = @allowscalar collect(dh.info)
+                for i = 1:batchSize
+                    chklapackerror(BlasInt(info[i]))
+                end
+            finally
+                cusolverDnDestroyGesvdjInfo(params[])
             end
-
-            info = @allowscalar collect(dh.info)
-
-            # Double check the solver's exit status
-            for i = 1:batchSize
-                chkargsok(BlasInt(info[i]))
-            end
-
-            cusolverDnDestroyGesvdjInfo(params[])
 
             U, S, V
         end
@@ -1329,19 +1340,25 @@ Wraps `cusolverDn<t>gebrd`.
 gebrd!
 
 """
-    gesvdj!(jobz, econ, A; tol=eps(real(eltype(A))), max_sweeps=100) -> U, S, V
+    gesvdj!(jobz, econ, A; tol=2*sqrt(max(size(A)...))*eps(real(eltype(A))), max_sweeps=100) -> U, S, V
 
 Compute the singular value decomposition `A = U * Diagonal(S) * V'` with the Jacobi
 method, to tolerance `tol` in at most `max_sweeps` sweeps. With `jobz = 'N'` only `S` is
-computed. With `econ = true`, `U` or `V` has only `min(size(A)...)` columns. Throws an
-`ArgumentError` for matrices too large for the 32-bit API; use [`gesvd!`](@ref) for those.
+computed. With `econ = true`, `U` or `V` has only `min(size(A)...)` columns. `A` is
+destroyed.
+
+Throws a `LAPACKException` if the method does not converge within `max_sweeps` sweeps. A
+smaller tolerance, such as `eps(real(eltype(A)))`, can determine the small singular values
+of a graded matrix to a higher relative accuracy, but larger matrices with (numerically)
+zero singular values can fail to converge to it. Throws an `ArgumentError` for matrices too
+large for the 32-bit API; use [`gesvd!`](@ref) for those.
 
 Wraps `cusolverDn<t>gesvdj`.
 """
 gesvdj!
 
 """
-    gesvdjBatched!(jobz, A; tol=eps(real(eltype(A))), max_sweeps=100) -> U, S, V
+    gesvdjBatched!(jobz, A; tol=2*sqrt(max(size(A, 1), size(A, 2)))*eps(real(eltype(A))), max_sweeps=100) -> U, S, V
 
 Compute the singular value decomposition of each matrix `A[:, :, i]` of a 3-D array, as
 [`gesvdj!`](@ref) does. The matrices can be at most 32×32. `U`, `S` and `V` are 3-D and

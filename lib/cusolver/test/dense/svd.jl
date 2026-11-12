@@ -50,6 +50,35 @@ end
     end
 end
 
+@testset "gesvdj convergence, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    A = CuArray(randn(elty, 64, 64))
+    @test_throws LAPACKException cuSOLVER.gesvdj!('V', true, copy(A); max_sweeps=2)
+end
+
+@testset "gesvdj with numerically zero singular values, elty = $elty" for
+    elty in [Float32, Float64, ComplexF32, ComplexF64]
+
+    # singular values decaying to 1e-20, so most of them are zero at working precision
+    n = 128
+    W = elty <: Complex ? ComplexF64 : Float64
+    Q(n) = Matrix(qr(randn(W, n, n)).Q)
+    s = [1e-20^((i - 1) / (n - 1)) for i in 1:n]
+    A = elty.(Q(n) * Diagonal(s) * Q(n)')
+    tol = 2000 * eps(real(elty))
+
+    U, S, V = svd(CuArray(A); alg=cuSOLVER.JacobiAlgorithm())
+    @test norm(collect(U) * Diagonal(collect(S)) * collect(V)' - A) / norm(A) < tol
+    @test collect(S) ≈ svdvals(A)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.JacobiAlgorithm())) ≈ svdvals(A)
+
+    # the default tolerance is reached in at most about 25 sweeps, a tolerance of eps
+    # often not in 100
+    U, S, V = cuSOLVER.gesvdj!('V', true, CuArray(A); max_sweeps=40)
+    @test norm(collect(U) * Diagonal(collect(S)) * collect(V)' - A) / norm(A) < tol
+    S = cuSOLVER.gesvdj!('N', true, CuArray(A); max_sweeps=40)[2]
+    @test collect(S) ≈ svdvals(A)
+end
+
 @testset "gesvdj workspace limit, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     # the query only looks at the dimensions, so a small buffer can stand in for A
     buf = CuVector{elty}(undef, 1)
