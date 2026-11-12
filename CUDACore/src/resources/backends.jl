@@ -259,9 +259,14 @@ end
 #
 # freeing such memory with `cuMemFreeHost` or `cuMemFree` waits for all running kernels to
 # finish, also blocking kernel launches from other threads in the meantime. where supported,
-# it is allocated from memory pools instead, which can be freed in stream order without
-# waiting. otherwise, freed allocations are cached for reuse, and only released when
-# reclaiming memory.
+# pinned host memory is allocated from a memory pool instead, which can be freed in stream
+# order without waiting. otherwise, and for unified memory, freed allocations are cached for
+# reuse, and only released when reclaiming memory.
+#
+# unified memory isn't allocated from a pool of managed memory: with the 615 driver (CUDA
+# 13.4), once such a pool has released memory to the system, which with the default release
+# threshold happens at every synchronization, a new allocation in that range loses the data
+# the CPU wrote to it when it migrates to the GPU.
 
 function try_create_pool(f)
   try
@@ -284,25 +289,6 @@ function host_pool()
                 end
     supported ? try_create_pool() do
       pool = CuMemoryPool(device(); location_type=CU_MEM_LOCATION_TYPE_HOST, location_id=0)
-      access!(pool, collect(devices()), ACCESS_FLAGS_PROT_READWRITE)
-      pool
-    end : nothing
-  end::Union{Nothing,CuMemoryPool}
-end
-
-# a pool of unified memory, without a preferred location
-function unified_pool()
-  @memoize begin
-    supported = driver_version() >= v"13.0" && pools_enabled() &&
-                all(devices()) do dev
-                  memory_pools_supported(dev) && concurrent_managed_access(dev)
-                end
-    supported ? try_create_pool() do
-      pool = CuMemoryPool(device(); alloc_type=CU_MEM_ALLOCATION_TYPE_MANAGED,
-                          location_type=CU_MEM_LOCATION_TYPE_NONE, location_id=0)
-      # managed memory is accessible from every device regardless, but a managed pool
-      # reports no access for any device, and compute-sanitizer then flags accesses from
-      # devices other than the one the allocation was made on.
       access!(pool, collect(devices()), ACCESS_FLAGS_PROT_READWRITE)
       pool
     end : nothing
@@ -428,12 +414,6 @@ function alloc_host(sz, state=active_state())
 end
 
 function alloc_unified(sz, state=active_state())
-  pool = unified_pool()
-  if pool !== nothing
-    ptr = alloc_from_pool(pool, sz, state.stream)
-    return UnifiedMemory(state.context, reinterpret(CuPtr{Cvoid}, ptr), sz, true)
-  end
-
   sz = cached_size(sz)
   mem = cache_take!(unified_cache, state.context, sz)
   if mem !== nothing
