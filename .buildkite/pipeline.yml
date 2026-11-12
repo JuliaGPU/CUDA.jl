@@ -322,7 +322,7 @@ steps:
               - "unified"
               - "host"
         commands: |
-          echo -e "[CUDA]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
+          echo -e "[CUDACore]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
       # only the tests that use multiple devices
       - label: "MultiGPU"

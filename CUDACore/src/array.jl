@@ -865,7 +865,8 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,Ho
 end
 
 
-# optimization: copy strided blocks between host and device memory with a single 3D copy.
+# optimization: copy strided blocks between host and GPU arrays with a single 3D copy. this
+# also serves arrays backed by unified or pinned host memory, through their device address.
 #
 # GPUArrays packs a non-contiguous block into a dense temporary first, and copies that to
 # the block on the host with Base's block copy. a 3D copy avoids both temporaries and is up
@@ -929,7 +930,7 @@ function memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest::Bool)
 end
 
 function Base.copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
-                      src::DenseCuArray{T,N,DeviceMemory}, Rsrc::CartesianIndices{N}) where {T,N}
+                      src::DenseCuArray{T,N}, Rsrc::CartesianIndices{N}) where {T,N}
     isempty(Rdest) && return dest
     layout = memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest=true)
     if layout === nothing
@@ -951,7 +952,7 @@ function Base.copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
     return dest
 end
 
-function Base.copyto!(dest::DenseCuArray{T,N,DeviceMemory}, Rdest::CartesianIndices{N},
+function Base.copyto!(dest::DenseCuArray{T,N}, Rdest::CartesianIndices{N},
                       src::Array{T,N}, Rsrc::CartesianIndices{N}) where {T,N}
     isempty(Rdest) && return dest
     layout = memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest=false)

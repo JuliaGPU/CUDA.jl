@@ -1364,21 +1364,23 @@ end
 @testset "copies of blocks between host and device" begin
   # strided blocks on the host with wide rows, which are copied with a single 3D copy
   host = rand(64, 9, 8, 5)
-  dev = CuArray(host)
-  for (Rh, Rd) in ((CartesianIndices((2:33, 1:9, 1:8, 1:5)), CartesianIndices((3:34, 1:9, 1:8, 1:5))),
-                   (CartesianIndices((1:40, 2:6, 3:3, 2:4)), CartesianIndices((5:44, 1:5, 8:8, 3:5))),
-                   (CartesianIndices((1:64, 1:3:9, 1:8, 2:2)), CartesianIndices((1:64, 1:3, 1:8, 4:4))),
-                   # blocks that a 3D copy can't express, or with rows too narrow for one
-                   (CartesianIndices((2:63, 2:8, 2:7, 2:4)), CartesianIndices((2:63, 2:8, 2:7, 2:4))),
-                   (CartesianIndices((1:4, 1:9, 1:8, 1:5)), CartesianIndices((5:8, 1:9, 1:8, 1:5))),
-                   (CartesianIndices((33:64, 1:9, 1:8, 1:1)), CartesianIndices((1:32, 1:9, 1:8, 5:5))))
-    h = copy(host)
-    copyto!(h, Rh, dev, Rd)
-    @test h == copyto!(copy(host), Rh, host, Rd)
+  @testset "$M" for M in (CUDA.DeviceMemory, CUDA.UnifiedMemory, CUDA.HostMemory)
+    dev = CuArray{Float64,4,M}(host)
+    for (Rh, Rd) in ((CartesianIndices((2:33, 1:9, 1:8, 1:5)), CartesianIndices((3:34, 1:9, 1:8, 1:5))),
+                     (CartesianIndices((1:40, 2:6, 3:3, 2:4)), CartesianIndices((5:44, 1:5, 8:8, 3:5))),
+                     (CartesianIndices((1:64, 1:3:9, 1:8, 2:2)), CartesianIndices((1:64, 1:3, 1:8, 4:4))),
+                     # blocks that a 3D copy can't express, or with rows too narrow for one
+                     (CartesianIndices((2:63, 2:8, 2:7, 2:4)), CartesianIndices((2:63, 2:8, 2:7, 2:4))),
+                     (CartesianIndices((1:4, 1:9, 1:8, 1:5)), CartesianIndices((5:8, 1:9, 1:8, 1:5))),
+                     (CartesianIndices((33:64, 1:9, 1:8, 1:1)), CartesianIndices((1:32, 1:9, 1:8, 5:5))))
+      h = copy(host)
+      copyto!(h, Rh, dev, Rd)
+      @test h == copyto!(copy(host), Rh, host, Rd)
 
-    d = copy(dev)
-    copyto!(d, Rd, host, Rh)
-    @test Array(d) == copyto!(copy(host), Rd, host, Rh)
+      d = copy(dev)
+      copyto!(d, Rd, host, Rh)
+      @test Array(d) == copyto!(copy(host), Rd, host, Rh)
+    end
   end
 
   # stream ordering: wait for kernels writing the source, and don't read the host source
