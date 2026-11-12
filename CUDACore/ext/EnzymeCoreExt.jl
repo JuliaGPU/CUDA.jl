@@ -4,13 +4,8 @@ module EnzymeCoreExt
 using CUDACore
 import CUDACore: GPUCompiler, CUDABackend
 
-if isdefined(Base, :get_extension)
-    using EnzymeCore
-    using EnzymeCore.EnzymeRules
-else
-    using ..EnzymeCore
-    using ..EnzymeCore.EnzymeRules
-end
+using EnzymeCore
+using EnzymeCore.EnzymeRules
 
 function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDACore.context!), args...)
     return nothing
@@ -22,6 +17,14 @@ function EnzymeCore.EnzymeRules.inactive_noinl(::typeof(CUDACore.device_synchron
     return nothing
 end
 function EnzymeCore.EnzymeRules.inactive(::typeof(CUDACore.launch_configuration), args...; kwargs...)
+    return nothing
+end
+function EnzymeCore.EnzymeRules.inactive(::typeof(synchronize), args...; kwargs...)
+    return nothing
+end
+# compiling a kernel has no derivative; launching the resulting kernel object is
+# differentiated by the `HostKernel` rules below
+function EnzymeCore.EnzymeRules.inactive(::typeof(cufunction), args...; kwargs...)
     return nothing
 end
 
@@ -36,91 +39,69 @@ function metaf(config, fn, args::Vararg{Any, N}) where N
     nothing
 end
 
-function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cufunction)},
-                                        ::Type{<:Const}, f::Const{F},
-                                        tt::Const{TT}; kwargs...) where {F,TT}
-    res = ofn.val(f.val, tt.val; kwargs...)
-    return res
+
+## rule results
+
+# Most rules below return a primal and a shadow for each batch lane, of which the config
+# says which are needed. These helpers assemble the return value of a rule from a thunk
+# computing the primal and a function computing the shadow of lane `i`.
+
+@inline function forward_return(config, primal::P, shadow::S) where {P, S}
+    width = EnzymeRules.width(config)
+    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
+        if width == 1
+            Duplicated(primal(), shadow(1))
+        else
+            BatchDuplicated(primal(), ntuple(shadow, Val(width)))
+        end
+    elseif EnzymeRules.needs_shadow(config)
+        width == 1 ? shadow(1) : ntuple(shadow, Val(width))
+    elseif EnzymeRules.needs_primal(config)
+        primal()
+    else
+        nothing
+    end
 end
 
-function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cufunction)},
-                                        ::Type{<:Duplicated}, f::Const{F},
-                                        tt::Const{TT}; kwargs...) where {F,TT}
-    res = ofn.val(f.val, tt.val; kwargs...)
-    return Duplicated(res, res)
+@inline function augmented_return(config, ::Type{RT}, primal::P, shadow::S,
+                                  tape=nothing) where {RT, P, S}
+    width = EnzymeRules.width(config)
+    p = EnzymeRules.needs_primal(config) ? primal() : nothing
+    s = if EnzymeRules.needs_shadow(config)
+        width == 1 ? shadow(1) : ntuple(shadow, Val(width))
+    else
+        nothing
+    end
+    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT),
+                                       EnzymeRules.shadow_type(config, RT),
+                                       typeof(tape)}(p, s, tape)
 end
 
-function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cufunction)},
-                                        ::Type{BatchDuplicated{T,N}}, f::Const{F},
-                                        tt::Const{TT}; kwargs...) where {F,TT,T,N}
-    res = ofn.val(f.val, tt.val; kwargs...)
-    return BatchDuplicated(res, ntuple(Val(N)) do _
-        res
-    end)
-end
+# the shadow of an annotated argument in batch lane `i`
+@inline shadow_lane(config, x, i) = EnzymeRules.width(config) == 1 ? x.dval : x.dval[i]
+
+
+## argument conversion
+
+# the shadow of a constant argument is a zero of the same shape
+@inline converted_shadow(config, x::Const, i) = cudaconvert(EnzymeCore.make_zero(x.val))
+@inline converted_shadow(config, x, i) = cudaconvert(shadow_lane(config, x, i))
 
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(cudaconvert)},
                                         ::Type{RT}, x::IT) where {RT, IT}
-
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            Duplicated(ofn.val(x.val), ofn.val(x.dval))
-        else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                ofn.val(x.dval[i])::eltype(RT)
-            end
-            BatchDuplicated(ofn.val(x.val), tup)
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            ofn.val(x.dval)::EnzymeCore.shadow_type(config, RT)
-        else
-            (ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                ofn.val(x.dval[i])::eltype(RT)
-            end)::EnzymeCore.shadow_type(config, RT)
-        end
-    elseif EnzymeRules.needs_primal(config)
-        ofn.val(x.val)::eltype(RT)
-    else
-        nothing
-    end
+    forward_return(config, () -> ofn.val(x.val), i -> converted_shadow(config, x, i))
 end
 
 function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(cudaconvert)}, ::Type{RT}, x::IT) where {RT, IT}
-    primal = if EnzymeRules.needs_primal(config)
-        ofn.val(x.val)
-    else
-        nothing
-    end
-    
-    shadow = if EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1 && !(IT <: Const)
-            ofn.val(x.dval)
-        elseif EnzymeRules.width(config) == 1 && IT <: Const
-            ofn.val(EnzymeCore.make_zero(x.val))
-        elseif !(IT <: Const)
-          ntuple(Val(EnzymeRules.width(config))) do i
-              Base.@_inline_meta
-              ofn.val(x.dval[i])
-          end
-        else
-          ntuple(Val(EnzymeRules.width(config))) do i
-              Base.@_inline_meta
-              ofn.val(EnzymeCore.make_zero(x.val[i]))
-          end
-        end
-    else
-        nothing
-    end
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+    augmented_return(config, RT, () -> ofn.val(x.val), i -> converted_shadow(config, x, i))
 end
 
 function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(cudaconvert)}, ::Type{RT}, tape, x::IT) where {RT, IT}
     (nothing,)
 end
 
+
+## array construction
 
 # The shadow of a freshly allocated array is zeroed bytewise, like Enzyme zeroes the
 # shadows of CPU allocations: `zero(T)` is not defined for an arbitrary isbits struct.
@@ -132,138 +113,17 @@ end
 
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
         ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args...) where {CT <: CuArray, RT}
-    primargs = ntuple(Val(length(args))) do i
-        Base.@_inline_meta
-        args[i].val
-    end
-
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            shadow = zeroed_shadow(CT, ofn.val, uval, primargs)
-            Duplicated(ofn.val(uval.val, primargs...), shadow)
-        else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                zeroed_shadow(CT, ofn.val, uval, primargs)
-            end
-            BatchDuplicated(ofn.val(uval.val, primargs...), tup)
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            shadow = zeroed_shadow(CT, ofn.val, uval, primargs)
-	    shadow::shadow_type(config, RT)
-        else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                zeroed_shadow(CT, ofn.val, uval, primargs)
-            end
-	    tup::shadow_type(config, RT)
-        end
-    elseif EnzymeRules.needs_primal(config)
-        ofn.val(uval.val, primargs...)
-    else
-        nothing
-    end
+    primargs = map(arg -> arg.val, args)
+    forward_return(config, () -> ofn.val(uval.val, primargs...),
+                   i -> zeroed_shadow(CT, ofn.val, uval, primargs))
 end
 
+# an array wrapping existing memory has the array wrapping the shadow memory as its shadow
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}},
         ::Type{RT}, uval::EnzymeCore.Annotation{DR}, args...; kwargs...) where {CT <: CuArray, DR <: CUDACore.DataRef, RT}
-    primargs = ntuple(Val(length(args))) do i
-        Base.@_inline_meta
-        args[i].val
-    end
-
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            shadow = ofn.val(uval.val, primargs...; kwargs...)
-            Duplicated(ofn.val(uval.val, primargs...; kwargs...), shadow)
-        else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                ofn.val(uval.val, primargs...; kwargs...)
-            end
-            BatchDuplicated(ofn.val(uval.val, primargs...; kwargs...), tup)
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            shadow = ofn.val(uval.val, primargs...; kwargs...)
-            shadow
-        else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                ofn.val(uval.val, primargs...; kwargs...)
-            end
-            tup
-        end
-    elseif EnzymeRules.needs_primal(config)
-        ofn.val(uval.val, primargs...; kwargs...)
-    else
-        nothing
-    end
-end
-
-function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(synchronize)},
-                                        ::Type{RT}, args::Vararg{EnzymeCore.Annotation, N}; kwargs...) where {RT, N}
-    pargs = ntuple(Val(N)) do i
-        Base.@_inline_meta
-        args[i].val
-    end
-    res = ofn.val(pargs...; kwargs...)
-
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            Duplicated(res, res)
-        else
-            tup = ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                res
-            end
-            BatchDuplicated(ofn.val(uval.val, primargs...; kwargs...), tup)
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            res
-        else
-            ntuple(Val(EnzymeRules.width(config))) do i
-                Base.@_inline_meta
-                res
-            end
-        end
-    elseif EnzymeRules.needs_primal(config)
-        res
-    else
-        nothing
-    end
-end
-
-function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(cufunction)},
-                                            ::Type{RT}, f::Const{F},
-                                            tt::Const{TT}; kwargs...) where {F,CT, RT<:EnzymeCore.Annotation{CT}, TT}
-    res = ofn.val(f.val, tt.val; kwargs...)
-
-    primal = if EnzymeRules.needs_primal(config)
-        res
-    else
-        nothing
-    end
-    
-    shadow = if EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            res
-        else
-          ntuple(Val(EnzymeRules.width(config))) do i
-              Base.@_inline_meta
-              res
-          end
-        end
-    else
-        nothing
-    end
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
-end
-
-function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Const{typeof(cufunction)},::Type{RT}, subtape, f, tt; kwargs...) where RT
-    return (nothing, nothing)
+    primargs = map(arg -> arg.val, args)
+    forward_return(config, () -> ofn.val(uval.val, primargs...; kwargs...),
+                   i -> ofn.val(shadow_lane(config, uval, i), primargs...; kwargs...))
 end
 
 ## kernel launches
@@ -368,40 +228,11 @@ function reverse_launch(config, f::F, ::Val{ModifiedBetween}, subtape, launch_kw
 end
 
 # the kernel object returned by a launch is inactive; hand it back as primal and/or shadow
-@inline function kernel_result(compile, config, ::Type{RT}) where {RT}
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        kernel = compile()
-        if EnzymeRules.width(config) == 1
-            Duplicated(kernel, kernel)
-        else
-            BatchDuplicated(kernel, ntuple(Returns(kernel), Val(EnzymeRules.width(config))))
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        kernel = compile()
-        if EnzymeRules.width(config) == 1
-            kernel
-        else
-            ntuple(Returns(kernel), Val(EnzymeRules.width(config)))
-        end
-    elseif EnzymeRules.needs_primal(config)
-        compile()
-    else
-        nothing
-    end
-end
+@inline kernel_result(compile, config, ::Type{RT}) where {RT} =
+    forward_return(config, compile, _ -> compile())
 
-@inline function kernel_augmented_result(compile, config, ::Type{RT}, tape) where {RT}
-    primal = EnzymeRules.needs_primal(config) ? compile() : nothing
-    shadow = if EnzymeRules.needs_shadow(config)
-        kernel = compile()
-        EnzymeRules.width(config) == 1 ? kernel : ntuple(_ -> kernel, Val(EnzymeRules.width(config)))
-    else
-        nothing
-    end
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT),
-                                       EnzymeRules.shadow_type(config, RT),
-                                       typeof(tape)}(primal, shadow, tape)
-end
+@inline kernel_augmented_result(compile, config, ::Type{RT}, tape) where {RT} =
+    augmented_return(config, RT, compile, _ -> compile(), tape)
 
 
 ### `@cuda`
@@ -503,30 +334,9 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Annotation{CUDAC
 end
 
 function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, uval::EnzymeCore.Annotation{UndefInitializer}, args...) where {CT <: CuArray, RT}
-    primargs = ntuple(Val(length(args))) do i
-        Base.@_inline_meta
-        args[i].val
-    end
-
-    primal = if EnzymeRules.needs_primal(config)
-        ofn.val(uval.val, primargs...)::CT
-    else
-        nothing
-    end
-    
-    shadow = if EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            zeroed_shadow(CT, ofn.val, uval, primargs)
-        else
-          ntuple(Val(EnzymeRules.width(config))) do i
-              Base.@_inline_meta
-              zeroed_shadow(CT, ofn.val, uval, primargs)
-          end
-        end
-    else
-        nothing
-    end
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+    primargs = map(arg -> arg.val, args)
+    augmented_return(config, RT, () -> ofn.val(uval.val, primargs...)::CT,
+                     i -> zeroed_shadow(CT, ofn.val, uval, primargs))
 end
 
 function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape, A::EnzymeCore.Annotation{UndefInitializer}, args::Vararg{EnzymeCore.Annotation, N}) where {CT <: CuArray, RT, N}
@@ -537,30 +347,9 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}
 end
 
 function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}, uval::EnzymeCore.Annotation{DR}, args...; kwargs...) where {CT <: CuArray, DR <: CUDACore.DataRef, RT}
-    primargs = ntuple(Val(length(args))) do i
-        Base.@_inline_meta
-        args[i].val
-    end
-
-    primal = if EnzymeRules.needs_primal(config)
-        ofn.val(uval.val, primargs...; kwargs...)
-    else
-        nothing
-    end
-    
-    shadow = if EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            ofn.val(uval.dval, primargs...; kwargs...)
-        else
-          ntuple(Val(EnzymeRules.width(config))) do i
-              Base.@_inline_meta
-              ofn.val(uval.dval[i], primargs...; kwargs...)
-          end
-        end
-    else
-        nothing
-    end
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+    primargs = map(arg -> arg.val, args)
+    augmented_return(config, RT, () -> ofn.val(uval.val, primargs...; kwargs...),
+                     i -> ofn.val(shadow_lane(config, uval, i), primargs...; kwargs...))
 end
 
 function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape, A::EnzymeCore.Annotation{DR}, args::Vararg{EnzymeCore.Annotation, N}; kwargs...) where {CT <: CuArray, DR <: CUDACore.DataRef, RT, N}
@@ -583,41 +372,14 @@ function zero_curef!(ref::CUDACore.CuRefValue)
     return ref
 end
 
-function zeroed_curef(::Type{CT}) where {CT <: CUDACore.CuRefValue}
-    return zero_curef!(CT())
-end
-
-function curef_shadow(config, ::Type{CT}) where {CT <: CUDACore.CuRefValue}
-    if EnzymeRules.width(config) == 1
-        zeroed_curef(CT)
-    else
-        ntuple(Val(EnzymeRules.width(config))) do i
-            Base.@_inline_meta
-            zeroed_curef(CT)
-        end
-    end
-end
+zeroed_curef(::Type{CT}) where {CT <: CUDACore.CuRefValue} = zero_curef!(CT())
 
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{Type{CT}}, ::Type{RT}) where {CT <: CUDACore.CuRefValue, RT}
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            Duplicated(ofn.val(), curef_shadow(config, CT))
-        else
-            BatchDuplicated(ofn.val(), curef_shadow(config, CT))
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        curef_shadow(config, CT)
-    elseif EnzymeRules.needs_primal(config)
-        ofn.val()
-    else
-        nothing
-    end
+    forward_return(config, () -> ofn.val(), _ -> zeroed_curef(CT))
 end
 
 function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{Type{CT}}, ::Type{RT}) where {CT <: CUDACore.CuRefValue, RT}
-    primal = EnzymeRules.needs_primal(config) ? ofn.val() : nothing
-    shadow = EnzymeRules.needs_shadow(config) ? curef_shadow(config, CT) : nothing
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+    augmented_return(config, RT, () -> ofn.val(), _ -> zeroed_curef(CT))
 end
 
 function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{Type{CT}}, ::Type{RT}, tape) where {CT <: CUDACore.CuRefValue, RT}
@@ -629,43 +391,20 @@ end
 # from and to that address are then differentiated by the `unsafe_copyto!` rules in
 # Enzyme.jl, e.g. when reading or writing a `CuRefValue`.
 
-managed_shadow_ptr(::Type{P}, managed::Const, i...) where {P} = convert(P, managed.val)
-managed_shadow_ptr(::Type{P}, managed::EnzymeCore.Annotation) where {P} = convert(P, managed.dval)
-managed_shadow_ptr(::Type{P}, managed::EnzymeCore.Annotation, i) where {P} = convert(P, managed.dval[i])
-
-function managed_shadow_ptrs(config, ::Type{P}, managed) where {P}
-    if EnzymeRules.width(config) == 1
-        managed_shadow_ptr(P, managed)
-    else
-        ntuple(Val(EnzymeRules.width(config))) do i
-            Base.@_inline_meta
-            managed_shadow_ptr(P, managed, i)
-        end
-    end
-end
+managed_shadow_ptr(config, ::Type{P}, managed::Const, i) where {P} = convert(P, managed.val)
+managed_shadow_ptr(config, ::Type{P}, managed, i) where {P} =
+    convert(P, shadow_lane(config, managed, i))
 
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{typeof(Base.convert)}, ::Type{RT},
                                         ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
-    if EnzymeRules.needs_primal(config) && EnzymeRules.needs_shadow(config)
-        if EnzymeRules.width(config) == 1
-            Duplicated(convert(P, managed.val), managed_shadow_ptrs(config, P, managed))
-        else
-            BatchDuplicated(convert(P, managed.val), managed_shadow_ptrs(config, P, managed))
-        end
-    elseif EnzymeRules.needs_shadow(config)
-        managed_shadow_ptrs(config, P, managed)
-    elseif EnzymeRules.needs_primal(config)
-        convert(P, managed.val)
-    else
-        nothing
-    end
+    forward_return(config, () -> convert(P, managed.val),
+                   i -> managed_shadow_ptr(config, P, managed, i))
 end
 
 function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{typeof(Base.convert)}, ::Type{RT},
                                                  ::Const{Type{P}}, managed::EnzymeCore.Annotation{<:CUDACore.Managed}) where {RT, P <: CuPtr}
-    primal = EnzymeRules.needs_primal(config) ? convert(P, managed.val) : nothing
-    shadow = EnzymeRules.needs_shadow(config) ? managed_shadow_ptrs(config, P, managed) : nothing
-    return EnzymeRules.AugmentedReturn{EnzymeRules.primal_type(config, RT), EnzymeRules.shadow_type(config, RT), Nothing}(primal, shadow, nothing)
+    augmented_return(config, RT, () -> convert(P, managed.val),
+                     i -> managed_shadow_ptr(config, P, managed, i))
 end
 
 function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{typeof(Base.convert)}, ::Type{RT}, tape,

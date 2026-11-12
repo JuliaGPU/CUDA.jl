@@ -127,6 +127,44 @@ end
     @test all(dA .≈ 6 .* (1:64))
 end
 
+# a launch of a kernel compiled with `cufunction`, synchronizing afterwards
+function square_cufunction!(x)
+    kernel = cufunction(square_kernel!, Tuple{typeof(cudaconvert(x))})
+    kernel(x; threads = length(x))
+    synchronize()
+    return nothing
+end
+
+@testset "Kernel compiled with cufunction" begin
+    A = CuArray(Float32.(1:32))
+    dA = CUDA.ones(32)
+    dA2 = CUDA.fill(3f0, 32)
+    Enzyme.autodiff(Forward, square_cufunction!, Const, BatchDuplicated(A, (dA, dA2)))
+    @test all(A .≈ (1:32) .^ 2)
+    @test all(dA .≈ (2:2:64))
+    @test all(dA2 .≈ 3 .* (2:2:64))
+
+    A = CuArray(Float32.(1:64))
+    dA = CUDA.ones(64)
+    Enzyme.autodiff(Reverse, square_cufunction!, Duplicated(A, dA))
+    @test all(dA .≈ (2:2:128))
+end
+
+# a reshaped array shares the memory of its parent, and its shadow that of the parent's shadow
+function double_reshaped!(x)
+    y = reshape(x, 8, 8)
+    y .*= 2
+    return nothing
+end
+
+@testset "Forward reshape" begin
+    A = CUDA.ones(64)
+    dA = CUDA.ones(64)
+    Enzyme.autodiff(Forward, double_reshaped!, Const, Duplicated(A, dA))
+    @test all(A .≈ 2)
+    @test all(dA .≈ 2)
+end
+
 @testset "Forward Fill!" begin
     A = CUDA.ones(64)
     dA = CUDA.ones(64)
