@@ -117,50 +117,20 @@ function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode, math_precision::Symbol}
-const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUBLAS)
+const state_cache = CUDACore.TaskLocalCache{CuContext, CUDACore.TaskHandleState{
+    Handle, Tuple{CuStream, Tuple{CUDACore.MathMode, Symbol}}}}(:CUBLAS)
+
+# the precision feeds into the emulation math modes
+set_math_mode!(handle, (mode, precision)) = math_mode!(handle, mode, precision)
 
 function handle()
     cuda = CUDACore.active_state()
-
-    states = CUDACore.task_dict(state_cache)
-
-    # get library state
-    @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context)
-        wrapped = Handle(new_handle, cuda.context)
-        CUDACore.handle_finalizer(handle_finalizer, wrapped,
-                                  idle_handles, cuda.context, new_handle)
-
-        cublasSetStream_v2(new_handle, cuda.stream)
-        cublasSetPointerMode_v2(new_handle, CUBLAS_POINTER_MODE_DEVICE)
-        math_mode!(new_handle, cuda.math_mode, cuda.math_precision)
-
-        (; handle=wrapped, cuda.stream, cuda.math_mode, cuda.math_precision)
+    CUDACore.task_handle(handle_finalizer, state_cache, idle_handles, cuda.context,
+                         (cuda.stream, (cuda.math_mode, cuda.math_precision)),
+                         (cublasSetStream_v2, set_math_mode!)) do raw
+        cublasSetPointerMode_v2(raw, CUBLAS_POINTER_MODE_DEVICE)
+        Handle(raw, cuda.context)
     end
-    state = get!(state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
-    # update stream
-    @noinline function update_stream(cuda, state)
-        cublasSetStream_v2(state.handle, cuda.stream)
-        (; state.handle, stream=cuda.stream, state.math_mode, state.math_precision)
-    end
-    if state.stream != cuda.stream
-        states[cuda.context] = state = update_stream(cuda, state)
-    end
-
-    # update math mode (the precision feeds into the emulation math modes)
-    @noinline function update_math_mode(cuda, state)
-        math_mode!(state.handle, cuda.math_mode, cuda.math_precision)
-        (; state.handle, state.stream, math_mode=cuda.math_mode, math_precision=cuda.math_precision)
-    end
-    if state.math_mode != cuda.math_mode || state.math_precision != cuda.math_precision
-        states[cuda.context] = state = update_math_mode(cuda, state)
-    end
-
-    return state.handle
 end
 
 

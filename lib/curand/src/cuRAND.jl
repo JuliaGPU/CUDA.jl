@@ -77,7 +77,8 @@ function library_rng_finalizer(b::BorrowedLibraryRNG)
     push!(idle_library_rngs, b.ctx, b.rng)
 end
 
-const library_state_cache = CUDACore.TaskLocalCache{CuContext, BorrowedLibraryRNG}(:CURAND)
+const library_state_cache = CUDACore.TaskLocalCache{CuContext,
+    CUDACore.TaskHandleState{BorrowedLibraryRNG, Tuple{}}}(:CURAND)
 
 """
     cuRAND.library_rng() -> LibraryRNG
@@ -89,20 +90,12 @@ task first uses it, and by [`cuRAND.seed!`](@ref). The generator is borrowed: se
 generate numbers with it, but don't destroy it or change its settings.
 """
 function library_rng()
-    cuda = CUDACore.active_state()
-
-    @noinline function new_state(cuda)
-        new_rng = pop!(idle_library_rngs, cuda.context)
-        wrapped = BorrowedLibraryRNG(new_rng, cuda.context)
-        CUDACore.handle_finalizer(library_rng_finalizer, wrapped,
-                                  idle_library_rngs, cuda.context, new_rng)
-        Random.seed!(new_rng)
-        wrapped
+    ctx = CUDACore.active_state().context
+    borrowed = CUDACore.task_handle(library_rng_finalizer, library_state_cache,
+                                    idle_library_rngs, ctx) do rng
+        Random.seed!(rng)
+        BorrowedLibraryRNG(rng, ctx)
     end
-    borrowed = get!(library_state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
     return borrowed.rng
 end
 

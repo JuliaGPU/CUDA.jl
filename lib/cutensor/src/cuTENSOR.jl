@@ -79,8 +79,8 @@ function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::Handle}
-const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:cuTENSOR)
+const state_cache =
+    CUDACore.TaskLocalCache{CuContext, CUDACore.TaskHandleState{Handle, Tuple{}}}(:cuTENSOR)
 
 """
     cuTENSOR.handle()
@@ -90,22 +90,10 @@ cuTENSOR (`cuTENSOR.cutensor*`) directly. It converts to a `cutensorHandle_t`. T
 is borrowed: don't destroy it or change its settings. Its fields are not part of the API.
 """
 function handle()
-    cuda = CUDACore.active_state()
-
-    # get library state
-    @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context)
-        wrapped = Handle(new_handle, cuda.context)
-        CUDACore.handle_finalizer(handle_finalizer, wrapped,
-                                  idle_handles, cuda.context, new_handle)
-
-        (; handle=wrapped)
+    ctx = CUDACore.active_state().context
+    CUDACore.task_handle(handle_finalizer, state_cache, idle_handles, ctx) do raw
+        Handle(raw, ctx)
     end
-    state = get!(state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
-    return state.handle
 end
 
 

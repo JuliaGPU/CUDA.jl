@@ -98,8 +98,8 @@ function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, h.handle)
 end
 
-const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
-const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUSPARSE)
+const state_cache =
+    CUDACore.TaskLocalCache{CuContext, CUDACore.TaskHandleState{Handle, Tuple{CuStream}}}(:CUSPARSE)
 
 """
     cuSPARSE.handle()
@@ -111,34 +111,10 @@ not part of the API.
 """
 function handle()
     cuda = CUDACore.active_state()
-
-    states = CUDACore.task_dict(state_cache)
-
-    # get library state
-    @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context)
-        wrapped = Handle(new_handle, cuda.context)
-        CUDACore.handle_finalizer(handle_finalizer, wrapped,
-                                  idle_handles, cuda.context, new_handle)
-
-        cusparseSetStream(new_handle, cuda.stream)
-
-        (; handle=wrapped, cuda.stream)
+    CUDACore.task_handle(handle_finalizer, state_cache, idle_handles, cuda.context,
+                         (cuda.stream,), (cusparseSetStream,)) do raw
+        Handle(raw, cuda.context)
     end
-    state = get!(state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
-    # update stream
-    @noinline function update_stream(cuda, state)
-        cusparseSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream)
-    end
-    if state.stream != cuda.stream
-        states[cuda.context] = state = update_stream(cuda, state)
-    end
-
-    return state.handle
 end
 
 
