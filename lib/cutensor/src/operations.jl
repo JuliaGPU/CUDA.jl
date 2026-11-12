@@ -424,6 +424,30 @@ function contract!(plan::CuTensorPlan,
     return C
 end
 
+# checks and converts the arguments shared by dense and block-sparse contractions
+function contraction_arguments(A, Ainds::ModeType, opA::cutensorOperator_t,
+                               B, Binds::ModeType, opB::cutensorOperator_t,
+                               C, Cinds::ModeType, opC::cutensorOperator_t,
+                               opOut::cutensorOperator_t, compute_type)
+    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
+    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
+    opC != CUTENSOR_OP_IDENTITY && throw(ArgumentError("opC must be the identity op!"))
+    !is_unary(opOut)  && throw(ArgumentError("opOut must be a unary op!"))
+    modeA = collect(Cint, Ainds)
+    length(modeA) == ndims(A) || throw(ArgumentError("Ainds must match number of dimensions in A!"))
+    modeB = collect(Cint, Binds)
+    length(modeB) == ndims(B) || throw(ArgumentError("Binds must match number of dimensions in B!"))
+    modeC = collect(Cint, Cinds)
+    length(modeC) == ndims(C) || throw(ArgumentError("Cinds must match number of dimensions in C!"))
+
+    actual_compute_type = if compute_type === nothing
+        contraction_compute_types[(eltype(A), eltype(B), eltype(C))]
+    else
+        compute_type
+    end
+    return modeA, modeB, modeC, actual_compute_type
+end
+
 """
     plan_contraction(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut;
                      jit=JIT_MODE_NONE, workspace=WORKSPACE_DEFAULT, algo=ALGO_DEFAULT,
@@ -442,26 +466,12 @@ function plan_contraction(
         workspace::cutensorWorksizePreference_t=WORKSPACE_DEFAULT,
         algo::cutensorAlgo_t=ALGO_DEFAULT,
         compute_type::Union{DataType, cutensorComputeDescriptorEnum, Nothing}=nothing)
-    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
-    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
-    opC != CUTENSOR_OP_IDENTITY && throw(ArgumentError("opC must be the identity op!"))
-    !is_unary(opOut)  && throw(ArgumentError("opOut must be a unary op!"))
+    modeA, modeB, modeC, actual_compute_type =
+        contraction_arguments(A, Ainds, opA, B, Binds, opB, C, Cinds, opC, opOut, compute_type)
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
     descC = CuTensorDescriptor(C)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
-    modeA = collect(Cint, Ainds)
-    length(modeA) == ndims(A) || throw(ArgumentError("Ainds must match number of dimensions in A!"))
-    modeB = collect(Cint, Binds)
-    length(modeB) == ndims(B) || throw(ArgumentError("Binds must match number of dimensions in B!"))
-    modeC = collect(Cint, Cinds)
-    length(modeC) == ndims(C) || throw(ArgumentError("Cinds must match number of dimensions in C!"))
-
-    actual_compute_type = if compute_type === nothing
-        contraction_compute_types[(eltype(A), eltype(B), eltype(C))]
-    else
-        compute_type
-    end
 
     desc = Ref{cutensorOperationDescriptor_t}()
     cutensorCreateContraction(handle(),
