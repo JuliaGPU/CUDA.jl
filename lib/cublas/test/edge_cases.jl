@@ -101,3 +101,8 @@ end
     @test testf((x, y) -> dot(view(x, 12:-2:1), view(y, 1:2:12)), x, y)
     T <: Complex && @test testf((x, y) -> transpose(view(x, 1:2:12)) * view(y, 1:2:12), x, y)
 end
+
+@testset "unit triangular products, $T" for T in (Float32, ComplexF32)
+    S, R = rand(T, 4, 4), rand(T, 4, 4)
+    @test testf((S, R) -> UnitLowerTriangular(S) * UnitUpperTriangular(R), S, R)
+end
