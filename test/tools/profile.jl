@@ -643,7 +643,10 @@ end
     @test_throws ArgumentError CUDA.@metrics metrics=:unknown (executed[] = true)
     @test !executed[]
 
-    @test_throws "at most" @retry_busy CUDA.@metrics begin
+    # every launch is replayed once per pass, so use a single-pass metric. with the default
+    # preset, this session holds the profiling hardware for over 30 s even on a fast GPU,
+    # starving other processes that share it.
+    @test_throws "at most" @retry_busy CUDA.@metrics metrics=["gpu__time_duration.sum"] begin
         for i in 1:CUDA.Profile.max_launches+1
             @cuda increment(a)
         end
