@@ -867,6 +867,8 @@ end
 
 # optimization: copy strided blocks between host and GPU arrays with a single 3D copy. this
 # also serves arrays backed by unified or pinned host memory, through their device address.
+# the driver doesn't consider pooled host memory to be device memory, so describe those
+# addresses as unified ones and have the driver determine the kind of memory.
 #
 # GPUArrays packs a non-contiguous block into a dense temporary first, and copies that to
 # the block on the host with Base's block copy. a 3D copy avoids both temporaries and is up
@@ -910,6 +912,8 @@ function memcpy3d_layout(dest::AbstractArray{T,N}, Rdest::CartesianIndices{N},
     return (; width, height, depth, dpitch, dheight, spitch, sheight)
 end
 
+memcpy3d_type(a::DenseCuArray) = is_device(a) ? DeviceMemory : UnifiedMemory
+
 # whether to copy a block between host and device with a 3D copy, and how
 function memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest::Bool)
     T = eltype(dest)
@@ -943,7 +947,7 @@ function Base.copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
         synchronize(src)
         GC.@preserve src dest begin
             unsafe_copy3d!(pointer(dest, LinearIndices(dest)[first(Rdest)]), HostMemory,
-                           pointer(src, LinearIndices(src)[first(Rsrc)]), DeviceMemory,
+                           pointer(src, LinearIndices(src)[first(Rsrc)]), memcpy3d_type(src),
                            layout.width, layout.height, layout.depth;
                            dstPitch=layout.dpitch*aligned_sizeof(T), dstHeight=layout.dheight,
                            srcPitch=layout.spitch*aligned_sizeof(T), srcHeight=layout.sheight)
@@ -967,7 +971,7 @@ function Base.copyto!(dest::DenseCuArray{T,N}, Rdest::CartesianIndices{N},
             GC.@preserve src dest with_managed_arrays(dest) do
                 # (synchronously, so that the caller can modify `src` when this returns)
                 unsafe_copy3d!(unmanaged_pointer(dest, LinearIndices(dest)[first(Rdest)]),
-                               DeviceMemory,
+                               memcpy3d_type(dest),
                                pointer(src, LinearIndices(src)[first(Rsrc)]), HostMemory,
                                layout.width, layout.height, layout.depth;
                                dstPitch=layout.dpitch*aligned_sizeof(T),
