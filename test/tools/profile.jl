@@ -20,6 +20,19 @@ macro retry_busy(ex)
     :(retry_busy(() -> $(esc(ex))))
 end
 
+# On MIG, the counters also include work that other processes run on the same GPU instance
+# (a documented limitation of NVIDIA's profilers). That only ever adds to random ranges, so
+# tests asserting exact counts measure again until `expected(p)` holds; a real bug would
+# show up in every attempt.
+function retry_inflated(f, expected; attempts=5)
+    local p
+    for _ in 1:attempts
+        p = retry_busy(f)
+        expected(p) && break
+    end
+    return p
+end
+
 # Retry contention outside the deadlock timeout: another process may hold the profiling
 # hardware longer than the operation itself is allowed to take.
 function bounded(f; timeout=120)
@@ -578,8 +591,10 @@ end
 end
 
 @testset "raw metrics" begin
-    p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum", "smsp__average_warp_latency.ratio"] begin
-        @cuda threads=32 blocks=32 increment(a)
+    p = retry_inflated(p -> p.values[1, 1] == 32) do
+        CUDA.@metrics metrics=["smsp__warps_launched.sum", "smsp__average_warp_latency.ratio"] begin
+            @cuda threads=32 blocks=32 increment(a)
+        end
     end
     @test p.metrics == ["smsp__warps_launched.sum", "smsp__average_warp_latency.ratio"]
     @test p.values[1, 1] == 32
@@ -595,20 +610,16 @@ end
 end
 
 @testset "attribution" begin
-    # the number of warps uniquely identifies each launch. on MIG, the counters also include
-    # work that other processes run on the same GPU instance (a documented limitation of
-    # NVIDIA's profilers), which only ever adds warps to random ranges, so measure again
-    # when that happens. an attribution bug would show up in every attempt.
-    local p
-    for attempt in 1:5
-        p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum"] begin
+    # the number of warps uniquely identifies each launch
+    expected(p) = p.values[:, 1] == [grid.x for grid in p.kernels.grid]
+    p = retry_inflated(expected) do
+        CUDA.@metrics metrics=["smsp__warps_launched.sum"] begin
             @sync for task in 1:4
                 Threads.@spawn for i in 1:4
                     @cuda threads=32 blocks=10task+i increment(a)
                 end
             end
         end
-        p.values[:, 1] == [grid.x for grid in p.kernels.grid] && break
     end
     @test length(p.kernels.id) == 16
     @test p.values[:, 1] == [grid.x for grid in p.kernels.grid]
