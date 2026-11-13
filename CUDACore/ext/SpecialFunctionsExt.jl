@@ -5,7 +5,7 @@ module SpecialFunctionsExt
 using CUDACore
 using CUDACore: @device_override
 
-isdefined(Base, :get_extension) ? (using SpecialFunctions) : (using ..SpecialFunctions)
+using SpecialFunctions
 
 
 ## error

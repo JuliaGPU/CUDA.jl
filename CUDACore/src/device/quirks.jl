@@ -102,17 +102,6 @@ end
 @device_override @noinline Base.__throw_rational_argerror_zero(::Type{T}) where {T} =
     @gputhrow "ArgumentError" "invalid rational: 0//0"
 
-# Float vs Rational comparisons in Base use `widemul` of the decomposed components,
-# which produces Int128 and requires the `__divti3` / `__udivti3` compiler-rt routines
-# that NVPTX does not provide. Override with a float-conversion path; this loses some
-# precision when the rational cannot be represented exactly, but avoids Int128. (#2681)
-for op in (:(<), :(<=), :cmp)
-    @eval begin
-        @device_override Base.$op(x::AbstractFloat, q::Rational) = $op(x, float(q))
-        @device_override Base.$op(q::Rational, x::AbstractFloat) = $op(float(q), x)
-    end
-end
-
 # reshape.jl
 @device_override Base._throw_dmrs(n, str, dims) =
     @gputhrow "DimensionMismatch" "Dimensions mismatch when reshaping. New dimensions must be consistent with array size"

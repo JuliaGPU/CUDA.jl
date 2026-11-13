@@ -4,7 +4,7 @@ module ChainRulesCoreExt
 
 using CUDACore: CuArray
 
-isdefined(Base, :get_extension) ? (import ChainRulesCore) : (import ..ChainRulesCore)
+import ChainRulesCore
 
 ## support ChainRulesCore inplaceability
 

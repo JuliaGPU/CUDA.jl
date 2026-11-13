@@ -319,6 +319,4 @@ for (uuid, name) in (("76a88914-d11a-5bdc-97e0-2f5a05c973a2", "CUDA_Runtime_jll"
 end
 ```
 
-Finally, in such a scenario you may also want to call `CUDA.precompile_runtime()` to ensure
-that the GPUCompiler runtime library is precompiled as well. This and all of the above is
-demonstrated in the Dockerfile that's part of the CUDA.jl repository.
+All of the above is demonstrated in the Dockerfile that's part of the CUDA.jl repository.

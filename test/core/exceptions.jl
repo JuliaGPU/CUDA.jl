@@ -202,6 +202,29 @@ end
     end
 end
 
+@testset "exceptions of a kernel that ran before another one was loaded" begin
+    function failing_kernel(a)
+        a[2] = 1
+        return
+    end
+    loaded_later() = return
+
+    # loading the module of a new kernel reports the exception, which isn't a problem with
+    # the new kernel's image
+    logger = Test.TestLogger(; min_level=Base.CoreLogging.Warn)
+    out = exception_output() do
+        @cuda failing_kernel(CuArray([0]))
+        while !CUDACore.isdone(stream())
+            yield()
+        end
+        Base.CoreLogging.with_logger(logger) do
+            @cuda loaded_later()
+        end
+    end
+    @test count("BoundsError", out) == 1
+    @test isempty(logger.logs)
+end
+
 end
 
 if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS

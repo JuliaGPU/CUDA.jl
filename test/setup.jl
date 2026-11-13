@@ -52,9 +52,6 @@ function can_use_cupti()
     return true
 end
 
-# precompile the runtime library
-CUDA.precompile_runtime()
-
 # Cap the amount of memory the CUDA pool keeps cached after frees (default:
 # unbounded). Above this watermark, freed stream-ordered buffers go back to
 # the driver, which keeps each test's GPU RSS close to its peak live

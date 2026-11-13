@@ -4,7 +4,7 @@
 # The "CUDA hasn't been initialized yet" assertions only hold in a Julia
 # process that truly has a fresh runtime state, which isn't the case for us:
 # ParallelTestRunner's `init_worker_code` runs `setup.jl`, which already
-# touches `CUDA.functional`, `precompile_runtime`, the memory pool, etc.
+# touches `CUDA.functional`, the memory pool, etc.
 # Run the fresh-state checks in a subprocess.
 @testset "initialization semantics (subprocess)" begin
     script = """

@@ -443,32 +443,13 @@ end
 
 ## rounding and selection
 
-# TODO: differentiate in return type, map correctly
-#@device_override Base.round(x::Float64) = ccall("extern __nv_llround", llvmcall, Int64, (Cdouble,), x)
-#@device_override Base.round(x::Float32) = ccall("extern __nv_llroundf", llvmcall, Int64, (Cfloat,), x)
-#@device_override Base.round(x::Float64) = ccall("extern __nv_round", llvmcall, Cdouble, (Cdouble,), x)
-#@device_override Base.round(x::Float32) = ccall("extern __nv_roundf", llvmcall, Cfloat, (Cfloat,), x)
-
-# TODO: differentiate in return type, map correctly
-#@device_override Base.rint(x::Float64) = ccall("extern __nv_llrint", llvmcall, Int64, (Cdouble,), x)
-#@device_override Base.rint(x::Float32) = ccall("extern __nv_llrintf", llvmcall, Int64, (Cfloat,), x)
-#@device_override Base.rint(x::Float64) = ccall("extern __nv_rint", llvmcall, Cdouble, (Cdouble,), x)
-#@device_override Base.rint(x::Float32) = ccall("extern __nv_rintf", llvmcall, Cfloat, (Cfloat,), x)
-
-#@device_override Base.min(x::Int32, y::Int32) = ccall("extern __nv_min", llvmcall, Int32, (Int32, Int32), x, y)
-#@device_override Base.min(x::Int64, y::Int64) = ccall("extern __nv_llmin", llvmcall, Int64, (Int64, Int64), x, y)
-#@device_override Base.min(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umin", llvmcall, Int32, (Int32, Int32), x, y))
-#@device_override Base.min(x::UInt64, y::UInt64) = convert(UInt64, ccall("extern __nv_ullmin", llvmcall, Int64, (Int64, Int64), x, y))
-# JuliaGPU/CUDA.jl#2111: fmin semantics wrt. NaN and signed zeros don't match Julia's
-#@device_override Base.min(x::Float64, y::Float64) = ccall("extern __nv_fmin", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-#@device_override Base.min(x::Float32, y::Float32) = ccall("extern __nv_fminf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 # Julia's floating-point min/max match IEEE 754-2019 minimum/maximum, i.e.,
 # `llvm.minimum`/`llvm.maximum`, which the external back-end legalizes for every
 # subtarget: native min.NaN/max.NaN instructions on sm_80+, an expansion with
 # NaN/signed-zero fix-ups elsewhere. Don't be tempted to use `llvm.minnum`
 # (libdevice's `__nv_fmin`) with a NaN fix-up instead: its loose signed-zero
 # semantics leak into constant folding, e.g., folding `min(0.0, -0.0)` to
-# `0.0` where the host returns `-0.0`.
+# `0.0` where the host returns `-0.0` (#2111).
 # Julia 1.12+ lowers `Base.min` to `llvm.minimum` by itself; keep the overrides
 # for uniform codegen on older versions.
 @device_override Base.min(x::Float32, y::Float32) =
@@ -476,13 +457,6 @@ end
 @device_override Base.min(x::Float64, y::Float64) =
     ccall("llvm.minimum.f64", llvmcall, Float64, (Float64, Float64), x, y)
 
-#@device_override Base.max(x::Int32, y::Int32) = ccall("extern __nv_max", llvmcall, Int32, (Int32, Int32), x, y)
-#@device_override Base.max(x::Int64, y::Int64) = ccall("extern __nv_llmax", llvmcall, Int64, (Int64, Int64), x, y)
-#@device_override Base.max(x::UInt32, y::UInt32) = convert(UInt32, ccall("extern __nv_umax", llvmcall, Int32, (Int32, Int32), x, y))
-#@device_override Base.max(x::UInt64, y::UInt64) = convert(UInt64, ccall("extern __nv_ullmax", llvmcall, Int64, (Int64, Int64), x, y))
-# JuliaGPU/CUDA.jl#2111: fmax semantics wrt. NaN and signed zeros don't match Julia's
-#@device_override Base.max(x::Float64, y::Float64) = ccall("extern __nv_fmax", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
-#@device_override Base.max(x::Float32, y::Float32) = ccall("extern __nv_fmaxf", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
 @device_override Base.max(x::Float32, y::Float32) =
     ccall("llvm.maximum.f32", llvmcall, Float32, (Float32, Float32), x, y)
 @device_override Base.max(x::Float64, y::Float64) =

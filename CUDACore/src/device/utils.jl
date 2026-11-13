@@ -1,11 +1,7 @@
 # helpers for writing device functionality
 
 # local method table for device functions
-@static if isdefined(Base.Experimental, Symbol("@overlay"))
 Base.Experimental.@MethodTable(method_table)
-else
-const method_table = nothing
-end
 
 @public @device_override, @device_function, @device_functions
 
@@ -17,10 +13,8 @@ macro device_function(ex)
     esc(GPUToolbox.Overlays.device_function(__module__, GlobalRef(CUDACore, :method_table), ex))
 end
 
-# `device_function` also rewrites every definition in a block
-macro device_functions(ex)
-    esc(GPUToolbox.Overlays.device_function(__module__, GlobalRef(CUDACore, :method_table), ex))
-end
+# `@device_function` also rewrites every definition in a block; this name reads better there
+const var"@device_functions" = var"@device_function"
 
 ## alignment API
 

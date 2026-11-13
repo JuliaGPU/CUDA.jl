@@ -2,36 +2,20 @@
 
 @public precompile_runtime
 
-import Base.Sys: WORD_SIZE
+"""
+    precompile_runtime()
 
-# load or build the runtime for the most likely compilation jobs
-function precompile_runtime()
-    f = ()->return
-    mi = methodinstance(typeof(f), Tuple{})
+Does nothing; kept for backwards compatibility.
 
-    # `.cap` is now keyed by `SMVersion` and includes variants; runtime caches are
-    # feature_set-agnostic, so we only warm the baseline entries.
-    sms = filter(sm -> sm.feature_set === :baseline, llvm_compat().sm)
-    ptx = maximum(llvm_compat().ptx)
-    JuliaContext() do ctx
-        for sm in sms, debuginfo in [false, true]
-            # NOTE: this often runs when we don't have a functioning set-up,
-            #       so we don't use `compiler_config` which requires NVML
-            target = PTXCompilerTarget(; cap=base_version(sm), ptx, debuginfo)
-            params = CUDACompilerParams(; sm, ptx)
-            config = CompilerConfig(target, params)
-            job = CompilerJob(mi, config)
-            GPUCompiler.load_runtime(job)
-        end
-    end
-    return
-end
+This used to build GPUCompiler's runtime library ahead of time. GPUCompiler now builds that
+library on first use in each session, for the exact configuration of the kernel being
+compiled, and caches the functions it consists of together with the rest of the compiled
+code, so there is nothing left to prepare.
+"""
+precompile_runtime() = nothing
 
 
 ## exception handling
-
-# TODO: overloads in quirks.jl still do their own printing. maybe have them set an exception
-#       reason in the info structure/
 
 struct ExceptionInfo_st
     # whether an exception has been encountered (0 -> 1)

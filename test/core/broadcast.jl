@@ -93,4 +93,11 @@ end
     @test testf((x) -> 3 // 2 .<= x, rand(T, 4))
     @test testf((x) -> cmp.(x, 3 // 2), rand(T, 4))
   end
+
+  # the comparisons are exact, also when the rational isn't representable as a float
+  x = CuArray([1/3, 2.0^53])
+  q = CuArray([1//3, (2^53 + 1)//1])
+  @test Array(x .< q) == [true, true]
+  @test Array(q .<= x) == [false, false]
+  @test Array(cmp.(x, q)) == [-1, -1]
 end
