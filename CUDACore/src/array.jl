@@ -807,6 +807,10 @@ end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
+  # the CPU reads the memory right away, which can't observe operations being captured
+  # (copying device memory fails the same way, as the driver can't capture that copy)
+  check_capture(stream())
+
   # maintain stream-ordered semantics: even though the pointer conversion should sync when
   # needed, it's possible that misses captured memory, so ensure copying is always correct.
   synchronize(src)
