@@ -178,16 +178,6 @@ function __init__()
                  Please consider using an official build from https://julialang.org/downloads/."""
     end
 
-    # warn about old, deprecated environment variables
-    if haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER") && !local_toolkit
-        @error """JULIA_CUDA_USE_BINARYBUILDER is deprecated. Call `CUDA.jl.set_runtime_version!` to use a local toolkit."""
-        # we do not warn about this when we're already using the new preference,
-        # because during the transition clusters will be deploying both mechanisms.
-    end
-    if haskey(ENV, "JULIA_CUDA_VERSION")
-        @error """JULIA_CUDA_VERSION is deprecated. Call `CUDA.jl.set_runtime_version!` to use a different version."""
-    end
-
     if !local_toolkit
         # scan for CUDA libraries that may have been loaded from system paths
         # note that this must cover more that the libraries provided by the

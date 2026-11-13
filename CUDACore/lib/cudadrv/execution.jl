@@ -340,8 +340,6 @@ end
 
 ## host
 
-async_send(data::Ptr{Cvoid}) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), data)
-
 function launch(f::Base.Callable; stream::CuStream=stream())
     cond = Base.AsyncCondition() do async_cond
         f()
@@ -350,11 +348,8 @@ function launch(f::Base.Callable; stream::CuStream=stream())
 
     # the condition object is embedded in a task, so the Julia scheduler keeps it alive
 
-    # callback = @cfunction(async_send, Cint, (Ptr{Cvoid},))
-    # See https://github.com/JuliaGPU/CUDA.jl/issues/1314.
-    # and https://github.com/JuliaLang/julia/issues/43748
-    # TL;DR We are not allowed to cache `async_send` in the sysimage
-    # so instead let's just pull out the function pointer and pass it instead.
+    # pass libuv's function directly: a `@cfunction` wrapping it can't be cached in the
+    # sysimage (JuliaGPU/CUDA.jl#1314, JuliaLang/julia#43748)
     callback = cglobal(:uv_async_send)
     capture_submission(() -> cuLaunchHostFunc(stream, callback, cond), stream)
 end

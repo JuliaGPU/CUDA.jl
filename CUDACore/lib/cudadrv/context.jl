@@ -1,6 +1,6 @@
 # Context management
 
-export CuPrimaryContext, CuContext, current_context, has_context, activate,
+export CuPrimaryContext, CuContext, current_context, activate,
        unsafe_reset!, isactive, flags, setflags!, unique_id, api_version,
        device, device_synchronize
 @public unsafe_destroy!
@@ -193,9 +193,9 @@ function CuContext(f::Function, dev::CuDevice, args...)
 end
 
 function unique_id(ctx::CuContext)
-    id_ref = Ref{Culonglong}()
-    cuCtxGetId(ctx, id_ref)
-    return id_ref[]
+    # the identifier is queried when wrapping the handle; older drivers can't provide one
+    ctx.id == typemax(UInt64) && error("context identifiers require CUDA driver 12.0 or later")
+    return ctx.id
 end
 
 function api_version(ctx::CuContext)
@@ -333,12 +333,8 @@ typically you only need to call [`synchronize()`](@ref) which only synchronizes 
 associated with the current task.
 """
 function synchronize(ctx::CuContext)
-    push!(CuContext, ctx)
-    try
-        device_synchronize()
-    finally
-        pop!(CuContext)
-    end
+    # (pushing `ctx` would not do: driver calls activate the task's context, see `prepare_cuda_state`)
+    context!(device_synchronize, ctx)
 end
 
 # same, but without the context switch
