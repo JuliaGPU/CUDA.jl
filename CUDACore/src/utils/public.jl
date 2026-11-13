@@ -12,13 +12,14 @@ function _public_symbols(e::Expr)
     end
 end
 
-# Track CUDACore's public names so they can be discovered on Julia < 1.11. Other packages
-# use this macro too (the libraries in lib/), but their names are not CUDACore's.
+# On Julia < 1.11, record the public names of modules that define a `PUBLIC_NAMES` vector
+# before using this macro, so that they can be discovered (the CUDA.jl package forwards
+# those of CUDACore and CUDATools). The libraries in lib/ use the macro without one.
 const PUBLIC_NAMES = Symbol[]
 
 macro public(symbols_expr)
     syms = _public_symbols(symbols_expr)
-    __module__ === @__MODULE__() && append!(PUBLIC_NAMES, syms)
+    isdefined(__module__, :PUBLIC_NAMES) && append!(getfield(__module__, :PUBLIC_NAMES), syms)
     if VERSION >= v"1.11.0-DEV.469"
         esc(Expr(:public, syms...))
     else

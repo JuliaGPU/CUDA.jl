@@ -91,16 +91,7 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
 
     prepare_sass_generation()
 
-    # the callback runs while the driver holds locks, so it must not yield to tasks that
-    # may call into the driver. only copy the cubin, and disassemble it afterwards.
-    cubins = Vector{Cchar}[]
-    cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
-        # only process relevant callbacks
-        id == CUPTI.CUPTI_CBID_RESOURCE_MODULE_LOADED || return
-        resourceDescriptor =
-            unsafe_load(convert(Ptr{CUpti_ModuleResourceData}, data.resourceDescriptor))
-        push!(cubins, copy_cubin(resourceDescriptor))
-    end
+    cfg, cubins = capture_cubins(CUPTI.CUPTI_CBID_RESOURCE_MODULE_LOADED)
 
     compiled = CUDACore.compile(job)
     with_cupti_lock(CUPTI.callback_lock) do
@@ -108,7 +99,7 @@ function code_sass(io::IO, job::CompilerJob; raw::Bool=false)
                                                 compiled.relocations)
     end
 
-    for cubin in cubins
+    for (_, cubin) in cubins
         disassemble_cubin(io, cubin; raw)
     end
     return
@@ -117,41 +108,43 @@ end
 function code_sass(f::Base.Callable, io::IO=stdout; raw::Bool=false)
     prepare_sass_generation()
 
-    # as above, only copy the cubins in the callback
-    seen_modules = Set{UInt32}()
-    cubins = Vector{Cchar}[]
-    cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, id, data
-        # only process relevant callbacks
-        id == CUPTI.CUPTI_CBID_RESOURCE_MODULE_PROFILED || return
-        resourceDescriptor =
-            unsafe_load(convert(Ptr{CUpti_ModuleResourceData}, data.resourceDescriptor))
-
-        # only process each module once
-        if resourceDescriptor.moduleId in seen_modules
-            return
-        end
-        push!(seen_modules, resourceDescriptor.moduleId)
-
-        push!(cubins, copy_cubin(resourceDescriptor))
-    end
-
+    cfg, cubins = capture_cubins(CUPTI.CUPTI_CBID_RESOURCE_MODULE_PROFILED)
     try
         with_cupti_lock(CUPTI.callback_lock) do
             CUPTI.@enable! cfg f()
         end
     finally
-        for cubin in cubins
+        for (_, cubin) in cubins
             disassemble_cubin(io, cubin; raw)
         end
     end
     return
 end
 
-copy_cubin(desc::CUpti_ModuleResourceData) =
-    copy(unsafe_wrap(Vector{Cchar}, pointer(desc.pCubin), desc.cubinSize))
+# a CUPTI callback configuration that captures the cubin of every module the driver reports
+# with the resource callback `id`, and the vector it adds them to (as module ID => cubin, in
+# the order they were reported, once per module). the callback runs while the driver holds
+# locks, which disassembling or parsing the cubin may need, so it only copies the cubin. it
+# can run concurrently on several threads, but must not yield, so guard with a spin lock.
+function capture_cubins(id)
+    cubins = Pair{UInt32,Vector{UInt8}}[]
+    cubins_lock = Threads.SpinLock()
+    seen(module_id) = any(cubin -> cubin.first == module_id, cubins)
+    cfg = CUPTI.CallbackConfig([CUPTI.CUPTI_CB_DOMAIN_RESOURCE]) do domain, cbid, data
+        cbid == id || return
+        desc = unsafe_load(convert(Ptr{CUpti_ModuleResourceData}, data.resourceDescriptor))
+        @lock(cubins_lock, seen(desc.moduleId)) && return
+        cubin = copy(unsafe_wrap(Vector{UInt8}, Ptr{UInt8}(pointer(desc.pCubin)), desc.cubinSize))
+        @lock cubins_lock begin
+            seen(desc.moduleId) || push!(cubins, desc.moduleId => cubin)
+        end
+        return
+    end
+    return cfg, cubins
+end
 
 # disassemble a cubin to SASS
-function disassemble_cubin(io::IO, cubin::Vector{Cchar}; raw::Bool)
+function disassemble_cubin(io::IO, cubin::Vector{UInt8}; raw::Bool)
     # the line table records inlined frames since CUDA 11.2 (PTX ISA 7.2's `inlined_at`),
     # which is also when nvdisasm gained the option to print them
     lineinfo = if CUDACore.compiler_version() >= v"11.2"

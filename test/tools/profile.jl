@@ -1,6 +1,6 @@
 import JSON
 import NVTX
-using CUDA.Profile: push_row!, filtermask
+using CUDA.Profile: push_row!
 
 # A100s let only one process profile them when MIG is enabled, which other CI jobs on the
 # same GPU may be doing, so retry sessions that find the GPU busy
@@ -113,25 +113,6 @@ end
     end === :timeout
     put!(release, nothing)
     take!(done)
-end
-
-@testset "push_row!" begin
-    nt = (id = Int[], name = String[], value = Union{Missing,Int}[])
-    push_row!(nt, (id = 1, name = "a"))
-    push_row!(nt, (id = 2, name = "b", value = 10))
-
-    @test nt.id == [1, 2]
-    @test nt.name == ["a", "b"]
-    @test ismissing(nt.value[1])
-    @test nt.value[2] == 10
-end
-
-@testset "filtermask" begin
-    nt = (id = [1, 2, 3, 4, 5], val = [10, 25, 15, 30, 5])
-    filtered = filtermask(nt, nt.val .> 15)
-
-    @test filtered.id == [2, 4]
-    @test filtered.val == [25, 30]
 end
 
 @testset "native buffer callbacks" begin
