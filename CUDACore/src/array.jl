@@ -290,8 +290,9 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
   sz = prod(dims) * aligned_sizeof(T)
 
   # create a memory object
-  # owned memory may have been allocated from a pool, which needs to be freed differently
-  pooled = own && from_pool(ptr)
+  # memory from a pool is freed differently, and pooled host memory has no device address
+  # that `cuMemHostGetDevicePointer` knows of (it uses the same address on the device)
+  pooled = from_pool(ptr)
   mem = if M == UnifiedMemory
     UnifiedMemory(ctx, ptr, sz, pooled)
   elseif M == DeviceMemory
