@@ -11,6 +11,10 @@ n = 10
     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
     @test LAPACK.gesvd!('N', 'N', CuMatrix(A))[2] ≈ Σ
 
+    A_nan = copy(A)
+    A_nan[3, 4] = NaN
+    @test_throws LAPACKException cuSOLVER.gesvd!('S', 'S', CuMatrix(A_nan))
+
     for jobu in ('A', 'S', 'N', 'O')
         for jobvt in ('A', 'S', 'N', 'O')
             (jobu == 'A') && (jobvt == 'A') && continue
@@ -48,6 +52,35 @@ end
     else
         @test_throws ArgumentError svd(d_A; alg=alg)
     end
+end
+
+@testset "gesvdj convergence, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    A = CuArray(randn(elty, 64, 64))
+    @test_throws LAPACKException cuSOLVER.gesvdj!('V', true, copy(A); max_sweeps=2)
+end
+
+@testset "gesvdj with numerically zero singular values, elty = $elty" for
+    elty in [Float32, Float64, ComplexF32, ComplexF64]
+
+    # singular values decaying to 1e-20, so most of them are zero at working precision
+    n = 128
+    W = elty <: Complex ? ComplexF64 : Float64
+    Q(n) = Matrix(qr(randn(W, n, n)).Q)
+    s = [1e-20^((i - 1) / (n - 1)) for i in 1:n]
+    A = elty.(Q(n) * Diagonal(s) * Q(n)')
+    tol = 2000 * eps(real(elty))
+
+    U, S, V = svd(CuArray(A); alg=cuSOLVER.JacobiAlgorithm())
+    @test norm(collect(U) * Diagonal(collect(S)) * collect(V)' - A) / norm(A) < tol
+    @test collect(S) ≈ svdvals(A)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.JacobiAlgorithm())) ≈ svdvals(A)
+
+    # the default tolerance is reached in at most about 25 sweeps, a tolerance of eps
+    # often not in 100
+    U, S, V = cuSOLVER.gesvdj!('V', true, CuArray(A); max_sweeps=40)
+    @test norm(collect(U) * Diagonal(collect(S)) * collect(V)' - A) / norm(A) < tol
+    S = cuSOLVER.gesvdj!('N', true, CuArray(A); max_sweeps=40)[2]
+    @test collect(S) ≈ svdvals(A)
 end
 
 @testset "gesvdj workspace limit, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -112,6 +145,21 @@ end
     else
         @test_throws ArgumentError svd(d_A; alg=alg)
     end
+end
+
+@testset "gesvdaStridedBatched failure, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    A = rand(elty, 8, 8, 3)
+    A[:, end, 2] .= 0
+    # older versions return NaNs without reporting the failure
+    if cuSOLVER.version() >= v"11.7.3"
+        @test_throws LAPACKException svd(CuArray(A); alg=cuSOLVER.ApproximateAlgorithm())
+    end
+    # without singular vectors, and when asking for fewer singular values than the rank,
+    # the decomposition succeeds
+    S = svdvals(CuArray(A); alg=cuSOLVER.ApproximateAlgorithm())
+    @test collect(S[:, 2]) ≈ svdvals(A[:, :, 2])
+    U, S, V = cuSOLVER.gesvdaStridedBatched!('V', CuArray(A); rank=4)
+    @test collect(S[:, 2]) ≈ svdvals(A[:, :, 2])[1:4]
 end
 
 @testset "svd of $wrap($elty), uplo = $uplo" for

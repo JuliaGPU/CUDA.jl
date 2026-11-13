@@ -18,6 +18,21 @@ are listed as subsections of the minor release they belong to.
 CUDA.jl now supports CUDA 13.5, which becomes the default toolkit on systems with a
 CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
+*Technically breaking changes*:
+
+- cuSOLVER's SVD wrappers `gesvdj!`, `gesvdjBatched!` and `gesvdaStridedBatched!`, and
+  so `svd` and `svdvals` with `alg=JacobiAlgorithm()` or `alg=ApproximateAlgorithm()`,
+  throw a `LAPACKException` when the solver reports that it did not converge or failed,
+  instead of returning its output. `gesvdaStridedBatched!` fails, for example, to compute
+  the singular vectors of a matrix of rank lower than `rank`, and returned NaNs for them
+  (cuSOLVER reports this from CUDA 12.8; with older versions, the NaNs remain).
+  The default tolerance of the Jacobi wrappers is now `2*sqrt(max(m, n))*eps(real(T))`
+  instead of `eps(real(T))`, which matrices with (numerically) zero singular values
+  often could not reach: `gesvdj` then ran all 100 sweeps, taking several times as long,
+  and occasionally returned an inaccurate result. The old tolerance can resolve the
+  small singular values of graded matrices to a higher relative accuracy; pass
+  `tol=eps(real(T))` to `gesvdj!` for it.
+
 *New features*:
 
 - Added support for CUDA 13.5: the wrappers were regenerated, and the compatibility
