@@ -62,14 +62,10 @@ include("ops/normalization.jl")
 
 # fixed-function compatibility wrappers
 include("legacy/descriptors.jl")
-include("legacy/inplace.jl")
 include("legacy/optensor.jl")
-include("legacy/reduce.jl")
 include("legacy/convolution.jl")
 include("legacy/pooling.jl")
 include("legacy/activation.jl")
-include("legacy/multiheadattn.jl")
-include("legacy/normalization.jl")
 
 include("dropout.jl")
 include("rnn.jl")

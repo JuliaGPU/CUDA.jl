@@ -58,6 +58,10 @@ Fixed-function compatibility wrappers and tests live under `src/legacy` and `tes
 The graph and operation layers do not depend on them. Softmax, dropout, and RNN remain
 outside `legacy`.
 
+The fixed-function convolution wrappers (`cudnnConvolutionForward` and its gradients) are
+superseded by `convolution!`. They remain until cuDNN.jl 7 because NNlib 0.9.34 to 0.9.45
+use them.
+
 ## Debugging
 
 Start Julia with `JULIA_DEBUG=cuDNN`, or call `cuDNN.enable_logging()`, to report cuDNN's

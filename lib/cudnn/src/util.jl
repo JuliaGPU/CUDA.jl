@@ -1,11 +1,5 @@
 using BFloat16s: BFloat16
 
-# For low level cudnn functions that require a pointer to a number
-cptr(x,a::DenseCuArray{Float64})=Float64[x]
-cptr(x,a::DenseCuArray{Float32})=Float32[x]
-cptr(x,a::DenseCuArray{Float16})=Float32[x]
-cptr(x,a::DenseCuArray{BFloat16})=Float32[x]
-
 # Conversion between Julia and cuDNN datatypes
 cudnnDataType(::Type{Float16})=CUDNN_DATA_HALF
 cudnnDataType(::Type{Float32})=CUDNN_DATA_FLOAT
