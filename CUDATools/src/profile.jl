@@ -1014,9 +1014,11 @@ function report(host::NamedTuple, device::NamedTuple, nvtx::NamedTuple, trace::B
 
     ## the time every device was executing operations, and any of them was, counting
     ## operations that overlap (e.g. on different streams) only once
-    devices = map(sort(unique(device.device))) do dev
-        mask = device.device .== dev
-        (; device=dev, busy=busy_time(device.start[mask], device.stop[mask], trace_time))
+    devices = let device = device
+        map(sort(unique(device.device))) do dev
+            mask = device.device .== dev
+            (; device=dev, busy=busy_time(device.start[mask], device.stop[mask], trace_time))
+        end
     end
     device_busy = busy_time(device.start, device.stop, trace_time)
 
@@ -2063,11 +2065,11 @@ function trace_events(r::NamedTuple)
         pid = device_pid(device.device[i])
         key = (device.context[i], device.stream[i])
         tid = get!(streams, key) do
-            tid = length(streams) + 1
+            new_tid = length(streams) + 1
             label = length(contexts) > 1 ? "Stream $(key[2]) (context $(key[1]))" :
                                            "Stream $(key[2])"
-            metadata(pid, tid, "thread_name", "name" => label)
-            tid
+            metadata(pid, new_tid, "thread_name", "name" => label)
+            new_tid
         end
 
         id = device.id[i]
