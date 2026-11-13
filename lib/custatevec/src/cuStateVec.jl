@@ -77,8 +77,10 @@ function math_mode!(handle, mode, precision)
     end)
 end
 
-const LibraryState = @NamedTuple{handle::Handle, stream::CuStream, math_mode::CUDACore.MathMode, math_precision::Symbol}
-const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:CUQUANTUM)
+const state_cache = CUDACore.TaskLocalCache{CuContext, CUDACore.TaskHandleState{
+    Handle, Tuple{CuStream, Tuple{CUDACore.MathMode, Symbol}}}}(:CUQUANTUM)
+
+set_math_mode!(handle, (mode, precision)) = math_mode!(handle, mode, precision)
 
 """
     cuStateVec.handle()
@@ -90,46 +92,11 @@ mode or other settings. Its fields are not part of the API.
 """
 function handle()
     cuda = CUDACore.active_state()
-
-    states = CUDACore.task_dict(state_cache)
-
-    # get library state
-    @noinline function new_state(cuda)
-        new_handle = pop!(idle_handles, cuda.context)
-
-        cache = CuVector{UInt8}(undef, 0)
-        fat_handle = Handle(new_handle, cuda.context, cache)
-        CUDACore.handle_finalizer(handle_finalizer, fat_handle,
-                                  idle_handles, cuda.context, new_handle)
-
-        custatevecSetStream(new_handle, cuda.stream)
-        math_mode!(new_handle, cuda.math_mode, cuda.math_precision)
-
-        (; handle=fat_handle, cuda.stream, cuda.math_mode, cuda.math_precision)
+    CUDACore.task_handle(handle_finalizer, state_cache, idle_handles, cuda.context,
+                         (cuda.stream, (cuda.math_mode, cuda.math_precision)),
+                         (custatevecSetStream, set_math_mode!)) do raw
+        Handle(raw, cuda.context, CuVector{UInt8}(undef, 0))
     end
-    state = get!(state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
-    # update stream
-    @noinline function update_stream(cuda, state)
-        custatevecSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream, state.math_mode, state.math_precision)
-    end
-    if state.stream != cuda.stream
-        states[cuda.context] = state = update_stream(cuda, state)
-    end
-
-    # update math mode
-    @noinline function update_math_mode(cuda, state)
-        math_mode!(state.handle, cuda.math_mode, cuda.math_precision)
-        (; state.handle, state.stream, cuda.math_mode, cuda.math_precision)
-    end
-    if state.math_mode != cuda.math_mode || state.math_precision != cuda.math_precision
-        states[cuda.context] = state = update_math_mode(cuda, state)
-    end
-
-    return state.handle
 end
 
 

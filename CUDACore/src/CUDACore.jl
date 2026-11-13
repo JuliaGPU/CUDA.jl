@@ -81,6 +81,7 @@ include("pointer.jl")
 include("utils/call.jl")
 include("utils/reclaim.jl")
 include("utils/cache.jl")
+include("utils/task_handle.jl")
 include("utils/struct_size.jl")
 include("../lib/cudadrv/CUDAdrv.jl")
 

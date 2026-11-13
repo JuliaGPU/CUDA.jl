@@ -105,8 +105,8 @@ function dense_handle_finalizer(dh::DnHandle)
     push!(idle_dense_handles, dh.ctx, dh.handle)
 end
 
-const DenseLibraryState = @NamedTuple{handle::DnHandle, stream::CuStream}
-const dense_state_cache = CUDACore.TaskLocalCache{CuContext, DenseLibraryState}(:CUSOLVER_dense)
+const dense_state_cache = CUDACore.TaskLocalCache{CuContext,
+    CUDACore.TaskHandleState{DnHandle, Tuple{CuStream}}}(:CUSOLVER_dense)
 
 """
     cuSOLVER.dense_handle()
@@ -118,39 +118,11 @@ other settings. Its fields are not part of the API.
 """
 function dense_handle()
     cuda = CUDACore.active_state()
-
-    states = CUDACore.task_dict(dense_state_cache)
-
-    # get library state
-    @noinline function new_state(cuda)
-        new_handle = pop!(idle_dense_handles, cuda.context)
-
-        workspace_gpu = CuVector{UInt8}(undef, 0)
-        workspace_cpu = Vector{UInt8}(undef, 0)
-        info = CuVector{Cint}(undef, 1)
-        fat_handle = DnHandle(new_handle, cuda.context, workspace_gpu,
-                                      workspace_cpu, info)
-        CUDACore.handle_finalizer(dense_handle_finalizer, fat_handle,
-                                  idle_dense_handles, cuda.context, new_handle)
-
-        cusolverDnSetStream(new_handle, cuda.stream)
-
-        (; handle=fat_handle, cuda.stream)
+    CUDACore.task_handle(dense_handle_finalizer, dense_state_cache, idle_dense_handles,
+                         cuda.context, (cuda.stream,), (cusolverDnSetStream,)) do raw
+        DnHandle(raw, cuda.context, CuVector{UInt8}(undef, 0), Vector{UInt8}(undef, 0),
+                 CuVector{Cint}(undef, 1))
     end
-    state = get!(dense_state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
-    # update stream
-    @noinline function update_stream(cuda, state)
-        cusolverDnSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream)
-    end
-    if state.stream != cuda.stream
-        states[cuda.context] = state = update_stream(cuda, state)
-    end
-
-    return state.handle
 end
 
 
@@ -182,39 +154,15 @@ function sparse_handle_finalizer(sh::SpHandle)
     push!(idle_sparse_handles, sh.ctx, sh.handle)
 end
 
-const SparseLibraryState = @NamedTuple{handle::SpHandle, stream::CuStream}
-const sparse_state_cache = CUDACore.TaskLocalCache{CuContext, SparseLibraryState}(:CUSOLVER_sparse)
+const sparse_state_cache = CUDACore.TaskLocalCache{CuContext,
+    CUDACore.TaskHandleState{SpHandle, Tuple{CuStream}}}(:CUSOLVER_sparse)
 
 function sparse_handle()
     cuda = CUDACore.active_state()
-
-    states = CUDACore.task_dict(sparse_state_cache)
-
-    # get or create handle
-    @noinline function new_state(cuda)
-        new_handle = pop!(idle_sparse_handles, cuda.context)
-        wrapped = SpHandle(new_handle, cuda.context)
-        CUDACore.handle_finalizer(sparse_handle_finalizer, wrapped,
-                                  idle_sparse_handles, cuda.context, new_handle)
-
-        cusolverSpSetStream(new_handle, cuda.stream)
-
-        (; handle=wrapped, cuda.stream)
+    CUDACore.task_handle(sparse_handle_finalizer, sparse_state_cache, idle_sparse_handles,
+                         cuda.context, (cuda.stream,), (cusolverSpSetStream,)) do raw
+        SpHandle(raw, cuda.context)
     end
-    state = get!(sparse_state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
-    # update stream
-    @noinline function update_stream(cuda, state)
-        cusolverSpSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream)
-    end
-    if state.stream != cuda.stream
-        states[cuda.context] = state = update_stream(cuda, state)
-    end
-
-    return state.handle
 end
 
 

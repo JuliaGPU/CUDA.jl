@@ -128,39 +128,15 @@ function handle_finalizer(h::Handle)
     push!(idle_handles, h.ctx, PooledHandle(h.handle, h.plans, h.dropout))
 end
 
-const LibraryState = @NamedTuple{handle::Handle, stream::CuStream}
-const state_cache = CUDACore.TaskLocalCache{CuContext, LibraryState}(:cuDNN)
+const state_cache =
+    CUDACore.TaskLocalCache{CuContext, CUDACore.TaskHandleState{Handle, Tuple{CuStream}}}(:cuDNN)
 
 function handle()
     cuda = CUDACore.active_state()
-
-    states = CUDACore.task_dict(state_cache)
-
-    # get library state
-    @noinline function new_state(cuda)
-        pooled = pop!(idle_handles, cuda.context)
-        wrapped = Handle(pooled.handle, cuda.context, pooled.plans, pooled.dropout)
-        CUDACore.handle_finalizer(handle_finalizer, wrapped,
-                                  idle_handles, cuda.context, pooled)
-
-        cudnnSetStream(pooled.handle, cuda.stream)
-
-        (; handle=wrapped, cuda.stream)
+    CUDACore.task_handle(handle_finalizer, state_cache, idle_handles, cuda.context,
+                         (cuda.stream,), (cudnnSetStream,)) do pooled
+        Handle(pooled.handle, cuda.context, pooled.plans, pooled.dropout)
     end
-    state = get!(state_cache, cuda.context) do
-        new_state(cuda)
-    end
-
-    # update stream
-    @noinline function update_stream(cuda, state)
-        cudnnSetStream(state.handle, cuda.stream)
-        (; state.handle, cuda.stream)
-    end
-    if state.stream != cuda.stream
-        states[cuda.context] = state = update_stream(cuda, state)
-    end
-
-    return state.handle
 end
 
 
