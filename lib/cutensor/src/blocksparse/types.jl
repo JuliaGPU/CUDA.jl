@@ -124,7 +124,7 @@ function unsafe_destroy!(obj::CuTensorBSDescriptor)
     cutensorDestroyBlockSparseTensorDescriptor(obj)
 end
 
-## Descriptor function for CuTensorBS type. Please overwrite for custom objects
+## Descriptor function for CuTensorBS type
 function CuTensorBSDescriptor(A::CuTensorBS)
     numModes = ndims(A)
     numNonZeroBlocks = length(A.nonzero_block_coords)

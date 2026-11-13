@@ -29,11 +29,6 @@ function GPUArrays._sptranspose(A::CuSparseMatrixCOO)
     sparse(A.colInd, A.rowInd, A.nzVal, reverse(size(A))..., fmt = :coo)
 end
 
-function mv_wrapper(transa::SparseChar, alpha::Number, A::CuSparseMatrix, X::DenseCuVector{T},
-                    beta::Number, Y::CuVector{T}) where {T}
-    mv!(transa, alpha, A, X, beta, Y)
-end
-
 # element types accepted by cuSPARSE's generic SpMV/SpMM API (`mv!`, `mm!`, `bmm!`).
 # half-precision types are not in `BlasFloat` because CPU BLAS doesn't support them;
 # cuSPARSE handles them by accumulating in Float32/ComplexF32 (see `mv!` in generic.jl).
@@ -118,14 +113,14 @@ function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix
     tA, A = unwrap_symmherm(tA, A)
     A′ = Ta <: SpMatMulFloat ? A : sparse_with_eltype(A, Tc)
     B′ = Tb === Tc ? B : convert(CuVector{Tc}, B)
-    mv_wrapper(tA, alpha, A′, B′, beta, C)
+    mv!(tA, alpha, A′, B′, beta, C)
 end
 
 function LinearAlgebra.mul!(C::CuVector{Tc}, tA::AbstractChar, A::CuSparseMatrix{Ta}, B::CuSparseVector{Tb}, alpha::Number, beta::Number) where {Tc <: SpMatMulFloat, Ta <: Number, Tb <: Number}
     tA, A = unwrap_symmherm(tA, A)
     A′ = Ta <: SpMatMulFloat ? A : sparse_with_eltype(A, Tc)
     B′ = Tb <: SpMatMulFloat ? B : sparse_with_eltype(B, Tc)
-    mv_wrapper(tA, alpha, A′, CuVector{Tc}(B′), beta, C)
+    mv!(tA, alpha, A′, CuVector{Tc}(B′), beta, C)
 end
 
 # mm! requires all three operands to share an eltype, so promote A and B to match C.

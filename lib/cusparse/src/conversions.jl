@@ -595,8 +595,7 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                      (:cusparseZcsr2bsr, :ComplexF64))
     @eval begin
         function CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty, Ti}, blockDim::Integer;
-                                          dir::SparseChar='R', index::SparseChar='O',
-                                          indc::SparseChar='O') where {Ti}
+                                          dir::SparseChar='R', index::SparseChar='O') where {Ti}
             m,n = size(csr)
             mb = cld(m, blockDim)
             nb = cld(n, blockDim)
@@ -604,7 +603,7 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
             # the result is unambiguously empty, so construct it directly.
             if iszero(m) || iszero(n)
                 bsrRowPtr = CuArray{Ti}(undef, mb + 1)
-                bsrRowPtr .= (indc == 'O' ? one(Ti) : zero(Ti))
+                bsrRowPtr .= one(Ti)
                 bsrColInd = CuArray{Ti}(undef, 0)
                 bsrNzVal  = CuArray{$elty}(undef, 0)
                 return CuSparseMatrixBSR{$elty, Ti}(bsrRowPtr, bsrColInd, bsrNzVal, size(csr), blockDim, dir, 0)
@@ -615,7 +614,7 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
             nnz_ref = Ref{Cint}(1)
             bsrRowPtr = CUDACore.zeros(Cint, mb + 1)
             cudesca = CuMatrixDescriptor('G', 'L', 'N', index)
-            cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
+            cudescc = CuMatrixDescriptor('G', 'L', 'N', 'O')
             cusparseXcsr2bsrNnz(handle(), dir, m, n, cudesca, csrRowPtr,
                                 csrColInd, blockDim, cudescc, bsrRowPtr, nnz_ref)
             (nnz_ref[] > mb * nb) && error("The number of nonzero blocks of the BSR matrix is incorrect.")
@@ -636,19 +635,19 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                      (:cusparseZbsr2csr, :ComplexF64))
     @eval begin
         function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty, Ti};
-                                          index::SparseChar='O', indc::SparseChar='O') where {Ti}
+                                          index::SparseChar='O') where {Ti}
             m,n = size(bsr)
             mb = cld(m, bsr.blockDim)
             nb = cld(n, bsr.blockDim)
             check_cint_indices("BSR to CSR conversion", widemul(mb, bsr.blockDim),
                                widemul(nb, bsr.blockDim), widemul(bsr.nnzb, widemul(bsr.blockDim, bsr.blockDim)) + 1)
             cudesca = CuMatrixDescriptor('G', 'L', 'N', index)
-            cudescc = CuMatrixDescriptor('G', 'L', 'N', indc)
+            cudescc = CuMatrixDescriptor('G', 'L', 'N', 'O')
             csrRowPtr = CuArray{Cint}(undef, m + 1)
             # cusparse*bsr2csr does not initialize csrRowPtr when the block grid
             # is empty; pre-fill with the empty-matrix sentinel.
             if iszero(mb) || iszero(nb)
-                csrRowPtr .= (indc == 'O' ? one(Cint) : zero(Cint))
+                csrRowPtr .= one(Cint)
             end
             csrColInd = CUDACore.zeros(Cint, nnz(bsr))
             csrNzVal  = CUDACore.zeros($elty, nnz(bsr))
@@ -670,7 +669,7 @@ for (elty, felty) in ((:Int16, :Float16),
                       (:Int128, :ComplexF64))
     @eval begin
         function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty, Ti};
-                                          index::SparseChar='O', indc::SparseChar='O') where {Ti}
+                                          index::SparseChar='O') where {Ti}
             bsr_compat = CuSparseMatrixBSR{$felty, Ti}(
                 bsr.rowPtr,
                 bsr.colVal,
@@ -680,7 +679,7 @@ for (elty, felty) in ((:Int16, :Float16),
                 bsr.dir,
                 bsr.nnzb
             )
-            csr_compat = CuSparseMatrixCSR{$felty}(bsr_compat; index, indc)
+            csr_compat = CuSparseMatrixCSR{$felty}(bsr_compat; index)
             CuSparseMatrixCSR{$elty, Ti}(
                 csr_compat.rowPtr,
                 csr_compat.colVal,
@@ -801,9 +800,8 @@ function CuSparseMatrixCSC(A::CuMatrix{T}; index::SparseChar='O', sorted::Bool=f
     return csc
 end
 
-function CUDACore.CuMatrix{T}(bsr::CuSparseMatrixBSR{T, Ti}; index::SparseChar='O',
-                          indc::SparseChar='O') where {T, Ti}
-    CuMatrix{T}(CuSparseMatrixCSR{T}(bsr; index, indc))
+function CUDACore.CuMatrix{T}(bsr::CuSparseMatrixBSR{T, Ti}; index::SparseChar='O') where {T, Ti}
+    CuMatrix{T}(CuSparseMatrixCSR{T}(bsr; index))
 end
 
 function CuSparseMatrixBSR(A::CuMatrix, blockDim::Integer=max(gcd(size(A)...), 1); index::SparseChar='O')
