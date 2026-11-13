@@ -28,17 +28,18 @@ using CUDA
 CUDA.versioninfo()
 ```
 
-If you want to ensure everything works as expected, you can execute the test suite. Note that
-this test suite is fairly exhaustive, taking around an hour to complete when using a single thread
-(multiple processes are used automatically based on the number of threads Julia is started with),
-and requiring significant amounts of CPU and GPU memory.
+If you want to ensure everything works as expected, you can execute the test suite. By
+default, it runs the core tests, which take a while and require significant amounts of CPU
+and GPU memory. Tests are run in several worker processes, the number of which is based on
+the number of CPU threads and the amount of free GPU memory. Pass `--all` to also test the
+library wrappers, or name the tests to run:
 
 ```julia
 using Pkg
 Pkg.test("CUDA")
 
 # the test suite takes command-line options that allow customization; pass --help for details:
-#Pkg.test("CUDA"; test_args=`--help`)
+#Pkg.test("CUDA"; test_args=["--help"])
 ```
 
 For more details on the installation process, consult the [Installation](@ref

@@ -20,8 +20,9 @@ include(joinpath(@__DIR__, "setup.jl"))
 # the tests likely to be affected by changes to either. The groups overlap, and without
 # positional arguments the `julia` group is run.
 const test_groups = Dict(
-    # everything but the library tests, which mostly exercise the toolkit
-    "julia" => ["core", "tools", "gpuarrays", "shim"],
+    # everything but the library tests, which mostly exercise the toolkit, and the
+    # extensions that need packages missing from test/Project.toml (tested separately)
+    "julia" => ["core", "tools", "gpuarrays", "shim", "extensions/staticarrays"],
     # what depends on the toolkit beyond its compiler: the libraries, CUPTI (profiling and
     # SASS reflection), toolkit discovery, and loading and linking modules
     "cuda" => ["libraries", "tools", "core/initialization", "core/cudadrv", "core/codegen"],

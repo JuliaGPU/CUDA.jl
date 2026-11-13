@@ -25,7 +25,7 @@ end
 
 ## default RNG: task-local cached GPUArrays.RNG{CuArray} (the fast Philox4x32-10
 ## batched-kernel RNG). Used by Random.rand!/randn!(::AnyCuArray) when no rng
-## is supplied, and exposed via CUDA.RNG / CUDA.gpuarrays_rng().
+## is supplied, and exposed via CUDA.RNG / cuRAND.gpuarrays_rng().
 
 const gpuarrays_state_cache = CUDACore.TaskLocalCache{CuContext, GPUArrays.RNG{CuArray}}(:cuRAND_DefaultRNG)
 

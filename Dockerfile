@@ -15,7 +15,7 @@ ENV JULIA_CPU_TARGET=${JULIA_CPU_TARGET}
 
 ARG CUDA_VERSION=12.6
 
-ARG PACKAGE_REF=master
+ARG PACKAGE_REF=main
 
 LABEL org.opencontainers.image.authors="Tim Besard <tim.besard@gmail.com>" \
       org.opencontainers.image.description="A CUDA.jl container with CUDA ${CUDA_VERSION} and Julia ${JULIA_VERSION}" \
