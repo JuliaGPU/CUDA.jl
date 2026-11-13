@@ -9,30 +9,10 @@ function cublasCreate()
   handle_ref[]
 end
 
-function cublasGetVersion(handle)
-  version = Ref{Cint}()
-  cublasGetVersion_v2(handle, version)
-  major, ver = divrem(version[], 10000)
-  minor, patch = divrem(ver, 100)
-  VersionNumber(major, minor, patch)
-end
-
 function cublasXtCreate()
   handle_ref = Ref{cublasXtHandle_t}()
   cublasXtCreate(handle_ref)
   handle_ref[]
-end
-
-function cublasXtGetBlockDim(handle)
-  bd = Ref{Int}()
-  cublasXtGetBlockDim(handle, bd)
-  bd[]
-end
-
-function cublasXtGetPinningMemMode(handle)
-  mm = Ref{cublasXtPinningMemMode_t}()
-  cublasXtGetPinningMemMode(handle, mm)
-  mm[]
 end
 
 function cublasGetProperty(property::libraryPropertyType)
@@ -1929,21 +1909,6 @@ function gemm_grouped_batched(transA::Union{Char, Vector{Char}},
                               A::Vector{<:StridedCuMatrix{T}},
                               B::Vector{<:StridedCuMatrix{T}}; kwargs...) where {T}
     gemm_grouped_batched(transA, transB, one(T), A, B; kwargs...)
-end
-
-# the `Ex` wrappers predate support for mixed element types in the regular ones
-function gemmEx!(transA::Char, transB::Char, alpha, A, B, beta, C; kwargs...)
-    Base.depwarn("`gemmEx!` is deprecated, use `gemm!` instead.", :gemmEx!)
-    gemm!(transA, transB, alpha, A, B, beta, C; kwargs...)
-end
-function gemmBatchedEx!(transA::Char, transB::Char, alpha, A, B, beta, C; kwargs...)
-    Base.depwarn("`gemmBatchedEx!` is deprecated, use `gemm_batched!` instead.", :gemmBatchedEx!)
-    gemm_batched!(transA, transB, alpha, A, B, beta, C; kwargs...)
-end
-function gemmStridedBatchedEx!(transA::Char, transB::Char, alpha, A, B, beta, C; kwargs...)
-    Base.depwarn("`gemmStridedBatchedEx!` is deprecated, use `gemm_strided_batched!` instead.",
-                 :gemmStridedBatchedEx!)
-    gemm_strided_batched!(transA, transB, alpha, A, B, beta, C; kwargs...)
 end
 
 ## (Sy) symmetric matrix-matrix and matrix-vector multiplication

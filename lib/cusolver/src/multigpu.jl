@@ -4,21 +4,13 @@
 
 # auxiliary functionality
 
-# NOTE: in the cublasMg preview, which also relies on this functionality, a separate library
-#       called 'cudalibmg' is introduced. factor this out when we actually ship that.
-
 function allocateBuffers(n_row_devs, n_col_devs, mat::Matrix)
     mat_row_block_size = div(size(mat, 1), n_row_devs)
     mat_col_block_size = div(size(mat, 2), n_col_devs)
     mat_buffers  = Vector{CuMatrix{eltype(mat)}}(undef, mg_ndevices())
-    mat_numRows  = Vector{Int64}(undef, mg_ndevices())
-    mat_numCols  = Vector{Int64}(undef, mg_ndevices())
-    typesize = sizeof(eltype(mat))
-    ldas = Vector{Int64}(undef, mg_ndevices())
     current_dev = device()
     mat_cpu_bufs = Vector{Matrix{eltype(mat)}}(undef, mg_ndevices())
-    for (di, dev) in enumerate(mg_devices())
-        ldas[di]    = mat_col_block_size
+    for di in 1:mg_ndevices()
         dev_row     = mod(di - 1, n_row_devs) + 1
         dev_col     = div(di - 1, n_row_devs) + 1
 
@@ -40,12 +32,9 @@ function allocateBuffers(n_row_devs, n_col_devs, mat::Matrix)
     return mat_buffers
 end
 
-function returnBuffers(n_row_devs, n_col_devs, row_block_size, col_block_size, dDs, D)
+function returnBuffers(n_row_devs, n_col_devs, dDs, D)
     row_block_size = div(size(D, 1), n_row_devs)
     col_block_size = div(size(D, 2), n_col_devs)
-    numRows  = [row_block_size for dev in 1:mg_ndevices()]
-    numCols  = [col_block_size for dev in 1:mg_ndevices()]
-    typesize = sizeof(eltype(D))
     current_dev = device()
     cpu_bufs = Vector{Matrix{eltype(D)}}(undef, mg_ndevices())
     for (di, dev) in enumerate(mg_devices())
@@ -103,7 +92,7 @@ function mg_syevd!(jobz::Char, uplo::Char, A; dev_rows=1, dev_cols=mg_ndevices()
         cusolverMgSyevd(mg_handle(), jobz, uplo, n, pointer.(A_arr), IA, JA, desc, W, real(eltype(A)), eltype(A), pointer.(workspace), lwork[], info)
     end
     chkargsok(BlasInt(info[]))
-    A = returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
+    A = returnBuffers(dev_rows, dev_cols, A_arr, A)
     if jobz == 'N'
         return W
     elseif jobz == 'V'
@@ -140,7 +129,7 @@ function mg_potrf!(uplo::Char, A; dev_rows=1, dev_cols=mg_ndevices()) # one host
     end
     chkargsok(BlasInt(info[]))
 
-    returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
+    returnBuffers(dev_rows, dev_cols, A_arr, A)
 end
 
 function mg_potri!(uplo::Char, A; dev_rows=1, dev_cols=mg_ndevices()) # one host-side array A
@@ -172,7 +161,7 @@ function mg_potri!(uplo::Char, A; dev_rows=1, dev_cols=mg_ndevices()) # one host
     end
     chkargsok(BlasInt(info[]))
 
-    returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
+    returnBuffers(dev_rows, dev_cols, A_arr, A)
 end
 
 function mg_potrs!(uplo::Char, A, B; dev_rows=1, dev_cols=mg_ndevices()) # one host-side array A
@@ -210,7 +199,7 @@ function mg_potrs!(uplo::Char, A, B; dev_rows=1, dev_cols=mg_ndevices()) # one h
     end
     chkargsok(BlasInt(info[]))
 
-    returnBuffers(dev_rows, dev_cols, div(size(B, 1), dev_rows), div(size(B, 2), dev_cols), B_arr, B)
+    returnBuffers(dev_rows, dev_cols, B_arr, B)
 end
 
 function mg_getrf!(A; dev_rows=1, dev_cols=mg_ndevices()) # one host-side array A
@@ -248,7 +237,7 @@ function mg_getrf!(A; dev_rows=1, dev_cols=mg_ndevices()) # one host-side array 
     device_synchronize()
     chkargsok(BlasInt(info[]))
 
-    A = returnBuffers(dev_rows, dev_cols, div(size(A, 1), dev_rows), div(size(A, 2), dev_cols), A_arr, A)
+    A = returnBuffers(dev_rows, dev_cols, A_arr, A)
     ipiv = Vector{Int}(undef, n)
     for (di, dev) in enumerate(mg_devices())
         device!(dev)
@@ -298,5 +287,5 @@ function mg_getrs!(trans, A, ipiv, B; dev_rows=1, dev_cols=mg_ndevices()) # one 
     end
     chkargsok(BlasInt(info[]))
 
-    returnBuffers(dev_rows, dev_cols, div(size(B, 1), dev_rows), div(size(B, 2), dev_cols), B_arr, B)
+    returnBuffers(dev_rows, dev_cols, B_arr, B)
 end

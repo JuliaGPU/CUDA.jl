@@ -512,14 +512,13 @@ LinearAlgebra.generic_mattridiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Fu
         trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(B), C === A ? C : copyto!(C, A))
     end
 
-# Matrix inverse
-for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
-    (:UnitLowerTriangular, 'L', 'U'),
-    (:UpperTriangular, 'U', 'N'),
-    (:UnitUpperTriangular, 'U', 'U'))
-    @eval function LinearAlgebra.inv(x::$t{T, <:CuMatrix{T}}) where T<:CublasFloat
-        out = CuArray{T}(I(size(x,1)))
-        $t(LinearAlgebra.ldiv!(x, out))
+# Triangular inverse, as a solve against the identity. cuSOLVER's trtri does a third of the
+# flops, but needs CUDA 11.4 and only wins on large flop-bound problems (e.g. Float64 at
+# n=4096 on a consumer GPU); for smaller or single-precision matrices trsm is faster.
+for t in (:LowerTriangular, :UnitLowerTriangular, :UpperTriangular, :UnitUpperTriangular)
+    @eval function LinearAlgebra.inv(x::$t{T, <:StridedCuMatrix{T}}) where T<:CublasFloat
+        n = LinearAlgebra.checksquare(x)
+        $t(LinearAlgebra.ldiv!(x, CuMatrix{T}(I, n, n)))
     end
 end
 
@@ -553,36 +552,6 @@ end
 
 function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::CuMatrix{T}) where {T<:CublasFloat}
     return dgmm!('L', B, A.diag, C)
-end
-
-function LinearAlgebra.mul!(C::CuMatrix{T}, A::Transpose{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
-    C .= A
-    C .*= transpose(B.diag)
-    return C
-end
-
-function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Transpose{T,<:CuMatrix}) where {T<:CublasFloat}
-    C .= B
-    C .*= A.diag
-    return C
-end
-
-function LinearAlgebra.mul!(C::CuMatrix{T}, A::Adjoint{T,<:CuMatrix}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
-    C .= A
-    C .*= transpose(B.diag)
-    return C
-end
-
-function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::Adjoint{T,<:CuMatrix}) where {T<:CublasFloat}
-    C .= B
-    C .*= A.diag
-    return C
-end
-
-function LinearAlgebra.mul!(C::Diagonal{T, <:CuVector}, A::Union{<:CuMatrix{T}, Adjoint{T, <:CuMatrix}, Transpose{T, <:CuMatrix}}, B::Union{<:CuMatrix{T}, Adjoint{T, <:CuMatrix}, Transpose{T, <:CuMatrix}}) where {T<:CublasFloat}
-    Cfull   = A*B
-    C.diag .= diag(Cfull)
-    return C
 end
 
 function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix{T}) where {T<:CublasFloat}

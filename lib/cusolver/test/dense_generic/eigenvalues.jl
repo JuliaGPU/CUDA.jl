@@ -72,20 +72,6 @@ if cuSOLVER.version() >= v"11.7.1"
     end
 end
 
-@testset "syevd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    for uplo in ('L', 'U')
-        A = rand(elty, n, n)
-        B = A + A'
-        A = uplo == 'L' ? tril(B) : triu(B)
-        d_A = CuMatrix(A)
-        W, V = cuSOLVER.syevd!('V', uplo, d_A)
-        @test B ≈ collect(V * Diagonal(W) * V')
-
-        d_A = CuMatrix(A)
-        d_W = cuSOLVER.syevd!('N', uplo, d_A)
-    end
-end
-
 # the 64-bit generic API requires cuSOLVER 11 or later
 if cuSOLVER.version() >= v"11"
     @testset "syevdx! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]

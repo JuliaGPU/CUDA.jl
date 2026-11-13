@@ -58,14 +58,6 @@ end
     end
 end
 
-@testset "geqrf! -- orgqr! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    A = rand(elty, m, n)
-    d_A = CuMatrix(A)
-    d_A, tau = cuSOLVER.geqrf!(d_A)
-    cuSOLVER.orgqr!(d_A, tau)
-    @test collect(d_A' * d_A) ≈ I
-end
-
 if cuSOLVER.version() >= v"11.6.0"
     @testset "larft! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "direct = $direct" for direct in ('F', 'B')

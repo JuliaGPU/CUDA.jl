@@ -5,23 +5,6 @@ m = 15
 n = 10
 
 if cuSOLVER.version() >= v"11"
-@testset "gesvd! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    A = rand(elty, m, n)
-    d_A = CuMatrix(A)
-    U, Σ, Vt = cuSOLVER.gesvd!('A', 'A', d_A)
-    @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
-
-    for jobu in ('A', 'S', 'N', 'O')
-        for jobvt in ('A', 'S', 'N', 'O')
-            (jobu == 'A') && (jobvt == 'A') && continue
-            (jobu == 'O') && (jobvt == 'O') && continue
-            d_A = CuMatrix(A)
-            U2, Σ2, Vt2 = cuSOLVER.gesvd!(jobu, jobvt, d_A)
-            @test Σ ≈ Σ2
-        end
-    end
-end
-
 @testset "gesvdp! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     # nrows > ncols
     A = rand(elty, m, n)

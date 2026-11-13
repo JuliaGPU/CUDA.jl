@@ -13,8 +13,8 @@ n = 10
         @test Array(dI) ≈ I
     end
 
-    # inv(::Symmetric) and inv(::Triangular) go through cuSOLVER's 64-bit generic
-    # sytrs and trtri, which require cuSOLVER 11 or later
+    # inv(::Symmetric) goes through cuSOLVER's 64-bit generic sytrs, which requires
+    # cuSOLVER 11 or later
     if cuSOLVER.version() >= v"11"
         @testset "symmetric" begin
             A = rand(elty, n, n)
@@ -23,19 +23,6 @@ n = 10
             dA⁻¹ = inv(dA)
             dI = dA.data * dA⁻¹
             @test Array(dI) ≈ I
-        end
-
-        @testset "triangular" begin
-            for (triangle, uplo, diag) in ((LowerTriangular, 'L', 'N'), (UnitLowerTriangular, 'L', 'U'),
-                                           (UpperTriangular, 'U', 'N'), (UnitUpperTriangular, 'U', 'U'))
-                A = rand(elty, n, n)
-                A = uplo == 'L' ? tril(A) : triu(A)
-                A = diag == 'N' ? A : A - Diagonal(A) + I
-                dA = triangle(view(CuArray(A), 1:2:n, 1:2:n)) # without this view, we are hitting the CUBLAS method!
-                dA⁻¹ = inv(dA)
-                hI = triangle(Array(parent(dA))) * Array(parent(dA⁻¹))
-                @test hI ≈ I
-            end
         end
     end
 end

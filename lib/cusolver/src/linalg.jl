@@ -81,7 +81,8 @@ end
 _zeros(::Type{T}, b::AbstractVector, n::Integer) where {T} = CUDACore.zeros(T, max(length(b), n))
 _zeros(::Type{T}, B::AbstractMatrix, n::Integer) where {T} = CUDACore.zeros(T, max(size(B, 1), n), size(B, 2))
 function Base.:\(F::Union{LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray},
-                          Adjoint{<:Any,<:LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray}}},
+                          LinearAlgebra.AdjointFactorization{<:Any,<:LinearAlgebra.LAPACKFactorizations{<:Any,<:CuArray}},
+                          LinearAlgebra.TransposeFactorization{<:Any,<:LU{<:Any,<:CuArray}}},
                  B::AbstractVecOrMat)
     m, n = size(F)
     if m != size(B, 1)
@@ -570,18 +571,4 @@ function LinearAlgebra.inv(A::Symmetric{T,<:StridedCuMatrix{T}}) where T <: Blas
     B = CuMatrix{T}(I, n, n)
     sytrs!(A.uplo, factors, ipiv, B)
     return B
-end
-
-for (triangle, uplo, diag) in ((:LowerTriangular, 'L', 'N'),
-                               (:UnitLowerTriangular, 'L', 'U'),
-                               (:UpperTriangular, 'U', 'N'),
-                               (:UnitUpperTriangular, 'U', 'U'))
-    @eval begin
-        function LinearAlgebra.inv(A::$triangle{T,<:StridedCuMatrix{T}}) where T <: BlasFloat
-            n = checksquare(A)
-            B = copy(parent(A))
-            trtri!($uplo, $diag, B)
-            return $triangle(B)
-        end
-    end
 end

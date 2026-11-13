@@ -77,5 +77,6 @@ using LinearAlgebra
     @testset "inv($TR)" for TR in (UpperTriangular, LowerTriangular,
                                    UnitUpperTriangular, UnitLowerTriangular)
         @test testf(x -> inv(TR(x)), rand(elty, m, m))
+        @test testf(x -> inv(TR(view(x, 1:2:m, 1:2:m))), rand(elty, m, m))
     end
 end

@@ -1,5 +1,4 @@
 using cuBLAS
-using cuBLAS: band, bandex
 using LinearAlgebra
 
 @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]

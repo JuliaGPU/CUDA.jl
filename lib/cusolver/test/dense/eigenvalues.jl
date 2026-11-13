@@ -21,8 +21,6 @@ sorteig!(λ::AbstractVector, sortby::Union{Function, Nothing} = eigsortby) = sor
 # Note: Xgeev was introduced in CUDA 12.6.2 / CUSOLVER 11.7.1
 if cuSOLVER.version() >= v"11.7.1"
     @testset "geev! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        local d_W, d_V
-
         A              = rand(elty, m, m)
         d_A            = CuArray(A)
         Eig            = eigen(A)
@@ -55,12 +53,7 @@ end
     A              = rand(elty, m, m)
     A             += A'
     d_A            = CuArray(A)
-    local d_W, d_V
-    if elty <: Complex
-        d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
-    else
-        d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
-    end
+    d_W, d_V   = cuSOLVER.syevd!('V', 'U', d_A)
     @test LAPACK.syev!('N', 'U', CuArray(A)) ≈ d_W
     @test LAPACK.syevd!('N', 'U', CuArray(A)) ≈ d_W
     h_W            = collect(d_W)
@@ -69,13 +62,17 @@ end
     @test Eig.values ≈ h_W
     @test abs.(Eig.vectors'*h_V) ≈ I
     d_A            = CuArray(A)
-    if elty <: Complex
-        d_W   = cuSOLVER.syevd!('N', 'U', d_A)
-    else
-        d_W   = cuSOLVER.syevd!('N', 'U', d_A)
-    end
+    d_W   = cuSOLVER.syevd!('N', 'U', d_A)
     h_W            = collect(d_W)
     @test Eig.values ≈ h_W
+
+    # only the selected triangle is read
+    for uplo in ('L', 'U')
+        B = A + A'
+        h_A = uplo == 'L' ? tril(B) : triu(B)
+        W, V = cuSOLVER.syevd!('V', uplo, CuMatrix(h_A))
+        @test B ≈ collect(V * Diagonal(W) * V')
+    end
 
     A              = rand(elty, m, m)
     A             += A'
@@ -143,12 +140,7 @@ end
     B              = B*B'+I # posdef
     d_A            = CuArray(A)
     d_B            = CuArray(B)
-    local d_W, d_VA, d_VB
-    if elty <: Complex
-        d_W, d_VA, d_VB = cuSOLVER.sygvd!(1, 'V', 'U', d_A, d_B)
-    else
-        d_W, d_VA, d_VB = cuSOLVER.sygvd!(1, 'V', 'U', d_A, d_B)
-    end
+    d_W, d_VA, d_VB = cuSOLVER.sygvd!(1, 'V', 'U', d_A, d_B)
     @test LAPACK.sygvd!(1, 'N', 'U', CuArray(A), CuArray(B)) ≈ d_W
     h_W            = collect(d_W)
     h_VA           = collect(d_VA)
@@ -160,19 +152,11 @@ end
     @test abs.(h_VA'B*h_VA) ≈ Matrix(one(elty)*I, m, m)
     d_A            = CuArray(A)
     d_B            = CuArray(B)
-    if elty <: Complex
-        d_W   = cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
-    else
-        d_W   = cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
-    end
+    d_W   = cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
     h_W            = collect(d_W)
     @test Eig.values ≈ h_W
     d_B            = CuArray(rand(elty, m+1, m+1))
-    if elty <: Complex
-        @test_throws DimensionMismatch cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
-    else
-        @test_throws DimensionMismatch cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
-    end
+    @test_throws DimensionMismatch cuSOLVER.sygvd!(1, 'N', 'U', d_A, d_B)
 end
 
 @testset "syevj! elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -182,12 +166,7 @@ end
     B              = B*B'+I # posdef
     d_A            = CuArray(A)
     d_B            = CuArray(B)
-    local d_W, d_VA, d_VB
-    if elty <: Complex
-        d_W, d_VA, d_VB = cuSOLVER.sygvj!(1, 'V', 'U', d_A, d_B)
-    else
-        d_W, d_VA, d_VB = cuSOLVER.sygvj!(1, 'V', 'U', d_A, d_B)
-    end
+    d_W, d_VA, d_VB = cuSOLVER.sygvj!(1, 'V', 'U', d_A, d_B)
     h_W            = collect(d_W)
     h_VA           = collect(d_VA)
     h_VB           = collect(d_VB)
@@ -198,11 +177,7 @@ end
     @test abs.(h_VA'B*h_VA) ≈ Matrix(one(elty)*I, m, m)
     d_A            = CuArray(A)
     d_B            = CuArray(B)
-    if elty <: Complex
-        d_W   = cuSOLVER.sygvj!(1, 'N', 'U', d_A, d_B)
-    else
-        d_W   = cuSOLVER.sygvj!(1, 'N', 'U', d_A, d_B)
-    end
+    d_W   = cuSOLVER.sygvj!(1, 'N', 'U', d_A, d_B)
     h_W            = collect(d_W)
     @test Eig.values ≈ h_W
 end
@@ -213,12 +188,7 @@ end
     A += permutedims(A, (2, 1, 3))
     d_A = CuArray(A)
 
-    local d_W, d_V
-    if elty <: Complex
-        d_W, d_V   = cuSOLVER.syevjBatched!('V', 'U', d_A)
-    else
-        d_W, d_V   = cuSOLVER.syevjBatched!('V', 'U', d_A)
-    end
+    d_W, d_V   = cuSOLVER.syevjBatched!('V', 'U', d_A)
 
     h_W   = collect(d_W)
     h_V   = collect(d_V)
@@ -231,12 +201,7 @@ end
 
     # without eigenvectors
     d_A = CuArray(A)
-    local d_W2
-    if elty <: Complex
-        d_W2   = cuSOLVER.syevjBatched!('N', 'U', d_A)
-    else
-        d_W2   = cuSOLVER.syevjBatched!('N', 'U', d_A)
-    end
+    d_W2   = cuSOLVER.syevjBatched!('N', 'U', d_A)
 
     h_W2   = collect(d_W2)
 
