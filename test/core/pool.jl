@@ -121,7 +121,8 @@ end
 
 @testset "early_gc!" begin
     # with a 64 MiB limit, keeping a 56 MiB array alive puts the pool above the pressure
-    # at which allocations run the GC
+    # at which allocations run the GC. only device memory counts towards that pressure, so
+    # don't use the default memory type, which may be unified or host memory.
     script = """
         using CUDA, Test
 
@@ -131,7 +132,7 @@ end
             GC.gc()
             before = Base.gc_num().pause
             for _ in 1:4
-                CuArray{UInt8}(undef, 1024)
+                CuArray{UInt8,1,CUDA.DeviceMemory}(undef, 1024)
             end
             Base.gc_num().pause > before
         end
@@ -146,7 +147,7 @@ end
         # compile everything before there's pressure, so that the compiler doesn't run the GC
         @assert !disabled() && !disabled_task() && !reenabled()
 
-        keep = CuArray{UInt8}(undef, 56*2^20)
+        keep = CuArray{UInt8,1,CUDA.DeviceMemory}(undef, 56*2^20)
         @test !disabled()
         @test !disabled_task()
         @test reenabled()

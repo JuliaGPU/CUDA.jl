@@ -290,8 +290,9 @@ function Base.unsafe_wrap(::Type{CuArray{T,N,M}},
   sz = prod(dims) * aligned_sizeof(T)
 
   # create a memory object
-  # owned memory may have been allocated from a pool, which needs to be freed differently
-  pooled = own && from_pool(ptr)
+  # memory from a pool is freed differently, and pooled host memory has no device address
+  # that `cuMemHostGetDevicePointer` knows of (it uses the same address on the device)
+  pooled = from_pool(ptr)
   mem = if M == UnifiedMemory
     UnifiedMemory(ctx, ptr, sz, pooled)
   elseif M == DeviceMemory
@@ -806,6 +807,10 @@ end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs,
                              src::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,HostMemory}}, soffs, n) where T
+  # the CPU reads the memory right away, which can't observe operations being captured
+  # (copying device memory fails the same way, as the driver can't capture that copy)
+  check_capture(stream())
+
   # maintain stream-ordered semantics: even though the pointer conversion should sync when
   # needed, it's possible that misses captured memory, so ensure copying is always correct.
   synchronize(src)
@@ -865,7 +870,10 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T,<:Any,<:Union{UnifiedMemory,Ho
 end
 
 
-# optimization: copy strided blocks between host and device memory with a single 3D copy.
+# optimization: copy strided blocks between host and GPU arrays with a single 3D copy. this
+# also serves arrays backed by unified or pinned host memory, through their device address.
+# the driver doesn't consider pooled host memory to be device memory, so describe those
+# addresses as unified ones and have the driver determine the kind of memory.
 #
 # GPUArrays packs a non-contiguous block into a dense temporary first, and copies that to
 # the block on the host with Base's block copy. a 3D copy avoids both temporaries and is up
@@ -909,6 +917,8 @@ function memcpy3d_layout(dest::AbstractArray{T,N}, Rdest::CartesianIndices{N},
     return (; width, height, depth, dpitch, dheight, spitch, sheight)
 end
 
+memcpy3d_type(a::DenseCuArray) = is_device(a) ? DeviceMemory : UnifiedMemory
+
 # whether to copy a block between host and device with a 3D copy, and how
 function memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest::Bool)
     T = eltype(dest)
@@ -929,7 +939,7 @@ function memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest::Bool)
 end
 
 function Base.copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
-                      src::DenseCuArray{T,N,DeviceMemory}, Rsrc::CartesianIndices{N}) where {T,N}
+                      src::DenseCuArray{T,N}, Rsrc::CartesianIndices{N}) where {T,N}
     isempty(Rdest) && return dest
     layout = memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest=true)
     if layout === nothing
@@ -942,7 +952,7 @@ function Base.copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
         synchronize(src)
         GC.@preserve src dest begin
             unsafe_copy3d!(pointer(dest, LinearIndices(dest)[first(Rdest)]), HostMemory,
-                           pointer(src, LinearIndices(src)[first(Rsrc)]), DeviceMemory,
+                           pointer(src, LinearIndices(src)[first(Rsrc)]), memcpy3d_type(src),
                            layout.width, layout.height, layout.depth;
                            dstPitch=layout.dpitch*aligned_sizeof(T), dstHeight=layout.dheight,
                            srcPitch=layout.spitch*aligned_sizeof(T), srcHeight=layout.sheight)
@@ -951,7 +961,7 @@ function Base.copyto!(dest::Array{T,N}, Rdest::CartesianIndices{N},
     return dest
 end
 
-function Base.copyto!(dest::DenseCuArray{T,N,DeviceMemory}, Rdest::CartesianIndices{N},
+function Base.copyto!(dest::DenseCuArray{T,N}, Rdest::CartesianIndices{N},
                       src::Array{T,N}, Rsrc::CartesianIndices{N}) where {T,N}
     isempty(Rdest) && return dest
     layout = memcpy3d_block_layout(dest, Rdest, src, Rsrc; host_is_dest=false)
@@ -966,7 +976,7 @@ function Base.copyto!(dest::DenseCuArray{T,N,DeviceMemory}, Rdest::CartesianIndi
             GC.@preserve src dest with_managed_arrays(dest) do
                 # (synchronously, so that the caller can modify `src` when this returns)
                 unsafe_copy3d!(unmanaged_pointer(dest, LinearIndices(dest)[first(Rdest)]),
-                               DeviceMemory,
+                               memcpy3d_type(dest),
                                pointer(src, LinearIndices(src)[first(Rsrc)]), HostMemory,
                                layout.width, layout.height, layout.depth;
                                dstPitch=layout.dpitch*aligned_sizeof(T),
