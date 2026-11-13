@@ -1,3 +1,4 @@
+using Adapt
 using Enzyme, EnzymeCore
 using GPUCompiler
 using StaticArrays
@@ -125,6 +126,57 @@ end
     dA = CUDA.ones(64)
     Enzyme.autodiff(Reverse, scale!, Duplicated(A, dA), Const(3f0))
     @test all(dA .≈ 6 .* (1:64))
+end
+
+# Converting the arguments with `cudaconvert` inside the differentiated code, as Oceananigans'
+# `launch!` does, passes every activity annotation through the `cudaconvert` rules.
+function weighted_square_kernel!(y, x, w)
+    i = threadIdx().x
+    y[i] = w[i] * x[i] * x[i]
+    return nothing
+end
+
+function weighted_square!(y, x, w)
+    args = map(cudaconvert, (y, x, w))
+    @cuda threads = length(y) weighted_square_kernel!(args...)
+    return nothing
+end
+
+# Holds both array and scalar data, so Enzyme annotates it as mixed activity
+struct MixedActivity{A, T}
+    data::A
+    scale::T
+end
+Adapt.adapt_structure(to, m::MixedActivity) = Adapt.adapt(to, m.data)
+
+@testset "cudaconvert" begin
+    x = CuArray(Float64.(1:32))
+    w = CuArray(Float64.(33:64))
+    y = CUDA.zeros(Float64, 32)
+
+    # a `Const` argument has a zero shadow
+    dx = CUDA.ones(Float64, 32)
+    dy = CUDA.zeros(Float64, 32)
+    Enzyme.autodiff(Forward, weighted_square!, Const, Duplicated(y, dy), Duplicated(x, dx), Const(w))
+    @test Array(dy) ≈ 2 .* Array(w) .* Array(x)
+
+    dx2 = CUDA.fill(3.0, 32)
+    dy .= 0
+    dy2 = CUDA.zeros(Float64, 32)
+    Enzyme.autodiff(Forward, weighted_square!, Const, BatchDuplicated(y, (dy, dy2)),
+                    BatchDuplicated(x, (dx, dx2)), Const(w))
+    @test Array(dy) ≈ 2 .* Array(w) .* Array(x)
+    @test Array(dy2) ≈ 6 .* Array(w) .* Array(x)
+
+    # a mixed-activity argument has its shadow boxed in a `Ref`
+    m = MixedActivity(w, 2.0)
+    dm = MixedActivity(CUDA.zeros(Float64, 32), 0.0)
+    dx .= 0
+    dy .= 1
+    Enzyme.autodiff(set_runtime_activity(Reverse), weighted_square!, Const,
+                    Duplicated(y, dy), Duplicated(x, dx), Duplicated(m, dm))
+    @test Array(dx) ≈ 2 .* Array(w) .* Array(x)
+    @test Array(dm.data) ≈ Array(x) .^ 2
 end
 
 @testset "Forward Fill!" begin
