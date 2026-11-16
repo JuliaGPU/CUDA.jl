@@ -47,6 +47,11 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
 *New features*:
 
+- `CUDA.set_runtime_version!(:none)` configures an environment to use no CUDA toolkit,
+  as if the system had no NVIDIA driver, and JLLs that have CPU builds use those. Requires
+  CUDA_Runtime_jll VERSION. When no toolkit was selected for another reason, the error
+  message now lists the common causes instead of assuming a missing driver.
+
 - Added support for CUDA 13.5: the wrappers were regenerated, and the compatibility
   databases record PTX ISA 9.5. cuSOLVER's `cusolverDnXsygvStridedBatched` and
   cuSPARSE's `CUSPARSE_SPSV_ALG2` triangular-solve algorithm are available through

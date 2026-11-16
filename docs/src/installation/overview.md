@@ -288,6 +288,28 @@ Note that using a local toolkit affects CUDA-related JLLs beyond CUDA\_Runtime\_
 CUDA\_Compiler\_jll. Packages that depend on those JLLs need to use
 CUDA\_Runtime\_Discovery when the corresponding local preference is set.
 
+### Disabling CUDA
+
+To make an environment behave as if the system had no NVIDIA driver, call
+`CUDA.set_runtime_version!(:none)`:
+
+```
+julia> using CUDA
+
+julia> CUDA.set_runtime_version!(:none)
+[ Info: Configure the active project to use no CUDA toolkit; please re-start Julia for this to take effect.
+```
+
+This sets `version = "none"` on both JLLs in `LocalPreferences.toml`. After restarting
+Julia, no CUDA toolkit is selected or downloaded, `CUDA.functional()` returns `false`, and
+JLLs of other packages that follow the toolkit selection use their CPU builds where they
+have one. JLLs that only have CUDA builds are unavailable. This is useful to test the CPU
+code paths of a package on a machine with a GPU, or to keep an environment from using CUDA
+builds. Call `CUDA.reset_runtime_version!()` to undo it.
+
+The preference applies to the whole environment, and requires CUDA\_Runtime\_jll and
+CUDA\_Compiler\_jll VERSION or later; older versions ignore it with an error message.
+
 
 ## Precompiling CUDA.jl without CUDA
 

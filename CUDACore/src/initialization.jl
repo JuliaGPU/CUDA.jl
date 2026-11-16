@@ -61,6 +61,14 @@ function __init__()
     # TODO: make errors here (and in submodules/subpackages like cuBLAS and cuDNN) fatal,
     #       and remove functional(), once people sufficiently use weak dependencies.
 
+    # a deliberate choice, so not worth an error; `functional(true)` reports it
+    if runtime_disabled()
+        _initialization_error[] = """CUDA is disabled by the `version = "none"` preference.
+                                     To enable it, call `CUDA.reset_runtime_version!()` or select a
+                                     version with `CUDA.set_runtime_version!`, and restart Julia."""
+        return
+    end
+
     # check that we have a driver. CUDA_Driver_jll defines `libcuda` on every platform,
     # also where it ships no artifact, in which case it names the system driver; its
     # `__init__` may have replaced it with a bundled forwards-compatible driver.
@@ -102,18 +110,23 @@ function __init__()
                supported platforms) or manually installing the CUDA toolkit and make
                CUDA.jl use it by calling `CUDA.set_runtime_version!(local_toolkit=true)`."""
         elseif CUDA_Runtime_jll.host_platform["cuda"] == "none"
-            """CUDA.jl's JLLs were precompiled without an NVIDIA driver present.
-               This can happen when installing CUDA.jl on an HPC log-in node,
-               or in a container. In that case, you need to specify which CUDA
-               version to use at run time by calling `CUDA.set_runtime_version!`
-               or provisioning the preference it sets at compile time.
+            """No CUDA toolkit was selected when CUDA.jl's JLLs were precompiled.
+               The messages printed while precompiling CUDA_Runtime_jll name the
+               cause. Common ones are:
+               - no NVIDIA driver was visible, e.g. on an HPC log-in node or while
+                 building a container;
+               - the driver is too old for every toolkit CUDA.jl supports;
+               - the CUDA version requested with `CUDA.set_runtime_version!` is
+                 not one CUDA.jl supports.
 
-               If no runtime and compiler artifacts exist for that CUDA version and
-               platform, install a local toolkit and call
+               If the driver will only be visible at run time, call
+               `CUDA.set_runtime_version!` with the CUDA version to use then. If no
+               runtime and compiler artifacts exist for that version and platform,
+               install a local toolkit and call
                `CUDA.set_runtime_version!(local_toolkit=true)` instead.
 
-               If you are not running in a container or on an HPC log-in node,
-               try re-compiling the CUDA runtime JLL and re-loading CUDA.jl:
+               If the driver was visible, or has changed since, re-compile the CUDA
+               runtime JLL and re-load CUDA.jl:
                     pkg = Base.PkgId(Base.UUID("76a88914-d11a-5bdc-97e0-2f5a05c973a2"),
                                      "CUDA_Runtime_jll")
                     Base.compilecache(pkg)
