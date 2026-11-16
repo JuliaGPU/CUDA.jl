@@ -307,8 +307,7 @@ have one. JLLs that only have CUDA builds are unavailable. This is useful to tes
 code paths of a package on a machine with a GPU, or to keep an environment from using CUDA
 builds. Call `CUDA.reset_runtime_version!()` to undo it.
 
-The preference applies to the whole environment, and requires CUDA\_Runtime\_jll and
-CUDA\_Compiler\_jll VERSION or later; older versions ignore it with an error message.
+The preference applies to the whole environment.
 
 
 ## Precompiling CUDA.jl without CUDA
