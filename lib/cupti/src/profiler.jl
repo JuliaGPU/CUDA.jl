@@ -284,7 +284,7 @@ function range_profile(f, host::ProfilerHost, ctx::CuContext, config::Vector{UIn
     params = profiler_params(CUpti_RangeProfiler_Enable_Params, :pRangeProfilerObject; ctx)
     cuptiRangeProfilerEnable(params)
     profiler = params[].pRangeProfilerObject
-    try
+    values = try
         names = Base.unsafe_convert.(Cstring, metrics)
         params = GC.@preserve metrics names begin
             params = profiler_params(CUpti_RangeProfiler_GetCounterDataSize_Params, :counterDataSize;
@@ -337,9 +337,14 @@ function range_profile(f, host::ProfilerHost, ctx::CuContext, config::Vector{UIn
         for range in 1:nranges
             values[range, :] = evaluate!(buf, host, counter_data, range-1, metrics)
         end
-        return values
-    finally
-        cuptiRangeProfilerDisable(profiler_params(CUpti_RangeProfiler_Disable_Params, :pRangeProfilerObject;
-                                                  pRangeProfilerObject=profiler))
+        values
+    catch
+        # after a failed session, disabling can fail too, which shouldn't hide the actual error
+        unchecked_cuptiRangeProfilerDisable(profiler_params(CUpti_RangeProfiler_Disable_Params, :pRangeProfilerObject;
+                                                            pRangeProfilerObject=profiler))
+        rethrow()
     end
+    cuptiRangeProfilerDisable(profiler_params(CUpti_RangeProfiler_Disable_Params, :pRangeProfilerObject;
+                                              pRangeProfilerObject=profiler))
+    return values
 end
