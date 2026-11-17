@@ -188,7 +188,11 @@ end
 @testset "finalizers" begin
     # code that frees GPU memory relies on finalizers (#3530)
     @test finalizes_within(f -> CUDA.@profile f())
-    @test finalizes_within(f -> CUDATools.code_sass(f, devnull))
+    # NVIDIA bug #4667039: SASS reflection breaks later profiling sessions, which here
+    # also shows with CUPTI 2024.1 (CUDA 12.4)
+    if !(v"2024.1.0" <= CUPTI.library_version() < v"2025.1.0")
+        @test finalizes_within(f -> CUDATools.code_sass(f, devnull))
+    end
 end
 
 if CUDACore.is_tegra() && CUDA.runtime_version() < v"12"
