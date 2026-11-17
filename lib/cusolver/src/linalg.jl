@@ -374,10 +374,18 @@ abstract type SVDAlgorithm end
 Algorithms for `svd(A; alg)`, `svd!(A; alg)`, `svdvals(A; alg)` and `svdvals!(A; alg)` with a
 `CuMatrix` or a 3-D `CuArray` holding a batch of matrices:
 
-- `JacobiAlgorithm()`, the default, uses [`gesvdj!`](@ref) and, for a batch,
-  [`gesvdjBatched!`](@ref). Matrices too large for `gesvdj!` use `gesvd!` instead.
-- `QRAlgorithm()` uses [`gesvd!`](@ref). It does not support batches.
+- `QRAlgorithm()`, the default for a matrix, uses QR iteration ([`gesvd!`](@ref)). It
+  does not support batches.
+- `JacobiAlgorithm()`, the default for a batch, uses the one-sided Jacobi method
+  ([`gesvdj!`](@ref) and, for a batch, [`gesvdjBatched!`](@ref)). Matrices too large for
+  `gesvdj!` use `gesvd!` instead.
 - `ApproximateAlgorithm()` uses [`gesvdaStridedBatched!`](@ref) and only supports batches.
+
+For a single matrix, QR iteration is faster than cuSOLVER's Jacobi method in double
+precision, and its singular vectors are closer to orthonormal in every precision. In single
+precision, the Jacobi method can be faster at computing singular vectors, mainly of tall or
+wide matrices. On some graded matrices, whose columns differ in scale by orders of
+magnitude, it also determines the smallest singular values to a higher relative accuracy.
 
 For a batch, the result is a [`CuSVDBatched`](@ref).
 """
@@ -387,29 +395,20 @@ struct QRAlgorithm <: SVDAlgorithm end
 
 const CuMatOrBatched{T} = Union{CuMatrix{T}, CuArray{T,3}} where T
 
+default_svd_algorithm(::CuMatrix) = QRAlgorithm()
+default_svd_algorithm(::CuArray{<:Any,3}) = JacobiAlgorithm()
+
 LinearAlgebra.svd!(A::CuMatOrBatched{T}; full::Bool=false,
-                   alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
-    _svd!(A, full, alg)
-LinearAlgebra.svd(A::CuMatOrBatched; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
-    _svd!(copy_cublasfloat(A), full, alg)
+                   alg::SVDAlgorithm=default_svd_algorithm(A)) where {T} =
+    svd_with!(A, full, alg)
+LinearAlgebra.svd(A::CuMatOrBatched; full=false, alg::SVDAlgorithm=default_svd_algorithm(A)) =
+    svd_with!(copy_cublasfloat(A), full, alg)
 
-_svd!(A::CuMatOrBatched, full::Bool, alg::SVDAlgorithm) =
+svd_with!(A::CuMatOrBatched, full::Bool, alg::SVDAlgorithm) =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
-function _svd!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
-    U, S, Vt = gesvd!(full ? 'A' : 'S', full ? 'A' : 'S', A)
-    return SVD(U, S, Vt)
-end
-function _svd!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
-    gesvdj_fits('V', !full, A) || return svd_gesvd!(A, full)
-    U, S, V = gesvdj!('V', !full, A)
-    return SVD(U, S, V')
-end
 
-# gesvdj is only available in the 32-bit API, whose workspace size overflows for
-# large matrices. Use the QR algorithm of the 64-bit API instead, which requires
-# m ≥ n, so decompose Aᴴ when A is wide. Vt is returned as is: at these sizes
-# every extra copy of a factor matters.
-function svd_gesvd!(A::CuMatrix{T}, full::Bool) where T
+# gesvd requires m ≥ n, so decompose Aᴴ = V S Uᴴ when A is wide
+function svd_with!(A::CuMatrix{T}, full::Bool, alg::QRAlgorithm) where T
     job = full ? 'A' : 'S'
     if size(A, 1) >= size(A, 2)
         U, S, Vt = gesvd!(job, job, A)
@@ -425,19 +424,20 @@ function svd_gesvd!(A::CuMatrix{T}, full::Bool) where T
     return SVD(U, S, Vt)
 end
 
-function svdvals_gesvd!(A::CuMatrix{T}) where T
-    size(A, 1) >= size(A, 2) && return gesvd!('N', 'N', A)[2]
-    Ah = copy(A')
-    S = gesvd!('N', 'N', Ah)[2]
-    unsafe_free!(Ah)
-    return S
+# gesvdj is only available in the 32-bit API, whose workspace size overflows for large
+# matrices; use the QR algorithm of the 64-bit API for those
+function svd_with!(A::CuMatrix{T}, full::Bool, alg::JacobiAlgorithm) where T
+    gesvdj_fits('V', !full, A) || return svd_with!(A, full, QRAlgorithm())
+    U, S, V = gesvdj!('V', !full, A)
+    return SVD(U, S, V')
 end
-function _svd!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
+
+function svd_with!(A::CuArray{T,3}, full::Bool, alg::JacobiAlgorithm) where T
     U, S, V = gesvdjBatched!('V', A)
     return CuSVDBatched(U, S, V)
 end
 
-function _svd!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm; rank::Int=min(size(A,1), size(A,2))) where T
+function svd_with!(A::CuArray{T,3}, full::Bool, alg::ApproximateAlgorithm; rank::Int=min(size(A,1), size(A,2))) where T
     U, S, V = gesvdaStridedBatched!('V', A; rank=rank)
     return CuSVDBatched(U, S, V)
 end
@@ -462,18 +462,24 @@ Base.iterate(S::CuSVDBatched, ::Val{:S}) = (S.S, Val(:V))
 Base.iterate(S::CuSVDBatched, ::Val{:V}) = (S.V, Val(:done))
 Base.iterate(S::CuSVDBatched, ::Val{:done}) = nothing
 
-LinearAlgebra.svdvals!(A::CuMatOrBatched{T}; alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
-    _svdvals!(A, alg)
-LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=JacobiAlgorithm()) =
-    _svdvals!(copy_cublasfloat(A), alg)
+LinearAlgebra.svdvals!(A::CuMatOrBatched{T}; alg::SVDAlgorithm=default_svd_algorithm(A)) where {T} =
+    svdvals_with!(A, alg)
+LinearAlgebra.svdvals(A::CuMatOrBatched; alg::SVDAlgorithm=default_svd_algorithm(A)) =
+    svdvals_with!(copy_cublasfloat(A), alg)
 
-_svdvals!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
+svdvals_with!(A::CuMatOrBatched{T}, alg::SVDAlgorithm) where T =
     throw(ArgumentError("Unsupported value for `alg` keyword."))
-_svdvals!(A::CuMatrix{T}, alg::QRAlgorithm) where T = gesvd!('N', 'N', A::CuMatrix{T})[2]
-_svdvals!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
-    gesvdj_fits('N', true, A) ? gesvdj!('N', true, A)[2] : svdvals_gesvd!(A)
-_svdvals!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdjBatched!('N', A::CuArray{T,3})[2]
-_svdvals!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvdaStridedBatched!('N', A::CuArray{T,3}; rank=rank)[2]
+function svdvals_with!(A::CuMatrix{T}, alg::QRAlgorithm) where T
+    size(A, 1) >= size(A, 2) && return gesvd!('N', 'N', A)[2]
+    Ah = copy(A')
+    S = gesvd!('N', 'N', Ah)[2]
+    unsafe_free!(Ah)
+    return S
+end
+svdvals_with!(A::CuMatrix{T}, alg::JacobiAlgorithm) where T =
+    gesvdj_fits('N', true, A) ? gesvdj!('N', true, A)[2] : svdvals_with!(A, QRAlgorithm())
+svdvals_with!(A::CuArray{T,3}, alg::JacobiAlgorithm) where T = gesvdjBatched!('N', A::CuArray{T,3})[2]
+svdvals_with!(A::CuArray{T,3}, alg::ApproximateAlgorithm; rank=min(size(A,1), size(A,2))) where T = gesvdaStridedBatched!('N', A::CuArray{T,3}; rank=rank)[2]
 
 # like LinearAlgebra, derive the SVD of a Hermitian matrix from its eigendecomposition,
 # but without the scalar indexing of the generic implementation

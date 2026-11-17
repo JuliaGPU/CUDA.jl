@@ -18,6 +18,33 @@ are listed as subsections of the minor release they belong to.
 CUDA.jl now supports CUDA 13.5, which becomes the default toolkit on systems with a
 CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
+*Technically breaking changes*:
+
+- cuSOLVER's SVD wrappers `gesvdj!`, `gesvdjBatched!` and `gesvdaStridedBatched!`, and
+  so `svd` and `svdvals` with `alg=JacobiAlgorithm()` or `alg=ApproximateAlgorithm()`,
+  throw a `LAPACKException` when the solver reports that it did not converge or failed,
+  instead of returning its output. `gesvdaStridedBatched!` fails, for example, to compute
+  the singular vectors of a matrix of rank lower than `rank`, and returned NaNs for them
+  (cuSOLVER reports this from CUDA 12.8; with older versions, the NaNs remain).
+  The default tolerance of the Jacobi wrappers is now `2*sqrt(max(m, n))*eps(real(T))`
+  instead of `eps(real(T))`, which matrices with (numerically) zero singular values
+  often could not reach: `gesvdj` then ran all 100 sweeps, taking several times as long,
+  and occasionally returned an inaccurate result. The old tolerance can resolve the
+  small singular values of graded matrices to a higher relative accuracy; pass
+  `tol=eps(real(T))` to `gesvdj!` for it.
+- `svd`, `svd!`, `svdvals` and `svdvals!` of a `CuMatrix` default to QR iteration
+  (`alg=QRAlgorithm()`, cuSOLVER's `gesvd`) instead of the Jacobi method. On an RTX 5080,
+  QR iteration is 13-45x faster for a ComplexF64 matrix of size 512 or 1466 and 2-4x
+  faster in ComplexF32, and its singular vectors are 90-400x closer to orthonormal at
+  these sizes (`‖UᴴU - I‖` of 3e-13 instead of 7e-11 for ComplexF64 at n = 1466). Both
+  are accurate in norm, but results change: singular vectors can differ in phase and,
+  for repeated or zero singular values, in the basis they choose. Pass `alg=JacobiAlgorithm()` for the old
+  behavior: in single precision, the Jacobi method can be faster at computing singular
+  vectors (up to 1.9x for tall or wide matrices with CUDA 13.5, up to 4x with older CUDA
+  versions), and it resolves the smallest singular values of some graded matrices to a
+  higher relative accuracy. Batches of matrices (3-D arrays) still use the Jacobi method
+  by default.
+
 *New features*:
 
 - Added support for CUDA 13.5: the wrappers were regenerated, and the compatibility
@@ -110,6 +137,8 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
 *Bug fixes*:
 
+- `svd`, `svd!`, `svdvals` and `svdvals!` with `alg=QRAlgorithm()` support wide
+  matrices, for which they threw an `ArgumentError`.
 - `CUDA.@profile` no longer deadlocks when NVTX.jl's GC hooks are enabled
   (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
   CUPTI can request one while Julia collects garbage.

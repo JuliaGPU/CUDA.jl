@@ -11,6 +11,10 @@ n = 10
     @test A ≈ collect(U[:,1:n] * Diagonal(Σ) * Vt)
     @test LAPACK.gesvd!('N', 'N', CuMatrix(A))[2] ≈ Σ
 
+    A_nan = copy(A)
+    A_nan[3, 4] = NaN
+    @test_throws LAPACKException cuSOLVER.gesvd!('S', 'S', CuMatrix(A_nan))
+
     for jobu in ('A', 'S', 'N', 'O')
         for jobvt in ('A', 'S', 'N', 'O')
             (jobu == 'A') && (jobvt == 'A') && continue
@@ -32,22 +36,47 @@ end
     U, S, V        = svd(A; full=true)
     d_A            = CuArray(A)
 
-    if _m > _n || alg == cuSOLVER.JacobiAlgorithm()
-        d_U, d_S, d_V  = svd!(copy(d_A); full=true, alg=alg)
-        h_S            = collect(d_S)
-        h_U            = collect(d_U)
-        h_V            = collect(d_V)
-        @test abs.(h_U'h_U) ≈ I
-        @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
-        @test collect(svdvals(d_A; alg=alg)) ≈ svdvals(A)
-        @test svdvals!(copy(d_A); alg=alg) == svdvals(d_A; alg=alg)
-        @test abs.(h_V'*h_V) ≈ I
-        @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
-        @test collect(d_U'*d_A*d_V) ≈ U'*A*V
-        @test collect(svd(d_A; alg=alg).V') == h_V[:,1:min(_m,_n)]'
-    else
-        @test_throws ArgumentError svd(d_A; alg=alg)
-    end
+    d_U, d_S, d_V  = svd!(copy(d_A); full=true, alg=alg)
+    h_S            = collect(d_S)
+    h_U            = collect(d_U)
+    h_V            = collect(d_V)
+    @test abs.(h_U'h_U) ≈ I
+    @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
+    @test collect(svdvals(d_A; alg=alg)) ≈ svdvals(A)
+    @test svdvals!(copy(d_A); alg=alg) == svdvals(d_A; alg=alg)
+    @test abs.(h_V'*h_V) ≈ I
+    @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
+    @test collect(d_U'*d_A*d_V) ≈ U'*A*V
+    @test collect(svd(d_A; alg=alg).V') == h_V[:,1:min(_m,_n)]'
+end
+
+@testset "gesvdj convergence, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    A = CuArray(randn(elty, 64, 64))
+    @test_throws LAPACKException cuSOLVER.gesvdj!('V', true, copy(A); max_sweeps=2)
+end
+
+@testset "gesvdj with numerically zero singular values, elty = $elty" for
+    elty in [Float32, Float64, ComplexF32, ComplexF64]
+
+    # singular values decaying to 1e-20, so most of them are zero at working precision
+    n = 128
+    W = elty <: Complex ? ComplexF64 : Float64
+    Q(n) = Matrix(qr(randn(W, n, n)).Q)
+    s = [1e-20^((i - 1) / (n - 1)) for i in 1:n]
+    A = elty.(Q(n) * Diagonal(s) * Q(n)')
+    tol = 2000 * eps(real(elty))
+
+    U, S, V = svd(CuArray(A); alg=cuSOLVER.JacobiAlgorithm())
+    @test norm(collect(U) * Diagonal(collect(S)) * collect(V)' - A) / norm(A) < tol
+    @test collect(S) ≈ svdvals(A)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.JacobiAlgorithm())) ≈ svdvals(A)
+
+    # the default tolerance is reached in at most about 25 sweeps, a tolerance of eps
+    # often not in 100
+    U, S, V = cuSOLVER.gesvdj!('V', true, CuArray(A); max_sweeps=40)
+    @test norm(collect(U) * Diagonal(collect(S)) * collect(V)' - A) / norm(A) < tol
+    S = cuSOLVER.gesvdj!('N', true, CuArray(A); max_sweeps=40)[2]
+    @test collect(S) ≈ svdvals(A)
 end
 
 @testset "gesvdj workspace limit, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
@@ -64,21 +93,66 @@ end
     @test_throws ArgumentError cuSOLVER.gesvdj!('V', true, fake(40000, 40000))
 end
 
-@testset "svd through the generic gesvd, elty = $elty" for
+@testset "svd with QR algorithm, elty = $elty" for
     elty in [Float32, Float64, ComplexF32, ComplexF64],
     full in (false, true),
     (_m, _n) in ((m, n), (n, m), (n, n))
 
     A = rand(elty, _m, _n)
     k = min(_m, _n)
-    F = cuSOLVER.svd_gesvd!(CuArray(A), full)
+    F = svd(CuArray(A); full, alg=cuSOLVER.QRAlgorithm())
     @test size(F.U) == (_m, full ? _m : k)
     @test size(F.Vt) == (full ? _n : k, _n)
     @test collect(F.S) ≈ svdvals(A)
     @test collect(F.U' * F.U) ≈ I
     @test collect(F.Vt * F.Vt') ≈ I
     @test collect(F.U[:, 1:k] * Diagonal(F.S) * F.Vt[1:k, :]) ≈ A
-    @test collect(cuSOLVER.svdvals_gesvd!(CuArray(A))) ≈ svdvals(A)
+    @test collect(svdvals(CuArray(A); alg=cuSOLVER.QRAlgorithm())) ≈ svdvals(A)
+end
+
+@testset "default svd, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    # tall, wide, square, and rank-deficient
+    rankdef = rand(elty, n, n)
+    rankdef[:, 2:2:end] .= rankdef[:, 1:2:end]
+    for A in (rand(elty, m, n), rand(elty, n, m), rand(elty, n, n), rankdef)
+        d_A = CuArray(A)
+        k = minimum(size(A))
+        F = svd(d_A)
+        @test collect(F.S) ≈ svdvals(A)
+        @test collect(F.U' * F.U) ≈ I
+        @test collect(F.Vt * F.Vt') ≈ I
+        @test collect(F.U * Diagonal(F.S) * F.Vt) ≈ A
+        @test collect(svdvals(d_A)) ≈ svdvals(A)
+        # the default is QR iteration
+        @test svdvals(d_A) == svdvals(d_A; alg=cuSOLVER.QRAlgorithm())
+        @test svdvals!(copy(d_A)) == svdvals(d_A)
+        @test svd!(copy(d_A); full=true).U == svd(d_A; full=true, alg=cuSOLVER.QRAlgorithm()).U
+    end
+
+    Z = CuArray(zeros(elty, m, n))
+    F = svd(Z)
+    @test all(iszero, collect(F.S))
+    @test collect(F.U' * F.U) ≈ I
+    @test collect(F.Vt * F.Vt') ≈ I
+    @test all(iszero, collect(svdvals(Z)))
+
+    # batches still use the Jacobi method
+    A3 = CuArray(rand(elty, m, n, 3))
+    @test svdvals(A3) == svdvals(A3; alg=cuSOLVER.JacobiAlgorithm())
+    @test svd(A3).S == svd(A3; alg=cuSOLVER.JacobiAlgorithm()).S
+end
+
+@testset "default svd with numerically zero singular values" begin
+    n = 128
+    Q(n) = Matrix(qr(randn(ComplexF64, n, n)).Q)
+    s = [1e-20^((i - 1) / (n - 1)) for i in 1:n]
+    A = Q(n) * Diagonal(s) * Q(n)'
+    F = svd(CuArray(A))
+    U, S, Vt = collect(F.U), collect(F.S), collect(F.Vt)
+    @test norm(U * Diagonal(S) * Vt - A) / norm(A) < 1e-13
+    @test norm(U' * U - I) < 1e-13
+    @test norm(Vt * Vt' - I) < 1e-13
+    @test S ≈ svdvals(A)
 end
 
 # Check that constant propagation works
@@ -112,6 +186,21 @@ end
     else
         @test_throws ArgumentError svd(d_A; alg=alg)
     end
+end
+
+@testset "gesvdaStridedBatched failure, elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+    A = rand(elty, 8, 8, 3)
+    A[:, end, 2] .= 0
+    # older versions return NaNs without reporting the failure
+    if cuSOLVER.version() >= v"11.7.3"
+        @test_throws LAPACKException svd(CuArray(A); alg=cuSOLVER.ApproximateAlgorithm())
+    end
+    # without singular vectors, and when asking for fewer singular values than the rank,
+    # the decomposition succeeds
+    S = svdvals(CuArray(A); alg=cuSOLVER.ApproximateAlgorithm())
+    @test collect(S[:, 2]) ≈ svdvals(A[:, :, 2])
+    U, S, V = cuSOLVER.gesvdaStridedBatched!('V', CuArray(A); rank=4)
+    @test collect(S[:, 2]) ≈ svdvals(A[:, :, 2])[1:4]
 end
 
 @testset "svd of $wrap($elty), uplo = $uplo" for
@@ -154,12 +243,7 @@ end
         d_A = CuArray(rand(elty, _m, _n))
         d_Af = promote_type(Float32, elty).(d_A)
 
-        if _m > _n || alg == cuSOLVER.JacobiAlgorithm()
-            @test svd(d_A; alg=alg) == svd(d_Af; alg=alg)
-            @test svdvals(d_A; alg=alg) == svdvals(d_Af; alg=alg)
-        else
-            @test_throws ArgumentError svd(d_A; alg=alg)
-            @test_throws ArgumentError svdvals(d_A; alg=alg)
-        end
+        @test svd(d_A; alg=alg) == svd(d_Af; alg=alg)
+        @test svdvals(d_A; alg=alg) == svdvals(d_Af; alg=alg)
     end
 end
