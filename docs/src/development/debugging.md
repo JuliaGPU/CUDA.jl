@@ -35,11 +35,13 @@ kernel (generic function with 1 method)
 julia> @cuda threads=2 kernel(CuArray([1]))
 ```
 
-If we execute this code, we'll get a very short error message:
+When the kernel has finished, the next synchronization reports the exception, naming the
+thread that threw it:
 
 ```
-ERROR: a exception was thrown during kernel execution.
-Run Julia on debug level 2 for device stack traces.
+julia> synchronize()
+ERROR: KernelException: BoundsError during kernel execution on thread (2, 1, 1) in block (1, 1, 1) of device NVIDIA GeForce RTX 5080: Out-of-bounds array access
+Stacktrace not available, launch the kernel with `@cuda debug_level=2` or run Julia with -g2 for more details.
 ```
 
 As the message suggests, we can have CUDA.jl emit more rich stack trace information by
@@ -48,26 +50,23 @@ affects that kernel and doesn't require restarting Julia, or set Julia's debug l
 whole session by passing `-g2` to the `julia` invocation:
 
 ```
-ERROR: a exception was thrown during kernel execution.
+ERROR: KernelException: BoundsError during kernel execution on thread (2, 1, 1) in block (1, 1, 1) of device NVIDIA GeForce RTX 5080: Out-of-bounds array access
 Stacktrace:
- [1] throw_boundserror at abstractarray.jl:541
- [2] checkbounds at abstractarray.jl:506
- [3] arrayset at /home/tim/Julia/pkg/CUDA/src/device/array.jl:84
- [4] setindex! at /home/tim/Julia/pkg/CUDA/src/device/array.jl:101
- [5] kernel at REPL[4]:2
+ [1] throw_boundserror at /home/tim/Julia/pkg/CUDA/CUDACore/src/device/quirks.jl:49
+ [2] throw_boundserror at /home/tim/Julia/pkg/CUDA/CUDACore/src/device/quirks.jl:51
+ [3] setindex! at /home/tim/Julia/pkg/CUDA/CUDACore/src/device/array.jl:203
+ [4] kernel at REPL[1]:2
 ```
 
-Note that these messages are embedded in the module (CUDA does not support stack unwinding),
-and thus bloat its size. To avoid any overhead, you can disable these messages by setting
-the debug level to 0 (`@cuda debug_level=0`, or passing `-g0` to `julia`). This disables any device-side message, but
-retains the host-side detection:
+The kernel only records which of its throw sites threw, and by which thread; the host looks
+up the rest. At debug level 0 (`@cuda debug_level=0`, or passing `-g0` to `julia`), the
+kernel doesn't identify the throw site, and the exception only names the thread:
 
 ```
-julia> @cuda threads=2 kernel(CuArray([1]))
-# no device-side error message!
+julia> @cuda threads=2 debug_level=0 kernel(CuArray([1]))
 
 julia> synchronize()
-ERROR: KernelException: exception thrown during kernel execution
+ERROR: KernelException: exception thrown during kernel execution on thread (2, 1, 1) in block (1, 1, 1) of device NVIDIA GeForce RTX 5080
 ```
 
 

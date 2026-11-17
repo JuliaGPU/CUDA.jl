@@ -2,32 +2,28 @@
 if !sanitize
 
 # device-side exceptions leave the context usable, so they can be tested in this process.
-# returns the diagnostics that the kernel printed.
-function exception_output(f)
-    mktemp() do path, io
-        redirect_stdout(io) do
-            @test_throws CUDACore.KernelException begin
-                f()
-                synchronize()
+# returns the exception that was reported.
+function kernel_exception(f)
+    err = try
+        f()
+        synchronize()
 
-                # FIXME: on some platforms (Windows...), for some users, the exception flag
-                # change doesn't immediately propagate to the host, and gets caught during
-                # finalization. this looks like a driver bug, since we threadfence_system()
-                # after setting the flag.
-                # https://stackoverflow.com/questions/16417346/cuda-pinned-memory-flushing-from-the-device
-                sleep(1)
-                synchronize()
-            end
-            Base.Libc.flush_cstdio()
-        end
-        close(io)
-        read(path, String)
+        # FIXME: on some platforms (Windows...), for some users, the exception flag
+        # change doesn't immediately propagate to the host, and gets caught during
+        # finalization. this looks like a driver bug, since we threadfence_system()
+        # after setting the flag.
+        # https://stackoverflow.com/questions/16417346/cuda-pinned-memory-flushing-from-the-device
+        sleep(1)
+        synchronize()
+        nothing
+    catch err
+        err
     end
+    @test err isa CUDACore.KernelException
+    return err
 end
 
-device_error_re = r"ERROR: a \w+ was thrown during kernel execution"
-
-@testset "stack traces at different debug levels" begin
+@testset "reports at different debug levels" begin
 
 function store_kernel(arr, val)
     arr[threadIdx().x] = val
@@ -37,39 +33,88 @@ end
 @noinline foo(a, i) = a[1] = i
 bar(a) = (foo(a, 42); nothing)
 
-# debug level 0 only signals the exception
-out = exception_output() do
-    @cuda threads=3 debug_level=0 store_kernel(CuArray(zeros(Int)), 1)
+# only one thread throws
+function position_kernel(arr)
+    i = threadIdx().y == 2 && blockIdx().z == 3 ? 2 : 1
+    arr[i] = 1
+    return
 end
-@test !occursin(device_error_re, out)
+
+# debug level 0 only reports which thread threw
+err = kernel_exception() do
+    @cuda threads=(1, 2) blocks=(1, 1, 3) debug_level=0 position_kernel(CuArray([0]))
+end
+@test err.site === nothing
+@test (err.thread, err.block) == ((1, 2, 1), (1, 1, 3))
+@test startswith(sprint(showerror, err),
+                 "KernelException: exception thrown during kernel execution on thread (1, 2, 1) in block (1, 1, 3)")
+
+err = kernel_exception() do
+    @cuda threads=(1, 2) blocks=(1, 1, 3) position_kernel(CuArray([0]))
+end
+@test err.site.name == "BoundsError"
+@test (err.thread, err.block) == ((1, 2, 1), (1, 1, 3))
 
 # this process runs at the default debug level 1
-out = exception_output() do
-    @cuda threads=3 store_kernel(CuArray(zeros(Int)), 1)
+err = kernel_exception() do
+    @cuda threads=3 blocks=2 store_kernel(CuArray(zeros(Int)), 1)
 end
-@test count(device_error_re, out) == 1
-@test count("BoundsError", out) == 1
-@test count("Out-of-bounds array access", out) == 1
+@test err.site.name == "BoundsError"
+@test err.site.reason == "Out-of-bounds array access"
+@test isempty(err.site.frames)
+@test err.thread[1] in (2, 3) && err.thread[2:3] == (1, 1)
+@test err.block[1] in (1, 2) && err.block[2:3] == (1, 1)
+out = sprint(showerror, err)
+@test occursin(r"^KernelException: BoundsError during kernel execution on thread \([23], 1, 1\) in block \([12], 1, 1\)", out)
+@test occursin("Out-of-bounds array access", out)
 @test occursin("Stacktrace not available", out)
 
-out = exception_output() do
+err = kernel_exception() do
     @cuda threads=3 debug_level=2 store_kernel(CuArray(zeros(Int)), 1)
 end
-@test count(device_error_re, out) == 1
-@test count("BoundsError", out) == 1
-@test count("Out-of-bounds array access", out) == 1
-@test occursin(r"\] store_kernel at .*exceptions\.jl:\d+", out)
+@test err.site.name == "BoundsError"
+@test err.site.reason == "Out-of-bounds array access"
+@test any(frame -> frame.func == "store_kernel" && endswith(frame.file, "exceptions.jl"),
+          err.site.frames)
+@test occursin(r"\] store_kernel at .*exceptions\.jl:\d+", sprint(showerror, err))
 
 # JuliaGPU/CUDA.jl#329: frames of non-inlined calls
-out = exception_output() do
+err = kernel_exception() do
     ptr = reinterpret(Core.LLVMPtr{Int,AS.Global}, C_NULL)
     arr = CuDeviceArray{Int,1,AS.Global}(ptr, (0,))
     @cuda debug_level=2 bar(arr)
 end
-@test occursin(device_error_re, out)
+out = sprint(showerror, err)
 @test occursin(r"\] foo at .*exceptions\.jl:\d+", out)
 @test occursin(r"\] bar at .*exceptions\.jl:\d+", out)
 
+end
+
+@testset "throw sites of several kernels" begin
+    # every kernel has a table of its own, and the host looks up the one of the kernel that
+    # threw
+    function sqrt_kernel(a)
+        a[1] = sqrt(a[1])
+        return
+    end
+    function index_kernel(a, i)
+        a[i] = 1
+        return
+    end
+    a = CuArray([1.0])
+    @cuda sqrt_kernel(a)
+    @cuda index_kernel(a, 1)
+    synchronize()
+
+    err = kernel_exception() do
+        @cuda index_kernel(a, 2)
+    end
+    @test err.site.name == "BoundsError"
+    err = kernel_exception() do
+        a .= -1
+        @cuda sqrt_kernel(a)
+    end
+    @test err.site.name == "DomainError"
 end
 
 @testset "out-of-bounds indices" begin
@@ -82,10 +127,10 @@ end
 # indices that main used to accept: a multidimensional index that linearizes into the
 # array, and a non-positive linear index.
 for I in ((3, 1), (0,))
-    out = exception_output() do
+    err = kernel_exception() do
         @cuda index_kernel(CuArray(zeros(Int, 2, 2)), I...)
     end
-    @test count("BoundsError", out) == 1
+    @test err.site.name == "BoundsError"
 end
 
 end
@@ -97,11 +142,12 @@ end
         return
     end
 
-    out = exception_output() do
+    err = kernel_exception() do
         @cuda threads=2 view_kernel(CuArray(zeros(Int, 2)))
     end
-    @test count("BoundsError", out) == 1
-    @test count("Out-of-bounds array access", out) == 1
+    @test err.site.name == "BoundsError"
+    @test err.site.reason == "Out-of-bounds array access"
+    @test err.thread == (2, 1, 1)
 end
 
 @testset "Rational arithmetic" begin
@@ -125,34 +171,32 @@ end
         out[] = Rational(num, den)
         return
     end
-    out = exception_output() do
+    err = kernel_exception() do
         @cuda rational_ctor_kernel(CuArray([0//1]), 1, typemin(Int))
     end
-    @test occursin(device_error_re, out)
     if isdefined(Base, :__throw_rational_argerror_typemin)   # Julia 1.10
-        @test occursin("ArgumentError", out)
-        @test occursin("invalid rational: denominator can't be typemin", out)
+        @test err.site.name == "ArgumentError"
+        @test err.site.reason == "invalid rational: denominator can't be typemin"
     else    # negating the denominator overflows
-        @test occursin("OverflowError", out)
+        @test err.site.name == "OverflowError"
     end
 
     function rational_neg_kernel(out, x)
         out[] = -x
         return
     end
-    out = exception_output() do
+    err = kernel_exception() do
         @cuda rational_neg_kernel(CuArray([0//1]), typemin(Int)//1)
     end
-    @test occursin(device_error_re, out)
     # Julia 1.12 builds the message lazily, so Base's method compiles and is only reported
     # as an exception of unknown type
     if VERSION < v"1.12-"
-        @test occursin("OverflowError", out)
-        @test occursin("rational numerator is typemin", out)
+        @test err.site.name == "OverflowError"
+        @test err.site.reason == "rational numerator is typemin"
     end
 end
 
-@testset "exception output while unrelated work is running" begin
+@testset "exceptions while unrelated work is running" begin
     function bad_kernel(a, i)
         a[i] = 1
         return
@@ -165,39 +209,32 @@ end
     synchronize(worker)
 
     for capturing in (false, true)
-        out = mktemp() do path, io
-            redirect_stdout(io) do
-                while_gpu_busy() do
-                    @cuda stream=worker bad_kernel(a, 2)
-                    while !CUDACore.isdone(worker)
-                        yield()
+        while_gpu_busy() do
+            @cuda stream=worker bad_kernel(a, 2)
+            while !CUDACore.isdone(worker)
+                yield()
+            end
+            err = nothing
+            if capturing
+                # Stream queries themselves are prohibited during capture. Isolate the
+                # error reporting path after the failed kernel has already completed.
+                graph = capture() do
+                    err = try
+                        CUDACore.check_exceptions()
+                    catch err
+                        err
                     end
-                    if capturing
-                        # Stream queries themselves are prohibited during capture. Isolate
-                        # the error reporting path after the failed kernel has already
-                        # completed.
-                        graph = capture() do
-                            @test_throws CUDACore.KernelException CUDACore.check_exceptions()
-                        end
-                        @test graph isa CuGraph
-                    else
-                        @test_throws CUDACore.KernelException synchronize(worker)
-                    end
-                    Base.Libc.flush_cstdio()
-                    println("exception reported")
-                    flush(stdout)
+                end
+                @test graph isa CuGraph
+            else
+                err = try
+                    synchronize(worker)
+                catch err
+                    err
                 end
             end
-            close(io)
-            read(path, String)
-        end
-        diagnostic = findfirst("BoundsError", out)
-        reported = findfirst("exception reported", out)
-        @test diagnostic !== nothing
-        @test reported !== nothing
-        if diagnostic !== nothing && reported !== nothing
-            # A later synchronization during cleanup must not be what flushes the text.
-            @test first(diagnostic) < first(reported)
+            @test err isa CUDACore.KernelException
+            @test err.site.name == "BoundsError"
         end
     end
 end
@@ -212,7 +249,7 @@ end
     # loading the module of a new kernel reports the exception, which isn't a problem with
     # the new kernel's image
     logger = Test.TestLogger(; min_level=Base.CoreLogging.Warn)
-    out = exception_output() do
+    err = kernel_exception() do
         @cuda failing_kernel(CuArray([0]))
         while !CUDACore.isdone(stream())
             yield()
@@ -221,7 +258,7 @@ end
             @cuda loaded_later()
         end
     end
-    @test count("BoundsError", out) == 1
+    @test err.site.name == "BoundsError"
     @test isempty(logger.logs)
 end
 

@@ -17,25 +17,27 @@ precompile_runtime() = nothing
 
 ## exception handling
 
+# the record of the first exception a kernel threw, in host memory that is shared by all
+# kernels of a context (see `create_exceptions!`). the host checks it on synchronization.
 struct ExceptionInfo_st
-    # whether an exception has been encountered (0 -> 1)
+    # whether an exception has been encountered (0 -> 1), set once the rest is recorded
     status::Int32
 
-    # whether an exception is being reported (see `lock_output!`)
-    output_lock::Int32
+    # claimed by the thread that records the exception (0 -> 1)
+    claim::Int32
 
-    # who is reporting the exception
-    thread::@NamedTuple{x::Int32,y::Int32,z::Int32}
+    # which thread threw
+    threadIdx::@NamedTuple{x::Int32,y::Int32,z::Int32}
     blockIdx::@NamedTuple{x::Int32,y::Int32,z::Int32}
 
-    # any additional information
-    subtype::Ptr{UInt8}
-    reason::Ptr{UInt8}
+    # the throw site, see `GPUCompiler.uses_exception_sites`, and the table it refers to
+    site::Int32
+    sites::UInt32
 
     ExceptionInfo_st() = new(0, 0,
                              (; x=Int32(0), y=Int32(0), z=Int32(0)),
                              (; x=Int32(0), y=Int32(0), z=Int32(0)),
-                             C_NULL, C_NULL)
+                             0, 0)
 end
 
 # to simplify use of this struct, which is passed by-reference, use property overloading
@@ -45,143 +47,61 @@ const ExceptionInfo = Ptr{ExceptionInfo_st}
         unsafe_load(convert(Ptr{Int32}, info))
     elseif sym === :status_ptr
         reinterpret(LLVMPtr{Int32,AS.Generic}, info)
-    elseif sym === :output_lock
-        unsafe_load(convert(Ptr{Int32}, info + 4))
-    elseif sym === :output_lock_ptr
+    elseif sym === :claim_ptr
         reinterpret(LLVMPtr{Int32,AS.Generic}, info + 4)
     elseif sym === :threadIdx
         unsafe_load(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 8))
     elseif sym === :blockIdx
         unsafe_load(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 20))
-    elseif sym === :subtype
-        unsafe_load(convert(Ptr{Ptr{UInt8}}, info + 32))
-    elseif sym === :reason
-        unsafe_load(convert(Ptr{Ptr{UInt8}}, info + 40))
+    elseif sym === :site
+        unsafe_load(convert(Ptr{Int32}, info + 32))
+    elseif sym === :sites
+        unsafe_load(convert(Ptr{UInt32}, info + 36))
     else
         getfield(info, sym)
     end
 end
-# the field values are type-asserted rather than converted: this method is also inferred
-# without a constant `sym`, where a checked conversion of e.g. the `Ptr{UInt8}` stored by
-# `@gputhrow` would close an inference cycle through the `throw_inexacterror` overlay,
-# pessimizing the effects of Base conversions like `Int32(::UInt64)`.
+# the field values are type-asserted rather than converted: nothing reachable from
+# `exception_site` may throw, not even a checked conversion, which would close an inference
+# cycle through the `throw_inexacterror` overlay, pessimizing the effects of Base
+# conversions like `Int32(::UInt64)`.
 @inline function Base.setproperty!(info::ExceptionInfo, sym::Symbol, value)
     if sym === :status
         unsafe_store!(convert(Ptr{Int32}, info), value::Int32)
-    elseif sym === :output_lock
-        unsafe_store!(convert(Ptr{Int32}, info + 4), value::Int32)
     elseif sym === :threadIdx
         unsafe_store!(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 8), value)
     elseif sym === :blockIdx
         unsafe_store!(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 20), value)
-    elseif sym === :subtype
-        unsafe_store!(convert(Ptr{Ptr{UInt8}}, info + 32), value)
-    elseif sym === :reason
-        unsafe_store!(convert(Ptr{Ptr{UInt8}}, info + 40), value)
+    elseif sym === :site
+        unsafe_store!(convert(Ptr{Int32}, info + 32), value::Int32)
+    elseif sym === :sites
+        unsafe_store!(convert(Ptr{UInt32}, info + 36), value::UInt32)
     else
         setfield!(info, sym, value)
     end
 end
 
-# a helper macro to generate global string pointers for storing additional details.
-# this is used in quirk methods that replace exceptions from Base.
-macro strptr(str::String)
-    sym = Val(Symbol(str))
-    return :(_strptr($sym))
-end
-@llvmgenerated builder function _strptr(::Val{sym})::Ptr{UInt8} where {sym}
-    ptr = globalstring_ptr!(builder, String(sym))
-    pointercast!(builder, ptr, convert(LLVMType, Ptr{UInt8}))
-end
+# the thread that threw stops executing after this. the first one to throw records where,
+# and the host looks up what was thrown there.
+@device_function function exception_site(site::Int32)
+    state = kernel_state()
+    info = state.exception_info
 
-
-# it's not useful to have several threads report exceptions (interleaved output, can crash
-# CUDA), so use an output lock to only have a single thread write an exception message.
-# the lock goes from free (0) to claimed (1), to published (2) once the owner's index is
-# visible, to finished (3) after the last message.
-@inline function lock_output!(info::ExceptionInfo)
-    # the lock lives in host-pinned memory, but only this GPU's threads contend for it, so
-    # the default device scope is what we want (system scope is unavailable on some platforms)
-    lock = info.output_lock_ptr
-    state = atomic_cas!(lock, Int32(0), Int32(1))
-    if state == Int32(0)
-        # we just took the lock: publish our index. a fence before a relaxed store, paired
-        # with a fence after a relaxed load, also orders memory before sm_70.
+    # the record lives in host-pinned memory, but only this GPU's threads contend for it,
+    # so the default device scope is what we want (system scope is unavailable on some
+    # platforms)
+    if atomic_cas!(info.claim_ptr, Int32(0), Int32(1)) == Int32(0)
+        info.site = site
+        info.sites = state.exception_sites
         info.threadIdx, info.blockIdx = threadIdx(), blockIdx()
-        threadfence()
-        UnsafeAtomics.store!(lock, Int32(2), UnsafeAtomics.monotonic, UnsafeAtomics.device)
-        return true
-    elseif state == Int32(2)
-        # check whether we already have the lock
-        threadfence()
-        return info.threadIdx == threadIdx() && info.blockIdx == blockIdx()
-    else
-        # somebody else has the lock, without having published their index yet, or the
-        # exception has been reported
-        return false
-    end
-end
 
-@device_function function report_exception(ex)
-    # this is the first reporting function being called, so claim the exception
-    info = kernel_state().exception_info
-    if lock_output!(info)
-        # override the exception type GPUCompiler deduced if the user provided a subtype
-        if info.subtype != C_NULL
-            ex = info.subtype
-        end
-        @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
-                  ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
-        if info.reason != C_NULL
-            @cuprintf("%s\n", info.reason)
-        end
-        @cuprintf("Stacktrace not available, launch the kernel with `@cuda debug_level=2` or run Julia with -g2 for more details.\n")
-    end
-    return
-end
-
-@device_function function report_exception_name(ex)
-    info = kernel_state().exception_info
-
-    # this is the first reporting function being called, so claim the exception
-    if lock_output!(info)
-        # override the exception type GPUCompiler deduced if the user provided a subtype
-        if info.subtype != C_NULL
-            ex = info.subtype
-        end
-        @cuprintf("ERROR: a %s was thrown during kernel execution on thread (%d, %d, %d) in block (%d, %d, %d).\n",
-                  ex, threadIdx().x, threadIdx().y, threadIdx().z, blockIdx().x, blockIdx().y, blockIdx().z)
-        if info.reason != C_NULL
-            @cuprintf("%s\n", info.reason)
-        end
-        @cuprintf("Stacktrace:\n")
-    end
-    return
-end
-
-@device_function function report_exception_frame(idx, func, file, line)
-    info = kernel_state().exception_info
-
-    if lock_output!(info)
-        @cuprintf(" [%d] %s at %s:%d\n", idx, func, file, line)
-    end
-    return
-end
-
-@device_function function signal_exception()
-    info = kernel_state().exception_info
-
-    # finalize output
-    if lock_output!(info)
-        @cuprintf("\n")
-        UnsafeAtomics.store!(info.output_lock_ptr, Int32(3), UnsafeAtomics.monotonic,
+        # inform the host, which reads this after the kernel has finished. the record has
+        # to be visible before the status, as the host may check while the kernel runs.
+        threadfence_system()
+        UnsafeAtomics.store!(info.status_ptr, Int32(1), UnsafeAtomics.monotonic,
                              UnsafeAtomics.device)
+        threadfence_system()
     end
-
-    # inform the host, which reads this after the kernel has finished
-    UnsafeAtomics.store!(info.status_ptr, Int32(1), UnsafeAtomics.monotonic,
-                         UnsafeAtomics.device)
-    threadfence_system()
 
     # stop executing
     exit()
@@ -194,6 +114,9 @@ end
 
 struct KernelState
     exception_info::ExceptionInfo
+    # the table of throw sites that the kernel reports exceptions with, see
+    # `create_exceptions!`
+    exception_sites::UInt32
     random_seed::UInt32
 end
 

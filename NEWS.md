@@ -179,6 +179,12 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
 *Minor changes*:
 
+- Kernels no longer print a message when they throw an exception. The `KernelException`
+  that the host reports instead names the exception, its reason, and the thread and block
+  that threw it, and at debug level 2 has a device stack trace. It names the thread at
+  debug level 0 too. Throwing code is smaller, as kernels only record which throw site
+  threw.
+
 - `Random.seed!` on a cuRAND `LibraryRNG` takes the offset into the random sequence as a
   keyword argument. The positional form is deprecated:
 

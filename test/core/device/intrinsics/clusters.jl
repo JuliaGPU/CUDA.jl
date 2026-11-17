@@ -6,7 +6,7 @@
     @test @filecheck CUDA.code_llvm(Tuple{}) do
         @check "llvm.nvvm.barrier.cluster.arrive"
         @check "llvm.nvvm.barrier.cluster.wait"
-        @check_not "gpu_report_exception"
+        @check_not "gpu_exception_site"
         cluster_arrive()
         cluster_wait()
     end

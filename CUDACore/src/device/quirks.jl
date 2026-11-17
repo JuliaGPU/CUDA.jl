@@ -3,26 +3,17 @@
 # most of the quirks below deal with exceptions, avoiding calls to often purposefully
 # underspecialized constructors that would result in allocations and/or dynamic dispatches.
 # GPUCompiler.jl cannot detect the type of these exceptions (only those thrown by C code,
-# as identified by calls to specific functions like `throw_boundserror`), so store extra
-# information about the exception type and reason in the `ExceptionInfo` struct, where it
-# will be read by the GPU runtime and printed to the console.
-
-macro gputhrow(subtype, reason)
-    quote
-        info = kernel_state().exception_info
-        info.subtype = @strptr $subtype
-        info.reason = @strptr $reason
-        throw(nothing)
-    end
-end
+# as identified by calls to specific functions like `throw_boundserror`), so name them and
+# their reason with `@gputhrow`, which the host reports when the kernel has thrown.
+using GPUCompiler: @gputhrow
 
 # GPUToolbox's shared overrides throw through `device_throw`; report those exceptions like
-# the ones thrown by the quirks below. Both arguments are constants, so the strings fold.
-@device_override @noinline function GPUToolbox.Overlays.device_throw(::Type{E}, reason::Val) where {E<:Exception}
-    info = kernel_state().exception_info
-    info.subtype = _strptr(Val(nameof(E)))
-    info.reason = _strptr(reason)
-    throw(nothing)
+# the ones thrown by the quirks below
+@device_override @generated function GPUToolbox.Overlays.device_throw(::Type{E}, ::Val{reason}) where {E<:Exception, reason}
+    quote
+        $(Expr(:meta, :noinline))
+        @gputhrow $(String(nameof(E))) $(String(reason))
+    end
 end
 
 # math.jl

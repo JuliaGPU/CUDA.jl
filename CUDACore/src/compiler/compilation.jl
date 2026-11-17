@@ -21,6 +21,8 @@ const AnyCUDAJob = CompilerJob{PTXCompilerTarget, <:AbstractCUDACompilerParams}
 const minreq = (; ptx=v"6.5", sm=sm"50")
 
 GPUCompiler.runtime_module(@nospecialize(job::AnyCUDAJob)) = CUDACore
+# throws report the id of their site, which the host looks up (see `check_exceptions`)
+GPUCompiler.uses_exception_sites(@nospecialize(job::AnyCUDAJob)) = true
 # keep host references symbolic and emit them as patchable globals; `link_kernel`
 # patches every site after loading the module
 GPUCompiler.relocation_lowering(@nospecialize(job::AnyCUDAJob)) = :patch
@@ -200,12 +202,14 @@ mutable struct CUDACompilerResults
     image::Union{Nothing,Vector{UInt8}}
     entry::Union{Nothing,String}
     relocations::GPUCompiler.Relocations
+    exception_sites::Vector{GPUCompiler.ExceptionSite}
 
     # session-local kernel handles and their state, linear-scanned by context; usually holds
     # a single entry
     kernels::Vector{Tuple{CuContext,CuFunction,KernelState}}
 
     CUDACompilerResults() = new(nothing, nothing, GPUCompiler.Relocations(),
+                                GPUCompiler.ExceptionSite[],
                                 Tuple{CuContext,CuFunction,KernelState}[])
 end
 
@@ -400,7 +404,7 @@ device_compatible_layout(@nospecialize(T)) =
 function compile(@nospecialize(job::CompilerJob))
     ptx = emit_ptx(job)
     image = assemble(job, ptx.asm, ptx.needs_cudadevrt)
-    return (; image, ptx.entry, ptx.relocations)
+    return (; image, ptx.entry, ptx.relocations, ptx.exception_sites)
 end
 
 # lower to PTX, and check that the kernel can be launched
@@ -422,7 +426,7 @@ function emit_ptx(@nospecialize(job::CompilerJob))
 
         entry = meta.entry.name
         dispose(ir)
-        (; asm, entry, meta.relocations, needs_cudadevrt)
+        (; asm, entry, meta.relocations, meta.exception_sites, needs_cudadevrt)
     end
 
     check_parameter_memory(job)
@@ -676,6 +680,7 @@ end
         res = GPUCompiler.cached_results(CUDACompilerResults, job)::CUDACompilerResults
         res.entry = ptx.entry
         res.relocations = ptx.relocations
+        res.exception_sites = ptx.exception_sites
         res.image = image
         return res
     finally
