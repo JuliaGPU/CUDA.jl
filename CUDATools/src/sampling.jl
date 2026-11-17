@@ -392,7 +392,11 @@ function format_path(file::String)
         name = package_name(String(m[1]))
         name === nothing || return "@$name/" * file[length(m[1])+2:end]
     end
-    return Base.contractuser(file)
+    # not `Base.contractuser`, which on Julia 1.14 stats every prefix of the path, and
+    # throws for file names that aren't valid paths (e.g., ones that are too long)
+    home = homedir()
+    startswith(file, home * "/") && return "~" * file[length(home)+1:end]
+    return file
 end
 
 # the name of the package at `dir`, if any
