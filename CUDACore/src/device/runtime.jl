@@ -42,13 +42,21 @@ end
 
 # to simplify use of this struct, which is passed by-reference, use property overloading
 const ExceptionInfo = Ptr{ExceptionInfo_st}
+
+# a field of the record, for device code: kernels see host-pinned memory in the global
+# address space, and the record is 4-byte aligned. accessing it through a plain `Ptr`
+# assumes neither, which makes stores go byte by byte, and atomics check at run time
+# whether they target local memory.
+@inline global_field(info::ExceptionInfo, ::Type{T}, offset) where {T} =
+    reinterpret(LLVMPtr{T,AS.Global}, info + offset)
+
 @inline function Base.getproperty(info::ExceptionInfo, sym::Symbol)
     if sym === :status
         unsafe_load(convert(Ptr{Int32}, info))
     elseif sym === :status_ptr
-        reinterpret(LLVMPtr{Int32,AS.Generic}, info)
+        global_field(info, Int32, 0)
     elseif sym === :claim_ptr
-        reinterpret(LLVMPtr{Int32,AS.Generic}, info + 4)
+        global_field(info, Int32, 4)
     elseif sym === :threadIdx
         unsafe_load(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 8))
     elseif sym === :blockIdx
@@ -64,18 +72,19 @@ end
 # the field values are type-asserted rather than converted: nothing reachable from
 # `exception_site` may throw, not even a checked conversion, which would close an inference
 # cycle through the `throw_inexacterror` overlay, pessimizing the effects of Base
-# conversions like `Int32(::UInt64)`.
+# conversions like `Int32(::UInt64)`. only device code stores to the record.
 @inline function Base.setproperty!(info::ExceptionInfo, sym::Symbol, value)
+    Index = @NamedTuple{x::Int32,y::Int32,z::Int32}
     if sym === :status
-        unsafe_store!(convert(Ptr{Int32}, info), value::Int32)
+        unsafe_store!(global_field(info, Int32, 0), value::Int32, 1, Val(4))
     elseif sym === :threadIdx
-        unsafe_store!(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 8), value)
+        unsafe_store!(global_field(info, Index, 8), value::Index, 1, Val(4))
     elseif sym === :blockIdx
-        unsafe_store!(convert(Ptr{@NamedTuple{x::Int32,y::Int32,z::Int32}}, info + 20), value)
+        unsafe_store!(global_field(info, Index, 20), value::Index, 1, Val(4))
     elseif sym === :site
-        unsafe_store!(convert(Ptr{Int32}, info + 32), value::Int32)
+        unsafe_store!(global_field(info, Int32, 32), value::Int32, 1, Val(4))
     elseif sym === :sites
-        unsafe_store!(convert(Ptr{UInt32}, info + 36), value::UInt32)
+        unsafe_store!(global_field(info, UInt32, 36), value::UInt32, 1, Val(4))
     else
         setfield!(info, sym, value)
     end
