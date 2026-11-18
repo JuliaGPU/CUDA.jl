@@ -712,7 +712,8 @@ end
 
     # add the kernel state, passing an instance with a unique seed
     pushfirst!(call_t, KernelState)
-    pushfirst!(call_args, :(KernelState(kernel.state.exception_info, make_seed(kernel))))
+    pushfirst!(call_args, :(KernelState(kernel.state.exception_info,
+                                        kernel.state.exception_sites, make_seed(kernel))))
 
     # finalize types
     call_tt = Base.to_tuple_type(call_t)
@@ -814,9 +815,10 @@ The following keyword arguments are supported:
 - `name`: override the name that the kernel will have in the generated code
 - `always_inline`: inline all function calls in the kernel
 - `debug_level`: the debug level to compile the kernel at, defaulting to the session's
-  `-g` level. `0` only reports that an exception was thrown, `1` also prints its type and
-  emits line number information, and `2` also prints a device-side stack trace and emits
-  full debug info (like `nvcc -G`).
+  `-g` level. At `0`, the `KernelException` that reports an exception only names the
+  thread that threw it, `1` also identifies the exception and emits line number
+  information, and `2` also gives a device-side stack trace and emits full debug info
+  (like `nvcc -G`).
 - `fastmath`: use less precise square roots and flush denormals
 - `arch` and `ptx`: override the GPU architecture (matching nvcc/ptxas `-arch`) and the
   PTX ISA version to compile for. `arch` accepts either an [`SMVersion`](@ref) via the
@@ -874,7 +876,8 @@ function cufunction_link(source::Core.MethodInstance; kwargs...)
             cached_ctx === ctx && return fun, state
         end
         fun = link_kernel(res.image::Vector{UInt8}, res.entry::String, res.relocations)
-        state = KernelState(create_exceptions!(fun.mod), UInt32(0))
+        exception_info, exception_sites = create_exceptions!(fun.mod, res.exception_sites)
+        state = KernelState(exception_info, exception_sites, UInt32(0))
         # don't cache session-local handles while generating output: the results struct
         # is serialized into the package image along with its CodeInstance, and the
         # handles would come back dangling.

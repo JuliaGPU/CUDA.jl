@@ -85,12 +85,12 @@ end
 
 @testset "assume" begin
     @test @filecheck CUDA.code_llvm(Tuple{Int}) do i
-        @check "@gpu_report_exception"
+        @check "gpu_exception_site"
         cld(42, i)
     end
 
     @test @filecheck CUDA.code_llvm(Tuple{Int}) do i
-        @check_not "gpu_report_exception"
+        @check_not "gpu_exception_site"
         CUDA.assume(i > 0)
         cld(42, i)
     end
