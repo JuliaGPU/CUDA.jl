@@ -1,6 +1,6 @@
-# libNVVM's reader for the LLVM IR Julia generates needs CUDA 13.5, or 13.2 on Blackwell
-nvvm_supported = CUDACore.compiler_version() >= v"13.5" ||
-                 (CUDACore.compiler_version() >= v"13.2" && capability(device()) >= v"10.0")
+# GPUCompiler's NVVM back-end requires libNVVM from CUDA 13.5 (earlier versions miscompile
+# atomics)
+nvvm_supported = CUDACore.compiler_version() >= v"13.5"
 
 struct CountedArgument{T}
     value::T
