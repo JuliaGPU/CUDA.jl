@@ -232,6 +232,14 @@ end
 
 ############################################################################################
 
+@testset "exit" begin
+    # the instruction is not visible to the optimizer, so the call must have side effects
+    @test @filecheck CUDA.code_llvm(Tuple{}) do
+        @check "call void asm sideeffect \"exit;\""
+        CUDA.exit()
+    end
+end
+
 @testset "clock and nanosleep" begin
 
 @on_device clock(UInt32)

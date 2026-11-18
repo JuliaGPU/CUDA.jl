@@ -6,7 +6,7 @@ export clock, nanosleep
 
 Terminate a thread.
 """
-@device_function exit() = @asmcall("exit;")
+@device_function exit() = @asmcall("exit;", "", true)
 
 @device_functions begin
 """
