@@ -8,7 +8,8 @@ non-blocking synchronization will be used, which gives other Julia tasks a chanc
 while waiting for the GPU to finish. This may increase latency, so for short operations,
 or when benchmaring code that does not use multiple tasks, it may be beneficial to use
 blocking synchronization instead by setting `blocking=true`. Blocking synchronization
-can also be enabled globally by changing the `nonblocking_synchronization` preference.
+can also be enabled globally by setting the `nonblocking_synchronization` preference of
+the CUDACore package to `false`.
 
 See also: [`synchronize`](@ref).
 """
