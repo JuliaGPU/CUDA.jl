@@ -87,6 +87,13 @@ nanosleep
 ```
 
 
+## Profiler counters
+
+```@docs
+prof_trigger
+```
+
+
 ## Warp-level functions
 
 ### Voting
