@@ -273,9 +273,19 @@ function select_llvm_sm(llvm_sms, ptxas_sm)
     return argmax(base_version, candidates)
 end
 
+# the code generator turning LLVM IR into PTX: LLVM's NVPTX back-end, or NVIDIA's libNVVM
+const default_codegen = let str = Preferences.@load_preference("codegen", "nvptx")
+    str in ("nvptx", "nvvm") || error("unknown codegen preference: $str")
+    Symbol(str)
+end
+
 @noinline function _compiler_config(dev; kernel=true, name=nothing, always_inline=false,
                                          debug_level=Base.JLOptions().debug_level,
-                                         arch=nothing, cap=nothing, ptx=nothing, kwargs...)
+                                         arch=nothing, cap=nothing, ptx=nothing,
+                                         codegen=default_codegen, kwargs...)
+    codegen in (:nvptx, :nvvm) ||
+        throw(ArgumentError("`codegen` must be one of :nvptx, :nvvm; got $(repr(codegen))"))
+
     # `cap=` is the deprecated old name for `arch=` (matches nvcc/ptxas `-arch`).
     if cap !== nothing
         arch === nothing ||
@@ -288,12 +298,17 @@ end
     # a VersionNumber, parses a string. Anything else falls out as a MethodError naturally.
     arch === nothing || (arch = SMVersion(arch))
 
-    # inspect the toolchain
-    llvm_support = llvm_compat()
+    # inspect the toolchain. libNVVM comes from the same toolkit as ptxas, so supports the
+    # same targets, and always emits the newest PTX ISA.
     ptxas_support = ptxas_compat()
+    llvm_support = codegen === :nvvm ? nothing : llvm_compat()
 
     # determine the PTX ISA to use.
-    if ptx !== nothing
+    if codegen === :nvvm
+        ptx === nothing ||
+            throw(ArgumentError("`ptx` cannot be combined with `codegen=:nvvm`, which always targets the newest PTX ISA"))
+        llvm_ptx = ptxas_ptx = maximum(ptxas_support.ptx)
+    elseif ptx !== nothing
         # explicit request: take it exactly, validating against the toolchain
         ptx >= minreq.ptx ||
             error("CUDA.jl requires PTX ISA $(minreq.ptx) or higher")
@@ -326,7 +341,7 @@ end
                   "$(compiler_version()) at PTX ISA $(ptxas_ptx)")
     end
     ## LLVM
-    llvm_sm = select_llvm_sm(llvm_support.sm, ptxas_sm)
+    llvm_sm = codegen === :nvvm ? ptxas_sm : select_llvm_sm(llvm_support.sm, ptxas_sm)
     llvm_sm === nothing &&
         error("Compute capability $(cpu_name(ptxas_sm)) is not supported by LLVM $(nvptx_llvm_version)")
 
@@ -337,8 +352,8 @@ end
 
     # create GPUCompiler objects
     target = PTXCompilerTarget(; cap=base_version(llvm_sm), ptx=llvm_ptx,
-                                 feature_set=llvm_sm.feature_set, system_atomics,
-                                 debuginfo=true, kwargs...)
+                                 feature_set=llvm_sm.feature_set, backend=codegen,
+                                 system_atomics, debuginfo=true, kwargs...)
     params = CUDACompilerParams(; sm=ptxas_sm, ptx=ptxas_ptx)
     CompilerConfig(target, params; kernel, name, always_inline, debug_level)
 end
@@ -407,8 +422,12 @@ function compile(@nospecialize(job::CompilerJob))
     return (; image, ptx.entry, ptx.relocations, ptx.exception_sites)
 end
 
-# lower to PTX, and check that the kernel can be launched
+# check that the kernel can be launched, and lower it to PTX
 function emit_ptx(@nospecialize(job::CompilerJob))
+    # before code generation, which can fail on oversized parameters with a less helpful
+    # message (libNVVM does)
+    check_parameter_memory(job)
+
     # inspect the IR while GPUCompiler keeps it (and its context) alive
     function inspect(asm, meta)
         ir = meta.ir::LLVM.Module
@@ -426,11 +445,7 @@ function emit_ptx(@nospecialize(job::CompilerJob))
         (; asm, entry=meta.entry.name, meta.relocations, meta.exception_sites,
            needs_cudadevrt)
     end
-    ptx = invoke_frozen(GPUCompiler.compile, inspect, :asm, job)
-
-    check_parameter_memory(job)
-
-    return ptx
+    return invoke_frozen(GPUCompiler.compile, inspect, :asm, job)
 end
 
 function check_parameter_memory(@nospecialize(job::CompilerJob))

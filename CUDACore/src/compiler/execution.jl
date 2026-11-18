@@ -270,7 +270,7 @@ end
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx, :codegen]
 const LAUNCH_KWARGS = [:cooperative, :dependent, :blocks, :threads, :clustersize, :shmem,
                        :stream]
 
@@ -883,6 +883,10 @@ The following keyword arguments are supported:
   CC 10.3, or `arch=sm"100f"` for family-portable Blackwell codegen) or a `VersionNumber`
   (e.g. `arch=v"10.3"`, treated as baseline / forward-compatible). The old kwarg name
   `cap=` is accepted as a deprecated alias.
+- `codegen`: the code generator turning LLVM IR into PTX, either `:nvptx` (LLVM's NVPTX
+  back-end) or `:nvvm` (NVIDIA's libNVVM, which requires CUDA 13.5). Defaults to the
+  `codegen` preference, or `:nvptx`. `:nvvm` does not support `ptx`, as it always targets
+  the newest PTX ISA.
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when

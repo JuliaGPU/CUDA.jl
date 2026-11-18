@@ -76,13 +76,13 @@ end
         nanosleep_kernel, Tuple{};
         arch=sm"61")
 
-    @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"61") do ptr
+    @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"61", codegen=:nvptx) do ptr
         @check "atom.gpu.global.cas.b32"
         @check_not "cas.b16"
         CUDA.atomic_cas!(ptr, UInt16(0), UInt16(1))
         return
     end
-    @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"70") do ptr
+    @test @filecheck CUDA.code_ptx((Core.LLVMPtr{UInt16,AS.Global},); arch=sm"70", codegen=:nvptx) do ptr
         @check "atom.relaxed.gpu.global.cas.b16"
         CUDA.atomic_cas!(ptr, UInt16(0), UInt16(1))
         return

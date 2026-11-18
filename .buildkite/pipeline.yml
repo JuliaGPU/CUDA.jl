@@ -324,6 +324,25 @@ steps:
         commands: |
           echo -e "[CUDACore]\ndefault_memory = \"{{matrix.memory}}\"" >LocalPreferences.toml
 
+      # only the tests that compile kernels
+      - label: "NVVM code generation"
+        plugins:
+          - JuliaCI/julia#v1:
+              version: "1.13"
+          - JuliaCI/julia-test#v1:
+              test_args: "--quickfail core gpuarrays"
+          - JuliaCI/julia-coverage#v1:
+              dirs: ["."]
+        agents:
+          queue: "cuda"
+        if: |
+          build.message !~ /\[skip [^\]]*(tests|special)/ &&
+          (build.message =~ /\[only [^\]]*(tests|special)/ ||
+           build.message !~ /\[only / && !build.pull_request.draft)
+        timeout_in_minutes: 60
+        commands: |
+          echo -e "[CUDACore]\ncodegen = \"nvvm\"\n\n[CUDA_Compiler_jll]\nversion = \"13.5\"" >LocalPreferences.toml
+
       # only the tests that use multiple devices
       - label: "MultiGPU"
         plugins:
