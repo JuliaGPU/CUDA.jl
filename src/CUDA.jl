@@ -2,6 +2,7 @@ module CUDA
 
 
 using Reexport
+import Preferences
 
 @reexport using CUDACore
 @reexport using CUDATools
@@ -72,6 +73,17 @@ let ios = @static isdefined(Base, :Terminals) ? (IOBuffer, Base.Terminals.TTYTer
     for io in ios, N in (1, 2)
         precompile(Tuple{typeof(show), IOContext{io}, MIME"text/plain",
                          CuArray{Float32,N,CUDACore.DeviceMemory}})
+    end
+end
+
+# these preferences used to be read from the `[CUDA]` section, but CUDACore reads its own.
+# setting them under `[CUDA]` has no effect, so point users to the right section.
+function __init__()
+    for key in ("default_memory", "nonblocking_synchronization")
+        if Preferences.has_preference(CUDA, key)
+            @warn """The `$key` preference is set in the `[CUDA]` section of LocalPreferences.toml, where it has no effect.
+                     Move it to the `[CUDACore]` section instead."""
+        end
     end
 end
 
