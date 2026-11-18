@@ -190,20 +190,22 @@ end
 # kernel argument types after host-to-device conversion
 @inline device_types(args...) = map(arg -> typeof(cudaconvert(arg)), args)
 
-@inline function launch_meta(meta, launch_kwargs, compiler_kwargs, args...)
-    call = CUDACore.KernelCall(meta, args...)
+# the derivative kernels are compiled like the primal one, by the same backend
+@inline function launch_meta(backend, meta, launch_kwargs, compiler_kwargs, args...)
+    call = CUDACore.KernelCall(meta, args...; backend)
     kernel = CUDACore.kernel_compile(call; compiler_kwargs...)
     CUDACore.kernel_launch(kernel, call; launch_kwargs...)
     return
 end
 
-function forward_launch(config, f::F, launch_kwargs, compiler_kwargs,
+function forward_launch(backend, config, f::F, launch_kwargs, compiler_kwargs,
                         args::Vararg{Any, N}) where {F, N}
-    launch_meta(metaf, launch_kwargs, compiler_kwargs, config, f, args...)
+    launch_meta(backend, metaf, launch_kwargs, compiler_kwargs, config, f, args...)
 end
 
 # `ModifiedBetween` describes `(f, args...)`, matching the meta-kernel's differentiated call
-function augmented_launch(config, f::F, ::Val{ModifiedBetween}, launch_kwargs, compiler_kwargs,
+function augmented_launch(backend, config, f::F, ::Val{ModifiedBetween}, launch_kwargs,
+                          compiler_kwargs,
                           args::Vararg{Any, N}) where {F, ModifiedBetween, N}
     TapeType = EnzymeCore.tape_type(
         EnzymeCore.compiler_job_from_backend(CUDABackend(), typeof(Base.identity), Tuple{Float64}),
@@ -216,14 +218,14 @@ function augmented_launch(config, f::F, ::Val{ModifiedBetween}, launch_kwargs, c
     blocks = CuDim3(get(launch_kwargs, :blocks, 1))
     subtape = CuArray{TapeType}(undef, blocks.x*blocks.y*blocks.z*threads.x*threads.y*threads.z)
 
-    launch_meta(meta_augf, launch_kwargs, compiler_kwargs,
+    launch_meta(backend, meta_augf, launch_kwargs, compiler_kwargs,
                 config, f, Val(ModifiedBetween), subtape, args...)
     return subtape
 end
 
-function reverse_launch(config, f::F, ::Val{ModifiedBetween}, subtape, launch_kwargs, compiler_kwargs,
-                        args::Vararg{Any, N}) where {F, ModifiedBetween, N}
-    launch_meta(meta_revf, launch_kwargs, compiler_kwargs,
+function reverse_launch(backend, config, f::F, ::Val{ModifiedBetween}, subtape, launch_kwargs,
+                        compiler_kwargs, args::Vararg{Any, N}) where {F, ModifiedBetween, N}
+    launch_meta(backend, meta_revf, launch_kwargs, compiler_kwargs,
                 config, f, Val(ModifiedBetween), subtape, args...)
 end
 
@@ -257,13 +259,13 @@ end
 end
 
 function EnzymeCore.EnzymeRules.forward(config, ofn::Const{KernelPipeline}, ::Type{RT},
-                                        backend::Const{CUDACore.LLVMBackend},
+                                        backend::Const{<:CUDACore.LLVMBackend},
                                         f::EnzymeCore.Annotation{F}, ::Const{Val{launch}},
                                         args::Vararg{EnzymeCore.Annotation, N};
                                         launch_kwargs::NamedTuple=(;),
                                         compiler_kwargs...) where {RT, F, launch, N}
     if launch
-        forward_launch(config, f.val, launch_kwargs, compiler_kwargs, args...)
+        forward_launch(backend.val, config, f.val, launch_kwargs, compiler_kwargs, args...)
     end
     return kernel_result(config, RT) do
         primal_kernel(backend.val, f.val, compiler_kwargs, args...)
@@ -271,13 +273,13 @@ function EnzymeCore.EnzymeRules.forward(config, ofn::Const{KernelPipeline}, ::Ty
 end
 
 function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{KernelPipeline}, ::Type{RT},
-                                                 backend::Const{CUDACore.LLVMBackend},
+                                                 backend::Const{<:CUDACore.LLVMBackend},
                                                  f::EnzymeCore.Annotation{F}, ::Const{Val{launch}},
                                                  args::Vararg{EnzymeCore.Annotation, N};
                                                  launch_kwargs::NamedTuple=(;),
                                                  compiler_kwargs...) where {RT, F, launch, N}
     tape = if launch
-        augmented_launch(config, f.val, Val(pipeline_overwritten(config)),
+        augmented_launch(backend.val, config, f.val, Val(pipeline_overwritten(config)),
                          launch_kwargs, compiler_kwargs, args...)
     else
         nothing
@@ -288,13 +290,13 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::Const{KernelPipeli
 end
 
 function EnzymeCore.EnzymeRules.reverse(config, ofn::Const{KernelPipeline}, ::Type{RT}, tape,
-                                        backend::Const{CUDACore.LLVMBackend},
+                                        backend::Const{<:CUDACore.LLVMBackend},
                                         f::EnzymeCore.Annotation{F}, ::Const{Val{launch}},
                                         args::Vararg{EnzymeCore.Annotation, N};
                                         launch_kwargs::NamedTuple=(;),
                                         compiler_kwargs...) where {RT, F, launch, N}
     if launch
-        reverse_launch(config, f.val, Val(pipeline_overwritten(config)), tape,
+        reverse_launch(backend.val, config, f.val, Val(pipeline_overwritten(config)), tape,
                        launch_kwargs, compiler_kwargs, args...)
     end
     return ntuple(_ -> nothing, Val(N + 3))
@@ -304,13 +306,14 @@ end
 ### compiled kernel objects
 
 # a kernel object obtained from `@cuda launch=false` or `cufunction` is launched by
-# calling it with host arguments, converting them along the way
+# calling it with host arguments, converting them along the way. it doesn't record how it
+# was compiled, so the derivative kernels use the default code generator.
 
 function EnzymeCore.EnzymeRules.forward(config, ofn::EnzymeCore.Annotation{CUDACore.HostKernel{F,TT}},
                                         ::Type{Const{Nothing}},
                                         args::Vararg{EnzymeCore.Annotation, N};
                                         kwargs...) where {F, TT, N}
-    forward_launch(config, ofn.val.f, (; kwargs...), (;), args...)
+    forward_launch(CUDACore.LLVMBackend(), config, ofn.val.f, (; kwargs...), (;), args...)
     return nothing
 end
 
@@ -319,7 +322,8 @@ function EnzymeCore.EnzymeRules.augmented_primal(config, ofn::EnzymeCore.Annotat
                                                  args::Vararg{EnzymeCore.Annotation, N};
                                                  kwargs...) where {F, TT, N}
     # `overwritten(config)` covers `(kernel, args...)`, matching `(f, args...)`
-    subtape = augmented_launch(config, ofn.val.f, Val(EnzymeRules.overwritten(config)),
+    subtape = augmented_launch(CUDACore.LLVMBackend(), config, ofn.val.f,
+                               Val(EnzymeRules.overwritten(config)),
                                (; kwargs...), (;), args...)
     return AugmentedReturn{Nothing,Nothing,CuArray}(nothing, nothing, subtape)
 end
@@ -328,7 +332,8 @@ function EnzymeCore.EnzymeRules.reverse(config, ofn::EnzymeCore.Annotation{CUDAC
                                         ::Type{Const{Nothing}}, subtape,
                                         args::Vararg{EnzymeCore.Annotation, N};
                                         kwargs...) where {F, TT, N}
-    reverse_launch(config, ofn.val.f, Val(EnzymeRules.overwritten(config)), subtape,
+    reverse_launch(CUDACore.LLVMBackend(), config, ofn.val.f,
+                   Val(EnzymeRules.overwritten(config)), subtape,
                    (; kwargs...), (;), args...)
     return ntuple(_ -> nothing, Val(N))
 end

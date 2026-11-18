@@ -182,23 +182,23 @@ end
     # to constructing the SMVersion directly.
     @cuda launch=false arch=dev_cap dummy()
     # but we should be able to see it in the generated PTX code
-    @test @filecheck CUDA.code_ptx((); arch=sm"50") do
+    @test @filecheck CUDA.code_ptx((); arch=sm"50", codegen=:nvptx) do
         @check ".target sm_50"
         dummy()
     end
-    @test @filecheck CUDA.code_ptx((); arch=v"5.0") do
+    @test @filecheck CUDA.code_ptx((); arch=v"5.0", codegen=:nvptx) do
         @check ".target sm_50"
         dummy()
     end
     if dev_cap.major != 5
-        @test_throws "would not load" @cuda launch=false arch=sm"50" dummy()
+        @test_throws "would not load" @cuda launch=false arch=sm"50" codegen=:nvptx dummy()
     end
 
     # explicit `ptx=` is taken as an exact request (codegen-test affordance), so the
     # `.version` line should match what was asked for, independently of what LLVM and
     # ptxas would natively pick.
     if v"8.0" in CUDACore.ptxas_compat().ptx
-        @test @filecheck CUDA.code_ptx((); ptx=v"8.0") do
+        @test @filecheck CUDA.code_ptx((); ptx=v"8.0", codegen=:nvptx) do
             @check ".version 8.0"
             dummy()
         end
@@ -210,18 +210,18 @@ end
                           CUDACore.ptx_sm_support(v"8.0"))
         if !any(sm -> CUDACore.cubin_compatible(sm, dev_cap), ptx_sms)
             # Only the cross-generation fallback must avoid architecture/family targets.
-            @test @filecheck CUDA.code_ptx((); ptx=v"8.0") do
+            @test @filecheck CUDA.code_ptx((); ptx=v"8.0", codegen=:nvptx) do
                 @check_not "{{\\.target sm_[0-9]+[af]}}"
                 dummy()
             end
-            @test_throws "would not load" @cuda launch=false ptx=v"8.0" dummy()
+            @test_throws "would not load" @cuda launch=false ptx=v"8.0" codegen=:nvptx dummy()
         end
     end
-    @test_throws "requires PTX ISA $(CUDACore.minreq.ptx)" @cuda launch=false ptx=v"6.4" dummy()
+    @test_throws "requires PTX ISA $(CUDACore.minreq.ptx)" @cuda launch=false ptx=v"6.4" codegen=:nvptx dummy()
 
     # explicit `ptx=` is validated against BOTH LLVM and ptxas (not just LLVM as it
     # used to be); a clearly out-of-range value must error at config time.
-    @test_throws "not supported" @cuda launch=false ptx=v"99.0" dummy()
+    @test_throws "not supported" @cuda launch=false ptx=v"99.0" codegen=:nvptx dummy()
 
     # feature_set is selected by the suffix on the sm"..." string; the suffix should
     # surface in the .target directive in the PTX output. The cuda-side `.target` is
@@ -248,7 +248,7 @@ end
 
     # `cap=` is the deprecated alias for `arch=`; check the depwarn fires while
     # the path still produces the right PTX.
-    @test_deprecated sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"50"))
+    @test_deprecated sprint(io->CUDA.code_ptx(io, dummy, (); cap=sm"50", codegen=:nvptx))
 
     # With no explicit `arch=`, we default to architecture-specific code paths on CC >=9.0
     # since we know the exact device. The cuda-side `.target` is the variant regardless of

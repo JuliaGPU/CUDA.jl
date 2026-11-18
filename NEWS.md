@@ -47,6 +47,11 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
 *New features*:
 
+- Kernels can be compiled with NVIDIA's libNVVM instead of LLVM's NVPTX back-end, by
+  passing `codegen=:nvvm` to `@cuda` and `cufunction` (or `backend=CUDA.NVVMBackend()`
+  to `@cuda`), or by setting CUDACore's `codegen` preference to `"nvvm"`. This is
+  experimental, and requires CUDA 13.5, or CUDA 13.2 on Blackwell and newer GPUs.
+  NVPTX remains the default.
 - Added support for CUDA 13.5: the wrappers were regenerated, and the compatibility
   databases record PTX ISA 9.5. cuSOLVER's `cusolverDnXsygvStridedBatched` and
   cuSPARSE's `CUSPARSE_SPSV_ALG2` triangular-solve algorithm are available through

@@ -743,7 +743,7 @@ using SpecialFunctions
                 max(x, y)
             end
         end
-        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"60") do x, y
+        @test @filecheck CUDA.code_ptx(Tuple{Float32, Float32}; arch=sm"60", codegen=:nvptx) do x, y
             @check "min.f32"
             @check_not "__nv_"
             min(x, y)
