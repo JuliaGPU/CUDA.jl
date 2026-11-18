@@ -652,6 +652,35 @@ end
     @test all(isequal(1), Array(a))
 end
 
+@testset "clock and cache control" begin
+    status = CUPTI.clock_status()
+    unlocked = status !== nothing &&
+               status ∉ (CUPTI.CUPTI_CLOCK_CONTROL_STATUS_LOCKED,
+                         CUPTI.CUPTI_CLOCK_CONTROL_STATUS_LOCKED_TO_FLOOR)
+    # MIG instances report the state of their GPU, but can't lock its clocks
+    lockable = unlocked && uuid(device()) == parent_uuid(device())
+    # locking to boost clocks may need elevated privileges, so only test the base clocks
+    for (clock_control, cache_control) in ((:base, :all), (:base, :l2), (:none, :none))
+        during = Ref{Any}()
+        p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum"] clock_control=clock_control cache_control=cache_control begin
+            during[] = CUPTI.clock_status()
+            @cuda threads=32 blocks=32 increment(a)
+        end
+        @test p.values[1, 1] == 32
+        if lockable
+            @test (during[] == CUPTI.CUPTI_CLOCK_CONTROL_STATUS_LOCKED) == (clock_control != :none)
+        else
+            @test during[] == status
+        end
+        @test CUPTI.clock_status() == status
+    end
+
+    executed = Ref(false)
+    @test_throws ArgumentError CUDA.@metrics clock_control=:max (executed[] = true)
+    @test_throws ArgumentError CUDA.@metrics cache_control=:l1 (executed[] = true)
+    @test !executed[]
+end
+
 @testset "timestamp metrics" begin
     # CUPTI 13.2+ loses ranges when only timestamp metrics are collected (#3595)
     function wait_cycles(cycles)
@@ -743,6 +772,40 @@ end
 end
 
 ############################################################################################
+
+if can_use_cupti() && uuid(device()) == parent_uuid(device()) &&
+   CUPTI.clock_status() in (CUPTI.CUPTI_CLOCK_CONTROL_STATUS_UNLOCKED,
+                            CUPTI.CUPTI_CLOCK_CONTROL_STATUS_BOOST_ENABLED,
+                            CUPTI.CUPTI_CLOCK_CONTROL_STATUS_BOOST_DISABLED)
+@testset "clock control" begin
+    status = CUPTI.clock_status()
+    locked = CUPTI.CUPTI_CLOCK_CONTROL_STATUS_LOCKED
+
+    @test CUPTI.lock_clocks(() -> CUPTI.clock_status()) == locked
+    @test CUPTI.clock_status() == status
+
+    @test_throws "locked code failed" CUPTI.lock_clocks(() -> error("locked code failed"))
+    @test CUPTI.clock_status() == status
+
+    @test CUPTI.lock_clocks(() -> CUPTI.lock_clocks(() -> 42)) == 42
+    @test CUPTI.clock_status() == status
+
+    # overlapping calls keep the clocks locked until the last one finishes
+    started, outer_done = Threads.Event(), Threads.Event()
+    t = CUPTI.lock_clocks() do
+        t = Threads.@spawn CUPTI.lock_clocks() do
+            notify(started)
+            wait(outer_done)
+            CUPTI.clock_status()
+        end
+        wait(started)
+        t
+    end
+    notify(outer_done)
+    @test fetch(t) == locked
+    @test CUPTI.clock_status() == status
+end
+end
 
 @testset "sampling" begin
 

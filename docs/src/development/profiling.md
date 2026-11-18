@@ -202,6 +202,33 @@ each kernel in isolation, not how kernels overlap in your application. Only kern
 launched in the current context are profiled, at most 512 of them, and kernels launched
 by CUDA graphs are not supported.
 
+Like Nsight Compute, `CUDA.@metrics` locks the GPU's clocks to their base frequency while
+it collects metrics, and flushes the caches before every replay pass, so that results are
+repeatable. This needs CUDA 13.4 or later, and can be changed with the `clock_control`
+and `cache_control` keywords. The lock applies to the whole GPU, including other
+processes. It is released when `CUDA.@metrics` finishes, but if Julia is killed or crashes
+while metrics are being collected, the clocks stay locked to their base frequency, and
+everything running on the GPU stays slower until they are released.
+`nvidia-smi --reset-gpu-clocks` does not release them, but locking and unlocking the clocks
+through CUPTI does:
+
+```julia
+julia> using CUDA
+
+julia> CUPTI.clock_status()
+CUPTI_CLOCK_CONTROL_STATUS_LOCKED::CUpti_ClockControl_Status = 0x00000002
+
+julia> CUPTI.cuptiClockControlLock(context(), CUPTI.CUPTI_CLOCK_CONTROL_MODE_BASE)
+
+julia> CUPTI.cuptiClockControlUnlock()
+
+julia> CUPTI.clock_status()
+CUPTI_CLOCK_CONTROL_STATUS_BOOST_ENABLED::CUpti_ClockControl_Status = 0x00000004
+```
+
+Only do this when no other tool, such as Nsight Compute, is profiling the GPU: CUPTI
+doesn't track who locked the clocks, so this also releases another tool's lock.
+
 Collecting hardware metrics requires CUDA 12.6 Update 2 or later, except for CUDA 12.8
 to 13.1, whose profiler does not work. The NVIDIA driver also restricts access to
 performance counters to administrators by default. See [Troubleshooting Nsight

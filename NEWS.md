@@ -60,6 +60,15 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `CUDA.early_gc!(f, false)` runs `f` without the garbage collections that CUDA.jl
   starts when GPU memory use is high, for code that paces collections itself, such as
   training loops ([#3532](https://github.com/JuliaGPU/CUDA.jl/issues/3532)).
+- With CUDA 13.4 or later, `CUDA.@metrics` locks the GPU's clocks to their base
+  frequency and flushes caches before every replay pass, as Nsight Compute does, so
+  results are repeatable and comparable with Nsight Compute. Results change: kernels run
+  at base instead of boost clocks, and replay passes no longer see what earlier passes
+  left in the caches, which can reduce memory traffic and durations. The `clock_control`
+  (`:base`, `:boost` or `:none`) and `cache_control` (`:all`, `:l2` or `:none`) keywords
+  select other behavior. `CUPTI.range_profile` takes `clock_control` and `cache_control`
+  keywords too (off by default), and `CUPTI.lock_clocks` and `CUPTI.clock_status` lock
+  clocks and query their state.
 - CUPTI's wrappers are documented public API, covered by semantic versioning:
   `CUPTI.version`, `library_version`, `can_profile`, `CallbackConfig`, `ActivityConfig`,
   `enable!`, `@enable!` and `process` for callbacks and activity tracing,

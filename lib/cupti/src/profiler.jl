@@ -1,5 +1,5 @@
 @public has_range_profiler, check_profiler_support, ProfilerHost, metric_properties,
-        range_profile
+        range_profile, clock_status, lock_clocks
 
 #
 # range profiler API
@@ -44,6 +44,124 @@ function has_range_profiler()
     isdefined(@__MODULE__, :libcupti) || return false
     handle = Libdl.dlopen(libcupti)
     Libdl.dlsym(handle, :cuptiRangeProfilerEnable; throw_error=false) !== nothing
+end
+
+
+## clock control
+
+has_clock_control() = isdefined(@__MODULE__, :libcupti) && version() >= v"13.4"
+
+"""
+    CUPTI.clock_status(ctx::CuContext=context()) -> Union{Nothing,CUpti_ClockControl_Status}
+
+The clock control state of the device of `ctx`, e.g. `CUPTI_CLOCK_CONTROL_STATUS_LOCKED`,
+or `nothing` if the device or CUPTI doesn't support clock control (it needs CUPTI from
+CUDA 13.4 or later). On a MIG instance, this is the state of the GPU the instance belongs
+to, whose clocks CUPTI can't lock but an administrator can. Wraps
+`cuptiClockControlGetStatus`.
+"""
+function clock_status(ctx::CuContext=context())
+    has_clock_control() || return nothing
+    status = Ref{CUpti_ClockControl_Status}()
+    res = unchecked_cuptiClockControlGetStatus(ctx, status)
+    res == CUPTI_ERROR_NOT_SUPPORTED && return nothing
+    res == CUPTI_SUCCESS || throw_api_error(res)
+    return status[]
+end
+
+# the lock is per process, so calls that overlap (nested, or in other tasks) share the one
+# the first of them took, and the last one to finish releases it
+const clock_lock = ReentrantLock()
+const clock_users = Ref(0)
+# the device whose clocks this process locked, until unlocking them succeeds
+const clock_device = Ref{Union{Nothing,CuDevice}}(nothing)
+const unlock_at_exit = Ref(false)
+
+function acquire_clocks(ctx::CuContext, mode::CUpti_ClockControl_Mode)
+    @lock clock_lock begin
+        dev = device(ctx)
+        if clock_device[] !== nothing
+            clock_device[] == dev ||
+                error("Cannot lock the clocks of $dev while those of $(clock_device[]) are locked.")
+            clock_users[] += 1
+            return true
+        end
+        status = clock_status(ctx)
+        if status === nothing || status in (CUPTI_CLOCK_CONTROL_STATUS_LOCKED,
+                                            CUPTI_CLOCK_CONTROL_STATUS_LOCKED_TO_FLOOR)
+            return false
+        end
+        res = unchecked_cuptiClockControlLock(ctx, mode)
+        res == CUPTI_ERROR_NOT_SUPPORTED && return false
+        res == CUPTI_SUCCESS || throw_api_error(res)
+        clock_device[] = dev
+        clock_users[] = 1
+        # the lock outlives the process, so release it on `exit()` too
+        if !unlock_at_exit[]
+            atexit(() -> clock_device[] === nothing || unchecked_cuptiClockControlUnlock())
+            unlock_at_exit[] = true
+        end
+        return true
+    end
+end
+
+function release_clocks(; checked::Bool)
+    @lock clock_lock begin
+        clock_users[] -= 1
+        clock_users[] == 0 || return
+        res = unchecked_cuptiClockControlUnlock()
+        if res == CUPTI_SUCCESS
+            clock_device[] = nothing
+        elseif checked
+            throw_api_error(res)
+        end
+    end
+    return
+end
+
+"""
+    CUPTI.lock_clocks(f, mode=CUPTI_CLOCK_CONTROL_MODE_BASE; ctx=context())
+        -> result of f()
+
+Run `f()` with the clocks of the device of `ctx` locked to their base frequency (`mode`
+`CUPTI_CLOCK_CONTROL_MODE_BASE`) or their boost frequency
+(`CUPTI_CLOCK_CONTROL_MODE_BOOST`), so that GPU Boost doesn't change how fast kernels run.
+The lock applies to the whole device, including other processes using it, and is released
+when `f` returns or throws.
+
+`f` runs with unlocked clocks when the device or CUPTI doesn't support clock control (see
+[`CUPTI.clock_status`](@ref)), and on MIG instances, which can't lock their GPU's clocks.
+Calls that overlap in this process (nested, or in other tasks) share the lock the first
+one took, in its `mode`, and can't lock the clocks of another device. Clocks that CUPTI
+reports as locked, e.g. by another process, are left alone: CUPTI doesn't track whose lock
+that is, so unlocking would release it. This check races with other processes locking the
+clocks at the same time. Clocks locked with `nvidia-smi --lock-gpu-clocks` are not reported
+as locked; the lock taken here overrides them while `f` runs.
+
+If the process crashes while `f` runs, the clocks stay locked, which `nvidia-smi
+--reset-gpu-clocks` doesn't undo. Locking and unlocking them through CUPTI does:
+
+```julia
+CUPTI.cuptiClockControlLock(context(), CUPTI.CUPTI_CLOCK_CONTROL_MODE_BASE)
+CUPTI.cuptiClockControlUnlock()
+```
+
+Wraps `cuptiClockControlLock`.
+"""
+function lock_clocks(f, mode::CUpti_ClockControl_Mode=CUPTI_CLOCK_CONTROL_MODE_BASE;
+                     ctx::CuContext=context())
+    # an interrupt between taking the lock and running `f` would leave the clocks locked
+    owned = Ref(false)
+    failed = true
+    try
+        disable_sigint(() -> owned[] = acquire_clocks(ctx, mode))
+        result = f()
+        failed = false
+        return result
+    finally
+        # failing to unlock shouldn't hide why `f` failed
+        owned[] && disable_sigint(() -> release_clocks(; checked=!failed))
+    end
 end
 
 """
@@ -251,7 +369,8 @@ with_hardware_counter(metrics) =
         [metrics; "smsp__warps_launched.sum"] : metrics
 
 """
-    CUPTI.range_profile(f, metrics::Vector{String}; ctx=context(), max_ranges=1024)
+    CUPTI.range_profile(f, metrics::Vector{String}; ctx=context(), max_ranges=1024,
+                        clock_control=nothing, cache_control=CUPTI_CACHE_CONTROL_MODE_NONE)
         -> @NamedTuple{values::Matrix{Float64}, passes::Int}
 
 Collect `metrics` for every kernel launched in `ctx` while executing `f()`, and return a
@@ -259,37 +378,58 @@ named tuple with a `ranges × metrics` matrix of `values` and the number of `pas
 kernel was replayed. Ranges are numbered in the order the kernels executed, which is
 serialized by CUPTI; at most `max_ranges` kernels are profiled.
 
+To make results repeatable, `clock_control` can lock the clocks during the session to
+`CUPTI_CLOCK_CONTROL_MODE_BASE` or `CUPTI_CLOCK_CONTROL_MODE_BOOST` (see
+[`CUPTI.lock_clocks`](@ref)), and `cache_control` can reset caches before every replay
+pass: all of them (`CUPTI_CACHE_CONTROL_MODE_ALL`) or only L2
+(`CUPTI_CACHE_CONTROL_MODE_L2`). Both need CUPTI from CUDA 13.4 or later, and are ignored
+by older versions.
+
 This uses CUPTI's range profiler in auto-range, kernel-replay mode, which needs CUPTI from
 CUDA 12.6 Update 2 or later (see [`CUPTI.has_range_profiler`](@ref)) and a device that
 supports it (see [`CUPTI.check_profiler_support`](@ref)). Only one profiling session,
 of this function or [`CUPTI.pc_sample`](@ref), can be active at a time.
 """
 function range_profile(f, metrics::Vector{String}; ctx::CuContext=context(),
-                       max_ranges::Integer=1024)
+                       max_ranges::Integer=1024,
+                       clock_control::Union{Nothing,CUpti_ClockControl_Mode}=nothing,
+                       cache_control::CUpti_CacheControl_Mode=CUPTI_CACHE_CONTROL_MODE_NONE)
     Threads.atomic_cas!(profiler_active, false, true) &&
         error("Another profiling session is already active; hardware metrics cannot be collected concurrently.")
     try
         check_profiler_support(device(ctx))
-        cuptiProfilerInitialize(profiler_params(CUpti_Profiler_Initialize_Params, :pPriv))
-        try
-            ProfilerHost(ctx) do host
-                collected = with_hardware_counter(metrics)
-                config = config_image(host, collected)
-                passes = num_passes(config)
-                values = range_profile(f, host, ctx, config, collected, max_ranges)
-                (; values=values[:, 1:length(metrics)], passes)
+        function session()
+            cuptiProfilerInitialize(profiler_params(CUpti_Profiler_Initialize_Params, :pPriv))
+            try
+                ProfilerHost(ctx) do host
+                    collected = with_hardware_counter(metrics)
+                    config = config_image(host, collected)
+                    passes = num_passes(config)
+                    values = range_profile(f, host, ctx, config, collected, max_ranges,
+                                           cache_control)
+                    (; values=values[:, 1:length(metrics)], passes)
+                end
+            finally
+                cuptiProfilerDeInitialize(profiler_params(CUpti_Profiler_DeInitialize_Params, :pPriv))
             end
-        finally
-            cuptiProfilerDeInitialize(profiler_params(CUpti_Profiler_DeInitialize_Params, :pPriv))
         end
+        # CUPTI expects clocks to be locked before the session is enabled
+        clock_control === nothing ? session() : lock_clocks(session, clock_control; ctx)
     finally
         profiler_active[] = false
     end
 end
 
 function range_profile(f, host::ProfilerHost, ctx::CuContext, config::Vector{UInt8},
-                       metrics::Vector{String}, max_ranges::Integer)
-    params = profiler_params(CUpti_RangeProfiler_Enable_Params, :pRangeProfilerObject; ctx)
+                       metrics::Vector{String}, max_ranges::Integer,
+                       cache_control::CUpti_CacheControl_Mode)
+    # older CUPTI rejects the struct size that includes the cache control mode
+    params = if version() >= v"13.4"
+        profiler_params(CUpti_RangeProfiler_Enable_Params, :cacheControlMode; ctx,
+                        cacheControlMode=cache_control)
+    else
+        profiler_params(CUpti_RangeProfiler_Enable_Params, :pRangeProfilerObject; ctx)
+    end
     cuptiRangeProfilerEnable(params)
     profiler = params[].pRangeProfilerObject
     values = try
