@@ -21,7 +21,8 @@ const initialized = Ref{Bool}(false)
 """
     CCCL.functional() -> Bool
 
-Whether the CCCL C library was loaded and initialized successfully.
+Whether the CCCL C library was loaded and initialized successfully, and a local CUDA toolkit
+was found (see [`CCCL.toolkit_path`](@ref)).
 """
 functional() = initialized[]
 
@@ -40,12 +41,18 @@ function __init__()
     CUDACore.functional() || return
 
     if !CCCL_C_jll.is_available()
-        @error "CCCL is not available for your platform"
+        @warn "CCCL is not available for your platform. CCCL.functional() will return false."
         return
     end
     global libcccl = CCCL_C_jll.libcccl_c_parallel_v2
 
-    configure_hostjit!()
+    if find_toolkit() === nothing
+        @warn """CCCL needs a local CUDA toolkit, but none was found (looked in $(join(toolkit_candidates(), ", "))).
+                 Set CUDA_PATH to point to one. CCCL.functional() will return false."""
+        return
+    end
+
+    configure_hostjit!() || return
 
     initialized[] = true
 end

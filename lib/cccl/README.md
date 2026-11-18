@@ -10,8 +10,9 @@ they inline. Builds are cached for the rest of the session; precompiled CUB head
 cached on disk, so later sessions build faster.
 
 **This package is a prototype.** It depends on `CCCL_C_jll` 3.6, the first version
-providing the HostJIT library, which is not registered yet. It also needs a local CUDA
-toolkit for the CUDA runtime headers HostJIT compiles against (see `CCCL.toolkit_path`).
+providing the HostJIT library, which is only built for Linux x86_64. It also needs a local
+CUDA toolkit for the CUDA runtime headers HostJIT compiles against (see
+`CCCL.toolkit_path`); without one, `CCCL.functional()` returns false.
 
 ```julia
 using CUDACore, CCCL

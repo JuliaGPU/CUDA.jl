@@ -7,9 +7,38 @@ function configure_hostjit!()
     get!(ENV, "HOSTJIT_CLANG_PATH", joinpath(share, "clang"))
 
     # libnvcc links nvJitLink by soname; make sure it resolves to the one CUDA.jl uses
-    Libdl.dlopen(CUDACore.CUDA_Compiler.libnvJitLink_path)
+    path = nvjitlink_path()
+    handle = path === nothing ? nothing : Libdl.dlopen(path; throw_error=false)
+    if handle === nothing
+        @warn """CCCL could not load nvJitLink from $(something(path, toolkit_path())).
+                 CCCL.functional() will return false."""
+        return false
+    end
 
-    return
+    # with a newer driver loaded, e.g. the forward-compatible one, an older nvJitLink
+    # rejects the PTX that HostJIT generates as invalid input
+    major, minor = Ref{Cint}(), Ref{Cint}()
+    ccall(Libdl.dlsym(handle, :nvJitLinkVersion), Cint, (Ptr{Cint}, Ptr{Cint}), major, minor)
+    nvjitlink = VersionNumber(major[], minor[])
+    driver = CUDACore.driver_version()
+    if nvjitlink < VersionNumber(driver.major, driver.minor)
+        @warn """CCCL needs nvJitLink to be at least as recent as the CUDA driver, but nvJitLink $nvjitlink at $path is older than the driver (CUDA $driver).
+                 Use a newer toolkit, or disable the forward-compatible driver ([CUDA_Driver_jll] compat = "false"). CCCL.functional() will return false."""
+        return false
+    end
+
+    return true
+end
+
+# the CUDA_Compiler JLL ships nvJitLink, but CUDA_Runtime_Discovery, used with a local
+# toolkit, does not discover it, so take it from the toolkit HostJIT compiles against
+function nvjitlink_path()
+    compiler = CUDACore.CUDA_Compiler
+    isdefined(compiler, :libnvJitLink_path) && return compiler.libnvJitLink_path
+
+    dir = toolkit_path()
+    path = Libdl.find_library("libnvJitLink", [joinpath(dir, "lib64"), joinpath(dir, "lib")])
+    return isempty(path) ? nothing : path
 end
 
 # the CUB, Thrust and libcu++ headers the library was built against
@@ -26,17 +55,29 @@ The JLLs CUDA.jl uses do not ship the CUDA runtime headers, so this currently ne
 CUDA toolkit.
 """
 function toolkit_path()
+    dir = find_toolkit()
+    if dir === nothing
+        error("CCCL needs a local CUDA toolkit (looked in $(join(toolkit_candidates(), ", "))); " *
+              "set CUDA_PATH to point to one")
+    end
+    return dir
+end
+
+function toolkit_candidates()
     candidates = String[]
     for var in ("CUDA_PATH", "CUDA_HOME")
         haskey(ENV, var) && push!(candidates, ENV[var])
     end
     append!(candidates, ["/usr/local/cuda", "/opt/cuda"])
-    for dir in candidates
+    return candidates
+end
+
+function find_toolkit()
+    for dir in toolkit_candidates()
         if isfile(joinpath(dir, "include", "cuda_runtime.h")) &&
            isfile(joinpath(dir, "nvvm", "libdevice", "libdevice.10.bc"))
             return dir
         end
     end
-    error("CCCL needs a local CUDA toolkit (looked in $(join(candidates, ", "))); " *
-          "set CUDA_PATH to point to one")
+    return nothing
 end
