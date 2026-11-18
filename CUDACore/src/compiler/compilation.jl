@@ -405,6 +405,8 @@ end
 
 # lower to PTX, and check that the kernel can be launched
 function emit_ptx(@nospecialize(job::CompilerJob))
+    check_parameter_memory(job)
+
     # the IR is ours: inspect it in here, and dispose of it so that it does not leak
     ptx = JuliaContext() do ctx
         asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
@@ -424,8 +426,6 @@ function emit_ptx(@nospecialize(job::CompilerJob))
         dispose(ir)
         (; asm, entry, meta.relocations, needs_cudadevrt)
     end
-
-    check_parameter_memory(job)
 
     return ptx
 end
