@@ -57,6 +57,7 @@ else
 end
 
 import NVPTX_LLVM_Backend_jll
+import NVVM
 
 using Libdl
 

@@ -613,7 +613,7 @@ system_scope_supported = dev_cap >= v"6.0" &&
     end
 
     for (arch, cap) in ((nothing, dev_cap), (sm"61", v"6.1"), (sm"50", v"5.0"))
-        kwargs = arch === nothing ? (;) : (; arch)
+        kwargs = arch === nothing ? (;) : (; arch, codegen=:nvptx)
         @test @filecheck CUDA.code_ptx(Tuple{CuDeviceVector{Int32,1}}; kwargs...) do a
             @check cas_pattern(cap, "gpu")
             CUDA.atomic_cas!(pointer(a), Int32(0), Int32(1))
@@ -639,7 +639,8 @@ system_scope_supported = dev_cap >= v"6.0" &&
         return
     end
     ptx = sprint(io -> CUDA.code_ptx(io, checked_store, Tuple{CuDeviceVector{Int32,1}};
-                                    arch=sm"61", ptx=v"8.8", kernel=true, dump_module=true))
+                                    arch=sm"61", ptx=v"8.8", codegen=:nvptx, kernel=true,
+                                    dump_module=true))
     @test occursin("atom.gpu", ptx)
     @test !occursin(r"(?:atom|red)\.sys", ptx)
 
@@ -777,9 +778,11 @@ end
 @testset "validation" begin
     # compile up to PTX, where validation runs, without invoking ptxas: the targets
     # tested here need not be supported by the toolkit or match the test GPU.
-    function validate_kernel(f, tt; kwargs...)
+    function validate_kernel(f, tt; arch, kwargs...)
+        # libNVVM doesn't support the targets before Turing
+        codegen = CUDACore.base_version(arch) < v"7.5" ? :nvptx : CUDACore.default_codegen
         source = CUDACore.methodinstance(typeof(f), tt)
-        config = CUDACore.compiler_config(device(); kwargs...)
+        config = CUDACore.compiler_config(device(); arch, codegen, kwargs...)
         job = CUDACore.CompilerJob(source, config)
         CUDACore.GPUCompiler.JuliaContext() do ctx
             CUDACore.GPUCompiler.compile(:asm, job)
