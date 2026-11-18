@@ -8,7 +8,8 @@ projects = ["test", "docs", "perf",
             "CUDATools",
             "lib/cupti", "lib/nvml",
             "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
-            "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"]
+            "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec",
+            "lib/cccl"]
 
 [deps]
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"

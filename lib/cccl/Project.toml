@@ -16,9 +16,6 @@ LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Scratch = "6c6a2e73-6563-6170-7368-637461726353"
 
-[sources]
-CUDACore = {path = "../../CUDACore"}
-
 [compat]
 CCCL_C_jll = "3.6"
 CEnum = "0.5, 1"
