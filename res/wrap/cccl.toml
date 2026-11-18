@@ -1,0 +1,26 @@
+[general]
+library_name = "libcccl"
+output_file_path = "../../lib/cccl/src/libcccl.jl"
+prologue_file_path = "./libcccl_prologue.jl"
+
+output_ignorelist = [
+    # visibility macros
+    "CCCL_C_API",
+    "CCCL_C_EXTERN_C_BEGIN",
+    "CCCL_C_EXTERN_C_END",
+]
+
+
+[codegen]
+use_ccall_macro = true
+always_NUL_terminated_string = true
+
+
+[api]
+checked_rettypes = [ "CUresult" ]
+
+[api.cccl_serialization_v2_buffer_free]
+needs_context = false
+
+[api.cccl_serialization_v2_last_error]
+needs_context = false
