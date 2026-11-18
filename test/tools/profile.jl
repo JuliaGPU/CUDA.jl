@@ -652,6 +652,24 @@ end
     @test all(isequal(1), Array(a))
 end
 
+@testset "timestamp metrics" begin
+    # CUPTI 13.2+ loses ranges when only timestamp metrics are collected (#3595)
+    function wait_cycles(cycles)
+        t0 = clock(UInt64)
+        while clock(UInt64) - t0 < cycles end
+        return
+    end
+    p = @retry_busy CUDA.@metrics metrics=["gpu__time_duration.sum"] begin
+        for cycles in (1_000, 100_000, 1_000_000)
+            @cuda threads=256 blocks=4 wait_cycles(UInt64(cycles))
+        end
+    end
+    @test length(p.kernels.id) == 3
+    @test p.metrics == ["gpu__time_duration.sum"]
+    @test size(p.values) == (3, 1)
+    @test issorted(p.values[:, 1])
+end
+
 @testset "errors" begin
     executed = Ref(false)
     @test_throws "Metric 'foo__bar.sum' is not available" @retry_busy CUDA.@metrics metrics=["foo__bar.sum"] (executed[] = true)

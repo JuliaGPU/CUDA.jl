@@ -243,6 +243,13 @@ end
 # being profiled that waits for another session would deadlock.
 const profiler_active = Threads.Atomic{Bool}(false)
 
+# CUPTI 13.2 and later lose ranges when only timestamp metrics (e.g. gpu__time_duration) are
+# collected, and can break the range profiler for the rest of the process. collecting a
+# single-pass hardware counter as well avoids that (NVIDIA bug, JuliaGPU/CUDA.jl#3595).
+with_hardware_counter(metrics) =
+    version() >= v"13.2" && !isempty(metrics) && all(startswith("gpu__time_"), metrics) ?
+        [metrics; "smsp__warps_launched.sum"] : metrics
+
 """
     CUPTI.range_profile(f, metrics::Vector{String}; ctx=context(), max_ranges=1024)
         -> @NamedTuple{values::Matrix{Float64}, passes::Int}
@@ -266,10 +273,11 @@ function range_profile(f, metrics::Vector{String}; ctx::CuContext=context(),
         cuptiProfilerInitialize(profiler_params(CUpti_Profiler_Initialize_Params, :pPriv))
         try
             ProfilerHost(ctx) do host
-                config = config_image(host, metrics)
+                collected = with_hardware_counter(metrics)
+                config = config_image(host, collected)
                 passes = num_passes(config)
-                values = range_profile(f, host, ctx, config, metrics, max_ranges)
-                (; values, passes)
+                values = range_profile(f, host, ctx, config, collected, max_ranges)
+                (; values=values[:, 1:length(metrics)], passes)
             end
         finally
             cuptiProfilerDeInitialize(profiler_params(CUpti_Profiler_DeInitialize_Params, :pPriv))
@@ -284,7 +292,7 @@ function range_profile(f, host::ProfilerHost, ctx::CuContext, config::Vector{UIn
     params = profiler_params(CUpti_RangeProfiler_Enable_Params, :pRangeProfilerObject; ctx)
     cuptiRangeProfilerEnable(params)
     profiler = params[].pRangeProfilerObject
-    try
+    values = try
         names = Base.unsafe_convert.(Cstring, metrics)
         params = GC.@preserve metrics names begin
             params = profiler_params(CUpti_RangeProfiler_GetCounterDataSize_Params, :counterDataSize;
@@ -337,9 +345,14 @@ function range_profile(f, host::ProfilerHost, ctx::CuContext, config::Vector{UIn
         for range in 1:nranges
             values[range, :] = evaluate!(buf, host, counter_data, range-1, metrics)
         end
-        return values
-    finally
-        cuptiRangeProfilerDisable(profiler_params(CUpti_RangeProfiler_Disable_Params, :pRangeProfilerObject;
-                                                  pRangeProfilerObject=profiler))
+        values
+    catch
+        # after a failed session, disabling can fail too, which shouldn't hide the actual error
+        unchecked_cuptiRangeProfilerDisable(profiler_params(CUpti_RangeProfiler_Disable_Params, :pRangeProfilerObject;
+                                                            pRangeProfilerObject=profiler))
+        rethrow()
     end
+    cuptiRangeProfilerDisable(profiler_params(CUpti_RangeProfiler_Disable_Params, :pRangeProfilerObject;
+                                              pRangeProfilerObject=profiler))
+    return values
 end
