@@ -2,7 +2,7 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public maxthreads, registers, memory, version, KernelAdaptor
-@public AbstractBackend, LLVMBackend, DefaultBackend
+@public AbstractBackend, LLVMBackend, NVPTXBackend, NVVMBackend, DefaultBackend
 @public kernel_convert, kernel_compile, kernel_launch
 @public KernelCall, rebind
 @public with_managed
@@ -32,8 +32,13 @@ abstract type AbstractBackend end
 
 Default `@cuda` backend. Compiles SIMT/PTX kernels via [`cufunction`](@ref)
 and converts arguments via [`cudaconvert`](@ref).
+
+The code generator is a type parameter: `nothing` uses the default one (see the `codegen`
+keyword of [`cufunction`](@ref)), while [`NVPTXBackend`](@ref) and [`NVVMBackend`](@ref)
+select one explicitly.
 """
-struct LLVMBackend <: AbstractBackend end
+struct LLVMBackend{codegen} <: AbstractBackend end
+LLVMBackend() = LLVMBackend{nothing}()
 
 """
     DefaultBackend()
@@ -44,6 +49,22 @@ This makes `@cuda backend=CUDA ...` (or `backend=CUDACore`) resolve to
 packages (e.g. `@cuda backend=cuTile ...` resolves to `cuTile.DefaultBackend()`).
 """
 DefaultBackend() = LLVMBackend()
+
+"""
+    NVPTXBackend()
+
+[`LLVMBackend`](@ref) that generates PTX with LLVM's NVPTX back-end, regardless of the
+`codegen` preference. Equivalent to passing `codegen=:nvptx`.
+"""
+NVPTXBackend() = LLVMBackend{:nvptx}()
+
+"""
+    NVVMBackend()
+
+[`LLVMBackend`](@ref) that generates PTX with NVIDIA's libNVVM instead of LLVM's NVPTX
+back-end. Equivalent to passing `codegen=:nvvm`.
+"""
+NVVMBackend() = LLVMBackend{:nvvm}()
 
 """
     kernel_convert(backend, x)
@@ -63,8 +84,10 @@ Compile a function for the given backend. Returns an [`AbstractKernel`](@ref)
 callable as `kernel(args...; launch_kwargs...)` to launch on the GPU. The
 default implementation for [`LLVMBackend`](@ref) is [`cufunction`](@ref).
 """
-kernel_compile(::LLVMBackend, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
+kernel_compile(::LLVMBackend{nothing}, f::F, tt::TT=Tuple{}; kwargs...) where {F,TT} =
     cufunction(f, tt; kwargs...)
+kernel_compile(::LLVMBackend{codegen}, f::F, tt::TT=Tuple{}; kwargs...) where {codegen,F,TT} =
+    cufunction(f, tt; codegen, kwargs...)
 
 
 ## kernel calls
@@ -258,7 +281,7 @@ end
 ## high-level @cuda interface
 
 const MACRO_KWARGS = [:dynamic, :launch, :backend]
-const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx]
+const COMPILER_KWARGS = [:kernel, :name, :always_inline, :debug_level, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :fastmath, :arch, :cap, :ptx, :codegen]
 const LAUNCH_KWARGS = [:cooperative, :dependent, :blocks, :threads, :clustersize, :shmem,
                        :stream]
 
@@ -824,6 +847,10 @@ The following keyword arguments are supported:
   CC 10.3, or `arch=sm"100f"` for family-portable Blackwell codegen) or a `VersionNumber`
   (e.g. `arch=v"10.3"`, treated as baseline / forward-compatible). The old kwarg name
   `cap=` is accepted as a deprecated alias.
+- `codegen`: the code generator turning LLVM IR into PTX, either `:nvptx` (LLVM's NVPTX
+  back-end) or `:nvvm` (NVIDIA's libNVVM, which requires CUDA 13.5, or 13.2 on Blackwell
+  and newer GPUs). Defaults to the `codegen` preference, or `:nvptx`. `:nvvm` does not
+  support `ptx`, as it always targets the newest PTX ISA.
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
 in a hot path without degrading performance. New code will be generated automatically, when
