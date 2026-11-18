@@ -442,7 +442,9 @@ function Base.unsafe_copyto!(dst::Ptr{T}, src::CuPtr{T}, N::Integer;
             # we can't keep host memory that's only known by its pointer alive until then
             throw(CaptureError("cannot copy to host memory while capturing a graph; use an array backed by `HostMemory` instead"))
         end
-        cuMemcpyDtoHAsync_v2(dst, src, nbytes, stream)
+        # `src` may be pooled host memory, which some drivers don't accept as the source of
+        # `cuMemcpyDtoHAsync`, so let the driver infer the direction
+        cuMemcpyAsync(reinterpret(CuPtr{Cvoid}, dst), src, nbytes, stream)
     end
     async || synchronize(stream)
     return dst
@@ -457,7 +459,8 @@ function Base.unsafe_copyto!(dst::CuPtr{T}, src::Ptr{T}, N::Integer;
         # keep host memory that's only known by its pointer alive until then, so copy the
         # data to memory that the graph keeps alive
         staged = in_capture(stream) ? stage_host_memory(src, nbytes, stream) : src
-        cuMemcpyHtoDAsync_v2(dst, staged, nbytes, stream)
+        # (see `unsafe_copyto!(::Ptr, ::CuPtr)`)
+        cuMemcpyAsync(dst, reinterpret(CuPtr{Cvoid}, staged), nbytes, stream)
     end
     async || synchronize(stream)
     return dst

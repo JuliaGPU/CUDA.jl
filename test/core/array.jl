@@ -1331,6 +1331,17 @@ end
   end
 end
 
+@testset "pointer copies between the CPU and host memory" begin
+  # memory from the pinned host pool isn't a device allocation as far as the driver knows
+  a = CuArray{Int,1,CUDA.HostMemory}(undef, 4)
+  h = [1, 2, 3, 4]
+  GC.@preserve a h unsafe_copyto!(pointer(a), pointer(h), 4)
+  @test Array(a) == h
+  d = zeros(Int, 4)
+  GC.@preserve a d unsafe_copyto!(pointer(d), pointer(a), 4)
+  @test d == h
+end
+
 @testset "copies to the GPU don't read the source after returning" begin
   # keep the stream busy, so that the copies are queued behind a kernel
   busy = CUDA.zeros(Int, 1)
