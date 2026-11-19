@@ -158,6 +158,11 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   under `[CUDACore]` in `LocalPreferences.toml`. Since v6.0, CUDACore reads them from
   that section, and setting them under `[CUDA]`, as the documentation said to, had no
   effect. CUDA.jl now warns when they are set under `[CUDA]`.
+- Copying a block between a `CuArray` and an `Array` with `copyto!(dest, Rdest, src, Rsrc)`
+  copies the right elements when the block takes whole columns of one array and a strided
+  range in the next dimension, e.g. `CartesianIndices((1:8, 1:3:9))` of an 8×9 matrix.
+  GPUArrays treated such blocks as contiguous; it is fixed in GPUArrays 12.3, which is now
+  required.
 - `CUDA.@profile` no longer deadlocks when NVTX.jl's GC hooks are enabled
   (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
   CUPTI can request one while Julia collects garbage.
