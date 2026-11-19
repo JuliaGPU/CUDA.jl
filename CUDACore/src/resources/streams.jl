@@ -93,9 +93,11 @@ end
 # reclaimed, after synchronizing the context it was used in.
 on_per_thread_stream(stream::CuStream) = stream.handle == CU_STREAM_PER_THREAD
 function synchronize_and(f, ctx::CuContext)
+  completion = device_completion(ctx)
   return x -> begin
-    # (the work of a destroyed context has ended)
-    isvalid(ctx) && context!(device_synchronize, ctx)
+    # A synchronization requested since retirement already covered this use. On a
+    # purge without such a synchronization, retain the existing blocking behavior.
+    isready(completion) || !isvalid(ctx) || context!(device_synchronize, ctx)
     f(x)
   end
 end

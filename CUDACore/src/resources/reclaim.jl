@@ -113,8 +113,11 @@ end
 # waiting for an event recorded by `cuCtxRecordEvent`, as `device_synchronize` does, or
 # finding the work done by polling doesn't, so this synchronizes the context itself.
 function synchronize_frees()
-    synchronize_object(context(); blocking=false, spin=true)
-    check_exceptions()
+    ctx = context()
+    observe_device_sync(ctx) do
+        synchronize_object(ctx; blocking=false, spin=true)
+        check_exceptions()
+    end
 end
 
 function purge_resources!()

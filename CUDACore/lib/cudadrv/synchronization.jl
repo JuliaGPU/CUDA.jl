@@ -107,8 +107,79 @@ function flush_output(ctx::CuContext)
     end
 end
 
+## observing successful context synchronizations
+
+@public device_completion, DeviceCompletion
+
+mutable struct DeviceSyncEpoch
+    Base.@atomic started::UInt64
+    Base.@atomic completed::UInt64
+end
+
+"""
+    DeviceCompletion
+
+A host-side observation returned by [`device_completion`](@ref). Poll it with `isready`.
+"""
+struct DeviceCompletion
+    epoch::DeviceSyncEpoch
+    generation::UInt64
+end
+
+# Only observers (and in-flight synchronizations) retain epochs. CuContext is a value type
+# so independent wrappers for the same context must resolve to the same epoch.
+const device_sync_epochs = Dict{CuContext,WeakRef}()
+const device_sync_epochs_lock = ReentrantLock()
+const observing_device_sync = Threads.Atomic{Bool}(false)
+
+function sync_epoch(ctx::CuContext, create::Bool)
+    !create && !observing_device_sync[] && return nothing
+    @lock device_sync_epochs_lock begin
+        ref = get(device_sync_epochs, ctx, nothing)
+        epoch = ref === nothing ? nothing : ref.value::Union{Nothing,DeviceSyncEpoch}
+        epoch === nothing || return epoch
+        create || return nothing
+        filter!(entry -> last(entry).value !== nothing, device_sync_epochs)
+        epoch = DeviceSyncEpoch(0, 0)
+        device_sync_epochs[ctx] = WeakRef(epoch)
+        observing_device_sync[] = true
+        return epoch
+    end
+end
+
+"""
+    device_completion([ctx = context()]) -> DeviceCompletion
+
+Observe completion of work already submitted to `ctx`. `isready(token)` becomes true after
+a successful `device_synchronize` in this context that began after the token was requested.
+Reclaim operations that synchronize this context also advance the token. Creating and
+polling a token submit no device work and never request a synchronization. A stream wait
+or a synchronization performed outside CUDA.jl does not advance it.
+"""
+function device_completion(ctx::CuContext=context())
+    epoch = sync_epoch(ctx, true)::DeviceSyncEpoch
+    return DeviceCompletion(epoch, (Base.@atomic epoch.started) + UInt64(1))
+end
+
+Base.isready(token::DeviceCompletion) = (Base.@atomic token.epoch.completed) >= token.generation
+
+function observe_device_sync(f::F, ctx::CuContext) where {F}
+    epoch = sync_epoch(ctx, false)
+    epoch === nothing && return f()
+    generation = Base.@atomic epoch.started += UInt64(1)
+    result = f()
+    Base.@atomic epoch.completed max generation
+    return result
+end
+
 function device_synchronize(; blocking::Bool=false, spin::Bool=true)
     ctx = context()
+    return observe_device_sync(ctx) do
+        _device_synchronize(ctx, blocking, spin)
+    end
+end
+
+function _device_synchronize(ctx::CuContext, blocking::Bool, spin::Bool)
     if !blocking && use_nonblocking_synchronization && driver_version() >= v"12.5"
         # a context can't be polled, so it always has to be synchronized on a worker
         # thread. an event that captures all of its work can be, avoiding that round trip
