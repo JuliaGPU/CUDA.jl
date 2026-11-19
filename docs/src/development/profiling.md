@@ -195,6 +195,31 @@ julia> p.values
  8.622541568e9
 ```
 
+To count events inside a kernel, call `prof_trigger(counter)` with a counter between
+0 and 7, and read it with the `sm__inst_executed_op_pmtrig_<counter>_pred_on_any.sum`
+metric. Each warp that executes the call increments the counter once, so this example
+counts how many of the 32 warps take a rarely taken branch:
+
+```julia
+julia> function kernel(a)
+           i = threadIdx().x
+           if a[i] > 0.99f0
+               prof_trigger(0)
+           end
+           return
+       end
+
+julia> a = CUDA.rand(1024);
+
+julia> p = CUDA.@metrics metrics=["sm__inst_executed_op_pmtrig_0_pred_on_any.sum"] @cuda threads=1024 kernel(a);
+
+julia> p.values
+1×1 Matrix{Float64}:
+ 9.0
+```
+
+These counters require CUDA 13.5 or later.
+
 To collect these metrics, CUDA.jl executes kernels one at a time, and replays every
 kernel as many times as needed to read all counters, restoring the contents of memory
 in between. This slows down execution considerably, and means that the metrics describe

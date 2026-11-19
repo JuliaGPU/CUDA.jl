@@ -613,6 +613,31 @@ end
     @test all(metric -> metric["unit"] === nothing, json["metrics"])
 end
 
+# CUPTI exposes the counters of `prof_trigger` since 13.5
+if CUPTI.version() >= v"13.5"
+@testset "prof_trigger" begin
+    function trigger(counter)
+        i = threadIdx().x
+        i % 32 == 1 && prof_trigger(0)
+        # a divergent warp triggers once per path
+        if i % 2 == 0
+            prof_trigger(1)
+        else
+            prof_trigger(1)
+        end
+        prof_trigger(counter)
+        return
+    end
+    metrics = ["sm__inst_executed_op_pmtrig_$(i)_pred_on_any.sum" for i in 0:3]
+    warps = 8 * 16
+    expected = [warps, 2warps, 0, warps]
+    p = retry_inflated(p -> p.values[1, :] == expected) do
+        CUDA.@metrics metrics=metrics @cuda threads=256 blocks=16 trigger(3)
+    end
+    @test p.values[1, :] == expected
+end
+end
+
 @testset "attribution" begin
     # the number of warps uniquely identifies each launch
     expected(p) = p.values[:, 1] == [grid.x for grid in p.kernels.grid]

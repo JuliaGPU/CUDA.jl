@@ -251,6 +251,45 @@ end
 
 end
 
+@testset "prof_trigger" begin
+
+@on_device prof_trigger(0)
+
+# a constant counter needs no branches
+@test @filecheck CUDA.code_ptx(Tuple{}) do
+    @check "pmevent.mask 0x4U;"
+    @check_not "bra"
+    prof_trigger(2)
+    return
+end
+
+# calls on divergent paths are counted separately, so they must not be merged
+@test @filecheck CUDA.code_ptx(Tuple{Bool, Core.LLVMPtr{Int32,AS.Global}}) do cond, ptr
+    @check "pmevent.mask 0x2U;"
+    @check "pmevent.mask 0x2U;"
+    if cond
+        unsafe_store!(ptr, 1)
+        prof_trigger(1)
+    else
+        unsafe_store!(ptr, 2)
+        prof_trigger(1)
+    end
+    return
+end
+
+function prof_trigger_kernel(counter)
+    prof_trigger(counter)
+    return
+end
+@cuda prof_trigger_kernel(7)
+synchronize()
+@test_throws CUDACore.KernelException begin
+    @cuda prof_trigger_kernel(8)
+    synchronize()
+end
+
+end
+
 @testset "parallel synchronization and communication" begin
 
 # compiling for sm_90 requires a toolchain that supports it (CUDA 11.8+)
