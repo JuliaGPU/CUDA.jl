@@ -303,7 +303,10 @@ function detect_cupti()
         false
     catch err
         isa(err, CUPTIError) || rethrow()
-        err.code == CUPTI.ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED || rethrow()
+        # an external profiler subscribed to CUPTI, or another CUPTI user in this process
+        # registered activity buffers through the multi-subscriber API
+        err.code in (CUPTI.ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED,
+                     CUPTI.ERROR_NOT_COMPATIBLE) || rethrow()
         true
     end
     _cupti_active[] = subscribed
