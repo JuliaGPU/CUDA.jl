@@ -70,8 +70,11 @@ function julia_exec(args::Cmd, env...)
     proc = run(pipeline(addenv(cmd, env...), stdout=out, stderr=err), wait=false)
     close(out.in)
     close(err.in)
+    # read both pipes while the process runs: once one of them fills up, the process blocks
+    out_task = @async read(out, String)
+    err_task = @async read(err, String)
     wait(proc)
-    proc, read(out, String), read(err, String)
+    proc, fetch(out_task), fetch(err_task)
 end
 
 # keep the GPU busy until the host opens a gate, so that tests can do things while a kernel
