@@ -86,3 +86,7 @@ ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+# TODO: remove once NVVM.jl is registered (JuliaRegistries/General#176914)
+[sources]
+NVVM = {url = "https://github.com/JuliaGPU/NVVM.jl", rev = "main"}
