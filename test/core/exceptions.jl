@@ -117,6 +117,37 @@ end
     @test err.site.name == "DomainError"
 end
 
+# the objects this test allocates are never freed, so exhausting the device heap is
+# permanent for the context; use one of its own
+if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS
+    @testset "running out of the device heap" begin
+        # passing a mutable object to a function that isn't inlined allocates it on the heap
+        @eval mutable struct HeapObject
+            x::NTuple{16,Int}
+        end
+        @noinline first_field(obj) = obj.x[1]
+        function allocating_kernel(out)
+            acc = 0
+            for i in 1:10_000_000
+                acc += first_field(HeapObject(ntuple(j -> i + j, Val(16))))
+            end
+            out[1] = acc
+            return
+        end
+
+        CuContext(device()) do ctx
+            context!(ctx) do
+                err, out = @grab_output kernel_exception() do
+                    @cuda threads=32 allocating_kernel(CuArray([0]))
+                end
+                @test err.site.name == "OutOfMemoryError"
+                @test occursin("LIMIT_MALLOC_HEAP_SIZE", err.site.reason)
+                @test isempty(out)
+            end
+        end
+    end
+end
+
 @testset "out-of-bounds indices" begin
 
 function index_kernel(arr, I...)

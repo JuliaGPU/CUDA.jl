@@ -134,7 +134,8 @@ end
 
 ## other
 
+# GPUCompiler's runtime calls this when device `malloc` fails, right before it throws. throw
+# here instead, so that the exception says which memory ran out.
 @device_function function report_oom(sz)
-    @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %d bytes)\n", sz)
-    return
+    GPUCompiler.@gputhrow "OutOfMemoryError" "Device heap allocation failed. To increase the heap, call `CUDA.limit!(CUDA.LIMIT_MALLOC_HEAP_SIZE, bytes)` before a kernel that uses device `malloc` or `free` is loaded in this context."
 end

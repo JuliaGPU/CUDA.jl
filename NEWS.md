@@ -189,7 +189,8 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   that the host reports instead names the exception, its reason, and the thread and block
   that threw it, and at debug level 2 has a device stack trace. It names the thread at
   debug level 0 too. Throwing code is smaller, as kernels only record which throw site
-  threw.
+  threw. This includes running out of the device heap, which is reported as an
+  `OutOfMemoryError` that says how to grow the heap.
 
 - `Random.seed!` on a cuRAND `LibraryRNG` takes the offset into the random sequence as a
   keyword argument. The positional form is deprecated:
