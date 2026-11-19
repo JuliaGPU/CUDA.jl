@@ -801,7 +801,7 @@ let
     nx, ny, nz = 1, 2, 1
 
     A = zeros(Int, nx, nz)
-    B = CuArray(reshape([1:(nx*ny*nz)...], (nx, ny, nz)))
+    B = CuArray{Int,3,CUDA.DeviceMemory}(reshape([1:(nx*ny*nz)...], (nx, ny, nz)))
     CUDA.unsafe_copy3d!(pointer(A), CUDA.HostMemory, pointer(B), CUDA.DeviceMemory,
                         nx, 1, nz;
                         srcPos=(1,2,1),
