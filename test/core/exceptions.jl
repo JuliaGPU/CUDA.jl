@@ -1,28 +1,6 @@
 # XXX: these tests occasionally hang under compute-sanitizer
 if !sanitize
 
-# device-side exceptions leave the context usable, so they can be tested in this process.
-# returns the exception that was reported.
-function kernel_exception(f)
-    err = try
-        f()
-        synchronize()
-
-        # FIXME: on some platforms (Windows...), for some users, the exception flag
-        # change doesn't immediately propagate to the host, and gets caught during
-        # finalization. this looks like a driver bug, since we threadfence_system()
-        # after setting the flag.
-        # https://stackoverflow.com/questions/16417346/cuda-pinned-memory-flushing-from-the-device
-        sleep(1)
-        synchronize()
-        nothing
-    catch err
-        err
-    end
-    @test err isa CUDACore.KernelException
-    return err
-end
-
 @testset "reports at different debug levels" begin
 
 function store_kernel(arr, val)
