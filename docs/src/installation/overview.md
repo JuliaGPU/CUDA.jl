@@ -288,6 +288,27 @@ Note that using a local toolkit affects CUDA-related JLLs beyond CUDA\_Runtime\_
 CUDA\_Compiler\_jll. Packages that depend on those JLLs need to use
 CUDA\_Runtime\_Discovery when the corresponding local preference is set.
 
+### Disabling CUDA
+
+To make an environment behave as if the system had no NVIDIA driver, call
+`CUDA.set_runtime_version!(:none)`:
+
+```
+julia> using CUDA
+
+julia> CUDA.set_runtime_version!(:none)
+[ Info: Configure the active project to use no CUDA toolkit; please re-start Julia for this to take effect.
+```
+
+This sets `version = "none"` on both JLLs in `LocalPreferences.toml`. After restarting
+Julia, no CUDA toolkit is selected or downloaded, `CUDA.functional()` returns `false`, and
+JLLs of other packages that follow the toolkit selection use their CPU builds where they
+have one. JLLs that only have CUDA builds are unavailable. This is useful to test the CPU
+code paths of a package on a machine with a GPU, or to keep an environment from using CUDA
+builds. Call `CUDA.reset_runtime_version!()` to undo it.
+
+The preference applies to the whole environment.
+
 
 ## Precompiling CUDA.jl without CUDA
 
@@ -327,3 +348,33 @@ end
 ```
 
 All of the above is demonstrated in the Dockerfile that's part of the CUDA.jl repository.
+
+### Shared depots
+
+On clusters, log-in nodes often have no NVIDIA driver, while the compute nodes do, and
+both use the same depot. Without a preference, the toolkit is selected for whichever node
+precompiles first, and other packages' JLLs select their CUDA or CPU builds to match. That
+choice then stays in the precompilation cache on every node: after precompiling on a
+log-in node, the compute nodes use CPU builds, and CUDA.jl is not functional there.
+CUDA_Runtime_jll warns when this happens.
+
+Pin the toolkit instead, so that every node selects the same one, also without a driver.
+For all users of a cluster, put the preferences in an environment on the load path, e.g.
+`/opt/julia/site/Project.toml`:
+
+```toml
+[extras]
+CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+CUDA_Compiler_jll = "d1e2174e-dfdc-576e-b43e-73b79eb1aca8"
+
+[preferences.CUDA_Runtime_jll]
+version = "13.0"
+
+[preferences.CUDA_Compiler_jll]
+version = "13.0"
+```
+
+and add it to the load path of every node, e.g. with
+`JULIA_LOAD_PATH="@:/opt/julia/site:@stdlib"`. Choose a version that the compute nodes'
+driver supports. Preferences of the active project take precedence, so users can still
+override it with `CUDA.set_runtime_version!`.

@@ -195,7 +195,10 @@ two cases where you may want to select a different version:
   artifacts are unavailable. Call
   `CUDA.set_runtime_version!(local_toolkit=true)`.
 
-Both these options will be remembered across sessions via a local preference,
+To use no CUDA toolkit at all, e.g. to test CPU code paths on a machine with a
+GPU, call `CUDA.set_runtime_version!(:none)`.
+
+These options will be remembered across sessions via a local preference,
 which can also be set directly (see `LocalPreferences.toml`).
 
 

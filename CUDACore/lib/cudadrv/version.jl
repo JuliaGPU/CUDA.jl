@@ -79,6 +79,7 @@ end
 
 """
     CUDA.set_runtime_version!([version::VersionNumber]; [local_toolkit::Bool])
+    CUDA.set_runtime_version!(:none)
 
 Configures the active project to use a specific CUDA runtime and compiler version from a
 specific source.
@@ -88,16 +89,29 @@ will be downloaded from an artifact source. In the case of a local toolkit, `ver
 informs CUDA.jl which version that is (this may be useful if auto-detection fails). In the
 case of artifact sources, `version` controls which version will be downloaded and used.
 
+With `:none`, the project uses no CUDA toolkit, as on a system without an NVIDIA driver:
+CUDA.jl is not functional, no toolkit is downloaded, and JLLs of other packages that follow
+the CUDA toolkit selection pick their CPU builds where they have one. This is useful to test
+CPU code paths on a machine with a GPU, or to keep an environment from using CUDA builds.
+
 When not specifying either the `version` or the `local_toolkit` argument, the default
 behavior will be used, which is to use the most recent compatible artifacts. Note that this
 will override any Preferences that may be configured in a higher-up depot; to clear
 preferences nondestructively, use
 [`CUDACore.reset_runtime_version!`](@ref) instead.
 """
-function set_runtime_version!(version::Union{Nothing,VersionNumber}=nothing;
+function set_runtime_version!(version::Union{Nothing,VersionNumber,Symbol}=nothing;
                               local_toolkit::Union{Nothing,Bool}=nothing)
+    if version isa Symbol
+        version === :none ||
+            throw(ArgumentError("Invalid CUDA version $(repr(version)); expected a version number or `:none`"))
+        local_toolkit === true &&
+            throw(ArgumentError("`local_toolkit=true` cannot be combined with `:none`"))
+    end
+
     # store stringified properties
-    let version = isnothing(version) ? nothing : "$(version.major).$(version.minor)"
+    let version = version === :none ? "none" :
+                  isnothing(version) ? nothing : "$(version.major).$(version.minor)"
         for jll in (CUDA_Runtime_jll, CUDA_Compiler_jll)
             Preferences.set_preferences!(jll, "version" => version; force=true)
         end
@@ -110,7 +124,9 @@ function set_runtime_version!(version::Union{Nothing,VersionNumber}=nothing;
 
     io = IOBuffer()
     print(io, "Configure the active project to use ")
-    if version !== nothing
+    if version === :none
+        print(io, "no CUDA toolkit")
+    elseif version !== nothing
         print(io, "CUDA $(version.major).$(version.minor)")
     else
         print(io, "the default CUDA")
@@ -137,6 +153,10 @@ function reset_runtime_version!()
     end
     @info "Reset CUDA.jl toolkit preference, please re-start Julia for this to take effect."
 end
+
+# CUDA_Runtime_jll bakes this preference into its toolkit selection, so reading it here
+# agrees with that selection
+runtime_disabled() = Preferences.load_preference(CUDA_Runtime_jll, "version") == "none"
 
 """
     compiler_version()
