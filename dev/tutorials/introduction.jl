@@ -413,19 +413,19 @@ synchronize()
 # If you remove the `@inbounds` annotation, instead you get
 #
 # ```
-# ERROR: a exception was thrown during kernel execution.
-#        Run Julia on debug level 2 for device stack traces.
+# ERROR: KernelException: BoundsError during kernel execution on thread (1, 1, 1) in block (5, 1, 1) of device NVIDIA GeForce RTX 5080: Out-of-bounds array access
+# Stacktrace not available, launch the kernel with `@cuda debug_level=2` or run Julia with -g2 for more details.
 # ```
 
 # As the error message mentions, a higher level of debug information will result in a more
 # detailed report. Let's run the same code with with `-g2`:
 #
 # ```
-# ERROR: a exception was thrown during kernel execution.
+# ERROR: KernelException: BoundsError during kernel execution on thread (1, 1, 1) in block (5, 1, 1) of device NVIDIA GeForce RTX 5080: Out-of-bounds array access
 # Stacktrace:
-#  [1] throw_boundserror at abstractarray.jl:484
-#  [2] checkbounds at abstractarray.jl:449
-#  [3] setindex! at /home/tbesard/Julia/CUDA/src/device/array.jl:79
+#  [1] throw_boundserror at /home/tim/Julia/pkg/CUDA/CUDACore/src/device/quirks.jl:49
+#  [2] throw_boundserror at /home/tim/Julia/pkg/CUDA/CUDACore/src/device/quirks.jl:51
+#  [3] setindex! at /home/tim/Julia/pkg/CUDA/CUDACore/src/device/array.jl:203
 #  [4] some_kernel at /tmp/tmpIMYANH:6
 # ```
 
