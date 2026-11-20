@@ -139,16 +139,17 @@ julia> cpu
 ```
 
 Right now, CUDA.jl still defaults to allocating device memory, but this may change in the
-future. If you want to change the default behavior, set the `default_memory` preference of
-the CUDACore package (which provides `CuArray`) to `unified` or `host` instead of `device`:
+future. If you want to change the default behavior, you can set the `default_memory`
+preference of the CUDACore package to `unified` or `host` instead of `device`, e.g., by
+adding the following to the `LocalPreferences.toml` file of your active environment:
 
-```julia
-using Preferences, CUDACore
-set_preferences!(CUDACore, "default_memory" => "unified")
+```toml
+[CUDACore]
+default_memory = "unified"
 ```
 
-This writes a `[CUDACore]` section to the `LocalPreferences.toml` next to your active project,
-and takes effect after restarting Julia.
+This preference is read when CUDACore is precompiled, so it only takes effect after
+restarting Julia.
 
 
 ## Garbage collection

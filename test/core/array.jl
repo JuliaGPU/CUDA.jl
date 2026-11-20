@@ -873,9 +873,11 @@ end
   @test !Base.mightalias(view(x, 2:16), view(CuArray(1:16), 15:-1:1))
 
   # memory wrapped from a view's pointer
-  y = view(x, 2:16)
-  z = unsafe_wrap(CuArray, pointer(y), size(y); own=false)
-  @test Base.mightalias(y, view(z, 15:-1:1))
+  for M in (CUDA.DeviceMemory, CUDA.UnifiedMemory, CUDA.HostMemory)
+    y = view(CuArray{Int,1,M}(1:16), 2:16)
+    z = unsafe_wrap(CuArray, pointer(y), size(y); own=false)
+    @test Base.mightalias(y, view(z, 15:-1:1))
+  end
 
   # so in-place broadcasts between them should make a copy first (issue #3286)
   n = 2^24

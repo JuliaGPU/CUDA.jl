@@ -40,6 +40,14 @@ if label_match !== nothing
     @test toolkit_release == VersionNumber(label_match.captures[1])
 end
 
+# check that CI is using the requested default memory type
+label_match = match(r"^CuArray with (\w+) memory$", get(ENV, "BUILDKITE_LABEL", ""))
+if label_match !== nothing
+    memory_types = Dict("device" => CUDA.DeviceMemory, "unified" => CUDA.UnifiedMemory,
+                        "host" => CUDA.HostMemory)
+    @test CUDACore.default_memory == memory_types[label_match.captures[1]]
+end
+
 # forcibly precompile the current environment in parallel (Pkg somehow ignores
 # the dependencies that are pointed through via [sources])
 Pkg.precompile()
