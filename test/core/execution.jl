@@ -14,6 +14,17 @@ function Adapt.adapt_structure(to::CUDA.KernelAdaptor, arg::CountedHost)
     CountedDevice(Adapt.adapt(to, arg.value))
 end
 
+# launches a kernel when converted
+struct LaunchingHost{T}
+    value::T
+    output::T
+end
+
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, arg::LaunchingHost)
+    @cuda copy_counted(CountedHost(arg.value, Ref(0)), arg.output)
+    CountedDevice(Adapt.adapt(to, arg.value))
+end
+
 function copy_counted(arg, output)
     output[] = arg.value[]
     return
@@ -992,6 +1003,53 @@ end
         @test @allocated(many_args_call(kernel, out)) <=
               @allocated(few_args_call(few_kernel, out)) + 40*32
     end
+end
+
+@testset "host allocations" begin
+    # warm launches that use arrays don't allocate on the host
+    function sum_kernel(out, arrays)
+        acc = 0
+        for a in arrays
+            acc += a[1]
+        end
+        out[] = acc
+        return
+    end
+    launch_sum(out, arrays) = (@cuda sum_kernel(out, arrays); nothing)
+    call_sum(kernel, out, arrays) = (kernel(out, arrays); nothing)
+
+    out = CuArray([0])
+    base = CuArray(collect(1:64))
+    for arrays in (
+            (CuArray([1]),),
+            ntuple(i -> CuArray([i]), 4),
+            ntuple(i -> CuArray([i]), 64),
+            ntuple(i -> view(base, i:64), 64),  # all the same memory
+        )
+        launch_sum(out, arrays)
+        @test Array(out)[] == sum(i -> Array(arrays[i])[1], 1:length(arrays))
+        kernel = @cuda launch=false sum_kernel(out, arrays)
+        call_sum(kernel, out, arrays)
+        if VERSION >= v"1.12"
+            @test @allocated(launch_sum(out, arrays)) == 0
+            @test @allocated(call_sum(kernel, out, arrays)) == 0
+        end
+    end
+
+    # launches nested in the conversion of another launch's arguments, after it collected
+    # the memory of its first argument
+    copy_counted_to(output, arg) = copy_counted(arg, output)
+    nested_out = CuArray([0])
+    arg = LaunchingHost(CuArray([3]), nested_out)
+    @cuda copy_counted_to(out, arg)
+    @test Array(out)[] == 3
+    @test Array(nested_out)[] == 3
+
+    # launches after one that failed
+    arrays = (CuArray([1]), CuArray([2]))
+    @test_throws Exception @cuda threads=typemax(Int32) sum_kernel(out, arrays)
+    launch_sum(out, arrays)
+    @test Array(out)[] == 3
 end
 
 @testset "keyword arguments" begin

@@ -76,6 +76,9 @@ An description of a kernel call. It contains a backend-specific converted
 function and arguments, together with the source objects that own them. Cache
 compiled kernels rather than calls, because a call pins its host arguments and
 is tied to the device, context, and task that were current when it was created.
+The calls that `@cuda` creates for launching a kernel only live for the duration of
+the launch, so hooks that convert or compile them must not retain them (or the
+`KernelAdaptor` used for converting them).
 """
 struct KernelCall{B,F,A,S}
     backend::B
@@ -93,10 +96,10 @@ end
                     managed::Vector{Managed}) where {B,F,A,S} =
     KernelCall{B,F,A,S}(backend, f, arguments, source, managed)
 
-@inline function kernel_call(backend::B, f::F, args::A) where {B,F,A<:Tuple}
+@inline function kernel_call(backend::B, f::F, args::A,
+                             managed::Vector{Managed}=Managed[]) where {B,F,A<:Tuple}
     roots = (f=f, arguments=args)
     GC.@preserve roots begin
-        managed = Managed[]
         kernel_f = kernel_convert(backend, f, managed)
         f_range = 1:length(managed)
         arguments, argument_ranges = kernel_convert_arguments(backend, args, managed)
@@ -246,6 +249,15 @@ should hook this function rather than the conversion or launch steps below it.
 @inline function kernel_pipeline_tuple(backend, f::F, ::Val{launch}, args::Tuple;
                                        launch_kwargs::NamedTuple=(;),
                                        compiler_kwargs...) where {F,launch}
+    if launch && backend isa LLVMBackend
+        # (the call doesn't outlive the launch, see `convert_and_launch`)
+        tls, managed = take_managed_buffer!()
+        call = kernel_call(backend, f, args, managed)
+        kernel = kernel_compile(call; compiler_kwargs...)
+        kernel_launch(kernel, call; launch_kwargs...)
+        recycle_managed_buffer!(tls, managed)
+        return kernel
+    end
     call = kernel_call(backend, f, args)
     kernel = kernel_compile(call; compiler_kwargs...)
     if launch
@@ -406,8 +418,11 @@ end
 lock_rank(memory::Managed) = UInt(pointer_from_objref(memory))
 
 # managed memory sorted in locking order, with duplicates removed
-function locking_order(managed::AbstractVector{<:Managed})
-    ordered = sort(managed; by=lock_rank)
+locking_order(managed::AbstractVector{<:Managed}) = locking_order!(collect(managed))
+function locking_order!(ordered::Vector{<:Managed})
+    # (unlike the default algorithm, quicksort doesn't allocate. it isn't stable, but
+    # memories only have the same rank as themselves)
+    sort!(ordered; by=lock_rank, alg=QuickSort)
     n = 0
     prev = nothing
     for memory in ordered
@@ -531,12 +546,43 @@ function managed_kernel_launch(backend, kernel, arguments, managed; kwargs...)
         return scoped_kernel_launch(backend, kernel, arguments, managed; kwargs...)
     isempty(managed) && return kernel_launch(backend, kernel, arguments; kwargs...)
     target_stream = haskey(kwargs, :stream) ? kwargs[:stream] : stream()
-    acquired = acquire_managed(ordered_managed(managed), target_stream)
+    acquired = acquire_kernel_managed(managed, target_stream)
     try
         kernel_launch(backend, kernel, arguments; kwargs...)
     finally
-        release_managed(acquired)
+        release_kernel_managed(acquired)
     end
+end
+
+# like `acquire_managed`, for the memory of a kernel's arguments in any order. it's ordered
+# in a buffer from the task's pool, so that launching a kernel doesn't allocate.
+@noinline function acquire_kernel_managed(managed::Vector{Managed}, stream::CuStream)
+    _, ordered = take_managed_buffer!()
+    acquire_managed(locking_order!(append!(ordered, managed)), stream)
+end
+
+@noinline function release_kernel_managed(acquired::AcquiredManaged{Vector{Managed}})
+    release_managed(acquired)
+    recycle_managed_buffer!(acquired.tls, acquired.ordered)
+end
+
+# take a vector to collect managed memory in from the task's pool. it is returned along
+# with the task's state, for `recycle_managed_buffer!` to put it back once it isn't used
+# anymore. a buffer that isn't put back, e.g., because the launch threw, is just collected.
+@noinline function take_managed_buffer!()
+    tls = task_local_state!()
+    buffers = tls.managed_buffers
+    buffer = isempty(buffers) ? Managed[] : pop!(buffers)::Vector{Managed}
+    return tls, buffer
+end
+
+@noinline function recycle_managed_buffer!(tls::TaskLocalState, buffer::Vector{Managed})
+    empty!(buffer)  # (not to keep the memory alive)
+    buffers = tls.managed_buffers
+    # the pool doesn't grow, so that putting a buffer back doesn't allocate. that would
+    # run finalizers, which may launch kernels that use the pool while it's being updated.
+    length(buffers) < MANAGED_BUFFERS && push!(buffers, buffer)
+    return
 end
 
 # (not specialized, nor inferred for the arguments, as it would be compiled for every
@@ -738,11 +784,22 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
+# convert the arguments and launch a kernel. the call doesn't outlive the launch, so it can
+# collect its managed memory in a buffer from the task's pool. (only for kernels of the
+# LLVM back-end, as other back-ends may retain the call, e.g., when compiling it.)
+@inline function convert_and_launch(kernel::HostKernel, f::F, args::Tuple;
+                                    kwargs...) where {F}
+    tls, managed = take_managed_buffer!()
+    result = kernel_launch(kernel, kernel_call(LLVMBackend(), f, args, managed); kwargs...)
+    recycle_managed_buffer!(tls, managed)
+    return result
+end
+
 # forwards the arguments as a tuple, see `launch_tuple(::CuFunction, ...)`
 @inline (kernel::HostKernel)(args::Vararg{Any,N}) where {N} =
-    kernel_launch(kernel, kernel_call(LLVMBackend(), kernel.f, args))
+    convert_and_launch(kernel, kernel.f, args)
 @inline Core.kwcall(kwargs::NamedTuple, kernel::HostKernel, args::Vararg{Any,N}) where {N} =
-    kernel_launch(kernel, kernel_call(LLVMBackend(), kernel.f, args); kwargs...)
+    convert_and_launch(kernel, kernel.f, args; kwargs...)
 
 @inline kernel_launch(::LLVMBackend, kernel::HostKernel, arguments::Tuple; kwargs...) =
     launch_converted(kernel, arguments; kwargs...)
