@@ -56,6 +56,25 @@ end
     end
 end
 
+# CUPTI crashes in `cuMemFreeAsync` when tracing memory activity while not using the
+# stream-ordered allocator
+can_use_cupti() && CUDACore.stream_ordered(device()) &&
+@testset "reclaiming doesn't create memory pools" begin
+    # (in a fresh process, as this one may have used every pool already)
+    script = """
+        using CUDA, Test
+        a = CuArray{Float32,1,CUDA.DeviceMemory}(undef, 1)
+        # so that the profiler's warm-up allocation of default memory doesn't create a pool
+        b = CuArray([1])
+        CUDA.synchronize()
+        results = CUDA.@profile trace=true CUDA.reclaim()
+        @test !any(contains("cuMemPoolCreate"), results.host.name)
+    """
+    proc, out, err = julia_exec(`-e $script`)
+    success(proc) || println(out, err)
+    @test success(proc)
+end
+
 @testset "pool_status" begin
     CUDA.pool_status(devnull)
     CUDA.used_memory()
