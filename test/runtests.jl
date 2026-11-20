@@ -2,6 +2,7 @@ using CUDA
 using CUDACore
 using cuBLAS, cuSPARSE, cuSOLVER, cuFFT, cuRAND
 using cuDNN, cuTENSOR, cuTensorNet, cuStateVec
+using CCCL
 using BFloat16s
 using GPUArrays
 using ParallelTestRunner
@@ -85,11 +86,11 @@ end
 const subpackages = ["cublas" => cuBLAS, "cusparse" => cuSPARSE, "cusolver" => cuSOLVER,
                      "cufft" => cuFFT, "curand" => cuRAND, "cudnn" => cuDNN,
                      "cutensor" => cuTENSOR, "cutensornet" => cuTensorNet,
-                     "custatevec" => cuStateVec]
+                     "custatevec" => cuStateVec, "cccl" => CCCL]
 for (pkg, mod) in subpackages
     testdir = normpath(@__DIR__, "..", "lib", pkg, "test")
     isdir(testdir) || continue
-    if mod in (cuDNN, cuTENSOR, cuTensorNet, cuStateVec) && !mod.functional()
+    if mod in (cuDNN, cuTENSOR, cuTensorNet, cuStateVec, CCCL) && !mod.functional()
         @warn "Skipping $(nameof(mod)) tests: the library is not functional here"
         continue
     end

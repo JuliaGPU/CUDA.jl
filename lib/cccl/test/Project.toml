@@ -1,0 +1,8 @@
+[deps]
+CCCL = "0b924c04-aa53-4e92-a9cc-db370fa02768"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+ParallelTestRunner = "2"
