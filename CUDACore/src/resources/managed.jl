@@ -136,6 +136,10 @@ function pending_work(managed::Managed)
   @lock stream_disposal_lock begin
     recycled(managed) && return nothing
     stream = managed.stream
+    # a destroyed stream's handle may belong to another stream by now. its work is covered
+    # by its final event, if it was destroyed when collected. a stream that was destroyed
+    # explicitly should have finished its work before (see `release_stream`).
+    isvalid(stream) || return stream.final_event::Union{Nothing,CuEvent}
     order = stream.order
     order === nothing && return record_pending_work(stream)
     # a stream that `capture` is capturing on has an event that covers the work submitted

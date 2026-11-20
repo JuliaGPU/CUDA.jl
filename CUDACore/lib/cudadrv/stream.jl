@@ -275,7 +275,11 @@ bind!(s::CuStream) = (s.order === nothing || bind!(s.order); return)
 # only bumped while holding `stream_pool_lock` and `stream_disposal_lock`, but read without them
 generation(s::CuStream) = Base.@atomic :acquire s.generation
 
-Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
+# the driver may give the handle of a destroyed stream to a new one, so the streams CUDA.jl
+# owns are only equal to themselves. the special and borrowed streams don't have their own
+# state, and are compared by handle (`default_stream()` returns a new object every time).
+Base.:(==)(a::CuStream, b::CuStream) =
+    a === b || (a.order === nothing && b.order === nothing && a.handle == b.handle)
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
 @enum_without_prefix visibility=:public CUstream_flags_enum CU_
