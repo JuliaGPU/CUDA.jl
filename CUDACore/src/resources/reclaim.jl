@@ -132,8 +132,7 @@ end
 
 function trim_pools(dev::CuDevice, stream_ordered::Bool)
     stream_ordered && trim(pool_create(dev))
-    pool = host_pool()
-    pool === nothing || trim(pool)
+    host_pool_created[] && trim(host_pool()::CuMemoryPool)
     # memory allocated by graphs (e.g., by libraries during capture) is cached separately
     if driver_version() >= v"11.4" && memory_pools_supported(dev)
         cuDeviceGraphMemTrim(dev)
