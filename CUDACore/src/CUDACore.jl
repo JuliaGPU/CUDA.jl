@@ -50,7 +50,8 @@ import CUDA_Compiler_jll
 const local_compiler = CUDA_Compiler_jll.host_platform["cuda_local"] == "true"
 
 if local_compiler
-    using CUDA_Runtime_Discovery
+    # (not `using`: with the runtime from the JLL, both would export the same names)
+    import CUDA_Runtime_Discovery
     const CUDA_Compiler = CUDA_Runtime_Discovery
 else
     const CUDA_Compiler = CUDA_Compiler_jll

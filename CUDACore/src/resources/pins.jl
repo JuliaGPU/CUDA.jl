@@ -181,13 +181,13 @@ function __unpin(ptr::Ptr, ctx::CuContext)
     mem = Base.@lock pin_lock begin
         entry = get(__pinned_memory, key, nothing)
         @assert entry !== nothing "Cannot unpin unmanaged pointer $ptr."
-        mem, pin_count = entry
+        registered, pin_count = entry
         if pin_count > 1
-            __pinned_memory[key] = (mem, pin_count - 1)
+            __pinned_memory[key] = (registered, pin_count - 1)
             return
         end
         delete!(__pinned_memory, key)
-        mem
+        registered
     end
     try
         # (a destroyed context has no registrations left)
