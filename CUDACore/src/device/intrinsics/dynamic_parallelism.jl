@@ -10,14 +10,13 @@ end
 
 Base.convert(::Type{cudaError_t}, err::CuDeviceError) = err.code
 
-name(err::CuDeviceError) = cudaGetErrorName(err)
-
-description(err::CuDeviceError) = cudaGetErrorString(err)
-
-@noinline function throw_device_cuerror(err::CuDeviceError)
-    # the exception won't be rendered on the host, so print some details here already
-    @cuprintln("ERROR: a CUDA error was thrown during kernel execution: $(description(err)) (code $(Int(err.code)), $(name(err)))")
-    throw(err)
+# the host only learns which site threw, so each error code throws from a site of its own
+@eval @device_function @noinline function throw_device_cuerror(err::CuDeviceError)
+    code = err.code
+    $(map(filter(!=(cudaSuccess), instances(cudaError))) do c
+          :(code == $c && GPUCompiler.@gputhrow "CuDeviceError" $("$c (code $(Int(c)))"))
+      end...)
+    GPUCompiler.@gputhrow "CuDeviceError" "Unrecognized CUDA device runtime error code"
 end
 
 macro check_status(ex)

@@ -1,28 +1,6 @@
 # XXX: these tests occasionally hang under compute-sanitizer
 if !sanitize
 
-# device-side exceptions leave the context usable, so they can be tested in this process.
-# returns the exception that was reported.
-function kernel_exception(f)
-    err = try
-        f()
-        synchronize()
-
-        # FIXME: on some platforms (Windows...), for some users, the exception flag
-        # change doesn't immediately propagate to the host, and gets caught during
-        # finalization. this looks like a driver bug, since we threadfence_system()
-        # after setting the flag.
-        # https://stackoverflow.com/questions/16417346/cuda-pinned-memory-flushing-from-the-device
-        sleep(1)
-        synchronize()
-        nothing
-    catch err
-        err
-    end
-    @test err isa CUDACore.KernelException
-    return err
-end
-
 @testset "reports at different debug levels" begin
 
 function store_kernel(arr, val)
@@ -115,6 +93,37 @@ end
         @cuda sqrt_kernel(a)
     end
     @test err.site.name == "DomainError"
+end
+
+# the objects this test allocates are never freed, so exhausting the device heap is
+# permanent for the context; use one of its own
+if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS
+    @testset "running out of the device heap" begin
+        # passing a mutable object to a function that isn't inlined allocates it on the heap
+        @eval mutable struct HeapObject
+            x::NTuple{16,Int}
+        end
+        @noinline first_field(obj) = obj.x[1]
+        function allocating_kernel(out)
+            acc = 0
+            for i in 1:10_000_000
+                acc += first_field(HeapObject(ntuple(j -> i + j, Val(16))))
+            end
+            out[1] = acc
+            return
+        end
+
+        CuContext(device()) do ctx
+            context!(ctx) do
+                err, out = @grab_output kernel_exception() do
+                    @cuda threads=32 allocating_kernel(CuArray([0]))
+                end
+                @test err.site.name == "OutOfMemoryError"
+                @test occursin("LIMIT_MALLOC_HEAP_SIZE", err.site.reason)
+                @test isempty(out)
+            end
+        end
+    end
 end
 
 @testset "out-of-bounds indices" begin
