@@ -550,9 +550,12 @@ function profile_internally(@nospecialize(f); concurrent=true, kwargs...)
         # internal launch API calls
         CUPTI.CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API,
     ]
-    if CUPTI.version() >= v"11.2"
-        # Check CUPTI's API version: JetPack 5's CUDA 11.4 ships an older CUPTI.
-        # Enabling MEMORY2 there corrupts the stack with the CUDA 12 compat driver.
+    # Check CUPTI's API version: JetPack 5's CUDA 11.4 ships an older CUPTI.
+    # Enabling MEMORY2 there corrupts the stack with the CUDA 12 compat driver.
+    # XXX: from CUPTI 12.9, recording MEMORY2 activity crashes `cuMemFreeAsync` on memory
+    #      that wasn't allocated from a pool (#3618), which is how CUDA.jl frees such
+    #      memory, e.g., with `JULIA_CUDA_MEMORY_POOL=none` or owned `unsafe_wrap`s.
+    if v"11.2" <= CUPTI.version() < v"12.9"
         push!(activity_kinds, CUPTI.CUPTI_ACTIVITY_KIND_MEMORY2)
     end
     cfg = CUPTI.ActivityConfig(activity_kinds)

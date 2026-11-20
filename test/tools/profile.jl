@@ -198,6 +198,18 @@ end
     @test Array(a) == [1, 2, 3]
 end
 
+@testset "profiled free" begin
+    # memory that wasn't allocated from a pool is freed with `cuMemFreeAsync`, which
+    # crashes CUPTI 12.9+ when it records MEMORY2 activity (#3618)
+    results = @retry_busy begin
+        mem = CUDACore.alloc(CUDACore.DeviceMemory, 4)
+        a = unsafe_wrap(CuArray, convert(CuPtr{UInt8}, mem), 4; own=true)
+        CUDA.synchronize()
+        CUDA.@profile CUDA.unsafe_free!(a)
+    end
+    @test results isa CUDA.Profile.ProfileResults
+end
+
 @testset "finalizers" begin
     # code that frees GPU memory relies on finalizers (#3530)
     @test finalizes_within(f -> CUDA.@profile f())
