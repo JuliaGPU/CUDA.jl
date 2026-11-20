@@ -1394,6 +1394,23 @@ end
     end
   end
 
+  # strided blocks with whole but narrow columns, which GPUArrays copies (and before 12.3
+  # treated as contiguous), for every kind of memory
+  host = rand(8, 9)
+  @testset "$M" for M in (CUDA.DeviceMemory, CUDA.UnifiedMemory, CUDA.HostMemory)
+    dev = CuArray{Float64,2,M}(host)
+    for (Rh, Rd) in ((CartesianIndices((1:8, 1:3:9)), CartesianIndices((1:8, 1:3))),
+                     (CartesianIndices((1:8, 1:3)), CartesianIndices((1:8, 1:3:9))))
+      h = copy(host)
+      copyto!(h, Rh, dev, Rd)
+      @test h == copyto!(copy(host), Rh, host, Rd)
+
+      d = copy(dev)
+      copyto!(d, Rd, host, Rh)
+      @test Array(d) == copyto!(copy(host), Rd, host, Rh)
+    end
+  end
+
   # stream ordering: wait for kernels writing the source, and don't read the host source
   # after returning
   busy = CUDA.zeros(Int, 1)
