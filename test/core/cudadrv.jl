@@ -15,6 +15,39 @@ exclusive = attribute(dev, CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) == CUDA.COMPUTEMO
 
 synchronize(ctx)
 
+@testset "observing device completion" begin
+    before = CUDACore.device_completion(ctx)
+    synchronize()
+    @test !isready(before)
+    device_synchronize()
+    @test isready(before)
+
+    failed = CUDACore.device_completion(ctx)
+    @test_throws ErrorException CUDACore.observe_device_sync(() -> error("failed"), ctx)
+    @test !isready(failed)
+    device_synchronize(; blocking=true)
+    @test isready(failed)
+
+    if !exclusive
+        first = CUDACore.device_completion(ctx)
+        CuContext(dev) do other
+            context!(other) do
+                second = CUDACore.device_completion(other)
+                device_synchronize()
+                @test isready(second) && !isready(first)
+            end
+        end
+        device_synchronize()
+        @test isready(first)
+    end
+
+    if CUDACore.async_free_supported(dev)
+        reclaimed = CUDACore.device_completion(ctx)
+        CUDACore.reclaim(CUDACore.RECLAIM_SYNC)
+        @test isready(reclaimed)
+    end
+end
+
 @test startswith(sprint(show, MIME"text/plain"(), ctx), "CuContext")
 @test CUDA.api_version(ctx) isa Cuint
 
@@ -1284,6 +1317,29 @@ let s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
         @test gated(s) do
             open_gate_during(() -> device_synchronize(; spin))
         end
+    end
+end
+
+# Take a second observation while a real context synchronization is waiting. The
+# synchronization certifies the first observation, and the next one certifies the second.
+let s = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+    @test gated(s) do
+        early = CUDACore.device_completion()
+        later = @async begin
+            try
+                while (Base.@atomic early.epoch.started) < early.generation
+                    yield()
+                end
+                CUDACore.device_completion()
+            finally
+                open_gate()
+            end
+        end
+        device_synchronize(; spin=false)
+        late = fetch(later)
+        covered = isready(early) && !isready(late)
+        device_synchronize()
+        covered && isready(late)
     end
 end
 
