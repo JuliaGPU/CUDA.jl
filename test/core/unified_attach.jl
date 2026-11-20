@@ -99,12 +99,14 @@ end
     CUDA.reclaim()
 
     # accessing memory on the CPU while capturing, after the task that last used it on the
-    # GPU has finished (whose stream may have been recycled into the capturing task)
+    # GPU has finished (whose stream may have been recycled into the capturing task).
+    # copying to an `Array` is rejected while capturing, so access the memory directly.
     a = CuArray{Int,1,UnifiedMemory}(undef, 16)
     fill!(unsafe_wrap(Array, a), 20)
     wait(@async work!(a))
     graph = fetch(@async capture() do
-        @test Array(a) == fill(21, 16)
+        synchronize(a)
+        @test unsafe_wrap(Array, a) == fill(21, 16)
     end)
     @test graph isa CuGraph
     finalize(graph)

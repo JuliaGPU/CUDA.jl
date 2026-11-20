@@ -170,6 +170,14 @@ end
     @test capture(() -> (record(event); synchronize(event)); throw_error=false) === nothing
     @test !is_capturing()
 
+    # copying unified or host memory, which the CPU would read before the graph executes
+    for M in (CUDA.UnifiedMemory, CUDA.HostMemory)
+        b = CuArray{Int,1,M}(undef, 4)
+        @test_throws CaptureError capture(() -> Array(b))
+        @test_throws CaptureError capture(() -> copyto!(zeros(Int, 4), b))
+    end
+    @test !is_capturing()
+
     # copying to host memory that the graph can't keep alive
     pinned = CUDA.pin(zeros(Int, 4))
     @test_throws CaptureError capture(() -> copyto!(pinned, a))

@@ -801,7 +801,7 @@ let
     nx, ny, nz = 1, 2, 1
 
     A = zeros(Int, nx, nz)
-    B = CuArray(reshape([1:(nx*ny*nz)...], (nx, ny, nz)))
+    B = CuArray{Int,3,CUDA.DeviceMemory}(reshape([1:(nx*ny*nz)...], (nx, ny, nz)))
     CUDA.unsafe_copy3d!(pointer(A), CUDA.HostMemory, pointer(B), CUDA.DeviceMemory,
                         nx, 1, nz;
                         srcPos=(1,2,1),
@@ -1174,7 +1174,8 @@ sanitize || @testset "cooperative synchronization" begin
 
 # keep the GPU busy with a `gate_kernel` (see helpers.jl). this keeps the tests below
 # independent of timing: a synchronization can only return after the task that opens the
-# gate has run.
+# gate has run. the arrays are allocated in device memory, because only that memory is
+# handed off between streams on the GPU: unified and host memory synchronize on the host.
 gate = zeros(UInt32, 3)     # (is open, timed out, started)
 gpu_gate = unsafe_wrap(CuArray, gate)
 gate_ptr = reinterpret(Ptr{UInt32}, pointer(gpu_gate))
@@ -1242,8 +1243,8 @@ end
 let s = CuStream(), other = CuStream(), handle = Ref{CUDACore.CUevent}()
     CUDACore.cuEventCreate(handle, CUDA.EVENT_DISABLE_TIMING)
     e = unsafe_wrap(CuEvent, handle[]; ctx=context())
-    a = CUDA.zeros(Int, 1)
-    b = CUDA.zeros(Int, 1)
+    a = cu([0]; device=true)
+    b = cu([0]; device=true)
     a .= 0
     b .= a
     synchronize()
@@ -1478,7 +1479,7 @@ end
 
 # memory used by CUDA.jl operations on another stream is handed off on the device: the new
 # stream waits for the old one, without blocking the host
-let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), u = cu([0]; unified=true),
+let a = cu([0]; device=true), b = cu([0]; device=true), u = cu([0]; unified=true),
     s = stream(), other = CuStream(), third = CuStream()
     # warm up, as compiling kernels waits for the GPU to become idle
     for x in (a, u)
@@ -1555,7 +1556,7 @@ let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), u = cu([0]; unified=true),
 end
 
 # work can be ordered with streams that CUDA.jl doesn't own, e.g., of another library
-let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), s = stream(), other = CuStream(),
+let a = cu([0]; device=true), b = cu([0]; device=true), s = stream(), other = CuStream(),
     e1 = CuEvent(CUDA.EVENT_DISABLE_TIMING), e2 = CuEvent(CUDA.EVENT_DISABLE_TIMING)
     handle = Ref{CUDACore.CUstream}()
     CUDACore.cuStreamCreate(handle, CUDA.STREAM_NON_BLOCKING)
@@ -1584,7 +1585,7 @@ let a = CUDA.zeros(Int, 1), b = CUDA.zeros(Int, 1), s = stream(), other = CuStre
     # recording an event on a borrowed stream replaces what it covered, so waiting for it
     # doesn't imply that the work on the task's stream has finished
     # (memory without escaped pointers, whose last use could otherwise be known to be done)
-    c = CUDA.zeros(Int, 1)
+    c = cu([0]; device=true)
     c .+= 1
     fetch(Threads.@spawn (stream!(other); c .*= 2))
     synchronize(other)
@@ -1606,7 +1607,7 @@ end
 # memory whose last use is known to have completed doesn't need to be waited for. as the
 # kernels above don't block anyway, check that with the pointer conversion of a library.
 unsafe_use(a) = (Base.unsafe_convert(CuPtr{Int}, a); nothing)
-let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream(), third = CuStream()
+let a = cu([0]; device=true), s = stream(), other = CuStream(), third = CuStream()
     a .+= 1
     fetch(Threads.@spawn (stream!(other); unsafe_use(a)))
     synchronize()
@@ -1682,7 +1683,7 @@ end
 store_kernel(x) = (@inbounds x[1] = 42; return)
 raw_array(p::CuPtr{Int}) =
     CuDeviceArray{Int,1,CUDA.AS.Global}(reinterpret(Core.LLVMPtr{Int,CUDA.AS.Global}, p), (1,))
-let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream()
+let a = cu([0]; device=true), s = stream(), other = CuStream()
     # warm up, as compiling kernels waits for the GPU to become idle
     @cuda stream=s store_kernel(raw_array(pointer(a)))
     fetch(Threads.@spawn (stream!(other); a .+= 1; unsafe_use(a)))
@@ -1715,7 +1716,7 @@ end
 
 # an event can be recorded again while another task waits for it, which then doesn't tell
 # anything about the work covered by the earlier recording
-let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream(), e = CuEvent()
+let a = cu([0]; device=true), s = stream(), other = CuStream(), e = CuEvent()
     @test gated(s) do
         a .+= 1
         record(e)
@@ -1734,7 +1735,7 @@ end
 # memory whose last use is known to come before the work on a stream, because that stream
 # waited for an event recorded after it, doesn't need to be handed off. this is the pattern
 # `KernelAbstractions.@spawn` uses.
-let a = CUDA.zeros(Int, 1), s = stream(), other = CuStream()
+let a = cu([0]; device=true), s = stream(), other = CuStream()
     a .+= 1
     fetch(Threads.@spawn (stream!(other); a .+= 1; unsafe_use(a)))
     synchronize()
