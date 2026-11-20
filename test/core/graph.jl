@@ -191,7 +191,15 @@ end
     GPUArrays.@cached cache begin
         b = CUDA.zeros(Int, 4)
         @test_throws CaptureError capture(() -> b .+= 1)
+        @test_throws CaptureError capture(() -> view(b, 1:2) .+= 1)
+        @test_throws CaptureError capture(() -> reinterpret(UInt, b) .+= 1)
     end
+    # including derived arrays that outlive the scope, whose memory the cache will hand out
+    c = GPUArrays.@cached cache view(CUDA.zeros(Int, 4), 1:2)
+    @test_throws CaptureError capture(() -> c .+= 1)
+    GPUArrays.unsafe_free!(cache)
+    graph = capture(() -> c .+= 1)
+    @test graph isa CuGraph
 
     # the stream is still usable
     a .+= 1
