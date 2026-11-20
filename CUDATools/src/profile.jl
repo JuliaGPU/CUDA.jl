@@ -113,7 +113,7 @@ macro bprofile(ex...)
     end
 end
 """
-    @metrics [metrics=:overview] [trace=false] code...
+    @metrics [metrics=:overview] [trace=false] [clock_control=:base] [cache_control=:all] code...
 
 Collect hardware metrics for every kernel launched by `code`, similar to NSight Compute,
 and return them as a [`Profile.KernelProfile`](@ref).
@@ -128,6 +128,20 @@ To collect metrics, kernels are executed one at a time, and replayed as often as
 to read all counters (restoring memory in between). Durations and other metrics thus
 describe each kernel in isolation, and the code runs considerably slower. Only kernels
 launched in the current context are profiled, at most 512 of them.
+
+Like Nsight Compute, this locks the GPU's clocks to their base frequency while collecting
+metrics (`clock_control=:base`), and flushes caches before every replay pass
+(`cache_control=:all`), so that results are repeatable and comparable with Nsight Compute.
+Kernels thus run slower than at the boost clocks they would normally run at, but replay
+passes no longer see (or have to write back) what earlier passes left in the caches. Use
+`clock_control=:boost` to lock clocks to their boost frequency, or `:none` to leave them
+to GPU Boost, and `cache_control=:l2` to only flush the L2 cache, or `:none` to keep
+caches warm. This needs CUDA 13.4 or later, and is ignored with older versions, on MIG
+instances and on Tegra. The clocks are locked for the whole GPU, affecting other processes
+using it, but are left alone when another tool already locked them through CUPTI; see
+[`CUPTI.lock_clocks`](@ref) for details. If Julia is killed or crashes while collecting
+metrics, the clocks stay locked to their base frequency; `CUPTI.lock_clocks` explains how
+to release them.
 
 The results can also be written as JSON with `show(stdout, "application/json", results)`.
 
@@ -1520,15 +1534,33 @@ function exclusive_session(f, action::String, doing::String; callbacks::Bool=fal
     end
 end
 
-function profile_metrics(@nospecialize(f); metrics=:overview, trace::Bool=false)
+function clock_control_mode(mode)
+    mode === :base && return CUPTI.CUPTI_CLOCK_CONTROL_MODE_BASE
+    mode === :boost && return CUPTI.CUPTI_CLOCK_CONTROL_MODE_BOOST
+    mode === :none && return nothing
+    throw(ArgumentError("Invalid value for `clock_control`: expected `:base`, `:boost` or `:none`, got $(repr(mode))"))
+end
+
+function cache_control_mode(mode)
+    mode === :all && return CUPTI.CUPTI_CACHE_CONTROL_MODE_ALL
+    mode === :l2 && return CUPTI.CUPTI_CACHE_CONTROL_MODE_L2
+    mode === :none && return CUPTI.CUPTI_CACHE_CONTROL_MODE_NONE
+    throw(ArgumentError("Invalid value for `cache_control`: expected `:all`, `:l2` or `:none`, got $(repr(mode))"))
+end
+
+function profile_metrics(@nospecialize(f); metrics=:overview, trace::Bool=false,
+                         clock_control=:base, cache_control=:all)
     columns = metric_columns(metrics)
+    clocks = clock_control_mode(clock_control)
+    caches = cache_control_mode(cache_control)
     check_metrics_support()
     exclusive_session("collect hardware metrics", "Collecting hardware metrics") do
-        collect_metrics(f, metrics, columns, trace)
+        collect_metrics(f, metrics, columns, trace, clocks, caches)
     end
 end
 
-function collect_metrics(@nospecialize(f), metrics, columns, trace)
+function collect_metrics(@nospecialize(f), metrics, columns, trace, clock_control,
+                         cache_control)
     ctx = context()
     CUPTI.check_profiler_support(device(ctx))
     probe = CuFunction(CuModule(probe_ptx), "cuda_jl_metrics_probe")
@@ -1545,7 +1577,7 @@ function collect_metrics(@nospecialize(f), metrics, columns, trace)
     # configuration errors (e.g. unknown metrics) don't execute the user's code.
     profile = CUPTI.@enable! activity begin
         CUPTI.range_profile([col.metric for col in columns]; ctx,
-                            max_ranges=max_launches+1) do
+                            max_ranges=max_launches+1, clock_control, cache_control) do
             f()
             # the code may have left another context current
             context!(ctx) do

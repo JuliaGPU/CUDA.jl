@@ -17,34 +17,42 @@ macro async_benchmarkable(ex...)
     end
 end
 
-# before anything else, run latency benchmarks. these spawn subprocesses, so we don't want
-# to do so after regular benchmarks have caused the memory allocator to reserve memory.
-@info "Running latency benchmarks"
-latency_results = include("latency.jl")
+# GPU Boost picks a different clock for each trial, which makes results bimodal, so lock
+# the clocks to their base frequency. this needs CUDA 13.4, and overrides clocks locked
+# with `nvidia-smi --lock-gpu-clocks` until the benchmarks finish.
+clocks, latency_results, results, integration_results = CUPTI.lock_clocks() do
+    # before anything else, run latency benchmarks. these spawn subprocesses, so we don't
+    # want to do so after regular benchmarks have caused the memory allocator to reserve
+    # memory.
+    @info "Running latency benchmarks"
+    latency_results = include("latency.jl")
 
-SUITE = BenchmarkGroup()
+    global SUITE = BenchmarkGroup()
 
-include("cuda.jl")
-include("kernel.jl")
-include("array.jl")
+    include("cuda.jl")
+    include("kernel.jl")
+    include("array.jl")
 
-@info "Preparing main benchmarks"
-warmup(SUITE; verbose=false)
-tune!(SUITE)
+    @info "Preparing main benchmarks"
+    warmup(SUITE; verbose=false)
+    tune!(SUITE)
 
-# reclaim memory that might have been used by the tuning process
-GC.gc(true)
-CUDA.reclaim()
+    # reclaim memory that might have been used by the tuning process
+    GC.gc(true)
+    CUDA.reclaim()
 
-@info "Running main benchmarks"
-results = run(SUITE, verbose=true)
+    @info "Running main benchmarks"
+    results = run(SUITE, verbose=true)
 
-# integration tests (that do nasty things, so need to be run last)
-@info "Running integration benchmarks"
-integration_results = BenchmarkGroup()
-integration_results["volumerhs"] = include("volumerhs.jl")
-integration_results["byval"] = include("byval.jl")
-integration_results["cudadevrt"] = include("cudadevrt.jl")
+    # integration tests (that do nasty things, so need to be run last)
+    @info "Running integration benchmarks"
+    integration_results = BenchmarkGroup()
+    integration_results["volumerhs"] = include("volumerhs.jl")
+    integration_results["byval"] = include("byval.jl")
+    integration_results["cudadevrt"] = include("cudadevrt.jl")
+
+    CUPTI.clock_status(), latency_results, results, integration_results
+end
 
 # the first part of every name is its category in the benchmark history: everything
 # compiled (performance), fresh processes (latency), or larger codes (applications).
@@ -85,6 +93,8 @@ function export_results(file, results)
         "cpu" => Sys.cpu_info()[1].model,
         "os" => Sys.iswindows() ? "Windows" : readchomp(`uname -sr`),
         "threads" => Threads.nthreads(),
+        # whether clocks were locked while benchmarking
+        "clocks" => clocks === nothing ? nothing : string(clocks),
         "agent" => get(ENV, "BUILDKITE_AGENT_NAME", nothing),
         "package" => string(pkgversion(CUDA)),
         "packages" => packages)
