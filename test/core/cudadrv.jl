@@ -1366,6 +1366,36 @@ let old = CuStream(), blocked = CuStream(), opener = CuStream(),
     end
 end
 
+# the work on a stream that was destroyed explicitly has finished, so reading memory that
+# was last used on it doesn't need to wait for the stream (or to query it)
+let s = CuStream(), a = CuArray{UInt8}(undef, 4096)
+    CUDA.stream!(() -> fill!(a, 0x2a), s)
+    synchronize(s)
+    CUDA.unsafe_destroy!(s)
+    @test Array(a) == fill(0x2a, 4096)
+end
+
+# reading memory that was last used on a stream that has been destroyed when collected waits
+# for the work that was submitted to the stream
+let s = CuStream(), a = CuArray{UInt8}(undef, 4096)
+    gate .= 0
+    @test with_watchdog() do
+        @cuda stream=s gate_kernel(gate_ptr, timeout)
+        try
+            CUDA.stream!(() -> fill!(a, 0x2a), s)
+            # finalizing the stream retires it, and querying the pool status releases it
+            finalize(s)
+            CUDA.pool_status(devnull)
+            open_gate_during(() -> synchronize(a))
+        finally
+            open_gate()
+            device_synchronize()
+        end
+    end
+    @test gate[2] == 0
+    @test Array(a) == fill(0x2a, 4096)
+end
+
 # the driver commonly gives the handle of a destroyed stream to the next stream it creates.
 # that's another stream: memory last used on the destroyed one that is then used on the new
 # one belongs to the new one, so that consumers and frees wait for the new one's work.
