@@ -126,8 +126,8 @@ function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3},
     if haskey(kwargs, :threads) || haskey(kwargs, :blocks)
         throw(ArgumentError("KernelInterface kernels take `numgroups`, `workgroupsize` or `ndrange`, not `threads` or `blocks`"))
     end
-    call = CUDACore.kernel_call(CUDACore.LLVMBackend(), obj.kern.f, args)
-    CUDACore.kernel_launch(obj.kern.kernel, call; threads=items, blocks=groups, kwargs...)
+    CUDACore.convert_and_launch(obj.kern.kernel, obj.kern.f, args;
+                                threads=items, blocks=groups, kwargs...)
     return
 end
 

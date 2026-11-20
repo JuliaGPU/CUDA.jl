@@ -39,6 +39,10 @@ const default_math_precision = Ref{Union{Nothing,Symbol}}(nothing)
 # this setting won't be used when switching tasks on a pre-initialized thread.
 const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
+# how many vectors to collect managed memory in a task keeps, enough for a few launches
+# that are nested in another one's conversion (each takes two, see `take_managed_buffer!`)
+const MANAGED_BUFFERS = 8
+
 mutable struct TaskLocalState
     device::CuDevice
     context::CuContext
@@ -52,6 +56,10 @@ mutable struct TaskLocalState
     operation_stream::Union{Nothing,CuStream}
     operation_capturing::Bool
 
+    # vectors to collect and order the managed memory of a kernel launch in, reused so that
+    # launches don't allocate (`Vector{Managed}`s, see `take_managed_buffer!`)
+    managed_buffers::Vector{Any}
+
     function TaskLocalState(dev::CuDevice=something(default_device[], CuDevice(0)),
                             ctx::CuContext = context(dev))
         math_mode = something(default_math_mode[],
@@ -59,7 +67,8 @@ mutable struct TaskLocalState
         math_precision = something(default_math_precision[], :TensorFloat32)
         new(dev, ctx, Union{Nothing,CuStream}[nothing for _ in 1:ndevices()],
             Cint[0 for _ in 1:ndevices()],
-            math_mode, math_precision, nothing, false)
+            math_mode, math_precision, nothing, false,
+            sizehint!([], MANAGED_BUFFERS))
     end
 end
 
