@@ -1,6 +1,6 @@
 # Device type and auxiliary functions
 
-export CuDevice, current_device, has_device, DEVICE_CPU, DEVICE_INVALID,
+export CuDevice, current_device, DEVICE_CPU, DEVICE_INVALID,
        name, deviceid, uuid, parent_uuid, totalmem, can_access_peer
 
 """

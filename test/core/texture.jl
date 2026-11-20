@@ -74,11 +74,11 @@ end
 
     # and its CuArrayPtr
     ptr = convert(CUDA.CuArrayPtr{Float32}, array_mem)
+    other = CUDA.CuArrayPtr{Float32}(UInt(ptr) + 2)
     @test isequal(ptr, ptr)
-    @test isless(ptr, 2 + ptr)
-    @test isless(ptr - 2, ptr)
+    @test isless(ptr, other)
     @test ptr == ptr
-    @test ptr - 2 < ptr
+    @test ptr < other
     @test eltype(ptr) == Float32
     @test convert(UInt64, ptr) == UInt64(UInt(ptr)) 
     @test_throws ArgumentError("cannot convert a GPU array pointer to a CPU pointer") convert(Ptr{Float32}, ptr)

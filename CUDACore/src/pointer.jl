@@ -18,11 +18,7 @@ expects a `Ptr` to GPU memory, but it prevents erroneous conversions between the
 """
 CuPtr
 
-if sizeof(Ptr{Cvoid}) == 8
-    primitive type CuPtr{T} 64 end
-else
-    primitive type CuPtr{T} 32 end
-end
+primitive type CuPtr{T} Sys.WORD_SIZE end
 
 # constructor
 CuPtr{T}(x::Union{Int,UInt,CuPtr}) where {T} = Base.bitcast(CuPtr{T}, x)
@@ -99,11 +95,7 @@ required for CUDA APIs which accept pointers that either point to host or device
 """
 PtrOrCuPtr
 
-if sizeof(Ptr{Cvoid}) == 8
-    primitive type PtrOrCuPtr{T} 64 end
-else
-    primitive type PtrOrCuPtr{T} 32 end
-end
+primitive type PtrOrCuPtr{T} Sys.WORD_SIZE end
 
 function Base.cconvert(::Type{PtrOrCuPtr{T}}, val) where {T}
     # `cconvert` is always implemented for both `Ptr` and `CuPtr`, so pick the first result
@@ -145,11 +137,7 @@ Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, x::PtrOrCuPtr{T}) where {T} = x
 # CUDA array pointer
 #
 
-if sizeof(Ptr{Cvoid}) == 8
-    primitive type CuArrayPtr{T} 64 end
-else
-    primitive type CuArrayPtr{T} 32 end
-end
+primitive type CuArrayPtr{T} Sys.WORD_SIZE end
 
 # constructor
 CuArrayPtr{T}(x::Union{Int,UInt,CuArrayPtr}) where {T} = Base.bitcast(CuArrayPtr{T}, x)
@@ -184,25 +172,13 @@ Base.cconvert(::Type{<:CuArrayPtr}, x) = x
 Base.unsafe_convert(::Type{P}, x::CuArrayPtr) where {P<:CuArrayPtr} = convert(P, x)
 
 
-## limited pointer arithmetic & comparison
+## comparison (a CUDA array handle is opaque, so there is no arithmetic)
 
 Base.isequal(x::CuArrayPtr, y::CuArrayPtr) = (x === y)
 Base.isless(x::CuArrayPtr{T}, y::CuArrayPtr{T}) where {T} = x < y
 
 Base.:(==)(x::CuArrayPtr, y::CuArrayPtr) = UInt(x) == UInt(y)
 Base.:(<)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) < UInt(y)
-Base.:(-)(x::CuArrayPtr,  y::CuArrayPtr) = UInt(x) - UInt(y)
-
-if VERSION >= v"1.12.0-DEV.225"
-Base.:(+)(x::CuArrayPtr{T}, y::Integer) where T =
-    reinterpret(CuArrayPtr{T}, Base.add_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
-Base.:(-)(x::CuArrayPtr{T}, y::Integer) where T =
-    reinterpret(CuArrayPtr{T}, Base.sub_ptr(reinterpret(Ptr{T}, x), (y % UInt) % UInt))
-else
-Base.:(+)(x::CuArrayPtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
-Base.:(-)(x::CuArrayPtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
-end
-Base.:(+)(x::Integer, y::CuArrayPtr) = y + x
 
 
 
@@ -210,8 +186,4 @@ Base.:(+)(x::Integer, y::CuArrayPtr) = y + x
 # CUDA reference objects (forward declaration)
 #
 
-if sizeof(Ptr{Cvoid}) == 8
-    primitive type CuRef{T} 64 end
-else
-    primitive type CuRef{T} 32 end
-end
+primitive type CuRef{T} Sys.WORD_SIZE end

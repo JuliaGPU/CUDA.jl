@@ -108,7 +108,7 @@ function pin(a::AbstractArray)
 
     # only pin an object once per context
     previous, pinned = Base.@lock pin_lock begin
-        get(__pinned_objects, key, nothing), haskey(__pin_count, key)
+        get(__pinned_objects, key, nothing), haskey(__pinned_memory, key)
     end
     already_owned = previous !== nothing && previous.ref.value !== nothing
     if already_owned && pinned
@@ -145,19 +145,9 @@ function pin(ref::Base.RefValue{T}) where T
     ref
 end
 
-# derived arrays should always pin the parent memory range, because we may end up copying
-# from or to that parent range (containing the derived range), and partially-pinned ranges
-# are not supported:
-#
-# > Memory regions requested must be either entirely registered with CUDA, or in the case
-# > of host pageable transfers, not registered at all. Memory regions spanning over
-# > allocations that are both registered and not registered with CUDA are not supported and
-# > will return CUDA_ERROR_INVALID_VALUE.
-__pin(a::Union{SubArray, Base.ReinterpretArray, Base.ReshapedArray}) = __pin(parent(a))
-
-# refcount the pinning per context, since we can only pin a memory range once
-const __pinned_memory = Dict{Tuple{CuContext,Ptr{Cvoid}}, HostMemory}()
-const __pin_count = Dict{Tuple{CuContext,Ptr{Cvoid}}, Int}()
+# the registered memory and how often it was pinned, per context, since a memory range can
+# only be registered once
+const __pinned_memory = Dict{Tuple{CuContext,Ptr{Cvoid}}, Tuple{HostMemory,Int}}()
 function __pin(ptr::Ptr, sz::Int)
     ctx = context()
     key = (ctx, convert(Ptr{Nothing}, ptr))
@@ -171,16 +161,17 @@ end
 # returns false if the memory is still registered (see `try_register`)
 function try_pin(key, ptr::Ptr, sz::Int)
     Base.@lock pin_lock begin
-        pin_count = get(__pin_count, key, 0)
-        if pin_count == 0
+        entry = get(__pinned_memory, key, nothing)
+        if entry === nothing
             # only record the pin once the memory has been registered
             mem = try_register(ptr, sz)
             mem === nothing && return false
-            __pinned_memory[key] = mem
-        elseif Base.JLOptions().debug_level >= 2
-            @assert sz == sizeof(__pinned_memory[key])
+            __pinned_memory[key] = (mem, 1)
+        else
+            mem, pin_count = entry
+            Base.JLOptions().debug_level >= 2 && @assert sz == sizeof(mem)
+            __pinned_memory[key] = (mem, pin_count + 1)
         end
-        __pin_count[key] = pin_count + 1
     end
     return true
 end
@@ -188,11 +179,15 @@ function __unpin(ptr::Ptr, ctx::CuContext)
     key = (ctx, convert(Ptr{Nothing}, ptr))
 
     mem = Base.@lock pin_lock begin
-        @assert haskey(__pin_count, key) "Cannot unpin unmanaged pointer $ptr."
-        pin_count = __pin_count[key] -= 1
-        pin_count == 0 || return
-        delete!(__pin_count, key)
-        pop!(__pinned_memory, key)
+        entry = get(__pinned_memory, key, nothing)
+        @assert entry !== nothing "Cannot unpin unmanaged pointer $ptr."
+        mem, pin_count = entry
+        if pin_count > 1
+            __pinned_memory[key] = (mem, pin_count - 1)
+            return
+        end
+        delete!(__pinned_memory, key)
+        mem
     end
     try
         # (a destroyed context has no registrations left)
@@ -202,8 +197,8 @@ function __unpin(ptr::Ptr, ctx::CuContext)
     catch
         # the memory is still registered
         Base.@lock pin_lock begin
-            __pinned_memory[key] = mem
-            __pin_count[key] = get(__pin_count, key, 0) + 1
+            _, pin_count = get(__pinned_memory, key, (mem, 0))
+            __pinned_memory[key] = (mem, pin_count + 1)
         end
         rethrow()
     end
@@ -213,6 +208,6 @@ end
 function __pinned(ptr::Ptr, ctx::CuContext)
     key = (ctx, convert(Ptr{Nothing}, ptr))
     Base.@lock pin_lock begin
-        haskey(__pin_count, key)
+        haskey(__pinned_memory, key)
     end
 end
