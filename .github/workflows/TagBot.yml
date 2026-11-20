@@ -25,6 +25,36 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
     runs-on: ubuntu-latest
     steps:
-      - uses: JuliaRegistries/TagBot@v1
+      - uses: JuliaRegistries/TagBot@a761b867f05e7e410011ab16b244f2fffec16c85 # v1.26.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+  TagBot-subpackages:
+    if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        subdir:
+          - CUDACore
+          - CUDATools
+          - lib/cublas
+          - lib/cudnn
+          - lib/cufft
+          - lib/cupti
+          - lib/curand
+          - lib/cusolver
+          - lib/cusparse
+          - lib/custatevec
+          - lib/cutensor
+          - lib/cutensornet
+          - lib/nvml
+    steps:
+      # Subpackages are versioned with the main package: tag them, without releases.
+      # The SSH key is needed to tag commits whose workflow files differ from the
+      # default branch's, such as older versions and backports.
+      - uses: JuliaRegistries/TagBot@a761b867f05e7e410011ab16b244f2fffec16c85 # v1.26.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ssh: ${{ secrets.TAGBOT_KEY }}
+          subdir: ${{ matrix.subdir }}
+          release: false
