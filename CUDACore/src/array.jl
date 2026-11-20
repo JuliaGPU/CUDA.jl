@@ -526,10 +526,10 @@ Base.unsafe_convert(typ::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
   convert(typ, check_capture(x.data)[]) + x.offset
 
 # memory from an allocation cache (see `GPUArrays.@cached`) is reused when the cache's scope
-# ends, even if a graph still uses it
+# ends, even if a graph still uses it. arrays derived from cached ones share that memory.
 @inline function check_capture(data::DataRef)
-  if active_captures[] > 0 && data.cached && is_capturing(stream())
-    throw(CaptureError("cannot capture operations on arrays allocated from an allocation cache (`GPUArrays.@cached`), as the cache reuses their memory when its scope ends"))
+  if active_captures[] > 0 && GPUArrays.is_cached_storage(data) && is_capturing(stream())
+    throw(CaptureError("cannot capture operations on arrays backed by memory from an allocation cache (`GPUArrays.@cached`), as the cache hands that memory out again"))
   end
   return data
 end
