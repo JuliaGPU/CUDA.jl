@@ -315,22 +315,45 @@ end
     # eliminating the loads as dead code.
     function reg_kernel(out, inp, ::Val{N}) where N
         i = threadIdx().x
-        v = ntuple(j -> inp[i + (j-1)*N], Val(N))
+        n = blockDim().x
+        v = ntuple(j -> inp[i + (j-1)*n], Val(N))
         sync_threads()
-        ntuple(j -> (out[i + (j-1)*N] = v[j]; nothing), Val(N))
+        ntuple(j -> (out[i + (j-1)*n] = v[j]; nothing), Val(N))
         return
     end
     N = 256
     hw_cap = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-    workspace = CuArray{Float32}(undef, hw_cap + N^2)
+    workspace = CuArray{Float32}(undef, hw_cap * N)
     k       = @cuda launch=false reg_kernel(workspace, workspace, Val(N))
     nregs   = CUDA.registers(k)
     reglim  = CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK)
     threads = fld(reglim, nregs) + 1
-    @test_throws "Block register count exceeds device limit" begin
-        @assert threads > CUDA.maxthreads(k)
-        k(workspace, workspace; threads=threads)
+    if threads <= hw_cap
+        @test threads > CUDA.maxthreads(k)
+        msg = try
+            k(workspace, workspace; threads)
+            ""
+        catch err
+            sprint(showerror, err)
+        end
+        @test contains(msg, "Block register count exceeds device limit")
+        @test contains(msg, "maxthreads=$threads")
+
+        # the suggested fix
+        k = @cuda launch=false maxthreads=threads reg_kernel(workspace, workspace, Val(N))
+        @test CUDA.maxthreads(k) >= threads
+        k(workspace, workspace; threads)
+        synchronize()
     end
+end
+
+@testset "launch failure: block size" begin
+    # every dimension is within its own limit, but the product isn't
+    max_threads = Int(CUDA.attribute(device(), CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
+    @test_throws "Number of threads per block exceeds device limit" @cuda threads=(max_threads, 2) dummy()
+
+    k = @cuda launch=false maxthreads=32 dummy()
+    @test_throws "maxthreads=64" k(; threads=64)
 end
 
 

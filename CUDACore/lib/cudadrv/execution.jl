@@ -183,6 +183,11 @@ end
             error("Number of threads in $(dim)-dimension exceeds device limit ($(getfield(threaddim, dim)) > $(getfield(threadlim, dim))).")
         end
     end
+    nthreads = threaddim.x * threaddim.y * threaddim.z
+    max_threads = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+    if nthreads > max_threads
+        error("Number of threads per block exceeds device limit ($nthreads > $max_threads).")
+    end
     ## grid size limit
     blocklim = CuDim3(attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_X),
                       attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y),
@@ -215,19 +220,21 @@ end
 
     # check kernel limits
     fattr = attributes(f)
-    nthreads = threaddim.x * threaddim.y * threaddim.z
+    # without `maxthreads`, ptxas doesn't know the block size and may use more registers
+    # than a large block can hold
+    hint = "If the kernel needs blocks of this size, compile it with `@cuda maxthreads=$nthreads`. " *
+           "Otherwise, use `launch_configuration` to choose a block size."
     ## register pressure (names the resource on the register-binding subset of
     ## thread-limit failures; falls through to the thread-limit check otherwise)
     nregs = fattr[FUNC_ATTRIBUTE_NUM_REGS]
     reg_lim = attribute(dev, DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK)
     if nregs * nthreads > reg_lim
-        error("Block register count exceeds device limit ($nregs regs/thread * $nthreads threads/block = $(nregs * nthreads) > $reg_lim regs/block). " *
-              "Reduce per-thread register use (e.g. via the `maxregs` compiler kwarg) or launch with fewer threads per block.")
+        error("Block register count exceeds device limit ($nregs regs/thread * $nthreads threads/block = $(nregs * nthreads) > $reg_lim regs/block). $hint")
     end
     ## thread limit
     threadlim = fattr[FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
     if nthreads > threadlim
-        error("Number of threads per block exceeds kernel limit ($nthreads > $threadlim).")
+        error("Number of threads per block exceeds kernel limit ($nthreads > $threadlim). $hint")
     end
     ## shared memory limit
     shmem_lim = fattr[FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES]

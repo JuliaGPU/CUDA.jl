@@ -641,6 +641,10 @@ The following keyword arguments are supported:
 - `threads` (default: `1`): Number of threads per block, or a 1-, 2- or 3-tuple of dimensions
   (e.g. `threads=(32, 32)` for a 2D block of 32×32 threads).
   Use [`threadIdx()`](@ref) and [`blockDim()`](@ref) to query from within the kernel.
+  A kernel can support fewer threads than the device, e.g. because of its register use:
+  [`launch_configuration`](@ref) suggests a block size and [`maxthreads`](@ref) gives the
+  upper limit. Compile with the `maxthreads` keyword argument (see [`cufunction`](@ref)) when
+  the kernel needs a specific size.
 - `blocks` (default: `1`): Number of thread blocks to launch, or a 1-, 2- or 3-tuple of
   dimensions (e.g. `blocks=(2, 4, 2)` for a 3D grid of blocks).
   Use [`blockIdx()`](@ref) and [`gridDim()`](@ref) to query from within the kernel.
@@ -807,7 +811,10 @@ a callable kernel object. For a higher-level interface, use [`@cuda`](@ref).
 
 The following keyword arguments are supported:
 - `minthreads`: the required number of threads in a thread block
-- `maxthreads`: the maximum number of threads in a thread block
+- `maxthreads`: the maximum number of threads in a thread block (in total, for multi-dimensional
+  blocks). Launches with larger blocks fail. The compiler budgets registers for this block size;
+  without it, a kernel may use more registers per thread than a large block can hold, so pass it
+  when the kernel needs a large block size.
 - `blocks_per_sm`: a minimum number of thread blocks to be scheduled on a single
   multiprocessor
 - `maxregs`: the maximum number of registers to be allocated to a single thread (only
