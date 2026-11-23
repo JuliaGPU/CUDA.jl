@@ -39,6 +39,56 @@ end
     @test Array(a) == [1f0]
 end
 
+# link LTO-IR into a cubin with nvJitLink, which CUDA.jl has no wrappers for
+function nvjitlink(ltoir::Vector{UInt8}, sm)
+    check(res) = res == 0 || error("nvJitLink failed with code $res")
+    handle = Ref{Ptr{Cvoid}}()
+    options = ["-arch=$(CUDACore.cpu_name(sm))", "-lto"]
+    # before Blackwell, libNVVM only reads our IR with `-nvvm-latest`, and the resulting
+    # LTO-IR then only links with the same option
+    CUDACore.base_version(sm) < v"10.0" && push!(options, "-nvvm-latest")
+    check(@ccall CUDACore.CUDA_Compiler.libnvJitLink.nvJitLinkCreate(
+        handle::Ptr{Ptr{Cvoid}}, length(options)::UInt32, options::Ptr{Cstring})::Cint)
+    try
+        check(@ccall CUDACore.CUDA_Compiler.libnvJitLink.nvJitLinkAddData(
+            handle[]::Ptr{Cvoid}, 3::Cint #= NVJITLINK_INPUT_LTOIR =#,
+            ltoir::Ptr{UInt8}, length(ltoir)::Csize_t, "ltoir"::Cstring)::Cint)
+        check(@ccall CUDACore.CUDA_Compiler.libnvJitLink.nvJitLinkComplete(
+            handle[]::Ptr{Cvoid})::Cint)
+        size = Ref{Csize_t}()
+        check(@ccall CUDACore.CUDA_Compiler.libnvJitLink.nvJitLinkGetLinkedCubinSize(
+            handle[]::Ptr{Cvoid}, size::Ptr{Csize_t})::Cint)
+        cubin = Vector{UInt8}(undef, size[])
+        check(@ccall CUDACore.CUDA_Compiler.libnvJitLink.nvJitLinkGetLinkedCubin(
+            handle[]::Ptr{Cvoid}, cubin::Ptr{UInt8})::Cint)
+        return cubin
+    finally
+        @ccall CUDACore.CUDA_Compiler.libnvJitLink.nvJitLinkDestroy(
+            handle::Ptr{Ptr{Cvoid}})::Cint
+    end
+end
+
+@testset "LTO-IR" begin
+    # object code from libNVVM is LTO-IR, which nvJitLink links into a loadable cubin
+    function kernel(ptr)
+        unsafe_store!(ptr, 1f0)
+        return
+    end
+    (; GPUCompiler, LLVM) = CUDACore
+    config = CUDACore.compiler_config(device(); codegen=:nvvm)
+    source = GPUCompiler.methodinstance(typeof(kernel), Tuple{Ptr{Float32}})
+    ltoir, name = GPUCompiler.JuliaContext() do ctx
+        obj, meta = GPUCompiler.compile(:obj, GPUCompiler.CompilerJob(source, config))
+        obj, LLVM.name(meta.entry)
+    end
+    @test ltoir isa Vector{UInt8}
+    # (CUDA_Runtime_Discovery doesn't look for nvJitLink in local toolkits)
+    if isdefined(CUDACore.CUDA_Compiler, :libnvJitLink)
+        cubin = nvjitlink(ltoir, config.params.sm)
+        @test CuFunction(CuModule(cubin), name) isa CuFunction
+    end
+end
+
 end
 
 @testset "NVPTX back-end" begin

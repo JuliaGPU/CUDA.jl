@@ -153,10 +153,11 @@ function rewrite_ptx_header(asm, ptx::VersionNumber, sm::SMVersion)
 end
 
 function GPUCompiler.mcgen(@nospecialize(job::AnyCUDAJob), mod::LLVM.Module, format)
-    @assert format == LLVM.CodeGenFileType.Assembly
     asm = invoke(GPUCompiler.mcgen,
                  Tuple{CompilerJob{PTXCompilerTarget}, LLVM.Module, typeof(format)},
                  job, mod, format)
+    # object code is LTO-IR from libNVVM, for linking with nvJitLink
+    format == LLVM.CodeGenFileType.Object && return asm
 
     # remove extraneous debug info on lower debug levels
     if job.config.debug_level < 2
