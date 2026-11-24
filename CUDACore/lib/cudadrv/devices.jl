@@ -145,9 +145,13 @@ function Base.show(io::IO, ::MIME"text/plain", iter::DeviceIterator)
 end
 
 function ndevices()
-    count_ref = Ref{Cint}()
-    cuDeviceGetCount(count_ref)
-    return count_ref[]
+    # (cached, as it is queried every time a unified-memory array is used by a kernel;
+    #  the device set is fixed once the driver is initialized)
+    @memoize begin
+        count_ref = Ref{Cint}()
+        cuDeviceGetCount(count_ref)
+        count_ref[]
+    end::Cint
 end
 
 
