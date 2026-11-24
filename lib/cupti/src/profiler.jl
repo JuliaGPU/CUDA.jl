@@ -160,7 +160,8 @@ function lock_clocks(f, mode::CUpti_ClockControl_Mode=CUPTI_CLOCK_CONTROL_MODE_B
         return result
     finally
         # failing to unlock shouldn't hide why `f` failed
-        owned[] && disable_sigint(() -> release_clocks(; checked=!failed))
+        checked = !failed
+        owned[] && disable_sigint(() -> release_clocks(; checked))
     end
 end
 
