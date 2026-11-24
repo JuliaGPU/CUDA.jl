@@ -106,6 +106,41 @@ end
     @test_throws ArgumentError kernel(A; ndrange=4, blocks=2)
 end
 
+function ki_dynamic_localmem_kernel(out)
+    @inbounds out[1] = KI.dynamic_localmemory_size()
+    return
+end
+
+@testset "dynamic local memory" begin
+    backend = CUDABackend()
+    out = CUDA.zeros(Int, 1)
+    kernel = KI.@launch backend launch=false ki_dynamic_localmem_kernel(out)
+
+    # it is the dynamic shared memory, which is only rounded up to a multiple of 4 bytes
+    kernel(out; localmem=24)
+    @test Array(out) == [24]
+    kernel(out; localmem=5)
+    @test Array(out) == [8]
+    kernel(out; localmem=n -> 8n, workgroupsize=5)
+    @test Array(out) == [40]
+    kernel(out; shmem=16)
+    @test Array(out) == [16]
+    @test_throws ArgumentError kernel(out; localmem=24, shmem=16)
+
+    # the limit is the one of the function, which the kernel can raise
+    fun = kernel.kern.kernel.fun
+    limit = KI.max_dynamic_localmemory(kernel)
+    @test limit == attributes(fun)[CUDACore.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES]
+    optin = attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN)
+    if optin > limit
+        @test_throws ArgumentError kernel(out; localmem=optin)
+        attributes(fun)[CUDACore.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = optin
+        @test KI.max_dynamic_localmemory(kernel) == optin
+        kernel(out; localmem=optin)
+        @test Array(out) == [optin]
+    end
+end
+
 # unlike `device!`, `KI.device!` leaves the device that new tasks start on alone
 @testset "task-local device!" begin
     backend = CUDABackend()

@@ -40,6 +40,7 @@ KI.supports_unified(::CUDABackend) = true
 KI.supports_float64(::CUDABackend) = true
 KI.supports_atomics(::CUDABackend) = true
 KI.supports_subgroups(::CUDABackend) = true
+KI.supports_dynamic_localmemory(::CUDABackend) = true
 # warps are formed from consecutive linear thread indices, and are independent
 KI.supports_linear_subgroups(::CUDABackend) = true
 KI.supports_independent_subgroups(::CUDABackend) = true
@@ -119,15 +120,25 @@ function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=not
     KI.Kernel(backend, CompiledKernel(kernel, f))
 end
 
-# passes the arguments on as a tuple, like calling the `HostKernel` does
+# passes the arguments on as a tuple, like calling the `HostKernel` does. `localmem` is
+# only passed by launches that ask for dynamic local memory, which is CUDA's dynamic shared
+# memory.
 function KI.launch(obj::KI.Kernel{CUDABackend}, groups::Dims{3}, items::Dims{3},
-                   args::Tuple; kwargs...)
+                   args::Tuple; localmem::Int=0, kwargs...)
     # KernelInterface has validated the launch geometry
     if haskey(kwargs, :threads) || haskey(kwargs, :blocks)
         throw(ArgumentError("KernelInterface kernels take `numgroups`, `workgroupsize` or `ndrange`, not `threads` or `blocks`"))
     end
     call = CUDACore.kernel_call(CUDACore.LLVMBackend(), obj.kern.f, args)
-    CUDACore.kernel_launch(obj.kern.kernel, call; threads=items, blocks=groups, kwargs...)
+    if localmem == 0
+        CUDACore.kernel_launch(obj.kern.kernel, call; threads=items, blocks=groups, kwargs...)
+    else
+        if haskey(kwargs, :shmem)
+            throw(ArgumentError("KernelInterface kernels take either `localmem` or `shmem`, not both"))
+        end
+        CUDACore.kernel_launch(obj.kern.kernel, call; threads=items, blocks=groups,
+                               shmem=localmem, kwargs...)
+    end
     return
 end
 
@@ -135,14 +146,24 @@ end
 # `CuFunction` that are compiled only once
 KI.max_work_group_size(kernel::KI.Kernel{CUDABackend})::Int =
     CUDACore.max_threads_per_block(kernel.kern.kernel.fun)
+KI.max_dynamic_localmemory(kernel::KI.Kernel{CUDABackend})::Int =
+    max_dynamic_shmem(kernel.kern.kernel.fun)
+# `localmem` is the bytes of dynamic shared memory per block, or a function of the number of
+# threads that returns them, which is what the occupancy API takes as well
 KI.launch_configuration(kernel::KI.Kernel{CUDABackend}; nitems::Union{Integer,Nothing}=nothing,
-                        max_work_group_size::Integer=typemax(Int)) =
+                        max_work_group_size::Integer=typemax(Int), localmem=nothing) =
     (; workgroupsize=launch_threads(kernel.kern.kernel.fun, kernel.backend.prefer_blocks,
-                                    nitems, max_work_group_size))
+                                    nitems, max_work_group_size, something(localmem, 0)))
 
-function launch_threads(fun::CuFunction, prefer_blocks::Bool, nitems, max_work_group_size)
+# unlike the maximum number of threads, this limit can be raised by setting the attribute
+# (up to what the device lets kernels opt in to), so it isn't cached
+max_dynamic_shmem(fun::CuFunction) =
+    Int(attributes(fun)[CUDACore.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES])
+
+function launch_threads(fun::CuFunction, prefer_blocks::Bool, nitems, max_work_group_size,
+                        shmem=0)
     max_threads = min(max_work_group_size, something(nitems, typemax(Int)), typemax(Int32))
-    config = launch_configuration(fun; max_threads)
+    config = launch_configuration(fun; max_threads, shmem)
     threads = Int(config.threads)
     if prefer_blocks && nitems !== nothing
         # prefer blocks over threads: at least as many blocks as the occupancy API suggests
@@ -218,6 +239,15 @@ end
 @device_override @inline function KI.localmemory(::Type{T}, ::Val{Dims}) where {T, Dims}
     CuStaticSharedArray(T, Dims)
 end
+
+# the block of a work-group is the dynamic shared memory of the block
+@device_override Base.@propagate_inbounds function KI.dynamic_localmemory(
+        ::Type{T}, dims::Dims{N}, offset::Int) where {T, N}
+    KI.check_dynamic_localmemory(T, dims, offset)
+    @inbounds CuDynamicSharedArray(T, dims, offset)
+end
+
+@device_override @inline KI.dynamic_localmemory_size() = Int(CUDACore.dynamic_smem_size())
 
 ## synchronization and printing
 
