@@ -146,6 +146,14 @@ end
     @test Array(pinv * y) ≈ Array(x)
 end
 
+@testset "plan freed twice" begin
+    # freeing a plan again, as its finalizer does after `unsafe_free!`, does nothing
+    x = CuArray(rand(ComplexF32, 64))
+    p = plan_fft(x)
+    CUDACore.unsafe_free!(p)
+    @test_logs CUDACore.unsafe_free!(p)
+end
+
 @testset "CUDA.jl#2641" begin
     # transforms whose batch dimensions aren't adjacent run on a permuted copy
     X = rand(ComplexF32, 4, 5, 6)
