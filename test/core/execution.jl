@@ -1525,6 +1525,25 @@ end
     @test out == "Hello, World!"
 end
 
+# XXX: exceptions occasionally hang under compute-sanitizer, see core/exceptions.jl
+if !sanitize
+    @testset "errors" begin
+        child() = return
+        function parent()
+            # more threads than a block can have
+            @cuda dynamic=true threads=2048 child()
+            return
+        end
+
+        err, out = @grab_output kernel_exception() do
+            @cuda parent()
+        end
+        @test err.site.name == "CuDeviceError"
+        @test err.site.reason == "cudaErrorInvalidConfiguration (code 9)"
+        @test isempty(out)
+    end
+end
+
 @testset "parameter alignment" begin
     # foo is unused, but determines placement of bar
     function child(x, foo, bar)
