@@ -290,10 +290,15 @@ function host_pool()
     supported ? try_create_pool() do
       pool = CuMemoryPool(device(); location_type=CU_MEM_LOCATION_TYPE_HOST, location_id=0)
       access!(pool, collect(devices()), ACCESS_FLAGS_PROT_READWRITE)
+      host_pool_created[] = true
       pool
     end : nothing
   end::Union{Nothing,CuMemoryPool}
 end
+
+# so that reclaiming memory doesn't create the host pool in a program that never allocated
+# pinned memory (creating a pool maps memory, which has hung in sandboxed containers, #3592)
+const host_pool_created = Ref(false)
 
 function alloc_from_pool(pool::CuMemoryPool, sz, stream::CuStream)
   ptr = retry_reclaim(isnothing) do
