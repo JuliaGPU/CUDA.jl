@@ -1366,6 +1366,81 @@ let old = CuStream(), blocked = CuStream(), opener = CuStream(),
     end
 end
 
+# the work on a stream that was destroyed explicitly has finished, so reading memory that
+# was last used on it doesn't need to wait for the stream (or to query it)
+let s = CuStream(), a = CuArray{UInt8}(undef, 4096)
+    CUDA.stream!(() -> fill!(a, 0x2a), s)
+    synchronize(s)
+    CUDA.unsafe_destroy!(s)
+    @test Array(a) == fill(0x2a, 4096)
+end
+
+# reading memory that was last used on a stream that has been destroyed when collected waits
+# for the work that was submitted to the stream
+let s = CuStream(), a = CuArray{UInt8}(undef, 4096)
+    gate .= 0
+    @test with_watchdog() do
+        @cuda stream=s gate_kernel(gate_ptr, timeout)
+        try
+            CUDA.stream!(() -> fill!(a, 0x2a), s)
+            # finalizing the stream retires it, and querying the pool status releases it
+            finalize(s)
+            CUDA.pool_status(devnull)
+            open_gate_during(() -> synchronize(a))
+        finally
+            open_gate()
+            device_synchronize()
+        end
+    end
+    @test gate[2] == 0
+    @test Array(a) == fill(0x2a, 4096)
+end
+
+# the driver commonly gives the handle of a destroyed stream to the next stream it creates.
+# that's another stream: memory last used on the destroyed one that is then used on the new
+# one belongs to the new one, so that consumers and frees wait for the new one's work.
+# calls `f` with such memory, its address, and the new stream.
+function with_reused_handle(f, destroy)
+    for _ in 1:64
+        old = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+        a = CuArray{UInt8,1,CUDA.DeviceMemory}(undef, 4096)
+        ptr = UInt(pointer(a))
+        CUDA.stream!(() -> fill!(a, 0x01), old)
+        synchronize(old)
+        destroy(old)
+        new = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+        if new.handle == old.handle
+            @test new != old
+            return f(a, ptr, new)
+        end
+        unsafe_free!(a)
+    end
+    @warn "The driver did not reuse the handle of a destroyed stream, skipping the test"
+end
+for destroy in (CUDA.unsafe_destroy!, s -> (finalize(s); CUDA.pool_status(devnull)))
+    # a consumer on another stream waits for the use on the new stream
+    with_reused_handle(destroy) do a, _, s
+        other = CuStream(; flags=CUDA.STREAM_NON_BLOCKING)
+        b = CuArray{UInt8,1,CUDA.DeviceMemory}(undef, 4096)
+        @test gated(s) do
+            CUDA.stream!(() -> fill!(a, 0x02), s)
+            CUDA.stream!(() -> copyto!(b, a), other)
+            open_gate_during(() -> synchronize(other))
+        end
+        @test Array(b) == fill(0x02, 4096)
+    end
+
+    # freed memory isn't reused before the use on the new stream has finished
+    with_reused_handle(destroy) do a, ptr, s
+        @test gated(s) do
+            CUDA.stream!(() -> fill!(a, 0x02), s)
+            unsafe_free!(a)
+            b = CuArray{UInt8,1,CUDA.DeviceMemory}(undef, 4096)
+            UInt(pointer(b)) != ptr || !CUDA.isdone(stream())
+        end
+    end
+end
+
 # run `f` while another task owns `s`, the stream of a task that has finished
 function while_reused(f, s)
     release = Base.Event()

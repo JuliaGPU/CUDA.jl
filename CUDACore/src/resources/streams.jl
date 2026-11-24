@@ -24,8 +24,9 @@ function release_now(stream::CuStream)
     end
     Base.@atomic stream.valid = false
     # keep the final event alive until the work has finished, as memory that was last used
-    # on the stream may be retired later on
-    hold!(ReleaseAction(s -> (s.final_event = nothing), stream, nothing, false),
+    # on the stream may be retired later on. (it's read while holding the lock)
+    hold!(ReleaseAction(s -> @lock(stream_disposal_lock, s.final_event = nothing),
+                        stream, nothing, false),
           stream.final_event)
   end
   return
