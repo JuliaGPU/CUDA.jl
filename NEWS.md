@@ -56,6 +56,11 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   passing `codegen=:nvvm` to `@cuda` and `cufunction`, or by setting CUDACore's `codegen`
   preference to `"nvvm"`. This is experimental, and requires CUDA 13.5. NVPTX remains the
   default.
+- cuFFT fuses broadcasts into transforms that are written with the `@~` macro of
+  LazyArrays.jl, e.g. `abs2.(@~ p * (w .* x))` windows, transforms and takes the power in a
+  single pass ([#75](https://github.com/JuliaGPU/CUDA.jl/issues/75)). This uses cuFFT's
+  callbacks, which requires CUDA 13.5 and a Blackwell or newer GPU; elsewhere the same code
+  executes the broadcasts separately. See the cuFFT documentation.
 - Added support for CUDA 13.5: the wrappers were regenerated, and the compatibility
   databases record PTX ISA 9.5. cuSOLVER's `cusolverDnXsygvStridedBatched` and
   cuSPARSE's `CUSPARSE_SPSV_ALG2` triangular-solve algorithm are available through
