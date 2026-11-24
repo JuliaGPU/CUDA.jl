@@ -8,6 +8,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 @public with_managed
 @public kernel_pipeline
 @public AbstractKernel, HostKernel, DeviceKernel
+@public linked_kernel_count
 
 
 ## backend dispatch
@@ -849,6 +850,35 @@ struct KernelLinker{K}
 end
 (l::KernelLinker)() = cufunction_link(methodinstance(l.ft, l.tt); l.kw...)
 
+# the number of kernels that `cufunction_link` has linked (see `linked_kernel_count`)
+const linked_kernels = Threads.Atomic{Int}(0)
+
+"""
+    linked_kernel_count()
+
+Returns the number of kernels that [`cufunction`](@ref), and thus [`@cuda`](@ref) with the
+default backend, has linked in this session. A kernel is linked the first time it is used
+in a context with given argument types and compiler options, and is looked up in a cache
+afterwards. Kernels whose compiled code was cached on disk, e.g. by precompilation, are
+linked too.
+
+Comparing the count before and after some code tells whether that code linked a kernel,
+e.g. to test that a warm call does no compilation or linking work:
+
+```julia
+n = CUDA.linked_kernel_count()
+@cuda kernel(a)     # launched before, with arguments of the same types
+@test CUDA.linked_kernel_count() == n
+```
+
+The count is shared by all tasks, so compare it around code that runs while no other task
+uses kernels for the first time. Kernels linked while generating a package image are
+counted every time, as their handles are not cached then. Kernels launched from device code
+(`@cuda dynamic=true`) are linked as part of the kernel that launches them. Modules loaded
+with [`CuModule`](@ref), or by `CUDA.code_sass` to disassemble a kernel, are not counted.
+"""
+linked_kernel_count() = linked_kernels[]
+
 # the parts of `cufunction` that don't depend on the type of the function, kept separate so
 # that they are compiled once rather than for every kernel
 function cufunction_link(source::Core.MethodInstance; kwargs...)
@@ -876,6 +906,7 @@ function cufunction_link(source::Core.MethodInstance; kwargs...)
             cached_ctx === ctx && return fun, state
         end
         fun = link_kernel(res.image::Vector{UInt8}, res.entry::String, res.relocations)
+        Threads.atomic_add!(linked_kernels, 1)
         exception_info, exception_sites = create_exceptions!(fun.mod, res.exception_sites)
         state = KernelState(exception_info, exception_sites, UInt32(0))
         # don't cache session-local handles while generating output: the results struct

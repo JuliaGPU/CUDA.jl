@@ -66,6 +66,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - `CUDA.early_gc!(f, false)` runs `f` without the garbage collections that CUDA.jl
   starts when GPU memory use is high, for code that paces collections itself, such as
   training loops ([#3532](https://github.com/JuliaGPU/CUDA.jl/issues/3532)).
+- `CUDA.linked_kernel_count()` returns the number of kernels that `cufunction`, and thus
+  `@cuda` with the default backend, has linked in this session, so that tests can check
+  that a warm call links no new kernel.
 - With CUDA 13.4 or later, `CUDA.@metrics` locks the GPU's clocks to their base
   frequency and flushes caches before every replay pass, as Nsight Compute does, so
   results are repeatable and comparable with Nsight Compute. Results change: kernels run

@@ -31,6 +31,13 @@ memory
 Launch a compiled call with `kernel_launch(kernel, call; launch_kwargs...)`. Arguments
 can be rebound immutably with `rebind(call, value, index)` before launching.
 
+`cufunction` caches the kernels it links, and counts them, so that tests can check that
+code reuses compiled kernels:
+
+```@docs
+linked_kernel_count
+```
+
 The PTX compilation target is identified by an `SMVersion`, constructed via the
 `sm"..."` string macro:
 

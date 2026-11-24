@@ -764,6 +764,47 @@ end
 end
 
 
+@testset "linked kernel count" begin
+    # the count is global to the process, so only compare it around our own launches
+    function kernel(ptr)
+        ptr[] = 1
+        return
+    end
+    a = CuArray([0])
+    b = CuArray([0f0])
+
+    n = CUDA.linked_kernel_count()
+    @cuda kernel(a)
+    @test CUDA.linked_kernel_count() == n + 1
+
+    n = CUDA.linked_kernel_count()
+    @cuda kernel(a)
+    @test CUDA.linked_kernel_count() == n
+
+    n = CUDA.linked_kernel_count()
+    @cuda kernel(b)
+    @test CUDA.linked_kernel_count() == n + 1
+
+    if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS
+        empty_kernel() = return
+        @cuda empty_kernel()
+
+        n = CUDA.linked_kernel_count()
+        CuContext(device()) do ctx
+            context!(ctx) do
+                @cuda empty_kernel()
+                @cuda empty_kernel()
+            end
+        end
+        @test CUDA.linked_kernel_count() == n + 1
+
+        # the kernel is still linked in the original context
+        @cuda empty_kernel()
+        @test CUDA.linked_kernel_count() == n + 1
+    end
+end
+
+
 @testset "non-isbits arguments" begin
     function kernel1(T, i)
         sink(i)
