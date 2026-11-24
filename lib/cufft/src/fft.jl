@@ -87,12 +87,13 @@ mutable struct CuFFTPlan{T<:cufftNumber,S<:cufftNumber,K,inplace,N,R} <: Plan{S}
     end
 end
 
+# a freed plan has handle 0, which cuFFT never uses for a plan
 function CUDACore.unsafe_free!(plan::CuFFTPlan)
-    if plan.handle != C_NULL
+    if plan.handle != 0
         context!(plan.ctx) do
             release_plan(plan.handle)
         end
-        plan.handle = C_NULL
+        plan.handle = 0
     end
 end
 
