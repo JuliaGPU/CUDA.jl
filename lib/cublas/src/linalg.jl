@@ -275,12 +275,8 @@ GPUArrays.blas_dgmm!(side::AbstractChar, A::StridedCuMatrix{T}, x::StridedCuVect
     dgmm!(side, A, x, C)
 
 GPUArrays.blas_scal!(α::Number, x::StridedCuVecOrDenseMat{<:CublasFloat}) = scal!(length(x), α, x)
-# more specific than LinearAlgebra's methods for host BLAS
-LinearAlgebra.dot(x::StridedCuArray{T}, y::StridedCuArray{T}) where {T<:Union{Float16, ComplexF16, CublasFloat}} =
-    GPUArrays.gpu_dot(x, y)
-LinearAlgebra.dot(x::AnyCuArray, y::AnyCuArray) = GPUArrays.gpu_dot(x, y)
-LinearAlgebra.dot(x::Adjoint{<:Union{Real,Complex},<:CuArray}, y::Adjoint{<:Union{Real,Complex},<:CuArray}) =
-    GPUArrays.gpu_dot(x, y)
+LinearAlgebra.dot(A::Symmetric{<:Union{Real,Complex},<:CuMatrix}, B::Symmetric{<:Union{Real,Complex},<:CuMatrix}) =
+    GPUArrays.gpu_dot(A, B)
 LinearAlgebra.dot(A::Hermitian{<:Union{Real,Complex},<:CuMatrix}, B::Hermitian{<:Union{Real,Complex},<:CuMatrix}) =
     GPUArrays.gpu_dot(A, B)
 GPUArrays.blas_dot(x::StridedCuVecOrDenseMat{T}, y::StridedCuVecOrDenseMat{T}) where {T<:Union{Float16, CublasReal}} =
