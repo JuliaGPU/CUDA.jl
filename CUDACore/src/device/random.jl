@@ -288,10 +288,15 @@ end
 # Uses Box-Muller instead of Ziggurat: rejection sampling would warp-diverge,
 # and the Ziggurat tables aren't device-accessible.
 
+# A single overlay that picks the algorithm itself: overlays specialized for `Philox2x32`
+# would shadow this one, which makes Julia drop the kernels calling it from package images.
+@device_override @inline Random.randn(rng::AbstractRNG, ::Type{T}) where T <: AbstractFloat =
+    boxmuller_randn(rng, T)
+
 # Specialization for Philox2x32: one Philox call produces exactly the pair of
 # UInt32s Box-Muller needs, halving the Philox work vs the generic path.
-@device_override @inline function Random.randn(rng::Philox2x32{R},
-                                                ::Type{T}) where {R, T <: Union{Float16,Float32}}
+@inline function boxmuller_randn(rng::Philox2x32{R},
+                                 ::Type{T}) where {R, T <: Union{Float16,Float32}}
     ctr1, ctr2 = philox2x_rounds(Val(R), rng.ctr1, rng.ctr2, rng.key)
     rng.ctr1 += 1i32
     n, _ = boxmuller(T, ctr1, ctr2)
@@ -300,16 +305,15 @@ end
 
 # Float64 fundamentally needs 64 bits of entropy per uniform, so 2 Philox
 # calls. The u01 bit-trick avoids the expensive Float64(::UInt64) conversion.
-@device_override @inline function Random.randn(rng::Philox2x32{R},
-                                                ::Type{Float64}) where R
+@inline function boxmuller_randn(rng::Philox2x32{R}, ::Type{Float64}) where R
     u1 = u01(Float64, Random.rand(rng, UInt64))
     u2 = u01(Float64, Random.rand(rng, UInt64))
     n, _ = boxmuller(Float64, u1, u2)
     n
 end
 
-# Generic fallback for user-defined AbstractFloat types.
-@device_override @inline function Random.randn(rng::AbstractRNG, ::Type{T}) where T <: AbstractFloat
+# Generic fallback for other RNGs and user-defined AbstractFloat types.
+@inline function boxmuller_randn(rng::AbstractRNG, ::Type{T}) where T <: AbstractFloat
     U1 = max(Random.rand(rng, T), floatmin(T))  # avoid log(0)
     U2 = Random.rand(rng, T)
     sqrt(T(-2) * FastMath.log_fast(U1)) * first(sincospi(T(2) * U2))

@@ -56,6 +56,14 @@ end
 
 Base.Tuple(x::Vec4) = tuple(x.a, x.b, x.c, x.d)
 
+# `tex` dispatches on the kind of channel (`Signed`, `Unsigned` or `AbstractFloat`), which
+# selects the intrinsic, rather than on the element type: methods for, e.g.,
+# `CuDeviceTexture{<:Signed}` and `CuDeviceTexture{<:AbstractFloat}` would both match
+# `CuDeviceTexture{Union{}}`, and overlays that overlap like that make Julia drop the kernels
+# calling them from package images.
+@device_function tex(texObject::CuDeviceTexture{T}, coords::Vararg{Number}) where {T} =
+    tex(texchannel(T), texObject, coords...)
+
 for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         ((:Signed,        :(Vec4{Int32}),   :v4u32),
          (:Unsigned,      :(Vec4{UInt32}),  :v4s32),
@@ -66,9 +74,11 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
                     NTuple{2,$dispatch_rettyp},
                     NTuple{3,$dispatch_rettyp},
                     NTuple{4,$dispatch_rettyp}})
+    @eval texchannel(::Type{<:$eltyp}) = $dispatch_rettyp
 
     # tex1D only supports array memory
-    @eval @device_function tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemorySource}, x::Number) =
+    @eval @device_function tex(::Type{$dispatch_rettyp},
+                               texObject::CuDeviceTexture{<:Any,1,ArrayMemorySource}, x::Number) =
         Tuple(ccall($("llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32"), llvmcall,
                     $julia_rettyp, (CUtexObject, Float32), texObject, x))
 
@@ -79,7 +89,8 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         julia_sig = ntuple(_->Float32, dims)
         julia_params = ntuple(i->:($(julia_args[i])::Number), dims)
 
-        @eval @device_function tex(texObject::CuDeviceTexture{<:$eltyp,$dims}, $(julia_params...)) =
+        @eval @device_function tex(::Type{$dispatch_rettyp},
+                                   texObject::CuDeviceTexture{<:Any,$dims}, $(julia_params...)) =
             Tuple(ccall($("llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32"), llvmcall,
                         $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...)))
     end
