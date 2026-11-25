@@ -662,18 +662,24 @@ end
 
 # kept separate so that the cache-hit path above stays cheap
 @noinline function compile_and_store(job::CompilerJob)::CUDACompilerResults
+    t0 = time_ns()
     ptx = emit_ptx(job)
+    compile_time = time_ns() - t0
     assembled = Threads.Condition(cufunction_lock)
     assembling_jobs[job] = assembled
     try
         # when the lock is held reentrantly, this keeps it held and assembles under it
         unlock(cufunction_lock)
+        t0 = time_ns()
         image = try
             assemble(job, ptx.asm, ptx.needs_cudadevrt)
         finally
+            # (not counting the wait for the lock)
+            compile_time += time_ns() - t0
             # an interrupt here would leave us without the lock, unable to wake waiters
             Base.disable_sigint(() -> lock(cufunction_lock))
         end
+        record_compilation!(compile_time / 1e9)
 
         # GPUCompiler selects persistent or session-local storage from the relocation
         # strategy and the Julia runtime's relocation support.
@@ -691,6 +697,44 @@ end
 
 # jobs whose PTX code is being assembled, see `compile_or_lookup`
 const assembling_jobs = Dict{CompilerJob,Threads.Condition}()
+
+
+## compilation statistics, reported by `CUDA.@timed` and `CUDA.@time`
+
+mutable struct CompileStats
+    # kernels compiled to a device image, and the time that took
+    Base.@atomic compile_count::Int
+    Base.@atomic compile_time::Float64
+
+    # kernel images loaded into a context
+    Base.@atomic link_count::Int
+end
+
+CompileStats() = CompileStats(0, 0.0, 0)
+
+Base.copy(stats::CompileStats) =
+    CompileStats(stats.compile_count, stats.compile_time, stats.link_count)
+
+Base.:(-)(a::CompileStats, b::CompileStats) = (;
+    compile_count = a.compile_count - b.compile_count,
+    compile_time  = a.compile_time  - b.compile_time,
+    link_count    = a.link_count    - b.link_count)
+
+const compile_stats = CompileStats()
+
+# (not while generating output, which would persist the counts in the package image)
+function record_compilation!(time::Float64)
+    ccall(:jl_generating_output, Cint, ()) == 1 && return
+    Base.@atomic compile_stats.compile_count += 1
+    Base.@atomic compile_stats.compile_time += time
+    return
+end
+
+function record_link!()
+    ccall(:jl_generating_output, Cint, ()) == 1 && return
+    Base.@atomic compile_stats.link_count += 1
+    return
+end
 
 
 ## helpers
