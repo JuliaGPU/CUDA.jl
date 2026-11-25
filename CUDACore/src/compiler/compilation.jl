@@ -409,9 +409,8 @@ end
 
 # lower to PTX, and check that the kernel can be launched
 function emit_ptx(@nospecialize(job::CompilerJob))
-    # the IR is ours: inspect it in here, and dispose of it so that it does not leak
-    ptx = JuliaContext() do ctx
-        asm, meta = invoke_frozen(GPUCompiler.compile, :asm, job)
+    # inspect the IR while GPUCompiler keeps it (and its context) alive
+    function inspect(asm, meta)
         ir = meta.ir::LLVM.Module
 
         # check if we'll need the device runtime
@@ -424,10 +423,10 @@ function emit_ptx(@nospecialize(job::CompilerJob))
                          "__nvvm_reflect" #= TODO: should have been optimized away =#]
         needs_cudadevrt = !isempty(setdiff(map(f -> f.name, undefined_fs), intrinsic_fns))
 
-        entry = meta.entry.name
-        dispose(ir)
-        (; asm, entry, meta.relocations, meta.exception_sites, needs_cudadevrt)
+        (; asm, entry=meta.entry.name, meta.relocations, meta.exception_sites,
+           needs_cudadevrt)
     end
+    ptx = invoke_frozen(GPUCompiler.compile, inspect, :asm, job)
 
     check_parameter_memory(job)
 
