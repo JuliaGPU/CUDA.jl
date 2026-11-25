@@ -156,6 +156,13 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 
 *Bug fixes*:
 
+- `norm`, `normalize!` and `normalize` of `Float32`, `Float64`, `ComplexF32` and
+  `ComplexF64` arrays no longer use cuBLAS' `nrm2`, which drops or inflates the
+  contribution of subnormal elements, depending on the input and the CUDA version:
+  `norm(CuArray(fill(floatmin(Float32)/8, 2)))` was 0.0028x the true norm, and a million
+  subnormal components next to a component of 1e-3 made the norm 35% too large. `norm`
+  now uses GPUArrays' generic implementation, and `normalize!` reduces over the array
+  twice.
 - `svd`, `svd!`, `svdvals` and `svdvals!` with `alg=QRAlgorithm()` support wide
   matrices, for which they threw an `ArgumentError`.
 - The `default_memory` and `nonblocking_synchronization` preferences are documented
