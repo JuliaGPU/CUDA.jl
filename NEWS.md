@@ -167,6 +167,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   range in the next dimension, e.g. `CartesianIndices((1:8, 1:3:9))` of an 8×9 matrix.
   GPUArrays treated such blocks as contiguous; it is fixed in GPUArrays 12.3, which is now
   required.
+- On Julia 1.12 and 1.13, kernels compiled during precompilation that raise an integer to
+  a power (`x^n`) are no longer dropped when the package image is loaded, so they aren't
+  compiled again in every session. Requires GPUToolbox 3.7.
 - `CUDA.@profile` no longer deadlocks when NVTX.jl's GC hooks are enabled
   (`JULIA_NVTX_CALLBACKS=gc`). CUPTI's activity buffers are now managed by native code, so
   CUPTI can request one while Julia collects garbage.
