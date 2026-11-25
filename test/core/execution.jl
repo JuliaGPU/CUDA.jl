@@ -775,6 +775,47 @@ end
 end
 
 
+@testset "compilation statistics" begin
+    arr = CuArray(zeros(Int))
+
+    function kernel(ptr)
+        ptr[] = 1
+        return
+    end
+
+    stats = CUDA.@timed @cuda kernel(arr)
+    @test stats.gpu_compilestats.compile_count == 1
+    @test stats.gpu_compilestats.link_count == 1
+    @test stats.gpu_compiletime > 0
+
+    stats = CUDA.@timed @cuda kernel(arr)
+    @test stats.gpu_compilestats.compile_count == 0
+    @test stats.gpu_compilestats.link_count == 0
+    @test stats.gpu_compiletime == 0
+
+    function kernel(ptr)
+        ptr[] = 2
+        return
+    end
+    _, out = @grab_output CUDA.@time @cuda kernel(arr)
+    @test occursin("1 kernel compilation,", out)
+    _, out = @grab_output CUDA.@time @cuda kernel(arr)
+    @test !occursin("compilation", out)
+
+    if attribute(device(), CUDA.DEVICE_ATTRIBUTE_COMPUTE_MODE) != CUDA.COMPUTEMODE_EXCLUSIVE_PROCESS
+        # a kernel that was compiled for another context only needs to be loaded
+        stats = CuContext(device()) do ctx
+            context!(ctx) do
+                other = CuArray(zeros(Int))
+                CUDA.@timed @cuda kernel(other)
+            end
+        end
+        @test stats.gpu_compilestats.compile_count == 0
+        @test stats.gpu_compilestats.link_count == 1
+    end
+end
+
+
 @testset "non-isbits arguments" begin
     function kernel1(T, i)
         sink(i)

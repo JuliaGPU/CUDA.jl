@@ -41,6 +41,11 @@ julia> CUDA.@time sin.(a);
   0.046063 seconds (96 CPU allocations: 3.750 KiB) (1 GPU allocation: 4.000 GiB, 14.33% gc time of which 99.89% spent allocating)
 ```
 
+When kernels are compiled while running the expression, `CUDA.@time` also reports how many,
+and the share of the time that compiling them took. `CUDA.@timed` returns all of these
+statistics as a named tuple, e.g. for testing that a warm call doesn't compile or load any
+kernel.
+
 The `CUDA.@time` macro is more user-friendly and is a generally more useful tool when
 measuring the end-to-end performance characteristics of a GPU application.
 

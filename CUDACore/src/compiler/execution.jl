@@ -933,6 +933,7 @@ function cufunction_link(source::Core.MethodInstance; kwargs...)
             cached_ctx === ctx && return fun, state
         end
         fun = link_kernel(res.image::Vector{UInt8}, res.entry::String, res.relocations)
+        record_link!()
         exception_info, exception_sites = create_exceptions!(fun.mod, res.exception_sites)
         state = KernelState(exception_info, exception_sites, UInt32(0))
         # don't cache session-local handles while generating output: the results struct

@@ -433,14 +433,18 @@ end
 """
     @time ex
 
-Run expression `ex` and report on execution time and GPU/CPU memory behavior. The GPU is
-synchronized right before and after executing `ex` to exclude any external effects.
+Run expression `ex` and report on execution time, GPU/CPU memory behavior, and the kernels
+that were compiled. The GPU is synchronized right before and after executing `ex` to exclude
+any external effects.
+
+See also `CUDA.@timed`.
 """
 macro time(ex)
     quote
         local val, cpu_time,
             cpu_alloc_size, cpu_gc_time, cpu_mem_stats,
-            gpu_alloc_size, gpu_mem_time, gpu_mem_stats = @timed $(esc(ex))
+            gpu_alloc_size, gpu_mem_time, gpu_mem_stats,
+            gpu_compile_time, gpu_compile_stats = @timed $(esc(ex))
 
         local cpu_alloc_count = Base.gc_alloc_count(cpu_mem_stats)
         local gpu_alloc_count = gpu_mem_stats.alloc_count
@@ -473,12 +477,51 @@ macro time(ex)
               end
           end
         end
+        local compile_count = gpu_compile_stats.compile_count
+        if compile_count > 0
+            Printf.@printf(" (%d kernel compilation%s, %.2f%% compilation time)",
+                           compile_count, compile_count == 1 ? "" : "s",
+                           100*gpu_compile_time/cpu_time)
+        end
         println()
 
         val
     end
 end
 
+"""
+    @timed ex
+
+Run expression `ex` like `CUDA.@time`, returning its value and statistics as a named
+tuple instead of printing them. Besides `value`, the elapsed `time` in seconds, and the
+CPU's `cpu_bytes`, `cpu_gctime` and `cpu_gcstats` (as `Base.@timed` reports them), it
+contains:
+
+- `gpu_bytes`: the number of bytes allocated on the GPU;
+- `gpu_memtime`: the time spent in GPU memory management, in seconds;
+- `gpu_memstats`: the number of allocations and frees, and the bytes they involved;
+- `gpu_compiletime`: the time spent compiling kernels, in seconds;
+- `gpu_compilestats`: `compile_count`, the number of kernels compiled, `compile_time`, and
+  `link_count`, the number of kernels loaded into a context. A kernel is loaded the first
+  time it is used in a context, also when it needs no compilation because its code was
+  compiled for another context or during precompilation.
+
+The compilation statistics cover the kernels that `cufunction`, and thus `@cuda` with the
+default backend, compiles and loads. Kernels launched from device code are compiled as part
+of the kernel that launches them, and reflection such as `CUDA.code_sass` isn't counted.
+
+A warm call, which reuses kernels that were compiled and loaded before, neither compiles
+nor loads one:
+
+```julia
+f!(y, x)
+stats = CUDA.@timed f!(y, x)
+@test stats.gpu_compilestats.compile_count == stats.gpu_compilestats.link_count == 0
+```
+
+The statistics are shared by all tasks, so they include work done by other tasks while `ex`
+runs.
+"""
 macro timed(ex)
     quote
         Base.Experimental.@force_compile
@@ -486,6 +529,7 @@ macro timed(ex)
         # coars-graned synchronization to exclude effects from previously-executed code
         device_synchronize()
 
+        local gpu_compile_stats0 = copy(compile_stats)
         local gpu_mem_stats0 = copy(alloc_stats)
         local cpu_mem_stats0 = Base.gc_num()
         local cpu_time0 = time_ns()
@@ -496,15 +540,18 @@ macro timed(ex)
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()
         local gpu_mem_stats1 = copy(alloc_stats)
+        local gpu_compile_stats1 = copy(compile_stats)
 
         local cpu_time = (cpu_time1 - cpu_time0) / 1e9
 
         local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
         local gpu_mem_stats = gpu_mem_stats1 - gpu_mem_stats0
+        local gpu_compile_stats = gpu_compile_stats1 - gpu_compile_stats0
 
         (value=val, time=cpu_time,
          cpu_bytes=cpu_mem_stats.allocd, cpu_gctime=cpu_mem_stats.total_time / 1e9, cpu_gcstats=cpu_mem_stats,
-         gpu_bytes=gpu_mem_stats.alloc_bytes, gpu_memtime=gpu_mem_stats.total_time, gpu_memstats=gpu_mem_stats)
+         gpu_bytes=gpu_mem_stats.alloc_bytes, gpu_memtime=gpu_mem_stats.total_time, gpu_memstats=gpu_mem_stats,
+         gpu_compiletime=gpu_compile_stats.compile_time, gpu_compilestats=gpu_compile_stats)
     end
 end
 @public @allocated, @time, @timed, used_memory, cached_memory, pool_status, reclaim,
