@@ -65,6 +65,35 @@ using LinearAlgebra
         @test norm(x) ≈ result[]
     end
 
+    @testset "norm of subnormals" begin
+        # cuBLAS' nrm2 drops or inflates the contribution of subnormal elements
+        R = real(T)
+        fm = floatmin(R)
+        # magnitudes spread over every binade, with mixed signs
+        emin = exponent(nextfloat(zero(R)))
+        state = UInt32(1)
+        rnd() = (state = 0x0019660d * state + 0x3c6ef35f)
+        mixed() = R(1 + rnd() / 2^32) * R(2)^(-Int(rnd() % -emin)) * (isodd(rnd() >> 16) ? 1 : -1)
+        for x in (fill(T(fm/8), 2), fill(T(fm/8), 10^6), T[fm/8, 2fm],
+                  fill(T(nextfloat(zero(R))), 4),
+                  T <: Complex ? T[complex(fm/8, R(1e-3))] : T[fm/8, R(1e-3)],
+                  T <: Complex ? [T(mixed(), mixed()) for _ in 1:10^6] : [mixed() for _ in 1:10^6])
+            dx = CuArray(x)
+            rtol = 100eps(R)
+            @test norm(dx) ≈ norm(x) rtol=rtol
+            @test LinearAlgebra.norm2(dx) ≈ norm(x) rtol=rtol
+            @test Array(normalize(dx)) ≈ normalize(x) rtol=rtol
+        end
+        @test norm(reshape(CuArray(fill(T(fm/8), 4)), 2, 2)) ≈ fm/4
+
+        u = nextfloat(zero(R))
+        @test Array(normalize(CuArray(T[1, u]))) == T[1, u]
+        @test Array(normalize(CuArray(T[u, u]))) ≈ fill(1/sqrt(R(2)), 2)
+        @test all(isnan, Array(normalize(CuArray(zeros(T, 3)))))
+        @test isequal(Array(normalize(CuArray(T[Inf, 1]))), T[NaN, 0])
+        @test all(isnan, Array(normalize(CuArray(T[NaN, 1]))))
+    end
+
     @testset "norm of Diagonal" begin
         x = rand(T, m)
         dDx = Diagonal(CuArray(x))
@@ -75,7 +104,7 @@ using LinearAlgebra
     end
 
     @testset "norm of strided views" begin # JuliaGPU/CUDA.jl#2280
-        # 1D contiguous view: should hit the cuBLAS nrm2 fast path.
+        # 1D contiguous view
         x = rand(T, m)
         dx = CuArray(x)
         @test norm(@view(dx[2:end-1]), 2) ≈ norm(@view(x[2:end-1]), 2)

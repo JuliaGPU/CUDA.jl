@@ -223,7 +223,11 @@ function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}},
     return dotu(n, x, y)
 end
 
-function LinearAlgebra.norm(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}},
+# cuBLAS' nrm2 mishandles subnormal elements of single- and double-precision inputs: it
+# drops their contribution or inflates it, depending on the input and the version (seen
+# from 12.5 through 13.10). GPUArrays' generic norm doesn't, and is at least as fast. The
+# half-precision variants compute in single precision, where their elements are normal.
+function LinearAlgebra.norm(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16}},
                             p::Real=2)
     if p == 2
         return nrm2(x)
@@ -232,16 +236,49 @@ function LinearAlgebra.norm(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF1
     end
 end
 LinearAlgebra.norm(x::Diagonal{T, <:StridedCuVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, CublasFloat}} = norm(x.diag, p)
-LinearAlgebra.norm2(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
+LinearAlgebra.norm2(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}}) = norm(x, 2)
+
+# exact powers of two whose product scales `s` into [0.5, 1). It takes two, because the
+# reciprocal of a small subnormal `s` overflows.
+@inline function unscale_factors(s)
+    e = frexp(s)[2]
+    h = e >> 1
+    return ldexp(one(s), -h), ldexp(one(s), h - e)
+end
+
+# divide `z` by the norm, or, when that isn't a normal number, by the norm in the scaled
+# coordinates, so that a tiny norm isn't rounded to a subnormal first
+@inline function normalize_scaled(z, s, ssq)
+    r = sqrt(ssq)
+    nrm = ldexp(r, frexp(s)[2])
+    if isfinite(nrm) && nrm >= floatmin(nrm)
+        return z / nrm
+    else
+        f = unscale_factors(s)
+        return z * f[1] * f[2] / r
+    end
+end
 
 # keep the 2-norm on the GPU, so that normalizing doesn't wait for it to be copied back.
-# Unlike LinearAlgebra on Julia 1.14, this doesn't rescale and recompute a subnormal norm,
-# which would cost two more passes over `x` for every call.
 function LinearAlgebra.normalize!(x::StridedCuVecOrDenseMat{T}, p::Real=2) where {T<:Union{Float16, CublasFloat}}
-    if p == 2
+    if p == 2 && T == Float16
         nrm = CuArray{real(T)}(undef)
         nrm2(x, nrm)
         x ./= nrm
+        return x
+    elseif p == 2
+        # avoiding nrm2 (see `norm` above) costs a second pass over `x`: one to find the
+        # largest component, and one to sum the squares scaled by it, which can't
+        # overflow, or underflow to zero.
+        dims = ntuple(identity, ndims(x))
+        scale = mapreduce(z -> max(abs(real(z)), abs(imag(z))), max, x;
+                          dims, init=zero(real(T)))
+        ssq = mapreduce(identity, +,
+                        Broadcast.broadcasted(x, scale) do z, s
+                            f = unscale_factors(s)
+                            abs2(z * f[1] * f[2])
+                        end; dims, init=zero(real(T)))
+        x .= normalize_scaled.(x, scale, ssq)
         return x
     else
         return invoke(normalize!, Tuple{AbstractArray, Real}, x, p)
