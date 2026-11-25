@@ -1136,9 +1136,7 @@ end
     chains = [chain for f in @retry_busy CUDA.@sample(period=10, sum(x)).functions
                     for chain in f.instructions.source]
     @test any(chain -> length(chain) > 1, chains)
-    for chain in chains
-        @test all(i -> chain[i] != chain[i+1], 1:length(chain)-1)
-    end
+    @test all(chain -> all(i -> chain[i] != chain[i+1], 1:length(chain)-1), chains)
 
     sass = sprint(CUDATools.code_sass, p)
     @test occursin("/*0000*/", sass)
