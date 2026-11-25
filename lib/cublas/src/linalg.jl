@@ -1,58 +1,13 @@
 # interfacing with LinearAlgebra standard library
 
 using LinearAlgebra: MulAddMul, AdjOrTrans, wrap, UpperOrLowerTriangular, rmul!, lmul!
-@static if VERSION ≥ v"1.12.0-rc"
-    # we need to use the generic wrapper to avoid dispatch to the 2x2or3x3 method
-    using LinearAlgebra: generic_matmatmul_wrapper!, BlasFlag, _symm_hemm_generic!
-end
-
-# BLAS walks a vector with a negative increment backwards from its end, while a reversed
-# view points at its first element, so vector operands need a positive stride.
-blas_layout(x::StridedCuVector) = stride(x, 1) > 0
-blas_layout(A::StridedCuMatrix) = column_major(A)
-
-# run a cuBLAS routine on contiguous copies of operands it can't address
-blas_input(X) = blas_layout(X) ? X : copy(X)
-blas_output(f, C) = blas_layout(C) ? f(C) : copyto!(C, f(similar(C)))
 
 #
 # BLAS 1
 #
 
-function LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Bool)
-    # explicitly fill x with zero to comply with julias "false = strong zero"
-    !k && fill!(x, zero(eltype(x)))
-    return x
-end
-
-# cuBLAS can only scale arrays that it can address as a vector
-LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
-  x isa StridedCuVecOrDenseMat ? scal!(length(x), k, x) : (x .*= k)
-
-# Work around ambiguity with GPUArrays wrapper
-LinearAlgebra.rmul!(x::DenseCuArray{<:CublasFloat}, k::Real) =
-  invoke(rmul!, Tuple{typeof(x), Number}, x, k)
-
-function LinearAlgebra.dot(x::StridedCuVector{T},
-                           y::StridedCuVector{T}) where T<:Union{Float16, CublasReal}
-    n = length(x)
-    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
-    dot(n, x, y)
-end
-
-function LinearAlgebra.dot(x::StridedCuVector{T},
-                           y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
-    n = length(x)
-    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
-    dotc(n, x, y)
-end
-
-# resolve ambiguities with generic wrapper below
-LinearAlgebra.dot(x::CuArray{T}, y::CuArray{T}) where T<:Union{Float32, Float64, ComplexF32, ComplexF64} =
-    invoke(LinearAlgebra.dot, Tuple{StridedCuArray{T}, StridedCuArray{T}}, x, y)
-
-# generic fallback
-function LinearAlgebra.dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
+# dot for element types cuBLAS doesn't support
+function GPUArrays.blas_dot(x::AnyCuArray{T1}, y::AnyCuArray{T2}) where {T1,T2}
     n = length(x)
     n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
 
@@ -215,23 +170,6 @@ function LinearAlgebra.dot(x::AnyCuArray{T1}, A::AnyCuArray{T2}, y::AnyCuArray{T
     end
 end
 
-function LinearAlgebra.:(*)(transx::Transpose{<:Any,<:StridedCuVector{T}},
-                            y::StridedCuVector{T}) where T<:Union{ComplexF16, CublasComplex}
-    x = transx.parent
-    n = length(x)
-    n==length(y) || throw(DimensionMismatch("dot product arguments have lengths $(length(x)) and $(length(y))"))
-    return dotu(n, x, y)
-end
-
-function LinearAlgebra.norm(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}},
-                            p::Real=2)
-    if p == 2
-        return nrm2(x)
-    else
-        return invoke(norm, Tuple{AnyGPUArray, Real}, x, p)
-    end
-end
-LinearAlgebra.norm(x::Diagonal{T, <:StridedCuVector{T}}, p::Real=2) where {T<:Union{Float16, ComplexF16, CublasFloat}} = norm(x.diag, p)
 LinearAlgebra.norm2(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
 
 # keep the 2-norm on the GPU, so that normalizing doesn't wait for it to be copied back.
@@ -250,107 +188,9 @@ end
 LinearAlgebra.normalize(x::StridedCuVecOrDenseMat{T}, p::Real=2) where {T<:Union{Float16, CublasFloat}} =
     normalize!(copy(x), p)
 
-LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
-
-function LinearAlgebra.axpy!(alpha::Number, x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:Union{Float16, ComplexF16, CublasFloat}
-    length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
-    axpy!(length(x), alpha, x, y)
-end
-
-function LinearAlgebra.axpby!(alpha::Number, x::StridedCuArray{T}, beta::Number, y::StridedCuArray{T}) where T<:Union{Float16, ComplexF16, CublasFloat}
-    length(x)==length(y) || throw(DimensionMismatch("axpby arguments have lengths $(length(x)) and $(length(y))"))
-    axpby!(length(x), alpha, x, beta, y)
-end
-
-function LinearAlgebra.rotate!(x::StridedCuArray{T}, y::StridedCuArray{T}, c::Number, s::Number) where T<:CublasFloat
-    nx = length(x)
-    ny = length(y)
-    nx==ny || throw(DimensionMismatch("rotate arguments have lengths $nx and $ny"))
-    rot!(nx, x, y, c, s)
-end
-
-function LinearAlgebra.reflect!(x::StridedCuArray{T}, y::StridedCuArray{T}, c::Number, s::Number) where T<:CublasFloat
-    nx = length(x)
-    ny = length(y)
-    nx==ny || throw(DimensionMismatch("reflect arguments have lengths $nx and $ny"))
-    rot!(nx, x, y, c, s)
-    scal!(ny, -real(one(T)), y)
-    x, y
-end
-
-# `Givens{T}` stores the cosine as a `T`, so complex rotations carry a complex `c` with a
-# zero imaginary part; cuBLAS takes a real one.
-function LinearAlgebra.lmul!(G::LinearAlgebra.Givens, A::StridedCuVecOrMat{T}) where T<:CublasFloat
-    if G.i2 > size(A, 1)
-        throw(DimensionMismatch("column indices for rotation are outside the matrix"))
-    end
-    rotate!(view(A, G.i1, :), view(A, G.i2, :), convert(real(T), G.c), G.s)
-    return A
-end
-
-function LinearAlgebra.rmul!(A::StridedCuMatrix{T}, G::LinearAlgebra.Givens) where T<:CublasFloat
-    if G.i2 > size(A, 2)
-        throw(DimensionMismatch("column indices for rotation are outside the matrix"))
-    end
-    rotate!(view(A, :, G.i1), view(A, :, G.i2), convert(real(T), G.c), -conj(G.s))
-    return A
-end
-
-
-
 #
 # BLAS 2
 #
-
-# GEMV
-function LinearAlgebra.mul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, alpha::Number, beta::Number)
-    mA, nA = tA == 'N' ? size(A) : reverse(size(A))
-
-    if nA != length(B)
-        throw(DimensionMismatch("second dimension of A, $nA, does not match length of B, $(length(B))"))
-    end
-
-    if mA != length(Y)
-        throw(DimensionMismatch("first dimension of A, $mA, does not match length of Y, $(length(Y))"))
-    end
-
-    if mA == 0
-        return Y
-    end
-
-    if nA == 0
-        return rmul!(Y, beta)
-    end
-
-    T = eltype(Y)
-    if alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        if T <: CublasFloat && eltype(A) == eltype(B) == T &&
-           blas_layout(A) && blas_layout(B) && blas_layout(Y)
-            if tA in ('N', 'T', 'C')
-                return gemv!(tA, alpha, A, B, beta, Y)
-            elseif tA in ('S', 's')
-                return symv!(tA == 'S' ? 'U' : 'L', alpha, A, B, beta, Y)
-            elseif tA in ('H', 'h')
-                return hemv!(tA == 'H' ? 'U' : 'L', alpha, A, B, beta, Y)
-            end
-        end
-    end
-    LinearAlgebra.mul!(Y, tA, 'N', A, B, alpha, beta)
-end
-
-# triangular
-
-## multiplication
-LinearAlgebra.generic_trimatmul!(c::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, b::StridedCuVector{T}) where {T<:CublasFloat} =
-    blas_output(c) do c
-        trmv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, blas_input(A), c === b ? c : copyto!(c, b))
-    end
-
-## division
-LinearAlgebra.generic_trimatdiv!(C::StridedCuVector{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuVector{T}) where {T<:CublasFloat} =
-    blas_output(C) do C
-        trsv!(uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, blas_input(A), C === B ? C : copyto!(C, B))
-    end
 
 # work around upstream breakage from JuliaLang/julia#55547
 @static if VERSION >= v"1.11.2"
@@ -370,90 +210,6 @@ end
 # BLAS 3
 #
 
-# GEMM
-
-@static if VERSION ≥ v"1.12.0-rc"
-    function LinearAlgebra.generic_matmatmul_wrapper!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuVecOrMat{T}, B::StridedCuVecOrMat{T}, alpha::Number, beta::Number, val::LinearAlgebra.BlasFlag.SyrkHerkGemm) where {T<:CublasFloat}
-        LinearAlgebra.mul!(C, tA, tB, A, B, alpha, beta)
-    end
-    function LinearAlgebra._symm_hemm_generic!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}, alpha, beta, ::Val{BlasFlag.SYMM}) where {T}
-        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
-        if lrchar == 'L'
-            symm!(lrchar, ulchar, alpha, A, B, beta, C)
-        else
-            symm!(lrchar, ulchar, alpha, B, A, beta, C)
-        end
-    end
-    function LinearAlgebra._symm_hemm_generic!(C::StridedCuMatrix{T}, tA::AbstractChar, tB::AbstractChar, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}, alpha, beta, ::Val{BlasFlag.HEMM}) where {T}
-        lrchar, ulchar = LinearAlgebra._lrchar_ulchar(tA, tB)
-        if lrchar == 'L'
-            hemm!(lrchar, ulchar, alpha, A, B, beta, C)
-        else
-            hemm!(lrchar, ulchar, alpha, B, A, beta, C)
-        end
-    end
-end
-
-function LinearAlgebra.mul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, alpha::Number, beta::Number)
-    T = eltype(C)
-    mA, nA = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
-    mB, nB = size(B, tB == 'N' ? 1 : 2), size(B, tB == 'N' ? 2 : 1)
-
-    if nA != mB
-        throw(DimensionMismatch("A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
-    end
-
-    if C === A || B === C
-        throw(ArgumentError("output matrix must not be aliased with input matrix"))
-    end
-
-    if mA == 0 || nA == 0 || nB == 0
-        if size(C) != (mA, nB)
-            throw(DimensionMismatch("C has dimensions $(size(C)), should have ($mA,$nB)"))
-        end
-        return LinearAlgebra.rmul!(C, beta)
-    end
-
-    cublas_layout = column_major(A) && column_major(B) && column_major(C)
-    if cublas_layout && all(in(('N', 'T', 'C')), (tA, tB))
-        if A isa StridedCuArray && B isa StridedCuArray &&
-           (gemmExComputeType(eltype(A), eltype(B), T, mA, nA, nB) !== nothing ||
-            T <: CublasFloat && eltype(A) == eltype(B) == T)
-            return gemm!(tA, tB, alpha, A, B, beta, C)
-        end
-    end
-    if cublas_layout && T <: CublasFloat && eltype(A) == eltype(B) == T &&
-       alpha isa Union{Bool,T} && beta isa Union{Bool,T}
-        # TODO: should the gemm part above be included in this branch?
-        if (tA == 'S' || tA == 's') && tB == 'N'
-            return symm!('L', tA == 'S' ? 'U' : 'L', alpha, A, B, beta, C)
-        elseif (tB == 'S' || tB == 's') && tA == 'N'
-            return symm!('R', tB == 'S' ? 'U' : 'L', alpha, B, A, beta, C)
-        elseif (tA == 'H' || tA == 'h') && tB == 'N'
-            return hemm!('L', tA == 'H' ? 'U' : 'L', alpha, A, B, beta, C)
-        elseif (tB == 'H' || tB == 'h') && tA == 'N'
-            return hemm!('R', tB == 'H' ? 'U' : 'L', alpha, B, A, beta, C)
-        end
-    end
-
-    GPUArrays.generic_matmatmul!(C, wrap(A, tA), wrap(B, tB), alpha, beta)
-end
-
-# Julia < 1.13 dispatches on the non-public `generic_matvecmul!` and `generic_matmatmul!`,
-# which JuliaLang/LinearAlgebra.jl#1671 superseded by the `mul!` methods above. Forward from
-# the old names, both the alpha/beta variants (1.12) and the ones taking a final MulAddMul
-# (1.10 and 1.11).
-@static if VERSION < v"1.13.0-rc4"
-    LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, alpha::Number, beta::Number) =
-        mul!(Y, tA, A, B, alpha, beta)
-    LinearAlgebra.generic_matvecmul!(Y::StridedCuVector, tA::AbstractChar, A::StridedCuMatrix, B::StridedCuVector, _add::MulAddMul) =
-        mul!(Y, tA, A, B, _add.alpha, _add.beta)
-    LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, alpha::Number, beta::Number) =
-        mul!(C, tA, tB, A, B, alpha, beta)
-    LinearAlgebra.generic_matmatmul!(C::StridedCuVecOrMat, tA, tB, A::StridedCuVecOrMat, B::StridedCuVecOrMat, _add::MulAddMul) =
-        mul!(C, tA, tB, A, B, _add.alpha, _add.beta)
-end
-
 # fallback for weird Complex edge cases
 const AdjOrTransOrCuMatrix{T} = Union{StridedCuMatrix{T}, AdjOrTrans{<:T,<:StridedCuMatrix{T}}}
 LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::AdjOrTransOrCuMatrix{T}, B::Adjoint{T, <:Transpose{T, <:StridedCuMatrix{T}}}, α::Number, β::Number) where {T<:Complex} = mul!(C, A, conj(parent(parent(B))), α, β)
@@ -461,154 +217,79 @@ LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::AdjOrTransOrCuMatrix{T}, B::Trans
 LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Adjoint{T, <:Transpose{T, <:StridedCuMatrix{T}}}, B::AdjOrTransOrCuMatrix{T}, α::Number, β::Number) where {T<:Complex} = mul!(C, conj(parent(parent(A))), B, α, β)
 LinearAlgebra.mul!(C::StridedCuVecOrMat{T}, A::Transpose{T, <:Adjoint{T, <:StridedCuMatrix{T}}}, B::AdjOrTransOrCuMatrix{T}, α::Number, β::Number) where {T<:Complex} = mul!(C, conj(parent(parent(A))), B, α, β)
 
-# triangular
+# GPUArrays implements LinearAlgebra's matrix products and triangular operations, and calls
+# these hooks for the operations that BLAS supports.
 
-LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    blas_output(C) do C
-        trmm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(A), blas_input(B), C)
+GPUArrays.blas_gemv!(tA::AbstractChar, α::Union{Bool,T}, A::StridedCuMatrix{T}, x::StridedCuVector{T},
+                     β::Union{Bool,T}, y::StridedCuVector{T}) where {T<:CublasFloat} =
+    gemv!(tA, α, A, x, β, y)
+GPUArrays.blas_symv!(uplo::AbstractChar, α::Union{Bool,T}, A::StridedCuMatrix{T}, x::StridedCuVector{T},
+                     β::Union{Bool,T}, y::StridedCuVector{T}) where {T<:CublasFloat} =
+    symv!(uplo, α, A, x, β, y)
+GPUArrays.blas_hemv!(uplo::AbstractChar, α::Union{Bool,T}, A::StridedCuMatrix{T}, x::StridedCuVector{T},
+                     β::Union{Bool,T}, y::StridedCuVector{T}) where {T<:CublasComplex} =
+    hemv!(uplo, α, A, x, β, y)
+GPUArrays.blas_trmv!(uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+                     A::StridedCuMatrix{T}, x::StridedCuVector{T}) where {T<:CublasFloat} =
+    trmv!(uplo, trans, diag, A, x)
+GPUArrays.blas_trsv!(uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+                     A::StridedCuMatrix{T}, x::StridedCuVector{T}) where {T<:CublasFloat} =
+    trsv!(uplo, trans, diag, A, x)
+
+# gemm! also implements mixed-precision products with gemmEx
+function GPUArrays.blas_gemm!(tA::AbstractChar, tB::AbstractChar, α::Number, A::StridedCuVecOrMat,
+                              B::StridedCuVecOrMat, β::Number, C::StridedCuVecOrMat)
+    T = eltype(C)
+    m, k = size(A, tA == 'N' ? 1 : 2), size(A, tA == 'N' ? 2 : 1)
+    n = size(B, tB == 'N' ? 2 : 1)
+    if gemmExComputeType(eltype(A), eltype(B), T, m, k, n) !== nothing ||
+       T <: CublasFloat && eltype(A) == eltype(B) == T
+        return gemm!(tA, tB, α, A, B, β, C)
     end
-LinearAlgebra.generic_mattrimul!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    blas_output(C) do C
-        trmm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(B), blas_input(A), C)
-    end
-
-## tri-tri-mul!
-function LinearAlgebra.generic_trimatmul!(C::StridedCuMatrix{T}, uplocA, isunitcA, tfunA::Function, A::StridedCuMatrix{T}, triB::UpperOrLowerTriangular{T,<:AdjOrTransOrCuMatrix{T}}) where {T<:CublasFloat}
-    uplocB = LinearAlgebra.uplo_char(triB)
-    isunitcB = LinearAlgebra.isunit_char(triB)
-    B = parent(triB)
-    tfunB = LinearAlgebra.wrapperop(B)
-    transa = tfunA === identity ? 'N' : tfunA === transpose ? 'T' : 'C'
-    transb = tfunB === identity ? 'N' : tfunB === transpose ? 'T' : 'C'
-    # one operand gets its other triangle zeroed so cuBLAS can treat it as a full matrix;
-    # do so on a copy, which also gives cuBLAS a layout it can address
-    blas_output(C) do C
-        if uplocA == 'L' && tfunA === identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N' # lower * upper
-            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), triu!(copy(B)), C)
-        elseif uplocA == 'U' && tfunA === identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N' # upper * lower
-            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), tril!(copy(B)), C)
-        elseif uplocA == 'U' && tfunA === identity && tfunB !== identity && uplocB == 'U' && isunitcA == 'N'
-            # operation is reversed to avoid executing the tranpose
-            trmm!('R', uplocB, transb, isunitcB, one(T), blas_input(parent(B)), triu!(copy(A)), C)
-        elseif uplocA == 'L' && tfunA !== identity && tfunB === identity && uplocB == 'L' && isunitcB == 'N'
-            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), tril!(copy(B)), C)
-        elseif uplocA == 'U' && tfunA !== identity && tfunB === identity && uplocB == 'U' && isunitcB == 'N'
-            trmm!('L', uplocA, transa, isunitcA, one(T), blas_input(A), triu!(copy(B)), C)
-        elseif uplocA == 'L' && tfunA === identity && tfunB !== identity && uplocB == 'L' && isunitcA == 'N'
-            trmm!('R', uplocB, transb, isunitcB, one(T), blas_input(parent(B)), tril!(copy(A)), C)
-        else
-            throw("mixed triangular-triangular multiplication") # TODO: rethink
-        end
-    end
-    return C
+    return GPUArrays.generic_matmatmul!(C, tA, tB, A, B, α, β)
 end
+GPUArrays.blas_symm!(side::AbstractChar, uplo::AbstractChar, α::Union{Bool,T}, A::StridedCuMatrix{T},
+                     B::StridedCuMatrix{T}, β::Union{Bool,T}, C::StridedCuMatrix{T}) where {T<:CublasFloat} =
+    symm!(side, uplo, α, A, B, β, C)
+GPUArrays.blas_hemm!(side::AbstractChar, uplo::AbstractChar, α::Union{Bool,T}, A::StridedCuMatrix{T},
+                     B::StridedCuMatrix{T}, β::Union{Bool,T}, C::StridedCuMatrix{T}) where {T<:CublasComplex} =
+    hemm!(side, uplo, α, A, B, β, C)
+GPUArrays.blas_trmm!(side::AbstractChar, uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+                     α::Union{Bool,T}, A::StridedCuMatrix{T}, B::StridedCuMatrix{T},
+                     C::StridedCuMatrix{T}) where {T<:CublasFloat} =
+    trmm!(side, uplo, trans, diag, α, A, B, C)
+GPUArrays.blas_trsm!(side::AbstractChar, uplo::AbstractChar, trans::AbstractChar, diag::AbstractChar,
+                     α::Union{Bool,T}, A::StridedCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
+    trsm!(side, uplo, trans, diag, α, A, B)
+GPUArrays.blas_syrk!(uplo::AbstractChar, trans::AbstractChar, α::Union{Bool,T}, A::StridedCuMatrix{T},
+                     β::Union{Bool,T}, C::StridedCuMatrix{T}) where {T<:CublasFloat} =
+    syrk!(uplo, trans, α, A, β, C)
+GPUArrays.blas_herk!(uplo::AbstractChar, trans::AbstractChar, α::Real, A::StridedCuMatrix{T},
+                     β::Real, C::StridedCuMatrix{T}) where {T<:CublasComplex} =
+    herk!(uplo, trans, α, A, β, C)
+GPUArrays.blas_geam!(tA::AbstractChar, tB::AbstractChar, α::Union{Bool,T}, A::StridedCuMatrix{T},
+                     β::Union{Bool,T}, B::StridedCuMatrix{T}, C::StridedCuMatrix{T}) where {T<:CublasFloat} =
+    geam!(tA, tB, α, A, β, B, C)
+GPUArrays.blas_dgmm!(side::AbstractChar, A::StridedCuMatrix{T}, x::StridedCuVector{T},
+                     C::StridedCuMatrix{T}) where {T<:CublasFloat} =
+    dgmm!(side, A, x, C)
 
-LinearAlgebra.generic_trimatdiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::StridedCuMatrix{T}, B::AdjOrTransOrCuMatrix{T}) where {T<:CublasFloat} =
-    blas_output(C) do C
-        trsm!('L', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(A), C === B ? C : copyto!(C, B))
-    end
-LinearAlgebra.generic_mattridiv!(C::StridedCuMatrix{T}, uploc, isunitc, tfun::Function, A::AdjOrTransOrCuMatrix{T}, B::StridedCuMatrix{T}) where {T<:CublasFloat} =
-    blas_output(C) do C
-        trsm!('R', uploc, tfun === identity ? 'N' : tfun === transpose ? 'T' : 'C', isunitc, one(T), blas_input(B), C === A ? C : copyto!(C, A))
-    end
-
-# Triangular inverse, as a solve against the identity. cuSOLVER's trtri does a third of the
-# flops, but needs CUDA 11.4 and only wins on large flop-bound problems (e.g. Float64 at
-# n=4096 on a consumer GPU); for smaller or single-precision matrices trsm is faster.
-for t in (:LowerTriangular, :UnitLowerTriangular, :UpperTriangular, :UnitUpperTriangular)
-    @eval function LinearAlgebra.inv(x::$t{T, <:StridedCuMatrix{T}}) where T<:CublasFloat
-        n = LinearAlgebra.checksquare(x)
-        $t(LinearAlgebra.ldiv!(x, CuMatrix{T}(I, n, n)))
-    end
-end
-
-# Diagonal
-
-function LinearAlgebra.inv(D::Diagonal{T, <:CuArray{T}}) where {T}
-    Di = map(inv, D.diag)
-    if any(isinf, Di)
-        error("Singular Exception")
-    end
-    Diagonal(Di)
-end
-
-LinearAlgebra.rdiv!(A::CuArray, D::Diagonal) =  _rdiv!(A, A, D)
-
-Base.:/(A::CuArray, D::Diagonal) = _rdiv!(similar(A, typeof(oneunit(eltype(A)) / oneunit(eltype(D)))), A, D)
-
-function _rdiv!(B::CuArray, A::CuArray, D::Diagonal)
-    m, n = size(A, 1), size(A, 2)
-    if (k = length(D.diag)) != n
-        throw(DimensionMismatch("left hand side has $n columns but D is $k by $k"))
-    end
-    B .= A*inv(D)
-    B
-end
-
-# diagonal mul!
-function LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, B::Diagonal{T,<:CuVector}) where {T<:CublasFloat}
-    return dgmm!('R', A, B.diag, C)
-end
-
-function LinearAlgebra.mul!(C::CuMatrix{T}, A::Diagonal{T,<:CuVector}, B::CuMatrix{T}) where {T<:CublasFloat}
-    return dgmm!('L', B, A.diag, C)
-end
-
-function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix{T}) where {T<:CublasFloat}
-    return dgmm!('L', B, A.diag, B)
-end
-
-function LinearAlgebra.rmul!(A::CuMatrix{T}, B::Diagonal{T,<:CuVector{T}}) where {T<:CublasFloat}
-    return dgmm!('R', A, B.diag, A)
-end
-
-# eltypes do not match
-function LinearAlgebra.lmul!(A::Diagonal{T,<:CuVector{T}}, B::CuMatrix) where {T<:CublasFloat}
-    @. B = A.diag * B
-    return B
-end
-function LinearAlgebra.lmul!(A::Diagonal{Td,<:CuVector{Td}}, B::Transpose{Tt, <:CuMatrix{Tt}}) where {Td<:CublasFloat, Tt<:CublasFloat}
-    @. B = A.diag * B
-    return B
-end
-function LinearAlgebra.lmul!(A::Diagonal{Td,<:CuVector{Td}}, B::Adjoint{Tt, <:CuMatrix{Tt}}) where {Td<:CublasFloat, Tt<:CublasFloat}
-    @. B = A.diag * B
-    return B
-end
-# eltypes do not match
-function LinearAlgebra.rmul!(A::CuMatrix, B::Diagonal{T,<:CuVector{T}}) where {T<:CublasFloat}
-    At = transpose(A)
-    @. At = B.diag * At
-    return A
-end
-function LinearAlgebra.rmul!(A::Transpose{Tt, <:CuMatrix{Tt}}, B::Diagonal{Td,<:CuVector{Td}}) where {Td<:CublasFloat, Tt<:CublasFloat}
-    At = parent(A)
-    @. At = B.diag * At
-    return transpose(At)
-end
-function LinearAlgebra.rmul!(A::Adjoint{Tt, <:CuMatrix{Tt}}, B::Diagonal{Td,<:CuVector{Td}}) where {Td<:CublasFloat, Tt<:CublasFloat}
-    At = parent(A)
-    @. At = adjoint(B.diag) * At
-    return adjoint(At)
-end
-
-# symmetric mul!
-
-op_wrappers = ((identity, T -> 'N', identity),
-               (T -> :(Transpose{T, <:$T}), T -> 'T', A -> :(parent($A))),
-               (T -> :(Adjoint{T, <:$T}), T -> T <: Real ? 'T' : 'C', A -> :(parent($A))))
-
-for op in (:(+), :(-))
-    for (wrapa, transa, unwrapa) in op_wrappers, (wrapb, transb, unwrapb) in op_wrappers
-        TypeA = wrapa(:(CuMatrix{T}))
-        TypeB = wrapb(:(CuMatrix{T}))
-        @eval Base.$op(A::$TypeA, B::$TypeB) where {T <: CublasFloat} = geam($transa(T), $transb(T), one(T), $(unwrapa(:A)), $(op)(one(T)), $(unwrapb(:B)))
-    end
-end
-
-# fast transpose using geam
-function LinearAlgebra.transpose!(dest::CuMatrix{T}, src::CuMatrix{T}) where {T <: Union{Float32, Float64, ComplexF32, ComplexF64}}
-    axes(dest) == reverse(axes(src)) || throw(DimensionMismatch("axes of the destination are incompatible with that of the source"))
-    geam!('T', 'T', one(T), src, zero(T), src, dest)
-    return dest
-end
+GPUArrays.blas_scal!(α::Number, x::StridedCuVecOrDenseMat{<:CublasFloat}) = scal!(length(x), α, x)
+LinearAlgebra.dot(A::Symmetric{<:Union{Real,Complex},<:CuMatrix}, B::Symmetric{<:Union{Real,Complex},<:CuMatrix}) =
+    GPUArrays.gpu_dot(A, B)
+LinearAlgebra.dot(A::Hermitian{<:Union{Real,Complex},<:CuMatrix}, B::Hermitian{<:Union{Real,Complex},<:CuMatrix}) =
+    GPUArrays.gpu_dot(A, B)
+GPUArrays.blas_dot(x::StridedCuVecOrDenseMat{T}, y::StridedCuVecOrDenseMat{T}) where {T<:Union{Float16, CublasReal}} =
+    dot(length(x), x, y)
+GPUArrays.blas_dot(x::StridedCuVecOrDenseMat{T}, y::StridedCuVecOrDenseMat{T}) where {T<:Union{ComplexF16, CublasComplex}} =
+    dotc(length(x), x, y)
+GPUArrays.blas_dotu(x::StridedCuVector{T}, y::StridedCuVector{T}) where {T<:Union{ComplexF16, CublasComplex}} =
+    dotu(length(x), x, y)
+GPUArrays.blas_nrm2(x::StridedCuVecOrDenseMat{<:Union{Float16, ComplexF16, CublasFloat}}) = nrm2(x)
+GPUArrays.blas_asum(x::StridedCuVecOrDenseMat{<:CublasFloat}) = asum(length(x), x)
+GPUArrays.blas_axpy!(α::Number, x::StridedCuVecOrDenseMat{T}, y::StridedCuVecOrDenseMat{T}) where {T<:Union{Float16, ComplexF16, CublasFloat}} =
+    axpy!(length(x), α, x, y)
+GPUArrays.blas_axpby!(α::Number, x::StridedCuVecOrDenseMat{T}, β::Number, y::StridedCuVecOrDenseMat{T}) where {T<:Union{Float16, ComplexF16, CublasFloat}} =
+    axpby!(length(x), α, x, β, y)
+GPUArrays.blas_rot!(x::StridedCuVecOrDenseMat{T}, y::StridedCuVecOrDenseMat{T}, c::Real, s::Number) where {T<:CublasFloat} =
+    rot!(length(x), x, y, c, s)
