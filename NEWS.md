@@ -70,6 +70,9 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   share of the time that took. `CUDA.@timed` returns these statistics in the new fields
   `gpu_compiletime` and `gpu_compilestats`, which also counts the kernels loaded into a
   context, so that tests can check that a warm call compiles and loads no kernel.
+- `CUDA.@timed` returns the number of synchronizations with the GPU, including the ones
+  CUDA.jl makes itself, in the new field `gpu_syncstats`, so that tests can check that a
+  call doesn't wait for the GPU ([#3590](https://github.com/JuliaGPU/CUDA.jl/issues/3590)).
 - With CUDA 13.4 or later, `CUDA.@metrics` locks the GPU's clocks to their base
   frequency and flushes caches before every replay pass, as Nsight Compute does, so
   results are repeatable and comparable with Nsight Compute. Results change: kernels run

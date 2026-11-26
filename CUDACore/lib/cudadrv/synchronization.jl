@@ -27,6 +27,28 @@ worker_isdone((obj, ctx)) = poll(obj)
 poll(obj::CuStream) = isdone(obj)
 poll(obj::CuEvent) = unsafe_isdone(obj)
 
+# synchronization statistics, reported by `CUDA.@timed`
+
+mutable struct SyncStats
+    # synchronizations of a stream, an event or a context
+    Base.@atomic sync_count::Int
+end
+
+SyncStats() = SyncStats(0)
+
+Base.copy(stats::SyncStats) = SyncStats(stats.sync_count)
+
+Base.:(-)(a::SyncStats, b::SyncStats) = (; sync_count = a.sync_count - b.sync_count)
+
+const sync_stats = SyncStats()
+
+# (not while generating output, which would persist the count in the package image)
+function record_synchronization!()
+    ccall(:jl_generating_output, Cint, ()) == 1 && return
+    Base.@atomic sync_stats.sync_count += 1
+    return
+end
+
 function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
     obj isa CuEvent || check_capture(obj)
 
@@ -65,6 +87,8 @@ function synchronize_object(obj::SyncObject; blocking::Bool, spin::Bool)
             unchecked_synchronize(obj)
         end
     end
+    # (counted whichever way it waited)
+    record_synchronization!()
 
     if res != SUCCESS
         throw_api_error(res)
