@@ -53,6 +53,16 @@
       "kind": "methodology",
       "label": "Median → minimum",
       "description": "The benchmarks report the minimum over their samples instead of the median, which is less sensitive to scheduler jitter. Earlier runs only recorded the median, these only the minimum; the dashboard shows them as separate metrics."
+    },
+    {
+      "commit": "fcf706ab8",
+      "date": "2026-11-20T08:26:30+01:00",
+      "kind": "methodology",
+      "label": "Base clocks",
+      "description": "The benchmarks lock the GPU to its base clock through CUPTI (1410 MHz under load on the RTX 2070) instead of the 1800 MHz the benchmark machine locked it at with nvidia-smi, so kernel-bound benchmarks are up to 28% slower.",
+      "url": "https://github.com/JuliaGPU/CUDA.jl/pull/3607",
+      "benchmarks": ["performance/", "applications/"],
+      "rebase": true
     }
   ]
 }
