@@ -85,7 +85,12 @@ function compile_operator(W::Type, nargs::Int, name::String)
     source = methodinstance(W, Tuple{ntuple(_ -> OpPtr, nargs)...})
     job = CompilerJob(source, config)
     JuliaContext() do ctx
-        mod, meta = GPUCompiler.compile(:llvm, job)
+        mod, meta = try
+            GPUCompiler.compile(:llvm, job)
+        catch err
+            throws(err) || rethrow()
+            throw(throwing_operator_error(err))
+        end
         entry = meta.entry
         LLVM.name(entry) == name || error("operator was emitted as $(LLVM.name(entry))")
 
@@ -94,6 +99,35 @@ function compile_operator(W::Type, nargs::Int, name::String)
 
         convert(Vector{UInt8}, mod)
     end
+end
+
+# Device-side exceptions are reported through CUDA.jl's kernel state, which CUB's kernels
+# do not have, so an operator that throws fails to compile. Even if it would, raising the
+# exception makes the thread exit, which breaks the block-wide operations of CUB's
+# scans and sorts (we saw illegal memory accesses). Report such operators clearly.
+is_state_error(error) = error[3] == "julia.gpu.state_getter"
+throws(err) = err isa InvalidIRError && all(is_state_error, err.errors)
+
+# where an operator throws, without CUDA.jl's exception machinery and our wrapper
+function throw_site((_, frames, _))
+    runtime = dirname(pathof(CUDACore))
+    last = findlast(frame -> startswith(String(frame.file), runtime), frames)
+    last === nothing || (frames = frames[last+1:end])
+    filter(frame -> !(frame.file in (Symbol(@__FILE__), :unknown)), frames)
+end
+
+function throwing_operator_error(err::InvalidIRError)
+    sites = filter(!isempty, map(throw_site, err.errors))
+    frames = isempty(sites) ? StackTraces.StackFrame[] : first(sites)
+
+    msg = "CCCL operators cannot throw exceptions, but this one can"
+    if isempty(frames)
+        msg *= "."
+    else
+        msg *= ":\n" * join([" [$i] $frame" for (i, frame) in enumerate(frames)], '\n')
+    end
+    msg *= "\nAvoid operations that may throw, e.g., using `@inbounds`."
+    return ArgumentError(msg)
 end
 
 # the `cccl_op_t` for an operator; `state` needs to be kept alive while it is used

@@ -34,3 +34,21 @@ end
     results = fetch.([Threads.@spawn CCCL.reduce(op, x; init=0f0) for _ in 1:4])
     @test all(==(maximum(Array(x))), results)
 end
+
+@testset "throwing operators" begin
+    # CUB's kernels cannot report exceptions, so operators that throw are rejected
+    x = CuArray(Float32[1, 2, -3, 4])
+    err = try
+        CCCL.reduce((a, b) -> a < 0 ? error("negative") : a + b, x; init=0f0)
+        nothing
+    catch err
+        err
+    end
+    @test err isa ArgumentError
+    @test occursin("cannot throw exceptions", sprint(showerror, err))
+    @test occursin(basename(@__FILE__), sprint(showerror, err))
+
+    t = (1f0, 2f0, 3f0)
+    @test_throws ArgumentError CCCL.reduce((a, b) -> a + t[Int(b)], x; init=0f0)
+    @test CCCL.reduce((a, b) -> a + b * @inbounds(t[1]), x; init=0f0) == 4f0
+end
