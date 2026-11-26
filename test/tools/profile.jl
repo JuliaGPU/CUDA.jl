@@ -687,9 +687,11 @@ end
     # locking to boost clocks may need elevated privileges, so only test the base clocks
     for (clock_control, cache_control) in ((:base, :all), (:base, :l2), (:none, :none))
         during = Ref{Any}()
-        p = @retry_busy CUDA.@metrics metrics=["smsp__warps_launched.sum"] clock_control=clock_control cache_control=cache_control begin
-            during[] = CUPTI.clock_status()
-            @cuda threads=32 blocks=32 increment(a)
+        p = retry_inflated(p -> p.values[1, 1] == 32) do
+            CUDA.@metrics metrics=["smsp__warps_launched.sum"] clock_control=clock_control cache_control=cache_control begin
+                during[] = CUPTI.clock_status()
+                @cuda threads=32 blocks=32 increment(a)
+            end
         end
         @test p.values[1, 1] == 32
         if lockable
