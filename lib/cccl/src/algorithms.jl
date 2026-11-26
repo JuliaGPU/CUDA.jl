@@ -335,6 +335,69 @@ end
     return rev ? n - lo : lo
 end
 
+# the key we sort to find the permutation: NaNs are all made equal, so they stay in order
+@inline function sortperm_key(x::T) where {T}
+    u = reinterpret(radix_type(T), x)
+    T <: RadixFloat || return u
+    top = ~(typemax(u) >> 1)
+    return u & ~top > float_inf(T) ? typemax(u) : encode_float(T, u)
+end
+
+function sortperm_init_kernel(sort_keys, ix, keys)
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    if i <= length(keys)
+        @inbounds sort_keys[i] = sortperm_key(keys[i])
+        @inbounds ix[i] = i
+    end
+    return
+end
+
+"""
+    CCCL.radix_sortperm!(ix, keys; rev=false)
+
+Store in `ix` the permutation that sorts `keys`, like `sortperm!(ix, keys; rev)`, using a
+radix sort. The sort is stable, and supports the same key types as
+[`CCCL.radix_sort!`](@ref).
+"""
+function radix_sortperm!(ix::DenseCuVector{I}, keys::DenseCuVector{T};
+                         rev::Bool=false) where {I<:Integer,T}
+    n = length(keys)
+    length(ix) == n || throw(DimensionMismatch("index and keys lengths differ"))
+    n <= typemax(I) || throw(ArgumentError("index type $I cannot hold $n indices"))
+    R = radix_type(T)
+
+    # moving 32-bit indices around is much cheaper, even with widening them afterwards
+    J = sizeof(I) > 4 && n <= typemax(Int32) ? Int32 : I
+    sort_ix = J == I ? ix : CuVector{J}(undef, n)
+
+    sort_keys = CuVector{R}(undef, n)
+    if n > 0
+        kernel = @cuda launch=false sortperm_init_kernel(sort_keys, sort_ix, keys)
+        threads = min(n, launch_configuration(kernel.fun).threads)
+        kernel(sort_keys, sort_ix, keys; threads, blocks=cld(n, threads))
+    end
+    alt_keys = similar(sort_keys)
+    alt_ix = similar(sort_ix)
+    swapped = cub_radix_sort!(sort_keys, alt_keys, sort_ix, alt_ix, rev)
+    CUDACore.unsafe_free!(sort_keys)
+    CUDACore.unsafe_free!(alt_keys)
+
+    if swapped || sort_ix !== ix
+        ix .= swapped ? alt_ix : sort_ix
+    end
+    CUDACore.unsafe_free!(alt_ix)
+    sort_ix === ix || CUDACore.unsafe_free!(sort_ix)
+    return ix
+end
+
+"""
+    CCCL.radix_sortperm(keys; rev=false)
+
+Return the permutation that sorts `keys`, like `sortperm(keys; rev)`, using a radix sort.
+"""
+radix_sortperm(keys::DenseCuVector; rev::Bool=false) =
+    radix_sortperm!(CuVector{Int}(undef, length(keys)), keys; rev)
+
 
 ## merge sort
 

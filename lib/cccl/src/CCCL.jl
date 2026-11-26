@@ -15,7 +15,7 @@ import CCCL_C_jll
 
 @public functional
 @public reduce, reduce!, inclusive_scan!, exclusive_scan!, segmented_reduce!
-@public radix_sort!, merge_sort!
+@public radix_sort!, radix_sortperm!, radix_sortperm, merge_sort!
 
 const initialized = Ref{Bool}(false)
 """

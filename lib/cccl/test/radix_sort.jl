@@ -37,6 +37,8 @@ for T in (Bool, Char, Int8, UInt16, Int64, Float16, BFloat16, Float32, Float64)
             CCCL.radix_sort!(d_keys; values=d_values, rev)
             @test isequal(Array(d_keys), sort(keys; rev))
             @test Array(d_values) == sortperm(keys; rev)
+
+            @test Array(CCCL.radix_sortperm(CuArray(keys); rev)) == sortperm(keys; rev)
         end
     end
 end
@@ -61,8 +63,18 @@ end
             CCCL.radix_sort!(d_keys; values=d_values, rev)
             @test isequal(Array(d_keys), sort(keys; rev))
             @test reinterpret(U, keys[Array(d_values)]) == reinterpret(U, Array(d_keys))
+
+            # -0.0 comes before 0.0, and NaNs of any bits are equal, so stay in order
+            @test Array(CCCL.radix_sortperm(CuArray(keys); rev)) == sortperm(keys; rev)
         end
     end
+end
+
+let keys = rand(Float32, 1000), ix = CuArray{Int32}(undef, 1000)
+    @test CCCL.radix_sortperm!(ix, CuArray(keys)) === ix
+    @test Array(ix) == sortperm(keys)
+    @test_throws DimensionMismatch CCCL.radix_sortperm!(CuArray{Int32}(undef, 10), CuArray(keys))
+    @test_throws ArgumentError CCCL.radix_sortperm!(CuArray{Int8}(undef, 1000), CuArray(keys))
 end
 
 @test_throws ArgumentError CCCL.radix_sort!(CuArray(rand(Int128, 10)))
