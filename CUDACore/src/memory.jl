@@ -505,6 +505,10 @@ contains:
   `link_count`, the number of kernels loaded into a context. A kernel is loaded the first
   time it is used in a context, also when it needs no compilation because its code was
   compiled for another context or during precompilation.
+- `gpu_syncstats`: `sync_count`, the number of times the CPU synchronized with the GPU:
+  calls to `synchronize` and `device_synchronize`, and the synchronizations CUDA.jl makes
+  itself, e.g. before copying memory to the CPU, or when memory is used on another stream
+  or through its pointer.
 
 The compilation statistics cover the kernels that `cufunction`, and thus `@cuda` with the
 default backend, compiles and loads. Kernels launched from device code are compiled as part
@@ -519,6 +523,18 @@ stats = CUDA.@timed f!(y, x)
 @test stats.gpu_compilestats.compile_count == stats.gpu_compilestats.link_count == 0
 ```
 
+Explicit synchronizations always count, but CUDA.jl skips its own when the work they would
+wait for has finished. As `CUDA.@timed` synchronizes the GPU before running `ex`, testing
+that a call doesn't wait for the GPU requires keeping work running, e.g. by calling it
+twice with inputs that keep the GPU busy for a while:
+
+```julia
+stats = CUDA.@timed (f!(y, x); f!(y, x))
+@test stats.gpu_syncstats.sync_count == 0
+```
+
+Waits inside driver calls (e.g., synchronous copies) and libraries aren't counted.
+
 The statistics are shared by all tasks, so they include work done by other tasks while `ex`
 runs.
 """
@@ -526,16 +542,20 @@ macro timed(ex)
     quote
         Base.Experimental.@force_compile
 
-        # coars-graned synchronization to exclude effects from previously-executed code
+        # coarse-grained synchronization to exclude effects from previously-executed code
         device_synchronize()
 
+        local gpu_sync_stats0 = copy(sync_stats)
         local gpu_compile_stats0 = copy(compile_stats)
         local gpu_mem_stats0 = copy(alloc_stats)
         local cpu_mem_stats0 = Base.gc_num()
         local cpu_time0 = time_ns()
 
-        # fine-grained synchronization of the code under analysis
-        local val = @sync $(esc(ex))
+        local val = $(esc(ex))
+        local gpu_sync_stats1 = copy(sync_stats)
+
+        # fine-grained synchronization of the code under analysis (not counted)
+        synchronize()
 
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()
@@ -547,11 +567,13 @@ macro timed(ex)
         local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
         local gpu_mem_stats = gpu_mem_stats1 - gpu_mem_stats0
         local gpu_compile_stats = gpu_compile_stats1 - gpu_compile_stats0
+        local gpu_sync_stats = gpu_sync_stats1 - gpu_sync_stats0
 
         (value=val, time=cpu_time,
          cpu_bytes=cpu_mem_stats.allocd, cpu_gctime=cpu_mem_stats.total_time / 1e9, cpu_gcstats=cpu_mem_stats,
          gpu_bytes=gpu_mem_stats.alloc_bytes, gpu_memtime=gpu_mem_stats.total_time, gpu_memstats=gpu_mem_stats,
-         gpu_compiletime=gpu_compile_stats.compile_time, gpu_compilestats=gpu_compile_stats)
+         gpu_compiletime=gpu_compile_stats.compile_time, gpu_compilestats=gpu_compile_stats,
+         gpu_syncstats=gpu_sync_stats)
     end
 end
 @public @allocated, @time, @timed, used_memory, cached_memory, pool_status, reclaim,

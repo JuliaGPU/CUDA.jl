@@ -44,7 +44,8 @@ julia> CUDA.@time sin.(a);
 When kernels are compiled while running the expression, `CUDA.@time` also reports how many,
 and the share of the time that compiling them took. `CUDA.@timed` returns all of these
 statistics as a named tuple, e.g. for testing that a warm call doesn't compile or load any
-kernel.
+kernel. It also returns how many times the CPU synchronized with the GPU, explicitly or
+because CUDA.jl had to wait for the GPU, e.g. to copy memory to the CPU.
 
 The `CUDA.@time` macro is more user-friendly and is a generally more useful tool when
 measuring the end-to-end performance characteristics of a GPU application.

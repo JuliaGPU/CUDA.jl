@@ -1183,6 +1183,28 @@ end
 
 ############################################################################################
 
+@testset "synchronization statistics" begin
+
+# every synchronization counts once, however it waits
+for blocking in (false, true)
+    for s in (stream(), legacy_stream(), per_thread_stream())
+        @test (CUDA.@timed synchronize(s; blocking)).gpu_syncstats.sync_count == 1
+    end
+    @test (CUDA.@timed device_synchronize(; blocking)).gpu_syncstats.sync_count == 1
+end
+let e = CuEvent()
+    record(e)
+    @test (CUDA.@timed synchronize(e)).gpu_syncstats.sync_count == 1
+end
+@test (CUDA.@timed synchronize(context())).gpu_syncstats.sync_count == 1
+
+# the synchronizations that `CUDA.@timed` makes itself don't count
+@test (CUDA.@timed nothing).gpu_syncstats.sync_count == 0
+
+end
+
+############################################################################################
+
 # compute-sanitizer serializes kernels, which the tests below rely on not happening
 sanitize || @testset "cooperative synchronization" begin
 
@@ -1884,6 +1906,49 @@ let a = cu([0]; device=true), s = stream(), other = CuStream()
     end
     synchronize(other)
     @test Array(a) == [43]
+end
+
+# `CUDA.@timed` counts the synchronizations that CUDA.jl makes while memory moves between
+# streams. it synchronizes the GPU first, so the gate kernel is launched in the expression.
+function timed_gated(f, stream)
+    gate .= 0
+    GC.@preserve gpu_gate with_watchdog() do
+        CUDA.@timed begin
+            @cuda stream=stream gate_kernel(gate_ptr, timeout)
+            try
+                f()
+            finally
+                open_gate()
+            end
+        end
+    end
+end
+let s = CuStream(), a = cu([0]; device=true), b = cu([0]; device=true)
+    stream!(() -> a .+= 1, s)
+    b .= a
+    synchronize()
+
+    # memory that is in use on another stream is handed off on the GPU, without waiting
+    stats = timed_gated(s) do
+        stream!(() -> a .+= 1, s)
+        b .= a
+        !gate_is_open()
+    end
+    @test stats.value
+    @test stats.gpu_syncstats.sync_count == 0
+    @test gate[2] == 0
+
+    # unless it's used through its pointer, e.g. by a library, which waits once
+    stats = timed_gated(s) do
+        stream!(() -> a .+= 1, s)
+        open_gate_during(() -> pointer(a))
+    end
+    @test stats.value
+    @test stats.gpu_syncstats.sync_count == 1
+    @test gate[2] == 0
+
+    @test Array(b) == [2]
+    @test Array(a) == [3]
 end
 
 end
