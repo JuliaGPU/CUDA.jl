@@ -214,6 +214,10 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
 - cuSOLVER's `getrs!` with 64-bit pivots checks the dimensions of its arguments.
 - Converting a `Diagonal` backed by a `CuArray` to an `Array` or `CuArray` no longer
   requires cuBLAS to be loaded; without it, these conversions fell back to scalar indexing.
+- On Julia 1.12 and 1.13, kernels compiled during precompilation that sample textures, or
+  that call `randn` with another RNG than the default device RNG or for a float type other
+  than `Float16`, `Float32` and `Float64`, are no longer dropped when the package image is
+  loaded, so they aren't compiled again in every session.
 
 *Minor changes*:
 

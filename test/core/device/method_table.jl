@@ -142,3 +142,20 @@ import GPUToolbox
 @testset "host leaks" begin
     @test isempty(GPUToolbox.Overlays.host_leaks(CUDACore))
 end
+
+# Julia 1.12 and 1.13 drop a kernel from a package image when it is loaded if the kernel
+# calls an overlay that another method of the same table intersects (JuliaLang/julia#64727),
+# so it has to be recompiled in every session. Julia records those methods as the overlay's
+# `interferences`.
+if hasfield(Method, :interferences)
+    @testset "overlays do not shadow one another" begin
+        shadowed = filter(Base.MethodList(CUDACore.method_table).ms) do m
+            I = m.interferences
+            any(i -> isassigned(I, i), eachindex(I))
+        end
+        if !isempty(shadowed)
+            @error "Overlays shadowed by other methods of the same table" shadowed
+        end
+        @test isempty(shadowed)
+    end
+end
