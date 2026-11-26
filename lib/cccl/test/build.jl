@@ -26,3 +26,11 @@
     @test err isa ErrorException
     @test occursin("Not a name of any known instruction: 'cccl'", sprint(showerror, err))
 end
+
+@testset "concurrent use" begin
+    # tasks needing the same new build wait for one of them to create it
+    x = CuArray(rand(Float32, 1000))
+    op = (a, b) -> max(abs(a), abs(b))
+    results = fetch.([Threads.@spawn CCCL.reduce(op, x; init=0f0) for _ in 1:4])
+    @test all(==(maximum(Array(x))), results)
+end

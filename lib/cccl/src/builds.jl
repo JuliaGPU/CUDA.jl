@@ -5,7 +5,8 @@
 # types involved, not on the data, so we cache them for the rest of the session.
 
 const builds = Dict{Any,Any}()
-const builds_lock = ReentrantLock()
+const builds_lock = ReentrantLock()     # guards `builds`
+const build_lock = ReentrantLock()      # held while building
 
 # how long each build took, for diagnostics
 const build_times = Pair{Any,Float64}[]
@@ -65,20 +66,29 @@ Look up the build of type `R` for `key` (on the current device), or create it by
 """
 function cached_build(builder, key, ::Type{R}) where {R}
     dev = device()
-    Base.@lock builds_lock begin
-        get!(builds, (key, dev)) do
-            cap = capability(dev)
-            result = Ref{R}()
-            include = "-I" * cccl_include_path()
-            ctk = "-I" * joinpath(toolkit_path(), "include")
-            t = @elapsed capture_diagnostics() do
-                build_config() do config
-                    builder(result, cap.major, cap.minor, include, ctk, config)
-                end
+    lookup() = Base.@lock builds_lock get(builds, (key, dev), nothing)
+    build = lookup()
+    build === nothing || return build::R
+
+    # build one at a time, without blocking lookups: concurrent builds would mix up their
+    # captured diagnostics, and all but the first one skip the precompiled headers while
+    # those are being generated
+    Base.@lock build_lock begin
+        # another task may have just built it
+        build = lookup()
+        build === nothing || return build::R
+
+        cap = capability(dev)
+        result = Ref{R}()
+        include = "-I" * cccl_include_path()
+        ctk = "-I" * joinpath(toolkit_path(), "include")
+        t = @elapsed capture_diagnostics() do
+            build_config() do config
+                builder(result, cap.major, cap.minor, include, ctk, config)
             end
-            push!(build_times, key => t)
-            result[]
-        end::R
+        end
+        push!(build_times, key => t)
+        Base.@lock builds_lock builds[(key, dev)] = result[]
     end
 end
 

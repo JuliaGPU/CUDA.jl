@@ -48,7 +48,8 @@ end
 
 # operators are compiled once per wrapper type and device
 const operators = Dict{Tuple{Type,CuDevice},Operator}()
-const operators_lock = ReentrantLock()
+const operators_lock = ReentrantLock()  # guards `operators`
+const compile_lock = ReentrantLock()    # held while compiling
 const operator_counter = Threads.Atomic{Int}(0)
 
 """
@@ -63,12 +64,19 @@ function operator(f::F, A::Type, B::Type, R::Type) where {F}
     stateless = isstateless(F)
     W = stateless ? StatelessOp{F,A,B,R} : StatefulOp{F,A,B,R}
     dev = device()
-    Base.@lock operators_lock begin
-        get!(operators, (W, dev)) do
-            name = "cccl_julia_op_$(Threads.atomic_add!(operator_counter, 1))"
-            code = compile_operator(W, stateless ? 3 : 4, name)
-            Operator(name, code, !stateless, sizeof(F), Base.datatype_alignment(F))
-        end
+    lookup() = Base.@lock operators_lock get(operators, (W, dev), nothing)
+    op = lookup()
+    op === nothing || return op
+
+    # compile without blocking lookups of other operators
+    Base.@lock compile_lock begin
+        op = lookup()
+        op === nothing || return op
+
+        name = "cccl_julia_op_$(Threads.atomic_add!(operator_counter, 1))"
+        code = compile_operator(W, stateless ? 3 : 4, name)
+        op = Operator(name, code, !stateless, sizeof(F), Base.datatype_alignment(F))
+        Base.@lock operators_lock operators[(W, dev)] = op
     end
 end
 
