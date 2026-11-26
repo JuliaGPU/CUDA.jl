@@ -27,8 +27,10 @@ end
 
 # create a cuFFT plan (cufftXtMakePlanMany) that transforms the dimensions `region` of an
 # array of size `input_size` and type `input_type` into one of type `output_type`. returns
-# the handle and the size of the work area it needs.
-function make_plan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, input_size::Dims, region)
+# the handle and the size of the work area it needs. `configure(handle)` is called before
+# the plan is made, e.g. to set callbacks.
+function make_plan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNumber}, input_size::Dims, region;
+                   configure=Returns(nothing))
     if any(diff(collect(region)) .< 1)
         throw(ArgumentError("FFT region dimensions must be in strictly increasing order; got $region"))
     end
@@ -76,6 +78,7 @@ function make_plan(output_type::Type{<:cufftNumber}, input_type::Type{<:cufftNum
 
     try
         cufftSetAutoAllocation(handle, false)
+        configure(handle)
         execution_type = promote_type(input_type, output_type)
         if region === ntuple(identity, nrank)
             # the transformed dimensions come first, followed by the batch: the default layout
@@ -142,3 +145,54 @@ end
 function release_plan(plan)
     push!(idle_handles, plan)
 end
+
+# plans with callbacks are cached separately, as their handle comes with device memory for
+# the callbacks' state. they are keyed on the callbacks' wrapper types and compiled code
+# (`nothing` for a missing callback), so that plans don't link code that is out of date.
+const CallbackHandleCacheKey = Tuple{CuContext, Type, Type, Dims, Any, Any, Any}
+function callback_handle_ctor((ctx, T, S, sz, region, callbacks...))
+    context!(ctx) do
+        handle = nothing
+        infos = Union{Nothing,CUDACore.DeviceMemory}[nothing, nothing]
+        try
+            for (i, (W, _)) in enumerate(callbacks)
+                W === nothing && continue
+                infos[i] = CUDACore.alloc(CUDACore.DeviceMemory, sizeof(state_type(W)))
+            end
+            configure(handle) = set_callbacks!(handle, callbacks, infos)
+            handle, _ = try
+                make_plan(T, S, sz, region; configure)
+            catch err
+                if err isa CUFFTError &&
+                   err.code in (CUFFT_NVJITLINK_FAILURE, CUFFT_NVRTC_FAILURE, CUFFT_INTERNAL_ERROR)
+                    error("cuFFT failed to link the callbacks into the transform")
+                end
+                rethrow()
+            end
+            worksize = Ref{Csize_t}()
+            cufftGetSize(handle, worksize)
+            done = CuEvent(CUDACore.EVENT_DISABLE_TIMING)
+            return CallbackHandle(handle, infos[1], infos[2], Int(worksize[]), done)
+        catch
+            handle === nothing || cufftDestroy(handle)
+            foreach(info -> info === nothing || CUDACore.free(info), infos)
+            rethrow()
+        end
+    end
+end
+function callback_handle_dtor((ctx, args...), h::CallbackHandle)
+    context!(ctx) do
+        cufftDestroy(h.handle)
+        h.load_info === nothing || CUDACore.free(h.load_info)
+        h.store_info === nothing || CUDACore.free(h.store_info)
+    end
+end
+const idle_callback_handles =
+    HandleCache{CallbackHandleCacheKey, CallbackHandle}(callback_handle_ctor, callback_handle_dtor)
+
+# `load` and `store` are pairs of the wrapper type and its compiled code, or `nothing`s
+function get_callback_plan(T, S, sz, region, load, store)
+    ctx = context()
+    return pop!(idle_callback_handles, (ctx, T, S, sz, region, load, store))
+end
+release_callback_plan(handle::CallbackHandle) = push!(idle_callback_handles, handle)

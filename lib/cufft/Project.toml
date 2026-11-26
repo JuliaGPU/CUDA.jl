@@ -12,9 +12,17 @@ CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 CUDA_Runtime_Discovery = "1af6417a-86b4-443c-805f-a4643ffb695f"
 CUDA_Runtime_jll = "76a88914-d11a-5bdc-97e0-2f5a05c973a2"
+GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
 GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+
+[weakdeps]
+LazyArrays = "5078a376-72f3-5289-bfd5-ec5146d43c02"
+
+[extensions]
+LazyArraysExt = "LazyArrays"
 
 [compat]
 AbstractFFTs = "0.5, 1.0"
@@ -22,7 +30,10 @@ CEnum = "0.5, 1"
 CUDACore = "=6.5.1"
 CUDA_Runtime_Discovery = "2"
 CUDA_Runtime_jll = "0.26"
+GPUCompiler = "2.24"
 GPUToolbox = "3"
+LLVM = "10"
+LazyArrays = "2"
 LinearAlgebra = "1"
 Reexport = "1.0"
 julia = "1.10"

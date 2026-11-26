@@ -32,10 +32,12 @@ include("libcufft.jl")
 # low-level wrappers
 include("error.jl")
 include("util.jl")
+include("callbacks.jl")
 include("wrappers.jl")
 
 # high-level integrations
 include("fft.jl")
+include("fusion.jl")
 
 
 function __init__()
@@ -58,6 +60,7 @@ function __init__()
     end
 
     CUDACore.register_reclaimable!(idle_handles)
+    CUDACore.register_reclaimable!(idle_callback_handles)
 
     _initialized[] = true
 end
