@@ -154,6 +154,8 @@ function radix_sort!(keys::DenseCuArray{K}; values::Union{Nothing,DenseCuArray}=
         throw(DimensionMismatch("keys and values lengths differ"))
     cccl_type(K) == CCCL_STORAGE &&
         throw(ArgumentError("CCCL.radix_sort! only supports primitive key types, got $K"))
+    # empty arrays have null pointers, which would make the build sort only keys
+    length(keys) <= 1 && return keys
     V = values === nothing ? Nothing : eltype(values)
     order = rev ? CCCL_DESCENDING : CCCL_ASCENDING
     values_it = values === nothing ? null_iterator() : iterator(values)
