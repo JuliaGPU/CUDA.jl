@@ -141,24 +141,58 @@ end
 
 
 ## radix sort
+#
+# CUB orders keys by their bits. For integers that is `isless`, but for floating-point keys
+# CUB puts NaNs with the sign bit set first and considers -0.0 equal to 0.0. We therefore
+# give CUB every key as an integer of the same size, and restore Julia's order around it.
 
-"""
-    CCCL.radix_sort!(keys; values=nothing, rev=false)
+const RadixFloat = @static if isdefined(Core, :BFloat16)
+    Union{Base.IEEEFloat,Core.BFloat16}
+else
+    Base.IEEEFloat
+end
 
-Sort `keys` (of a primitive numeric type) in place using a radix sort, optionally
-permuting `values` along.
-"""
-function radix_sort!(keys::DenseCuArray{K}; values::Union{Nothing,DenseCuArray}=nothing,
-                     rev::Bool=false) where {K}
-    values === nothing || length(values) == length(keys) ||
-        throw(DimensionMismatch("keys and values lengths differ"))
-    cccl_type(K) == CCCL_STORAGE &&
-        throw(ArgumentError("CCCL.radix_sort! only supports primitive key types, got $K"))
+# the integer type CUB sorts keys of type `T` as
+radix_type(::Type{T}) where {T<:Base.BitInteger64} = T
+radix_type(::Type{Bool}) = UInt8
+radix_type(::Type{Char}) = UInt32
+radix_type(::Type{T}) where {T<:RadixFloat} =
+    sizeof(T) == 2 ? UInt16 : sizeof(T) == 4 ? UInt32 : UInt64
+radix_type(::Type{T}) where {T} =
+    throw(ArgumentError("CCCL radix sorts do not support keys of type $T"))
+
+float_inf(::Type{T}) where {T<:Base.IEEEFloat} = Base.exponent_mask(T)
+@static if isdefined(Core, :BFloat16)
+    float_inf(::Type{Core.BFloat16}) = 0x7f80
+end
+
+# An order-preserving bijection from the bits `u` of a float of type `T` to unsigned
+# integers. Setting the sign bit of positive numbers and flipping all bits of negative ones
+# orders everything but NaNs; subtracting the code of -Inf then wraps the negative NaNs
+# around to the end, after the positive ones. NaNs end up ordered by their bits.
+@inline function encode_float(::Type{T}, u::U) where {T,U<:Unsigned}
+    top = ~(typemax(U) >> 1)
+    v = iszero(u & top) ? u | top : ~u
+    return v - ~(float_inf(T) | top)
+end
+
+@inline function decode_float(::Type{T}, v::U) where {T,U<:Unsigned}
+    top = ~(typemax(U) >> 1)
+    u = v + ~(float_inf(T) | top)
+    return iszero(u & top) ? ~u : u ⊻ top
+end
+
+# Sort `keys` (and `values`) with CUB, using `alt_keys` and `alt_values` as scratch space.
+# Returns whether the result ended up there instead of in `keys` and `values`.
+function cub_radix_sort!(keys::DenseCuArray{K}, alt_keys::DenseCuArray{K},
+                         values::Union{Nothing,DenseCuArray},
+                         alt_values::Union{Nothing,DenseCuArray}, rev::Bool) where {K}
     # empty arrays have null pointers, which would make the build sort only keys
-    length(keys) <= 1 && return keys
+    length(keys) <= 1 && return false
     V = values === nothing ? Nothing : eltype(values)
     order = rev ? CCCL_DESCENDING : CCCL_ASCENDING
     values_it = values === nothing ? null_iterator() : iterator(values)
+    alt_values_it = alt_values === nothing ? null_iterator() : iterator(alt_values)
     build = cached_build((:radix_sort, K, V, order),
                          cccl_device_radix_sort_build_result_t) do result, major, minor, include, ctk, config
         cccl_device_radix_sort_build_ex(result, order, iterator(keys), values_it, null_op,
@@ -166,23 +200,139 @@ function radix_sort!(keys::DenseCuArray{K}; values::Union{Nothing,DenseCuArray}=
                                         config)
     end
 
-    # sort into alternate buffers, letting CUB pick where the result ends up
-    alt_keys = similar(keys)
-    alt_values = values === nothing ? nothing : similar(values)
-    alt_values_it = alt_values === nothing ? null_iterator() : iterator(alt_values)
     selector = Ref{Cint}(0)
     with_temp_storage() do temp, nbytes
         cccl_device_radix_sort(build, temp, nbytes, iterator(keys), iterator(alt_keys),
                                values_it, alt_values_it, null_op, length(keys), 0,
                                8 * sizeof(K), true, selector, stream())
     end
-    if selector[] == 1
-        copyto!(keys, alt_keys)
-        values === nothing || copyto!(values, alt_values)
+    return selector[] == 1
+end
+
+"""
+    CCCL.radix_sort!(keys; values=nothing, rev=false)
+
+Sort `keys` in place using a radix sort, optionally permuting `values` along. Keys can be
+integers, `Bool`, `Char` or IEEE floating-point numbers (including `BFloat16`), and are
+ordered like `sort!` does: by `isless`, so -0.0 comes before 0.0 and NaNs come last (first
+when `rev=true`). The sort is stable, except that NaNs are ordered by their bits.
+"""
+function radix_sort!(keys::DenseCuArray{T}; values::Union{Nothing,DenseCuArray}=nothing,
+                     rev::Bool=false) where {T}
+    values === nothing || length(values) == length(keys) ||
+        throw(DimensionMismatch("keys and values lengths differ"))
+    R = radix_type(T)
+    if T <: RadixFloat && values === nothing
+        sort_float_keys!(vec(reinterpret(signed(R), keys)), T, rev)
+    elseif T <: RadixFloat
+        k = reinterpret(R, keys)
+        k .= encode_float.(T, k)
+        alt_keys = similar(k)
+        alt_values = similar(values)
+        if cub_radix_sort!(k, alt_keys, values, alt_values, rev)
+            k .= decode_float.(T, alt_keys)
+            copyto!(values, alt_values)
+        else
+            k .= decode_float.(T, k)
+        end
+        CUDACore.unsafe_free!(alt_keys)
+        CUDACore.unsafe_free!(alt_values)
+    else
+        k = reinterpret(R, keys)
+        alt_keys = similar(k)
+        alt_values = values === nothing ? nothing : similar(values)
+        if cub_radix_sort!(k, alt_keys, values, alt_values, rev)
+            copyto!(k, alt_keys)
+            values === nothing || copyto!(values, alt_values)
+        end
+        CUDACore.unsafe_free!(alt_keys)
+        alt_values === nothing || CUDACore.unsafe_free!(alt_values)
     end
-    CUDACore.unsafe_free!(alt_keys)
-    alt_values === nothing || CUDACore.unsafe_free!(alt_values)
     return keys
+end
+
+# Without values, the order of equal keys is unobservable, so we can avoid transforming the
+# keys before and after sorting them. Sorted as signed integers, floats come out as -0.0 to
+# -Inf, then negative NaNs, then 0.0 to Inf, then positive NaNs (mirrored when reversed).
+# Reversing the negative numbers in place fixes all but the negative NaNs, which are rare
+# and which we move past the positive numbers with three more reversals.
+function sort_float_keys!(keys::DenseCuVector{S}, ::Type{T}, rev::Bool) where {S<:Signed,T}
+    alt_keys = similar(keys)
+    cub_radix_sort!(keys, alt_keys, nothing, nothing, rev) && copyto!(keys, alt_keys)
+    CUDACore.unsafe_free!(alt_keys)
+
+    # each block finds the segments to reverse on its own, so needs three warps
+    threads = 256
+    sms = attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
+    blocks = clamp(cld(length(keys) ÷ 2, threads), 1, 4 * sms)
+    for phase in 1:2
+        @cuda threads blocks float_order_kernel(keys, T, rev, phase)
+    end
+    return keys
+end
+
+function float_order_kernel(keys::CuDeviceVector{S}, ::Type{T}, rev::Bool,
+                            phase::Int) where {S,T}
+    n = length(keys)
+
+    # sorted ascending, the keys are partitioned into negative numbers [0, m), negative
+    # NaNs [m, z), positive numbers [z, q) and positive NaNs [q, n)
+    counts = CuStaticSharedArray(Int, 3)
+    warp = (threadIdx().x - 1i32) ÷ 32i32 + 1i32
+    if warp <= 3
+        inf = float_inf(T) % S
+        bound = warp == 1 ? inf | typemin(S) : warp == 2 ? -one(S) : inf
+        count = count_sorted_le(keys, bound, rev)
+        laneid() == 1 && (@inbounds counts[warp] = count)
+    end
+    sync_threads()
+    m, z, q = @inbounds counts[1], counts[2], counts[3]
+
+    empty = (0, 0)
+    a, b, c = if phase == 1
+        (0, m), z > m ? (m, z) : empty, z > m ? (z, q) : empty
+    else
+        z > m ? (m, q) : empty, empty, empty
+    end
+    if rev
+        a, b, c = map(((lo, hi),) -> (n - hi, n - lo), (a, b, c))
+    end
+
+    # swap pairs of elements, one segment after the other
+    pa = (a[2] - a[1]) ÷ 2
+    pb = (b[2] - b[1]) ÷ 2
+    pc = (c[2] - c[1]) ÷ 2
+    i = (blockIdx().x - 1) * blockDim().x + threadIdx().x - 1
+    stride = gridDim().x * blockDim().x
+    while i < pa + pb + pc
+        lo, hi, j = if i < pa
+            a[1], a[2], i
+        elseif i < pa + pb
+            b[1], b[2], i - pa
+        else
+            c[1], c[2], i - pa - pb
+        end
+        x, y = lo + j + 1, hi - j
+        @inbounds keys[x], keys[y] = keys[y], keys[x]
+        i += stride
+    end
+    return
+end
+
+# The number of keys `<= bound` in `keys`, which are sorted (descending if `rev`), found
+# by a warp narrowing down the range where that predicate flips 32-fold per step.
+@inline function count_sorted_le(keys, bound, rev)
+    n = length(keys)
+    lane = laneid() - 1i32
+    lo, hi = 0, n
+    while lo < hi
+        step = cld(hi - lo, 32)
+        i = lo + (lane + 1) * step - 1
+        pred = i < hi && ((@inbounds keys[i+1]) <= bound) != rev
+        c = count_ones(vote_ballot_sync(FULL_MASK, pred))
+        lo, hi = lo + c * step, min(hi, lo + (c + 1) * step - 1)
+    end
+    return rev ? n - lo : lo
 end
 
 
