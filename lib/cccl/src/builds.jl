@@ -13,15 +13,48 @@ const build_times = Pair{Any,Float64}[]
 # whether to cache precompiled CUB headers on disk, which speeds up later builds
 const use_pch = Ref(true)
 
-# the compiler's warnings are about CUB's code, and not actionable for users
-const compile_flags = ["-w"]
-
 function build_config(f)
     pch_dir = use_pch[] ? @get_scratch!("pch") : ""
-    flags = map(flag -> reinterpret(Cstring, pointer(flag)), compile_flags)
-    config = Ref(cccl_build_config(pointer(flags), length(flags), C_NULL, 0, use_pch[],
-                                   false, reinterpret(Cstring, pointer(pch_dir))))
-    GC.@preserve pch_dir flags f(config)
+    config = Ref(cccl_build_config(C_NULL, 0, C_NULL, 0, use_pch[], false,
+                                   reinterpret(Cstring, pointer(pch_dir))))
+    GC.@preserve pch_dir f(config)
+end
+
+# HostJIT writes diagnostics to the process' stderr, while its C API only returns an error
+# code: on failure the compiler log, on success remarks about CUB's code that the build
+# config cannot silence (it ignores compile flags other than `-D`). Capture them, so that a
+# failure can report the log and a successful build stays quiet.
+const hostjit_remark = r"^(\d+ (warning|error)s? generated when compiling for |warning: <unknown>:0:0: )"
+
+function capture_diagnostics(f)
+    mktemp() do path, io
+        Libc.flush_cstdio()
+        flush(stderr)
+        saved = Libc.dup(RawFD(2))
+        Libc.dup(fd(io), RawFD(2))
+        failed = try
+            f()
+            false
+        catch err
+            err isa CuError || rethrow()
+            true
+        finally
+            Libc.flush_cstdio()
+            Libc.dup(saved, RawFD(2))
+            ccall(:close, Cint, (RawFD,), saved)
+        end
+
+        output = read(path, String)
+        failed && error("CCCL failed to build an algorithm:\n", strip(output))
+
+        # pass on what others wrote to stderr in the meantime
+        lines = split(output, '\n'; keepempty=false)
+        remarks = filter(contains(hostjit_remark), lines)
+        isempty(remarks) || @debug "HostJIT diagnostics:\n$(join(remarks, '\n'))"
+        for line in lines
+            contains(line, hostjit_remark) || println(stderr, line)
+        end
+    end
 end
 
 """
@@ -38,8 +71,10 @@ function cached_build(builder, key, ::Type{R}) where {R}
             result = Ref{R}()
             include = "-I" * cccl_include_path()
             ctk = "-I" * joinpath(toolkit_path(), "include")
-            t = @elapsed build_config() do config
-                builder(result, cap.major, cap.minor, include, ctk, config)
+            t = @elapsed capture_diagnostics() do
+                build_config() do config
+                    builder(result, cap.major, cap.minor, include, ctk, config)
+                end
             end
             push!(build_times, key => t)
             result[]
