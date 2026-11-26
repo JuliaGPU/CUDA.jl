@@ -116,6 +116,17 @@ function gate_kernel(gate::Ptr{UInt32}, cycles)
 end
 gate_timeout() = UInt64(60_000 * attribute(device(), CUDA.DEVICE_ATTRIBUTE_CLOCK_RATE))
 
+# allocate the flags for a `gate_kernel`, returning a host view and the GPU array (which the
+# caller has to keep alive). they live in pinned host memory: compute-sanitizer doesn't
+# reliably handle kernels polling pageable memory accessed through HMM, reporting invalid
+# accesses or the kernel missing the host opening the gate.
+function gate_memory(; open::Bool=false)
+    gpu_gate = CuArray{UInt32,1,CUDA.HostMemory}(undef, 3)
+    gate = unsafe_wrap(Array, gpu_gate)
+    gate .= (open, 0, 0)
+    return gate, gpu_gate
+end
+
 # a gate that isn't opened in time usually means that a task blocked its thread in a call
 # that waits for the GPU, without yielding to the task that opens the gate. to identify that
 # call, have Julia print the native backtrace of every thread (as it does on SIGUSR1) when
