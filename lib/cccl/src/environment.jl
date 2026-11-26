@@ -15,15 +15,15 @@ function configure_hostjit!()
         return false
     end
 
-    # with a newer driver loaded, e.g. the forward-compatible one, an older nvJitLink
-    # rejects the PTX that HostJIT generates as invalid input
+    # the PTX HostJIT generates declares CUB's shared temporary storage `.weak`, which the
+    # nvJitLink of CUDA 13.0 to 13.4 rejects as "bad input" (CUDA 12.9 and 13.5 accept it).
+    # The result is a cubin, so the driver only needs to support the same major version.
     major, minor = Ref{Cint}(), Ref{Cint}()
     ccall(Libdl.dlsym(handle, :nvJitLinkVersion), Cint, (Ptr{Cint}, Ptr{Cint}), major, minor)
     nvjitlink = VersionNumber(major[], minor[])
-    driver = CUDACore.driver_version()
-    if nvjitlink < VersionNumber(driver.major, driver.minor)
-        @warn """CCCL needs nvJitLink to be at least as recent as the CUDA driver, but nvJitLink $nvjitlink at $path is older than the driver (CUDA $driver).
-                 Use a newer toolkit, or disable the forward-compatible driver ([CUDA_Driver_jll] compat = "false"). CCCL.functional() will return false."""
+    if v"13" <= nvjitlink < v"13.5"
+        @warn """CCCL needs nvJitLink from CUDA 13.5 or later, but $path is from CUDA $(major[]).$(minor[]).
+                 CCCL.functional() will return false."""
         return false
     end
 
