@@ -208,8 +208,7 @@ end
     end
 
     # a stream that still has work queued isn't handed to another task
-    gate = UInt32[1, 0, 0]  # (is open, timed out, started), see `gate_kernel`
-    gpu_gate = unsafe_wrap(CuArray, gate)
+    gate, gpu_gate = gate_memory(open=true)
     gate_ptr = reinterpret(Ptr{UInt32}, pointer(gpu_gate))
     # (compiled beforehand, as loading code waits for the GPU)
     @cuda gate_kernel(gate_ptr, gate_timeout())
