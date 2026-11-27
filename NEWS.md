@@ -44,6 +44,10 @@ CUDA 13 driver. Requires CUDA_Runtime_jll 0.26 and CUDNN_jll 9.28.
   versions), and it resolves the smallest singular values of some graded matrices to a
   higher relative accuracy. Batches of matrices (3-D arrays) still use the Jacobi method
   by default.
+- Requires KernelInterface 0.5 (and so KernelAbstractions 0.10.10). `KI.sub_group_size`
+  was removed: code that needs the warp width on the host gets it from
+  `KI.sub_group_sizes(CUDABackend())`, which returns `(32,)`, and requests it when compiling
+  a kernel, with `sub_group_size = 32`. Other widths throw an `ArgumentError`.
 
 *New features*:
 

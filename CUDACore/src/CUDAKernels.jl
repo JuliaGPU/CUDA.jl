@@ -114,7 +114,11 @@ struct CompiledKernel{K,F}
     f::F
 end
 
-function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where {F,TT}
+# every kernel runs at the warp width, so a request for it is checked but not passed on:
+# `cufunction` doesn't take it, and would compile a second copy for an extra keyword.
+function KI.kernel_function(backend::CUDABackend, f::F, tt::TT=Tuple{}; name=nothing,
+                            sub_group_size::Union{Nothing,Integer}=nothing, kwargs...) where {F,TT}
+    sub_group_size === nothing || check_sub_group_size(backend, sub_group_size)
     kernel = cufunction(cudaconvert(f), tt; name, backend.always_inline, backend.fastmath, kwargs...)
     KI.Kernel(backend, CompiledKernel(kernel, f))
 end
@@ -156,8 +160,12 @@ end
 KI.max_work_group_size(::CUDABackend)::Int = 1024
 KI.max_work_group_dims(::CUDABackend)::NTuple{3, Int} = (1024, 1024, 64)
 KI.max_num_groups(::CUDABackend)::NTuple{3, Int} = (Int(typemax(Int32)), 65535, 65535)
-function KI.sub_group_size(::CUDABackend)::Int
-    warpsize(device())
+KI.sub_group_sizes(::CUDABackend) = (32,)
+@noinline function check_sub_group_size(backend::CUDABackend, width::Integer)
+    sizes = KI.sub_group_sizes(backend)
+    width in sizes ||
+        throw(ArgumentError("Sub-group size $(repr(width)) is not supported by CUDA devices, which support $sizes"))
+    return
 end
 function KI.multiprocessor_count(::CUDABackend)::Int
     Int(attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT))

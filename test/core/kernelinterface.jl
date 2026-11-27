@@ -36,6 +36,33 @@ end
     @test Array(lane) == [rem(i, 32) + 1 for i in 0:n-1]
 end
 
+function ki_max_sub_group_size_kernel(out)
+    @inbounds out[KI.get_global_id().x] = KI.get_max_sub_group_size()
+    return
+end
+
+@testset "sub-group size requests" begin
+    backend = CUDABackend()
+    @test KI.sub_group_sizes(backend) == (32,)
+
+    out = CuArray{Int}(undef, 64)
+    KI.@launch backend workgroupsize=64 sub_group_size=32 ki_max_sub_group_size_kernel(out)
+    @test all(==(32), Array(out))
+
+    # requesting the warp width compiles the same kernel as not requesting one
+    tt = Tuple{CuDeviceVector{Int, CUDACore.AS.Global}}
+    unrequested = KI.kernel_function(backend, ki_max_sub_group_size_kernel, tt)
+    @test KI.kernel_function(backend, ki_max_sub_group_size_kernel, tt;
+                             sub_group_size=32).kern.kernel === unrequested.kern.kernel
+    @test KI.kernel_function(backend, ki_max_sub_group_size_kernel, tt;
+                             sub_group_size=nothing).kern.kernel === unrequested.kern.kernel
+
+    for W in (16, 64)
+        @test_throws ArgumentError KI.kernel_function(backend, ki_max_sub_group_size_kernel, tt;
+                                                      sub_group_size=W)
+    end
+end
+
 # `shfl.sync` only uses the low 5 bits of the offset; wider offsets have to be compared before
 # they are narrowed, so that they give the thread's own value
 function ki_wide_offset_kernel(down, up, offset)
