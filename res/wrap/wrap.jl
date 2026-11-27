@@ -346,6 +346,16 @@ function main(name="all")
             include_dirs=[cuda, cutensor])
     end
 
+    # CCCL_C_jll 3.6 (the HostJIT library) is not registered yet; point `CCCL_INCLUDE_DIR`
+    # at its `include`
+    if (name == "all" || name == "cccl") && haskey(ENV, "CCCL_INCLUDE_DIR")
+        cccl = ENV["CCCL_INCLUDE_DIR"]
+        wrap("cccl", ["$cccl/cccl/c/$header" for header in readdir("$cccl/cccl/c")];
+            targets=[r"cccl/c/.*.h"],
+            include_dirs=[cuda, cccl],
+            defines=["CCCL_C_EXPERIMENTAL=1"])
+    end
+
     if cuQuantum_jll.is_available()
         cuquantum = joinpath(cuQuantum_jll.artifact_dir, "include")
 

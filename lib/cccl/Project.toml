@@ -1,0 +1,28 @@
+name = "CCCL"
+uuid = "0b924c04-aa53-4e92-a9cc-db370fa02768"
+version = "0.1.0"
+authors = ["Tim Besard <tim.besard@gmail.com>"]
+
+[workspace]
+projects = ["test"]
+
+[deps]
+CCCL_C_jll = "14f6ea6c-a097-5a94-acf5-bdf9db277d4c"
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
+GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
+GPUToolbox = "096a3bc2-3ced-46d0-87f4-dd12716f4bfc"
+LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+Scratch = "6c6a2e73-6563-6170-7368-637461726353"
+
+[compat]
+CCCL_C_jll = "3.6"
+CEnum = "0.5, 1"
+CUDACore = "=6.5.1"
+GPUCompiler = "2.18"
+GPUToolbox = "3"
+LLVM = "10"
+Libdl = "1"
+Scratch = "1"
+julia = "1.10"
