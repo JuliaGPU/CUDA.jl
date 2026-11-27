@@ -876,7 +876,8 @@ The following keyword arguments are supported:
   thread that threw it, `1` also identifies the exception and emits line number
   information, and `2` also gives a device-side stack trace and emits full debug info
   (like `nvcc -G`).
-- `fastmath`: use less precise square roots and flush denormals
+- `fastmath`: enable floating-point reassociation, flush Float32 denormals, and select
+  approximate math implementations, including libdevice's fast transcendental functions
 - `arch` and `ptx`: override the GPU architecture (matching nvcc/ptxas `-arch`) and the
   PTX ISA version to compile for. `arch` accepts either an [`SMVersion`](@ref) via the
   `sm"..."` string macro (e.g. `arch=sm"103a"` for architecture-accelerated codegen on

@@ -32,6 +32,9 @@ RandomNumbers = "e6cf234a-135c-5ec9-84dd-332b85af5143"
 ScopedValues = "7e506255-f358-4e82-b7e4-beb19740aa63"
 UnsafeAtomics = "013be700-e6cd-48c3-b4a1-df204f14c38f"
 
+[sources]
+GPUCompiler = {url = "https://github.com/JuliaGPU/GPUCompiler.jl", rev = "tb/device-libraries"}
+
 [weakdeps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
