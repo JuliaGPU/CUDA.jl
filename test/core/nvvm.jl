@@ -77,8 +77,9 @@ end
     (; GPUCompiler, LLVM) = CUDACore
     config = CUDACore.compiler_config(device(); codegen=:nvvm)
     source = GPUCompiler.methodinstance(typeof(kernel), Tuple{Ptr{Float32}})
-    ltoir, name = GPUCompiler.JuliaContext() do ctx
-        obj, meta = GPUCompiler.compile(:obj, GPUCompiler.CompilerJob(source, config))
+    # (in the IR's context, which isn't Julia's with GPUCompiler's llvmgpu toolchain)
+    job = GPUCompiler.CompilerJob(source, config)
+    ltoir, name = GPUCompiler.compile(:obj, job) do obj, meta
         obj, LLVM.name(meta.entry)
     end
     @test ltoir isa Vector{UInt8}
