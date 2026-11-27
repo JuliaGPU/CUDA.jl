@@ -16,6 +16,7 @@ import CCCL_C_jll
 @public functional
 @public reduce, reduce!, inclusive_scan!, exclusive_scan!, segmented_reduce!
 @public radix_sort!, radix_sortperm!, radix_sortperm, merge_sort!
+@public unique_by_key!, unique_by_key, unique_consecutive!, unique_consecutive
 @public unsupported, workspace_size
 
 const initialized = Ref{Bool}(false)
@@ -36,6 +37,7 @@ include("operators.jl")
 include("builds.jl")
 include("scratch.jl")
 include("algorithms.jl")
+include("unique.jl")
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
