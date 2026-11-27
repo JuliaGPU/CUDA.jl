@@ -35,6 +35,22 @@ struct StatefulOp{F,A,B,R} end
     return
 end
 
+# unary operators (e.g. predicates) drop the second operand
+struct StatelessUnaryOp{F,A,R} end
+@inline function (::StatelessUnaryOp{F,A,R})(a::OpPtr, out::OpPtr) where {F,A,R}
+    f = F.instance
+    store!(out, convert(R, f(load(A, a))))
+    return
+end
+
+struct StatefulUnaryOp{F,A,R} end
+@inline function (::StatefulUnaryOp{F,A,R})(state::OpPtr, a::OpPtr,
+                                           out::OpPtr) where {F,A,R}
+    f = load(F, state)
+    store!(out, convert(R, f(load(A, a))))
+    return
+end
+
 isstateless(F::Type) = Base.issingletontype(F)
 
 # a compiled operator, owning the memory its `cccl_op_t` refers to
@@ -54,15 +70,27 @@ const operator_counter = Threads.Atomic{Int}(0)
 
 """
     CCCL.operator(f, A, B, R) -> Operator
+    CCCL.operator(f, A, R) -> Operator
 
-Compile the binary function `f`, called with arguments of type `A` and `B` and returning a
-value convertible to `R`, to an operator for use with CCCL algorithms.
+Compile the binary function `f`, called with arguments of type `A` and `B` (or the unary
+function `f`, called with an argument of type `A`) and returning a value convertible to `R`,
+to an operator for use with CCCL algorithms.
 """
 function operator(f::F, A::Type, B::Type, R::Type) where {F}
+    W = isstateless(F) ? StatelessOp{F,A,B,R} : StatefulOp{F,A,B,R}
+    cached_operator(f, W, 3)
+end
+
+function operator(f::F, A::Type, R::Type) where {F}
+    W = isstateless(F) ? StatelessUnaryOp{F,A,R} : StatefulUnaryOp{F,A,R}
+    cached_operator(f, W, 2)
+end
+
+# `nargs` is the number of pointers a stateless wrapper `W` takes (operands and result)
+function cached_operator(f::F, W::Type, nargs::Int) where {F}
     isbitstype(F) ||
         throw(ArgumentError("CCCL operators must be bits values; $F captures non-bits state"))
     stateless = isstateless(F)
-    W = stateless ? StatelessOp{F,A,B,R} : StatefulOp{F,A,B,R}
     dev = device()
     lookup() = Base.@lock operators_lock get(operators, (W, dev), nothing)
     op = lookup()
@@ -74,7 +102,7 @@ function operator(f::F, A::Type, B::Type, R::Type) where {F}
         op === nothing || return op
 
         name = "cccl_julia_op_$(Threads.atomic_add!(operator_counter, 1))"
-        code = compile_operator(W, stateless ? 3 : 4, name)
+        code = compile_operator(W, stateless ? nargs : nargs + 1, name)
         op = Operator(name, code, !stateless, sizeof(F), Base.datatype_alignment(F))
         Base.@lock operators_lock operators[(W, dev)] = op
     end
