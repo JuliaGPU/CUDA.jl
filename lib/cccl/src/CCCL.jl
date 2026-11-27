@@ -16,6 +16,7 @@ import CCCL_C_jll
 @public functional
 @public reduce, reduce!, inclusive_scan!, exclusive_scan!, segmented_reduce!
 @public radix_sort!, radix_sortperm!, radix_sortperm, merge_sort!
+@public unsupported, workspace_size
 
 const initialized = Ref{Bool}(false)
 """
@@ -33,6 +34,7 @@ include("environment.jl")
 include("types.jl")
 include("operators.jl")
 include("builds.jl")
+include("scratch.jl")
 include("algorithms.jl")
 
 function __init__()

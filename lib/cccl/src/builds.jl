@@ -91,17 +91,3 @@ function cached_build(builder, key, ::Type{R}) where {R}
         Base.@lock builds_lock builds[(key, dev)] = result[]
     end
 end
-
-# call a CUB-style function twice: first to query the temporary storage it needs, then
-# with that storage allocated
-function with_temp_storage(f)
-    nbytes = Ref{Csize_t}(0)
-    f(C_NULL, nbytes)
-    temp = CuArray{UInt8}(undef, max(nbytes[], 1))
-    try
-        f(reinterpret(Ptr{Cvoid}, pointer(temp)), nbytes)
-    finally
-        CUDACore.unsafe_free!(temp)
-    end
-    return
-end

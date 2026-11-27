@@ -1,4 +1,8 @@
 # device-wide algorithms
+#
+# Every in-place algorithm takes a `workspace` keyword with device memory for its scratch
+# buffers (see `workspace_size`), and has an `unsupported` method telling whether it can
+# handle a call at all.
 
 function check_eltypes(op, T, xs...)
     for x in xs
@@ -7,17 +11,72 @@ function check_eltypes(op, T, xs...)
     end
 end
 
+"""
+    CCCL.workspace_size(f, args...; kwargs...) -> Int
+
+The number of bytes of device memory that the call `f(args...; kwargs...)` of one of CCCL's
+in-place algorithms needs as scratch space. Passing that much memory, as a `CuVector{UInt8}`,
+to the call's `workspace` keyword makes it allocate no device memory of its own.
+
+The size depends on the types and sizes of the arguments, not on their contents; computing
+it builds the algorithm if that has not happened yet. A workspace may be reused by
+consecutive calls, but not by calls that may run at the same time, and it must not overlap
+the arguments.
+"""
+function workspace_size end
+
+"""
+    CCCL.unsupported(f, args...; kwargs...) -> Union{Nothing,String}
+
+Why CCCL cannot perform the call `f(args...; kwargs...)`, with `f` one of its in-place
+algorithms, or `nothing` if it can. This looks at the types of the arguments and at whether
+CCCL is functional, and never builds anything. A supported call may still throw for invalid
+arguments (e.g., mismatched sizes), or when the operator turns out to throw an exception
+once it is compiled.
+"""
+unsupported(f, args...; kwargs...) = "CCCL does not provide $f"
+
+reason(reasons...) = something(reasons..., Some(nothing))
+
+function unsupported_arrays(arrays...)
+    functional() || return "CCCL is not functional"
+    for x in arrays
+        x isa DenseCuArray || return "CCCL only supports dense CuArrays, got a $(typeof(x))"
+        isbitstype(eltype(x)) ||
+            return "CCCL only supports arrays of bits types, got $(eltype(x))"
+    end
+    return nothing
+end
+
+unsupported_eltypes(x, y) = eltype(x) == eltype(y) ? nothing :
+    "CCCL requires matching element types, got $(eltype(x)) and $(eltype(y))"
+
+unsupported_operator(op) = isbitstype(typeof(op)) ? nothing :
+    "CCCL operators must be bits values; $(typeof(op)) captures non-bits state"
+
 
 ## reduce
 
 """
-    CCCL.reduce!(op, out, x; init)
+    CCCL.reduce!(op, out, x; init, workspace=nothing)
 
 Reduce `x` using the binary operator `op`, starting from `init`, and store the result in
 `out[1]`. `op` is applied to values of the element type of `out`, which must equal the one
 of `x`. The reduction is deterministic from run to run.
 """
-function reduce!(op, out::DenseCuArray{T}, x::DenseCuArray; init) where {T}
+function reduce!(op, out::DenseCuArray, x::DenseCuArray; init,
+                 workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
+    reduce_impl!(op, out, x, init, workspace)
+    return out
+end
+
+workspace_size(::typeof(reduce!), op, out::DenseCuArray, x::DenseCuArray; init) =
+    reduce_impl!(op, out, x, init, SizeQuery())
+
+unsupported(::typeof(reduce!), op, out, x; kwargs...) =
+    reason(unsupported_arrays(out, x), unsupported_eltypes(out, x), unsupported_operator(op))
+
+function reduce_impl!(op, out::DenseCuArray{T}, x::DenseCuArray, init, workspace) where {T}
     check_eltypes(:reduce!, T, x)
     length(out) >= 1 || throw(ArgumentError("output array needs to hold at least one value"))
     operator = CCCL.operator(op, T, T, T)
@@ -30,12 +89,14 @@ function reduce!(op, out::DenseCuArray{T}, x::DenseCuArray; init) where {T}
     state = op_state(op)
     init_ref = Ref{T}(init)
     GC.@preserve state init_ref begin
-        with_temp_storage() do temp, nbytes
+        cub(temp, nbytes) =
             cccl_device_reduce(build, temp, nbytes, iterator(x), iterator(out), length(x),
                                cccl_op(operator, state), cccl_value(init_ref), stream())
+        nbytes = temp_size(cub)
+        with_scratch(workspace, nbytes) do temp
+            cub(temp, Ref{Csize_t}(nbytes))
         end
     end
-    return out
 end
 
 """
@@ -52,7 +113,8 @@ end
 
 ## scan
 
-function scan!(op, y::DenseCuArray{T}, x::DenseCuArray, init, inclusive::Bool) where {T}
+function scan_impl!(op, y::DenseCuArray{T}, x::DenseCuArray, init, inclusive::Bool,
+                    workspace) where {T}
     check_eltypes(inclusive ? :inclusive_scan! : :exclusive_scan!, T, x)
     length(y) == length(x) || throw(DimensionMismatch("input and output lengths differ"))
     operator = CCCL.operator(op, T, T, T)
@@ -67,7 +129,7 @@ function scan!(op, y::DenseCuArray{T}, x::DenseCuArray, init, inclusive::Bool) w
     state = op_state(op)
     init_ref = Ref{T}(something(init, zero(T)))
     GC.@preserve state init_ref begin
-        with_temp_storage() do temp, nbytes
+        function cub(temp, nbytes)
             args = (build, temp, nbytes, iterator(x), iterator(y), length(x),
                     cccl_op(operator, state))
             if init === nothing
@@ -78,37 +140,76 @@ function scan!(op, y::DenseCuArray{T}, x::DenseCuArray, init, inclusive::Bool) w
                 cccl_device_exclusive_scan(args..., cccl_value(init_ref), stream())
             end
         end
+        nbytes = temp_size(cub)
+        with_scratch(workspace, nbytes) do temp
+            cub(temp, Ref{Csize_t}(nbytes))
+        end
     end
-    return y
 end
 
 """
-    CCCL.inclusive_scan!(op, y, x; init=nothing)
+    CCCL.inclusive_scan!(op, y, x; init=nothing, workspace=nothing)
 
 Store the inclusive scan (prefix reduction) of `x` with the binary operator `op` in `y`,
 optionally starting from `init`.
 """
-inclusive_scan!(op, y::DenseCuArray, x::DenseCuArray; init=nothing) =
-    scan!(op, y, x, init, true)
+function inclusive_scan!(op, y::DenseCuArray, x::DenseCuArray; init=nothing,
+                         workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
+    scan_impl!(op, y, x, init, true, workspace)
+    return y
+end
+
+workspace_size(::typeof(inclusive_scan!), op, y::DenseCuArray, x::DenseCuArray;
+               init=nothing) = scan_impl!(op, y, x, init, true, SizeQuery())
 
 """
-    CCCL.exclusive_scan!(op, y, x; init)
+    CCCL.exclusive_scan!(op, y, x; init, workspace=nothing)
 
 Store the exclusive scan of `x` with the binary operator `op` in `y`, so that `y[1] == init`.
 """
-exclusive_scan!(op, y::DenseCuArray, x::DenseCuArray; init) = scan!(op, y, x, init, false)
+function exclusive_scan!(op, y::DenseCuArray, x::DenseCuArray; init,
+                         workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
+    scan_impl!(op, y, x, init, false, workspace)
+    return y
+end
+
+workspace_size(::typeof(exclusive_scan!), op, y::DenseCuArray, x::DenseCuArray; init) =
+    scan_impl!(op, y, x, init, false, SizeQuery())
+
+for f in (:inclusive_scan!, :exclusive_scan!)
+    @eval unsupported(::typeof($f), op, y, x; kwargs...) =
+        reason(unsupported_arrays(y, x), unsupported_eltypes(y, x), unsupported_operator(op))
+end
 
 
 ## segmented reduce
 
 """
-    CCCL.segmented_reduce!(op, out, x, offsets; init)
+    CCCL.segmented_reduce!(op, out, x, offsets; init, workspace=nothing)
 
 Reduce the segments `x[offsets[i]+1:offsets[i+1]]` of `x` (with zero-based `offsets`, as
 in CSR sparse matrices) using `op`, starting from `init`, and store the results in `out`.
 """
-function segmented_reduce!(op, out::DenseCuArray{T}, x::DenseCuArray,
-                           offsets::DenseCuVector{I}; init) where {T,I<:Integer}
+function segmented_reduce!(op, out::DenseCuArray, x::DenseCuArray, offsets::DenseCuVector;
+                           init, workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
+    segmented_reduce_impl!(op, out, x, offsets, init, workspace)
+    return out
+end
+
+workspace_size(::typeof(segmented_reduce!), op, out::DenseCuArray, x::DenseCuArray,
+               offsets::DenseCuVector; init) =
+    segmented_reduce_impl!(op, out, x, offsets, init, SizeQuery())
+
+function unsupported(::typeof(segmented_reduce!), op, out, x, offsets; kwargs...)
+    reason(unsupported_arrays(out, x, offsets), unsupported_eltypes(out, x),
+           eltype(offsets) <: Integer ? nothing :
+               "CCCL requires integer offsets, got $(eltype(offsets))",
+           unsupported_operator(op))
+end
+
+function segmented_reduce_impl!(op, out::DenseCuArray{T}, x::DenseCuArray,
+                                offsets::DenseCuVector{I}, init,
+                                workspace) where {T,I<:Integer}
     check_eltypes(:segmented_reduce!, T, x)
     nsegments = length(offsets) - 1
     length(out) >= nsegments || throw(DimensionMismatch("output array is too small"))
@@ -129,14 +230,16 @@ function segmented_reduce!(op, out::DenseCuArray{T}, x::DenseCuArray,
 
     state = op_state(op)
     GC.@preserve state init_ref begin
-        with_temp_storage() do temp, nbytes
+        cub(temp, nbytes) =
             cccl_device_segmented_reduce(build, temp, nbytes, iterator(x), iterator(out),
                                          nsegments, begin_offsets, end_offsets,
                                          cccl_op(operator, state), cccl_value(init_ref),
                                          stream())
+        nbytes = temp_size(cub)
+        with_scratch(workspace, nbytes) do temp
+            cub(temp, Ref{Csize_t}(nbytes))
         end
     end
-    return out
 end
 
 
@@ -152,14 +255,18 @@ else
     Base.IEEEFloat
 end
 
+const RadixKey = Union{Base.BitInteger64,Bool,Char,RadixFloat}
+
 # the integer type CUB sorts keys of type `T` as
 radix_type(::Type{T}) where {T<:Base.BitInteger64} = T
 radix_type(::Type{Bool}) = UInt8
 radix_type(::Type{Char}) = UInt32
 radix_type(::Type{T}) where {T<:RadixFloat} =
     sizeof(T) == 2 ? UInt16 : sizeof(T) == 4 ? UInt32 : UInt64
-radix_type(::Type{T}) where {T} =
-    throw(ArgumentError("CCCL radix sorts do not support keys of type $T"))
+radix_type(::Type{T}) where {T} = throw(ArgumentError(unsupported_radix_key(T)))
+
+unsupported_radix_key(T) = T <: RadixKey ? nothing :
+    "CCCL radix sorts do not support keys of type $T"
 
 float_inf(::Type{T}) where {T<:Base.IEEEFloat} = Base.exponent_mask(T)
 @static if isdefined(Core, :BFloat16)
@@ -182,73 +289,101 @@ end
     return iszero(u & top) ? ~u : u ⊻ top
 end
 
-# Sort `keys` (and `values`) with CUB, using `alt_keys` and `alt_values` as scratch space.
-# Returns whether the result ended up there instead of in `keys` and `values`.
-function cub_radix_sort!(keys::DenseCuArray{K}, alt_keys::DenseCuArray{K},
-                         values::Union{Nothing,DenseCuArray},
-                         alt_values::Union{Nothing,DenseCuArray}, rev::Bool) where {K}
-    # empty arrays have null pointers, which would make the build sort only keys
-    length(keys) <= 1 && return false
-    V = values === nothing ? Nothing : eltype(values)
+# The CUB radix sort of `n` keys of type `K`, and values of type `V` unless that is
+# `Nothing`. Returns a function `cub_sort!(temp, keys, alt_keys, values, alt_values)`, which
+# sorts the arrays using the others of the same type as scratch space and returns whether
+# the result ended up there, and the size of the temporary storage it needs. The pointers
+# are only used to describe the types to CUB, but must not be null (except for `n == 0`).
+function cub_radix_sort(::Type{K}, ::Type{V}, n::Int, rev::Bool, keys_ptr,
+                        values_ptr) where {K,V}
+    # HostJIT sorts keys only if the values pointer is null, so we never build from empty
+    # arrays: a keys-only build would be cached for sorts of pairs too
+    n > 1 || return nothing, 0
+
     order = rev ? CCCL_DESCENDING : CCCL_ASCENDING
-    values_it = values === nothing ? null_iterator() : iterator(values)
-    alt_values_it = alt_values === nothing ? null_iterator() : iterator(alt_values)
+    keys_it = pointer_iterator(K, keys_ptr)
+    values_it = V === Nothing ? null_iterator() : pointer_iterator(V, values_ptr)
     build = cached_build((:radix_sort, K, V, order),
                          cccl_device_radix_sort_build_result_t) do result, major, minor, include, ctk, config
-        cccl_device_radix_sort_build_ex(result, order, iterator(keys), values_it, null_op,
+        cccl_device_radix_sort_build_ex(result, order, keys_it, values_it, null_op,
                                         C_NULL, major, minor, C_NULL, C_NULL, include, ctk,
                                         config)
     end
 
-    selector = Ref{Cint}(0)
-    with_temp_storage() do temp, nbytes
-        cccl_device_radix_sort(build, temp, nbytes, iterator(keys), iterator(alt_keys),
-                               values_it, alt_values_it, null_op, length(keys), 0,
-                               8 * sizeof(K), true, selector, stream())
+    cub(temp, nbytes, keys, alt_keys, values, alt_values, selector) =
+        cccl_device_radix_sort(build, temp, nbytes, keys, alt_keys, values, alt_values,
+                               null_op, n, 0, 8 * sizeof(K), true, selector, stream())
+    nbytes = temp_size() do temp, nbytes
+        cub(temp, nbytes, keys_it, keys_it, values_it, values_it, Ref{Cint}(0))
     end
-    return selector[] == 1
+
+    function cub_sort!(temp, keys::DenseCuArray{K}, alt_keys::DenseCuArray{K}, values,
+                       alt_values)
+        selector = Ref{Cint}(0)
+        cub(temp, Ref{Csize_t}(nbytes), iterator(keys), iterator(alt_keys),
+            values === nothing ? null_iterator() : iterator(values),
+            alt_values === nothing ? null_iterator() : iterator(alt_values), selector)
+        return selector[] == 1
+    end
+    return cub_sort!, nbytes
 end
 
 """
-    CCCL.radix_sort!(keys; values=nothing, rev=false)
+    CCCL.radix_sort!(keys; values=nothing, rev=false, workspace=nothing)
 
 Sort `keys` in place using a radix sort, optionally permuting `values` along. Keys can be
 integers, `Bool`, `Char` or IEEE floating-point numbers (including `BFloat16`), and are
 ordered like `sort!` does: by `isless`, so -0.0 comes before 0.0 and NaNs come last (first
 when `rev=true`). The sort is stable, except that NaNs are ordered by their bits.
 """
-function radix_sort!(keys::DenseCuArray{T}; values::Union{Nothing,DenseCuArray}=nothing,
-                     rev::Bool=false) where {T}
+function radix_sort!(keys::DenseCuArray; values::Union{Nothing,DenseCuArray}=nothing,
+                     rev::Bool=false, workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
+    radix_sort_impl!(keys, values, rev, workspace)
+    return keys
+end
+
+workspace_size(::typeof(radix_sort!), keys::DenseCuArray;
+               values::Union{Nothing,DenseCuArray}=nothing, rev::Bool=false) =
+    radix_sort_impl!(keys, values, rev, SizeQuery())
+
+unsupported(::typeof(radix_sort!), keys; values=nothing, kwargs...) =
+    reason(unsupported_arrays(keys, something(values, keys)),
+           unsupported_radix_key(eltype(keys)))
+
+function radix_sort_impl!(keys::DenseCuArray{T}, values, rev, workspace) where {T}
     values === nothing || length(values) == length(keys) ||
         throw(DimensionMismatch("keys and values lengths differ"))
+    n = length(keys)
+    V = values === nothing ? Nothing : eltype(values)
+    values_ptr = values === nothing ? C_NULL : pointer(values)
     R = radix_type(T)
-    if T <: RadixFloat && values === nothing
-        sort_float_keys!(vec(reinterpret(signed(R), keys)), T, rev)
-    elseif T <: RadixFloat
-        k = reinterpret(R, keys)
-        k .= encode_float.(T, k)
-        alt_keys = similar(k)
-        alt_values = similar(values)
-        if cub_radix_sort!(k, alt_keys, values, alt_values, rev)
-            k .= decode_float.(T, alt_keys)
-            copyto!(values, alt_values)
-        else
-            k .= decode_float.(T, k)
+
+    # without values, floats are sorted as signed integers and fixed up afterwards
+    keys_only_float = T <: RadixFloat && values === nothing
+    K = keys_only_float ? signed(R) : R
+    cub_sort!, nbytes = cub_radix_sort(K, V, n, rev, pointer(keys), values_ptr)
+    cub_sort! === nothing && return workspace isa SizeQuery ? 0 : nothing
+
+    alt_values = Buffer{V === Nothing ? UInt8 : V}(values === nothing ? 0 : n)
+    with_scratch(workspace, nbytes, Buffer{K}(n), alt_values) do temp, alt_k, alt_v
+        k = vec(reinterpret(K, keys))
+        alt_v = values === nothing ? nothing : alt_v
+        if keys_only_float
+            cub_sort!(temp, k, alt_k, nothing, nothing) && copyto!(k, alt_k)
+            fix_float_order!(k, T, rev)
+        elseif T <: RadixFloat
+            k .= encode_float.(T, k)
+            if cub_sort!(temp, k, alt_k, values, alt_v)
+                k .= decode_float.(T, alt_k)
+                copyto!(values, alt_v)
+            else
+                k .= decode_float.(T, k)
+            end
+        elseif cub_sort!(temp, k, alt_k, values, alt_v)
+            copyto!(k, alt_k)
+            values === nothing || copyto!(values, alt_v)
         end
-        CUDACore.unsafe_free!(alt_keys)
-        CUDACore.unsafe_free!(alt_values)
-    else
-        k = reinterpret(R, keys)
-        alt_keys = similar(k)
-        alt_values = values === nothing ? nothing : similar(values)
-        if cub_radix_sort!(k, alt_keys, values, alt_values, rev)
-            copyto!(k, alt_keys)
-            values === nothing || copyto!(values, alt_values)
-        end
-        CUDACore.unsafe_free!(alt_keys)
-        alt_values === nothing || CUDACore.unsafe_free!(alt_values)
     end
-    return keys
 end
 
 # Without values, the order of equal keys is unobservable, so we can avoid transforming the
@@ -256,11 +391,7 @@ end
 # -Inf, then negative NaNs, then 0.0 to Inf, then positive NaNs (mirrored when reversed).
 # Reversing the negative numbers in place fixes all but the negative NaNs, which are rare
 # and which we move past the positive numbers with three more reversals.
-function sort_float_keys!(keys::DenseCuVector{S}, ::Type{T}, rev::Bool) where {S<:Signed,T}
-    alt_keys = similar(keys)
-    cub_radix_sort!(keys, alt_keys, nothing, nothing, rev) && copyto!(keys, alt_keys)
-    CUDACore.unsafe_free!(alt_keys)
-
+function fix_float_order!(keys::DenseCuVector{S}, ::Type{T}, rev::Bool) where {S<:Signed,T}
     # each block finds the segments to reverse on its own, so needs three warps
     threads = 256
     sms = attribute(device(), CUDACore.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
@@ -353,14 +484,32 @@ function sortperm_init_kernel(sort_keys, ix, keys)
 end
 
 """
-    CCCL.radix_sortperm!(ix, keys; rev=false)
+    CCCL.radix_sortperm!(ix, keys; rev=false, workspace=nothing)
 
 Store in `ix` the permutation that sorts `keys`, like `sortperm!(ix, keys; rev)`, using a
 radix sort. The sort is stable, and supports the same key types as
 [`CCCL.radix_sort!`](@ref).
 """
-function radix_sortperm!(ix::DenseCuVector{I}, keys::DenseCuVector{T};
-                         rev::Bool=false) where {I<:Integer,T}
+function radix_sortperm!(ix::DenseCuVector, keys::DenseCuVector; rev::Bool=false,
+                         workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
+    radix_sortperm_impl!(ix, keys, rev, workspace)
+    return ix
+end
+
+workspace_size(::typeof(radix_sortperm!), ix::DenseCuVector, keys::DenseCuVector;
+               rev::Bool=false) = radix_sortperm_impl!(ix, keys, rev, SizeQuery())
+
+function unsupported(::typeof(radix_sortperm!), ix, keys; kwargs...)
+    reason(unsupported_arrays(ix, keys),
+           keys isa AbstractVector && ix isa AbstractVector ? nothing :
+               "CCCL radix sortperms only support vectors",
+           eltype(ix) <: Base.BitInteger ? nothing :
+               "CCCL radix sortperms need integer indices, got $(eltype(ix))",
+           unsupported_radix_key(eltype(keys)))
+end
+
+function radix_sortperm_impl!(ix::DenseCuVector{I}, keys::DenseCuVector{T}, rev,
+                              workspace) where {I<:Integer,T}
     n = length(keys)
     length(ix) == n || throw(DimensionMismatch("index and keys lengths differ"))
     n <= typemax(I) || throw(ArgumentError("index type $I cannot hold $n indices"))
@@ -368,26 +517,25 @@ function radix_sortperm!(ix::DenseCuVector{I}, keys::DenseCuVector{T};
 
     # moving 32-bit indices around is much cheaper, even with widening them afterwards
     J = sizeof(I) > 4 && n <= typemax(Int32) ? Int32 : I
-    sort_ix = J == I ? ix : CuVector{J}(undef, n)
+    cub_sort!, nbytes = cub_radix_sort(R, J, n, rev, pointer(keys), pointer(ix))
+    if cub_sort! === nothing
+        workspace isa SizeQuery && return 0
+        n == 1 && fill!(ix, one(I))
+        return
+    end
 
-    sort_keys = CuVector{R}(undef, n)
-    if n > 0
+    buffers = (Buffer{R}(n), Buffer{R}(n), Buffer{J}(n), Buffer{J}(J == I ? 0 : n))
+    with_scratch(workspace, nbytes, buffers...) do temp, sort_keys, alt_keys, alt_ix, sort_ix
+        sort_ix = J == I ? ix : sort_ix
         kernel = @cuda launch=false sortperm_init_kernel(sort_keys, sort_ix, keys)
         threads = min(n, launch_configuration(kernel.fun).threads)
         kernel(sort_keys, sort_ix, keys; threads, blocks=cld(n, threads))
-    end
-    alt_keys = similar(sort_keys)
-    alt_ix = similar(sort_ix)
-    swapped = cub_radix_sort!(sort_keys, alt_keys, sort_ix, alt_ix, rev)
-    CUDACore.unsafe_free!(sort_keys)
-    CUDACore.unsafe_free!(alt_keys)
 
-    if swapped || sort_ix !== ix
-        ix .= swapped ? alt_ix : sort_ix
+        swapped = cub_sort!(temp, sort_keys, alt_keys, sort_ix, alt_ix)
+        if swapped || sort_ix !== ix
+            ix .= swapped ? alt_ix : sort_ix
+        end
     end
-    CUDACore.unsafe_free!(alt_ix)
-    sort_ix === ix || CUDACore.unsafe_free!(sort_ix)
-    return ix
 end
 
 """
@@ -402,42 +550,57 @@ radix_sortperm(keys::DenseCuVector; rev::Bool=false) =
 ## merge sort
 
 """
-    CCCL.merge_sort!(keys; lt=isless, values=nothing)
+    CCCL.merge_sort!(keys; lt=isless, values=nothing, workspace=nothing)
 
 Sort `keys` in place using a merge sort with the comparison function `lt`, optionally
 permuting `values` along.
 """
-function merge_sort!(keys::DenseCuArray{K}; lt=isless,
-                     values::Union{Nothing,DenseCuArray}=nothing) where {K}
+function merge_sort!(keys::DenseCuArray; lt=isless,
+                     values::Union{Nothing,DenseCuArray}=nothing,
+                     workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
+    merge_sort_impl!(keys, lt, values, workspace)
+    return keys
+end
+
+workspace_size(::typeof(merge_sort!), keys::DenseCuArray; lt=isless,
+               values::Union{Nothing,DenseCuArray}=nothing) =
+    merge_sort_impl!(keys, lt, values, SizeQuery())
+
+unsupported(::typeof(merge_sort!), keys; lt=isless, values=nothing, kwargs...) =
+    reason(unsupported_arrays(keys, something(values, keys)), unsupported_operator(lt))
+
+function merge_sort_impl!(keys::DenseCuArray{K}, lt, values, workspace) where {K}
     values === nothing || length(values) == length(keys) ||
         throw(DimensionMismatch("keys and values lengths differ"))
+    n = length(keys)
+    # like radix sorts, merge sorts would sort keys only if built from empty values
+    n > 1 || return workspace isa SizeQuery ? 0 : nothing
     V = values === nothing ? Nothing : eltype(values)
     operator = CCCL.operator(lt, K, K, Bool)
 
-    out_keys = similar(keys)
-    out_values = values === nothing ? nothing : similar(values)
     values_it = values === nothing ? null_iterator() : iterator(values)
-    out_values_it = out_values === nothing ? null_iterator() : iterator(out_values)
     build = cached_build((:merge_sort, K, V, operator.name),
                          cccl_device_merge_sort_build_result_t) do result, major, minor, include, ctk, config
-        cccl_device_merge_sort_build_ex(result, iterator(keys), values_it, iterator(out_keys),
-                                        out_values_it, cccl_op(operator), major, minor,
+        cccl_device_merge_sort_build_ex(result, iterator(keys), values_it, iterator(keys),
+                                        values_it, cccl_op(operator), major, minor,
                                         C_NULL, C_NULL, include, ctk, config)
     end
 
     state = op_state(lt)
     GC.@preserve state begin
-        with_temp_storage() do temp, nbytes
-            cccl_device_merge_sort(build, temp, nbytes, iterator(keys), values_it,
-                                   iterator(out_keys), out_values_it, length(keys),
-                                   cccl_op(operator, state), stream())
+        cub(temp, nbytes, out_keys, out_values) =
+            cccl_device_merge_sort(build, temp, nbytes, iterator(keys), values_it, out_keys,
+                                   out_values, n, cccl_op(operator, state), stream())
+        nbytes = temp_size() do temp, nbytes
+            cub(temp, nbytes, iterator(keys), values_it)
+        end
+
+        out_values = Buffer{V === Nothing ? UInt8 : V}(values === nothing ? 0 : n)
+        with_scratch(workspace, nbytes, Buffer{K}(n), out_values) do temp, out_k, out_v
+            out_v_it = values === nothing ? null_iterator() : iterator(out_v)
+            cub(temp, Ref{Csize_t}(nbytes), iterator(out_k), out_v_it)
+            copyto!(keys, out_k)
+            values === nothing || copyto!(values, out_v)
         end
     end
-    copyto!(keys, out_keys)
-    CUDACore.unsafe_free!(out_keys)
-    if values !== nothing
-        copyto!(values, out_values)
-        CUDACore.unsafe_free!(out_values)
-    end
-    return keys
 end
