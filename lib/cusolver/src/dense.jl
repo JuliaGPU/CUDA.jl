@@ -52,7 +52,8 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
     @eval begin
         function legacy_potrs!(uplo::Char,
                                A::StridedCuMatrix{$elty},
-                               B::StridedCuVecOrMat{$elty})
+                               B::StridedCuVecOrMat{$elty};
+                               check::Bool=CHECK_LIBRARY_CALLS[])
             chkuplo(uplo)
             n = checksquare(A)
             if size(B, 1) != n
@@ -65,8 +66,10 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
 
             $fname(dh, uplo, n, nrhs, A, lda, B, ldb, dh.info)
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             B
         end
@@ -79,7 +82,8 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
                             (:cusolverDnZpotri_bufferSize, :cusolverDnZpotri, :ComplexF64))
     @eval begin
         function potri!(uplo::Char,
-                        A::StridedCuMatrix{$elty})
+                        A::StridedCuMatrix{$elty};
+                        check::Bool=CHECK_LIBRARY_CALLS[])
             chkuplo(uplo)
             n = checksquare(A)
             lda = max(1, stride(A, 2))
@@ -96,8 +100,10 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             A
         end
@@ -145,7 +151,8 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
                             (:cusolverDnCgeqrf_bufferSize, :cusolverDnCgeqrf, :ComplexF32),
                             (:cusolverDnZgeqrf_bufferSize, :cusolverDnZgeqrf, :ComplexF64))
     @eval begin
-        function legacy_geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty})
+        function legacy_geqrf!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty};
+                               check::Bool=CHECK_LIBRARY_CALLS[])
             m, n = size(A)
             lda  = max(1, stride(A, 2))
             dh = dense_handle()
@@ -161,8 +168,10 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             A, tau
         end
@@ -247,7 +256,8 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
         function getrs!(trans::Char,
                         A::StridedCuMatrix{$elty},
                         ipiv::CuVector{Cint},
-                        B::StridedCuVecOrMat{$elty})
+                        B::StridedCuVecOrMat{$elty};
+                        check::Bool=CHECK_LIBRARY_CALLS[])
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
@@ -267,8 +277,10 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
 
             $fname(dh, trans, n, nrhs, A, lda, ipiv, B, ldb, dh.info)
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             B
         end
@@ -472,7 +484,8 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                         A::StridedCuMatrix{$elty},
                         tau::CuVector{$elty},
                         C::StridedCuVecOrMat{$elty};
-                        blocksize::Union{Nothing,Integer}=nothing)
+                        blocksize::Union{Nothing,Integer}=nothing,
+                        check::Bool=CHECK_LIBRARY_CALLS[])
 
             # Support transa = 'C' for real matrices
             trans = $elty <: Real && trans == 'C' ? 'T' : trans
@@ -523,8 +536,10 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             C
         end
@@ -538,7 +553,8 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
                              (:cusolverDnZungqr_bufferSize, :cusolverDnZungqr, :ComplexF64))
     @eval begin
         function orgqr!(A::StridedCuMatrix{$elty}, tau::CuVector{$elty};
-                        blocksize::Union{Nothing,Integer}=nothing)
+                        blocksize::Union{Nothing,Integer}=nothing,
+                        check::Bool=CHECK_LIBRARY_CALLS[])
             m = size(A , 1)
             n = min(m, size(A, 2))
             lda = max(1, stride(A, 2))
@@ -571,8 +587,10 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
                            buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
                 end
 
-                info = @allowscalar dh.info[1]
-                chkargsok(BlasInt(info))
+                if check
+                    info = @allowscalar dh.info[1]
+                    chkargsok(BlasInt(info))
+                end
             end
 
             if n < size(A, 2)
@@ -590,7 +608,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
                                     (:cusolverDnCgebrd_bufferSize, :cusolverDnCgebrd, :ComplexF32, :Float32),
                                     (:cusolverDnZgebrd_bufferSize, :cusolverDnZgebrd, :ComplexF64, :Float64))
     @eval begin
-        function gebrd!(A::StridedCuMatrix{$elty})
+        function gebrd!(A::StridedCuMatrix{$elty}; check::Bool=CHECK_LIBRARY_CALLS[])
             m, n = size(A)
             lda  = max(1, stride(A, 2))
             dh = dense_handle()
@@ -612,8 +630,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             A, D, E, TAUQ, TAUP
         end
@@ -627,7 +647,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
     @eval begin
         function legacy_gesvd!(jobu::Char,
                                jobvt::Char,
-                               A::StridedCuMatrix{$elty})
+                               A::StridedCuMatrix{$elty};
+                               check::Bool=CHECK_LIBRARY_CALLS[])
             m, n = size(A)
             (m < n) && throw(ArgumentError("CUSOLVER's gesvd requires m ≥ n"))
             k = min(m, n)
@@ -669,8 +690,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             end
             unsafe_free!(rwork)
 
-            info = @allowscalar dh.info[1]
-            chklapackerror(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chklapackerror(BlasInt(info))
+            end
 
             return U, S, Vt
         end
@@ -721,7 +744,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                          econ::Bool,
                          A::StridedCuMatrix{$elty};
                          tol::Real=gesvdj_tol(A),
-                         max_sweeps::Int=100)
+                         max_sweeps::Int=100,
+                         check::Bool=CHECK_LIBRARY_CALLS[])
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
             gesvdj_fits(jobz, econ, A) ||
@@ -764,8 +788,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                            buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[])
                 end
 
-                info = @allowscalar dh.info[1]
-                chklapackerror(BlasInt(info))
+                if check
+                    info = @allowscalar dh.info[1]
+                    chklapackerror(BlasInt(info))
+                end
             finally
                 cusolverDnDestroyGesvdjInfo(params[])
             end
@@ -783,7 +809,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
         function gesvdjBatched!(jobz::Char,
                                 A::StridedCuArray{$elty,3};
                          tol::Real=gesvdj_tol(A),
-                         max_sweeps::Int=100)
+                         max_sweeps::Int=100,
+                         check::Bool=CHECK_LIBRARY_CALLS[])
             m, n, batchSize = size(A)
             if m > 32 || n > 32
                 throw(ArgumentError("CUSOLVER's gesvdjBatched currently requires m <=32 and n <= 32"))
@@ -822,9 +849,11 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdjBatched_bufferSize, :cuso
 
                 # cuSOLVER documents info[i] = min(m, n) + 1 for a matrix that did not
                 # converge, although the versions we tested never set it
-                info = @allowscalar collect(dh.info)
-                for i = 1:batchSize
-                    chklapackerror(BlasInt(info[i]))
+                if check
+                    info = @allowscalar collect(dh.info)
+                    for i = 1:batchSize
+                        chklapackerror(BlasInt(info[i]))
+                    end
                 end
             finally
                 cusolverDnDestroyGesvdjInfo(params[])
@@ -842,7 +871,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
     @eval begin
         function gesvdaStridedBatched!(jobz::Char,
                                        A::StridedCuArray{$elty,3};
-                         rank::Int=min(size(A,1), size(A,2)))
+                         rank::Int=min(size(A,1), size(A,2)),
+                         check::Bool=CHECK_LIBRARY_CALLS[])
             m, n, batchSize = size(A)
             if m < n
                 throw(ArgumentError("CUSOLVER's gesvda currently requires m >= n"))
@@ -885,10 +915,12 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdaStridedBatched_bufferSize
             # computing singular vectors of a matrix whose rank is below `rank` fails,
             # returning NaN columns. without vectors, a positive info is no failure:
             # cuSOLVER 11.7.3 to 12.2 report the same matrices, with correct values.
-            check = jobz == 'V' ? chklapackerror : chkargsok
-            info = @allowscalar collect(dh.info)
-            for i = 1:batchSize
-                check(BlasInt(info[i]))
+            if check
+                chk = jobz == 'V' ? chklapackerror : chkargsok
+                info = @allowscalar collect(dh.info)
+                for i = 1:batchSize
+                    chk(BlasInt(info[i]))
+                end
             end
 
             U, S, V
@@ -903,7 +935,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSsyevd_bufferSize, :cusolverDnSs
     @eval begin
         function legacy_syevd!(jobz::Char,
                         uplo::Char,
-                        A::StridedCuMatrix{$elty})
+                        A::StridedCuMatrix{$elty};
+                        check::Bool=CHECK_LIBRARY_CALLS[])
             chkuplo(uplo)
             n   = checksquare(A)
             lda = max(1, stride(A, 2))
@@ -921,8 +954,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSsyevd_bufferSize, :cusolverDnSs
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             if jobz == 'N'
                 return W
@@ -942,7 +977,8 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
                         jobz::Char,
                         uplo::Char,
                         A::StridedCuMatrix{$elty},
-                        B::StridedCuMatrix{$elty})
+                        B::StridedCuMatrix{$elty};
+                        check::Bool=CHECK_LIBRARY_CALLS[])
             chkuplo(uplo)
             nA, nB  = checksquare(A, B)
             if nB != nA
@@ -965,8 +1001,10 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info)
             end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             if jobz == 'N'
                 return W
@@ -988,7 +1026,8 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
                         A::StridedCuMatrix{$elty},
                         B::StridedCuMatrix{$elty};
                         tol::$relty=eps($relty),
-                        max_sweeps::Int=100)
+                        max_sweeps::Int=100,
+                        check::Bool=CHECK_LIBRARY_CALLS[])
             chkuplo(uplo)
             nA, nB  = checksquare(A, B)
             if nB != nA
@@ -1016,8 +1055,10 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
                        buffer, sizeof(buffer) ÷ sizeof($elty), dh.info, params[])
             end
 
-            info = @allowscalar dh.info[1]
-            chkargsok(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chkargsok(BlasInt(info))
+            end
 
             cusolverDnDestroySyevjInfo(params[])
 
@@ -1039,7 +1080,8 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
                         uplo::Char,
                         A::StridedCuArray{$elty};
                         tol::$relty=eps($relty),
-                        max_sweeps::Int=100)
+                        max_sweeps::Int=100,
+                        check::Bool=CHECK_LIBRARY_CALLS[])
 
             # Set up information for the solver arguments
             chkuplo(uplo)
@@ -1071,11 +1113,13 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             end
 
             # Copy the solver info and delete the device memory
-            info = @allowscalar collect(dh.info)
+            if check
+                info = @allowscalar collect(dh.info)
 
-            # Double check the solver's exit status
-            for i = 1:batchSize
-                chkargsok(BlasInt(info[i]))
+                # Double check the solver's exit status
+                for i = 1:batchSize
+                    chkargsok(BlasInt(info[i]))
+                end
             end
 
             cusolverDnDestroySyevjInfo(params[])
@@ -1097,7 +1141,8 @@ for (fname, elty) in ((:cusolverDnSpotrsBatched, :Float32),
     @eval begin
         function potrsBatched!(uplo::Char,
                                A::Vector{<:StridedCuMatrix{$elty}},
-                               B::Vector{<:StridedCuVecOrMat{$elty}})
+                               B::Vector{<:StridedCuVecOrMat{$elty}};
+                               check::Bool=CHECK_LIBRARY_CALLS[])
             if length(A) != length(B)
                 throw(DimensionMismatch(""))
             end
@@ -1125,8 +1170,10 @@ for (fname, elty) in ((:cusolverDnSpotrsBatched, :Float32),
             $fname(dh, uplo, n, nrhs, Aptrs, lda, Bptrs, ldb, dh.info, batchSize)
 
             # Copy the solver info and delete the device memory
-            info = @allowscalar dh.info[1]
-            chklapackerror(BlasInt(info))
+            if check
+                info = @allowscalar dh.info[1]
+                chklapackerror(BlasInt(info))
+            end
 
             return B
         end
@@ -1173,7 +1220,8 @@ end
 # gesv
 function gesv!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Bool=true,
                residual_history::Bool=false, irs_precision::String="AUTO", refinement_solver::String="CLASSICAL",
-               maxiters::Int=0, maxiters_inner::Int=0, tol::Float64=0.0, tol_inner=Float64=0.0) where T <: BlasFloat
+               maxiters::Int=0, maxiters_inner::Int=0, tol::Float64=0.0, tol_inner=Float64=0.0,
+               check::Bool=CHECK_LIBRARY_CALLS[]) where T <: BlasFloat
 
     params = CuSolverIRSParameters()
     info = CuSolverIRSInformation()
@@ -1218,8 +1266,10 @@ function gesv!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Boo
     end
 
     # Copy the solver flag and delete the device memory
-    flag = @allowscalar dh.info[1]
-    chklapackerror(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chklapackerror(flag |> BlasInt)
+    end
 
     return X, info
 end
@@ -1227,7 +1277,8 @@ end
 # gels
 function gels!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Bool=true,
                residual_history::Bool=false, irs_precision::String="AUTO", refinement_solver::String="CLASSICAL",
-               maxiters::Int=0, maxiters_inner::Int=0, tol::Float64=0.0, tol_inner=Float64=0.0) where T <: BlasFloat
+               maxiters::Int=0, maxiters_inner::Int=0, tol::Float64=0.0, tol_inner=Float64=0.0,
+               check::Bool=CHECK_LIBRARY_CALLS[]) where T <: BlasFloat
 
     params = CuSolverIRSParameters()
     info = CuSolverIRSInformation()
@@ -1272,8 +1323,10 @@ function gels!(X::CuVecOrMat{T}, A::CuMatrix{T}, B::CuVecOrMat{T}; fallback::Boo
     end
 
     # Copy the solver flag and delete the device memory
-    flag = @allowscalar dh.info[1]
-    chklapackerror(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chklapackerror(flag |> BlasInt)
+    end
 
     return X, info
 end
