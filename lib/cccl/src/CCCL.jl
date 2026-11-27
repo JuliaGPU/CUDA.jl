@@ -18,6 +18,7 @@ import CCCL_C_jll
 @public radix_sort!, radix_sortperm!, radix_sortperm, merge_sort!
 @public unique_by_key!, unique_by_key, unique_consecutive!, unique_consecutive
 @public segmented_sort!, segmented_sortperm!, segmented_sortperm
+@public three_way_partition!, select!, filter, partition!, partition
 @public unsupported, workspace_size
 
 const initialized = Ref{Bool}(false)
@@ -37,9 +38,11 @@ include("types.jl")
 include("operators.jl")
 include("builds.jl")
 include("scratch.jl")
+include("iterators.jl")
 include("algorithms.jl")
 include("unique.jl")
 include("segmented_sort.jl")
+include("partition.jl")
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0

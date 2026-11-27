@@ -50,7 +50,7 @@ function capture_diagnostics(f)
 
         # pass on what others wrote to stderr in the meantime
         lines = split(output, '\n'; keepempty=false)
-        remarks = filter(contains(hostjit_remark), lines)
+        remarks = Base.filter(contains(hostjit_remark), lines)
         isempty(remarks) || @debug "HostJIT diagnostics:\n$(join(remarks, '\n'))"
         for line in lines
             contains(line, hostjit_remark) || println(stderr, line)

@@ -141,11 +141,11 @@ function throw_site((_, frames, _))
     runtime = dirname(pathof(CUDACore))
     last = findlast(frame -> startswith(String(frame.file), runtime), frames)
     last === nothing || (frames = frames[last+1:end])
-    filter(frame -> !(frame.file in (Symbol(@__FILE__), :unknown)), frames)
+    Base.filter(frame -> !(frame.file in (Symbol(@__FILE__), :unknown)), frames)
 end
 
 function throwing_operator_error(err::InvalidIRError)
-    sites = filter(!isempty, map(throw_site, err.errors))
+    sites = Base.filter(!isempty, map(throw_site, err.errors))
     frames = isempty(sites) ? StackTraces.StackFrame[] : first(sites)
 
     msg = "CCCL operators cannot throw exceptions, but this one can"

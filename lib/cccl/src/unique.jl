@@ -1,52 +1,6 @@
 # unique by key: compacting runs of consecutive equal keys
 
 
-## custom iterators
-#
-# CUB only selects keys together with values, so keys-only uniques give it values from an
-# iterator that yields zeros and store them through one that drops them. HostJIT generates
-# such iterators around device functions that advance their state by an offset and load or
-# store a value, all through pointers:
-#
-#     void advance(void *state, const void *offset);
-#     void dereference(const void *state, T *result);   // input iterators
-#     void dereference(void *state, const void *value); // output iterators
-#
-# These need no state, but HostJIT copies some anyway.
-
-struct NoAdvance end
-@inline (::NoAdvance)(state::OpPtr, offset::OpPtr) = nothing
-
-struct LoadZero end
-@inline (::LoadZero)(state::OpPtr, result::OpPtr) = (store!(result, 0x00); nothing)
-
-struct Discard end
-@inline (::Discard)(state::OpPtr, value::OpPtr) = nothing
-
-# compiled once per device, in the cache of operators
-function iterator_function(W::Type)
-    dev = device()
-    lookup() = Base.@lock operators_lock get(operators, (W, dev), nothing)
-    op = lookup()
-    op === nothing || return op
-    Base.@lock compile_lock begin
-        op = lookup()
-        op === nothing || return op
-        name = "cccl_julia_op_$(Threads.atomic_add!(operator_counter, 1))"
-        op = Operator(name, compile_operator(W, 2, name), false, 0, 0)
-        Base.@lock operators_lock operators[(W, dev)] = op
-    end
-end
-
-# an iterator of `UInt8` values with the functions `advance` and `dereference`; `state`
-# needs to be kept alive while it is used
-function custom_iterator(advance::Operator, dereference::Operator, state::Base.RefValue)
-    cccl_iterator_t(sizeof(state[]), Base.datatype_alignment(typeof(state[])), CCCL_ITERATOR,
-                    cccl_op(advance), cccl_op(dereference), type_info(UInt8),
-                    Base.unsafe_convert(Ptr{Cvoid}, state), C_NULL)
-end
-
-
 ## implementation
 
 overlaps(x::DenseCuArray, y::DenseCuArray) = !isempty(x) && !isempty(y) &&
@@ -54,11 +8,11 @@ overlaps(x::DenseCuArray, y::DenseCuArray) = !isempty(x) && !isempty(y) &&
     UInt(pointer(y)) < UInt(pointer(x)) + sizeof(x)
 
 # the types CUB can write the number of runs as
-const CountType = Base.BitInteger64
+const RunCount = Base.BitInteger64
 
 unsupported_count(count) = count === nothing ||
     (count isa AbstractVector && isconcretetype(eltype(count)) &&
-     eltype(count) <: CountType) ? nothing :
+     eltype(count) <: RunCount) ? nothing :
     "CCCL uniques need a vector of (at most 64-bit) integers as count"
 
 function check_unique_arrays(f, outputs, inputs, count)
@@ -109,17 +63,16 @@ function unique_impl!(keys_out::DenseCuVector, values_out, keys::DenseCuVector{K
     V = values === nothing ? :keys_only : eltype(values)
     operator = CCCL.operator(eq, K, K, Bool)
     state = op_state(eq)
-    iterator_state = Ref(0x00)
+    # CUB only selects keys together with values, so give keys-only uniques zeros as values
+    # and discard them afterwards
     values_in, values_out_it = if values === nothing
-        advance = iterator_function(NoAdvance)
-        (custom_iterator(advance, iterator_function(LoadZero), iterator_state),
-         custom_iterator(advance, iterator_function(Discard), iterator_state))
+        zeros_iterator(UInt8), discard_iterator(UInt8)
     else
         iterator(values), iterator(values_out)
     end
     count_it(ptr) = pointer_iterator(I, ptr)
 
-    GC.@preserve keys values keys_out values_out count state iterator_state begin
+    GC.@preserve keys values keys_out values_out count state begin
         # builds only need a non-null pointer for the count
         build = cached_build((:unique_by_key, K, V, I, operator.name),
                              cccl_device_unique_by_key_build_result_t) do result, major, minor, include, ctk, config
