@@ -48,8 +48,9 @@ Solve `A X = B` in place in `B`, using the Cholesky factorization of `A` compute
 
 Wraps `cusolverDnXpotrs`, or `cusolverDn<t>potrs` before cuSOLVER 11.
 """
-function potrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
-    version() < v"11" && return legacy_potrs!(uplo, A, B)
+function potrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T};
+                check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
+    version() < v"11" && return legacy_potrs!(uplo, A, B; check)
     chkuplo(uplo)
     n = checksquare(A)
     p, nrhs = size(B, 1), size(B, 2)
@@ -61,8 +62,10 @@ function potrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) wher
 
     cusolverDnXpotrs(dh, params, uplo, n, nrhs, T, A, lda, T, B, ldb, dh.info)
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
     B
 end
 
@@ -116,7 +119,8 @@ using the LU factorization `A` and pivots `ipiv` computed by [`getrf!`](@ref).
 Wraps `cusolverDnXgetrs` for 64-bit pivots, and `cusolverDn<t>getrs` for 32-bit pivots or
 before cuSOLVER 11.
 """
-function getrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+function getrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::StridedCuVecOrMat{T};
+                check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     version() < v"11" && return getrs!(trans, A, CuVector{Cint}(ipiv), B)
     # support trans = 'C' for real matrices
     trans = T <: Real && trans == 'C' ? 'T' : trans
@@ -136,8 +140,10 @@ function getrs!(trans::Char, A::StridedCuMatrix{T}, ipiv::CuVector{Int64}, B::St
 
     cusolverDnXgetrs(dh, params, trans, n, nrhs, T, A, lda, ipiv, T, B, ldb, dh.info)
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
     B
 end
 
@@ -150,8 +156,8 @@ form `Q` and [`ormqr!`](@ref) to multiply by it.
 
 Wraps `cusolverDnXgeqrf`, or `cusolverDn<t>geqrf` before cuSOLVER 11.
 """
-function geqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
-    version() < v"11" && return legacy_geqrf!(A, tau)
+function geqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
+    version() < v"11" && return legacy_geqrf!(A, tau; check)
     m, n = size(A)
     lda = max(1, stride(A, 2))
     params = CuSolverParameters()
@@ -170,15 +176,17 @@ function geqrf!(A::StridedCuMatrix{T}, tau::CuVector{T}) where {T <: BlasFloat}
                          buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
     A, tau
 end
 
-function geqrf!(A::StridedCuMatrix{T}) where {T <: BlasFloat}
+function geqrf!(A::StridedCuMatrix{T}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     m, n = size(A)
     tau = CuVector{T}(undef, min(m,n))
-    geqrf!(A, tau)
+    geqrf!(A, tau; check)
 end
 
 """
@@ -191,7 +199,8 @@ computed with `pivoting=false`.
 
 Wraps `cusolverDnXsytrs`. Requires cuSOLVER 11.2 (CUDA 11.4).
 """
-function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::StridedCuVecOrMat{T};
+                check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     version() < v"11.2" && error("This operation requires cuSOLVER 11.2 or later.")
     chkuplo(uplo)
     n = checksquare(A)
@@ -214,12 +223,15 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, p::CuVector{Int64}, B::Stride
                          buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
     B
 end
 
-function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) where {T <: BlasFloat}
+function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T};
+                check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     version() < v"11.2" && error("This operation requires cuSOLVER 11.2 or later.")
     chkuplo(uplo)
     n = checksquare(A)
@@ -242,8 +254,10 @@ function sytrs!(uplo::Char, A::StridedCuMatrix{T}, B::StridedCuVecOrMat{T}) wher
                          buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
     B
 end
 
@@ -255,7 +269,7 @@ for a unit diagonal, which is not read, or `'N'`.
 
 Wraps `cusolverDnXtrtri`. Requires cuSOLVER 11.2 (CUDA 11.4).
 """
-function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     version() < v"11.2" && error("This operation requires cuSOLVER 11.2 or later.")
     chkuplo(uplo)
     chkdiag(diag)
@@ -275,8 +289,10 @@ function trtri!(uplo::Char, diag::Char, A::StridedCuMatrix{T}) where {T <: BlasF
                          dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
     A
 end
 
@@ -330,8 +346,8 @@ destroyed. Throws a `LAPACKException` if the algorithm does not converge.
 
 Wraps `cusolverDnXgesvd`, or `cusolverDn<t>gesvd` before cuSOLVER 11.
 """
-function gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    version() < v"11" && return legacy_gesvd!(jobu, jobvt, A)
+function gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
+    version() < v"11" && return legacy_gesvd!(jobu, jobvt, A; check)
     m, n = size(A)
     R = real(T)
     (m < n) && throw(ArgumentError("The number of rows of A ($m) must be greater or equal to the number of columns of A ($n)"))
@@ -375,8 +391,10 @@ function gesvd!(jobu::Char, jobvt::Char, A::StridedCuMatrix{T}) where {T <: Blas
                          sizeof(buffer_gpu), buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chklapackerror(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chklapackerror(flag |> BlasInt)
+    end
     U, Σ, Vt
 end
 
@@ -390,7 +408,7 @@ estimate of the error in the singular values. `A` is destroyed.
 
 Wraps `cusolverDnXgesvdp`. Requires cuSOLVER 11.
 """
-function gesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+function gesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     m, n = size(A)
     p = min(m, n)
     R = real(T)
@@ -421,8 +439,10 @@ function gesvdp!(jobz::Char, econ::Bool, A::StridedCuMatrix{T}) where {T <: Blas
                           buffer_cpu, sizeof(buffer_cpu), dh.info, h_err_sigma)
     end
 
-    flag = @allowscalar dh.info[1]
-    chklapackerror(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chklapackerror(flag |> BlasInt)
+    end
     if jobz == 'N'
         unsafe_free!(U)
         unsafe_free!(V)
@@ -443,7 +463,7 @@ iterations. The singular vectors in `U` and `V` are only computed when `jobu` an
 Wraps `cusolverDnXgesvdr`. Requires cuSOLVER 11.1 (CUDA 11.2).
 """
 function gesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
-                  niters::Integer=2, p::Integer=2*k) where {T <: BlasFloat}
+                  niters::Integer=2, p::Integer=2*k, check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     version() < v"11.1" && error("This operation requires cuSOLVER 11.1 or later.")
     m, n = size(A)
     ℓ = min(m,n)
@@ -487,8 +507,10 @@ function gesvdr!(jobu::Char, jobv::Char, A::StridedCuMatrix{T}, k::Integer;
                           buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chklapackerror(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chklapackerror(flag |> BlasInt)
+    end
     U, Σ, V
 end
 
@@ -502,8 +524,8 @@ from the triangle selected by `uplo`, using a divide-and-conquer algorithm. With
 
 Wraps `cusolverDnXsyevd`, or `cusolverDn<t>syevd`/`cusolverDn<t>heevd` before cuSOLVER 11.
 """
-function syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
-    version() < v"11" && return legacy_syevd!(jobz, uplo, A)
+function syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
+    version() < v"11" && return legacy_syevd!(jobz, uplo, A; check)
     chkuplo(uplo)
     n = checksquare(A)
     R = real(T)
@@ -525,8 +547,10 @@ function syevd!(jobz::Char, uplo::Char, A::StridedCuMatrix{T}) where {T <: BlasF
                          buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
 
     if jobz == 'N'
         return W
@@ -547,7 +571,8 @@ result.
 Wraps `cusolverDnXsyevdx`. Requires cuSOLVER 11.
 """
 function syevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
-                  vl::Real=0.0, vu::Real=Inf, il::Integer=1, iu::Integer=0) where {T <: BlasFloat}
+                  vl::Real=0.0, vu::Real=Inf, il::Integer=1, iu::Integer=0,
+                  check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     chkuplo(uplo)
     n = checksquare(A)
     R = real(T)
@@ -576,8 +601,10 @@ function syevdx!(jobz::Char, range::Char, uplo::Char, A::StridedCuMatrix{T};
                           sizeof(buffer_gpu), buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
 
     if jobz == 'N'
         return W, h_meig[]
@@ -597,7 +624,7 @@ part of the first vector. `A` is destroyed.
 
 Wraps `cusolverDnXgeev`. Requires cuSOLVER 11.7.1 (CUDA 12.6.2).
 """
-function geev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: BlasFloat}
+function geev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     cuSOLVER.version() < v"11.7.1" && throw(ErrorException("This operation is not supported by the current CUDA version."))
     n = checksquare(A)
     VL = if jobvl == 'V'
@@ -636,8 +663,10 @@ function geev!(jobvl::Char, jobvr::Char, A::StridedCuMatrix{T}) where {T <: Blas
                         sizeof(buffer_gpu), buffer_cpu, sizeof(buffer_cpu), dh.info)
     end
 
-    flag = @allowscalar dh.info[1]
-    chkargsok(flag |> BlasInt)
+    if check
+        flag = @allowscalar dh.info[1]
+        chkargsok(flag |> BlasInt)
+    end
 
     return W, VL, VR
 end
@@ -652,7 +681,7 @@ holds the eigenvalues of matrix `i`.
 
 Wraps `cusolverDnXsyevBatched`. Requires cuSOLVER 11.7.1.
 """
-function syevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T <: BlasFloat}
+function syevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}; check::Bool=CHECK_LIBRARY_CALLS[]) where {T <: BlasFloat}
     minimum_version = v"11.7.1"
     cuSOLVER.version() < minimum_version && throw(ErrorException("This operation requires cuSOLVER
         $(minimum_version) or later. Current cuSOLVER version: $(cuSOLVER.version())."))
@@ -683,9 +712,11 @@ function syevBatched!(jobz::Char, uplo::Char, A::StridedCuArray{T, 3}) where {T 
         )
     end
 
-    info = @allowscalar collect(dh.info)
-    for i in 1:batch_size
-        chkargsok(info[i] |> BlasInt)
+    if check
+        info = @allowscalar collect(dh.info)
+        for i in 1:batch_size
+            chkargsok(info[i] |> BlasInt)
+        end
     end
 
     if jobz == 'N'

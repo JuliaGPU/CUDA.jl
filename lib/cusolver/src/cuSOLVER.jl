@@ -23,7 +23,30 @@ else
 end
 
 
-@public functional, has_cusolvermg, enable_logging, version, dense_handle, CuSolverParameters
+@public functional, has_cusolvermg, enable_logging, version, dense_handle, CuSolverParameters,
+        CHECK_LIBRARY_CALLS
+
+"""
+    CHECK_LIBRARY_CALLS::Ref{Bool}
+
+Library setting which controls whether the dense cuSOLVER wrappers check the `info` value
+reported by the library after each call. This check is implemented as an `@allowscalar`
+read of a GPU array, which forces device synchronization. The default is `Ref(true)`
+(checks are performed); this can be changed by setting
+`cuSOLVER.CHECK_LIBRARY_CALLS[] = false`, or overridden for a single call by passing the
+`check::Bool` keyword argument. The initial value can also be set with the
+`JULIA_CUSOLVER_CHECK_LIBRARY_CALLS` environment variable (`true` or `false`), which is
+read when cuSOLVER is loaded.
+
+Wrappers which return the `info` value to the caller (`potrf!`, `getrf!`, `sytrf!` and
+`potrfBatched!`), because it signals a failed factorization, always perform the check.
+
+!!! warning
+    Disabling the checks means that invalid arguments, and iterative methods that fail to
+    converge, are no longer reported. You may encounter errors later in program execution,
+    far from their original source, which will make debugging substantially more difficult.
+"""
+const CHECK_LIBRARY_CALLS = Ref(true)
 
 const _initialized = Ref{Bool}(false)
 """
@@ -296,6 +319,16 @@ end
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+
+    # read at load time, so that the value is not baked into the precompilation image
+    if haskey(ENV, "JULIA_CUSOLVER_CHECK_LIBRARY_CALLS")
+        check = tryparse(Bool, ENV["JULIA_CUSOLVER_CHECK_LIBRARY_CALLS"])
+        if check === nothing
+            @warn "Ignoring invalid value for JULIA_CUSOLVER_CHECK_LIBRARY_CALLS; expected true or false" value=ENV["JULIA_CUSOLVER_CHECK_LIBRARY_CALLS"]
+        else
+            CHECK_LIBRARY_CALLS[] = check
+        end
+    end
 
     CUDACore.functional() || return
 
