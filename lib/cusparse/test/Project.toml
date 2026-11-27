@@ -1,4 +1,5 @@
 [deps]
+AcceleratedKernels = "6a4ca0a5-0e36-4168-a932-d9be78d558f1"
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CUDACore = "bd0ed864-bdfe-4181-a5ed-ce625a5fdea2"
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -12,6 +13,10 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
+
+[sources]
+AcceleratedKernels = {url = "https://github.com/JuliaGPU/AcceleratedKernels.jl", rev = "tb/ki-0.5"}
+KernelAbstractions = {url = "https://github.com/JuliaGPU/KernelAbstractions.jl", rev = "tb/sub-group-request"}
 
 [compat]
 ParallelTestRunner = "2"

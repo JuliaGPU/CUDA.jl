@@ -24,6 +24,9 @@ EnzymeCore = "f151be2c-9106-41f4-ab19-57ee4f262869"
 [extensions]
 EnzymeCoreExt = "EnzymeCore"
 
+[sources]
+GPUArrays = {url = "https://github.com/JuliaGPU/GPUArrays.jl", rev = "tb/ki-0.5"}
+
 [compat]
 Adapt = "4.4"
 BFloat16s = "0.5, 0.6"

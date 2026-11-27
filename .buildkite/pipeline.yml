@@ -28,9 +28,16 @@ steps:
           queue: "cuda"
         commands: |
           echo -e "[CUDA_Runtime_jll]\nlocal = \"true\"\n\n[CUDA_Compiler_jll]\nlocal = \"true\"" >LocalPreferences.toml
+          # XXX: KernelInterface 0.5 and the GPUArrays and AcceleratedKernels that support it
+          #      aren't registered yet. they have to be developed in the same Pkg operation as
+          #      CUDACore, whose compat excludes the registered versions.
+          git clone --depth 1 --branch tb/sub-group-request https://github.com/JuliaGPU/KernelAbstractions.jl ka
+          git clone --depth 1 --branch tb/ki-0.5 https://github.com/JuliaGPU/GPUArrays.jl gpuarrays
+          git clone --depth 1 --branch tb/ki-0.5 https://github.com/JuliaGPU/AcceleratedKernels.jl ak
           julia --project=. -e '
             using Pkg
             Pkg.develop([PackageSpec(; path) for path in (
+              "ka", "ka/lib/KernelInterface", "gpuarrays", "ak",
               "CUDACore", "CUDATools", "lib/cupti", "lib/nvml",
               "lib/cublas", "lib/cusparse", "lib/cusolver", "lib/cufft", "lib/curand",
               "lib/cudnn", "lib/cutensor", "lib/cutensornet", "lib/custatevec"
