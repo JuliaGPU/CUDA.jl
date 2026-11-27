@@ -101,11 +101,10 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
         src = GPUCompiler.generic_methodinstance(
             ft, tt, job.world; method_table_view=GPUCompiler.method_table_view(job))
         cfg = CompilerConfig(job.config; kernel=false, name=nothing)
-        job = CompilerJob(src, cfg, job.world)
-        id = length(GPUCompiler.deferred_codegen_jobs) + 1
-        GPUCompiler.deferred_codegen_jobs[id] = job
+        rng_job = CompilerJob(src, cfg, job.world)
 
-        # generate IR for calls to `deferred_codegen` and the resulting function pointer
+        # call `initialize_rng_state()` in a new entry block. it returns nothing: inferring
+        # its return type natively would leave host code for it in sysimages.
         top_bb = first(entry.blocks)
         bb = BasicBlock(LLVM.before(top_bb), "initialize_rng")
         @dispose builder=IRBuilder() begin
@@ -116,30 +115,12 @@ function GPUCompiler.finish_module!(@nospecialize(job::AnyCUDAJob),
                 builder.debug_location = DILocation(0, 0, subprogram)
             end
 
-            # call the `deferred_codegen` marker function, which returns a `Ptr{Cvoid}`
-            T_ptr = convert(LLVMType, Ptr{Cvoid})
-            T_id = convert(LLVMType, Int)
-            deferred_codegen_ft = LLVM.FunctionType(T_ptr, [T_id])
-            deferred_codegen = get!(mod.functions, "deferred_codegen") do
-                LLVM.Function(mod, "deferred_codegen", deferred_codegen_ft)
-            end
-            fptr = call!(builder, deferred_codegen_ft, deferred_codegen, [ConstantInt(id)])
-
-            # call the `initialize_rng_state` function, which returns nothing. inferring
-            # its return type natively would leave host code for it in sysimages.
             llvm_ft = LLVM.FunctionType(LLVM.VoidType())
-            T_fptr = LLVM.PointerType(llvm_ft)
-            fptr = if T_ptr isa LLVM.IntegerType     # Julia < 1.12 lowers `Ptr` to integers
-                inttoptr!(builder, fptr, T_fptr)
-            else
-                pointercast!(builder, fptr, T_fptr)
-            end
+            fptr = GPUCompiler.deferred_codegen!(builder, rng_job)
+            fptr = pointercast!(builder, fptr, LLVM.PointerType(llvm_ft))
             call!(builder, llvm_ft, fptr)
             br!(builder, top_bb)
         end
-
-        # XXX: put some of the above behind GPUCompiler abstractions
-        #      (e.g., a compile-time version of `deferred_codegen`)
     end
     return entry
 end
