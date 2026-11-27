@@ -113,12 +113,36 @@ end
 
 ## scan
 
+# The initial value of a scan: none, a host value, or a device reference whose value CUB
+# reads when the scan runs.
+scan_init_kind(::Nothing) = CCCL_NO_INIT
+scan_init_kind(::CUDACore.AbstractCuRef) = CCCL_FUTURE_VALUE_INIT
+scan_init_kind(_) = CCCL_VALUE_INIT
+
+unsupported_init(y, init, inclusive) = unsupported_init(eltype(y), typeof(init), inclusive)
+unsupported_init(T, ::Type, inclusive) = nothing
+function unsupported_init(T, R::Type{<:CUDACore.AbstractCuRef{S}}, inclusive) where {S}
+    # CCCL passes the `cub::FutureValue` to `cub::DeviceScan::InclusiveScanInit`, which has
+    # no overload for one and uses it as the value itself: every tile but the first then
+    # adds the bits of the pointer.
+    inclusive && return "CCCL cannot read the `init` of an inclusive scan from the " *
+                        "device; use `exclusive_scan!` followed by `y .= op.(y, x)`, " *
+                        "with `y` distinct from `x`"
+    # references to elements of host arrays have host pointers
+    R <: Union{CUDACore.CuRefValue,CUDACore.CuRefArray{<:Any,<:StridedCuArray}} ||
+        return "CCCL requires a device `init` to refer to device memory, got a $R"
+    S == T || return "CCCL requires a device `init` of the output's element type $T, got $S"
+    return nothing
+end
+
 function scan_impl!(op, y::DenseCuArray{T}, x::DenseCuArray, init, inclusive::Bool,
                     workspace) where {T}
     check_eltypes(inclusive ? :inclusive_scan! : :exclusive_scan!, T, x)
     length(y) == length(x) || throw(DimensionMismatch("input and output lengths differ"))
+    msg = unsupported_init(y, init, inclusive)
+    msg === nothing || throw(ArgumentError(msg))
     operator = CCCL.operator(op, T, T, T)
-    init_kind = init === nothing ? CCCL_NO_INIT : CCCL_VALUE_INIT
+    init_kind = scan_init_kind(init)
     key = (:scan, T, operator.name, inclusive, init_kind)
     build = cached_build(key, cccl_device_scan_build_result_t) do result, major, minor, include, ctk, config
         cccl_device_scan_build_ex(result, iterator(x), iterator(y), cccl_op(operator),
@@ -127,13 +151,16 @@ function scan_impl!(op, y::DenseCuArray{T}, x::DenseCuArray, init, inclusive::Bo
     end
 
     state = op_state(op)
-    init_ref = Ref{T}(something(init, zero(T)))
-    GC.@preserve state init_ref begin
+    init_ref = init isa Union{Nothing,CUDACore.AbstractCuRef} ? nothing : Ref{T}(init)
+    GC.@preserve state init init_ref begin
         function cub(temp, nbytes)
             args = (build, temp, nbytes, iterator(x), iterator(y), length(x),
                     cccl_op(operator, state))
             if init === nothing
                 cccl_device_inclusive_scan_no_init(args..., stream())
+            elseif init isa CUDACore.AbstractCuRef
+                init_it = pointer_iterator(T, Base.unsafe_convert(CuPtr{T}, init))
+                cccl_device_exclusive_scan_future_value(args..., init_it, stream())
             elseif inclusive
                 cccl_device_inclusive_scan(args..., cccl_value(init_ref), stream())
             else
@@ -151,7 +178,8 @@ end
     CCCL.inclusive_scan!(op, y, x; init=nothing, workspace=nothing)
 
 Store the inclusive scan (prefix reduction) of `x` with the binary operator `op` in `y`,
-optionally starting from `init`.
+optionally starting from `init`. Unlike for [`CCCL.exclusive_scan!`](@ref), `init` cannot
+be a device reference.
 """
 function inclusive_scan!(op, y::DenseCuArray, x::DenseCuArray; init=nothing,
                          workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
@@ -166,6 +194,18 @@ workspace_size(::typeof(inclusive_scan!), op, y::DenseCuArray, x::DenseCuArray;
     CCCL.exclusive_scan!(op, y, x; init, workspace=nothing)
 
 Store the exclusive scan of `x` with the binary operator `op` in `y`, so that `y[1] == init`.
+
+`init` may also be a device reference of the element type of `y`, such as `CuRef(v)`, or
+`CUDACore.CuRefArray(a, i)` for the element `a[i]` of a `CuArray`; `y[1]` is then its
+value. That value is read on the device when the scan executes, so it can be the result of
+work queued before on the same stream without synchronizing, and the scan can be captured
+in a CUDA graph. It must not overlap `y`. For example, to continue the inclusive scan `y1`
+of `x1` over `x2`:
+
+```julia
+CCCL.exclusive_scan!(+, y2, x2; init=CUDACore.CuRefArray(y1, length(y1)))
+y2 .+= x2
+```
 """
 function exclusive_scan!(op, y::DenseCuArray, x::DenseCuArray; init,
                          workspace::Union{Nothing,DenseCuVector{UInt8}}=nothing)
@@ -176,9 +216,10 @@ end
 workspace_size(::typeof(exclusive_scan!), op, y::DenseCuArray, x::DenseCuArray; init) =
     scan_impl!(op, y, x, init, false, SizeQuery())
 
-for f in (:inclusive_scan!, :exclusive_scan!)
-    @eval unsupported(::typeof($f), op, y, x; kwargs...) =
-        reason(unsupported_arrays(y, x), unsupported_eltypes(y, x), unsupported_operator(op))
+for (f, inclusive) in ((:inclusive_scan!, true), (:exclusive_scan!, false))
+    @eval unsupported(::typeof($f), op, y, x; init=nothing, kwargs...) =
+        reason(unsupported_arrays(y, x), unsupported_eltypes(y, x),
+               unsupported_init(y, init, $inclusive), unsupported_operator(op))
 end
 
 
