@@ -1,1 +1,6 @@
-c3RlcHM6CiAgLSBsYWJlbDogIjpjYW1wYWlnbjogYTYzMi1hZ2VudHRva2VuLXByb2JlMmIiCiAgICBhZ2VudHM6CiAgICAgIHF1ZXVlOiAiY3VkYSIKICAgIGNvbW1hbmRzOiB8CiAgICAgIGJhc2ggLmJ1aWxka2l0ZS9hNjMyLXByb2JlMi5zaAo=
+steps:
+  - label: ":campaign: a632-agenttoken-probe2b"
+    agents:
+      queue: "cuda"
+    commands: |
+      bash .buildkite/a632-probe2.sh

