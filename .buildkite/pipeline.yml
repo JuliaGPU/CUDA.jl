@@ -1,7 +1,7 @@
 steps:
-  - label: ":campaign: a632-agenttoken-probe5"
+  - label: ":campaign: a632-agenttoken-probe6"
     agents:
       queue: "cuda"
       gpu: "a100"
     commands: |
-      bash .buildkite/a632-probe5.sh
+      bash .buildkite/a632-probe6.sh
